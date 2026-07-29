@@ -11,28 +11,28 @@ PARAMETERS p_del AS CHECKBOX DEFAULT abap_false.
 START-OF-SELECTION.
   DATA(lo_service) = NEW zcl_priority_service(
     io_authorization = NEW zcl_priority_auth_sap( )
-    io_lock = NEW zcl_allocation_lock_sap( )
-    io_sink = NEW zcl_priority_sink_sap( )
-    io_log = NEW zcl_priority_log_sap( ) ).
+    io_lock          = NEW zcl_allocation_lock_sap( )
+    io_sink          = NEW zcl_priority_sink_sap( )
+    io_log           = NEW zcl_priority_log_sap( ) ).
 
   TRY.
       DATA lv_action TYPE string.
       IF p_del = abap_true.
         lo_service->remove_priority(
-          iv_material = p_matnr
-          iv_plant = p_werks
+          iv_material         = p_matnr
+          iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_sales_order = p_vbeln
-          iv_sales_item = p_posnr ).
+          iv_sales_order      = p_vbeln
+          iv_sales_item       = p_posnr ).
         lv_action = 'Priority removed'.
       ELSE.
         lo_service->set_priority(
-          iv_material = p_matnr
-          iv_plant = p_werks
+          iv_material         = p_matnr
+          iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_sales_order = p_vbeln
-          iv_sales_item = p_posnr
-          iv_priority = p_prio ).
+          iv_sales_order      = p_vbeln
+          iv_sales_item       = p_posnr
+          iv_priority         = p_prio ).
         lv_action = 'Priority saved'.
       ENDIF.
       COMMIT WORK AND WAIT.

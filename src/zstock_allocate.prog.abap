@@ -12,34 +12,34 @@ PARAMETERS p_obj TYPE zif_stock_allocation=>ty_objective DEFAULT 'S'.
 
 START-OF-SELECTION.
   DATA(lo_service) = NEW zcl_stock_allocation_service(
-    io_stock_source = NEW zcl_stock_source_sap( )
-    io_demand_source = NEW zcl_demand_source_sap( )
+    io_stock_source    = NEW zcl_stock_source_sap( )
+    io_demand_source   = NEW zcl_demand_source_sap( )
     io_allocation_sink = NEW zcl_allocation_sink_sap( )
     io_allocation_lock = NEW zcl_allocation_lock_sap( )
-    io_authorization = NEW zcl_allocation_auth_sap( )
-    io_allocation_log = NEW zcl_allocation_log_sap( ) ).
+    io_authorization   = NEW zcl_allocation_auth_sap( )
+    io_allocation_log  = NEW zcl_allocation_log_sap( ) ).
 
   TRY.
       IF p_comp = abap_true.
         DATA(lt_plans) = lo_service->preview_all_strategies(
-          iv_material = p_matnr
-          iv_plant = p_werks
+          iv_material         = p_matnr
+          iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_reserve = p_resrv
-          iv_cutoff_date = p_cutof ).
+          iv_reserve          = p_resrv
+          iv_cutoff_date      = p_cutof ).
         DATA(lv_recommended) = zcl_stock_strategy_selector=>recommend(
-          it_plans = lt_plans
+          it_plans     = lt_plans
           iv_objective = p_obj ).
         WRITE: / 'Strategy comparison (simulation only)'.
         WRITE: / 'Scope', p_matnr, p_werks, p_lgort, 'Cutoff', p_cutof.
         WRITE: / 'Objective', p_obj, 'Recommended strategy', lv_recommended.
         LOOP AT lt_plans INTO DATA(ls_compared_plan).
           DATA(ls_compared_summary) = zcl_stock_alloc_summary=>summarize(
-            it_allocations = ls_compared_plan-allocations
-            iv_stock_qty = ls_compared_plan-stock_qty
+            it_allocations     = ls_compared_plan-allocations
+            iv_stock_qty       = ls_compared_plan-stock_qty
             iv_allocatable_qty = ls_compared_plan-allocatable_qty
-            iv_reserve = ls_compared_plan-reserve_qty
-            iv_unit = ls_compared_plan-unit ).
+            iv_reserve         = ls_compared_plan-reserve_qty
+            iv_unit            = ls_compared_plan-unit ).
           WRITE: / 'Strategy', ls_compared_plan-strategy,
                    'Full', ls_compared_summary-full_count,
                    'Partial', ls_compared_summary-partial_count,
@@ -59,21 +59,21 @@ START-OF-SELECTION.
       DATA ls_plan TYPE zif_stock_allocation=>ty_plan.
       IF p_sim = abap_true.
         ls_plan = lo_service->preview_plan(
-          iv_material = p_matnr
-          iv_plant = p_werks
+          iv_material         = p_matnr
+          iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_reserve = p_resrv
-          iv_strategy = p_strat
-          iv_cutoff_date = p_cutof ).
+          iv_reserve          = p_resrv
+          iv_strategy         = p_strat
+          iv_cutoff_date      = p_cutof ).
         WRITE / 'Simulation: no allocations were persisted'.
       ELSE.
         ls_plan = lo_service->run_plan(
-          iv_material = p_matnr
-          iv_plant = p_werks
+          iv_material         = p_matnr
+          iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_reserve = p_resrv
-          iv_strategy = p_strat
-          iv_cutoff_date = p_cutof ).
+          iv_reserve          = p_resrv
+          iv_strategy         = p_strat
+          iv_cutoff_date      = p_cutof ).
         COMMIT WORK AND WAIT.
         IF sy-subrc <> 0.
           RAISE EXCEPTION NEW zcx_stock_allocation(
@@ -82,11 +82,11 @@ START-OF-SELECTION.
       ENDIF.
 
       DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-        it_allocations = ls_plan-allocations
-        iv_stock_qty = ls_plan-stock_qty
+        it_allocations     = ls_plan-allocations
+        iv_stock_qty       = ls_plan-stock_qty
         iv_allocatable_qty = ls_plan-allocatable_qty
-        iv_reserve = ls_plan-reserve_qty
-        iv_unit = ls_plan-unit ).
+        iv_reserve         = ls_plan-reserve_qty
+        iv_unit            = ls_plan-unit ).
       WRITE: / 'Scope', p_matnr, p_werks, p_lgort,
                'Strategy', ls_plan-strategy,
                'Cutoff', ls_plan-cutoff_date.

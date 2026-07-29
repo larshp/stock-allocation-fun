@@ -24,8 +24,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '10'
-      it_demands = lt_demands
-      iv_unit = 'EA' ).
+      it_demands   = lt_demands
+      iv_unit      = 'EA' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-sales_order exp = '1' ).
@@ -41,7 +41,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '5'
-      it_demands = lt_demands ).
+      it_demands   = lt_demands ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '3' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '2' ).
@@ -57,7 +57,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '5'
-      it_demands = lt_demands ).
+      it_demands   = lt_demands ).
 
     cl_abap_unit_assert=>assert_initial( lt_result ).
   ENDMETHOD.
@@ -68,7 +68,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '-1'
-      it_demands = lt_demands ).
+      it_demands   = lt_demands ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '0' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty exp = '3' ).
@@ -76,20 +76,20 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
   METHOD honors_priority_before_fifo.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         delivery_date = '20250101'
-        priority = 0
+        priority      = 0
         requested_qty = '4' )
-      ( sales_order = '2'
-        sales_item = '000010'
+      ( sales_order   = '2'
+        sales_item    = '000010'
         delivery_date = '20250110'
-        priority = 10
+        priority      = 10
         requested_qty = '3' ) ).
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '3'
-      it_demands = lt_demands ).
+      it_demands   = lt_demands ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-sales_order exp = '2' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '3' ).
@@ -103,8 +103,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '4'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_proportional ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_proportional ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '3' ).
@@ -121,8 +121,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '6'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_fair_share ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_fair_share ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '2.5' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '1' ).
@@ -137,8 +137,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '4'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_proportional ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_proportional ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '3' ).
@@ -153,8 +153,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '1'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_proportional ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_proportional ).
     DATA lv_allocated TYPE zif_stock_allocation=>ty_quantity.
     LOOP AT lt_result INTO DATA(ls_result).
       lv_allocated = lv_allocated + ls_result-allocated_qty.
@@ -174,8 +174,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '5'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_smallest_first ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_smallest_first ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '0' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '2' ).
@@ -203,8 +203,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     LOOP AT lt_strategies INTO DATA(lv_strategy).
       DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
         iv_available = '1'
-        it_demands = lt_demands
-        iv_strategy = lv_strategy ).
+        it_demands   = lt_demands
+        iv_strategy  = lv_strategy ).
 
       cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-priority exp = 9 ).
       cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '0' ).
@@ -227,8 +227,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '5'
-      it_demands = lt_demands
-      iv_strategy = zif_stock_allocation=>c_strategy_complete_only ).
+      it_demands   = lt_demands
+      iv_strategy  = zif_stock_allocation=>c_strategy_complete_only ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '0' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '3' ).
@@ -241,8 +241,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     TRY.
         NEW zcl_stock_allocator( )->allocate(
           iv_available = '1'
-          it_demands = VALUE #( )
-          iv_strategy = 'X' ).
+          it_demands   = VALUE #( )
+          iv_strategy  = 'X' ).
         cl_abap_unit_assert=>fail( 'Unknown allocation strategy must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).

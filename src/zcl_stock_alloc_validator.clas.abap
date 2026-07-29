@@ -54,8 +54,8 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
 
   METHOD validate_priority_key.
     validate_scope(
-      iv_material = iv_material
-      iv_plant = iv_plant
+      iv_material         = iv_material
+      iv_plant            = iv_plant
       iv_storage_location = iv_storage_location ).
     IF iv_sales_order IS INITIAL OR iv_sales_item IS INITIAL.
       RAISE EXCEPTION NEW zcx_stock_allocation(
@@ -93,8 +93,8 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
       ENDIF.
 
       INSERT VALUE #(
-        sales_order = ls_demand-sales_order
-        sales_item = ls_demand-sales_item
+        sales_order   = ls_demand-sales_order
+        sales_item    = ls_demand-sales_item
         schedule_line = ls_demand-schedule_line ) INTO TABLE lt_keys.
       IF sy-subrc <> 0.
         RAISE EXCEPTION NEW zcx_stock_allocation(

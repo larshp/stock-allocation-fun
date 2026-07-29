@@ -59,11 +59,11 @@ CLASS zcl_demand_source_sap IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #(
-        sales_order = ls_requirement-vbeln
-        sales_item = ls_requirement-posnr
+        sales_order   = ls_requirement-vbeln
+        sales_item    = ls_requirement-posnr
         schedule_line = ls_requirement-etenr
         delivery_date = ls_requirement-mbdat
-        priority = lv_priority
+        priority      = lv_priority
         requested_qty = ls_requirement-omeng ) TO rt_demands.
     ENDLOOP.
   ENDMETHOD.

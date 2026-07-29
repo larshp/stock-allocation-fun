@@ -20,7 +20,7 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
 
     DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
       it_allocations = lt_allocations
-      iv_reserve = '1' ).
+      iv_reserve     = '1' ).
 
     cl_abap_unit_assert=>assert_equals( act = ls_summary-demand_count exp = 3 ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-full_count exp = 1 ).
@@ -35,11 +35,11 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
 
   METHOD summarizes_empty_results.
     DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-      it_allocations = VALUE #( )
-      iv_stock_qty = '10'
+      it_allocations     = VALUE #( )
+      iv_stock_qty       = '10'
       iv_allocatable_qty = '8'
-      iv_reserve = '2'
-      iv_unit = 'EA' ).
+      iv_reserve         = '2'
+      iv_unit            = 'EA' ).
 
     cl_abap_unit_assert=>assert_equals( act = ls_summary-demand_count exp = 0 ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-stock_qty exp = '10' ).
@@ -58,10 +58,10 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
       it_allocations = VALUE #(
         ( requested_qty = '900000000000.000'
           allocated_qty = '900000000000.000'
-          status = zif_stock_allocation=>c_status_full )
+          status        = zif_stock_allocation=>c_status_full )
         ( requested_qty = '900000000000.000'
           allocated_qty = '900000000000.000'
-          status = zif_stock_allocation=>c_status_full ) ) ).
+          status        = zif_stock_allocation=>c_status_full ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-requested_qty
@@ -73,7 +73,7 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
 
   METHOD calculates_fulfillment_kpis.
     DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-      it_allocations = VALUE #(
+      it_allocations     = VALUE #(
         ( requested_qty = '2.5' allocated_qty = '2.5'
           status = zif_stock_allocation=>c_status_full )
         ( requested_qty = '2.5' allocated_qty = '2.5'

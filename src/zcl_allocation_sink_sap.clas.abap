@@ -16,24 +16,24 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lt_persisted TYPE STANDARD TABLE OF zstockalloc WITH EMPTY KEY.
     LOOP AT it_allocations INTO DATA(ls_allocation).
       APPEND VALUE zstockalloc(
-        matnr = iv_material
-        werks = iv_plant
-        lgort = iv_storage_location
-        vbeln = ls_allocation-sales_order
-        posnr = ls_allocation-sales_item
-        etenr = ls_allocation-schedule_line
-        mbdat = ls_allocation-delivery_date
-        priority = ls_allocation-priority
-        req_qty = ls_allocation-requested_qty
-        alloc_qty = ls_allocation-allocated_qty
-        short_qty = ls_allocation-shortage_qty
-        reserve_qty = ls_allocation-reserve_qty
-        meins = ls_allocation-unit
-        strategy = ls_allocation-strategy
-        cutoff_date = ls_allocation-cutoff_date
-        created_on = lv_created_on
-        created_at = lv_created_at
-        created_by = lv_created_by
+        matnr        = iv_material
+        werks        = iv_plant
+        lgort        = iv_storage_location
+        vbeln        = ls_allocation-sales_order
+        posnr        = ls_allocation-sales_item
+        etenr        = ls_allocation-schedule_line
+        mbdat        = ls_allocation-delivery_date
+        priority     = ls_allocation-priority
+        req_qty      = ls_allocation-requested_qty
+        alloc_qty    = ls_allocation-allocated_qty
+        short_qty    = ls_allocation-shortage_qty
+        reserve_qty  = ls_allocation-reserve_qty
+        meins        = ls_allocation-unit
+        strategy     = ls_allocation-strategy
+        cutoff_date  = ls_allocation-cutoff_date
+        created_on   = lv_created_on
+        created_at   = lv_created_at
+        created_by   = lv_created_by
         alloc_status = ls_allocation-status ) TO lt_persisted.
     ENDLOOP.
 

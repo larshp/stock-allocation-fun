@@ -23,12 +23,12 @@ CLASS ltcl_priority_sink_sap IMPLEMENTATION.
   METHOD saves_and_removes_priority.
     DATA(lo_sink) = NEW zcl_priority_sink_sap( ).
     lo_sink->zif_priority_sink~save(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      iv_sales_order = c_order
-      iv_sales_item = c_item
-      iv_priority = 11 ).
+      iv_sales_order      = c_order
+      iv_sales_item       = c_item
+      iv_priority         = 11 ).
 
     SELECT SINGLE *
       FROM zstockprio
@@ -45,11 +45,11 @@ CLASS ltcl_priority_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_saved-changed_by exp = sy-uname ).
 
     lo_sink->zif_priority_sink~remove(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      iv_sales_order = c_order
-      iv_sales_item = c_item ).
+      iv_sales_order      = c_order
+      iv_sales_item       = c_item ).
 
     SELECT COUNT( * )
       FROM zstockprio

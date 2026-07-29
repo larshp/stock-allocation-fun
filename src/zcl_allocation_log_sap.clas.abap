@@ -6,19 +6,19 @@ ENDCLASS.
 CLASS zcl_allocation_log_sap IMPLEMENTATION.
   METHOD zif_allocation_log~record_run.
     DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-      it_allocations = it_allocations
-      iv_stock_qty = iv_stock_qty
+      it_allocations     = it_allocations
+      iv_stock_qty       = iv_stock_qty
       iv_allocatable_qty = iv_allocatable_qty
-      iv_reserve = iv_reserve
-      iv_unit = iv_unit ).
+      iv_reserve         = iv_reserve
+      iv_unit            = iv_unit ).
 
     DATA(ls_header) = VALUE bal_s_log(
-      object = 'ZSTOCKALLOC'
+      object    = 'ZSTOCKALLOC'
       subobject = 'RUN'
       extnumber = |{ iv_material }/{ iv_plant }/{ iv_storage_location }|
-      aldate = sy-datum
-      altime = sy-uzeit
-      aluser = sy-uname ).
+      aldate    = sy-datum
+      altime    = sy-uzeit
+      aluser    = sy-uname ).
     DATA lv_handle TYPE balloghndl.
 
     CALL FUNCTION 'BAL_LOG_CREATE'

@@ -6,12 +6,12 @@ ENDCLASS.
 CLASS zcl_priority_log_sap IMPLEMENTATION.
   METHOD zif_priority_log~record_change.
     DATA(ls_header) = VALUE bal_s_log(
-      object = 'ZSTOCKALLOC'
+      object    = 'ZSTOCKALLOC'
       subobject = 'PRIORITY'
       extnumber = |{ iv_material }/{ iv_plant }/{ iv_storage_location }|
-      aldate = sy-datum
-      altime = sy-uzeit
-      aluser = sy-uname ).
+      aldate    = sy-datum
+      altime    = sy-uzeit
+      aluser    = sy-uname ).
     DATA lv_handle TYPE balloghndl.
 
     CALL FUNCTION 'BAL_LOG_CREATE'

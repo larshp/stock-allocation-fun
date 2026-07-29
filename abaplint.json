@@ -19,6 +19,7 @@
     "easy_to_find_messages": true,
     "implement_methods": true,
     "keyword_case": true,
+    "align_parameters": true,
     "max_one_method_parameter_per_line": true,
     "modify_only_own_db_tables": true,
     "parser_error": true,

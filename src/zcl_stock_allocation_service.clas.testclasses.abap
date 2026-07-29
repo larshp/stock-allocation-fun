@@ -316,18 +316,18 @@ CLASS ltcl_stock_allocation_db IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW zcl_stock_source_sap( )
-      io_demand_source = NEW zcl_demand_source_sap( )
+      io_stock_source    = NEW zcl_stock_source_sap( )
+      io_demand_source   = NEW zcl_demand_source_sap( )
       io_allocation_sink = NEW zcl_allocation_sink_sap( )
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = lo_log ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
 
     DATA(lt_result) = lo_service->run(
-      iv_material = 'ZUT-SOURCE'
-      iv_plant = 'UT01'
+      iv_material         = 'ZUT-SOURCE'
+      iv_plant            = 'UT01'
       iv_storage_location = 'UT01'
-      iv_reserve = '1' ).
+      iv_reserve          = '1' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
@@ -356,18 +356,18 @@ CLASS ltcl_stock_allocation_db IMPLEMENTATION.
   METHOD runs_cutoff_integration.
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW zcl_stock_source_sap( )
-      io_demand_source = NEW zcl_demand_source_sap( )
+      io_stock_source    = NEW zcl_stock_source_sap( )
+      io_demand_source   = NEW zcl_demand_source_sap( )
       io_allocation_sink = NEW zcl_allocation_sink_sap( )
       io_allocation_lock = NEW lcl_allocation_lock( abap_true )
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = lo_log ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
 
     DATA(lt_result) = lo_service->run(
-      iv_material = 'ZUT-SOURCE'
-      iv_plant = 'UT01'
+      iv_material         = 'ZUT-SOURCE'
+      iv_plant            = 'UT01'
       iv_storage_location = 'UT01'
-      iv_cutoff_date = '20260801' ).
+      iv_cutoff_date      = '20260801' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
@@ -375,12 +375,12 @@ CLASS ltcl_stock_allocation_db IMPLEMENTATION.
       exp = '0099999901' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '7' ).
     cl_abap_unit_assert=>assert_true( lo_log->context_matches(
-      iv_stock_qty = '12.5'
+      iv_stock_qty       = '12.5'
       iv_allocatable_qty = '12.5'
-      iv_reserve = '0'
-      iv_unit = 'EA'
-      iv_strategy = zif_stock_allocation=>c_strategy_fifo
-      iv_cutoff_date = '20260801' ) ).
+      iv_reserve         = '0'
+      iv_unit            = 'EA'
+      iv_strategy        = zif_stock_allocation=>c_strategy_fifo
+      iv_cutoff_date     = '20260801' ) ).
 
     SELECT COUNT( * )
       FROM zstockalloc
@@ -418,8 +418,8 @@ ENDCLASS.
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD orchestrates_and_saves.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '7' ) ).
@@ -428,16 +428,16 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = lo_log ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = lo_log ).
 
     DATA(lt_result) = lo_service->run(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001' ).
     DATA(lt_saved) = lo_sink->get_saved( ).
 
@@ -456,36 +456,36 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       act = lo_authorization->get_activity( )
       exp = '16' ).
     cl_abap_unit_assert=>assert_true( lo_log->context_matches(
-      iv_stock_qty = '5'
+      iv_stock_qty       = '5'
       iv_allocatable_qty = '5'
-      iv_reserve = '0'
-      iv_unit = 'EA'
-      iv_strategy = zif_stock_allocation=>c_strategy_fifo ) ).
+      iv_reserve         = '0'
+      iv_unit            = 'EA'
+      iv_strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
     cl_abap_unit_assert=>assert_true( lo_lock->request_matches(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001' ) ).
   ENDMETHOD.
 
   METHOD rechecks_latest_stock.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '7' ) ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '4' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '4' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = NEW lcl_allocation_sink( )
       io_allocation_lock = NEW lcl_allocation_lock( abap_true )
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     DATA(lt_result) = lo_service->run(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001' ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '4' ).
@@ -496,17 +496,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_allocation_sink( ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_false ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Concurrent run must be rejected' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -520,24 +520,24 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD releases_after_failure.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = NEW lcl_failing_sink( )
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Sink failure must propagate' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
         cl_abap_unit_assert=>assert_true( lo_lock->release_matches(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ) ).
         cl_abap_unit_assert=>assert_bound( lo_error->previous ).
     ENDTRY.
@@ -547,17 +547,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_allocation_sink( ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_false )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_false )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Unauthorized run must be rejected' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -572,17 +572,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_allocation_sink( ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_false ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_false ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Application log failure must reject the run' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -595,8 +595,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD previews_without_side_effects.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '3' ) ).
@@ -605,16 +605,16 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = lo_log ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = lo_log ).
 
     DATA(lt_result) = lo_service->preview(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001' ).
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '3' ).
@@ -632,17 +632,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = lo_log ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = lo_log ).
 
     TRY.
         lo_service->run(
-          iv_material = ''
-          iv_plant = '1000'
+          iv_material         = ''
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Invalid allocation scope must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -660,20 +660,20 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source(
-        iv_quantity = '5'
+      io_stock_source    = NEW lcl_stock_source(
+        iv_quantity        = '5'
         iv_latest_quantity = '5'
-        iv_unit = '' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+        iv_unit            = '' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = lo_log ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Missing material unit must reject the run' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -687,24 +687,24 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD applies_reserve_buffer.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '8' ) ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = NEW lcl_allocation_sink( )
       io_allocation_lock = NEW lcl_allocation_lock( abap_true )
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     DATA(ls_plan) = lo_service->preview_plan(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_reserve = '3' ).
+      iv_reserve          = '3' ).
     DATA(lt_result) = ls_plan-allocations.
 
     cl_abap_unit_assert=>assert_equals( act = ls_plan-stock_qty exp = '10' ).
@@ -720,19 +720,19 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = NEW lcl_allocation_sink( )
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_reserve = '-1' ).
+          iv_reserve          = '-1' ).
         cl_abap_unit_assert=>fail( 'Negative reserve must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
@@ -744,13 +744,13 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD rejects_duplicate_demands.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '2' )
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250102'
         requested_qty = '3' ) ).
@@ -758,17 +758,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = lo_log ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Duplicate demand keys must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -782,13 +782,13 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD applies_selected_strategy.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '2' )
-      ( sales_order = '2'
-        sales_item = '000010'
+      ( sales_order   = '2'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250102'
         requested_qty = '6' ) ).
@@ -796,19 +796,19 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '4' iv_latest_quantity = '4' )
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '4' iv_latest_quantity = '4' )
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = lo_log ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
 
     DATA(ls_plan) = lo_service->run_plan(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_strategy = zif_stock_allocation=>c_strategy_proportional
-      iv_cutoff_date = '20250131' ).
+      iv_strategy         = zif_stock_allocation=>c_strategy_proportional
+      iv_cutoff_date      = '20250131' ).
     DATA(lt_saved) = lo_sink->get_saved( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -820,12 +820,12 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       act = lt_saved[ 1 ]-strategy
       exp = zif_stock_allocation=>c_strategy_proportional ).
     cl_abap_unit_assert=>assert_true( lo_log->context_matches(
-      iv_stock_qty = '4'
+      iv_stock_qty       = '4'
       iv_allocatable_qty = '4'
-      iv_reserve = '0'
-      iv_unit = 'EA'
-      iv_strategy = zif_stock_allocation=>c_strategy_proportional
-      iv_cutoff_date = '20250131' ) ).
+      iv_reserve         = '0'
+      iv_unit            = 'EA'
+      iv_strategy        = zif_stock_allocation=>c_strategy_proportional
+      iv_cutoff_date     = '20250131' ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
   ENDMETHOD.
 
@@ -833,19 +833,19 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '4' iv_latest_quantity = '4' )
-      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '4' iv_latest_quantity = '4' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
       io_allocation_sink = NEW lcl_allocation_sink( )
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     TRY.
         lo_service->run(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_strategy = 'X' ).
+          iv_strategy         = 'X' ).
         cl_abap_unit_assert=>fail( 'Invalid strategy must fail before side effects' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
@@ -857,39 +857,39 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD compares_single_snapshot.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '5' )
-      ( sales_order = '2'
-        sales_item = '000010'
+      ( sales_order   = '2'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250102'
         requested_qty = '2' )
-      ( sales_order = '3'
-        sales_item = '000010'
+      ( sales_order   = '3'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250103'
         requested_qty = '3' ) ).
     DATA(lo_stock) = NEW lcl_stock_source(
-      iv_quantity = '6'
+      iv_quantity        = '6'
       iv_latest_quantity = '5' ).
     DATA(lo_sink) = NEW lcl_allocation_sink( ).
     DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
     DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = lo_stock
-      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_stock_source    = lo_stock
+      io_demand_source   = NEW lcl_demand_source( lt_demands )
       io_allocation_sink = lo_sink
       io_allocation_lock = lo_lock
-      io_authorization = lo_authorization
-      io_allocation_log = lo_log ).
+      io_authorization   = lo_authorization
+      io_allocation_log  = lo_log ).
 
     DATA(lt_plans) = lo_service->preview_all_strategies(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_plans ) exp = 5 ).
@@ -906,12 +906,12 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = zif_stock_allocation=>c_strategy_complete_only ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_strategy_selector=>recommend(
-        it_plans = lt_plans
+        it_plans     = lt_plans
         iv_objective = zif_stock_allocation=>c_objective_service )
       exp = zif_stock_allocation=>c_strategy_smallest_first ).
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_strategy_selector=>recommend(
-        it_plans = lt_plans
+        it_plans     = lt_plans
         iv_objective = zif_stock_allocation=>c_objective_fairness )
       exp = zif_stock_allocation=>c_strategy_proportional ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 1 ]-allocations[ 1 ]-allocated_qty exp = '5' ).
@@ -926,30 +926,30 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD applies_demand_cutoff.
     DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
-      ( sales_order = '1'
-        sales_item = '000010'
+      ( sales_order   = '1'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250101'
         requested_qty = '2' )
-      ( sales_order = '2'
-        sales_item = '000010'
+      ( sales_order   = '2'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250201'
         requested_qty = '3' ) ).
     DATA(lo_demands) = NEW lcl_demand_source( lt_demands ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
-      io_demand_source = lo_demands
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = lo_demands
       io_allocation_sink = NEW lcl_allocation_sink( )
       io_allocation_lock = NEW lcl_allocation_lock( abap_true )
-      io_authorization = NEW lcl_authorization( abap_true )
-      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
 
     DATA(ls_plan) = lo_service->preview_plan(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_cutoff_date = '20250131' ).
+      iv_cutoff_date      = '20250131' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( ls_plan-allocations ) exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = ls_plan-cutoff_date exp = '20250131' ).

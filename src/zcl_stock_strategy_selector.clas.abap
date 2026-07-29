@@ -28,11 +28,11 @@ CLASS zcl_stock_strategy_selector IMPLEMENTATION.
     LOOP AT it_plans INTO DATA(ls_plan).
       zcl_stock_alloc_validator=>validate_strategy( ls_plan-strategy ).
       DATA(ls_candidate) = zcl_stock_alloc_summary=>summarize(
-        it_allocations = ls_plan-allocations
-        iv_stock_qty = ls_plan-stock_qty
+        it_allocations     = ls_plan-allocations
+        iv_stock_qty       = ls_plan-stock_qty
         iv_allocatable_qty = ls_plan-allocatable_qty
-        iv_reserve = ls_plan-reserve_qty
-        iv_unit = ls_plan-unit ).
+        iv_reserve         = ls_plan-reserve_qty
+        iv_unit            = ls_plan-unit ).
       DATA lv_better TYPE abap_bool.
       CLEAR lv_better.
       IF lv_found = abap_false.

@@ -67,11 +67,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     LOOP AT lt_demands INTO DATA(ls_demand).
       IF lt_tier IS NOT INITIAL AND ls_demand-priority <> lv_tier_priority.
         DATA(lt_tier_result) = allocate_tier(
-          iv_available = lv_remaining
-          it_demands = lt_tier
-          iv_unit = iv_unit
-          iv_reserve = iv_reserve
-          iv_strategy = iv_strategy
+          iv_available   = lv_remaining
+          it_demands     = lt_tier
+          iv_unit        = iv_unit
+          iv_reserve     = iv_reserve
+          iv_strategy    = iv_strategy
           iv_cutoff_date = iv_cutoff_date ).
         LOOP AT lt_tier_result INTO DATA(ls_tier_result).
           lv_remaining = lv_remaining - ls_tier_result-allocated_qty.
@@ -92,11 +92,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
     IF lt_tier IS NOT INITIAL.
       lt_tier_result = allocate_tier(
-        iv_available = lv_remaining
-        it_demands = lt_tier
-        iv_unit = iv_unit
-        iv_reserve = iv_reserve
-        iv_strategy = iv_strategy
+        iv_available   = lv_remaining
+        it_demands     = lt_tier
+        iv_unit        = iv_unit
+        iv_reserve     = iv_reserve
+        iv_strategy    = iv_strategy
         iv_cutoff_date = iv_cutoff_date ).
       APPEND LINES OF lt_tier_result TO rt_allocations.
     ENDIF.
@@ -148,11 +148,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       ENDIF.
 
       APPEND build_result(
-        is_demand = ls_demand
-        iv_allocated = lv_allocated
-        iv_unit = iv_unit
-        iv_reserve = iv_reserve
-        iv_strategy = iv_strategy
+        is_demand      = ls_demand
+        iv_allocated   = lv_allocated
+        iv_unit        = iv_unit
+        iv_reserve     = iv_reserve
+        iv_strategy    = iv_strategy
         iv_cutoff_date = iv_cutoff_date ) TO rt_allocations.
       lv_remaining = lv_remaining - lv_allocated.
       lv_remaining_requested = lv_remaining_requested - ls_demand-requested_qty.
@@ -168,17 +168,17 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
   METHOD build_result.
     rs_allocation = VALUE #(
-      sales_order = is_demand-sales_order
-      sales_item = is_demand-sales_item
+      sales_order   = is_demand-sales_order
+      sales_item    = is_demand-sales_item
       schedule_line = is_demand-schedule_line
       delivery_date = is_demand-delivery_date
-      priority = is_demand-priority
+      priority      = is_demand-priority
       requested_qty = is_demand-requested_qty
       allocated_qty = iv_allocated
-      shortage_qty = is_demand-requested_qty - iv_allocated
-      reserve_qty = iv_reserve
-      unit = iv_unit
-      strategy = iv_strategy ).
+      shortage_qty  = is_demand-requested_qty - iv_allocated
+      reserve_qty   = iv_reserve
+      unit          = iv_unit
+      strategy      = iv_strategy ).
     rs_allocation-cutoff_date = iv_cutoff_date.
     IF iv_allocated = is_demand-requested_qty.
       rs_allocation-status = zif_stock_allocation=>c_status_full.

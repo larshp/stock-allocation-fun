@@ -11,16 +11,16 @@ ENDCLASS.
 CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
   METHOD maximizes_complete_service.
     DATA(lt_plans) = VALUE zif_stock_allocation=>tt_plans(
-      ( strategy = zif_stock_allocation=>c_strategy_fifo
+      ( strategy    = zif_stock_allocation=>c_strategy_fifo
         allocations = VALUE #(
           ( allocated_qty = '5' status = zif_stock_allocation=>c_status_partial ) ) )
-      ( strategy = zif_stock_allocation=>c_strategy_smallest_first
+      ( strategy    = zif_stock_allocation=>c_strategy_smallest_first
         allocations = VALUE #(
           ( allocated_qty = '2' status = zif_stock_allocation=>c_status_full )
           ( allocated_qty = '3' status = zif_stock_allocation=>c_status_full ) ) ) ).
 
     DATA(lv_strategy) = zcl_stock_strategy_selector=>recommend(
-      it_plans = lt_plans
+      it_plans     = lt_plans
       iv_objective = zif_stock_allocation=>c_objective_service ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -30,15 +30,15 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
 
   METHOD maximizes_quantity_fill.
     DATA(lt_plans) = VALUE zif_stock_allocation=>tt_plans(
-      ( strategy = zif_stock_allocation=>c_strategy_complete_only
+      ( strategy    = zif_stock_allocation=>c_strategy_complete_only
         allocations = VALUE #(
           ( allocated_qty = '3' status = zif_stock_allocation=>c_status_full ) ) )
-      ( strategy = zif_stock_allocation=>c_strategy_fifo
+      ( strategy    = zif_stock_allocation=>c_strategy_fifo
         allocations = VALUE #(
           ( allocated_qty = '5' status = zif_stock_allocation=>c_status_partial ) ) ) ).
 
     DATA(lv_strategy) = zcl_stock_strategy_selector=>recommend(
-      it_plans = lt_plans
+      it_plans     = lt_plans
       iv_objective = zif_stock_allocation=>c_objective_fill ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -48,13 +48,13 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
 
   METHOD maximizes_fairness.
     DATA(lt_plans) = VALUE zif_stock_allocation=>tt_plans(
-      ( strategy = zif_stock_allocation=>c_strategy_fifo
+      ( strategy    = zif_stock_allocation=>c_strategy_fifo
         allocations = VALUE #(
           ( requested_qty = '2' allocated_qty = '2'
             status = zif_stock_allocation=>c_status_full )
           ( requested_qty = '6' allocated_qty = '2'
             status = zif_stock_allocation=>c_status_partial ) ) )
-      ( strategy = zif_stock_allocation=>c_strategy_proportional
+      ( strategy    = zif_stock_allocation=>c_strategy_proportional
         allocations = VALUE #(
           ( requested_qty = '2' allocated_qty = '1'
             status = zif_stock_allocation=>c_status_partial )
@@ -62,7 +62,7 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
             status = zif_stock_allocation=>c_status_partial ) ) ) ).
 
     DATA(lv_strategy) = zcl_stock_strategy_selector=>recommend(
-      it_plans = lt_plans
+      it_plans     = lt_plans
       iv_objective = zif_stock_allocation=>c_objective_fairness ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -84,7 +84,7 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
   METHOD rejects_invalid_comparison.
     TRY.
         zcl_stock_strategy_selector=>recommend(
-          it_plans = VALUE #( )
+          it_plans     = VALUE #( )
           iv_objective = 'X' ).
         cl_abap_unit_assert=>fail( 'Invalid recommendation input must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -93,7 +93,7 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
 
     TRY.
         zcl_stock_strategy_selector=>recommend(
-          it_plans = VALUE #( )
+          it_plans     = VALUE #( )
           iv_objective = zif_stock_allocation=>c_objective_service ).
         cl_abap_unit_assert=>fail( 'Empty recommendation input must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_empty_error).

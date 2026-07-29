@@ -11,8 +11,8 @@ CLASS ltcl_stock_alloc_validator IMPLEMENTATION.
   METHOD rejects_incomplete_demand.
     TRY.
         zcl_stock_alloc_validator=>validate_demands( VALUE #(
-          ( sales_order = '1'
-            sales_item = '000010'
+          ( sales_order   = '1'
+            sales_item    = '000010'
             schedule_line = '0000'
             delivery_date = '20250101'
             requested_qty = '1' ) ) ).
@@ -24,8 +24,8 @@ CLASS ltcl_stock_alloc_validator IMPLEMENTATION.
 
   METHOD allows_ignored_nonpositive.
     zcl_stock_alloc_validator=>validate_demands( VALUE #(
-      ( sales_order = ''
-        sales_item = '000000'
+      ( sales_order   = ''
+        sales_item    = '000000'
         schedule_line = '0000'
         delivery_date = '00000000'
         requested_qty = '0' ) ) ).

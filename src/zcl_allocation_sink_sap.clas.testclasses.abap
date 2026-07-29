@@ -20,52 +20,52 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
   METHOD replaces_scope_snapshot.
     DATA(lo_sink) = NEW zcl_allocation_sink_sap( ).
     DATA(lt_initial) = VALUE zif_stock_allocation=>tt_allocations(
-      ( sales_order = '0000000001'
-        sales_item = '000010'
+      ( sales_order   = '0000000001'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20260729'
         requested_qty = '8'
         allocated_qty = '5'
-        shortage_qty = '3'
-        reserve_qty = '2'
-        unit = 'EA'
-        status = zif_stock_allocation=>c_status_partial )
-      ( sales_order = '0000000002'
-        sales_item = '000010'
+        shortage_qty  = '3'
+        reserve_qty   = '2'
+        unit          = 'EA'
+        status        = zif_stock_allocation=>c_status_partial )
+      ( sales_order   = '0000000002'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20260730'
         requested_qty = '4'
         allocated_qty = '0'
-        shortage_qty = '4'
-        reserve_qty = '2'
-        unit = 'EA'
-        status = zif_stock_allocation=>c_status_none ) ).
+        shortage_qty  = '4'
+        reserve_qty   = '2'
+        unit          = 'EA'
+        status        = zif_stock_allocation=>c_status_none ) ).
 
     lo_sink->zif_allocation_sink~save(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      it_allocations = lt_initial ).
+      it_allocations      = lt_initial ).
 
     DATA(lt_replacement) = VALUE zif_stock_allocation=>tt_allocations(
-      ( sales_order = '0000000001'
-        sales_item = '000010'
+      ( sales_order   = '0000000001'
+        sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20260731'
-        priority = 7
+        priority      = 7
         requested_qty = '3'
         allocated_qty = '3'
-        shortage_qty = '0'
-        reserve_qty = '1'
-        unit = 'EA'
-        strategy = zif_stock_allocation=>c_strategy_proportional
-        cutoff_date = '20260831'
-        status = zif_stock_allocation=>c_status_full ) ).
+        shortage_qty  = '0'
+        reserve_qty   = '1'
+        unit          = 'EA'
+        strategy      = zif_stock_allocation=>c_strategy_proportional
+        cutoff_date   = '20260831'
+        status        = zif_stock_allocation=>c_status_full ) ).
     lo_sink->zif_allocation_sink~save(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      it_allocations = lt_replacement ).
+      it_allocations      = lt_replacement ).
 
     SELECT *
       FROM zstockalloc
@@ -97,22 +97,22 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
   METHOD clears_scope_snapshot.
     DATA(lo_sink) = NEW zcl_allocation_sink_sap( ).
     lo_sink->zif_allocation_sink~save(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      it_allocations = VALUE #(
-        ( sales_order = '0000000001'
-          sales_item = '000010'
+      it_allocations      = VALUE #(
+        ( sales_order   = '0000000001'
+          sales_item    = '000010'
           schedule_line = '0001'
           requested_qty = '1'
           allocated_qty = '1'
-          unit = 'EA'
-          status = zif_stock_allocation=>c_status_full ) ) ).
+          unit          = 'EA'
+          status        = zif_stock_allocation=>c_status_full ) ) ).
     lo_sink->zif_allocation_sink~save(
-      iv_material = c_material
-      iv_plant = c_plant
+      iv_material         = c_material
+      iv_plant            = c_plant
       iv_storage_location = c_storage
-      it_allocations = VALUE #( ) ).
+      it_allocations      = VALUE #( ) ).
 
     SELECT COUNT( * )
       FROM zstockalloc

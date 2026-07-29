@@ -198,17 +198,17 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_log) = NEW lcl_priority_log( abap_true ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
-      io_lock = lo_lock
-      io_sink = lo_sink
-      io_log = lo_log ).
+      io_lock          = lo_lock
+      io_sink          = lo_sink
+      io_log           = lo_log ).
 
     lo_service->set_priority(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_sales_order = '1'
-      iv_sales_item = '000010'
-      iv_priority = 25 ).
+      iv_sales_order      = '1'
+      iv_sales_item       = '000010'
+      iv_priority         = 25 ).
 
     cl_abap_unit_assert=>assert_true( lo_sink->was_saved( ) ).
     cl_abap_unit_assert=>assert_true( lo_log->was_called( ) ).
@@ -229,16 +229,16 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_log) = NEW lcl_priority_log( abap_true ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
-      io_lock = NEW lcl_priority_lock( abap_true )
-      io_sink = lo_sink
-      io_log = lo_log ).
+      io_lock          = NEW lcl_priority_lock( abap_true )
+      io_sink          = lo_sink
+      io_log           = lo_log ).
 
     lo_service->remove_priority(
-      iv_material = 'MAT-1'
-      iv_plant = '1000'
+      iv_material         = 'MAT-1'
+      iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_sales_order = '1'
-      iv_sales_item = '000010' ).
+      iv_sales_order      = '1'
+      iv_sales_item       = '000010' ).
 
     cl_abap_unit_assert=>assert_true( lo_sink->was_removed( ) ).
     cl_abap_unit_assert=>assert_equals( act = lo_authorization->get_activity( ) exp = '06' ).
@@ -250,18 +250,18 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = NEW lcl_priority_authorization( abap_false )
-      io_lock = lo_lock
-      io_sink = lo_sink
-      io_log = NEW lcl_priority_log( abap_true ) ).
+      io_lock          = lo_lock
+      io_sink          = lo_sink
+      io_log           = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_sales_order = '1'
-          iv_sales_item = '000010'
-          iv_priority = 10 ).
+          iv_sales_order      = '1'
+          iv_sales_item       = '000010'
+          iv_priority         = 10 ).
         cl_abap_unit_assert=>fail( 'Unauthorized priority change must fail' ).
       CATCH zcx_stock_allocation.
         cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
@@ -273,18 +273,18 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_lock) = NEW lcl_priority_lock( abap_true ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = NEW lcl_priority_authorization( abap_true )
-      io_lock = lo_lock
-      io_sink = NEW lcl_priority_sink( abap_true )
-      io_log = NEW lcl_priority_log( abap_true ) ).
+      io_lock          = lo_lock
+      io_sink          = NEW lcl_priority_sink( abap_true )
+      io_log           = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_sales_order = '1'
-          iv_sales_item = '000010'
-          iv_priority = 10 ).
+          iv_sales_order      = '1'
+          iv_sales_item       = '000010'
+          iv_priority         = 10 ).
         cl_abap_unit_assert=>fail( 'Priority persistence failure must propagate' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
@@ -298,18 +298,18 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
-      io_lock = lo_lock
-      io_sink = lo_sink
-      io_log = NEW lcl_priority_log( abap_true ) ).
+      io_lock          = lo_lock
+      io_sink          = lo_sink
+      io_log           = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_sales_order = ''
-          iv_sales_item = '000010'
-          iv_priority = 10 ).
+          iv_sales_order      = ''
+          iv_sales_item       = '000010'
+          iv_priority         = 10 ).
         cl_abap_unit_assert=>fail( 'Invalid priority key must fail' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
@@ -325,18 +325,18 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = NEW lcl_priority_authorization( abap_true )
-      io_lock = lo_lock
-      io_sink = lo_sink
-      io_log = NEW lcl_priority_log( abap_false ) ).
+      io_lock          = lo_lock
+      io_sink          = lo_sink
+      io_log           = NEW lcl_priority_log( abap_false ) ).
 
     TRY.
         lo_service->set_priority(
-          iv_material = 'MAT-1'
-          iv_plant = '1000'
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_sales_order = '1'
-          iv_sales_item = '000010'
-          iv_priority = 10 ).
+          iv_sales_order      = '1'
+          iv_sales_item       = '000010'
+          iv_priority         = 10 ).
         cl_abap_unit_assert=>fail( 'Priority log failure must reject change' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).

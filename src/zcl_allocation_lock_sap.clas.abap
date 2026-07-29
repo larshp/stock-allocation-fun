@@ -21,8 +21,8 @@ ENDCLASS.
 CLASS zcl_allocation_lock_sap IMPLEMENTATION.
   METHOD zif_allocation_lock~acquire.
     DATA(lv_varkey) = get_varkey(
-      iv_material = iv_material
-      iv_plant = iv_plant
+      iv_material         = iv_material
+      iv_plant            = iv_plant
       iv_storage_location = iv_storage_location ).
     CALL FUNCTION 'ENQUEUE_E_TABLE'
       EXPORTING
@@ -38,8 +38,8 @@ CLASS zcl_allocation_lock_sap IMPLEMENTATION.
 
   METHOD zif_allocation_lock~release.
     DATA(lv_varkey) = get_varkey(
-      iv_material = iv_material
-      iv_plant = iv_plant
+      iv_material         = iv_material
+      iv_plant            = iv_plant
       iv_storage_location = iv_storage_location ).
     CALL FUNCTION 'DEQUEUE_E_TABLE'
       EXPORTING
@@ -49,9 +49,9 @@ CLASS zcl_allocation_lock_sap IMPLEMENTATION.
 
   METHOD get_varkey.
     DATA(ls_key) = VALUE ty_lock_key(
-      mandt = sy-mandt
-      material = iv_material
-      plant = iv_plant
+      mandt            = sy-mandt
+      material         = iv_material
+      plant            = iv_plant
       storage_location = iv_storage_location ).
     rv_varkey = ls_key.
   ENDMETHOD.

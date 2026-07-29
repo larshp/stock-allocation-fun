@@ -27,12 +27,19 @@ START-OF-SELECTION.
           iv_storage_location = p_lgort
           iv_reserve          = p_resrv
           iv_cutoff_date      = p_cutof ).
-        DATA(lv_recommended) = zcl_stock_strategy_selector=>recommend(
+        DATA(lt_recommended) = zcl_stock_strategy_selector=>recommend_all(
           it_plans     = lt_plans
           iv_objective = p_obj ).
+        DATA(lv_recommended) = lt_recommended[ 1 ].
         WRITE: / 'Strategy comparison (simulation only)'.
         WRITE: / 'Scope', p_matnr, p_werks, p_lgort, 'Cutoff', p_cutof.
         WRITE: / 'Objective', p_obj, 'Recommended strategy', lv_recommended.
+        IF lines( lt_recommended ) > 1.
+          WRITE: / 'Equivalent recommendations'.
+          LOOP AT lt_recommended INTO DATA(lv_equivalent_strategy).
+            WRITE lv_equivalent_strategy.
+          ENDLOOP.
+        ENDIF.
         LOOP AT lt_plans INTO DATA(ls_compared_plan).
           DATA(ls_compared_summary) = zcl_stock_alloc_summary=>summarize(
             it_allocations     = ls_compared_plan-allocations
@@ -50,6 +57,8 @@ START-OF-SELECTION.
                    'Fairness %', ls_compared_summary-fairness_pct,
                    'Allocated', ls_compared_summary-allocated_qty,
                    'Shortage', ls_compared_summary-shortage_qty,
+                   'Short demands', ls_compared_summary-shortage_count,
+                   'Earliest shortage', ls_compared_summary-earliest_shortage_date,
                    'Unused', ls_compared_summary-unused_qty,
                    ls_compared_summary-unit.
         ENDLOOP.
@@ -96,6 +105,8 @@ START-OF-SELECTION.
                'Requested', ls_summary-requested_qty,
                'Allocated', ls_summary-allocated_qty,
                'Shortage', ls_summary-shortage_qty,
+               'Short demands', ls_summary-shortage_count,
+               'Earliest shortage', ls_summary-earliest_shortage_date,
                'Fill %', ls_summary-quantity_fill_pct,
                'Service %', ls_summary-service_level_pct,
                'Utilization %', ls_summary-stock_utilization_pct,

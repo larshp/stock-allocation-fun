@@ -4,7 +4,9 @@ CLASS ltcl_stock_strategy_selector DEFINITION FINAL
     METHODS maximizes_complete_service FOR TESTING RAISING zcx_stock_allocation.
     METHODS maximizes_quantity_fill FOR TESTING RAISING zcx_stock_allocation.
     METHODS maximizes_fairness FOR TESTING RAISING zcx_stock_allocation.
+    METHODS delays_earliest_shortage FOR TESTING RAISING zcx_stock_allocation.
     METHODS keeps_input_order_on_tie FOR TESTING RAISING zcx_stock_allocation.
+    METHODS exposes_all_tied_strategies FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_invalid_comparison FOR TESTING.
 ENDCLASS.
 
@@ -70,6 +72,26 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
       exp = zif_stock_allocation=>c_strategy_proportional ).
   ENDMETHOD.
 
+  METHOD delays_earliest_shortage.
+    DATA(lv_strategy) = zcl_stock_strategy_selector=>recommend(
+      it_plans     = VALUE #(
+        ( strategy    = zif_stock_allocation=>c_strategy_fifo
+          allocations = VALUE #(
+            ( delivery_date = '20260715' requested_qty = '2'
+              allocated_qty = '1' shortage_qty = '1'
+              status = zif_stock_allocation=>c_status_partial ) ) )
+        ( strategy    = zif_stock_allocation=>c_strategy_smallest_first
+          allocations = VALUE #(
+            ( delivery_date = '20260720' requested_qty = '2'
+              allocated_qty = '1' shortage_qty = '1'
+              status = zif_stock_allocation=>c_status_partial ) ) ) )
+      iv_objective = zif_stock_allocation=>c_objective_urgency ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_strategy
+      exp = zif_stock_allocation=>c_strategy_smallest_first ).
+  ENDMETHOD.
+
   METHOD keeps_input_order_on_tie.
     DATA(lv_strategy) = zcl_stock_strategy_selector=>recommend(
       it_plans = VALUE #(
@@ -79,6 +101,34 @@ CLASS ltcl_stock_strategy_selector IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_strategy
       exp = zif_stock_allocation=>c_strategy_proportional ).
+  ENDMETHOD.
+
+  METHOD exposes_all_tied_strategies.
+    DATA(lt_strategies) = zcl_stock_strategy_selector=>recommend_all(
+      it_plans = VALUE #(
+        ( strategy    = zif_stock_allocation=>c_strategy_proportional
+          allocations = VALUE #(
+            ( requested_qty = '1'
+              allocated_qty = '1'
+              status        = zif_stock_allocation=>c_status_full ) ) )
+        ( strategy    = zif_stock_allocation=>c_strategy_fifo
+          allocations = VALUE #(
+            ( requested_qty = '1'
+              allocated_qty = '1'
+              status        = zif_stock_allocation=>c_status_full ) ) )
+        ( strategy    = zif_stock_allocation=>c_strategy_complete_only
+          allocations = VALUE #(
+            ( requested_qty = '1'
+              allocated_qty = '0.5'
+              status        = zif_stock_allocation=>c_status_partial ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_strategies ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_strategies[ 1 ]
+      exp = zif_stock_allocation=>c_strategy_proportional ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_strategies[ 2 ]
+      exp = zif_stock_allocation=>c_strategy_fifo ).
   ENDMETHOD.
 
   METHOD rejects_invalid_comparison.

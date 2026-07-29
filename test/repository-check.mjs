@@ -111,6 +111,7 @@ for (const objective of [
   "c_objective_service",
   "c_objective_fill",
   "c_objective_fairness",
+  "c_objective_urgency",
 ]) {
   requireInvariant(
     allocationDomain.includes(objective),

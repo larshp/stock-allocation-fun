@@ -317,3 +317,27 @@
 - Split the expanding allocation audit summary into context, quantity, fulfillment, and utilization/fairness messages rather than relying on one oversized free-text entry.
 - Checked every message insertion and retained the existing rule that any incomplete audit log aborts allocation persistence.
 - Preserved shortage-aware warning severity consistently across every message in the run.
+
+## 2026-07-29 - Feature 48: Stable planning snapshots
+
+- Bracketed each demand read with stock reads so a plan is built only when its stock context remains unchanged while requirements are loaded.
+- Retried the complete stock/demand snapshot up to three times when unrestricted stock moves during the read.
+- Rejected continuously volatile snapshots before logging or persistence, with committed runs releasing their scope lock through the existing failure path.
+
+## 2026-07-29 - Feature 49: Transparent recommendation ties
+
+- Added a recommendation API that returns every strategy tied on the complete objective-specific ranking tuple.
+- Retained the first tied strategy as the backward-compatible deterministic primary recommendation.
+- Exposed equivalent best strategies in comparison output so planners can distinguish a unique recommendation from an input-order tie.
+
+## 2026-07-29 - Feature 50: Shortage urgency indicators
+
+- Added the number of demands affected by shortage and their earliest material-availability date to allocation summaries.
+- Exposed both indicators in selected-plan and cross-strategy output, making equally sized shortages easier to prioritize operationally.
+- Recorded the shortage count and earliest affected date in the checked BAL run evidence.
+
+## 2026-07-29 - Feature 51: Due-date urgency recommendations
+
+- Added comparison objective `D` to prefer plans with no shortage or, when every plan is constrained, the latest earliest-shortage date.
+- Broke equal dates by fewer affected demands and then lower shortage quantity while preserving stable comparison order for exact ties.
+- Protected the new objective in repository invariants and covered its end-to-end recommendation behavior.

@@ -15,6 +15,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_priority      TYPE i.
   TYPES ty_unit          TYPE mara-meins.
   TYPES ty_strategy      TYPE c LENGTH 1.
+  TYPES tt_strategies TYPE STANDARD TABLE OF ty_strategy WITH EMPTY KEY.
   TYPES ty_objective     TYPE c LENGTH 1.
 
   CONSTANTS c_strategy_fifo        TYPE ty_strategy VALUE 'F'.
@@ -25,6 +26,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   CONSTANTS c_objective_service TYPE ty_objective VALUE 'S'.
   CONSTANTS c_objective_fill    TYPE ty_objective VALUE 'Q'.
   CONSTANTS c_objective_fairness TYPE ty_objective VALUE 'F'.
+  CONSTANTS c_objective_urgency  TYPE ty_objective VALUE 'D'.
 
   TYPES:
     BEGIN OF ty_stock,
@@ -79,22 +81,24 @@ INTERFACE zif_stock_allocation PUBLIC.
 
   TYPES:
     BEGIN OF ty_summary,
-      demand_count          TYPE i,
-      full_count            TYPE i,
-      partial_count         TYPE i,
-      none_count            TYPE i,
-      requested_qty         TYPE ty_total_quantity,
-      allocated_qty         TYPE ty_total_quantity,
-      shortage_qty          TYPE ty_total_quantity,
-      stock_qty             TYPE ty_total_quantity,
-      allocatable_qty       TYPE ty_total_quantity,
-      reserve_qty           TYPE ty_total_quantity,
-      unused_qty            TYPE ty_total_quantity,
-      quantity_fill_pct     TYPE ty_percentage,
-      service_level_pct     TYPE ty_percentage,
-      stock_utilization_pct TYPE ty_percentage,
-      fairness_pct          TYPE ty_percentage,
-      unit                  TYPE ty_unit,
+      demand_count           TYPE i,
+      full_count             TYPE i,
+      partial_count          TYPE i,
+      none_count             TYPE i,
+      shortage_count         TYPE i,
+      earliest_shortage_date TYPE ty_delivery_date,
+      requested_qty          TYPE ty_total_quantity,
+      allocated_qty          TYPE ty_total_quantity,
+      shortage_qty           TYPE ty_total_quantity,
+      stock_qty              TYPE ty_total_quantity,
+      allocatable_qty        TYPE ty_total_quantity,
+      reserve_qty            TYPE ty_total_quantity,
+      unused_qty             TYPE ty_total_quantity,
+      quantity_fill_pct      TYPE ty_percentage,
+      service_level_pct      TYPE ty_percentage,
+      stock_utilization_pct  TYPE ty_percentage,
+      fairness_pct           TYPE ty_percentage,
+      unit                   TYPE ty_unit,
     END OF ty_summary.
 
 ENDINTERFACE.

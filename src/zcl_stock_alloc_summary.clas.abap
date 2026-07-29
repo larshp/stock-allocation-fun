@@ -25,6 +25,13 @@ CLASS zcl_stock_alloc_summary IMPLEMENTATION.
       rs_summary-requested_qty = rs_summary-requested_qty + ls_allocation-requested_qty.
       rs_summary-allocated_qty = rs_summary-allocated_qty + ls_allocation-allocated_qty.
       rs_summary-shortage_qty = rs_summary-shortage_qty + ls_allocation-shortage_qty.
+      IF ls_allocation-shortage_qty > 0.
+        rs_summary-shortage_count = rs_summary-shortage_count + 1.
+        IF rs_summary-earliest_shortage_date IS INITIAL
+            OR ls_allocation-delivery_date < rs_summary-earliest_shortage_date.
+          rs_summary-earliest_shortage_date = ls_allocation-delivery_date.
+        ENDIF.
+      ENDIF.
       IF ls_allocation-requested_qty > 0.
         DATA lv_allocated TYPE zif_stock_allocation=>ty_total_quantity.
         DATA lv_requested TYPE zif_stock_allocation=>ty_total_quantity.

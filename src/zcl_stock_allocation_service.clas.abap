@@ -68,6 +68,7 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_stock_allocation.
   PRIVATE SECTION.
+    CONSTANTS c_snapshot_attempts TYPE i VALUE 3.
     TYPES:
       BEGIN OF ty_context,
         stock   TYPE zif_stock_allocation=>ty_stock,
@@ -318,23 +319,32 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD load_context.
-    rs_context-stock = mo_stock_source->get_available(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location ).
-    rs_context-demands = mo_demand_source->get_open_demands(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_cutoff_date      = iv_cutoff_date ).
-    zcl_stock_alloc_validator=>validate_demands( rs_context-demands ).
+    DATA lv_stable TYPE abap_bool.
+    DO c_snapshot_attempts TIMES.
+      DATA(ls_initial_stock) = mo_stock_source->get_available(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location ).
+      rs_context-demands = mo_demand_source->get_open_demands(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_cutoff_date      = iv_cutoff_date ).
+      zcl_stock_alloc_validator=>validate_demands( rs_context-demands ).
 
-    DATA(ls_latest_stock) = mo_stock_source->get_available(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location ).
-    IF ls_latest_stock <> rs_context-stock.
-      rs_context-stock = ls_latest_stock.
+      DATA(ls_latest_stock) = mo_stock_source->get_available(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location ).
+      IF ls_latest_stock = ls_initial_stock.
+        rs_context-stock = ls_latest_stock.
+        lv_stable = abap_true.
+        EXIT.
+      ENDIF.
+    ENDDO.
+    IF lv_stable = abap_false.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Stock changed continuously while reading demand' ).
     ENDIF.
     IF rs_context-stock-unit IS INITIAL.
       RAISE EXCEPTION NEW zcx_stock_allocation(

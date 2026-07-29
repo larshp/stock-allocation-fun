@@ -45,7 +45,8 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
                          && |allocated { ls_summary-allocated_qty }|.
     APPEND lv_context_text TO lt_texts.
     APPEND lv_demand_text TO lt_texts.
-    APPEND |Shortage { ls_summary-shortage_qty }; unused { ls_summary-unused_qty }| TO lt_texts.
+    APPEND |Shortage { ls_summary-shortage_qty } across { ls_summary-shortage_count } demands; |
+        && |earliest { ls_summary-earliest_shortage_date }; unused { ls_summary-unused_qty }| TO lt_texts.
     APPEND |Fill { ls_summary-quantity_fill_pct }%; service { ls_summary-service_level_pct }%| TO lt_texts.
     APPEND |Utilization { ls_summary-stock_utilization_pct }%; fairness { ls_summary-fairness_pct }%| TO lt_texts.
     LOOP AT lt_texts INTO DATA(lv_text).

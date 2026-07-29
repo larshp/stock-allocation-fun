@@ -5,7 +5,8 @@ CLASS lcl_stock_source DEFINITION FINAL.
       IMPORTING
         iv_quantity        TYPE zif_stock_allocation=>ty_quantity
         iv_latest_quantity TYPE zif_stock_allocation=>ty_quantity
-        iv_unit            TYPE zif_stock_allocation=>ty_unit DEFAULT 'EA'.
+        iv_unit            TYPE zif_stock_allocation=>ty_unit DEFAULT 'EA'
+        iv_volatile        TYPE abap_bool DEFAULT abap_false.
     METHODS get_calls
       RETURNING
         VALUE(rv_calls) TYPE i.
@@ -14,6 +15,7 @@ CLASS lcl_stock_source DEFINITION FINAL.
     DATA mv_latest_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA mv_calls TYPE i.
     DATA mv_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA mv_volatile TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_stock_source IMPLEMENTATION.
@@ -21,11 +23,12 @@ CLASS lcl_stock_source IMPLEMENTATION.
     mv_quantity = iv_quantity.
     mv_latest_quantity = iv_latest_quantity.
     mv_unit = iv_unit.
+    mv_volatile = iv_volatile.
   ENDMETHOD.
 
   METHOD zif_stock_source~get_available.
     mv_calls = mv_calls + 1.
-    IF mv_calls = 1.
+    IF mv_calls = 1 OR ( mv_volatile = abap_true AND mv_calls MOD 2 = 1 ).
       rs_stock-quantity = mv_quantity.
     ELSE.
       rs_stock-quantity = mv_latest_quantity.
@@ -399,6 +402,7 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
   PRIVATE SECTION.
     METHODS orchestrates_and_saves FOR TESTING RAISING zcx_stock_allocation.
     METHODS rechecks_latest_stock FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_volatile_stock FOR TESTING.
     METHODS rejects_concurrent_run FOR TESTING.
     METHODS releases_after_failure FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized_run FOR TESTING.
@@ -490,6 +494,36 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '4' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty exp = '3' ).
+  ENDMETHOD.
+
+  METHOD rejects_volatile_stock.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source(
+        iv_quantity        = '5'
+        iv_latest_quantity = '4'
+        iv_volatile        = abap_true )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
+
+    TRY.
+        lo_service->run(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Volatile stock must reject the run' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
   ENDMETHOD.
 
   METHOD rejects_concurrent_run.
@@ -893,7 +927,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_storage_location = '0001' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_plans ) exp = 5 ).
-    cl_abap_unit_assert=>assert_equals( act = lo_stock->get_calls( ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lo_stock->get_calls( ) exp = 4 ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 1 ]-stock_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_plans[ 1 ]-strategy

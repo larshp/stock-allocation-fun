@@ -1,0 +1,25 @@
+{
+  "global": {
+    "files": "/{src,sap-stubs}/**/*.*"
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": "/deps/open-abap-core",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "syntax": {
+    "version": "v750",
+    "errorNamespace": "^(Z|Y|LCL_|LTCL_|TY_)"
+  },
+  "rules": {
+    "check_syntax": true,
+    "parser_error": true,
+    "unknown_types": true,
+    "main_file_contents": true,
+    "implement_methods": true,
+    "local_testclass_location": true,
+    "whitespace_end": true
+  }
+}

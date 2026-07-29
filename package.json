@@ -1,0 +1,18 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Testable stock allocation for SAP ABAP",
+  "scripts": {
+    "lint": "abaplint",
+    "transpile": "abap_transpile",
+    "unit": "node output/_unit_open.mjs",
+    "test": "npm run lint && npm run transpile && npm run unit"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "2.120.4",
+    "@abaplint/database-sqlite": "2.13.40",
+    "@abaplint/runtime": "2.13.43",
+    "@abaplint/transpiler-cli": "2.13.43"
+  }
+}

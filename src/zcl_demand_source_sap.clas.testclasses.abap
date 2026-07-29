@@ -3,6 +3,7 @@ CLASS ltcl_demand_source_sap DEFINITION FINAL
   PRIVATE SECTION.
     METHODS reads_demands_and_priority FOR TESTING.
     METHODS applies_cutoff_in_database FOR TESTING.
+    METHODS applies_date_window_db FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_demand_source_sap IMPLEMENTATION.
@@ -41,5 +42,20 @@ CLASS ltcl_demand_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-sales_order
       exp = '0099999901' ).
+  ENDMETHOD.
+
+  METHOD applies_date_window_db.
+    DATA(lt_demands) = NEW zcl_demand_source_sap(
+      )->zif_demand_source~get_open_demands(
+        iv_material         = 'ZUT-SOURCE'
+        iv_plant            = 'UT01'
+        iv_storage_location = 'UT01'
+        iv_start_date       = '20260802'
+        iv_cutoff_date      = '20260802' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_demands ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-sales_order
+      exp = '0099999902' ).
   ENDMETHOD.
 ENDCLASS.

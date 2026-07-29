@@ -192,6 +192,7 @@ CLASS lcl_allocation_log DEFINITION FINAL.
         iv_reserve         TYPE zif_stock_allocation=>ty_quantity
         iv_unit            TYPE zif_stock_allocation=>ty_unit
         iv_strategy        TYPE zif_stock_allocation=>ty_strategy
+        iv_start_date      TYPE zif_stock_allocation=>ty_start_date OPTIONAL
         iv_cutoff_date     TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rv_matches)  TYPE abap_bool.
@@ -203,6 +204,7 @@ CLASS lcl_allocation_log DEFINITION FINAL.
     DATA mv_reserve TYPE zif_stock_allocation=>ty_quantity.
     DATA mv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA mv_strategy TYPE zif_stock_allocation=>ty_strategy.
+    DATA mv_start_date TYPE zif_stock_allocation=>ty_start_date.
     DATA mv_cutoff_date TYPE zif_stock_allocation=>ty_cutoff_date.
 ENDCLASS.
 
@@ -218,6 +220,7 @@ CLASS lcl_allocation_log IMPLEMENTATION.
     mv_reserve = iv_reserve.
     mv_unit = iv_unit.
     mv_strategy = iv_strategy.
+    mv_start_date = iv_start_date.
     mv_cutoff_date = iv_cutoff_date.
     rv_recorded = mv_recorded.
   ENDMETHOD.
@@ -232,6 +235,7 @@ CLASS lcl_allocation_log IMPLEMENTATION.
                       AND mv_reserve = iv_reserve
                       AND mv_unit = iv_unit
                       AND mv_strategy = iv_strategy
+                      AND mv_start_date = iv_start_date
                       AND mv_cutoff_date = iv_cutoff_date ).
   ENDMETHOD.
 ENDCLASS.
@@ -241,23 +245,41 @@ CLASS lcl_demand_source DEFINITION FINAL.
     INTERFACES zif_demand_source.
     METHODS constructor
       IMPORTING
-        it_demands TYPE zif_stock_allocation=>tt_demands.
+        it_demands  TYPE zif_stock_allocation=>tt_demands
+        iv_volatile TYPE abap_bool DEFAULT abap_false.
     METHODS get_cutoff_date
       RETURNING
         VALUE(rv_cutoff_date) TYPE zif_stock_allocation=>ty_cutoff_date.
+    METHODS get_start_date
+      RETURNING
+        VALUE(rv_start_date) TYPE zif_stock_allocation=>ty_start_date.
   PRIVATE SECTION.
     DATA mt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA mv_calls TYPE i.
+    DATA mv_volatile TYPE abap_bool.
+    DATA mv_start_date TYPE zif_stock_allocation=>ty_start_date.
     DATA mv_cutoff_date TYPE zif_stock_allocation=>ty_cutoff_date.
 ENDCLASS.
 
 CLASS lcl_demand_source IMPLEMENTATION.
   METHOD constructor.
     mt_demands = it_demands.
+    mv_volatile = iv_volatile.
   ENDMETHOD.
 
   METHOD zif_demand_source~get_open_demands.
+    mv_calls = mv_calls + 1.
     rt_demands = mt_demands.
+    IF mv_volatile = abap_true
+        AND mv_calls MOD 2 = 0
+        AND rt_demands IS NOT INITIAL.
+      rt_demands[ 1 ]-requested_qty = rt_demands[ 1 ]-requested_qty + 1.
+    ENDIF.
+    mv_start_date = iv_start_date.
     mv_cutoff_date = iv_cutoff_date.
+    IF iv_start_date IS NOT INITIAL.
+      DELETE rt_demands WHERE delivery_date < iv_start_date.
+    ENDIF.
     IF iv_cutoff_date IS NOT INITIAL.
       DELETE rt_demands WHERE delivery_date > iv_cutoff_date.
     ENDIF.
@@ -265,6 +287,10 @@ CLASS lcl_demand_source IMPLEMENTATION.
 
   METHOD get_cutoff_date.
     rv_cutoff_date = mv_cutoff_date.
+  ENDMETHOD.
+
+  METHOD get_start_date.
+    rv_start_date = mv_start_date.
   ENDMETHOD.
 ENDCLASS.
 
@@ -280,7 +306,7 @@ ENDCLASS.
 
 CLASS lcl_allocation_sink IMPLEMENTATION.
   METHOD zif_allocation_sink~save.
-    mt_allocations = it_allocations.
+    mt_allocations = is_plan-allocations.
   ENDMETHOD.
 
   METHOD get_saved.
@@ -310,6 +336,10 @@ ENDCLASS.
 CLASS ltcl_stock_allocation_db IMPLEMENTATION.
   METHOD teardown.
     DELETE FROM zstockalloc
+      WHERE matnr = 'ZUT-SOURCE'
+        AND werks = 'UT01'
+        AND lgort = 'UT01'.
+    DELETE FROM zstockplan
       WHERE matnr = 'ZUT-SOURCE'
         AND werks = 'UT01'
         AND lgort = 'UT01'.
@@ -403,6 +433,7 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS orchestrates_and_saves FOR TESTING RAISING zcx_stock_allocation.
     METHODS rechecks_latest_stock FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_volatile_stock FOR TESTING.
+    METHODS rejects_volatile_demands FOR TESTING.
     METHODS rejects_concurrent_run FOR TESTING.
     METHODS releases_after_failure FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized_run FOR TESTING.
@@ -417,6 +448,7 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS rejects_invalid_strategy_first FOR TESTING.
     METHODS compares_single_snapshot FOR TESTING RAISING zcx_stock_allocation.
     METHODS applies_demand_cutoff FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_reversed_window FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
@@ -517,6 +549,40 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001' ).
         cl_abap_unit_assert=>fail( 'Volatile stock must reject the run' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_volatile_demands.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source(
+        it_demands  = VALUE #(
+          ( sales_order   = '1'
+            sales_item    = '000010'
+            schedule_line = '0001'
+            delivery_date = '20250101'
+            requested_qty = '2' ) )
+        iv_volatile = abap_true )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
+
+    TRY.
+        lo_service->run(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Volatile demands must reject the run' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
     ENDTRY.
@@ -927,7 +993,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_storage_location = '0001' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_plans ) exp = 5 ).
-    cl_abap_unit_assert=>assert_equals( act = lo_stock->get_calls( ) exp = 4 ).
+    cl_abap_unit_assert=>assert_equals( act = lo_stock->get_calls( ) exp = 5 ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 1 ]-stock_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_plans[ 1 ]-strategy
@@ -963,9 +1029,14 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       ( sales_order   = '1'
         sales_item    = '000010'
         schedule_line = '0001'
-        delivery_date = '20250101'
+        delivery_date = '20241231'
         requested_qty = '2' )
       ( sales_order   = '2'
+        sales_item    = '000010'
+        schedule_line = '0001'
+        delivery_date = '20250115'
+        requested_qty = '3' )
+      ( sales_order   = '3'
         sales_item    = '000010'
         schedule_line = '0001'
         delivery_date = '20250201'
@@ -983,15 +1054,50 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_material         = 'MAT-1'
       iv_plant            = '1000'
       iv_storage_location = '0001'
+      iv_start_date       = '20250101'
       iv_cutoff_date      = '20250131' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( ls_plan-allocations ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_plan-start_date exp = '20250101' ).
     cl_abap_unit_assert=>assert_equals( act = ls_plan-cutoff_date exp = '20250131' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_plan-allocations[ 1 ]-start_date
+      exp = '20250101' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_plan-allocations[ 1 ]-cutoff_date
       exp = '20250131' ).
     cl_abap_unit_assert=>assert_equals(
+      act = lo_demands->get_start_date( )
+      exp = '20250101' ).
+    cl_abap_unit_assert=>assert_equals(
       act = lo_demands->get_cutoff_date( )
       exp = '20250131' ).
+  ENDMETHOD.
+
+  METHOD rejects_reversed_window.
+    DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization   = lo_authorization
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_start_date       = '20250201'
+          iv_cutoff_date      = '20250131' ).
+        cl_abap_unit_assert=>fail( 'Reversed planning window must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
   ENDMETHOD.
 ENDCLASS.

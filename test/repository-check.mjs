@@ -11,6 +11,10 @@ const allocationTable = readFileSync(
   join(root, "src", "zstockalloc.tabl.xml"),
   "utf8",
 );
+const allocationHeaderTable = readFileSync(
+  join(root, "src", "zstockplan.tabl.xml"),
+  "utf8",
+);
 const priorityTable = readFileSync(
   join(root, "src", "zstockprio.tabl.xml"),
   "utf8",
@@ -32,6 +36,14 @@ const allocationDomain = readFileSync(
 );
 const allocationReport = readFileSync(
   join(root, "src", "zstock_allocate.prog.abap"),
+  "utf8",
+);
+const allocationService = readFileSync(
+  join(root, "src", "zcl_stock_allocation_service.clas.abap"),
+  "utf8",
+);
+const allocationViewReport = readFileSync(
+  join(root, "src", "zstock_plan_view.prog.abap"),
   "utf8",
 );
 
@@ -75,6 +87,7 @@ requireInvariant(
 
 for (const [name, definition] of [
   ["ZSTOCKALLOC", allocationTable],
+  ["ZSTOCKPLAN", allocationHeaderTable],
   ["ZSTOCKPRIO", priorityTable],
 ]) {
   requireInvariant(
@@ -88,8 +101,33 @@ for (const [name, definition] of [
 }
 
 requireInvariant(
+  allocationHeaderTable.includes("<FIELDNAME>DEMAND_COUNT</FIELDNAME>"),
+  "ZSTOCKPLAN must persist empty and populated snapshot cardinality",
+);
+for (const field of [
+  "STOCK_QTY",
+  "AVAILABLE_QTY",
+  "RESERVE_QTY",
+  "MEINS",
+  "STRATEGY",
+  "START_DATE",
+  "CUTOFF_DATE",
+  "CREATED_ON",
+  "CREATED_AT",
+  "CREATED_BY",
+]) {
+  requireInvariant(
+    allocationHeaderTable.includes(`<FIELDNAME>${field}</FIELDNAME>`),
+    `ZSTOCKPLAN is missing plan context field ${field}`,
+  );
+}
+requireInvariant(
   allocationTable.includes("<FIELDNAME>STRATEGY</FIELDNAME>"),
   "ZSTOCKALLOC must persist the effective allocation strategy",
+);
+requireInvariant(
+  allocationTable.includes("<FIELDNAME>START_DATE</FIELDNAME>"),
+  "ZSTOCKALLOC must persist the effective demand-window start",
 );
 requireInvariant(
   allocationTable.includes("<FIELDNAME>CUTOFF_DATE</FIELDNAME>"),
@@ -127,12 +165,28 @@ requireInvariant(
   "Allocation report must expose side-effect-free strategy comparison",
 );
 requireInvariant(
+  /PARAMETERS\s+p_from\s/i.test(allocationReport),
+  "Allocation report must expose the demand-window start",
+);
+requireInvariant(
   /PARAMETERS\s+p_cutof\s/i.test(allocationReport),
   "Allocation report must expose the demand cutoff",
 );
 requireInvariant(
   /PARAMETERS\s+p_obj\s/i.test(allocationReport),
   "Allocation report must expose the comparison objective",
+);
+requireInvariant(
+  /validate_plan\(\s*rs_plan\s*\)/i.test(allocationService),
+  "Allocation service must validate every calculated plan",
+);
+requireInvariant(
+  /zcl_allocation_query_service/i.test(allocationViewReport),
+  "Persisted-plan report must use the authorized query service",
+);
+requireInvariant(
+  /PARAMETERS\s+p_maxage\s/i.test(allocationViewReport),
+  "Persisted-plan report must expose its freshness threshold",
 );
 
 for (const [name, definition] of [

@@ -5,6 +5,7 @@ PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_loc OBLIGATORY.
 PARAMETERS p_resrv TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_strat TYPE zif_stock_allocation=>ty_strategy DEFAULT 'F'.
+PARAMETERS p_from TYPE zif_stock_allocation=>ty_start_date.
 PARAMETERS p_cutof TYPE zif_stock_allocation=>ty_cutoff_date.
 PARAMETERS p_sim AS CHECKBOX DEFAULT 'X'.
 PARAMETERS p_comp AS CHECKBOX DEFAULT ''.
@@ -26,13 +27,15 @@ START-OF-SELECTION.
           iv_plant            = p_werks
           iv_storage_location = p_lgort
           iv_reserve          = p_resrv
+          iv_start_date       = p_from
           iv_cutoff_date      = p_cutof ).
         DATA(lt_recommended) = zcl_stock_strategy_selector=>recommend_all(
           it_plans     = lt_plans
           iv_objective = p_obj ).
         DATA(lv_recommended) = lt_recommended[ 1 ].
         WRITE: / 'Strategy comparison (simulation only)'.
-        WRITE: / 'Scope', p_matnr, p_werks, p_lgort, 'Cutoff', p_cutof.
+        WRITE: / 'Scope', p_matnr, p_werks, p_lgort,
+                 'Window', p_from, p_cutof.
         WRITE: / 'Objective', p_obj, 'Recommended strategy', lv_recommended.
         IF lines( lt_recommended ) > 1.
           WRITE: / 'Equivalent recommendations'.
@@ -73,6 +76,7 @@ START-OF-SELECTION.
           iv_storage_location = p_lgort
           iv_reserve          = p_resrv
           iv_strategy         = p_strat
+          iv_start_date       = p_from
           iv_cutoff_date      = p_cutof ).
         WRITE / 'Simulation: no allocations were persisted'.
       ELSE.
@@ -82,6 +86,7 @@ START-OF-SELECTION.
           iv_storage_location = p_lgort
           iv_reserve          = p_resrv
           iv_strategy         = p_strat
+          iv_start_date       = p_from
           iv_cutoff_date      = p_cutof ).
         COMMIT WORK AND WAIT.
         IF sy-subrc <> 0.
@@ -98,6 +103,7 @@ START-OF-SELECTION.
         iv_unit            = ls_plan-unit ).
       WRITE: / 'Scope', p_matnr, p_werks, p_lgort,
                'Strategy', ls_plan-strategy,
+               'Start', ls_plan-start_date,
                'Cutoff', ls_plan-cutoff_date.
       WRITE: / 'Demands', ls_summary-demand_count,
                'Stock', ls_summary-stock_qty,

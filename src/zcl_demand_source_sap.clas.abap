@@ -14,7 +14,7 @@ ENDCLASS.
 
 CLASS zcl_demand_source_sap IMPLEMENTATION.
   METHOD zif_demand_source~get_open_demands.
-    IF iv_cutoff_date IS INITIAL.
+    IF iv_start_date IS INITIAL AND iv_cutoff_date IS INITIAL.
       SELECT vbeln, posnr, etenr, mbdat, omeng
         FROM vbbe
         WHERE matnr = @iv_material
@@ -22,12 +22,31 @@ CLASS zcl_demand_source_sap IMPLEMENTATION.
           AND lgort = @iv_storage_location
           AND omeng > 0
         INTO TABLE @DATA(lt_requirements).
+    ELSEIF iv_start_date IS INITIAL.
+      SELECT vbeln, posnr, etenr, mbdat, omeng
+        FROM vbbe
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND mbdat <= @iv_cutoff_date
+          AND omeng > 0
+        INTO TABLE @lt_requirements.
+    ELSEIF iv_cutoff_date IS INITIAL.
+      SELECT vbeln, posnr, etenr, mbdat, omeng
+        FROM vbbe
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND mbdat >= @iv_start_date
+          AND omeng > 0
+        INTO TABLE @lt_requirements.
     ELSE.
       SELECT vbeln, posnr, etenr, mbdat, omeng
         FROM vbbe
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
+          AND mbdat >= @iv_start_date
           AND mbdat <= @iv_cutoff_date
           AND omeng > 0
         INTO TABLE @lt_requirements.

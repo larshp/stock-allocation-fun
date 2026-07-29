@@ -21,6 +21,12 @@ CLASS zcl_stock_alloc_validator DEFINITION PUBLIC FINAL CREATE PRIVATE.
         iv_reserve TYPE zif_stock_allocation=>ty_quantity
       RAISING
         zcx_stock_allocation.
+    CLASS-METHODS validate_window
+      IMPORTING
+        iv_start_date  TYPE zif_stock_allocation=>ty_start_date
+        iv_cutoff_date TYPE zif_stock_allocation=>ty_cutoff_date
+      RAISING
+        zcx_stock_allocation.
     CLASS-METHODS validate_strategy
       IMPORTING
         iv_strategy TYPE zif_stock_allocation=>ty_strategy
@@ -29,6 +35,11 @@ CLASS zcl_stock_alloc_validator DEFINITION PUBLIC FINAL CREATE PRIVATE.
     CLASS-METHODS validate_demands
       IMPORTING
         it_demands TYPE zif_stock_allocation=>tt_demands
+      RAISING
+        zcx_stock_allocation.
+    CLASS-METHODS validate_plan
+      IMPORTING
+        is_plan TYPE zif_stock_allocation=>ty_plan
       RAISING
         zcx_stock_allocation.
   PRIVATE SECTION.
@@ -70,6 +81,15 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD validate_window.
+    IF iv_start_date IS NOT INITIAL
+        AND iv_cutoff_date IS NOT INITIAL
+        AND iv_start_date > iv_cutoff_date.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Planning start date cannot be after the cutoff date' ).
+    ENDIF.
+  ENDMETHOD.
+
   METHOD validate_strategy.
     IF iv_strategy <> zif_stock_allocation=>c_strategy_fifo
         AND iv_strategy <> zif_stock_allocation=>c_strategy_proportional
@@ -101,5 +121,70 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
           'Open demand contains a duplicate schedule-line key' ).
       ENDIF.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_plan.
+    DATA lv_expected_allocatable TYPE zif_stock_allocation=>ty_quantity.
+    lv_expected_allocatable = is_plan-stock_qty - is_plan-reserve_qty.
+    IF lv_expected_allocatable < 0.
+      CLEAR lv_expected_allocatable.
+    ENDIF.
+    IF is_plan-allocatable_qty < 0
+        OR is_plan-reserve_qty < 0
+        OR is_plan-unit IS INITIAL
+        OR is_plan-allocatable_qty <> lv_expected_allocatable.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Allocation plan contains invalid stock context' ).
+    ENDIF.
+
+    DATA lv_total_allocated TYPE zif_stock_allocation=>ty_total_quantity.
+    DATA lt_keys TYPE tt_demand_keys.
+    LOOP AT is_plan-allocations INTO DATA(ls_allocation).
+      INSERT VALUE #(
+        sales_order   = ls_allocation-sales_order
+        sales_item    = ls_allocation-sales_item
+        schedule_line = ls_allocation-schedule_line ) INTO TABLE lt_keys.
+      IF sy-subrc <> 0
+          OR ls_allocation-sales_order IS INITIAL
+          OR ls_allocation-sales_item IS INITIAL
+          OR ls_allocation-schedule_line IS INITIAL
+          OR ls_allocation-delivery_date IS INITIAL.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Allocation plan contains an invalid or duplicate demand key' ).
+      ENDIF.
+      DATA lv_expected_shortage TYPE zif_stock_allocation=>ty_quantity.
+      lv_expected_shortage = ls_allocation-requested_qty
+                           - ls_allocation-allocated_qty.
+      IF ls_allocation-requested_qty <= 0
+          OR ls_allocation-allocated_qty < 0
+          OR ls_allocation-allocated_qty > ls_allocation-requested_qty
+          OR ls_allocation-shortage_qty <> lv_expected_shortage.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Allocation plan contains inconsistent row quantities' ).
+      ENDIF.
+      IF ls_allocation-unit <> is_plan-unit
+          OR ls_allocation-reserve_qty <> is_plan-reserve_qty
+          OR ls_allocation-strategy <> is_plan-strategy
+          OR ls_allocation-start_date <> is_plan-start_date
+          OR ls_allocation-cutoff_date <> is_plan-cutoff_date.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Allocation plan contains inconsistent row context' ).
+      ENDIF.
+      IF ( ls_allocation-allocated_qty = ls_allocation-requested_qty
+            AND ls_allocation-status <> zif_stock_allocation=>c_status_full )
+          OR ( ls_allocation-allocated_qty > 0
+            AND ls_allocation-allocated_qty < ls_allocation-requested_qty
+            AND ls_allocation-status <> zif_stock_allocation=>c_status_partial )
+          OR ( ls_allocation-allocated_qty = 0
+            AND ls_allocation-status <> zif_stock_allocation=>c_status_none ).
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Allocation plan contains inconsistent fulfillment status' ).
+      ENDIF.
+      lv_total_allocated = lv_total_allocated + ls_allocation-allocated_qty.
+    ENDLOOP.
+    IF lv_total_allocated > is_plan-allocatable_qty.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Allocation plan exceeds allocatable stock' ).
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.

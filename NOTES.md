@@ -341,3 +341,43 @@
 - Added comparison objective `D` to prefer plans with no shortage or, when every plan is constrained, the latest earliest-shortage date.
 - Broke equal dates by fewer affected demands and then lower shortage quantity while preserving stable comparison order for exact ties.
 - Protected the new objective in repository invariants and covered its end-to-end recommendation behavior.
+
+## 2026-07-29 - Feature 52: Bounded demand planning windows
+
+- Added optional inclusive planning start `P_FROM` alongside the existing upper cutoff, while preserving blank and one-sided windows.
+- Rejected reversed date ranges before authorization, locking, reads, logging, or persistence.
+- Pushed all four window shapes into the productive `VBBE` query before priority enrichment.
+- Propagated the effective start through plans, allocation rows, `ZSTOCKALLOC`, report output, and checked BAL context.
+- Added focused validator, service, Open SQL source, persistence, and repository-invariant coverage.
+
+## 2026-07-29 - Feature 53: Stable demand and priority snapshots
+
+- Required two identical demand reads, sorted by the unique schedule-line key, before accepting a planning snapshot.
+- Bracketed both reads with unchanged stock and retained the three-attempt bound for transient operational movement.
+- Rejected continuously changing requirement quantities or priorities before BAL logging or persistence and released committed-run locks through the existing failure path.
+
+## 2026-07-29 - Feature 54: Defensive plan invariant gate
+
+- Validated every calculated plan before it can be returned, logged, or persisted.
+- Enforced row quantity arithmetic, fulfillment status, unit, reserve, strategy, and planning-window consistency.
+- Summed allocations with `DECFLOAT34` and rejected plans whose valid individual rows collectively exceed allocatable stock.
+
+## 2026-07-29 - Feature 55: Durable plan headers
+
+- Added client-dependent application table `ZSTOCKPLAN` with one current header per material/plant/storage scope.
+- Persisted observed stock, allocatable stock, reserve, unit, strategy, planning window, row count, and creation provenance in the same SAP LUW as allocation details and BAL evidence.
+- Preserved successful zero-demand snapshots as verified headers instead of making them indistinguishable from scopes that were never planned.
+- Changed the allocation sink contract to accept the complete validated plan and added Open SQL replacement and empty-snapshot coverage.
+
+## 2026-07-29 - Feature 56: Authorized persisted-plan display
+
+- Added a checked `ZSTOCKPLAN`/`ZSTOCKALLOC` read adapter that reconstructs the complete saved plan and revalidates its invariants.
+- Added a query service requiring plant/storage-scoped display activity `03` before any persisted-plan access.
+- Added report `ZSTOCK_PLAN_VIEW` for side-effect-free display of the last committed plan, including its creation provenance and KPIs.
+- Distinguished never-planned scopes from committed empty plans and rejected header/detail cardinality corruption explicitly.
+
+## 2026-07-29 - Feature 57: Persisted-plan freshness status
+
+- Added configurable non-negative maximum age `P_MAXAGE` to persisted-plan display, defaulting to one day.
+- Calculated age from the durable creation date and flagged older plans as stale without hiding otherwise valid allocation evidence.
+- Rejected missing or future creation dates and covered current and stale snapshots in the authorized query service.

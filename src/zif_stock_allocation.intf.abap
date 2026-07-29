@@ -7,6 +7,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_sales_item    TYPE vbbe-posnr.
   TYPES ty_schedule_line TYPE vbbe-etenr.
   TYPES ty_delivery_date TYPE vbbe-mbdat.
+  TYPES ty_start_date    TYPE vbbe-mbdat.
   TYPES ty_cutoff_date   TYPE vbbe-mbdat.
   TYPES ty_quantity      TYPE p LENGTH 8 DECIMALS 3.
   TYPES ty_total_quantity TYPE decfloat34.
@@ -62,6 +63,7 @@ INTERFACE zif_stock_allocation PUBLIC.
       reserve_qty   TYPE ty_quantity,
       unit          TYPE ty_unit,
       strategy      TYPE ty_strategy,
+      start_date    TYPE ty_start_date,
       cutoff_date   TYPE ty_cutoff_date,
       status        TYPE ty_status,
     END OF ty_allocation.
@@ -74,10 +76,22 @@ INTERFACE zif_stock_allocation PUBLIC.
       reserve_qty     TYPE ty_quantity,
       unit            TYPE ty_unit,
       strategy        TYPE ty_strategy,
+      start_date      TYPE ty_start_date,
       cutoff_date     TYPE ty_cutoff_date,
       allocations     TYPE tt_allocations,
     END OF ty_plan.
   TYPES tt_plans TYPE STANDARD TABLE OF ty_plan WITH EMPTY KEY.
+
+  TYPES:
+    BEGIN OF ty_saved_plan,
+      found      TYPE abap_bool,
+      plan       TYPE ty_plan,
+      created_on TYPE d,
+      created_at TYPE t,
+      created_by TYPE c LENGTH 12,
+      age_days   TYPE i,
+      stale      TYPE abap_bool,
+    END OF ty_saved_plan.
 
   TYPES:
     BEGIN OF ty_summary,

@@ -7,6 +7,7 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_unit               TYPE zif_stock_allocation=>ty_unit OPTIONAL
         iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
         iv_strategy           TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
+        iv_start_date         TYPE zif_stock_allocation=>ty_start_date OPTIONAL
         iv_cutoff_date        TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
@@ -20,6 +21,7 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_unit               TYPE zif_stock_allocation=>ty_unit
         iv_reserve            TYPE zif_stock_allocation=>ty_quantity
         iv_strategy           TYPE zif_stock_allocation=>ty_strategy
+        iv_start_date         TYPE zif_stock_allocation=>ty_start_date
         iv_cutoff_date        TYPE zif_stock_allocation=>ty_cutoff_date
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations.
@@ -30,6 +32,7 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_unit              TYPE zif_stock_allocation=>ty_unit
         iv_reserve           TYPE zif_stock_allocation=>ty_quantity
         iv_strategy          TYPE zif_stock_allocation=>ty_strategy
+        iv_start_date        TYPE zif_stock_allocation=>ty_start_date
         iv_cutoff_date       TYPE zif_stock_allocation=>ty_cutoff_date
       RETURNING
         VALUE(rs_allocation) TYPE zif_stock_allocation=>ty_allocation.
@@ -72,6 +75,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           iv_unit        = iv_unit
           iv_reserve     = iv_reserve
           iv_strategy    = iv_strategy
+          iv_start_date  = iv_start_date
           iv_cutoff_date = iv_cutoff_date ).
         LOOP AT lt_tier_result INTO DATA(ls_tier_result).
           lv_remaining = lv_remaining - ls_tier_result-allocated_qty.
@@ -97,6 +101,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         iv_unit        = iv_unit
         iv_reserve     = iv_reserve
         iv_strategy    = iv_strategy
+        iv_start_date  = iv_start_date
         iv_cutoff_date = iv_cutoff_date ).
       APPEND LINES OF lt_tier_result TO rt_allocations.
     ENDIF.
@@ -153,6 +158,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         iv_unit        = iv_unit
         iv_reserve     = iv_reserve
         iv_strategy    = iv_strategy
+        iv_start_date  = iv_start_date
         iv_cutoff_date = iv_cutoff_date ) TO rt_allocations.
       lv_remaining = lv_remaining - lv_allocated.
       lv_remaining_requested = lv_remaining_requested - ls_demand-requested_qty.
@@ -179,6 +185,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       reserve_qty   = iv_reserve
       unit          = iv_unit
       strategy      = iv_strategy ).
+    rs_allocation-start_date = iv_start_date.
     rs_allocation-cutoff_date = iv_cutoff_date.
     IF iv_allocated = is_demand-requested_qty.
       rs_allocation-status = zif_stock_allocation=>c_status_full.

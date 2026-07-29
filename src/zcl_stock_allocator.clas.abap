@@ -20,7 +20,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
     lt_demands = it_demands.
     DELETE lt_demands WHERE requested_qty <= 0.
-    SORT lt_demands BY delivery_date ASCENDING
+    SORT lt_demands BY priority DESCENDING
+                       delivery_date ASCENDING
                        sales_order ASCENDING
                        sales_item ASCENDING
                        schedule_line ASCENDING.
@@ -31,6 +32,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         sales_item = ls_demand-sales_item
         schedule_line = ls_demand-schedule_line
         delivery_date = ls_demand-delivery_date
+        priority = ls_demand-priority
         requested_qty = ls_demand-requested_qty ).
 
       IF lv_remaining >= ls_demand-requested_qty.

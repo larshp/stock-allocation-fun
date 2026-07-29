@@ -19,6 +19,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         posnr = ls_allocation-sales_item
         etenr = ls_allocation-schedule_line
         mbdat = ls_allocation-delivery_date
+        priority = ls_allocation-priority
         req_qty = ls_allocation-requested_qty
         alloc_qty = ls_allocation-allocated_qty
         short_qty = ls_allocation-shortage_qty

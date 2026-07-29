@@ -3,18 +3,164 @@ CLASS lcl_stock_source DEFINITION FINAL.
     INTERFACES zif_stock_source.
     METHODS constructor
       IMPORTING
-        iv_quantity TYPE zif_stock_allocation=>ty_quantity.
+        iv_quantity        TYPE zif_stock_allocation=>ty_quantity
+        iv_latest_quantity TYPE zif_stock_allocation=>ty_quantity.
   PRIVATE SECTION.
     DATA mv_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA mv_latest_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA mv_calls TYPE i.
 ENDCLASS.
 
 CLASS lcl_stock_source IMPLEMENTATION.
   METHOD constructor.
     mv_quantity = iv_quantity.
+    mv_latest_quantity = iv_latest_quantity.
   ENDMETHOD.
 
   METHOD zif_stock_source~get_available.
-    rv_quantity = mv_quantity.
+    mv_calls = mv_calls + 1.
+    IF mv_calls = 1.
+      rv_quantity = mv_quantity.
+    ELSE.
+      rv_quantity = mv_latest_quantity.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_allocation_lock DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_lock.
+    METHODS constructor
+      IMPORTING
+        iv_acquired TYPE abap_bool.
+    METHODS was_released
+      RETURNING
+        VALUE(rv_released) TYPE abap_bool.
+    METHODS was_requested
+      RETURNING
+        VALUE(rv_requested) TYPE abap_bool.
+    METHODS request_matches
+      IMPORTING
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
+      RETURNING
+        VALUE(rv_matches)   TYPE abap_bool.
+    METHODS release_matches
+      IMPORTING
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
+      RETURNING
+        VALUE(rv_matches)   TYPE abap_bool.
+  PRIVATE SECTION.
+    DATA mv_acquired TYPE abap_bool.
+    DATA mv_released TYPE abap_bool.
+    DATA mv_requested TYPE abap_bool.
+    DATA mv_requested_material TYPE zif_stock_allocation=>ty_material.
+    DATA mv_requested_plant TYPE zif_stock_allocation=>ty_plant.
+    DATA mv_requested_storage TYPE zif_stock_allocation=>ty_storage_loc.
+    DATA mv_released_material TYPE zif_stock_allocation=>ty_material.
+    DATA mv_released_plant TYPE zif_stock_allocation=>ty_plant.
+    DATA mv_released_storage TYPE zif_stock_allocation=>ty_storage_loc.
+ENDCLASS.
+
+CLASS lcl_allocation_lock IMPLEMENTATION.
+  METHOD constructor.
+    mv_acquired = iv_acquired.
+  ENDMETHOD.
+
+  METHOD zif_allocation_lock~acquire.
+    mv_requested = abap_true.
+    mv_requested_material = iv_material.
+    mv_requested_plant = iv_plant.
+    mv_requested_storage = iv_storage_location.
+    rv_acquired = mv_acquired.
+  ENDMETHOD.
+
+  METHOD zif_allocation_lock~release.
+    mv_released = abap_true.
+    mv_released_material = iv_material.
+    mv_released_plant = iv_plant.
+    mv_released_storage = iv_storage_location.
+  ENDMETHOD.
+
+  METHOD was_released.
+    rv_released = mv_released.
+  ENDMETHOD.
+
+  METHOD was_requested.
+    rv_requested = mv_requested.
+  ENDMETHOD.
+
+  METHOD request_matches.
+    rv_matches = xsdbool( mv_requested_material = iv_material
+                      AND mv_requested_plant = iv_plant
+                      AND mv_requested_storage = iv_storage_location ).
+  ENDMETHOD.
+
+  METHOD release_matches.
+    rv_matches = xsdbool( mv_released_material = iv_material
+                      AND mv_released_plant = iv_plant
+                      AND mv_released_storage = iv_storage_location ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_authorization DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_authorization.
+    METHODS constructor
+      IMPORTING
+        iv_authorized TYPE abap_bool.
+    METHODS was_called
+      RETURNING
+        VALUE(rv_called) TYPE abap_bool.
+  PRIVATE SECTION.
+    DATA mv_authorized TYPE abap_bool.
+    DATA mv_called TYPE abap_bool.
+ENDCLASS.
+
+CLASS lcl_authorization IMPLEMENTATION.
+  METHOD constructor.
+    mv_authorized = iv_authorized.
+  ENDMETHOD.
+
+  METHOD zif_allocation_authorization~is_authorized.
+    mv_called = abap_true.
+    rv_authorized = mv_authorized.
+  ENDMETHOD.
+
+  METHOD was_called.
+    rv_called = mv_called.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_allocation_log DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_log.
+    METHODS constructor
+      IMPORTING
+        iv_recorded TYPE abap_bool.
+    METHODS was_called
+      RETURNING
+        VALUE(rv_called) TYPE abap_bool.
+  PRIVATE SECTION.
+    DATA mv_recorded TYPE abap_bool.
+    DATA mv_called TYPE abap_bool.
+ENDCLASS.
+
+CLASS lcl_allocation_log IMPLEMENTATION.
+  METHOD constructor.
+    mv_recorded = iv_recorded.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~record_run.
+    mv_called = abap_true.
+    rv_recorded = mv_recorded.
+  ENDMETHOD.
+
+  METHOD was_called.
+    rv_called = mv_called.
   ENDMETHOD.
 ENDCLASS.
 
@@ -58,10 +204,28 @@ CLASS lcl_allocation_sink IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_failing_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_failing_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~save.
+    RAISE EXCEPTION NEW cx_sy_zerodivide( ).
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_stock_allocation_service DEFINITION FINAL
   FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
   PRIVATE SECTION.
-    METHODS orchestrates_and_saves FOR TESTING.
+    METHODS orchestrates_and_saves FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rechecks_latest_stock FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_concurrent_run FOR TESTING.
+    METHODS releases_after_failure FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_unauthorized_run FOR TESTING.
+    METHODS rejects_log_failure FOR TESTING.
+    METHODS previews_without_side_effects FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_scope_first FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
@@ -73,10 +237,14 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
         delivery_date = '20250101'
         requested_qty = '7' ) ).
     DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_source = NEW lcl_stock_source( '5' )
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
       io_demand_source = NEW lcl_demand_source( lt_demands )
-      io_allocation_sink = lo_sink ).
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
 
     DATA(lt_result) = lo_service->run(
       iv_material = 'MAT-1'
@@ -88,5 +256,193 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-shortage_qty exp = '2' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-schedule_line exp = '0001' ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_true( lo_lock->request_matches(
+      iv_material = 'MAT-1'
+      iv_plant = '1000'
+      iv_storage_location = '0001' ) ).
+  ENDMETHOD.
+
+  METHOD rechecks_latest_stock.
+    DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
+      ( sales_order = '1'
+        sales_item = '000010'
+        schedule_line = '0001'
+        delivery_date = '20250101'
+        requested_qty = '7' ) ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '4' )
+      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = NEW lcl_allocation_lock( abap_true )
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    DATA(lt_result) = lo_service->run(
+      iv_material = 'MAT-1'
+      iv_plant = '1000'
+      iv_storage_location = '0001' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '4' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty exp = '3' ).
+  ENDMETHOD.
+
+  METHOD rejects_concurrent_run.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_false ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Concurrent run must be rejected' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
+  ENDMETHOD.
+
+  METHOD releases_after_failure.
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_failing_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Sink failure must propagate' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
+        cl_abap_unit_assert=>assert_true( lo_lock->release_matches(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ) ).
+        cl_abap_unit_assert=>assert_bound( lo_error->previous ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized_run.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_false )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Unauthorized run must be rejected' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_log_failure.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_false ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Application log failure must reject the run' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
+  ENDMETHOD.
+
+  METHOD previews_without_side_effects.
+    DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
+      ( sales_order = '1'
+        sales_item = '000010'
+        schedule_line = '0001'
+        delivery_date = '20250101'
+        requested_qty = '3' ) ).
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = lo_log ).
+
+    DATA(lt_result) = lo_service->preview(
+      iv_material = 'MAT-1'
+      iv_plant = '1000'
+      iv_storage_location = '0001' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '3' ).
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+    cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_scope_first.
+    DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '5' iv_latest_quantity = '5' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = lo_authorization
+      io_allocation_log = lo_log ).
+
+    TRY.
+        lo_service->run(
+          iv_material = ''
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Invalid allocation scope must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+    cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
   ENDMETHOD.
 ENDCLASS.

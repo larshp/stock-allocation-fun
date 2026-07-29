@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "header": {
+    "description": "Stock allocation execution log",
+    "originalLanguage": "en"
+  },
+  "subobjects": [
+    {
+      "name": "RUN",
+      "description": "Allocation run"
+    }
+  ]
+}

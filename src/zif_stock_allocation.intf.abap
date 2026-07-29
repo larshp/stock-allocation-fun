@@ -8,6 +8,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_schedule_line TYPE n LENGTH 4.
   TYPES ty_quantity      TYPE p LENGTH 8 DECIMALS 3.
   TYPES ty_status        TYPE c LENGTH 1.
+  TYPES ty_priority      TYPE i.
 
   CONSTANTS c_status_full    TYPE ty_status VALUE 'F'.
   CONSTANTS c_status_partial TYPE ty_status VALUE 'P'.
@@ -19,6 +20,7 @@ INTERFACE zif_stock_allocation PUBLIC.
       sales_item    TYPE ty_sales_item,
       schedule_line TYPE ty_schedule_line,
       delivery_date TYPE d,
+      priority      TYPE ty_priority,
       requested_qty TYPE ty_quantity,
     END OF ty_demand.
   TYPES tt_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
@@ -29,6 +31,7 @@ INTERFACE zif_stock_allocation PUBLIC.
       sales_item    TYPE ty_sales_item,
       schedule_line TYPE ty_schedule_line,
       delivery_date TYPE d,
+      priority      TYPE ty_priority,
       requested_qty TYPE ty_quantity,
       allocated_qty TYPE ty_quantity,
       shortage_qty  TYPE ty_quantity,

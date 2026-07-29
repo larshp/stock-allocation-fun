@@ -1,6 +1,7 @@
 {
   "input_folder": ["src", "sap_stubs"],
   "input_filter": [],
+  "exclude_filter": ["\\.aplo\\.json$"],
   "output_folder": "output",
   "libs": [
     {
@@ -17,4 +18,3 @@
     "skip": []
   }
 }
-

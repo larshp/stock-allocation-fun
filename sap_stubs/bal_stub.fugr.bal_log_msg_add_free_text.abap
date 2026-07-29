@@ -1,0 +1,2 @@
+FUNCTION bal_log_msg_add_free_text.
+ENDFUNCTION.

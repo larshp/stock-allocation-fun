@@ -213,6 +213,7 @@
 - Added a dependency-free repository check to the default test pipeline.
 - The gate verifies every mandated abaplint rule, both open-abap-core dependencies, `sap_stubs` inclusion, the `/src/` abapGit import boundary, placement of every custom Z object, and absence of MARA/MARD/VBBE writes in custom ABAP.
 - Future changes can no longer satisfy `npm test` after silently weakening the structural constraints in `PLAN.md`.
+- The gate also protects operational delivery classes, unbuffered mutable tables, activity/plant/storage authorization fields, required activities, and both BAL subobjects.
 
 ## 2026-07-29 - Feature 33: Verified persistence outcomes
 
@@ -235,3 +236,14 @@
 
 - Converted the remaining environment limitation into explicit acceptance steps for DDIC activation, scoped roles, enqueue concurrency, source-data reconciliation, BAL history, rollback, and commit behavior.
 - The checklist separates locally proven behavior from the SAP kernel and release-specific evidence required before productive scheduling.
+
+## 2026-07-29 - Feature 37: Overflow-safe summary totals
+
+- Kept individual stock and demand quantities aligned with the packed 15-digit persistence fields while moving aggregate summary quantities to `DECFLOAT34`.
+- Added a regression test summing two individually valid maximum quantities beyond the packed-number ceiling.
+- Large allocation scopes can now be summarized and logged without arithmetic overflow solely because their valid rows exceed one line's numeric range.
+
+## 2026-07-29 - Feature 38: Operational priority lifecycle
+
+- Corrected `ZSTOCKPRIO` from customizing delivery class `C` to application-data class `A`.
+- Sales-order-specific priorities now remain client-local operational records rather than being treated as configuration intended for cross-system transport.

@@ -3,6 +3,7 @@ CLASS ltcl_stock_alloc_summary DEFINITION FINAL
   PRIVATE SECTION.
     METHODS summarizes_mixed_results FOR TESTING.
     METHODS summarizes_empty_results FOR TESTING.
+    METHODS summarizes_large_totals FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
@@ -43,5 +44,23 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_summary-allocatable_qty exp = '8' ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-reserve_qty exp = '2' ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-unit exp = 'EA' ).
+  ENDMETHOD.
+
+  METHOD summarizes_large_totals.
+    DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
+      it_allocations = VALUE #(
+        ( requested_qty = '900000000000.000'
+          allocated_qty = '900000000000.000'
+          status = zif_stock_allocation=>c_status_full )
+        ( requested_qty = '900000000000.000'
+          allocated_qty = '900000000000.000'
+          status = zif_stock_allocation=>c_status_full ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-requested_qty
+      exp = '1800000000000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-allocated_qty
+      exp = '1800000000000' ).
   ENDMETHOD.
 ENDCLASS.

@@ -7,6 +7,25 @@ const transpile = JSON.parse(
   readFileSync(join(root, "abap_transpile.json"), "utf8"),
 );
 const abapgit = readFileSync(join(root, ".abapgit.xml"), "utf8");
+const allocationTable = readFileSync(
+  join(root, "src", "zstockalloc.tabl.xml"),
+  "utf8",
+);
+const priorityTable = readFileSync(
+  join(root, "src", "zstockprio.tabl.xml"),
+  "utf8",
+);
+const runAuthorization = readFileSync(
+  join(root, "src", "zstk_run.suso.xml"),
+  "utf8",
+);
+const priorityAuthorization = readFileSync(
+  join(root, "src", "zstk_pri.suso.xml"),
+  "utf8",
+);
+const applicationLog = JSON.parse(
+  readFileSync(join(root, "src", "zstockalloc.aplo.json"), "utf8"),
+);
 
 function requireInvariant(condition, message) {
   if (!condition) {
@@ -45,6 +64,50 @@ requireInvariant(
   /<STARTING_FOLDER>\/src\/<\/STARTING_FOLDER>/.test(abapgit),
   "abapGit starting folder must remain /src/ so SAP stubs are never imported",
 );
+
+for (const [name, definition] of [
+  ["ZSTOCKALLOC", allocationTable],
+  ["ZSTOCKPRIO", priorityTable],
+]) {
+  requireInvariant(
+    definition.includes("<CONTFLAG>A</CONTFLAG>"),
+    `${name} must remain application data`,
+  );
+  requireInvariant(
+    definition.includes("<BUFALLOW>N</BUFALLOW>"),
+    `${name} must remain unbuffered`,
+  );
+}
+
+for (const [name, definition] of [
+  ["ZSTK_RUN", runAuthorization],
+  ["ZSTK_PRI", priorityAuthorization],
+]) {
+  for (const field of ["ACTVT", "WERKS", "LGORT"]) {
+    requireInvariant(
+      definition.includes(`>${field}</FIEL`),
+      `${name} is missing authorization field ${field}`,
+    );
+  }
+}
+for (const activity of ["03", "16"]) {
+  requireInvariant(
+    runAuthorization.includes(`<ACTVT>${activity}</ACTVT>`),
+    `ZSTK_RUN is missing activity ${activity}`,
+  );
+}
+for (const activity of ["02", "06"]) {
+  requireInvariant(
+    priorityAuthorization.includes(`<ACTVT>${activity}</ACTVT>`),
+    `ZSTK_PRI is missing activity ${activity}`,
+  );
+}
+for (const subobject of ["RUN", "PRIORITY"]) {
+  requireInvariant(
+    applicationLog.subobjects?.some((entry) => entry.name === subobject),
+    `Application log is missing subobject ${subobject}`,
+  );
+}
 
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

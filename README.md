@@ -10,7 +10,7 @@ Allocation statuses are `F` (full), `P` (partial), and `N` (none). Quantities ca
 
 `P_RESRV` keeps a non-negative quantity of unrestricted stock outside the allocation pool. The buffer applies identically to simulation and committed execution, and its value is persisted and included in the application-log summary. If the buffer exceeds stock, allocatable stock is zero.
 
-Priorities are optional signed integers stored in `ZSTOCKPRIO` for a material, plant, storage location, sales order, and item. Maintain them through report `ZSTOCK_PRIORITY`; its save and delete paths use the same allocation-scope lock, so configuration cannot change during an allocation run. Higher values allocate first. Equal priorities—including the default value zero—retain FIFO ordering, so existing behavior is unchanged when no configuration exists.
+Priorities are optional signed integers stored as client-dependent application data in `ZSTOCKPRIO` for a material, plant, storage location, sales order, and item. Maintain them through report `ZSTOCK_PRIORITY`; its save and delete paths use the same allocation-scope lock, so configuration cannot change during an allocation run. Higher values allocate first. Equal priorities—including the default value zero—retain FIFO ordering, so existing behavior is unchanged when no configuration exists.
 
 Simulation requires display activity `03` and committed execution requires activity `16`, together with the requested plant (`WERKS`) and storage location (`LGORT`), on authorization object `ZSTK_RUN`. This allows planners to preview without receiving permission to replace persisted plans or access unrelated inventory scopes.
 

@@ -247,3 +247,37 @@
 
 - Corrected `ZSTOCKPRIO` from customizing delivery class `C` to application-data class `A`.
 - Sales-order-specific priorities now remain client-local operational records rather than being treated as configuration intended for cross-system transport.
+
+## 2026-07-29 - Feature 39: Selectable allocation strategies
+
+- Retained priority/FIFO as the backward-compatible default and added proportional, max-min fair-share, and smallest-demand-first strategies.
+- Applied each strategy independently inside strict descending priority tiers, so lower-priority demand cannot consume stock needed by a higher tier.
+- Made proportional rounding deterministic and stock-conserving by recalculating each share from the remaining stock and remaining demand.
+- Made fair sharing complete small demands first and divide the balance among larger demands without exceeding any request.
+- Added a smallest-first policy that maximizes the count of completely supplied schedule lines inside each tier.
+- Propagated the effective strategy through plan and allocation results, committed snapshots, report output, and BAL run summaries.
+- Rejected unknown strategy codes before authorization, locking, reads, logging, or persistence.
+- Added allocator, service, validator, and Open SQL persistence tests for strategy behavior, tier isolation, rounding conservation, audit propagation, and failure ordering.
+
+## 2026-07-29 - Feature 40: Consistent strategy comparison
+
+- Added `PREVIEW_ALL_STRATEGIES` to calculate FIFO, proportional, max-min fair-share, and smallest-first plans from one stock and demand snapshot.
+- Reused the display-only authorization and reserve/scope validation while keeping comparison free of locks, logs, persistence, and commits.
+- Added report option `P_COMP` with comparable fulfillment counts, allocated quantity, and shortage quantity for every strategy.
+- Refactored context loading from plan construction so comparison performs one initial stock read, one demand read, and one latest-stock recheck instead of observing different data per strategy.
+- Added a service test proving all four plans share the latest stock snapshot and no side-effect boundary is invoked.
+
+## 2026-07-29 - Feature 41: Fulfillment KPIs
+
+- Added quantity fill percentage (`allocated / requested`) and complete-demand service-level percentage (`full demand lines / demand lines`) to allocation summaries.
+- Defined both KPIs as zero for empty demand sets, avoiding division failures in reports and BAL logging.
+- Displayed the KPIs in normal runs and strategy comparisons and included them in committed run logs.
+- Added exact and empty-result unit coverage for both calculations.
+
+## 2026-07-29 - Feature 42: Demand planning horizon
+
+- Added optional report/service cutoff date `P_CUTOF`; blank preserves the existing all-open-demand behavior.
+- Pushed dated horizon filtering into the productive `VBBE` query before priority enrichment, reducing both requirement and priority-read volume.
+- Applied the same cutoff to selected-strategy previews, committed runs, and single-snapshot strategy comparisons.
+- Propagated the effective cutoff through plans, allocation rows, `ZSTOCKALLOC`, report scope output, and BAL run summaries.
+- Added database-backed adapter coverage for the cutoff and service coverage for source propagation and plan-row audit metadata.

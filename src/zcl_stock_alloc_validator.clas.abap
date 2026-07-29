@@ -21,6 +21,11 @@ CLASS zcl_stock_alloc_validator DEFINITION PUBLIC FINAL CREATE PRIVATE.
         iv_reserve TYPE zif_stock_allocation=>ty_quantity
       RAISING
         zcx_stock_allocation.
+    CLASS-METHODS validate_strategy
+      IMPORTING
+        iv_strategy TYPE zif_stock_allocation=>ty_strategy
+      RAISING
+        zcx_stock_allocation.
     CLASS-METHODS validate_demands
       IMPORTING
         it_demands TYPE zif_stock_allocation=>tt_demands
@@ -62,6 +67,16 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
     IF iv_reserve < 0.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Stock reserve quantity cannot be negative' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_strategy.
+    IF iv_strategy <> zif_stock_allocation=>c_strategy_fifo
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_proportional
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_fair_share
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_smallest_first.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Allocation strategy must be F, P, E, or S' ).
     ENDIF.
   ENDMETHOD.
 

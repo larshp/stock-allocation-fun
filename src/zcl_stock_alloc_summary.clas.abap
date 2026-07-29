@@ -35,5 +35,13 @@ CLASS zcl_stock_alloc_summary IMPLEMENTATION.
           rs_summary-none_count = rs_summary-none_count + 1.
       ENDCASE.
     ENDLOOP.
+    IF rs_summary-requested_qty > 0.
+      rs_summary-quantity_fill_pct = rs_summary-allocated_qty * 100
+                                   / rs_summary-requested_qty.
+    ENDIF.
+    IF rs_summary-demand_count > 0.
+      rs_summary-service_level_pct = rs_summary-full_count * 100
+                                   / rs_summary-demand_count.
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.

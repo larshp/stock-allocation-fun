@@ -3,6 +3,8 @@ CLASS ltcl_stock_alloc_validator DEFINITION FINAL
   PRIVATE SECTION.
     METHODS rejects_incomplete_demand FOR TESTING.
     METHODS allows_ignored_nonpositive FOR TESTING RAISING zcx_stock_allocation.
+    METHODS accepts_known_strategies FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_strategy FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_alloc_validator IMPLEMENTATION.
@@ -27,5 +29,25 @@ CLASS ltcl_stock_alloc_validator IMPLEMENTATION.
         schedule_line = '0000'
         delivery_date = '00000000'
         requested_qty = '0' ) ) ).
+  ENDMETHOD.
+
+  METHOD accepts_known_strategies.
+    zcl_stock_alloc_validator=>validate_strategy(
+      zif_stock_allocation=>c_strategy_fifo ).
+    zcl_stock_alloc_validator=>validate_strategy(
+      zif_stock_allocation=>c_strategy_proportional ).
+    zcl_stock_alloc_validator=>validate_strategy(
+      zif_stock_allocation=>c_strategy_fair_share ).
+    zcl_stock_alloc_validator=>validate_strategy(
+      zif_stock_allocation=>c_strategy_smallest_first ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_strategy.
+    TRY.
+        zcl_stock_alloc_validator=>validate_strategy( 'X' ).
+        cl_abap_unit_assert=>fail( 'Unknown strategy must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.

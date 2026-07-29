@@ -14,6 +14,8 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant              TYPE zif_stock_allocation=>ty_plant
         iv_storage_location   TYPE zif_stock_allocation=>ty_storage_loc
         iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_strategy           TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
+        iv_cutoff_date        TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
       RAISING
@@ -24,6 +26,8 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant              TYPE zif_stock_allocation=>ty_plant
         iv_storage_location   TYPE zif_stock_allocation=>ty_storage_loc
         iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_strategy           TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
+        iv_cutoff_date        TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
       RAISING
@@ -34,6 +38,8 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant            TYPE zif_stock_allocation=>ty_plant
         iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
         iv_reserve          TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_strategy         TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
+        iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rs_plan)      TYPE zif_stock_allocation=>ty_plan
       RAISING
@@ -44,11 +50,29 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant            TYPE zif_stock_allocation=>ty_plant
         iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
         iv_reserve          TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_strategy         TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
+        iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
       RETURNING
         VALUE(rs_plan)      TYPE zif_stock_allocation=>ty_plan
       RAISING
         zcx_stock_allocation.
+    METHODS preview_all_strategies
+      IMPORTING
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
+        iv_reserve          TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
+      RETURNING
+        VALUE(rt_plans)     TYPE zif_stock_allocation=>tt_plans
+      RAISING
+        zcx_stock_allocation.
   PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ty_context,
+        stock   TYPE zif_stock_allocation=>ty_stock,
+        demands TYPE zif_stock_allocation=>tt_demands,
+      END OF ty_context.
     DATA mo_stock_source TYPE REF TO zif_stock_source.
     DATA mo_demand_source TYPE REF TO zif_demand_source.
     DATA mo_allocation_sink TYPE REF TO zif_allocation_sink.
@@ -61,8 +85,31 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant            TYPE zif_stock_allocation=>ty_plant
         iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
         iv_reserve          TYPE zif_stock_allocation=>ty_quantity
+        iv_strategy         TYPE zif_stock_allocation=>ty_strategy
+        iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date
       RETURNING
         VALUE(rs_plan)      TYPE zif_stock_allocation=>ty_plan
+      RAISING
+        zcx_stock_allocation.
+    METHODS load_context
+      IMPORTING
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
+        iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date
+      RETURNING
+        VALUE(rs_context)   TYPE ty_context
+      RAISING
+        zcx_stock_allocation.
+    METHODS build_plan
+      IMPORTING
+        is_stock       TYPE zif_stock_allocation=>ty_stock
+        it_demands     TYPE zif_stock_allocation=>tt_demands
+        iv_reserve     TYPE zif_stock_allocation=>ty_quantity
+        iv_strategy    TYPE zif_stock_allocation=>ty_strategy
+        iv_cutoff_date TYPE zif_stock_allocation=>ty_cutoff_date
+      RETURNING
+        VALUE(rs_plan) TYPE zif_stock_allocation=>ty_plan
       RAISING
         zcx_stock_allocation.
 ENDCLASS.
@@ -88,7 +135,9 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location
-      iv_reserve = iv_reserve ).
+      iv_reserve = iv_reserve
+      iv_strategy = iv_strategy
+      iv_cutoff_date = iv_cutoff_date ).
     rt_allocations = ls_plan-allocations.
   ENDMETHOD.
 
@@ -98,6 +147,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
     zcl_stock_alloc_validator=>validate_reserve( iv_reserve ).
+    zcl_stock_alloc_validator=>validate_strategy( iv_strategy ).
     IF mo_authorization->is_authorized(
          iv_activity = '16'
          iv_plant = iv_plant
@@ -120,7 +170,9 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_material = iv_material
           iv_plant = iv_plant
           iv_storage_location = iv_storage_location
-          iv_reserve = iv_reserve ).
+          iv_reserve = iv_reserve
+          iv_strategy = iv_strategy
+          iv_cutoff_date = iv_cutoff_date ).
         DATA(lv_recorded) = mo_allocation_log->record_run(
           iv_material = iv_material
           iv_plant = iv_plant
@@ -129,6 +181,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_allocatable_qty = rs_plan-allocatable_qty
           iv_reserve = rs_plan-reserve_qty
           iv_unit = rs_plan-unit
+          iv_strategy = rs_plan-strategy
+          iv_cutoff_date = rs_plan-cutoff_date
           it_allocations = rs_plan-allocations ).
         IF lv_recorded = abap_false.
           RAISE EXCEPTION NEW zcx_stock_allocation(
@@ -156,7 +210,9 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location
-      iv_reserve = iv_reserve ).
+      iv_reserve = iv_reserve
+      iv_strategy = iv_strategy
+      iv_cutoff_date = iv_cutoff_date ).
     rt_allocations = ls_plan-allocations.
   ENDMETHOD.
 
@@ -166,6 +222,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
     zcl_stock_alloc_validator=>validate_reserve( iv_reserve ).
+    zcl_stock_alloc_validator=>validate_strategy( iv_strategy ).
     IF mo_authorization->is_authorized(
          iv_activity = '03'
          iv_plant = iv_plant
@@ -179,7 +236,60 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_material = iv_material
           iv_plant = iv_plant
           iv_storage_location = iv_storage_location
-          iv_reserve = iv_reserve ).
+          iv_reserve = iv_reserve
+          iv_strategy = iv_strategy
+          iv_cutoff_date = iv_cutoff_date ).
+      CATCH cx_root INTO DATA(lo_failure).
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          iv_text = lo_failure->get_text( )
+          io_previous = lo_failure ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD preview_all_strategies.
+    zcl_stock_alloc_validator=>validate_scope(
+      iv_material = iv_material
+      iv_plant = iv_plant
+      iv_storage_location = iv_storage_location ).
+    zcl_stock_alloc_validator=>validate_reserve( iv_reserve ).
+    IF mo_authorization->is_authorized(
+         iv_activity = '03'
+         iv_plant = iv_plant
+         iv_storage_location = iv_storage_location ) = abap_false.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Not authorized to compare stock allocation strategies' ).
+    ENDIF.
+
+    TRY.
+        DATA(ls_context) = load_context(
+          iv_material = iv_material
+          iv_plant = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_cutoff_date = iv_cutoff_date ).
+        APPEND build_plan(
+          is_stock = ls_context-stock
+          it_demands = ls_context-demands
+          iv_reserve = iv_reserve
+          iv_strategy = zif_stock_allocation=>c_strategy_fifo
+          iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
+        APPEND build_plan(
+          is_stock = ls_context-stock
+          it_demands = ls_context-demands
+          iv_reserve = iv_reserve
+          iv_strategy = zif_stock_allocation=>c_strategy_proportional
+          iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
+        APPEND build_plan(
+          is_stock = ls_context-stock
+          it_demands = ls_context-demands
+          iv_reserve = iv_reserve
+          iv_strategy = zif_stock_allocation=>c_strategy_fair_share
+          iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
+        APPEND build_plan(
+          is_stock = ls_context-stock
+          it_demands = ls_context-demands
+          iv_reserve = iv_reserve
+          iv_strategy = zif_stock_allocation=>c_strategy_smallest_first
+          iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
       CATCH cx_root INTO DATA(lo_failure).
         RAISE EXCEPTION NEW zcx_stock_allocation(
           iv_text = lo_failure->get_text( )
@@ -188,41 +298,62 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD calculate.
-    DATA(ls_stock) = mo_stock_source->get_available(
+    DATA(ls_context) = load_context(
+      iv_material = iv_material
+      iv_plant = iv_plant
+      iv_storage_location = iv_storage_location
+      iv_cutoff_date = iv_cutoff_date ).
+    rs_plan = build_plan(
+      is_stock = ls_context-stock
+      it_demands = ls_context-demands
+      iv_reserve = iv_reserve
+      iv_strategy = iv_strategy
+      iv_cutoff_date = iv_cutoff_date ).
+  ENDMETHOD.
+
+  METHOD load_context.
+    rs_context-stock = mo_stock_source->get_available(
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
-    DATA(lt_demands) = mo_demand_source->get_open_demands(
+    rs_context-demands = mo_demand_source->get_open_demands(
       iv_material = iv_material
       iv_plant = iv_plant
-      iv_storage_location = iv_storage_location ).
-    zcl_stock_alloc_validator=>validate_demands( lt_demands ).
+      iv_storage_location = iv_storage_location
+      iv_cutoff_date = iv_cutoff_date ).
+    zcl_stock_alloc_validator=>validate_demands( rs_context-demands ).
 
     DATA(ls_latest_stock) = mo_stock_source->get_available(
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
-    IF ls_latest_stock <> ls_stock.
-      ls_stock = ls_latest_stock.
+    IF ls_latest_stock <> rs_context-stock.
+      rs_context-stock = ls_latest_stock.
     ENDIF.
-    IF ls_stock-unit IS INITIAL.
+    IF rs_context-stock-unit IS INITIAL.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Material base unit could not be determined' ).
     ENDIF.
+  ENDMETHOD.
 
-    DATA(lv_allocatable) = ls_stock-quantity - iv_reserve.
+  METHOD build_plan.
+    DATA(lv_allocatable) = is_stock-quantity - iv_reserve.
     IF lv_allocatable < 0.
       CLEAR lv_allocatable.
     ENDIF.
 
-    rs_plan-stock_qty = ls_stock-quantity.
+    rs_plan-stock_qty = is_stock-quantity.
     rs_plan-allocatable_qty = lv_allocatable.
     rs_plan-reserve_qty = iv_reserve.
-    rs_plan-unit = ls_stock-unit.
+    rs_plan-unit = is_stock-unit.
+    rs_plan-strategy = iv_strategy.
+    rs_plan-cutoff_date = iv_cutoff_date.
     rs_plan-allocations = NEW zcl_stock_allocator( )->allocate(
       iv_available = lv_allocatable
-      it_demands = lt_demands
-      iv_unit = ls_stock-unit
-      iv_reserve = iv_reserve ).
+      it_demands = it_demands
+      iv_unit = is_stock-unit
+      iv_reserve = iv_reserve
+      iv_strategy = iv_strategy
+      iv_cutoff_date = iv_cutoff_date ).
   ENDMETHOD.
 ENDCLASS.

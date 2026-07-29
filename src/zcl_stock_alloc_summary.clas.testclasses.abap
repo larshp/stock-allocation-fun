@@ -4,6 +4,7 @@ CLASS ltcl_stock_alloc_summary DEFINITION FINAL
     METHODS summarizes_mixed_results FOR TESTING.
     METHODS summarizes_empty_results FOR TESTING.
     METHODS summarizes_large_totals FOR TESTING.
+    METHODS calculates_fulfillment_kpis FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
@@ -44,6 +45,8 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_summary-allocatable_qty exp = '8' ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-reserve_qty exp = '2' ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-unit exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_summary-quantity_fill_pct exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_summary-service_level_pct exp = 0 ).
   ENDMETHOD.
 
   METHOD summarizes_large_totals.
@@ -62,5 +65,25 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-allocated_qty
       exp = '1800000000000' ).
+  ENDMETHOD.
+
+  METHOD calculates_fulfillment_kpis.
+    DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
+      it_allocations = VALUE #(
+        ( requested_qty = '2.5' allocated_qty = '2.5'
+          status = zif_stock_allocation=>c_status_full )
+        ( requested_qty = '2.5' allocated_qty = '2.5'
+          status = zif_stock_allocation=>c_status_full )
+        ( requested_qty = '2.5' allocated_qty = '0'
+          shortage_qty = '2.5' status = zif_stock_allocation=>c_status_none )
+        ( requested_qty = '2.5' allocated_qty = '0'
+          shortage_qty = '2.5' status = zif_stock_allocation=>c_status_none ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-quantity_fill_pct
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-service_level_pct
+      exp = 50 ).
   ENDMETHOD.
 ENDCLASS.

@@ -33,7 +33,7 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_text) = |Stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; allocated { ls_summary-allocated_qty }; shortage { ls_summary-shortage_qty }; reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
+    DATA(lv_text) = |Strategy { iv_strategy }; cutoff { iv_cutoff_date }; stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; allocated { ls_summary-allocated_qty }; shortage { ls_summary-shortage_qty }; fill { ls_summary-quantity_fill_pct }%; service { ls_summary-service_level_pct }%; reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
     DATA lv_message_type TYPE symsgty VALUE 'S'.
     IF ls_summary-shortage_qty > 0.
       lv_message_type = 'W'.

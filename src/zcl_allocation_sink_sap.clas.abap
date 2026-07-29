@@ -29,6 +29,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         short_qty = ls_allocation-shortage_qty
         reserve_qty = ls_allocation-reserve_qty
         meins = ls_allocation-unit
+        strategy = ls_allocation-strategy
+        cutoff_date = ls_allocation-cutoff_date
         created_on = lv_created_on
         created_at = lv_created_at
         created_by = lv_created_by

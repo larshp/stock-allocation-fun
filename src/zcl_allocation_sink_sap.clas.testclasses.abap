@@ -58,6 +58,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         shortage_qty = '0'
         reserve_qty = '1'
         unit = 'EA'
+        strategy = zif_stock_allocation=>c_strategy_proportional
+        cutoff_date = '20260831'
         status = zif_stock_allocation=>c_status_full ) ).
     lo_sink->zif_allocation_sink~save(
       iv_material = c_material
@@ -78,6 +80,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-alloc_qty exp = '3' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-reserve_qty exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-meins exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved[ 1 ]-strategy
+      exp = zif_stock_allocation=>c_strategy_proportional ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved[ 1 ]-cutoff_date
+      exp = '20260831' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_saved[ 1 ]-alloc_status
       exp = zif_stock_allocation=>c_status_full ).

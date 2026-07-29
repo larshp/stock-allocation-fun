@@ -2,7 +2,7 @@
   "name": "stock-allocation-fun",
   "version": "1.0.0",
   "private": true,
-  "description": "Deterministic SAP stock allocation implemented in ABAP",
+  "description": "Deterministic multi-strategy SAP stock allocation implemented in ABAP",
   "scripts": {
     "verify:repo": "node test/repository-check.mjs",
     "lint": "abaplint",

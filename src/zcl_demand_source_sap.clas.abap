@@ -14,13 +14,24 @@ ENDCLASS.
 
 CLASS zcl_demand_source_sap IMPLEMENTATION.
   METHOD zif_demand_source~get_open_demands.
-    SELECT vbeln, posnr, etenr, mbdat, omeng
-      FROM vbbe
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-        AND omeng > 0
-      INTO TABLE @DATA(lt_requirements).
+    IF iv_cutoff_date IS INITIAL.
+      SELECT vbeln, posnr, etenr, mbdat, omeng
+        FROM vbbe
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND omeng > 0
+        INTO TABLE @DATA(lt_requirements).
+    ELSE.
+      SELECT vbeln, posnr, etenr, mbdat, omeng
+        FROM vbbe
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND mbdat <= @iv_cutoff_date
+          AND omeng > 0
+        INTO TABLE @lt_requirements.
+    ENDIF.
     IF lt_requirements IS INITIAL.
       RETURN.
     ENDIF.

@@ -26,6 +26,14 @@ const priorityAuthorization = readFileSync(
 const applicationLog = JSON.parse(
   readFileSync(join(root, "src", "zstockalloc.aplo.json"), "utf8"),
 );
+const allocationDomain = readFileSync(
+  join(root, "src", "zif_stock_allocation.intf.abap"),
+  "utf8",
+);
+const allocationReport = readFileSync(
+  join(root, "src", "zstock_allocate.prog.abap"),
+  "utf8",
+);
 
 function requireInvariant(condition, message) {
   if (!condition) {
@@ -78,6 +86,38 @@ for (const [name, definition] of [
     `${name} must remain unbuffered`,
   );
 }
+
+requireInvariant(
+  allocationTable.includes("<FIELDNAME>STRATEGY</FIELDNAME>"),
+  "ZSTOCKALLOC must persist the effective allocation strategy",
+);
+requireInvariant(
+  allocationTable.includes("<FIELDNAME>CUTOFF_DATE</FIELDNAME>"),
+  "ZSTOCKALLOC must persist the effective demand cutoff",
+);
+for (const strategy of [
+  "c_strategy_fifo",
+  "c_strategy_proportional",
+  "c_strategy_fair_share",
+  "c_strategy_smallest_first",
+]) {
+  requireInvariant(
+    allocationDomain.includes(strategy),
+    `Allocation domain is missing strategy ${strategy}`,
+  );
+}
+requireInvariant(
+  /PARAMETERS\s+p_strat\s/i.test(allocationReport),
+  "Allocation report must expose strategy selection",
+);
+requireInvariant(
+  /PARAMETERS\s+p_comp\s/i.test(allocationReport),
+  "Allocation report must expose side-effect-free strategy comparison",
+);
+requireInvariant(
+  /PARAMETERS\s+p_cutof\s/i.test(allocationReport),
+  "Allocation report must expose the demand cutoff",
+);
 
 for (const [name, definition] of [
   ["ZSTK_RUN", runAuthorization],

@@ -7,11 +7,19 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_sales_item    TYPE vbbe-posnr.
   TYPES ty_schedule_line TYPE vbbe-etenr.
   TYPES ty_delivery_date TYPE vbbe-mbdat.
+  TYPES ty_cutoff_date   TYPE vbbe-mbdat.
   TYPES ty_quantity      TYPE p LENGTH 8 DECIMALS 3.
   TYPES ty_total_quantity TYPE decfloat34.
+  TYPES ty_percentage     TYPE decfloat34.
   TYPES ty_status        TYPE c LENGTH 1.
   TYPES ty_priority      TYPE i.
   TYPES ty_unit          TYPE mara-meins.
+  TYPES ty_strategy      TYPE c LENGTH 1.
+
+  CONSTANTS c_strategy_fifo        TYPE ty_strategy VALUE 'F'.
+  CONSTANTS c_strategy_proportional TYPE ty_strategy VALUE 'P'.
+  CONSTANTS c_strategy_fair_share  TYPE ty_strategy VALUE 'E'.
+  CONSTANTS c_strategy_smallest_first TYPE ty_strategy VALUE 'S'.
 
   TYPES:
     BEGIN OF ty_stock,
@@ -46,6 +54,8 @@ INTERFACE zif_stock_allocation PUBLIC.
       shortage_qty  TYPE ty_quantity,
       reserve_qty   TYPE ty_quantity,
       unit          TYPE ty_unit,
+      strategy      TYPE ty_strategy,
+      cutoff_date   TYPE ty_cutoff_date,
       status        TYPE ty_status,
     END OF ty_allocation.
   TYPES tt_allocations TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
@@ -56,22 +66,27 @@ INTERFACE zif_stock_allocation PUBLIC.
       allocatable_qty TYPE ty_quantity,
       reserve_qty     TYPE ty_quantity,
       unit            TYPE ty_unit,
+      strategy        TYPE ty_strategy,
+      cutoff_date     TYPE ty_cutoff_date,
       allocations     TYPE tt_allocations,
     END OF ty_plan.
+  TYPES tt_plans TYPE STANDARD TABLE OF ty_plan WITH EMPTY KEY.
 
   TYPES:
     BEGIN OF ty_summary,
-      demand_count    TYPE i,
-      full_count      TYPE i,
-      partial_count   TYPE i,
-      none_count      TYPE i,
-      requested_qty   TYPE ty_total_quantity,
-      allocated_qty   TYPE ty_total_quantity,
-      shortage_qty    TYPE ty_total_quantity,
-      stock_qty       TYPE ty_total_quantity,
-      allocatable_qty TYPE ty_total_quantity,
-      reserve_qty     TYPE ty_total_quantity,
-      unit            TYPE ty_unit,
+      demand_count      TYPE i,
+      full_count        TYPE i,
+      partial_count     TYPE i,
+      none_count        TYPE i,
+      requested_qty     TYPE ty_total_quantity,
+      allocated_qty     TYPE ty_total_quantity,
+      shortage_qty      TYPE ty_total_quantity,
+      stock_qty         TYPE ty_total_quantity,
+      allocatable_qty   TYPE ty_total_quantity,
+      reserve_qty       TYPE ty_total_quantity,
+      quantity_fill_pct TYPE ty_percentage,
+      service_level_pct TYPE ty_percentage,
+      unit              TYPE ty_unit,
     END OF ty_summary.
 
 ENDINTERFACE.

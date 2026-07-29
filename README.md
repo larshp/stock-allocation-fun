@@ -37,6 +37,8 @@ with `VBAP-ABGRU`, and matches the requested material and plant. Reconciliation
 uses the same rules so rejection or item-context changes release stale allocation.
 Standard `VBAP-LPRIO` drives productive priority: because SAP value `01` is
 highest, it is translated to a descending internal rank before allocation.
+An allocated schedule-line identity cannot be reassigned to another material or
+plant; reconcile its old context before allocating the changed item.
 
 Allocatable on-hand stock is `MARD-LABST` less eligible SAP-confirmed
 `VBEP-BMENG` and less `ZSALLOC_STOCK` reservations. This prevents the custom
@@ -59,7 +61,10 @@ by plant (`WERKS`).
 
 Run `ZSALLOC_RECONCILE` to detect allocations no longer supported by current VBEP
 quantities, including deleted schedule lines. It also defaults to simulation and
-reports the quantity that would be released.
+reports every affected schedule line plus the total quantity that would be
+released. Reconciliation resets ledger demand and shortage to current
+SAP-supported quantities and logs `RECONCILE`, while a manual release retains
+demand and increases shortage.
 
 Run `ZSALLOC_RELEASE` for an explicit material, plant, and
 `VBELN + POSNR + ETENR` allocation identity. It defaults to a read-only ledger
@@ -78,7 +83,7 @@ procedures.
 
 Run read-only `ZSALLOC_CHECK` to compare physical MARD stock with commitments and
 to prove the stock-ledger total equals summed per-order allocations. Follow
-`SAP_CONCURRENCY_TEST.md` before each productive rollout.
+`SAP_DEPLOYMENT.md` and `SAP_CONCURRENCY_TEST.md` before each productive rollout.
 
 ## Local verification
 

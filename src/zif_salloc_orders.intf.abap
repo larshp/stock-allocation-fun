@@ -22,6 +22,8 @@ INTERFACE zif_salloc_orders PUBLIC.
       iv_plant TYPE zif_salloc_types=>ty_plant
       iv_order_id TYPE zif_salloc_types=>ty_order_id
       iv_quantity TYPE zif_salloc_types=>ty_quantity
+      iv_reconcile TYPE abap_bool DEFAULT abap_false
+      iv_supported TYPE zif_salloc_types=>ty_quantity OPTIONAL
     RAISING
       zcx_salloc_integration.
 ENDINTERFACE.

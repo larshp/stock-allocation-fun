@@ -9,8 +9,9 @@ so configure job monitoring to alert on cancelled/error runs as well as spool te
 
 1. Run `ZSALLOC_CHECK` after allocation batches and at least daily. Investigate
    any mismatch between stock-ledger reservations and summed order allocations,
-   or any case where SAP confirmations plus reservations exceed physical MARD
-   stock, before running further productive allocations.
+   any internally inconsistent order quantity row, or any case where SAP
+   confirmations plus reservations exceed physical MARD stock, before running
+   further productive allocations.
    Invariant failures raise an error message so a background run is visible as a
    failed job rather than only as text in the spool.
 2. Run `ZSALLOC_RECONCILE` in simulation first. Review the release quantity, then
@@ -19,7 +20,7 @@ so configure job monitoring to alert on cancelled/error runs as well as spool te
    For a reviewed one-off correction, use simulation-first `ZSALLOC_RELEASE` with
    the full `VBELN + POSNR + ETENR` identity instead of editing ledger tables.
 3. Review `ZSALLOC_LOG` for unexpected users, plants, quantities, or event volume.
-   Committed events are `ALLOCATE`, `RELEASE`, and `LOG_RETENTION`.
+   Committed events are `ALLOCATE`, `RELEASE`, `RECONCILE`, and `LOG_RETENTION`.
 4. Run `ZSALLOC_LOG_CLEANUP` first with `P_SIM = X`. Supply an explicit UTC cutoff
    timestamp derived from the organization's approved retention period. Only then
    execute the change-authorized variant. Cleanup is plant-scoped and leaves a

@@ -41,12 +41,13 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       matnr = 'MAT-1' werks = '1000' requested = 8 allocated = 5 shortage = 3 ) ).
     INSERT zsalloc_stock FROM @( VALUE #(
       mandt = sy-mandt matnr = 'MAT-1' werks = '1000' reserved = 5 ) ).
+    DATA(logger) = NEW zcl_salloc_logger_stub( ).
     DATA(service) = NEW zcl_salloc_service(
       io_stock = NEW zcl_salloc_stock_sap( )
       io_orders = NEW zcl_salloc_orders_sap( )
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
-      io_logger = NEW zcl_salloc_logger_stub( ) ).
+      io_logger = logger ).
     DATA(reconciler) = NEW zcl_salloc_reconciler(
       io_service = service
       io_authorization = NEW zcl_salloc_authorization_stub( ) ).
@@ -56,9 +57,28 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       iv_plant = '1000' ).
 
     cl_abap_unit_assert=>assert_equals( act = released exp = 3 ).
+    DATA(releases) = reconciler->get_releases( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = releases[ order_id = '50000000010000100001' ]-supported
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = releases[ order_id = '50000000010000100001' ]-quantity
+      exp = 3 ).
     SELECT SINGLE reserved FROM zsalloc_stock
       WHERE matnr = 'MAT-1' AND werks = '1000' INTO @DATA(reserved).
     cl_abap_unit_assert=>assert_equals( act = reserved exp = 2 ).
+    SELECT SINGLE requested, allocated, shortage FROM zsalloc_order
+      WHERE order_id = '50000000010000100001' INTO @DATA(order_row).
+    cl_abap_unit_assert=>assert_equals( act = order_row-requested exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = order_row-allocated exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = order_row-shortage exp = 0 ).
+    DATA(log_entries) = logger->get_entries( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = log_entries[ 1 ]-event
+      exp = `RECONCILE` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = log_entries[ 1 ]-quantity
+      exp = 3 ).
   ENDMETHOD.
 
   METHOD releases_deleted_schedule.
@@ -82,6 +102,11 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       iv_plant = '1000' ).
 
     cl_abap_unit_assert=>assert_equals( act = released exp = 4 ).
+    SELECT SINGLE requested, allocated, shortage FROM zsalloc_order
+      WHERE order_id = '50000000010000100001' INTO @DATA(order_row).
+    cl_abap_unit_assert=>assert_equals( act = order_row-requested exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = order_row-allocated exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = order_row-shortage exp = 0 ).
   ENDMETHOD.
 
   METHOD simulation_does_not_release.

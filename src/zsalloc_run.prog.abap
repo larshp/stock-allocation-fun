@@ -12,12 +12,15 @@ START-OF-SELECTION.
         iv_plant = p_werks
         iv_simulate = p_sim ).
 
-      WRITE: / 'Order/schedule line', 24 'Requested', 40 'Allocated', 56 'Shortage'.
+      WRITE: / 'Order/schedule line', 24 'Requested', 40 'Allocated',
+               56 'Shortage', 72 'Priority', 84 'Requested date'.
       LOOP AT allocations ASSIGNING FIELD-SYMBOL(<allocation>).
         WRITE: / <allocation>-order_id,
                  24 <allocation>-requested,
                  40 <allocation>-allocated,
-                 56 <allocation>-shortage.
+                 56 <allocation>-shortage,
+                 72 <allocation>-priority,
+                 84 <allocation>-requested_on.
       ENDLOOP.
     CATCH zcx_salloc_invalid INTO DATA(invalid).
       WRITE: / 'Invalid request:', invalid->reason.

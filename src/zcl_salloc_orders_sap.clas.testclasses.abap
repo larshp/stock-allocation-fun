@@ -13,6 +13,9 @@ CLASS ltcl_orders_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_salloc_integration.
     METHODS ignores_non_order_document FOR TESTING
       RAISING zcx_salloc_integration.
+    METHODS maps_delivery_priority FOR TESTING
+      RAISING zcx_salloc_integration.
+    METHODS rejects_context_change FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_orders_sap IMPLEMENTATION.
@@ -140,5 +143,62 @@ CLASS ltcl_orders_sap IMPLEMENTATION.
       iv_plant = '1000' ).
 
     cl_abap_unit_assert=>assert_initial( demands ).
+  ENDMETHOD.
+
+  METHOD maps_delivery_priority.
+    INSERT vbak FROM @( VALUE #(
+      mandt = sy-mandt vbeln = '5000000001' vbtyp = 'C' ) ).
+    DATA sales_items TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+    sales_items = VALUE #(
+      ( mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
+        matnr = 'MAT-1' werks = '1000' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '5000000001' posnr = '000020'
+        matnr = 'MAT-1' werks = '1000' lprio = '10' ) ).
+    INSERT vbap FROM TABLE @sales_items.
+    DATA schedule_lines TYPE STANDARD TABLE OF vbep WITH EMPTY KEY.
+    schedule_lines = VALUE #(
+      ( mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
+        etenr = '0001' edatu = '20260701' lmeng = 1 )
+      ( mandt = sy-mandt vbeln = '5000000001' posnr = '000020'
+        etenr = '0001' edatu = '20260701' lmeng = 1 ) ).
+    INSERT vbep FROM TABLE @schedule_lines.
+    DATA(orders) = NEW zcl_salloc_orders_sap( ).
+
+    DATA(demands) = orders->zif_salloc_orders~get_open_demands(
+      iv_material = 'MAT-1'
+      iv_plant = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = demands[ order_id = '50000000010000100001' ]-priority
+      exp = 99 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = demands[ order_id = '50000000010000200001' ]-priority
+      exp = 90 ).
+  ENDMETHOD.
+
+  METHOD rejects_context_change.
+    INSERT zsalloc_order FROM @( VALUE #(
+      mandt = sy-mandt order_id = '50000000010000100001'
+      matnr = 'MAT-1' werks = '1000' requested = 4 allocated = 2 ) ).
+    DATA(demands) = VALUE zif_salloc_types=>tt_demands(
+      ( order_id = '50000000010000100001' requested = 2 allocated = 1 ) ).
+    DATA(orders) = NEW zcl_salloc_orders_sap( ).
+
+    TRY.
+        orders->zif_salloc_orders~save_allocations(
+          iv_material = 'MAT-2'
+          iv_plant = '1000'
+          it_demands = demands ).
+        cl_abap_unit_assert=>fail( `Expected order-context conflict` ).
+      CATCH zcx_salloc_integration INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->reason
+          exp = `Order allocation belongs to another context` ).
+        SELECT SINGLE matnr, allocated FROM zsalloc_order
+          WHERE order_id = '50000000010000100001'
+          INTO @DATA(saved).
+        cl_abap_unit_assert=>assert_equals( act = saved-matnr exp = 'MAT-1' ).
+        cl_abap_unit_assert=>assert_equals( act = saved-allocated exp = 2 ).
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.

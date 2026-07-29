@@ -14,7 +14,10 @@ START-OF-SELECTION.
              / 'SAP confirmed:', result-confirmed,
              / 'Stock ledger reserved:', result-reserved,
              / 'Order ledger allocated:', result-order_allocated.
-      IF result-ledgers_match <> abap_true.
+      IF result-quantities_valid <> abap_true.
+        WRITE: / 'ERROR: ledger quantities are internally inconsistent'.
+        MESSAGE 'Stock allocation quantities are inconsistent' TYPE 'E'.
+      ELSEIF result-ledgers_match <> abap_true.
         WRITE: / 'ERROR: stock and order ledgers disagree'.
         MESSAGE 'Stock allocation ledgers disagree' TYPE 'E'.
       ELSEIF result-commitments_fit <> abap_true.

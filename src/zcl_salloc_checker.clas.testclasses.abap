@@ -10,6 +10,8 @@ CLASS ltcl_checker DEFINITION FINAL FOR TESTING
       RAISING zcx_salloc_invalid zcx_salloc_integration.
     METHODS denies_before_read FOR TESTING
       RAISING zcx_salloc_invalid.
+    METHODS detects_invalid_order_row FOR TESTING
+      RAISING zcx_salloc_invalid zcx_salloc_integration.
 ENDCLASS.
 
 CLASS ltcl_checker IMPLEMENTATION.
@@ -41,7 +43,7 @@ CLASS ltcl_checker IMPLEMENTATION.
       mandt = sy-mandt matnr = 'MAT-1' werks = '1000' reserved = 3 ) ).
     INSERT zsalloc_order FROM @( VALUE #(
       mandt = sy-mandt order_id = '50000000010000100001'
-      matnr = 'MAT-1' werks = '1000' allocated = 3 ) ).
+      matnr = 'MAT-1' werks = '1000' requested = 3 allocated = 3 ) ).
     DATA(checker) = NEW zcl_salloc_checker(
       NEW zcl_salloc_authorization_stub( ) ).
 
@@ -51,6 +53,7 @@ CLASS ltcl_checker IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( result-ledgers_match ).
     cl_abap_unit_assert=>assert_true( result-commitments_fit ).
+    cl_abap_unit_assert=>assert_true( result-quantities_valid ).
     cl_abap_unit_assert=>assert_equals( act = result-confirmed exp = 2 ).
   ENDMETHOD.
 
@@ -64,7 +67,7 @@ CLASS ltcl_checker IMPLEMENTATION.
       mandt = sy-mandt matnr = 'MAT-1' werks = '1000' reserved = 4 ) ).
     INSERT zsalloc_order FROM @( VALUE #(
       mandt = sy-mandt order_id = '50000000010000100001'
-      matnr = 'MAT-1' werks = '1000' allocated = 3 ) ).
+      matnr = 'MAT-1' werks = '1000' requested = 3 allocated = 3 ) ).
     DATA(checker) = NEW zcl_salloc_checker(
       NEW zcl_salloc_authorization_stub( ) ).
 
@@ -93,7 +96,7 @@ CLASS ltcl_checker IMPLEMENTATION.
       mandt = sy-mandt matnr = 'MAT-1' werks = '1000' reserved = 2 ) ).
     INSERT zsalloc_order FROM @( VALUE #(
       mandt = sy-mandt order_id = '50000000010000100001'
-      matnr = 'MAT-1' werks = '1000' allocated = 2 ) ).
+      matnr = 'MAT-1' werks = '1000' requested = 2 allocated = 2 ) ).
     DATA(checker) = NEW zcl_salloc_checker(
       NEW zcl_salloc_authorization_stub( ) ).
 
@@ -118,5 +121,28 @@ CLASS ltcl_checker IMPLEMENTATION.
           act = error->operation
           exp = `AUTHORIZATION` ).
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD detects_invalid_order_row.
+    INSERT marc FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000' ) ).
+    INSERT mard FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000'
+      lgort = '0001' labst = 10 ) ).
+    INSERT zsalloc_stock FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000' reserved = 2 ) ).
+    INSERT zsalloc_order FROM @( VALUE #(
+      mandt = sy-mandt order_id = '50000000010000100001'
+      matnr = 'MAT-1' werks = '1000'
+      requested = 3 allocated = 2 shortage = 2 ) ).
+    DATA(checker) = NEW zcl_salloc_checker(
+      NEW zcl_salloc_authorization_stub( ) ).
+
+    DATA(result) = checker->run(
+      iv_material = 'MAT-1'
+      iv_plant = '1000' ).
+
+    cl_abap_unit_assert=>assert_true( result-ledgers_match ).
+    cl_abap_unit_assert=>assert_false( result-quantities_valid ).
   ENDMETHOD.
 ENDCLASS.

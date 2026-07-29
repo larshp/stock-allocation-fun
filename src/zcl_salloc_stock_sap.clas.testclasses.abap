@@ -12,6 +12,8 @@ CLASS ltcl_stock_sap DEFINITION FINAL FOR TESTING
     METHODS subtracts_confirmed_demand FOR TESTING
       RAISING zcx_salloc_integration.
     METHODS rejects_zero_reservation FOR TESTING.
+    METHODS empty_storage_stock_is_zero FOR TESTING
+      RAISING zcx_salloc_integration.
 ENDCLASS.
 
 CLASS ltcl_stock_sap IMPLEMENTATION.
@@ -149,5 +151,17 @@ CLASS ltcl_stock_sap IMPLEMENTATION.
         SELECT COUNT( * ) FROM zsalloc_stock INTO @DATA(rows).
         cl_abap_unit_assert=>assert_equals( act = rows exp = 0 ).
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD empty_storage_stock_is_zero.
+    INSERT marc FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000' ) ).
+    DATA(stock) = NEW zcl_salloc_stock_sap( ).
+
+    DATA(available) = stock->zif_salloc_stock~get_available(
+      iv_material = 'MAT-1'
+      iv_plant = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = available exp = 0 ).
   ENDMETHOD.
 ENDCLASS.

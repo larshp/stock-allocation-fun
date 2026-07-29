@@ -94,7 +94,13 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
             AND werks = @iv_plant
           INTO TABLE @existing.
 
-        DATA changed TYPE STANDARD TABLE OF zsalloc_order WITH EMPTY KEY.
+        TYPES:
+          BEGIN OF ty_change,
+            row TYPE zsalloc_order,
+            previous_allocated TYPE zif_salloc_types=>ty_quantity,
+          END OF ty_change.
+        DATA changed TYPE STANDARD TABLE OF ty_change WITH EMPTY KEY.
+        DATA new_rows TYPE STANDARD TABLE OF zsalloc_order WITH EMPTY KEY.
         LOOP AT it_demands ASSIGNING FIELD-SYMBOL(<demand>).
           READ TABLE existing ASSIGNING FIELD-SYMBOL(<existing>)
             WITH TABLE KEY order_id = <demand>-order_id.
@@ -105,7 +111,20 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
             order_row-shortage = <demand>-shortage.
             order_row-priority = <demand>-priority.
             order_row-requested_on = <demand>-requested_on.
+            APPEND VALUE #(
+              row = order_row
+              previous_allocated = <existing>-allocated ) TO changed.
           ELSE.
+            SELECT SINGLE order_id
+              FROM zsalloc_order
+              WHERE order_id = @<demand>-order_id
+              INTO @DATA(conflicting_order_id).
+            IF sy-subrc = 0.
+              RAISE EXCEPTION TYPE zcx_salloc_integration
+                EXPORTING
+                  iv_operation = `SAVE_ALLOCATIONS`
+                  iv_reason = `Order allocation belongs to another context`.
+            ENDIF.
             order_row = VALUE #(
               mandt = sy-mandt
               order_id = <demand>-order_id
@@ -116,17 +135,38 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
               shortage = <demand>-shortage
               priority = <demand>-priority
               requested_on = <demand>-requested_on ).
+            APPEND order_row TO new_rows.
           ENDIF.
-          APPEND order_row TO changed.
         ENDLOOP.
 
         IF changed IS NOT INITIAL.
-          MODIFY zsalloc_order FROM TABLE @changed.
+          LOOP AT changed ASSIGNING FIELD-SYMBOL(<change>).
+            DATA(changed_row) = <change>-row.
+            UPDATE zsalloc_order
+              SET requested = @changed_row-requested,
+                  allocated = @changed_row-allocated,
+                  shortage = @changed_row-shortage,
+                  priority = @changed_row-priority,
+                  requested_on = @changed_row-requested_on
+              WHERE order_id = @changed_row-order_id
+                AND matnr = @iv_material
+                AND werks = @iv_plant
+                AND allocated = @<change>-previous_allocated.
+            IF sy-dbcnt <> 1.
+              RAISE EXCEPTION TYPE zcx_salloc_integration
+                EXPORTING
+                  iv_operation = `SAVE_ALLOCATIONS`
+                  iv_reason = `Concurrent order allocation detected`.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+        IF new_rows IS NOT INITIAL.
+          INSERT zsalloc_order FROM TABLE @new_rows.
           IF sy-subrc <> 0.
             RAISE EXCEPTION TYPE zcx_salloc_integration
               EXPORTING
                 iv_operation = `SAVE_ALLOCATIONS`
-                iv_reason = `Order ledger update failed`.
+                iv_reason = `Concurrent order allocation detected`.
           ENDIF.
         ENDIF.
       CATCH cx_sy_open_sql_db INTO DATA(db_error).
@@ -166,9 +206,21 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
 
         DATA(previous_allocated) = order_row-allocated.
         order_row-allocated = order_row-allocated - iv_quantity.
-        order_row-shortage = order_row-shortage + iv_quantity.
+        IF iv_reconcile = abap_true.
+          IF order_row-allocated > iv_supported.
+            RAISE EXCEPTION TYPE zcx_salloc_integration
+              EXPORTING
+                iv_operation = `RELEASE_ALLOCATION`
+                iv_reason = `Reconciled allocation exceeds supported demand`.
+          ENDIF.
+          order_row-requested = iv_supported.
+          order_row-shortage = iv_supported - order_row-allocated.
+        ELSE.
+          order_row-shortage = order_row-shortage + iv_quantity.
+        ENDIF.
         UPDATE zsalloc_order
-          SET allocated = @order_row-allocated,
+          SET requested = @order_row-requested,
+              allocated = @order_row-allocated,
               shortage = @order_row-shortage
           WHERE order_id = @iv_order_id
             AND matnr = @iv_material

@@ -116,11 +116,11 @@ the same eligibility rules and releases unsupported ledger quantities.
 ## A-014 - Empty joined aggregates fail in open-abap
 
 The transpiled SQLite runtime returns JavaScript `null` for `SUM` over an empty
-joined result and then fails while assigning it to an ABAP packed quantity. SAP
-Open SQL initializes the aggregate target. The confirmed-quantity calculation
-therefore selects only the quantity column into an internal table and totals it
+result and then fails while assigning it to an ABAP packed quantity. SAP Open SQL
+initializes the aggregate target. Physical and confirmed quantity calculations
+therefore select only their quantity columns into internal tables and total them
 in ABAP. This preserves empty-result semantics in both runtimes at the cost of
-transferring one small quantity per matching schedule line.
+transferring one small quantity per matching row.
 
 ## A-015 - Physical stock is not full ATP availability (partially addressed)
 
@@ -138,3 +138,20 @@ and productive no-op runs therefore read ledger and sales-order state without an
 authorization check. `ZCL_SALLOC_RECONCILER` now requires its own authorization
 dependency, validates context, and checks activity `03` or `02` before its first
 database access. Individual productive releases retain their service-level check.
+
+## A-017 - Order identity cannot be upserted across contexts (resolved)
+
+`ZSALLOC_ORDER` is keyed by the globally unique schedule-line identity. A generic
+`MODIFY` could overwrite its material/plant attributes if an SAP item changed
+context before its old allocation was reconciled, leaving the old stock aggregate
+stranded. New ledger entries now use conflict-checked `INSERT`; an identity found
+under another context is rejected before any write. Operators must reconcile the
+old context before allocating the changed item.
+
+## A-018 - Reconciliation release inflated shortage (resolved)
+
+The generic release path assumes demand is unchanged, so it preserves requested
+quantity and adds the released amount to shortage. Reusing it after confirmation,
+rejection, or deletion left stale requested quantities and artificial shortages.
+Reconciliation now supplies current supported demand, resets requested/shortage
+accordingly, and records `RECONCILE`; manual `RELEASE` semantics remain unchanged.

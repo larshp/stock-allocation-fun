@@ -25,11 +25,16 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
               iv_reason = `Material is not extended to plant`.
         ENDIF.
 
-        SELECT SUM( labst )
+        DATA physical_quantities TYPE STANDARD TABLE OF
+          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
+        SELECT labst
           FROM mard
           WHERE matnr = @iv_material
             AND werks = @iv_plant
-          INTO @physical.
+          INTO TABLE @physical_quantities.
+        LOOP AT physical_quantities INTO DATA(physical_quantity).
+          physical = physical + physical_quantity.
+        ENDLOOP.
 
         DATA confirmed_quantities TYPE STANDARD TABLE OF
           zif_salloc_types=>ty_quantity WITH EMPTY KEY.
@@ -82,11 +87,16 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
         DATA stock_row TYPE zsalloc_stock.
         DATA physical TYPE zif_salloc_types=>ty_quantity.
         DATA confirmed TYPE zif_salloc_types=>ty_quantity.
-        SELECT SUM( labst )
+        DATA physical_quantities TYPE STANDARD TABLE OF
+          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
+        SELECT labst
           FROM mard
           WHERE matnr = @iv_material
             AND werks = @iv_plant
-          INTO @physical.
+          INTO TABLE @physical_quantities.
+        LOOP AT physical_quantities INTO DATA(physical_quantity).
+          physical = physical + physical_quantity.
+        ENDLOOP.
 
         DATA confirmed_quantities TYPE STANDARD TABLE OF
           zif_salloc_types=>ty_quantity WITH EMPTY KEY.

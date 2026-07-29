@@ -181,6 +181,38 @@ and DDIC files; all seven ABAP Unit tests pass.
 - Added database-backed healthy, split-ledger, excess-commitment, and denied-read
   coverage; kept the executable report as a thin renderer.
 
+## 2026-07-29 - Iteration 25: observable operations and zero-stock semantics
+
+- Made operational reports raise error messages after writing diagnostics so
+  background-job monitoring sees failures.
+- Added row-count bounds to `ZSALLOC_LOG`.
+- Covered plant extensions without MARD rows and removed empty-aggregate runtime
+  ambiguity from physical and confirmed quantity totals.
+- Strengthened per-order audit tests to verify exact identities and quantities.
+
+## 2026-07-29 - Iteration 26: immutable allocation context
+
+- Prevented schedule-line identities from being upserted across material/plant
+  contexts.
+- Split existing-row updates from new-row inserts and retained database uniqueness
+  as the race-time guard.
+- Added a regression proving the original ledger row remains unchanged on conflict.
+- Verified the pinned npm dependency tree has zero reported vulnerabilities.
+
+## 2026-07-29 - Iteration 27: reconciliation ledger semantics
+
+- Distinguished demand-reduction reconciliation from a manual allocation release.
+- Reset ledger requested quantity and shortage to current SAP-supported demand.
+- Added `RECONCILE` audit events with schedule identity and released quantity.
+- Added regression assertions for ledger values and audit semantics.
+
+## 2026-07-29 - Iteration 28: executable repository policy
+
+- Added a mandatory layout gate for custom `Z*` artifact placement and source/stub
+  inclusion in both tool configurations.
+- Made the unit-result gate fail if test discovery ever returns zero tests.
+- The complete pipeline now checks 48 ABAP/DDIC artifacts and 45 ABAP Unit tests.
+
 ## Next iteration
 
 Continue the production-readiness audit, including target-specific ATP semantics.

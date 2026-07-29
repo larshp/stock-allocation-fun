@@ -3,6 +3,14 @@ CLASS zcl_salloc_reconciler DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_release,
+        order_id TYPE zif_salloc_types=>ty_order_id,
+        allocated TYPE zif_salloc_types=>ty_quantity,
+        supported TYPE zif_salloc_types=>ty_quantity,
+        quantity TYPE zif_salloc_types=>ty_quantity,
+      END OF ty_release.
+    TYPES tt_releases TYPE STANDARD TABLE OF ty_release WITH EMPTY KEY.
     METHODS constructor
       IMPORTING
         io_service TYPE REF TO zcl_salloc_service
@@ -17,9 +25,11 @@ CLASS zcl_salloc_reconciler DEFINITION
       RAISING
         zcx_salloc_invalid
         zcx_salloc_integration.
+    METHODS get_releases RETURNING VALUE(rt_releases) TYPE tt_releases.
   PRIVATE SECTION.
     DATA mo_service TYPE REF TO zcl_salloc_service.
     DATA mo_authorization TYPE REF TO zif_salloc_authorization.
+    DATA mt_releases TYPE tt_releases.
 ENDCLASS.
 
 CLASS zcl_salloc_reconciler IMPLEMENTATION.
@@ -29,6 +39,7 @@ CLASS zcl_salloc_reconciler IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD run.
+    CLEAR mt_releases.
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
       RAISE EXCEPTION TYPE zcx_salloc_invalid
         EXPORTING iv_reason = `Material and plant are required`.
@@ -87,12 +98,19 @@ CLASS zcl_salloc_reconciler IMPLEMENTATION.
           ENDIF.
           IF <allocation>-allocated > supported.
             DATA(to_release) = <allocation>-allocated - supported.
+            APPEND VALUE #(
+              order_id = <allocation>-order_id
+              allocated = <allocation>-allocated
+              supported = supported
+              quantity = to_release ) TO mt_releases.
             IF iv_simulate <> abap_true.
               mo_service->release(
                 iv_material = iv_material
                 iv_plant = iv_plant
                 iv_order_id = <allocation>-order_id
-                iv_quantity = to_release ).
+                iv_quantity = to_release
+                iv_reconcile = abap_true
+                iv_supported = supported ).
             ENDIF.
             rv_released = rv_released + to_release.
           ENDIF.
@@ -103,5 +121,9 @@ CLASS zcl_salloc_reconciler IMPLEMENTATION.
             iv_operation = `RECONCILE`
             iv_reason = db_error->get_text( ).
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD get_releases.
+    rt_releases = mt_releases.
   ENDMETHOD.
 ENDCLASS.

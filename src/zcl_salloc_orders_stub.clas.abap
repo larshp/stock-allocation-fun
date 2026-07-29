@@ -51,7 +51,18 @@ CLASS zcl_salloc_orders_stub IMPLEMENTATION.
           iv_reason = `Release exceeds order allocation`.
     ENDIF.
     <saved>-allocated = <saved>-allocated - iv_quantity.
-    <saved>-shortage = <saved>-shortage + iv_quantity.
+    IF iv_reconcile = abap_true.
+      IF <saved>-allocated > iv_supported.
+        RAISE EXCEPTION TYPE zcx_salloc_integration
+          EXPORTING
+            iv_operation = `RELEASE_ALLOCATION`
+            iv_reason = `Reconciled allocation exceeds supported demand`.
+      ENDIF.
+      <saved>-requested = iv_supported.
+      <saved>-shortage = iv_supported - <saved>-allocated.
+    ELSE.
+      <saved>-shortage = <saved>-shortage + iv_quantity.
+    ENDIF.
   ENDMETHOD.
 
   METHOD get_saved.

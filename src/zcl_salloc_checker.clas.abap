@@ -9,6 +9,7 @@ CLASS zcl_salloc_checker DEFINITION
         confirmed TYPE zif_salloc_types=>ty_quantity,
         reserved TYPE zif_salloc_types=>ty_quantity,
         order_allocated TYPE zif_salloc_types=>ty_quantity,
+        quantities_valid TYPE abap_bool,
         ledgers_match TYPE abap_bool,
         commitments_fit TYPE abap_bool,
       END OF ty_result.
@@ -51,11 +52,16 @@ CLASS zcl_salloc_checker IMPLEMENTATION.
               iv_reason = `Material is not extended to plant`.
         ENDIF.
 
-        SELECT SUM( labst )
+        DATA physical_quantities TYPE STANDARD TABLE OF
+          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
+        SELECT labst
           FROM mard
           WHERE matnr = @iv_material
             AND werks = @iv_plant
-          INTO @rs_result-physical.
+          INTO TABLE @physical_quantities.
+        LOOP AT physical_quantities INTO DATA(physical_quantity).
+          rs_result-physical = rs_result-physical + physical_quantity.
+        ENDLOOP.
 
         DATA confirmed_quantities TYPE STANDARD TABLE OF
           zif_salloc_types=>ty_quantity WITH EMPTY KEY.
@@ -84,17 +90,35 @@ CLASS zcl_salloc_checker IMPLEMENTATION.
           CLEAR rs_result-reserved.
         ENDIF.
 
-        DATA order_quantities TYPE STANDARD TABLE OF
-          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
-        SELECT allocated
+        TYPES:
+          BEGIN OF ty_order_quantities,
+            requested TYPE zif_salloc_types=>ty_quantity,
+            allocated TYPE zif_salloc_types=>ty_quantity,
+            shortage TYPE zif_salloc_types=>ty_quantity,
+          END OF ty_order_quantities.
+        DATA order_rows TYPE STANDARD TABLE OF ty_order_quantities
+          WITH EMPTY KEY.
+        SELECT requested, allocated, shortage
           FROM zsalloc_order
           WHERE matnr = @iv_material
             AND werks = @iv_plant
-          INTO TABLE @order_quantities.
-        LOOP AT order_quantities INTO DATA(order_quantity).
+          INTO CORRESPONDING FIELDS OF TABLE @order_rows.
+        rs_result-quantities_valid = abap_true.
+        LOOP AT order_rows ASSIGNING FIELD-SYMBOL(<order_row>).
           rs_result-order_allocated =
-            rs_result-order_allocated + order_quantity.
+            rs_result-order_allocated + <order_row>-allocated.
+          IF <order_row>-requested < 0
+              OR <order_row>-allocated < 0
+              OR <order_row>-shortage < 0
+              OR <order_row>-allocated + <order_row>-shortage
+                <> <order_row>-requested.
+            rs_result-quantities_valid = abap_false.
+          ENDIF.
         ENDLOOP.
+        IF rs_result-physical < 0 OR rs_result-confirmed < 0
+            OR rs_result-reserved < 0.
+          rs_result-quantities_valid = abap_false.
+        ENDIF.
 
         rs_result-ledgers_match = xsdbool(
           rs_result-reserved = rs_result-order_allocated ).

@@ -5,7 +5,10 @@ const results = JSON.parse(
 );
 const failures = results.filter((result) => result.status !== "SUCCESS");
 
-if (failures.length > 0) {
+if (results.length === 0) {
+  console.error("No ABAP Unit tests were discovered");
+  process.exitCode = 1;
+} else if (failures.length > 0) {
   for (const failure of failures) {
     console.error(
       `${failure.class_name}.${failure.method_name}: ${failure.message || failure.status}`,

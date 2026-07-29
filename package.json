@@ -4,11 +4,12 @@
   "private": true,
   "description": "Testable stock allocation for SAP ABAP",
   "scripts": {
+    "layout": "node test/layout.mjs",
     "lint": "abaplint",
     "transpile": "abap_transpile",
     "unit": "node output/_unit_open.mjs && node test/assert-unit-results.mjs",
     "concurrency": "node test/concurrency.mjs",
-    "test": "npm run lint && npm run transpile && npm run unit && npm run concurrency"
+    "test": "npm run layout && npm run lint && npm run transpile && npm run unit && npm run concurrency"
   },
   "devDependencies": {
     "@abaplint/cli": "2.120.4",

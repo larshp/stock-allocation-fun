@@ -26,6 +26,8 @@ CLASS zcl_salloc_service DEFINITION
         iv_plant TYPE zif_salloc_types=>ty_plant
         iv_order_id TYPE zif_salloc_types=>ty_order_id
         iv_quantity TYPE zif_salloc_types=>ty_quantity
+        iv_reconcile TYPE abap_bool DEFAULT abap_false
+        iv_supported TYPE zif_salloc_types=>ty_quantity OPTIONAL
       RAISING
         zcx_salloc_invalid
         zcx_salloc_integration.
@@ -114,6 +116,9 @@ CLASS zcl_salloc_service IMPLEMENTATION.
     ELSEIF iv_quantity <= 0.
       RAISE EXCEPTION TYPE zcx_salloc_invalid
         EXPORTING iv_reason = `Release quantity must be positive`.
+    ELSEIF iv_reconcile = abap_true AND iv_supported < 0.
+      RAISE EXCEPTION TYPE zcx_salloc_invalid
+        EXPORTING iv_reason = `Supported quantity cannot be negative`.
     ENDIF.
 
     mo_authorization->check_authorization(
@@ -126,13 +131,21 @@ CLASS zcl_salloc_service IMPLEMENTATION.
           iv_material = iv_material
           iv_plant = iv_plant
           iv_order_id = iv_order_id
-          iv_quantity = iv_quantity ).
+          iv_quantity = iv_quantity
+          iv_reconcile = iv_reconcile
+          iv_supported = iv_supported ).
         mo_stock->release(
           iv_material = iv_material
           iv_plant = iv_plant
           iv_quantity = iv_quantity ).
+        DATA event TYPE zif_salloc_types=>ty_log_event.
+        IF iv_reconcile = abap_true.
+          event = 'RECONCILE'.
+        ELSE.
+          event = 'RELEASE'.
+        ENDIF.
         mo_logger->log(
-          iv_event = 'RELEASE'
+          iv_event = event
           iv_material = iv_material
           iv_plant = iv_plant
           iv_order_id = iv_order_id

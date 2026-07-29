@@ -11,6 +11,14 @@ START-OF-SELECTION.
         iv_material = p_matnr
         iv_plant = p_werks
         iv_simulate = p_sim ).
+      DATA(releases) = reconciler->get_releases( ).
+      WRITE: / 'Order/schedule line', 24 'Allocated', 40 'Supported', 56 'Release'.
+      LOOP AT releases ASSIGNING FIELD-SYMBOL(<release>).
+        WRITE: / <release>-order_id,
+                 24 <release>-allocated,
+                 40 <release>-supported,
+                 56 <release>-quantity.
+      ENDLOOP.
       IF p_sim = abap_true.
         WRITE: / 'Quantity that would be released:', quantity.
       ELSE.

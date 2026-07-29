@@ -25,6 +25,7 @@ CLASS ltcl_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = stock->get_reserved( ) exp = 5 ).
     cl_abap_unit_assert=>assert_equals( act = allocations[ 2 ]-allocated exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = allocations[ 2 ]-shortage exp = 3 ).
     cl_abap_unit_assert=>assert_equals( act = saved[ 2 ]-allocated exp = 1 ).
   ENDMETHOD.
 
@@ -42,6 +43,7 @@ CLASS ltcl_service IMPLEMENTATION.
       iv_plant = '1000' ).
 
     cl_abap_unit_assert=>assert_equals( act = allocations[ 1 ]-allocated exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = allocations[ 1 ]-shortage exp = 4 ).
     cl_abap_unit_assert=>assert_initial( orders->get_saved( ) ).
   ENDMETHOD.
 

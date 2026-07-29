@@ -42,6 +42,7 @@ CLASS zcl_salloc_allocator IMPLEMENTATION.
         <demand>-allocated = rv_remaining.
       ENDIF.
       rv_remaining = rv_remaining - <demand>-allocated.
+      <demand>-shortage = <demand>-requested - <demand>-allocated.
     ENDLOOP.
   ENDMETHOD.
 ENDCLASS.

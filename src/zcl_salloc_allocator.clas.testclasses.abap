@@ -19,7 +19,9 @@ CLASS ltcl_allocator IMPLEMENTATION.
       CHANGING ct_demands = demands ).
 
     cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-allocated exp = 7 ).
+    cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-shortage exp = 0 ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-allocated exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-shortage exp = 3 ).
     cl_abap_unit_assert=>assert_equals( act = remaining exp = 0 ).
   ENDMETHOD.
 
@@ -62,6 +64,8 @@ CLASS ltcl_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-allocated exp = 4 ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-order_id exp = 'B' ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-allocated exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-shortage exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 3 ]-allocated exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = demands[ 3 ]-shortage exp = 4 ).
   ENDMETHOD.
 ENDCLASS.

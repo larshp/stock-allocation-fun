@@ -11,6 +11,7 @@ INTERFACE zif_salloc_types PUBLIC.
       requested_on TYPE d,
       requested    TYPE ty_quantity,
       allocated    TYPE ty_quantity,
+      shortage     TYPE ty_quantity,
     END OF ty_demand.
   TYPES tt_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 ENDINTERFACE.

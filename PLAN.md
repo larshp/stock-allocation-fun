@@ -2,6 +2,6 @@ make a stock allocation solution in ABAP, add one feature at a time, keep improv
 
 use abaplint and transpiler for testing, record bugs and issues in ANOMALIES.md
 
-open-abap does not include the business logic needed, add the SAP standard stuff in a separate directly and include it in linting and transpiling
+open-abap does not include the business logic needed, add SAP standard stubs in a separate directory and include it in linting and transpiling. This includes stuff like reading stock and writing stock, reading and writing orders, etc via SAP standard APIs.
 
 keep your notes and progrss in NOTES.md

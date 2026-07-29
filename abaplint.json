@@ -1,0 +1,30 @@
+{
+  "global": {
+    "files": "/{src,sap_stubs}/**/*.*",
+    "exclude": []
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "syntax": {
+    "version": "v752",
+    "errorNamespace": "^(Z|LCL_|LTCL_)"
+  },
+  "rules": {
+    "align_type_expressions": true,
+    "check_syntax": true,
+    "easy_to_find_messages": true,
+    "implement_methods": true,
+    "keyword_case": true,
+    "max_one_method_parameter_per_line": true,
+    "modify_only_own_db_tables": true,
+    "parser_error": true,
+    "unknown_types": true,
+    "unused_variables": true,
+    "whitespace_end": true
+  }
+}
+

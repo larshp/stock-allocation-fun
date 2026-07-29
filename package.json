@@ -1,0 +1,17 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deterministic SAP stock allocation implemented in ABAP",
+  "scripts": {
+    "lint": "abaplint",
+    "transpile": "abap_transpile",
+    "unit": "node output/index.mjs",
+    "test": "npm run lint && npm run transpile && npm run unit"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "2.120.4",
+    "@abaplint/runtime": "2.13.47",
+    "@abaplint/transpiler-cli": "2.13.47"
+  }
+}

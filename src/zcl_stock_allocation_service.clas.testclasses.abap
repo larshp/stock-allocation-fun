@@ -335,6 +335,14 @@ ENDCLASS.
 
 CLASS ltcl_stock_allocation_db IMPLEMENTATION.
   METHOD teardown.
+    DELETE FROM zstockahist
+      WHERE matnr = 'ZUT-SOURCE'
+        AND werks = 'UT01'
+        AND lgort = 'UT01'.
+    DELETE FROM zstockphist
+      WHERE matnr = 'ZUT-SOURCE'
+        AND werks = 'UT01'
+        AND lgort = 'UT01'.
     DELETE FROM zstockalloc
       WHERE matnr = 'ZUT-SOURCE'
         AND werks = 'UT01'

@@ -15,6 +15,14 @@ const allocationHeaderTable = readFileSync(
   join(root, "src", "zstockplan.tabl.xml"),
   "utf8",
 );
+const allocationHeaderHistory = readFileSync(
+  join(root, "src", "zstockphist.tabl.xml"),
+  "utf8",
+);
+const allocationDetailHistory = readFileSync(
+  join(root, "src", "zstockahist.tabl.xml"),
+  "utf8",
+);
 const priorityTable = readFileSync(
   join(root, "src", "zstockprio.tabl.xml"),
   "utf8",
@@ -88,6 +96,8 @@ requireInvariant(
 for (const [name, definition] of [
   ["ZSTOCKALLOC", allocationTable],
   ["ZSTOCKPLAN", allocationHeaderTable],
+  ["ZSTOCKPHIST", allocationHeaderHistory],
+  ["ZSTOCKAHIST", allocationDetailHistory],
   ["ZSTOCKPRIO", priorityTable],
 ]) {
   requireInvariant(
@@ -104,7 +114,17 @@ requireInvariant(
   allocationHeaderTable.includes("<FIELDNAME>DEMAND_COUNT</FIELDNAME>"),
   "ZSTOCKPLAN must persist empty and populated snapshot cardinality",
 );
+for (const [name, definition] of [
+  ["ZSTOCKPHIST", allocationHeaderHistory],
+  ["ZSTOCKAHIST", allocationDetailHistory],
+]) {
+  requireInvariant(
+    definition.includes("<FIELDNAME>VERSION_NO</FIELDNAME><KEYFLAG>X</KEYFLAG>"),
+    `${name} must key immutable history by plan version`,
+  );
+}
 for (const field of [
+  "VERSION_NO",
   "STOCK_QTY",
   "AVAILABLE_QTY",
   "RESERVE_QTY",
@@ -156,6 +176,17 @@ for (const objective of [
     `Allocation domain is missing comparison objective ${objective}`,
   );
 }
+for (const severity of [
+  "c_drift_severity_none",
+  "c_drift_severity_stock",
+  "c_drift_severity_demand",
+  "c_drift_severity_outcome",
+]) {
+  requireInvariant(
+    allocationDomain.includes(severity),
+    `Allocation domain is missing drift severity ${severity}`,
+  );
+}
 requireInvariant(
   /PARAMETERS\s+p_strat\s/i.test(allocationReport),
   "Allocation report must expose strategy selection",
@@ -187,6 +218,18 @@ requireInvariant(
 requireInvariant(
   /PARAMETERS\s+p_maxage\s/i.test(allocationViewReport),
   "Persisted-plan report must expose its freshness threshold",
+);
+requireInvariant(
+  /PARAMETERS\s+p_live\s/i.test(allocationViewReport),
+  "Persisted-plan report must expose optional live drift checking",
+);
+requireInvariant(
+  /PARAMETERS\s+p_versn\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationViewReport),
+  "Persisted-plan report must expose zero-as-current version selection",
+);
+requireInvariant(
+  /zcl_allocation_plan_drift/i.test(allocationViewReport),
+  "Persisted-plan report must compare saved and live plans through the drift checker",
 );
 
 for (const [name, definition] of [

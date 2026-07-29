@@ -10,6 +10,7 @@ CLASS zcl_allocation_query_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_plant            TYPE zif_stock_allocation=>ty_plant
         iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
         iv_max_age_days     TYPE i DEFAULT 1
+        iv_version_no       TYPE i OPTIONAL
       RETURNING
         VALUE(rs_saved)     TYPE zif_stock_allocation=>ty_saved_plan
       RAISING
@@ -36,6 +37,10 @@ CLASS zcl_allocation_query_service IMPLEMENTATION.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Maximum persisted-plan age cannot be negative' ).
     ENDIF.
+    IF iv_version_no < 0.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Persisted allocation plan version cannot be negative' ).
+    ENDIF.
     IF mo_authorization->is_authorized(
          iv_activity         = '03'
          iv_plant            = iv_plant
@@ -46,7 +51,8 @@ CLASS zcl_allocation_query_service IMPLEMENTATION.
     rs_saved = mo_source->get_saved(
       iv_material         = iv_material
       iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location ).
+      iv_storage_location = iv_storage_location
+      iv_version_no       = iv_version_no ).
     IF rs_saved-found = abap_true.
       IF rs_saved-created_on IS INITIAL OR rs_saved-created_on > sy-datum.
         RAISE EXCEPTION NEW zcx_stock_allocation(

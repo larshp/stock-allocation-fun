@@ -85,6 +85,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES:
     BEGIN OF ty_saved_plan,
       found      TYPE abap_bool,
+      version_no TYPE i,
       plan       TYPE ty_plan,
       created_on TYPE d,
       created_at TYPE t,
@@ -92,6 +93,46 @@ INTERFACE zif_stock_allocation PUBLIC.
       age_days   TYPE i,
       stale      TYPE abap_bool,
     END OF ty_saved_plan.
+
+  TYPES:
+    BEGIN OF ty_drift_item,
+      sales_order           TYPE ty_sales_order,
+      sales_item            TYPE ty_sales_item,
+      schedule_line         TYPE ty_schedule_line,
+      change_type           TYPE c LENGTH 1,
+      demand_changed        TYPE abap_bool,
+      outcome_changed       TYPE abap_bool,
+      saved_requested_qty   TYPE ty_quantity,
+      current_requested_qty TYPE ty_quantity,
+      saved_allocated_qty   TYPE ty_quantity,
+      current_allocated_qty TYPE ty_quantity,
+      saved_status          TYPE ty_status,
+      current_status        TYPE ty_status,
+    END OF ty_drift_item.
+  TYPES tt_drift_items TYPE STANDARD TABLE OF ty_drift_item WITH EMPTY KEY.
+
+  CONSTANTS c_drift_added   TYPE c LENGTH 1 VALUE 'A'.
+  CONSTANTS c_drift_removed TYPE c LENGTH 1 VALUE 'R'.
+  CONSTANTS c_drift_changed TYPE c LENGTH 1 VALUE 'C'.
+  CONSTANTS c_drift_severity_none    TYPE c LENGTH 1 VALUE 'N'.
+  CONSTANTS c_drift_severity_stock   TYPE c LENGTH 1 VALUE 'S'.
+  CONSTANTS c_drift_severity_demand  TYPE c LENGTH 1 VALUE 'D'.
+  CONSTANTS c_drift_severity_outcome TYPE c LENGTH 1 VALUE 'O'.
+
+  TYPES:
+    BEGIN OF ty_plan_drift,
+      has_drift             TYPE abap_bool,
+      severity              TYPE c LENGTH 1,
+      context_changed       TYPE abap_bool,
+      stock_delta           TYPE ty_total_quantity,
+      allocated_delta       TYPE ty_total_quantity,
+      shortage_delta        TYPE ty_total_quantity,
+      added_count           TYPE i,
+      removed_count         TYPE i,
+      demand_changed_count  TYPE i,
+      outcome_changed_count TYPE i,
+      items                 TYPE tt_drift_items,
+    END OF ty_plan_drift.
 
   TYPES:
     BEGIN OF ty_summary,

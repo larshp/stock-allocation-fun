@@ -4,18 +4,21 @@ PARAMETERS p_matnr TYPE zif_stock_allocation=>ty_material OBLIGATORY.
 PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_loc OBLIGATORY.
 PARAMETERS p_maxage TYPE i DEFAULT 1.
+PARAMETERS p_versn TYPE i DEFAULT 0.
+PARAMETERS p_live AS CHECKBOX DEFAULT ''.
 
 START-OF-SELECTION.
-  DATA(lo_service) = NEW zcl_allocation_query_service(
+  DATA(lo_query_service) = NEW zcl_allocation_query_service(
     io_source        = NEW zcl_allocation_source_sap( )
     io_authorization = NEW zcl_allocation_auth_sap( ) ).
 
   TRY.
-      DATA(ls_saved) = lo_service->get_saved(
+      DATA(ls_saved) = lo_query_service->get_saved(
         iv_material         = p_matnr
         iv_plant            = p_werks
         iv_storage_location = p_lgort
-        iv_max_age_days     = p_maxage ).
+        iv_max_age_days     = p_maxage
+        iv_version_no       = p_versn ).
       IF ls_saved-found = abap_false.
         WRITE / 'No persisted allocation plan exists for this scope'.
         RETURN.
@@ -27,7 +30,8 @@ START-OF-SELECTION.
         iv_allocatable_qty = ls_saved-plan-allocatable_qty
         iv_reserve         = ls_saved-plan-reserve_qty
         iv_unit            = ls_saved-plan-unit ).
-      WRITE: / 'Persisted scope', p_matnr, p_werks, p_lgort.
+      WRITE: / 'Persisted scope', p_matnr, p_werks, p_lgort,
+               'Version', ls_saved-version_no.
       WRITE: / 'Created', ls_saved-created_on, ls_saved-created_at,
                'By', ls_saved-created_by, 'Age days', ls_saved-age_days.
       IF ls_saved-stale = abap_true.
@@ -50,6 +54,49 @@ START-OF-SELECTION.
                'Service %', ls_summary-service_level_pct,
                'Utilization %', ls_summary-stock_utilization_pct,
                'Fairness %', ls_summary-fairness_pct.
+      IF p_live = abap_true.
+        DATA(lo_allocation_service) = NEW zcl_stock_allocation_service(
+          io_stock_source    = NEW zcl_stock_source_sap( )
+          io_demand_source   = NEW zcl_demand_source_sap( )
+          io_allocation_sink = NEW zcl_allocation_sink_sap( )
+          io_allocation_lock = NEW zcl_allocation_lock_sap( )
+          io_authorization   = NEW zcl_allocation_auth_sap( )
+          io_allocation_log  = NEW zcl_allocation_log_sap( ) ).
+        DATA(ls_current) = lo_allocation_service->preview_plan(
+          iv_material         = p_matnr
+          iv_plant            = p_werks
+          iv_storage_location = p_lgort
+          iv_reserve          = ls_saved-plan-reserve_qty
+          iv_strategy         = ls_saved-plan-strategy
+          iv_start_date       = ls_saved-plan-start_date
+          iv_cutoff_date      = ls_saved-plan-cutoff_date ).
+        DATA(ls_drift) = zcl_allocation_plan_drift=>compare(
+          is_saved   = ls_saved-plan
+          is_current = ls_current ).
+        WRITE: / 'Live drift', ls_drift-has_drift,
+                 'Severity', ls_drift-severity,
+                 'Stock delta', ls_drift-stock_delta,
+                 'Allocated delta', ls_drift-allocated_delta,
+                 'Shortage delta', ls_drift-shortage_delta,
+                 'Added', ls_drift-added_count,
+                 'Removed', ls_drift-removed_count,
+                 'Demand changed', ls_drift-demand_changed_count,
+                 'Outcome changed', ls_drift-outcome_changed_count.
+        LOOP AT ls_drift-items INTO DATA(ls_drift_item).
+          WRITE: / 'Drift item', ls_drift_item-change_type,
+                   ls_drift_item-sales_order,
+                   ls_drift_item-sales_item,
+                   ls_drift_item-schedule_line,
+                   'Demand changed', ls_drift_item-demand_changed,
+                   'Outcome changed', ls_drift_item-outcome_changed,
+                   'Requested', ls_drift_item-saved_requested_qty,
+                   ls_drift_item-current_requested_qty,
+                   'Allocated', ls_drift_item-saved_allocated_qty,
+                   ls_drift_item-current_allocated_qty,
+                   'Status', ls_drift_item-saved_status,
+                   ls_drift_item-current_status.
+        ENDLOOP.
+      ENDIF.
       LOOP AT ls_saved-plan-allocations INTO DATA(ls_allocation).
         WRITE: / ls_allocation-sales_order,
                  ls_allocation-sales_item,

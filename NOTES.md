@@ -381,3 +381,48 @@
 - Added configurable non-negative maximum age `P_MAXAGE` to persisted-plan display, defaulting to one day.
 - Calculated age from the durable creation date and flagged older plans as stale without hiding otherwise valid allocation evidence.
 - Rejected missing or future creation dates and covered current and stale snapshots in the authorized query service.
+
+## 2026-07-29 - Feature 58: Live persisted-plan drift checks
+
+- Added a pure, invariant-checked comparator for persisted and freshly calculated plans.
+- Reported stock delta plus added, removed, changed-demand, and changed-allocation schedule-line counts.
+- Added optional `P_LIVE` to `ZSTOCK_PLAN_VIEW`, reusing the saved strategy, reserve, and planning window in a display-authorized, side-effect-free preview.
+- Kept age-based freshness inexpensive by default while allowing planners to request authoritative live drift evidence when needed.
+
+## 2026-07-29 - Feature 59: Actionable drift details
+
+- Added deterministic schedule-line drift items alongside aggregate live-comparison counts.
+- Classified each affected key as added, removed, or changed and separated demand-input changes from allocation-outcome changes.
+- Displayed the actionable keys in `ZSTOCK_PLAN_VIEW` so planners can investigate drift without manually reconciling entire snapshots.
+
+## 2026-07-29 - Feature 60: Quantified drift impact
+
+- Added saved/current requested quantity, allocated quantity, and status to every actionable drift item.
+- Added total allocated-quantity and shortage-quantity deltas so live comparison shows operational impact, not just changed-row counts.
+
+## 2026-07-29 - Feature 61: Deterministic drift severity
+
+- Classified drift as none (`N`), stock/context-only (`S`), demand (`D`), or allocation-outcome (`O`).
+- Made outcome changes highest severity, followed by added/removed/changed demands, with stock or planning-context movement below them.
+- Covered all four severity levels with pure comparator tests and exposed the classification in persisted-plan output.
+
+## 2026-07-29 - Feature 62: Monotonic plan versions
+
+- Added a scope-local `VERSION_NO` to `ZSTOCKPLAN`, incremented under the existing allocation lock in the same SAP LUW as header/detail replacement.
+- Exposed the checked version through persisted-plan reads and `ZSTOCK_PLAN_VIEW`.
+- Used an integer sequence instead of timestamps or release-specific UUID dependencies, preventing same-second identifier collisions.
+- Rejected integer overflow before changing the header and covered populated, empty, readback, and overflow behavior.
+
+## 2026-07-29 - Feature 63: Immutable allocation history
+
+- Added application tables `ZSTOCKPHIST` and `ZSTOCKAHIST`, keyed by scope and monotonic plan version.
+- Appended every validated header and its allocation details in the same SAP LUW as current-snapshot replacement and BAL evidence.
+- Retained versioned headers for empty plans while correctly writing zero historical detail rows.
+- Verified history header insertion and version-detail cardinality and added populated/empty Open SQL coverage.
+
+## 2026-07-29 - Feature 64: Authorized historical plan reads
+
+- Extended the checked persisted-plan source and query service with an optional version, using zero for the current snapshot and positive values for immutable history.
+- Reconstructed current and historical rows through one normalized mapping and invariant-validation path.
+- Rejected negative versions before authorization or data access and retained the existing display-authorization boundary.
+- Added `P_VERSN` to `ZSTOCK_PLAN_VIEW`, including historical-to-live drift comparison with the selected version's planning context.

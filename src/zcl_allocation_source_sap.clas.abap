@@ -1,21 +1,94 @@
 CLASS zcl_allocation_source_sap DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_allocation_source.
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ty_header,
+        version_no    TYPE i,
+        stock_qty     TYPE zif_stock_allocation=>ty_quantity,
+        available_qty TYPE zif_stock_allocation=>ty_quantity,
+        reserve_qty   TYPE zif_stock_allocation=>ty_quantity,
+        demand_count  TYPE i,
+        meins         TYPE zif_stock_allocation=>ty_unit,
+        strategy      TYPE zif_stock_allocation=>ty_strategy,
+        start_date    TYPE zif_stock_allocation=>ty_delivery_date,
+        cutoff_date   TYPE zif_stock_allocation=>ty_delivery_date,
+        created_on    TYPE d,
+        created_at    TYPE t,
+        created_by    TYPE c LENGTH 12,
+      END OF ty_header,
+      BEGIN OF ty_detail,
+        vbeln        TYPE zif_stock_allocation=>ty_sales_order,
+        posnr        TYPE zif_stock_allocation=>ty_sales_item,
+        etenr        TYPE zif_stock_allocation=>ty_schedule_line,
+        mbdat        TYPE zif_stock_allocation=>ty_delivery_date,
+        priority     TYPE zif_stock_allocation=>ty_priority,
+        req_qty      TYPE zif_stock_allocation=>ty_quantity,
+        alloc_qty    TYPE zif_stock_allocation=>ty_quantity,
+        short_qty    TYPE zif_stock_allocation=>ty_quantity,
+        reserve_qty  TYPE zif_stock_allocation=>ty_quantity,
+        meins        TYPE zif_stock_allocation=>ty_unit,
+        strategy     TYPE zif_stock_allocation=>ty_strategy,
+        start_date   TYPE zif_stock_allocation=>ty_delivery_date,
+        cutoff_date  TYPE zif_stock_allocation=>ty_delivery_date,
+        alloc_status TYPE zif_stock_allocation=>ty_status,
+      END OF ty_detail,
+      ty_details TYPE STANDARD TABLE OF ty_detail WITH EMPTY KEY.
 ENDCLASS.
 
 CLASS zcl_allocation_source_sap IMPLEMENTATION.
   METHOD zif_allocation_source~get_saved.
-    SELECT SINGLE *
-      FROM zstockplan
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-      INTO @DATA(ls_header).
-    IF sy-subrc <> 0.
-      RETURN.
+    DATA ls_header TYPE ty_header.
+    DATA lt_rows TYPE ty_details.
+
+    IF iv_version_no IS INITIAL.
+      SELECT SINGLE version_no, stock_qty, available_qty, reserve_qty,
+                    demand_count, meins, strategy, start_date, cutoff_date,
+                    created_on, created_at, created_by
+        FROM zstockplan
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+        INTO CORRESPONDING FIELDS OF @ls_header.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+      SELECT vbeln, posnr, etenr, mbdat, priority, req_qty, alloc_qty,
+             short_qty, reserve_qty, meins, strategy, start_date,
+             cutoff_date, alloc_status
+        FROM zstockalloc
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+        INTO CORRESPONDING FIELDS OF TABLE @lt_rows.
+    ELSE.
+      SELECT SINGLE version_no, stock_qty, available_qty, reserve_qty,
+                    demand_count, meins, strategy, start_date, cutoff_date,
+                    created_on, created_at, created_by
+        FROM zstockphist
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND version_no = @iv_version_no
+        INTO CORRESPONDING FIELDS OF @ls_header.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+
+      SELECT vbeln, posnr, etenr, mbdat, priority, req_qty, alloc_qty,
+             short_qty, reserve_qty, meins, strategy, start_date,
+             cutoff_date, alloc_status
+        FROM zstockahist
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND version_no = @iv_version_no
+        INTO CORRESPONDING FIELDS OF TABLE @lt_rows.
     ENDIF.
 
     rs_saved-found = abap_true.
+    rs_saved-version_no = ls_header-version_no.
     rs_saved-plan-stock_qty = ls_header-stock_qty.
     rs_saved-plan-allocatable_qty = ls_header-available_qty.
     rs_saved-plan-reserve_qty = ls_header-reserve_qty.
@@ -27,12 +100,6 @@ CLASS zcl_allocation_source_sap IMPLEMENTATION.
     rs_saved-created_at = ls_header-created_at.
     rs_saved-created_by = ls_header-created_by.
 
-    SELECT *
-      FROM zstockalloc
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-      INTO TABLE @DATA(lt_rows).
     LOOP AT lt_rows INTO DATA(ls_row).
       APPEND VALUE #(
         sales_order   = ls_row-vbeln

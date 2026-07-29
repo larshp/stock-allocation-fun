@@ -1,20 +1,13 @@
-CLASS zcl_allocation_log_sap DEFINITION PUBLIC FINAL CREATE PUBLIC.
+CLASS zcl_priority_log_sap DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
-    INTERFACES zif_allocation_log.
+    INTERFACES zif_priority_log.
 ENDCLASS.
 
-CLASS zcl_allocation_log_sap IMPLEMENTATION.
-  METHOD zif_allocation_log~record_run.
-    DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-      it_allocations = it_allocations
-      iv_stock_qty = iv_stock_qty
-      iv_allocatable_qty = iv_allocatable_qty
-      iv_reserve = iv_reserve
-      iv_unit = iv_unit ).
-
+CLASS zcl_priority_log_sap IMPLEMENTATION.
+  METHOD zif_priority_log~record_change.
     DATA(ls_header) = VALUE bal_s_log(
       object = 'ZSTOCKALLOC'
-      subobject = 'RUN'
+      subobject = 'PRIORITY'
       extnumber = |{ iv_material }/{ iv_plant }/{ iv_storage_location }|
       aldate = sy-datum
       altime = sy-uzeit
@@ -33,15 +26,16 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_text) = |Stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; allocated { ls_summary-allocated_qty }; shortage { ls_summary-shortage_qty }; reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
-    DATA lv_message_type TYPE symsgty VALUE 'S'.
-    IF ls_summary-shortage_qty > 0.
-      lv_message_type = 'W'.
+    DATA lv_text TYPE string.
+    IF iv_activity = '06'.
+      lv_text = |Removed priority; activity { iv_activity }; order { iv_sales_order }; item { iv_sales_item }|.
+    ELSE.
+      lv_text = |Saved priority; activity { iv_activity }; order { iv_sales_order }; item { iv_sales_item }; value { iv_priority }|.
     ENDIF.
     CALL FUNCTION 'BAL_LOG_MSG_ADD_FREE_TEXT'
       EXPORTING
         i_log_handle = lv_handle
-        i_msgty      = lv_message_type
+        i_msgty      = 'S'
         i_text       = lv_text
       EXCEPTIONS
         OTHERS       = 1.

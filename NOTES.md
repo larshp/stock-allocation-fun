@@ -120,3 +120,118 @@
 - Added a database-backed test that composes the productive stock source, demand source, allocation service, and allocation sink against one generated DDIC schema.
 - Verified configured priority ordering, reserve application, base-unit propagation, application-log invocation, commit-scoped lock retention, and persisted row count in one run.
 - Kept authorization, enqueue, and BAL behind test doubles because those SAP kernel/application services are outside the open-abap database runtime.
+
+## 2026-07-29 - Feature 17: Plant-scoped authorization
+
+- Added `WERKS` to both `ZSTK_RUN` and `ZSTK_PRI`, preventing an activity grant from implicitly authorizing every plant.
+- Passed the validated requested plant into allocation execution, simulation, priority save, and priority deletion authorization checks.
+- Extended service tests to prove the exact plant reaches each authorization boundary before locking or data access.
+
+## 2026-07-29 - Feature 18: SAP-semantic boundary types
+
+- Replaced anonymous material, plant, storage-location, sales-document, schedule-line, date, and unit typedefs with components of `MARD`, `VBBE`, and `MARA`.
+- Productive report parameters now inherit the target SAP system's DDIC semantics and conversion behavior instead of only matching field lengths.
+- Kept quantities and allocation status as application-owned types while the separate standard stubs preserve deterministic local linting and transpilation.
+
+## 2026-07-29 - Feature 19: Scalable priority lookup
+
+- Replaced the demand adapter's repeated linear priority scan with a uniquely keyed hashed table by sales order and item.
+- Priority enrichment is now constant-time per open requirement while preserving the default priority of zero and existing FIFO behavior.
+
+## 2026-07-29 - Feature 20: Operational failure signaling
+
+- Replaced normal list output for caught allocation and priority-maintenance failures with exception-based error messages after rollback.
+- Failed dialog or background executions now expose an error state instead of producing output that can be mistaken for a successful run.
+
+## 2026-07-29 - Feature 21: Bulk snapshot persistence
+
+- Replaced one `MODIFY` per allocation row with a single bulk custom-table write after the old scope snapshot is removed.
+- Captured creation date, time, and user once per save so every row in a persisted snapshot carries identical audit provenance.
+- Empty allocation results still clear stale rows without issuing an unnecessary bulk write.
+
+## 2026-07-29 - Feature 22: Demand-contract validation
+
+- Added service-boundary validation for every positive open demand before allocation, logging, or persistence.
+- Rejected incomplete sales-order/item/schedule-line keys, missing material-availability dates, and duplicate schedule-line keys.
+- Added a failure-path test proving malformed collaborator data releases the acquired lock and cannot reach BAL or the allocation sink.
+- Added focused validator tests for incomplete positive demands and intentionally ignored non-positive rows.
+
+## 2026-07-29 - Feature 23: Separate simulation authorization
+
+- Added display activity `03` to plant-scoped authorization object `ZSTK_RUN` while retaining activity `16` for committed execution.
+- Simulation-only users can now calculate plans without receiving permission to replace persisted allocation snapshots.
+- Extended service tests to prove committed runs request `16` and previews request `03` for the validated plant.
+
+## 2026-07-29 - Feature 24: Shortage-aware application logs
+
+- Changed the BAL summary severity from success to warning whenever the calculated shortage quantity is positive.
+- Fully covered and empty-demand runs remain success entries, while constrained plans are visible to standard application-log monitoring without parsing free text.
+
+## 2026-07-29 - Feature 25: DDIC quantity semantics
+
+- Changed requested, allocated, shortage, and reserve persistence fields from generic decimals to `QUAN` fields.
+- Added explicit `ZSTOCKALLOC-MEINS` reference metadata to every persisted quantity so standard SAP dictionary, display, and reporting tools retain unit context.
+
+## 2026-07-29 - Feature 26: Bounded priority reads
+
+- Skipped the priority query entirely when the selected scope has no positive open requirements.
+- Restricted priority retrieval with `FOR ALL ENTRIES` to sales-order items present in the selected VBBE result instead of loading every configured priority in the scope.
+- Retained the hashed-table lookup for constant-time enrichment after the bounded database read.
+
+## 2026-07-29 - Feature 27: Cross-release DDIC keys
+
+- Linked custom allocation and priority table keys to standard SAP data elements for material, plant, storage location, sales document, item, and schedule line.
+- Linked allocation date and unit fields to `MBDAT` and `MEINS`, preserving conversion exits and semantic metadata in productive SAP tools.
+- The custom table material key now follows the target release's `MATNR` definition, keeping persisted and generic-lock key layouts consistent across ECC and S/4HANA.
+
+## 2026-07-29 - Feature 28: Complete plan context
+
+- Added a plan result containing observed stock, allocatable stock, reserve, unit, and allocation rows while retaining the original table-returning service methods for compatibility.
+- Routed the executable report and BAL adapter through the richer plan result, preserving quantity/unit context even when a scope has no open demand.
+- Expanded summaries and operational output with observed and allocatable stock quantities.
+
+## 2026-07-29 - Feature 29: Synchronous commit verification
+
+- Added explicit `sy-subrc` checks after `COMMIT WORK AND WAIT` in both executable reports.
+- A failed synchronous allocation or priority commit now enters the existing rollback/error path instead of displaying a success result.
+- Completed the installation checklist with both authorization objects and their containing authorization class.
+
+## 2026-07-29 - Feature 30: Storage-location authorization
+
+- Added `LGORT` to both custom authorization objects alongside activity and plant.
+- Passed the validated storage location through allocation execution, simulation, priority save, and priority deletion checks.
+- Extended allocation and priority service tests to prove the exact plant/storage scope reaches authorization before locking or data access.
+
+## 2026-07-29 - Feature 31: Transaction-safe report output
+
+- Delayed priority save/remove success output until after the synchronous commit check, preventing misleading success spools when commit fails.
+- Added material, plant, and storage-location scope to allocation output and echoed the complete priority-maintenance key.
+- Added material-availability date to allocation detail rows so the visible result explains FIFO ordering.
+
+## 2026-07-29 - Feature 32: Executable repository invariants
+
+- Added a dependency-free repository check to the default test pipeline.
+- The gate verifies every mandated abaplint rule, both open-abap-core dependencies, `sap_stubs` inclusion, the `/src/` abapGit import boundary, placement of every custom Z object, and absence of MARA/MARD/VBBE writes in custom ABAP.
+- Future changes can no longer satisfy `npm test` after silently weakening the structural constraints in `PLAN.md`.
+
+## 2026-07-29 - Feature 33: Verified persistence outcomes
+
+- Added checked allocation and priority sink contracts that can report persistence failures explicitly.
+- Bulk allocation saves read back the scope cardinality and require it to match the complete validated snapshot, preventing partial writes from being treated as success.
+- Priority upserts read back the exact saved value; deletion remains intentionally idempotent and verifies that the key is absent afterward.
+
+## 2026-07-29 - Feature 34: Client-portable database fixtures
+
+- Removed the hard-coded open-abap client from SQLite fixtures.
+- Database-backed source and integration tests now derive their client key from runtime `sy-mandt`, avoiding coupling to a particular emulator default.
+
+## 2026-07-29 - Feature 35: Priority change application logs
+
+- Added BAL subobject `PRIORITY` and a dedicated logging boundary for priority saves and removals.
+- Recorded scope, sales-order item, activity, priority value, date, time, and user in the same SAP LUW as the priority change.
+- Made audit logging mandatory before persistence and added a failure-path test proving an unlogged priority change releases its lock and cannot reach the sink.
+
+## 2026-07-29 - Feature 36: Target-SAP verification checklist
+
+- Converted the remaining environment limitation into explicit acceptance steps for DDIC activation, scoped roles, enqueue concurrency, source-data reconciliation, BAL history, rollback, and commit behavior.
+- The checklist separates locally proven behavior from the SAP kernel and release-specific evidence required before productive scheduling.

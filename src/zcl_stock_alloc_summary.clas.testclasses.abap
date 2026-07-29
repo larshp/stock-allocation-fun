@@ -33,9 +33,15 @@ CLASS ltcl_stock_alloc_summary IMPLEMENTATION.
   METHOD summarizes_empty_results.
     DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
       it_allocations = VALUE #( )
-      iv_reserve = '2' ).
+      iv_stock_qty = '10'
+      iv_allocatable_qty = '8'
+      iv_reserve = '2'
+      iv_unit = 'EA' ).
 
     cl_abap_unit_assert=>assert_equals( act = ls_summary-demand_count exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_summary-stock_qty exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_summary-allocatable_qty exp = '8' ).
     cl_abap_unit_assert=>assert_equals( act = ls_summary-reserve_qty exp = '2' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_summary-unit exp = 'EA' ).
   ENDMETHOD.
 ENDCLASS.

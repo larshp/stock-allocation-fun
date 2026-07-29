@@ -21,6 +21,20 @@ CLASS zcl_stock_alloc_validator DEFINITION PUBLIC FINAL CREATE PRIVATE.
         iv_reserve TYPE zif_stock_allocation=>ty_quantity
       RAISING
         zcx_stock_allocation.
+    CLASS-METHODS validate_demands
+      IMPORTING
+        it_demands TYPE zif_stock_allocation=>tt_demands
+      RAISING
+        zcx_stock_allocation.
+  PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ty_demand_key,
+        sales_order   TYPE zif_stock_allocation=>ty_sales_order,
+        sales_item    TYPE zif_stock_allocation=>ty_sales_item,
+        schedule_line TYPE zif_stock_allocation=>ty_schedule_line,
+      END OF ty_demand_key.
+    TYPES tt_demand_keys TYPE HASHED TABLE OF ty_demand_key
+      WITH UNIQUE KEY sales_order sales_item schedule_line.
 ENDCLASS.
 
 CLASS zcl_stock_alloc_validator IMPLEMENTATION.
@@ -49,5 +63,27 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Stock reserve quantity cannot be negative' ).
     ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_demands.
+    DATA lt_keys TYPE tt_demand_keys.
+    LOOP AT it_demands INTO DATA(ls_demand) WHERE requested_qty > 0.
+      IF ls_demand-sales_order IS INITIAL
+          OR ls_demand-sales_item IS INITIAL
+          OR ls_demand-schedule_line IS INITIAL
+          OR ls_demand-delivery_date IS INITIAL.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Open demand contains an incomplete schedule-line key or date' ).
+      ENDIF.
+
+      INSERT VALUE #(
+        sales_order = ls_demand-sales_order
+        sales_item = ls_demand-sales_item
+        schedule_line = ls_demand-schedule_line ) INTO TABLE lt_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Open demand contains a duplicate schedule-line key' ).
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.

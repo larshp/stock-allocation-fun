@@ -16,27 +16,37 @@ START-OF-SELECTION.
     io_allocation_log = NEW zcl_allocation_log_sap( ) ).
 
   TRY.
-      DATA lt_allocations TYPE zif_stock_allocation=>tt_allocations.
+      DATA ls_plan TYPE zif_stock_allocation=>ty_plan.
       IF p_sim = abap_true.
-        lt_allocations = lo_service->preview(
+        ls_plan = lo_service->preview_plan(
           iv_material = p_matnr
           iv_plant = p_werks
           iv_storage_location = p_lgort
           iv_reserve = p_resrv ).
         WRITE / 'Simulation: no allocations were persisted'.
       ELSE.
-        lt_allocations = lo_service->run(
+        ls_plan = lo_service->run_plan(
           iv_material = p_matnr
           iv_plant = p_werks
           iv_storage_location = p_lgort
           iv_reserve = p_resrv ).
         COMMIT WORK AND WAIT.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION NEW zcx_stock_allocation(
+            'Synchronous allocation commit failed' ).
+        ENDIF.
       ENDIF.
 
       DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
-        it_allocations = lt_allocations
-        iv_reserve = p_resrv ).
+        it_allocations = ls_plan-allocations
+        iv_stock_qty = ls_plan-stock_qty
+        iv_allocatable_qty = ls_plan-allocatable_qty
+        iv_reserve = ls_plan-reserve_qty
+        iv_unit = ls_plan-unit ).
+      WRITE: / 'Scope', p_matnr, p_werks, p_lgort.
       WRITE: / 'Demands', ls_summary-demand_count,
+               'Stock', ls_summary-stock_qty,
+               'Allocatable', ls_summary-allocatable_qty,
                'Requested', ls_summary-requested_qty,
                'Allocated', ls_summary-allocated_qty,
                'Shortage', ls_summary-shortage_qty,
@@ -46,10 +56,11 @@ START-OF-SELECTION.
                'Partial', ls_summary-partial_count,
                'None', ls_summary-none_count.
 
-      LOOP AT lt_allocations INTO DATA(ls_allocation).
+      LOOP AT ls_plan-allocations INTO DATA(ls_allocation).
         WRITE: / ls_allocation-sales_order,
                  ls_allocation-sales_item,
                  ls_allocation-schedule_line,
+                 ls_allocation-delivery_date,
                  ls_allocation-priority,
                  ls_allocation-requested_qty,
                  ls_allocation-allocated_qty,
@@ -60,5 +71,5 @@ START-OF-SELECTION.
       ENDLOOP.
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       ROLLBACK WORK.
-      WRITE / lo_error->get_text( ).
+      MESSAGE lo_error TYPE 'E'.
   ENDTRY.

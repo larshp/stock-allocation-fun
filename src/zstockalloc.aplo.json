@@ -1,13 +1,17 @@
 {
   "formatVersion": "1",
   "header": {
-    "description": "Stock allocation execution log",
+    "description": "Stock allocation audit log",
     "originalLanguage": "en"
   },
   "subobjects": [
     {
       "name": "RUN",
       "description": "Allocation run"
+    },
+    {
+      "name": "PRIORITY",
+      "description": "Priority maintenance"
     }
   ]
 }

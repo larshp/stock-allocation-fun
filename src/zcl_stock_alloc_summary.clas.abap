@@ -2,15 +2,21 @@ CLASS zcl_stock_alloc_summary DEFINITION PUBLIC FINAL CREATE PRIVATE.
   PUBLIC SECTION.
     CLASS-METHODS summarize
       IMPORTING
-        it_allocations    TYPE zif_stock_allocation=>tt_allocations
-        iv_reserve        TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        it_allocations     TYPE zif_stock_allocation=>tt_allocations
+        iv_stock_qty       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_allocatable_qty TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_reserve         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_unit            TYPE zif_stock_allocation=>ty_unit OPTIONAL
       RETURNING
-        VALUE(rs_summary) TYPE zif_stock_allocation=>ty_summary.
+        VALUE(rs_summary)  TYPE zif_stock_allocation=>ty_summary.
 ENDCLASS.
 
 CLASS zcl_stock_alloc_summary IMPLEMENTATION.
   METHOD summarize.
+    rs_summary-stock_qty = iv_stock_qty.
+    rs_summary-allocatable_qty = iv_allocatable_qty.
     rs_summary-reserve_qty = iv_reserve.
+    rs_summary-unit = iv_unit.
     LOOP AT it_allocations INTO DATA(ls_allocation).
       rs_summary-demand_count = rs_summary-demand_count + 1.
       rs_summary-requested_qty = rs_summary-requested_qty + ls_allocation-requested_qty.

@@ -7,9 +7,17 @@ CLASS lcl_priority_authorization DEFINITION FINAL.
     METHODS get_activity
       RETURNING
         VALUE(rv_activity) TYPE zif_priority_authorization=>ty_activity.
+    METHODS get_plant
+      RETURNING
+        VALUE(rv_plant) TYPE zif_stock_allocation=>ty_plant.
+    METHODS get_storage_location
+      RETURNING
+        VALUE(rv_storage_location) TYPE zif_stock_allocation=>ty_storage_loc.
   PRIVATE SECTION.
     DATA mv_authorized TYPE abap_bool.
     DATA mv_activity TYPE zif_priority_authorization=>ty_activity.
+    DATA mv_plant TYPE zif_stock_allocation=>ty_plant.
+    DATA mv_storage_location TYPE zif_stock_allocation=>ty_storage_loc.
 ENDCLASS.
 
 CLASS lcl_priority_authorization IMPLEMENTATION.
@@ -19,11 +27,21 @@ CLASS lcl_priority_authorization IMPLEMENTATION.
 
   METHOD zif_priority_authorization~is_authorized.
     mv_activity = iv_activity.
+    mv_plant = iv_plant.
+    mv_storage_location = iv_storage_location.
     rv_authorized = mv_authorized.
   ENDMETHOD.
 
   METHOD get_activity.
     rv_activity = mv_activity.
+  ENDMETHOD.
+
+  METHOD get_plant.
+    rv_plant = mv_plant.
+  ENDMETHOD.
+
+  METHOD get_storage_location.
+    rv_storage_location = mv_storage_location.
   ENDMETHOD.
 ENDCLASS.
 
@@ -123,6 +141,44 @@ CLASS lcl_priority_sink IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_priority_log DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_priority_log.
+    METHODS constructor
+      IMPORTING
+        iv_recorded TYPE abap_bool.
+    METHODS was_called
+      RETURNING
+        VALUE(rv_called) TYPE abap_bool.
+    METHODS get_activity
+      RETURNING
+        VALUE(rv_activity) TYPE zif_priority_authorization=>ty_activity.
+  PRIVATE SECTION.
+    DATA mv_recorded TYPE abap_bool.
+    DATA mv_called TYPE abap_bool.
+    DATA mv_activity TYPE zif_priority_authorization=>ty_activity.
+ENDCLASS.
+
+CLASS lcl_priority_log IMPLEMENTATION.
+  METHOD constructor.
+    mv_recorded = iv_recorded.
+  ENDMETHOD.
+
+  METHOD zif_priority_log~record_change.
+    mv_called = abap_true.
+    mv_activity = iv_activity.
+    rv_recorded = mv_recorded.
+  ENDMETHOD.
+
+  METHOD was_called.
+    rv_called = mv_called.
+  ENDMETHOD.
+
+  METHOD get_activity.
+    rv_activity = mv_activity.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_priority_service DEFINITION FINAL
   FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
   PRIVATE SECTION.
@@ -131,6 +187,7 @@ CLASS ltcl_priority_service DEFINITION FINAL
     METHODS rejects_unauthorized_change FOR TESTING.
     METHODS releases_lock_on_failure FOR TESTING.
     METHODS rejects_invalid_key_first FOR TESTING.
+    METHODS rejects_log_failure FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_priority_service IMPLEMENTATION.
@@ -138,10 +195,12 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_authorization) = NEW lcl_priority_authorization( abap_true ).
     DATA(lo_lock) = NEW lcl_priority_lock( abap_true ).
     DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
+    DATA(lo_log) = NEW lcl_priority_log( abap_true ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
       io_lock = lo_lock
-      io_sink = lo_sink ).
+      io_sink = lo_sink
+      io_log = lo_log ).
 
     lo_service->set_priority(
       iv_material = 'MAT-1'
@@ -152,8 +211,14 @@ CLASS ltcl_priority_service IMPLEMENTATION.
       iv_priority = 25 ).
 
     cl_abap_unit_assert=>assert_true( lo_sink->was_saved( ) ).
+    cl_abap_unit_assert=>assert_true( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_equals( act = lo_log->get_activity( ) exp = '02' ).
     cl_abap_unit_assert=>assert_equals( act = lo_sink->get_priority( ) exp = 25 ).
     cl_abap_unit_assert=>assert_equals( act = lo_authorization->get_activity( ) exp = '02' ).
+    cl_abap_unit_assert=>assert_equals( act = lo_authorization->get_plant( ) exp = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_authorization->get_storage_location( )
+      exp = '0001' ).
     cl_abap_unit_assert=>assert_true( lo_lock->was_requested( ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
   ENDMETHOD.
@@ -161,10 +226,12 @@ CLASS ltcl_priority_service IMPLEMENTATION.
   METHOD removes_authorized_priority.
     DATA(lo_authorization) = NEW lcl_priority_authorization( abap_true ).
     DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
+    DATA(lo_log) = NEW lcl_priority_log( abap_true ).
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
       io_lock = NEW lcl_priority_lock( abap_true )
-      io_sink = lo_sink ).
+      io_sink = lo_sink
+      io_log = lo_log ).
 
     lo_service->remove_priority(
       iv_material = 'MAT-1'
@@ -175,6 +242,7 @@ CLASS ltcl_priority_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( lo_sink->was_removed( ) ).
     cl_abap_unit_assert=>assert_equals( act = lo_authorization->get_activity( ) exp = '06' ).
+    cl_abap_unit_assert=>assert_equals( act = lo_log->get_activity( ) exp = '06' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized_change.
@@ -183,7 +251,8 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = NEW lcl_priority_authorization( abap_false )
       io_lock = lo_lock
-      io_sink = lo_sink ).
+      io_sink = lo_sink
+      io_log = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
@@ -205,7 +274,8 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = NEW lcl_priority_authorization( abap_true )
       io_lock = lo_lock
-      io_sink = NEW lcl_priority_sink( abap_true ) ).
+      io_sink = NEW lcl_priority_sink( abap_true )
+      io_log = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
@@ -229,7 +299,8 @@ CLASS ltcl_priority_service IMPLEMENTATION.
     DATA(lo_service) = NEW zcl_priority_service(
       io_authorization = lo_authorization
       io_lock = lo_lock
-      io_sink = lo_sink ).
+      io_sink = lo_sink
+      io_log = NEW lcl_priority_log( abap_true ) ).
 
     TRY.
         lo_service->set_priority(
@@ -246,6 +317,32 @@ CLASS ltcl_priority_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial( lo_authorization->get_activity( ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_log_failure.
+    DATA(lo_lock) = NEW lcl_priority_lock( abap_true ).
+    DATA(lo_sink) = NEW lcl_priority_sink( abap_false ).
+    DATA(lo_service) = NEW zcl_priority_service(
+      io_authorization = NEW lcl_priority_authorization( abap_true )
+      io_lock = lo_lock
+      io_sink = lo_sink
+      io_log = NEW lcl_priority_log( abap_false ) ).
+
+    TRY.
+        lo_service->set_priority(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001'
+          iv_sales_order = '1'
+          iv_sales_item = '000010'
+          iv_priority = 10 ).
+        cl_abap_unit_assert=>fail( 'Priority log failure must reject change' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
     cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
   ENDMETHOD.
 ENDCLASS.

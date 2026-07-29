@@ -892,7 +892,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_plant = '1000'
       iv_storage_location = '0001' ).
 
-    cl_abap_unit_assert=>assert_equals( act = lines( lt_plans ) exp = 4 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_plans ) exp = 5 ).
     cl_abap_unit_assert=>assert_equals( act = lo_stock->get_calls( ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 1 ]-stock_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals(
@@ -901,6 +901,19 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_plans[ 4 ]-strategy
       exp = zif_stock_allocation=>c_strategy_smallest_first ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_plans[ 5 ]-strategy
+      exp = zif_stock_allocation=>c_strategy_complete_only ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_strategy_selector=>recommend(
+        it_plans = lt_plans
+        iv_objective = zif_stock_allocation=>c_objective_service )
+      exp = zif_stock_allocation=>c_strategy_smallest_first ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_strategy_selector=>recommend(
+        it_plans = lt_plans
+        iv_objective = zif_stock_allocation=>c_objective_fairness )
+      exp = zif_stock_allocation=>c_strategy_proportional ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 1 ]-allocations[ 1 ]-allocated_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals( act = lt_plans[ 4 ]-allocations[ 1 ]-allocated_qty exp = '0' ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).

@@ -290,6 +290,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_reserve = iv_reserve
           iv_strategy = zif_stock_allocation=>c_strategy_smallest_first
           iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
+        APPEND build_plan(
+          is_stock = ls_context-stock
+          it_demands = ls_context-demands
+          iv_reserve = iv_reserve
+          iv_strategy = zif_stock_allocation=>c_strategy_complete_only
+          iv_cutoff_date = iv_cutoff_date ) TO rt_plans.
       CATCH cx_root INTO DATA(lo_failure).
         RAISE EXCEPTION NEW zcx_stock_allocation(
           iv_text = lo_failure->get_text( )

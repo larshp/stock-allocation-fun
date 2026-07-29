@@ -45,7 +45,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     IF iv_strategy <> zif_stock_allocation=>c_strategy_fifo
         AND iv_strategy <> zif_stock_allocation=>c_strategy_proportional
         AND iv_strategy <> zif_stock_allocation=>c_strategy_fair_share
-        AND iv_strategy <> zif_stock_allocation=>c_strategy_smallest_first.
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_smallest_first
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_complete_only.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Unknown stock allocation strategy' ).
     ENDIF.
@@ -76,6 +77,13 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           lv_remaining = lv_remaining - ls_tier_result-allocated_qty.
           APPEND ls_tier_result TO rt_allocations.
         ENDLOOP.
+        IF iv_strategy = zif_stock_allocation=>c_strategy_complete_only.
+          READ TABLE lt_tier_result TRANSPORTING NO FIELDS
+            WITH KEY status = zif_stock_allocation=>c_status_none.
+          IF sy-subrc = 0.
+            CLEAR lv_remaining.
+          ENDIF.
+        ENDIF.
         CLEAR lt_tier.
       ENDIF.
       lv_tier_priority = ls_demand-priority.
@@ -124,6 +132,10 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       ELSEIF iv_strategy = zif_stock_allocation=>c_strategy_fifo
           OR iv_strategy = zif_stock_allocation=>c_strategy_smallest_first.
         lv_allocated = nmin( val1 = lv_remaining val2 = ls_demand-requested_qty ).
+      ELSEIF iv_strategy = zif_stock_allocation=>c_strategy_complete_only.
+        IF lv_remaining >= ls_demand-requested_qty.
+          lv_allocated = ls_demand-requested_qty.
+        ENDIF.
       ELSEIF iv_strategy = zif_stock_allocation=>c_strategy_proportional.
         lv_allocated = lv_remaining * ls_demand-requested_qty
                      / lv_remaining_requested.

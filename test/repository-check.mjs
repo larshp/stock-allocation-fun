@@ -100,10 +100,21 @@ for (const strategy of [
   "c_strategy_proportional",
   "c_strategy_fair_share",
   "c_strategy_smallest_first",
+  "c_strategy_complete_only",
 ]) {
   requireInvariant(
     allocationDomain.includes(strategy),
     `Allocation domain is missing strategy ${strategy}`,
+  );
+}
+for (const objective of [
+  "c_objective_service",
+  "c_objective_fill",
+  "c_objective_fairness",
+]) {
+  requireInvariant(
+    allocationDomain.includes(objective),
+    `Allocation domain is missing comparison objective ${objective}`,
   );
 }
 requireInvariant(
@@ -117,6 +128,10 @@ requireInvariant(
 requireInvariant(
   /PARAMETERS\s+p_cutof\s/i.test(allocationReport),
   "Allocation report must expose the demand cutoff",
+);
+requireInvariant(
+  /PARAMETERS\s+p_obj\s/i.test(allocationReport),
+  "Allocation report must expose the comparison objective",
 );
 
 for (const [name, definition] of [

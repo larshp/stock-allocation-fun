@@ -5,9 +5,11 @@ No confirmed product defects are open.
 ## Resolved product defects
 
 - The first database-backed stock-source test exposed that inline `SELECT labst ... INTO TABLE @DATA(...)` creates structured rows. The adapter incorrectly added the complete row to the result quantity; the keyed `MARD` read now selects directly into the quantity field, and the regression is covered by ABAP Unit.
+- The first recommendation implementation reused a loop-local `lv_better` flag without clearing it. ABAP data declarations retain their value between loop iterations, causing the last exactly tied strategy to replace the stable first choice. The selector now clears the flag for every candidate, with a regression test proving input-order tie resolution.
 
 ## Tooling and environment observations
 
+- Transpiler 2.13.47 cannot resolve the primitive type name in `CONV decfloat34( ... )`, although abaplint accepts the expression. Fairness calculations first assign packed quantities to the domain's `DECFLOAT34` aggregate type and then divide those typed variables; productive semantics are unchanged.
 - The open-abap runtime provides an emulated database for unit testing, not SAP locking, update-task, authorization, or BAPI transactional behavior. Productive SAP integration still requires an integration test in the target system.
 - The SAP-standard DDIC files under `sap_stubs` intentionally contain only fields used by this feature. They are compilation stubs and must never be imported into SAP.
 - Initial local verification pinned transpiler/runtime 2.11.0, whose parser could not resolve the current interface table types. The project now pins 2.13.47; the global tool had masked this mismatch during the first run.

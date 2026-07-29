@@ -12,6 +12,7 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS conserves_rounded_stock FOR TESTING RAISING zcx_stock_allocation.
     METHODS maximizes_full_demands FOR TESTING RAISING zcx_stock_allocation.
     METHODS all_strategies_keep_priorities FOR TESTING RAISING zcx_stock_allocation.
+    METHODS avoids_partial_shipments FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_unknown_strategy FOR TESTING.
 ENDCLASS.
 
@@ -196,7 +197,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       ( zif_stock_allocation=>c_strategy_fifo )
       ( zif_stock_allocation=>c_strategy_proportional )
       ( zif_stock_allocation=>c_strategy_fair_share )
-      ( zif_stock_allocation=>c_strategy_smallest_first ) ).
+      ( zif_stock_allocation=>c_strategy_smallest_first )
+      ( zif_stock_allocation=>c_strategy_complete_only ) ).
 
     LOOP AT lt_strategies INTO DATA(lv_strategy).
       DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
@@ -205,9 +207,34 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
         iv_strategy = lv_strategy ).
 
       cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-priority exp = 9 ).
-      cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '1' ).
       cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '0' ).
+      IF lv_strategy = zif_stock_allocation=>c_strategy_complete_only.
+        cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '0' ).
+      ELSE.
+        cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '1' ).
+      ENDIF.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD avoids_partial_shipments.
+    DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
+      ( sales_order = '1' sales_item = '000010' delivery_date = '20250101'
+        priority = 5 requested_qty = '6' )
+      ( sales_order = '2' sales_item = '000010' delivery_date = '20250102'
+        priority = 5 requested_qty = '3' )
+      ( sales_order = '3' sales_item = '000010' delivery_date = '20250103'
+        priority = 0 requested_qty = '2' ) ).
+
+    DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
+      iv_available = '5'
+      it_demands = lt_demands
+      iv_strategy = zif_stock_allocation=>c_strategy_complete_only ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-status exp = zif_stock_allocation=>c_status_full ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 3 ]-allocated_qty exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 3 ]-status exp = zif_stock_allocation=>c_status_none ).
   ENDMETHOD.
 
   METHOD rejects_unknown_strategy.

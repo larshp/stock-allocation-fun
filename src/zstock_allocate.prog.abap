@@ -8,6 +8,7 @@ PARAMETERS p_strat TYPE zif_stock_allocation=>ty_strategy DEFAULT 'F'.
 PARAMETERS p_cutof TYPE zif_stock_allocation=>ty_cutoff_date.
 PARAMETERS p_sim AS CHECKBOX DEFAULT 'X'.
 PARAMETERS p_comp AS CHECKBOX DEFAULT ''.
+PARAMETERS p_obj TYPE zif_stock_allocation=>ty_objective DEFAULT 'S'.
 
 START-OF-SELECTION.
   DATA(lo_service) = NEW zcl_stock_allocation_service(
@@ -26,8 +27,12 @@ START-OF-SELECTION.
           iv_storage_location = p_lgort
           iv_reserve = p_resrv
           iv_cutoff_date = p_cutof ).
+        DATA(lv_recommended) = zcl_stock_strategy_selector=>recommend(
+          it_plans = lt_plans
+          iv_objective = p_obj ).
         WRITE: / 'Strategy comparison (simulation only)'.
         WRITE: / 'Scope', p_matnr, p_werks, p_lgort, 'Cutoff', p_cutof.
+        WRITE: / 'Objective', p_obj, 'Recommended strategy', lv_recommended.
         LOOP AT lt_plans INTO DATA(ls_compared_plan).
           DATA(ls_compared_summary) = zcl_stock_alloc_summary=>summarize(
             it_allocations = ls_compared_plan-allocations
@@ -41,8 +46,11 @@ START-OF-SELECTION.
                    'None', ls_compared_summary-none_count,
                    'Fill %', ls_compared_summary-quantity_fill_pct,
                    'Service %', ls_compared_summary-service_level_pct,
+                   'Utilization %', ls_compared_summary-stock_utilization_pct,
+                   'Fairness %', ls_compared_summary-fairness_pct,
                    'Allocated', ls_compared_summary-allocated_qty,
                    'Shortage', ls_compared_summary-shortage_qty,
+                   'Unused', ls_compared_summary-unused_qty,
                    ls_compared_summary-unit.
         ENDLOOP.
         RETURN.
@@ -90,6 +98,9 @@ START-OF-SELECTION.
                'Shortage', ls_summary-shortage_qty,
                'Fill %', ls_summary-quantity_fill_pct,
                'Service %', ls_summary-service_level_pct,
+               'Utilization %', ls_summary-stock_utilization_pct,
+               'Fairness %', ls_summary-fairness_pct,
+               'Unused', ls_summary-unused_qty,
                'Reserve', ls_summary-reserve_qty,
                ls_summary-unit.
       WRITE: / 'Full', ls_summary-full_count,

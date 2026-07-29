@@ -40,6 +40,8 @@ CLASS ltcl_stock_alloc_validator IMPLEMENTATION.
       zif_stock_allocation=>c_strategy_fair_share ).
     zcl_stock_alloc_validator=>validate_strategy(
       zif_stock_allocation=>c_strategy_smallest_first ).
+    zcl_stock_alloc_validator=>validate_strategy(
+      zif_stock_allocation=>c_strategy_complete_only ).
   ENDMETHOD.
 
   METHOD rejects_unknown_strategy.

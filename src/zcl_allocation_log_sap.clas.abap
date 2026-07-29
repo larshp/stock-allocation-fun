@@ -33,21 +33,33 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_text) = |Strategy { iv_strategy }; cutoff { iv_cutoff_date }; stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; allocated { ls_summary-allocated_qty }; shortage { ls_summary-shortage_qty }; fill { ls_summary-quantity_fill_pct }%; service { ls_summary-service_level_pct }%; reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
     DATA lv_message_type TYPE symsgty VALUE 'S'.
     IF ls_summary-shortage_qty > 0.
       lv_message_type = 'W'.
     ENDIF.
-    CALL FUNCTION 'BAL_LOG_MSG_ADD_FREE_TEXT'
-      EXPORTING
-        i_log_handle = lv_handle
-        i_msgty      = lv_message_type
-        i_text       = lv_text
-      EXCEPTIONS
-        OTHERS       = 1.
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
+    DATA lt_texts TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    DATA(lv_context_text) = |Strategy { iv_strategy }; cutoff { iv_cutoff_date }; |
+                          && |stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; |
+                          && |reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
+    DATA(lv_demand_text) = |Demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; |
+                         && |allocated { ls_summary-allocated_qty }|.
+    APPEND lv_context_text TO lt_texts.
+    APPEND lv_demand_text TO lt_texts.
+    APPEND |Shortage { ls_summary-shortage_qty }; unused { ls_summary-unused_qty }| TO lt_texts.
+    APPEND |Fill { ls_summary-quantity_fill_pct }%; service { ls_summary-service_level_pct }%| TO lt_texts.
+    APPEND |Utilization { ls_summary-stock_utilization_pct }%; fairness { ls_summary-fairness_pct }%| TO lt_texts.
+    LOOP AT lt_texts INTO DATA(lv_text).
+      CALL FUNCTION 'BAL_LOG_MSG_ADD_FREE_TEXT'
+        EXPORTING
+          i_log_handle = lv_handle
+          i_msgty      = lv_message_type
+          i_text       = lv_text
+        EXCEPTIONS
+          OTHERS       = 1.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
 
     DATA lt_handles TYPE bal_t_logh.
     APPEND lv_handle TO lt_handles.

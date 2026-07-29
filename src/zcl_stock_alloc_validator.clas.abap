@@ -74,9 +74,10 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
     IF iv_strategy <> zif_stock_allocation=>c_strategy_fifo
         AND iv_strategy <> zif_stock_allocation=>c_strategy_proportional
         AND iv_strategy <> zif_stock_allocation=>c_strategy_fair_share
-        AND iv_strategy <> zif_stock_allocation=>c_strategy_smallest_first.
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_smallest_first
+        AND iv_strategy <> zif_stock_allocation=>c_strategy_complete_only.
       RAISE EXCEPTION NEW zcx_stock_allocation(
-        'Allocation strategy must be F, P, E, or S' ).
+        'Allocation strategy must be F, P, E, S, or C' ).
     ENDIF.
   ENDMETHOD.
 

@@ -281,3 +281,39 @@
 - Applied the same cutoff to selected-strategy previews, committed runs, and single-snapshot strategy comparisons.
 - Propagated the effective cutoff through plans, allocation rows, `ZSTOCKALLOC`, report scope output, and BAL run summaries.
 - Added database-backed adapter coverage for the cutoff and service coverage for source propagation and plan-row audit metadata.
+
+## 2026-07-29 - Feature 43: Complete-only allocation
+
+- Added strategy `C` for operations that prohibit partial shipments.
+- Preserved FIFO evaluation inside each priority tier, skipped demands that could not be supplied completely, and continued looking for a later complete fit in the same tier.
+- Held any unused stock when that tier remained incomplete, preventing a lower priority from consuming stock withheld from an unsatisfied higher tier.
+- Included the policy in validation, single-snapshot comparison, repository invariants, and cross-strategy priority coverage.
+
+## 2026-07-29 - Feature 44: Objective-based recommendation
+
+- Added pure strategy selection for service objective `S` and quantity objective `Q`.
+- Ranked service recommendations by full demand lines, allocated quantity, then fewer partial lines; ranked quantity recommendations by allocated quantity, full lines, then fewer partial lines.
+- Kept exact ties stable in comparison order, yielding FIFO when all five productive candidates are equivalent.
+- Exposed `P_OBJ` and the recommended strategy in side-effect-free comparison output without automatically persisting the recommendation.
+- Added focused tests for both objectives, deterministic ties, and invalid recommendation inputs.
+
+## 2026-07-29 - Feature 45: Stock-utilization KPIs
+
+- Added unused allocatable quantity and stock-utilization percentage to allocation summaries.
+- Clamped unused quantity at zero for defensive handling of externally supplied result tables and defined utilization as zero when allocatable stock is zero.
+- Exposed both measures in selected-plan output, five-strategy comparison, and committed BAL summaries.
+- Added empty-plan and exact 50-percent utilization coverage.
+
+## 2026-07-29 - Feature 46: Fulfillment fairness
+
+- Added Jain's fairness index over positive-demand fulfillment ratios as a normalized 0-to-100 summary KPI.
+- Defined fairness as zero when no demand receives stock and ignored nonpositive requested quantities defensively.
+- Added comparison objective `F`, ranked by fairness, then allocated quantity, then completely supplied lines.
+- Exposed fairness in selected-plan output, five-strategy comparison, BAL summaries, repository invariants, and target-system guidance.
+- Added exact equal-share and concentrated-allocation KPI tests, a selector test that recommends proportional allocation, and an end-to-end comparison assertion using real candidate plans.
+
+## 2026-07-29 - Feature 47: Complete BAL strategy evidence
+
+- Split the expanding allocation audit summary into context, quantity, fulfillment, and utilization/fairness messages rather than relying on one oversized free-text entry.
+- Checked every message insertion and retained the existing rule that any incomplete audit log aborts allocation persistence.
+- Preserved shortage-aware warning severity consistently across every message in the run.

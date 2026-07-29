@@ -24,6 +24,7 @@
     "modify_only_own_db_tables": true,
     "parser_error": true,
     "unknown_types": true,
+    "local_testclass_consistency": true,
     "unused_variables": true,
     "whitespace_end": true
   }

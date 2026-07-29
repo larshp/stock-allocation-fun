@@ -124,6 +124,11 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_plan.
+    validate_strategy( is_plan-strategy ).
+    validate_window(
+      iv_start_date  = is_plan-start_date
+      iv_cutoff_date = is_plan-cutoff_date ).
+
     DATA lv_expected_allocatable TYPE zif_stock_allocation=>ty_quantity.
     lv_expected_allocatable = is_plan-stock_qty - is_plan-reserve_qty.
     IF lv_expected_allocatable < 0.

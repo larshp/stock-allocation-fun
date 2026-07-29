@@ -426,3 +426,41 @@
 - Reconstructed current and historical rows through one normalized mapping and invariant-validation path.
 - Rejected negative versions before authorization or data access and retained the existing display-authorization boundary.
 - Added `P_VERSN` to `ZSTOCK_PLAN_VIEW`, including historical-to-live drift comparison with the selected version's planning context.
+
+## 2026-07-29 - Feature 65: Bounded historical version catalog
+
+- Added an authorized, scope-specific history catalog ordered from newest to oldest.
+- Bounded catalog reads to a caller-selected 1–100 entries to prevent unbounded report output as immutable history grows.
+- Exposed version, provenance, demand count, stock, reserve, unit, strategy, and planning window without loading allocation details.
+- Added `P_LIST` and `P_LIMIT` to `ZSTOCK_PLAN_VIEW` so planners can discover a version before selecting it with `P_VERSN`.
+
+## 2026-07-29 - Feature 66: Saved-version drift comparison
+
+- Added `P_AGNST` to compare the selected current or historical snapshot against another immutable committed version.
+- Reused the checked historical query and pure drift engine, preserving authorization and invariant validation for both sides.
+- Kept live and saved-version comparisons mutually exclusive so the comparison target is unambiguous.
+
+## 2026-07-29 - Feature 67: History catalog integrity gate
+
+- Rejected adapter responses that exceed the requested catalog bound.
+- Required positive, unique, strictly descending versions with valid non-future creation dates before exposing audit metadata.
+- Added a corrupt duplicate-version test at the authorized query boundary.
+
+## 2026-07-29 - Feature 68: Cursor-paged history catalog
+
+- Added an optional exclusive before-version cursor to retrieve older immutable history pages without offsets or unbounded reads.
+- Exposed `P_BEFORE` in the view report and retained strict newest-to-oldest ordering on every page.
+- Covered cursor forwarding and productive Open SQL pagination across two persisted versions.
+
+## 2026-07-29 - Feature 69: Mutation-free version rejection
+
+- Moved current-detail deletion after version lookup and overflow validation.
+- Ensured deterministic version exhaustion cannot partially clear the current snapshot even when the sink is called directly.
+- Strengthened the overflow integration test to prove existing detail rows remain present.
+
+## 2026-07-29 - Feature 70: Defensive persistence boundary
+
+- Added complete plan-invariant validation directly at the SAP sink entry point.
+- Rejected malformed plans before version reads or any current/history table mutation, even when callers bypass the orchestration service.
+- Proved a rejected sink call leaves both the current version and immutable-history cardinality unchanged.
+- Closed the empty-plan gap in the shared invariant gate by validating header strategy and planning-window ordering even when no detail rows exist.

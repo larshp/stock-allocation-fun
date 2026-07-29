@@ -37,6 +37,49 @@ CLASS zcl_allocation_source_sap DEFINITION PUBLIC FINAL CREATE PUBLIC.
 ENDCLASS.
 
 CLASS zcl_allocation_source_sap IMPLEMENTATION.
+  METHOD zif_allocation_source~list_versions.
+    IF iv_before_version IS INITIAL.
+      SELECT version_no, stock_qty, available_qty, reserve_qty, demand_count,
+             meins, strategy, start_date, cutoff_date, created_on, created_at,
+             created_by
+        FROM zstockphist
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+        ORDER BY version_no DESCENDING
+        INTO TABLE @DATA(lt_headers)
+        UP TO @iv_max_versions ROWS.
+    ELSE.
+      SELECT version_no, stock_qty, available_qty, reserve_qty, demand_count,
+             meins, strategy, start_date, cutoff_date, created_on, created_at,
+             created_by
+        FROM zstockphist
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND version_no < @iv_before_version
+        ORDER BY version_no DESCENDING
+        INTO TABLE @lt_headers
+        UP TO @iv_max_versions ROWS.
+    ENDIF.
+
+    LOOP AT lt_headers INTO DATA(ls_header).
+      APPEND VALUE #(
+        version_no      = ls_header-version_no
+        stock_qty       = ls_header-stock_qty
+        allocatable_qty = ls_header-available_qty
+        reserve_qty     = ls_header-reserve_qty
+        demand_count    = ls_header-demand_count
+        unit            = ls_header-meins
+        strategy        = ls_header-strategy
+        start_date      = ls_header-start_date
+        cutoff_date     = ls_header-cutoff_date
+        created_on      = ls_header-created_on
+        created_at      = ls_header-created_at
+        created_by      = ls_header-created_by ) TO rt_versions.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_allocation_source~get_saved.
     DATA ls_header TYPE ty_header.
     DATA lt_rows TYPE ty_details.

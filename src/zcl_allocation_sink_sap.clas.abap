@@ -5,10 +5,7 @@ ENDCLASS.
 
 CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   METHOD zif_allocation_sink~save.
-    DELETE FROM zstockalloc
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location.
+    zcl_stock_alloc_validator=>validate_plan( is_plan ).
 
     DATA(lv_created_on) = sy-datum.
     DATA(lv_created_at) = sy-uzeit.
@@ -28,6 +25,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ELSE.
       lv_version_no = 1.
     ENDIF.
+
+    DELETE FROM zstockalloc
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+        AND lgort = @iv_storage_location.
+
     DATA(ls_header) = VALUE zstockplan(
       matnr         = iv_material
       werks         = iv_plant

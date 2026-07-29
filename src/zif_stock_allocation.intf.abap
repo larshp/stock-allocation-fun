@@ -95,6 +95,23 @@ INTERFACE zif_stock_allocation PUBLIC.
     END OF ty_saved_plan.
 
   TYPES:
+    BEGIN OF ty_plan_version,
+      version_no      TYPE i,
+      stock_qty       TYPE ty_quantity,
+      allocatable_qty TYPE ty_quantity,
+      reserve_qty     TYPE ty_quantity,
+      demand_count    TYPE i,
+      unit            TYPE ty_unit,
+      strategy        TYPE ty_strategy,
+      start_date      TYPE ty_start_date,
+      cutoff_date     TYPE ty_cutoff_date,
+      created_on      TYPE d,
+      created_at      TYPE t,
+      created_by      TYPE c LENGTH 12,
+    END OF ty_plan_version.
+  TYPES tt_plan_versions TYPE STANDARD TABLE OF ty_plan_version WITH EMPTY KEY.
+
+  TYPES:
     BEGIN OF ty_drift_item,
       sales_order           TYPE ty_sales_order,
       sales_item            TYPE ty_sales_item,

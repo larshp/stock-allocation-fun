@@ -228,6 +228,19 @@ requireInvariant(
   "Persisted-plan report must expose zero-as-current version selection",
 );
 requireInvariant(
+  /PARAMETERS\s+p_list\s+AS\s+CHECKBOX/i.test(allocationViewReport)
+    && /PARAMETERS\s+p_limit\s+TYPE\s+i\s+DEFAULT\s+20\./i.test(allocationViewReport),
+  "Persisted-plan report must expose a bounded historical version catalog",
+);
+requireInvariant(
+  /PARAMETERS\s+p_before\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationViewReport),
+  "Persisted-plan report must expose the history pagination cursor",
+);
+requireInvariant(
+  /PARAMETERS\s+p_agnst\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationViewReport),
+  "Persisted-plan report must expose saved-version drift comparison",
+);
+requireInvariant(
   /zcl_allocation_plan_drift/i.test(allocationViewReport),
   "Persisted-plan report must compare saved and live plans through the drift checker",
 );

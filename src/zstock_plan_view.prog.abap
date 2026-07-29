@@ -5,7 +5,11 @@ PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_loc OBLIGATORY.
 PARAMETERS p_maxage TYPE i DEFAULT 1.
 PARAMETERS p_versn TYPE i DEFAULT 0.
+PARAMETERS p_list AS CHECKBOX DEFAULT ''.
+PARAMETERS p_limit TYPE i DEFAULT 20.
+PARAMETERS p_before TYPE i DEFAULT 0.
 PARAMETERS p_live AS CHECKBOX DEFAULT ''.
+PARAMETERS p_agnst TYPE i DEFAULT 0.
 
 START-OF-SELECTION.
   DATA(lo_query_service) = NEW zcl_allocation_query_service(
@@ -13,6 +17,31 @@ START-OF-SELECTION.
     io_authorization = NEW zcl_allocation_auth_sap( ) ).
 
   TRY.
+      IF p_list = abap_true.
+        DATA(lt_versions) = lo_query_service->list_versions(
+          iv_material         = p_matnr
+          iv_plant            = p_werks
+          iv_storage_location = p_lgort
+          iv_max_versions     = p_limit
+          iv_before_version   = p_before ).
+        IF lt_versions IS INITIAL.
+          WRITE / 'No persisted allocation plan history exists for this scope'.
+          RETURN.
+        ENDIF.
+        WRITE: / 'Historical versions for scope', p_matnr, p_werks, p_lgort.
+        LOOP AT lt_versions INTO DATA(ls_version).
+          WRITE: / 'Version', ls_version-version_no,
+                   'Created', ls_version-created_on, ls_version-created_at,
+                   'By', ls_version-created_by,
+                   'Demands', ls_version-demand_count,
+                   'Stock', ls_version-stock_qty,
+                   'Allocatable', ls_version-allocatable_qty,
+                   'Reserve', ls_version-reserve_qty,
+                   ls_version-unit,
+                   'Strategy', ls_version-strategy.
+        ENDLOOP.
+        RETURN.
+      ENDIF.
       DATA(ls_saved) = lo_query_service->get_saved(
         iv_material         = p_matnr
         iv_plant            = p_werks
@@ -54,26 +83,52 @@ START-OF-SELECTION.
                'Service %', ls_summary-service_level_pct,
                'Utilization %', ls_summary-stock_utilization_pct,
                'Fairness %', ls_summary-fairness_pct.
-      IF p_live = abap_true.
-        DATA(lo_allocation_service) = NEW zcl_stock_allocation_service(
-          io_stock_source    = NEW zcl_stock_source_sap( )
-          io_demand_source   = NEW zcl_demand_source_sap( )
-          io_allocation_sink = NEW zcl_allocation_sink_sap( )
-          io_allocation_lock = NEW zcl_allocation_lock_sap( )
-          io_authorization   = NEW zcl_allocation_auth_sap( )
-          io_allocation_log  = NEW zcl_allocation_log_sap( ) ).
-        DATA(ls_current) = lo_allocation_service->preview_plan(
-          iv_material         = p_matnr
-          iv_plant            = p_werks
-          iv_storage_location = p_lgort
-          iv_reserve          = ls_saved-plan-reserve_qty
-          iv_strategy         = ls_saved-plan-strategy
-          iv_start_date       = ls_saved-plan-start_date
-          iv_cutoff_date      = ls_saved-plan-cutoff_date ).
+      IF p_agnst < 0.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Comparison plan version cannot be negative' ).
+      ENDIF.
+      IF p_live = abap_true AND p_agnst > 0.
+        RAISE EXCEPTION NEW zcx_stock_allocation(
+          'Choose either live or saved-version comparison' ).
+      ENDIF.
+      IF p_live = abap_true OR p_agnst > 0.
+        DATA ls_current TYPE zif_stock_allocation=>ty_plan.
+        IF p_agnst > 0.
+          DATA(ls_comparison) = lo_query_service->get_saved(
+            iv_material         = p_matnr
+            iv_plant            = p_werks
+            iv_storage_location = p_lgort
+            iv_max_age_days     = p_maxage
+            iv_version_no       = p_agnst ).
+          IF ls_comparison-found = abap_false.
+            WRITE: / 'Comparison plan version does not exist', p_agnst.
+            RETURN.
+          ENDIF.
+          ls_current = ls_comparison-plan.
+          WRITE: / 'Comparing saved versions', ls_saved-version_no,
+                   'to', ls_comparison-version_no.
+        ELSE.
+          DATA(lo_allocation_service) = NEW zcl_stock_allocation_service(
+            io_stock_source    = NEW zcl_stock_source_sap( )
+            io_demand_source   = NEW zcl_demand_source_sap( )
+            io_allocation_sink = NEW zcl_allocation_sink_sap( )
+            io_allocation_lock = NEW zcl_allocation_lock_sap( )
+            io_authorization   = NEW zcl_allocation_auth_sap( )
+            io_allocation_log  = NEW zcl_allocation_log_sap( ) ).
+          ls_current = lo_allocation_service->preview_plan(
+            iv_material         = p_matnr
+            iv_plant            = p_werks
+            iv_storage_location = p_lgort
+            iv_reserve          = ls_saved-plan-reserve_qty
+            iv_strategy         = ls_saved-plan-strategy
+            iv_start_date       = ls_saved-plan-start_date
+            iv_cutoff_date      = ls_saved-plan-cutoff_date ).
+          WRITE / 'Comparing saved version to live planning data'.
+        ENDIF.
         DATA(ls_drift) = zcl_allocation_plan_drift=>compare(
           is_saved   = ls_saved-plan
           is_current = ls_current ).
-        WRITE: / 'Live drift', ls_drift-has_drift,
+        WRITE: / 'Drift', ls_drift-has_drift,
                  'Severity', ls_drift-severity,
                  'Stock delta', ls_drift-stock_delta,
                  'Allocated delta', ls_drift-allocated_delta,

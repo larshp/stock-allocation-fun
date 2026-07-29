@@ -13,6 +13,8 @@ CLASS ltcl_reconciler DEFINITION FINAL FOR TESTING
       RAISING zcx_salloc_invalid zcx_salloc_integration.
     METHODS releases_changed_item_context FOR TESTING
       RAISING zcx_salloc_invalid zcx_salloc_integration.
+    METHODS denies_simulation_before_read FOR TESTING
+      RAISING zcx_salloc_invalid.
 ENDCLASS.
 
 CLASS ltcl_reconciler IMPLEMENTATION.
@@ -45,7 +47,9 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
       io_logger = NEW zcl_salloc_logger_stub( ) ).
-    DATA(reconciler) = NEW zcl_salloc_reconciler( service ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( ) ).
 
     DATA(released) = reconciler->run(
       iv_material = 'MAT-1'
@@ -69,7 +73,9 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
       io_logger = NEW zcl_salloc_logger_stub( ) ).
-    DATA(reconciler) = NEW zcl_salloc_reconciler( service ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( ) ).
 
     DATA(released) = reconciler->run(
       iv_material = 'MAT-1'
@@ -90,7 +96,9 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
       io_logger = NEW zcl_salloc_logger_stub( ) ).
-    DATA(reconciler) = NEW zcl_salloc_reconciler( service ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( ) ).
 
     DATA(released) = reconciler->run(
       iv_material = 'MAT-1'
@@ -123,7 +131,9 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
       io_logger = NEW zcl_salloc_logger_stub( ) ).
-    DATA(reconciler) = NEW zcl_salloc_reconciler( service ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( ) ).
 
     DATA(released) = reconciler->run(
       iv_material = 'MAT-1'
@@ -152,12 +162,39 @@ CLASS ltcl_reconciler IMPLEMENTATION.
       io_transaction = NEW zcl_salloc_transaction_stub( )
       io_authorization = NEW zcl_salloc_authorization_stub( )
       io_logger = NEW zcl_salloc_logger_stub( ) ).
-    DATA(reconciler) = NEW zcl_salloc_reconciler( service ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( ) ).
 
     DATA(released) = reconciler->run(
       iv_material = 'MAT-1'
       iv_plant = '1000' ).
 
     cl_abap_unit_assert=>assert_equals( act = released exp = 4 ).
+  ENDMETHOD.
+
+  METHOD denies_simulation_before_read.
+    DATA demands TYPE zif_salloc_types=>tt_demands.
+    DATA(service) = NEW zcl_salloc_service(
+      io_stock = NEW zcl_salloc_stock_stub( 0 )
+      io_orders = NEW zcl_salloc_orders_stub( demands )
+      io_transaction = NEW zcl_salloc_transaction_stub( )
+      io_authorization = NEW zcl_salloc_authorization_stub( )
+      io_logger = NEW zcl_salloc_logger_stub( ) ).
+    DATA(reconciler) = NEW zcl_salloc_reconciler(
+      io_service = service
+      io_authorization = NEW zcl_salloc_authorization_stub( abap_true ) ).
+
+    TRY.
+        reconciler->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_simulate = abap_true ).
+        cl_abap_unit_assert=>fail( `Expected authorization failure` ).
+      CATCH zcx_salloc_integration INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->operation
+          exp = `AUTHORIZATION` ).
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.

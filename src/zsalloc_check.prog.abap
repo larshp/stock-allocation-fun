@@ -5,26 +5,28 @@ PARAMETERS p_werks TYPE zif_salloc_types=>ty_plant OBLIGATORY.
 
 START-OF-SELECTION.
   TRY.
-      DATA(authorization) = NEW zcl_salloc_authorization_sap( ).
-      authorization->zif_salloc_authorization~check_authorization(
-        iv_plant = p_werks
-        iv_activity = '03' ).
-      SELECT SUM( labst ) FROM mard
-        WHERE matnr = @p_matnr AND werks = @p_werks
-        INTO @DATA(physical).
-      SELECT SINGLE reserved FROM zsalloc_stock
-        WHERE matnr = @p_matnr AND werks = @p_werks
-        INTO @DATA(reserved).
-      IF sy-subrc <> 0.
-        CLEAR reserved.
-      ENDIF.
-      WRITE: / 'Physical stock:', physical,
-             / 'Ledger reserved:', reserved.
-      IF reserved > physical.
-        WRITE: / 'ERROR: reservation invariant violated'.
+      DATA(checker) = NEW zcl_salloc_checker(
+        NEW zcl_salloc_authorization_sap( ) ).
+      DATA(result) = checker->run(
+        iv_material = p_matnr
+        iv_plant = p_werks ).
+      WRITE: / 'Physical stock:', result-physical,
+             / 'SAP confirmed:', result-confirmed,
+             / 'Stock ledger reserved:', result-reserved,
+             / 'Order ledger allocated:', result-order_allocated.
+      IF result-ledgers_match <> abap_true.
+        WRITE: / 'ERROR: stock and order ledgers disagree'.
+        MESSAGE 'Stock allocation ledgers disagree' TYPE 'E'.
+      ELSEIF result-commitments_fit <> abap_true.
+        WRITE: / 'ERROR: commitments exceed physical stock'.
+        MESSAGE 'Stock allocation commitments exceed stock' TYPE 'E'.
       ELSE.
-        WRITE: / 'OK: reservation does not exceed physical stock'.
+        WRITE: / 'OK: ledger totals agree and commitments fit physical stock'.
       ENDIF.
+    CATCH zcx_salloc_invalid INTO DATA(invalid).
+      WRITE: / 'Invalid request:', invalid->reason.
+      MESSAGE 'Stock allocation check request is invalid' TYPE 'E'.
     CATCH zcx_salloc_integration INTO DATA(error).
-      WRITE: / 'Authorization failure:', error->reason.
+      WRITE: / 'Check failed:', error->reason.
+      MESSAGE 'Stock allocation check failed' TYPE 'E'.
   ENDTRY.

@@ -142,9 +142,47 @@ and DDIC files; all seven ABAP Unit tests pass.
   ledger context.
 - Increased the verified suite to thirty-three ABAP Unit tests.
 
+## 2026-07-29 - Iteration 20: confirmed-stock protection
+
+- Subtracted eligible SAP-confirmed schedule quantities from allocatable MARD
+  stock in both the initial read and the reservation-time recheck.
+- Expanded `ZSALLOC_CHECK` to enforce `confirmed + reserved <= physical`.
+- Added a regression proving confirmed demand reduces availability and prevents
+  over-reservation.
+- Recorded the remaining distinction between the on-hand proxy and full ATP.
+
+## 2026-07-29 - Iteration 21: productive delivery priority
+
+- Mapped standard item delivery priority `VBAP-LPRIO` into productive demands.
+- Translated SAP's ascending priority convention into the allocator's descending
+  rank while retaining deterministic date and identity tie-breakers.
+- Hardened the productive stock port against zero-quantity reservation writes.
+
+## 2026-07-29 - Iteration 22: traceable allocation audit
+
+- Replaced aggregate allocation audit entries with one entry per allocated sales
+  order schedule line, including its identity and exact quantity.
+- Exposed order/schedule-line identity in `ZSALLOC_LOG`.
+- Added simulation-first `ZSALLOC_RELEASE` as an operator entry point for reviewed
+  one-off releases through the existing transactional service.
+
+## 2026-07-29 - Iteration 23: reconciler authorization boundary
+
+- Closed an authorization bypass in reconciliation simulation and no-op runs.
+- Required authorization before the reconciler's first ledger or SAP read.
+- Kept defense-in-depth change checks on every transactional release.
+- Added denied-read and productive-factory regressions.
+
+## 2026-07-29 - Iteration 24: testable operational invariants
+
+- Extracted `ZSALLOC_CHECK` calculations into authorized `ZCL_SALLOC_CHECKER`.
+- Verified stock-ledger versus order-ledger equality independently from the
+  physical-stock commitment ceiling.
+- Added database-backed healthy, split-ledger, excess-commitment, and denied-read
+  coverage; kept the executable report as a thin renderer.
+
 ## Next iteration
 
-Account for existing SAP-confirmed schedule quantities when deriving allocatable
-on-hand stock, then continue the production-readiness audit. Target-SAP
-multi-work-process execution remains a rollout activity described in
+Continue the production-readiness audit, including target-specific ATP semantics.
+Target-SAP multi-work-process execution remains a rollout activity described in
 `SAP_CONCURRENCY_TEST.md`.

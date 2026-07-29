@@ -20,6 +20,8 @@ CLASS zcl_salloc_factory IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_sap_reconciler.
-    ro_reconciler = NEW zcl_salloc_reconciler( create_sap_service( ) ).
+    ro_reconciler = NEW zcl_salloc_reconciler(
+      io_service = create_sap_service( )
+      io_authorization = NEW zcl_salloc_authorization_sap( ) ).
   ENDMETHOD.
 ENDCLASS.

@@ -21,6 +21,8 @@ START-OF-SELECTION.
       ENDIF.
     CATCH zcx_salloc_invalid INTO DATA(invalid_error).
       WRITE: / 'Invalid input:', invalid_error->reason.
+      MESSAGE 'Stock allocation log cleanup request is invalid' TYPE 'E'.
     CATCH zcx_salloc_integration INTO DATA(integration_error).
       WRITE: / 'Cleanup failed:', integration_error->reason.
+      MESSAGE 'Stock allocation log cleanup failed' TYPE 'E'.
   ENDTRY.

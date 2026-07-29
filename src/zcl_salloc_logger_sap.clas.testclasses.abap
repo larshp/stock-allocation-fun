@@ -14,9 +14,13 @@ CLASS ltcl_logger_sap IMPLEMENTATION.
       iv_event = 'ALLOCATE'
       iv_material = 'MAT-1'
       iv_plant = '1000'
+      iv_order_id = '50000000010000100001'
       iv_quantity = 5 ).
-    SELECT SINGLE event, quantity FROM zsalloc_log INTO @DATA(saved).
+    SELECT SINGLE event, order_id, quantity FROM zsalloc_log INTO @DATA(saved).
     cl_abap_unit_assert=>assert_equals( act = saved-event exp = 'ALLOCATE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = saved-order_id
+      exp = '50000000010000100001' ).
     cl_abap_unit_assert=>assert_equals( act = saved-quantity exp = 5 ).
   ENDMETHOD.
 ENDCLASS.

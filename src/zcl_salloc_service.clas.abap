@@ -87,11 +87,15 @@ CLASS zcl_salloc_service IMPLEMENTATION.
               iv_material = iv_material
               iv_plant = iv_plant
               it_demands = rt_allocations ).
-            mo_logger->log(
-              iv_event = 'ALLOCATE'
-              iv_material = iv_material
-              iv_plant = iv_plant
-              iv_quantity = reserved ).
+            LOOP AT rt_allocations ASSIGNING FIELD-SYMBOL(<allocation>)
+              WHERE allocated > 0.
+              mo_logger->log(
+                iv_event = 'ALLOCATE'
+                iv_material = iv_material
+                iv_plant = iv_plant
+                iv_order_id = <allocation>-order_id
+                iv_quantity = <allocation>-allocated ).
+            ENDLOOP.
           ENDIF.
           mo_transaction->commit( ).
         ENDIF.

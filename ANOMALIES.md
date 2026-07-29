@@ -112,3 +112,29 @@ while reconciliation could preserve allocations after rejection or a material or
 plant change. Productive selection now requires sales-order category `VBTYP = C`,
 an initial `VBAP-ABGRU`, and matching material/plant context. Reconciliation uses
 the same eligibility rules and releases unsupported ledger quantities.
+
+## A-014 - Empty joined aggregates fail in open-abap
+
+The transpiled SQLite runtime returns JavaScript `null` for `SUM` over an empty
+joined result and then fails while assigning it to an ABAP packed quantity. SAP
+Open SQL initializes the aggregate target. The confirmed-quantity calculation
+therefore selects only the quantity column into an internal table and totals it
+in ABAP. This preserves empty-result semantics in both runtimes at the cost of
+transferring one small quantity per matching schedule line.
+
+## A-015 - Physical stock is not full ATP availability (partially addressed)
+
+Using MARD alone allowed the custom ledger to reserve on-hand stock already
+committed by SAP confirmations. Availability and `ZSALLOC_CHECK` now subtract
+eligible `VBEP-BMENG` quantities as well as custom reservations. This is a safer
+on-hand-stock invariant, but it still does not model future receipts, checking
+groups/rules, scopes of check, batches, or every ATP element. A target-approved
+released ATP API remains preferable where those semantics are required.
+
+## A-016 - Reconciliation simulation skipped authorization (resolved)
+
+The first reconciler delegated authorization to release operations. Simulation
+and productive no-op runs therefore read ledger and sales-order state without an
+authorization check. `ZCL_SALLOC_RECONCILER` now requires its own authorization
+dependency, validates context, and checks activity `03` or `02` before its first
+database access. Individual productive releases retain their service-level check.

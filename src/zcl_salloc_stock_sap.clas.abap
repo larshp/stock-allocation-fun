@@ -10,6 +10,7 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
   METHOD zif_salloc_stock~get_available.
     TRY.
         DATA physical TYPE zif_salloc_types=>ty_quantity.
+        DATA confirmed TYPE zif_salloc_types=>ty_quantity.
         DATA reserved TYPE zif_salloc_types=>ty_quantity.
 
         SELECT SINGLE matnr
@@ -30,6 +31,24 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
             AND werks = @iv_plant
           INTO @physical.
 
+        DATA confirmed_quantities TYPE STANDARD TABLE OF
+          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
+        SELECT s~bmeng
+          FROM vbep AS s
+          INNER JOIN vbap AS b
+            ON b~vbeln = s~vbeln
+           AND b~posnr = s~posnr
+          INNER JOIN vbak AS h
+            ON h~vbeln = b~vbeln
+          WHERE b~matnr = @iv_material
+            AND b~werks = @iv_plant
+            AND b~abgru = @space
+            AND h~vbtyp = 'C'
+          INTO TABLE @confirmed_quantities.
+        LOOP AT confirmed_quantities INTO DATA(confirmed_quantity).
+          confirmed = confirmed + confirmed_quantity.
+        ENDLOOP.
+
         SELECT SINGLE reserved
           FROM zsalloc_stock
           WHERE matnr = @iv_material
@@ -39,7 +58,7 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
           CLEAR reserved.
         ENDIF.
 
-        rv_quantity = physical - reserved.
+        rv_quantity = physical - confirmed - reserved.
         IF rv_quantity < 0.
           CLEAR rv_quantity.
         ENDIF.
@@ -52,21 +71,40 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_salloc_stock~reserve.
-    IF iv_quantity < 0.
+    IF iv_quantity <= 0.
       RAISE EXCEPTION TYPE zcx_salloc_integration
         EXPORTING
           iv_operation = `RESERVE`
-          iv_reason = `Reservation quantity cannot be negative`.
+          iv_reason = `Reservation quantity must be positive`.
     ENDIF.
 
     TRY.
         DATA stock_row TYPE zsalloc_stock.
         DATA physical TYPE zif_salloc_types=>ty_quantity.
+        DATA confirmed TYPE zif_salloc_types=>ty_quantity.
         SELECT SUM( labst )
           FROM mard
           WHERE matnr = @iv_material
             AND werks = @iv_plant
           INTO @physical.
+
+        DATA confirmed_quantities TYPE STANDARD TABLE OF
+          zif_salloc_types=>ty_quantity WITH EMPTY KEY.
+        SELECT s~bmeng
+          FROM vbep AS s
+          INNER JOIN vbap AS b
+            ON b~vbeln = s~vbeln
+           AND b~posnr = s~posnr
+          INNER JOIN vbak AS h
+            ON h~vbeln = b~vbeln
+          WHERE b~matnr = @iv_material
+            AND b~werks = @iv_plant
+            AND b~abgru = @space
+            AND h~vbtyp = 'C'
+          INTO TABLE @confirmed_quantities.
+        LOOP AT confirmed_quantities INTO DATA(confirmed_quantity).
+          confirmed = confirmed + confirmed_quantity.
+        ENDLOOP.
 
         SELECT SINGLE *
           FROM zsalloc_stock
@@ -75,7 +113,7 @@ CLASS zcl_salloc_stock_sap IMPLEMENTATION.
           INTO @stock_row.
         DATA(row_exists) = xsdbool( sy-subrc = 0 ).
 
-        IF iv_quantity > physical - stock_row-reserved.
+        IF iv_quantity > physical - confirmed - stock_row-reserved.
           RAISE EXCEPTION TYPE zcx_salloc_integration
             EXPORTING
               iv_operation = `RESERVE`

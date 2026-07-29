@@ -18,16 +18,22 @@ separate SAP work-process system fields or the target database's lock behavior.
 3. Execute both sessions as closely together as possible. Repeat at least 20 times,
    including cases where each run requests more than half the available stock.
 4. After every pair, run `ZSALLOC_CHECK` and `ZSALLOC_LOG`.
+5. Before the next pair, release committed test allocations through
+   `ZSALLOC_RELEASE` and verify `ZSALLOC_CHECK` is back at the recorded baseline.
+   Use fresh eligible schedule lines when needed; otherwise later rounds may only
+   test the no-stock path rather than contention.
 
 The test passes only when:
 
-- `ZSALLOC_STOCK-RESERVED` never exceeds summed `MARD-LABST`;
-- each committed stock increment has matching `ZSALLOC_ORDER` and `ZSALLOC_LOG` rows;
+- SAP-confirmed quantity plus `ZSALLOC_STOCK-RESERVED` never exceeds summed
+  `MARD-LABST`;
+- `ZSALLOC_STOCK-RESERVED` equals summed `ZSALLOC_ORDER-ALLOCATED`;
+- each committed per-order allocation has a matching `ZSALLOC_LOG` row;
 - a losing request returns a controlled integration error rather than a dump;
 - no lost updates or duplicate schedule-line allocations occur.
 
 ## Cleanup
 
-Release test allocations through `ZCL_SALLOC_SERVICE->RELEASE`, run reconciliation,
-and verify `ZSALLOC_CHECK`. Do not delete ledger rows directly because that bypasses
-the stock aggregate and audit log.
+Release test allocations through `ZSALLOC_RELEASE`, run reconciliation, and verify
+`ZSALLOC_CHECK`. Do not delete ledger rows directly because that bypasses the stock
+aggregate and audit log.

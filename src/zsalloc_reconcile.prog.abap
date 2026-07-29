@@ -18,6 +18,8 @@ START-OF-SELECTION.
       ENDIF.
     CATCH zcx_salloc_invalid INTO DATA(invalid).
       WRITE: / 'Invalid request:', invalid->reason.
+      MESSAGE 'Stock allocation reconciliation request is invalid' TYPE 'E'.
     CATCH zcx_salloc_integration INTO DATA(integration).
       WRITE: / 'Integration failure:', integration->operation, integration->reason.
+      MESSAGE 'Stock allocation reconciliation failed' TYPE 'E'.
   ENDTRY.

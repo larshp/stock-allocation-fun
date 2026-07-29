@@ -11,6 +11,7 @@ CLASS zcl_salloc_orders_sap DEFINITION
         posnr     TYPE n LENGTH 6,
         etenr     TYPE n LENGTH 4,
         edatu     TYPE d,
+        delivery_priority TYPE n LENGTH 2,
         requested TYPE zif_salloc_types=>ty_quantity,
         confirmed TYPE zif_salloc_types=>ty_quantity,
       END OF ty_sales_item.
@@ -32,6 +33,7 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
                b~posnr,
                s~etenr,
                s~edatu,
+               b~lprio AS delivery_priority,
                s~lmeng AS requested,
                s~bmeng AS confirmed
           FROM vbap AS b
@@ -58,6 +60,9 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
           DATA(demand) = VALUE zif_salloc_types=>ty_demand(
             requested_on = <sales_item>-edatu
             requested = <sales_item>-requested - <sales_item>-confirmed ).
+          IF <sales_item>-delivery_priority > 0.
+            demand-priority = 100 - <sales_item>-delivery_priority.
+          ENDIF.
           CONCATENATE <sales_item>-vbeln <sales_item>-posnr <sales_item>-etenr
             INTO demand-order_id.
 

@@ -35,6 +35,13 @@ sales-unit quantity and is intentionally not used for stock allocation.
 Demand selection is limited to sales-order document category `C`, excludes items
 with `VBAP-ABGRU`, and matches the requested material and plant. Reconciliation
 uses the same rules so rejection or item-context changes release stale allocation.
+Standard `VBAP-LPRIO` drives productive priority: because SAP value `01` is
+highest, it is translated to a descending internal rank before allocation.
+
+Allocatable on-hand stock is `MARD-LABST` less eligible SAP-confirmed
+`VBEP-BMENG` and less `ZSALLOC_STOCK` reservations. This prevents the custom
+ledger from double-committing stock already confirmed by SD; it remains an
+on-hand proxy rather than a replacement for a configured ATP API.
 
 `ZCL_SALLOC_TRANSACTION_SAP` supplies the productive LUW boundary. Stock and
 order adapters used with the service must join that LUW and must not issue their
@@ -54,17 +61,24 @@ Run `ZSALLOC_RECONCILE` to detect allocations no longer supported by current VBE
 quantities, including deleted schedule lines. It also defaults to simulation and
 reports the quantity that would be released.
 
+Run `ZSALLOC_RELEASE` for an explicit material, plant, and
+`VBELN + POSNR + ETENR` allocation identity. It defaults to a read-only ledger
+check; productive mode uses the same authorized, transactional, audited release
+operation as reconciliation.
+
 Run `ZSALLOC_LOG` to inspect the authorized plant's committed allocation and
 release audit records. Logging is mandatory in the service constructor; an audit
-failure rolls the transaction back.
+failure rolls the transaction back. Allocation events are recorded per sales-order
+schedule line rather than as an untraceable aggregate.
 
 Run simulation-first `ZSALLOC_LOG_CLEANUP` with an explicit cutoff timestamp for
 authorized, plant-scoped retention. Productive cleanup commits its own retained
 `LOG_RETENTION` audit event. See `OPERATIONS.md` for scheduling and incident
 procedures.
 
-Run read-only `ZSALLOC_CHECK` to compare physical MARD stock with the reserved
-ledger. Follow `SAP_CONCURRENCY_TEST.md` before each productive rollout.
+Run read-only `ZSALLOC_CHECK` to compare physical MARD stock with commitments and
+to prove the stock-ledger total equals summed per-order allocations. Follow
+`SAP_CONCURRENCY_TEST.md` before each productive rollout.
 
 ## Local verification
 

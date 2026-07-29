@@ -50,7 +50,7 @@ CLASS ltcl_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( transaction->was_begun( ) ).
     cl_abap_unit_assert=>assert_true( transaction->was_committed( ) ).
     cl_abap_unit_assert=>assert_false( transaction->was_rolled_back( ) ).
-    cl_abap_unit_assert=>assert_equals( act = logger->get_count( ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = logger->get_count( ) exp = 2 ).
   ENDMETHOD.
 
   METHOD no_stock_has_no_writes.

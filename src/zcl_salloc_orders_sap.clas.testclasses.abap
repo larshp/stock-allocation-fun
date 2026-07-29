@@ -28,7 +28,7 @@ CLASS ltcl_orders_sap IMPLEMENTATION.
       mandt = sy-mandt vbeln = '5000000001' vbtyp = 'C' audat = '20260701' ) ).
     INSERT vbap FROM @( VALUE #(
       mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
-      matnr = 'MAT-1' werks = '1000' ) ).
+      matnr = 'MAT-1' werks = '1000' lprio = '01' ) ).
     INSERT vbep FROM @( VALUE #(
       mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
       etenr = '0001' edatu = '20260715'
@@ -48,6 +48,7 @@ CLASS ltcl_orders_sap IMPLEMENTATION.
       act = demands[ 1 ]-order_id
       exp = '50000000010000100001' ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-requested exp = 5 ).
+    cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-priority exp = 99 ).
     cl_abap_unit_assert=>assert_equals(
       act = demands[ 1 ]-requested_on
       exp = '20260715' ).

@@ -9,10 +9,16 @@ CLASS ltcl_stock_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_salloc_integration.
     METHODS rejects_over_reservation FOR TESTING.
     METHODS rejects_missing_plant_data FOR TESTING.
+    METHODS subtracts_confirmed_demand FOR TESTING
+      RAISING zcx_salloc_integration.
+    METHODS rejects_zero_reservation FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_sap IMPLEMENTATION.
   METHOD setup.
+    DELETE FROM vbak.
+    DELETE FROM vbap.
+    DELETE FROM vbep.
     DELETE FROM marc.
     DELETE FROM mard.
     DELETE FROM zsalloc_stock.
@@ -91,6 +97,57 @@ CLASS ltcl_stock_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = error->reason
           exp = `Material is not extended to plant` ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD subtracts_confirmed_demand.
+    INSERT marc FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000' ) ).
+    INSERT mard FROM @( VALUE #(
+      mandt = sy-mandt matnr = 'MAT-1' werks = '1000'
+      lgort = '0001' labst = 10 ) ).
+    INSERT vbak FROM @( VALUE #(
+      mandt = sy-mandt vbeln = '5000000001' vbtyp = 'C' ) ).
+    INSERT vbap FROM @( VALUE #(
+      mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
+      matnr = 'MAT-1' werks = '1000' ) ).
+    INSERT vbep FROM @( VALUE #(
+      mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
+      etenr = '0001' lmeng = 10 bmeng = 7 ) ).
+    DATA(stock) = NEW zcl_salloc_stock_sap( ).
+
+    DATA(available) = stock->zif_salloc_stock~get_available(
+      iv_material = 'MAT-1'
+      iv_plant = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = available exp = 3 ).
+    TRY.
+        stock->zif_salloc_stock~reserve(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_quantity = 4 ).
+        cl_abap_unit_assert=>fail( `Expected confirmed-stock protection` ).
+      CATCH zcx_salloc_integration INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->operation
+          exp = `RESERVE` ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_zero_reservation.
+    DATA(stock) = NEW zcl_salloc_stock_sap( ).
+    TRY.
+        stock->zif_salloc_stock~reserve(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_quantity = 0 ).
+        cl_abap_unit_assert=>fail( `Expected positive-quantity validation` ).
+      CATCH zcx_salloc_integration INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->reason
+          exp = `Reservation quantity must be positive` ).
+        SELECT COUNT( * ) FROM zsalloc_stock INTO @DATA(rows).
+        cl_abap_unit_assert=>assert_equals( act = rows exp = 0 ).
     ENDTRY.
   ENDMETHOD.
 ENDCLASS.

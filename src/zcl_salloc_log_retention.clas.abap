@@ -36,6 +36,12 @@ CLASS zcl_salloc_log_retention IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_salloc_invalid
         EXPORTING iv_reason = `Plant and cutoff timestamp are required`.
     ENDIF.
+    DATA now TYPE timestampl.
+    GET TIME STAMP FIELD now.
+    IF iv_before >= now.
+      RAISE EXCEPTION TYPE zcx_salloc_invalid
+        EXPORTING iv_reason = `Cutoff timestamp must be in the past`.
+    ENDIF.
 
     DATA activity TYPE zif_salloc_types=>ty_activity.
     IF iv_simulate = abap_true.

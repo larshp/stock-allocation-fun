@@ -8,6 +8,8 @@ CLASS ltcl_log_retention DEFINITION FINAL FOR TESTING
       RAISING zcx_salloc_invalid zcx_salloc_integration.
     METHODS denial_has_no_side_effects FOR TESTING
       RAISING zcx_salloc_invalid.
+    METHODS rejects_future_cutoff FOR TESTING
+      RAISING zcx_salloc_integration.
 ENDCLASS.
 
 CLASS ltcl_log_retention IMPLEMENTATION.
@@ -88,6 +90,26 @@ CLASS ltcl_log_retention IMPLEMENTATION.
         cl_abap_unit_assert=>assert_false( transaction->was_begun( ) ).
         SELECT COUNT( * ) FROM zsalloc_log INTO @DATA(remaining).
         cl_abap_unit_assert=>assert_equals( act = remaining exp = 1 ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_future_cutoff.
+    DATA(transaction) = NEW zcl_salloc_transaction_stub( ).
+    DATA(retention) = NEW zcl_salloc_log_retention(
+      io_transaction = transaction
+      io_authorization = NEW zcl_salloc_authorization_stub( )
+      io_logger = NEW zcl_salloc_logger_stub( ) ).
+    TRY.
+        retention->run(
+          iv_plant = '1000'
+          iv_before = '99991231235959'
+          iv_simulate = abap_false ).
+        cl_abap_unit_assert=>fail( `Expected cutoff validation` ).
+      CATCH zcx_salloc_invalid INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->reason
+          exp = `Cutoff timestamp must be in the past` ).
+        cl_abap_unit_assert=>assert_false( transaction->was_begun( ) ).
     ENDTRY.
   ENDMETHOD.
 ENDCLASS.

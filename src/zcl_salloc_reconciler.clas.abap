@@ -4,7 +4,9 @@ CLASS zcl_salloc_reconciler DEFINITION
   CREATE PUBLIC.
   PUBLIC SECTION.
     METHODS constructor
-      IMPORTING io_service TYPE REF TO zcl_salloc_service.
+      IMPORTING
+        io_service TYPE REF TO zcl_salloc_service
+        io_authorization TYPE REF TO zif_salloc_authorization.
     METHODS run
       IMPORTING
         iv_material TYPE zif_salloc_types=>ty_material
@@ -17,14 +19,30 @@ CLASS zcl_salloc_reconciler DEFINITION
         zcx_salloc_integration.
   PRIVATE SECTION.
     DATA mo_service TYPE REF TO zcl_salloc_service.
+    DATA mo_authorization TYPE REF TO zif_salloc_authorization.
 ENDCLASS.
 
 CLASS zcl_salloc_reconciler IMPLEMENTATION.
   METHOD constructor.
     mo_service = io_service.
+    mo_authorization = io_authorization.
   ENDMETHOD.
 
   METHOD run.
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_salloc_invalid
+        EXPORTING iv_reason = `Material and plant are required`.
+    ENDIF.
+    DATA activity TYPE zif_salloc_types=>ty_activity.
+    IF iv_simulate = abap_true.
+      activity = '03'.
+    ELSE.
+      activity = '02'.
+    ENDIF.
+    mo_authorization->check_authorization(
+      iv_plant = iv_plant
+      iv_activity = activity ).
+
     TRY.
         DATA allocations TYPE STANDARD TABLE OF zsalloc_order WITH EMPTY KEY.
         SELECT *

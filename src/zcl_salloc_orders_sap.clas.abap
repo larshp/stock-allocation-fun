@@ -32,15 +32,19 @@ CLASS zcl_salloc_orders_sap IMPLEMENTATION.
                b~posnr,
                s~etenr,
                s~edatu,
-               s~wmeng AS requested,
+               s~lmeng AS requested,
                s~bmeng AS confirmed
           FROM vbap AS b
+          INNER JOIN vbak AS h
+            ON h~vbeln = b~vbeln
           INNER JOIN vbep AS s
             ON s~vbeln = b~vbeln
            AND s~posnr = b~posnr
           WHERE b~matnr = @iv_material
             AND b~werks = @iv_plant
-            AND s~wmeng > s~bmeng
+            AND b~abgru = @space
+            AND h~vbtyp = 'C'
+            AND s~lmeng > s~bmeng
           INTO CORRESPONDING FIELDS OF TABLE @sales_items.
 
         DATA existing TYPE tt_existing.

@@ -101,7 +101,50 @@ and DDIC files; all seven ABAP Unit tests pass.
 - Verified contention never reserves more than physical availability.
 - Recorded open-abap's shared `SY-SUBRC` limitation for concurrent promises.
 
+## 2026-07-29 — Iteration 15: enforced audit operations
+
+- Made the logger dependency mandatory; no implicit no-op logger remains.
+- Added authorized report `ZSALLOC_LOG` for committed audit inspection.
+- Added rollback coverage for audit-write failures.
+- Increased the suite to twenty-six ABAP Unit tests across 41 source objects,
+  plus the mandatory concurrency safety probe.
+
+## 2026-07-29 — Iteration 16: target-SAP rollout gate
+
+- Added authorized read-only invariant report `ZSALLOC_CHECK`.
+- Added a repeatable two-user SAP concurrency protocol with pass/fail criteria and
+  safe cleanup instructions in `SAP_CONCURRENCY_TEST.md`.
+- Verified 42 source objects, twenty-six ABAP Unit tests, and the local contention
+  safety probe through the complete npm pipeline.
+
+## 2026-07-29 - Iteration 17: quantity-unit correctness
+
+- Corrected productive demand and reconciliation arithmetic to use `VBEP-LMENG`
+  in stockkeeping units instead of sales-unit `VBEP-WMENG`.
+- Extended the VBEP test surface with `LMENG`.
+- Added regression data with intentionally different sales and base quantities.
+- Reverified 42 source objects, twenty-six ABAP Unit tests, and the contention
+  safety probe through the complete npm pipeline.
+
+## 2026-07-29 - Iteration 18: governed audit retention
+
+- Added simulation-first, plant-scoped `ZSALLOC_LOG_CLEANUP`.
+- Enforced display/change authorization and explicit cutoff timestamps.
+- Made productive deletion transactional and retained a `LOG_RETENTION` event.
+- Added simulation, scoped deletion, self-audit, and authorization regressions.
+- Added `OPERATIONS.md` with scheduled controls and incident response.
+
+## 2026-07-29 - Iteration 19: eligible SD demand only
+
+- Excluded rejected `VBAP` items and non-order sales-document categories.
+- Applied identical eligibility checks during reconciliation.
+- Released allocations when an item's material or plant no longer matches its
+  ledger context.
+- Increased the verified suite to thirty-three ABAP Unit tests.
+
 ## Next iteration
 
-Add target-SAP multi-work-process verification and operational log retention and
-monitoring procedures.
+Account for existing SAP-confirmed schedule quantities when deriving allocatable
+on-hand stock, then continue the production-readiness audit. Target-SAP
+multi-work-process execution remains a rollout activity described in
+`SAP_CONCURRENCY_TEST.md`.

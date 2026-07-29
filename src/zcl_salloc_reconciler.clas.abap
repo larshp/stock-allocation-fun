@@ -44,11 +44,20 @@ CLASS zcl_salloc_reconciler IMPLEMENTATION.
 
           DATA requested TYPE zif_salloc_types=>ty_quantity.
           DATA confirmed TYPE zif_salloc_types=>ty_quantity.
-          SELECT SINGLE wmeng, bmeng
-            FROM vbep
-            WHERE vbeln = @vbeln
-              AND posnr = @posnr
-              AND etenr = @etenr
+          SELECT SINGLE s~lmeng, s~bmeng
+            FROM vbep AS s
+            INNER JOIN vbap AS b
+              ON b~vbeln = s~vbeln
+             AND b~posnr = s~posnr
+            INNER JOIN vbak AS h
+              ON h~vbeln = b~vbeln
+            WHERE s~vbeln = @vbeln
+              AND s~posnr = @posnr
+              AND s~etenr = @etenr
+              AND b~matnr = @iv_material
+              AND b~werks = @iv_plant
+              AND b~abgru = @space
+              AND h~vbtyp = 'C'
             INTO (@requested, @confirmed).
           IF sy-subrc <> 0.
             CLEAR: requested, confirmed.

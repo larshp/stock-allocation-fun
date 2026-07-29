@@ -86,3 +86,29 @@ report failure, although the database correctly contains only one reservation.
 The local concurrency gate asserts the safety invariant (no oversubscription), not
 exactly one successful caller. Real SAP work processes have separate system fields;
 target-system multi-session testing remains a required rollout gate.
+
+## A-011 — Rolled-back failures are not stored in the transactional audit table
+
+`ZSALLOC_LOG` is intentionally in the business LUW, so failed operations and their
+audit inserts roll back together. Committed changes are never unlogged, but failure
+diagnostics must come from job logs, dumps, or external monitoring. A future BAL
+integration could persist failure diagnostics independently without weakening the
+ledger transaction.
+
+## A-012 - Sales and stockkeeping quantities cannot be mixed (resolved)
+
+The original VBEP adapter subtracted `BMENG` from `WMENG`. `WMENG` is the order
+quantity in the sales unit, while MARD stock is managed in the material's base
+unit. The adapter and reconciler now use `LMENG`, SAP's required quantity for
+material management in stockkeeping units, with `BMENG` as the confirmed
+quantity. A regression fixture deliberately makes `WMENG` differ from `LMENG`
+so sales-unit arithmetic cannot silently return.
+
+## A-013 - Ineligible sales documents can retain schedule lines (resolved)
+
+VBEP rows alone do not prove that a demand remains eligible. The original join
+could include rejected items and document categories other than sales orders,
+while reconciliation could preserve allocations after rejection or a material or
+plant change. Productive selection now requires sales-order category `VBTYP = C`,
+an initial `VBAP-ABGRU`, and matching material/plant context. Reconciliation uses
+the same eligibility rules and releases unsupported ledger quantities.

@@ -187,7 +187,7 @@ CLASS ltcl_service IMPLEMENTATION.
       mandt = sy-mandt matnr = 'MAT-1' werks = '1000'
       lgort = '0001' labst = 5 ) ).
     INSERT vbak FROM @( VALUE #(
-      mandt = sy-mandt vbeln = '5000000001' audat = '20260701' ) ).
+      mandt = sy-mandt vbeln = '5000000001' vbtyp = 'C' audat = '20260701' ) ).
     DATA sales_items TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
     sales_items = VALUE #(
       ( mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
@@ -198,9 +198,9 @@ CLASS ltcl_service IMPLEMENTATION.
     DATA schedule_lines TYPE STANDARD TABLE OF vbep WITH EMPTY KEY.
     schedule_lines = VALUE #(
       ( mandt = sy-mandt vbeln = '5000000001' posnr = '000010'
-        etenr = '0001' edatu = '20260701' wmeng = 4 )
+        etenr = '0001' edatu = '20260701' wmeng = 2 lmeng = 4 )
       ( mandt = sy-mandt vbeln = '5000000001' posnr = '000020'
-        etenr = '0001' edatu = '20260701' wmeng = 4 ) ).
+        etenr = '0001' edatu = '20260701' wmeng = 2 lmeng = 4 ) ).
     INSERT vbep FROM TABLE @schedule_lines.
 
     DATA(transaction) = NEW zcl_salloc_transaction_stub( ).

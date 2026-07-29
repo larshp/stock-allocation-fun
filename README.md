@@ -27,6 +27,15 @@ sales-order schedule lines without posting a goods movement, creating an MM
 reservation, or changing SD confirmations. Allocation identity is
 `VBELN + POSNR + ETENR`.
 
+Stock and demand quantities are compared in the material's base/stockkeeping
+unit: physical stock comes from `MARD-LABST`, schedule-line requirements from
+`VBEP-LMENG`, and confirmed quantities from `VBEP-BMENG`. `VBEP-WMENG` is a
+sales-unit quantity and is intentionally not used for stock allocation.
+
+Demand selection is limited to sales-order document category `C`, excludes items
+with `VBAP-ABGRU`, and matches the requested material and plant. Reconciliation
+uses the same rules so rejection or item-context changes release stale allocation.
+
 `ZCL_SALLOC_TRANSACTION_SAP` supplies the productive LUW boundary. Stock and
 order adapters used with the service must join that LUW and must not issue their
 own commits. Any checked allocation or integration failure rolls the LUW back.
@@ -44,6 +53,18 @@ by plant (`WERKS`).
 Run `ZSALLOC_RECONCILE` to detect allocations no longer supported by current VBEP
 quantities, including deleted schedule lines. It also defaults to simulation and
 reports the quantity that would be released.
+
+Run `ZSALLOC_LOG` to inspect the authorized plant's committed allocation and
+release audit records. Logging is mandatory in the service constructor; an audit
+failure rolls the transaction back.
+
+Run simulation-first `ZSALLOC_LOG_CLEANUP` with an explicit cutoff timestamp for
+authorized, plant-scoped retention. Productive cleanup commits its own retained
+`LOG_RETENTION` audit event. See `OPERATIONS.md` for scheduling and incident
+procedures.
+
+Run read-only `ZSALLOC_CHECK` to compare physical MARD stock with the reserved
+ledger. Follow `SAP_CONCURRENCY_TEST.md` before each productive rollout.
 
 ## Local verification
 

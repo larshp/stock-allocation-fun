@@ -2,6 +2,10 @@
 
 No confirmed product defects are open.
 
+## Resolved product defects
+
+- The first database-backed stock-source test exposed that inline `SELECT labst ... INTO TABLE @DATA(...)` creates structured rows. The adapter incorrectly added the complete row to the result quantity; the keyed `MARD` read now selects directly into the quantity field, and the regression is covered by ABAP Unit.
+
 ## Tooling and environment observations
 
 - The open-abap runtime provides an emulated database for unit testing, not SAP locking, update-task, authorization, or BAPI transactional behavior. Productive SAP integration still requires an integration test in the target system.
@@ -10,3 +14,4 @@ No confirmed product defects are open.
 - A local `CX_NO_CHECK` test exception compiled with transpiler 2.13.47 but failed at runtime because the emitted local class symbol was not constructible. The exceptional-cleanup test uses standard `CX_SY_ZERODIVIDE` instead; production code is unaffected.
 - Transpiler 2.13.47 did not execute a `CLEANUP` block while propagating `CX_SY_ZERODIVIDE` from the allocation sink. The service explicitly catches `CX_ROOT`, releases the lock, and wraps the failure in `ZCX_STOCK_ALLOCATION`; this path is covered by ABAP Unit.
 - Transpiler 2.13.47 rejects APLO application-log metadata as a non-executable object type. `zstockalloc.aplo.json` remains covered by abaplint and abapGit but is explicitly excluded from transpilation.
+- The generated transpiler unit runner does not initialize a database unless setup logic is configured. The first productive-adapter test therefore failed with `Runtime, database not initialized`; `test/runtime-setup.mjs` now connects the official pinned SQLite driver and loads the generated DDIC schema before tests run.

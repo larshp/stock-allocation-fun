@@ -16,6 +16,11 @@ CLASS zcl_stock_alloc_validator DEFINITION PUBLIC FINAL CREATE PRIVATE.
         iv_sales_item       TYPE zif_stock_allocation=>ty_sales_item
       RAISING
         zcx_stock_allocation.
+    CLASS-METHODS validate_reserve
+      IMPORTING
+        iv_reserve TYPE zif_stock_allocation=>ty_quantity
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_stock_alloc_validator IMPLEMENTATION.
@@ -36,6 +41,13 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
     IF iv_sales_order IS INITIAL OR iv_sales_item IS INITIAL.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Sales order and item are required for a priority' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_reserve.
+    IF iv_reserve < 0.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Stock reserve quantity cannot be negative' ).
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

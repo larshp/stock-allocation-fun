@@ -11,6 +11,9 @@ CLASS zcl_priority_sink_sap IMPLEMENTATION.
       lgort = iv_storage_location
       vbeln = iv_sales_order
       posnr = iv_sales_item
+      changed_on = sy-datum
+      changed_at = sy-uzeit
+      changed_by = sy-uname
       priority = iv_priority ).
     MODIFY zstockprio FROM @ls_priority.
   ENDMETHOD.

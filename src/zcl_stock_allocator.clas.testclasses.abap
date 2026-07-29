@@ -16,11 +16,13 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lt_result) = NEW zcl_stock_allocator( )->allocate(
       iv_available = '10'
-      it_demands = lt_demands ).
+      it_demands = lt_demands
+      iv_unit = 'EA' ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-sales_order exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-status exp = zif_stock_allocation=>c_status_full ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-unit exp = 'EA' ).
   ENDMETHOD.
 
   METHOD handles_shortage.

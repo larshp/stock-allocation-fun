@@ -3,6 +3,7 @@ REPORT zstock_allocate.
 PARAMETERS p_matnr TYPE zif_stock_allocation=>ty_material OBLIGATORY.
 PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_loc OBLIGATORY.
+PARAMETERS p_resrv TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_sim AS CHECKBOX DEFAULT 'X'.
 
 START-OF-SELECTION.
@@ -20,15 +21,30 @@ START-OF-SELECTION.
         lt_allocations = lo_service->preview(
           iv_material = p_matnr
           iv_plant = p_werks
-          iv_storage_location = p_lgort ).
+          iv_storage_location = p_lgort
+          iv_reserve = p_resrv ).
         WRITE / 'Simulation: no allocations were persisted'.
       ELSE.
         lt_allocations = lo_service->run(
           iv_material = p_matnr
           iv_plant = p_werks
-          iv_storage_location = p_lgort ).
+          iv_storage_location = p_lgort
+          iv_reserve = p_resrv ).
         COMMIT WORK AND WAIT.
       ENDIF.
+
+      DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
+        it_allocations = lt_allocations
+        iv_reserve = p_resrv ).
+      WRITE: / 'Demands', ls_summary-demand_count,
+               'Requested', ls_summary-requested_qty,
+               'Allocated', ls_summary-allocated_qty,
+               'Shortage', ls_summary-shortage_qty,
+               'Reserve', ls_summary-reserve_qty,
+               ls_summary-unit.
+      WRITE: / 'Full', ls_summary-full_count,
+               'Partial', ls_summary-partial_count,
+               'None', ls_summary-none_count.
 
       LOOP AT lt_allocations INTO DATA(ls_allocation).
         WRITE: / ls_allocation-sales_order,
@@ -38,6 +54,8 @@ START-OF-SELECTION.
                  ls_allocation-requested_qty,
                  ls_allocation-allocated_qty,
                  ls_allocation-shortage_qty,
+                 ls_allocation-reserve_qty,
+                 ls_allocation-unit,
                  ls_allocation-status.
       ENDLOOP.
     CATCH zcx_stock_allocation INTO DATA(lo_error).

@@ -13,6 +13,7 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_material           TYPE zif_stock_allocation=>ty_material
         iv_plant              TYPE zif_stock_allocation=>ty_plant
         iv_storage_location   TYPE zif_stock_allocation=>ty_storage_loc
+        iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
       RAISING
@@ -22,6 +23,7 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_material           TYPE zif_stock_allocation=>ty_material
         iv_plant              TYPE zif_stock_allocation=>ty_plant
         iv_storage_location   TYPE zif_stock_allocation=>ty_storage_loc
+        iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
       RAISING
@@ -38,8 +40,11 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_material           TYPE zif_stock_allocation=>ty_material
         iv_plant              TYPE zif_stock_allocation=>ty_plant
         iv_storage_location   TYPE zif_stock_allocation=>ty_storage_loc
+        iv_reserve            TYPE zif_stock_allocation=>ty_quantity
       RETURNING
-        VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations.
+        VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_service IMPLEMENTATION.
@@ -63,6 +68,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
+    zcl_stock_alloc_validator=>validate_reserve( iv_reserve ).
     IF mo_authorization->is_authorized( ) = abap_false.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Not authorized to execute stock allocation' ).
@@ -81,11 +87,13 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         rt_allocations = calculate(
           iv_material = iv_material
           iv_plant = iv_plant
-          iv_storage_location = iv_storage_location ).
+          iv_storage_location = iv_storage_location
+          iv_reserve = iv_reserve ).
         DATA(lv_recorded) = mo_allocation_log->record_run(
           iv_material = iv_material
           iv_plant = iv_plant
           iv_storage_location = iv_storage_location
+          iv_reserve = iv_reserve
           it_allocations = rt_allocations ).
         IF lv_recorded = abap_false.
           RAISE EXCEPTION NEW zcx_stock_allocation(
@@ -113,6 +121,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
+    zcl_stock_alloc_validator=>validate_reserve( iv_reserve ).
     IF mo_authorization->is_authorized( ) = abap_false.
       RAISE EXCEPTION NEW zcx_stock_allocation(
         'Not authorized to preview stock allocation' ).
@@ -122,7 +131,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         rt_allocations = calculate(
           iv_material = iv_material
           iv_plant = iv_plant
-          iv_storage_location = iv_storage_location ).
+          iv_storage_location = iv_storage_location
+          iv_reserve = iv_reserve ).
       CATCH cx_root INTO DATA(lo_failure).
         RAISE EXCEPTION NEW zcx_stock_allocation(
           iv_text = lo_failure->get_text( )
@@ -131,7 +141,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD calculate.
-    DATA(lv_available) = mo_stock_source->get_available(
+    DATA(ls_stock) = mo_stock_source->get_available(
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
@@ -140,16 +150,27 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
 
-    DATA(lv_latest_available) = mo_stock_source->get_available(
+    DATA(ls_latest_stock) = mo_stock_source->get_available(
       iv_material = iv_material
       iv_plant = iv_plant
       iv_storage_location = iv_storage_location ).
-    IF lv_latest_available <> lv_available.
-      lv_available = lv_latest_available.
+    IF ls_latest_stock <> ls_stock.
+      ls_stock = ls_latest_stock.
+    ENDIF.
+    IF ls_stock-unit IS INITIAL.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Material base unit could not be determined' ).
+    ENDIF.
+
+    DATA(lv_allocatable) = ls_stock-quantity - iv_reserve.
+    IF lv_allocatable < 0.
+      CLEAR lv_allocatable.
     ENDIF.
 
     rt_allocations = NEW zcl_stock_allocator( )->allocate(
-      iv_available = lv_available
-      it_demands = lt_demands ).
+      iv_available = lv_allocatable
+      it_demands = lt_demands
+      iv_unit = ls_stock-unit
+      iv_reserve = iv_reserve ).
   ENDMETHOD.
 ENDCLASS.

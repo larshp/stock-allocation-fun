@@ -4,26 +4,30 @@ CLASS lcl_stock_source DEFINITION FINAL.
     METHODS constructor
       IMPORTING
         iv_quantity        TYPE zif_stock_allocation=>ty_quantity
-        iv_latest_quantity TYPE zif_stock_allocation=>ty_quantity.
+        iv_latest_quantity TYPE zif_stock_allocation=>ty_quantity
+        iv_unit            TYPE zif_stock_allocation=>ty_unit DEFAULT 'EA'.
   PRIVATE SECTION.
     DATA mv_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA mv_latest_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA mv_calls TYPE i.
+    DATA mv_unit TYPE zif_stock_allocation=>ty_unit.
 ENDCLASS.
 
 CLASS lcl_stock_source IMPLEMENTATION.
   METHOD constructor.
     mv_quantity = iv_quantity.
     mv_latest_quantity = iv_latest_quantity.
+    mv_unit = iv_unit.
   ENDMETHOD.
 
   METHOD zif_stock_source~get_available.
     mv_calls = mv_calls + 1.
     IF mv_calls = 1.
-      rv_quantity = mv_quantity.
+      rs_stock-quantity = mv_quantity.
     ELSE.
-      rv_quantity = mv_latest_quantity.
+      rs_stock-quantity = mv_latest_quantity.
     ENDIF.
+    rs_stock-unit = mv_unit.
   ENDMETHOD.
 ENDCLASS.
 
@@ -215,6 +219,63 @@ CLASS lcl_failing_sink IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS ltcl_stock_allocation_db DEFINITION FINAL
+  FOR TESTING RISK LEVEL DANGEROUS DURATION SHORT.
+  PRIVATE SECTION.
+    METHODS teardown.
+    METHODS runs_productive_data_adapters FOR TESTING RAISING zcx_stock_allocation.
+ENDCLASS.
+
+CLASS ltcl_stock_allocation_db IMPLEMENTATION.
+  METHOD teardown.
+    DELETE FROM zstockalloc
+      WHERE matnr = 'ZUT-SOURCE'
+        AND werks = 'UT01'
+        AND lgort = 'UT01'.
+  ENDMETHOD.
+
+  METHOD runs_productive_data_adapters.
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW zcl_stock_source_sap( )
+      io_demand_source = NEW zcl_demand_source_sap( )
+      io_allocation_sink = NEW zcl_allocation_sink_sap( )
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = lo_log ).
+
+    DATA(lt_result) = lo_service->run(
+      iv_material = 'ZUT-SOURCE'
+      iv_plant = 'UT01'
+      iv_storage_location = 'UT01'
+      iv_reserve = '1' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_result ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-sales_order
+      exp = '0099999902' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-priority exp = 9 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '4.500' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-sales_order
+      exp = '0099999901' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty exp = '7' ).
+    cl_abap_unit_assert=>assert_true( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'ZUT-SOURCE'
+        AND werks = 'UT01'
+        AND lgort = 'UT01'
+        AND reserve_qty = '1'
+        AND meins = 'EA'
+      INTO @DATA(lv_saved_count).
+    cl_abap_unit_assert=>assert_equals( act = lv_saved_count exp = 2 ).
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_stock_allocation_service DEFINITION FINAL
   FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
   PRIVATE SECTION.
@@ -226,6 +287,9 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS rejects_log_failure FOR TESTING.
     METHODS previews_without_side_effects FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_invalid_scope_first FOR TESTING.
+    METHODS rejects_missing_unit FOR TESTING.
+    METHODS applies_reserve_buffer FOR TESTING RAISING zcx_stock_allocation.
+    METHODS rejects_negative_reserve FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
@@ -256,6 +320,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '5' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-shortage_qty exp = '2' ).
     cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-schedule_line exp = '0001' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_saved[ 1 ]-unit exp = 'EA' ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
     cl_abap_unit_assert=>assert_true( lo_lock->request_matches(
       iv_material = 'MAT-1'
@@ -444,5 +509,87 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
     cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
     cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_unit.
+    DATA(lo_sink) = NEW lcl_allocation_sink( ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source(
+        iv_quantity = '5'
+        iv_latest_quantity = '5'
+        iv_unit = '' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = lo_sink
+      io_allocation_lock = lo_lock
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = lo_log ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Missing material unit must reject the run' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_false( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_initial( lo_sink->get_saved( ) ).
+  ENDMETHOD.
+
+  METHOD applies_reserve_buffer.
+    DATA(lt_demands) = VALUE zif_stock_allocation=>tt_demands(
+      ( sales_order = '1'
+        sales_item = '000010'
+        schedule_line = '0001'
+        delivery_date = '20250101'
+        requested_qty = '8' ) ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
+      io_demand_source = NEW lcl_demand_source( lt_demands )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = NEW lcl_allocation_lock( abap_true )
+      io_authorization = NEW lcl_authorization( abap_true )
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    DATA(lt_result) = lo_service->preview(
+      iv_material = 'MAT-1'
+      iv_plant = '1000'
+      iv_storage_location = '0001'
+      iv_reserve = '3' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty exp = '7' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty exp = '1' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-reserve_qty exp = '3' ).
+  ENDMETHOD.
+
+  METHOD rejects_negative_reserve.
+    DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source = NEW lcl_stock_source( iv_quantity = '10' iv_latest_quantity = '10' )
+      io_demand_source = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization = lo_authorization
+      io_allocation_log = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run(
+          iv_material = 'MAT-1'
+          iv_plant = '1000'
+          iv_storage_location = '0001'
+          iv_reserve = '-1' ).
+        cl_abap_unit_assert=>fail( 'Negative reserve must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
   ENDMETHOD.
 ENDCLASS.

@@ -6,6 +6,6 @@ INTERFACE zif_stock_source PUBLIC.
       iv_plant            TYPE zif_stock_allocation=>ty_plant
       iv_storage_location TYPE zif_stock_allocation=>ty_storage_loc
     RETURNING
-      VALUE(rv_quantity)  TYPE zif_stock_allocation=>ty_quantity.
+      VALUE(rs_stock)     TYPE zif_stock_allocation=>ty_stock.
 
 ENDINTERFACE.

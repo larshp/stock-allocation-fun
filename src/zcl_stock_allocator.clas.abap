@@ -4,6 +4,8 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         iv_available          TYPE zif_stock_allocation=>ty_quantity
         it_demands            TYPE zif_stock_allocation=>tt_demands
+        iv_unit               TYPE zif_stock_allocation=>ty_unit OPTIONAL
+        iv_reserve            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations.
 ENDCLASS.
@@ -33,6 +35,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         schedule_line = ls_demand-schedule_line
         delivery_date = ls_demand-delivery_date
         priority = ls_demand-priority
+        reserve_qty = iv_reserve
+        unit = iv_unit
         requested_qty = ls_demand-requested_qty ).
 
       IF lv_remaining >= ls_demand-requested_qty.

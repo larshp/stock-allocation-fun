@@ -15,6 +15,10 @@
     "addFilenames": true,
     "addCommonJS": true,
     "unknownTypes": "compileError",
+    "setup": {
+      "filename": "../test/runtime-setup.mjs",
+      "preFunction": "initializeDatabase"
+    },
     "skip": []
   }
 }

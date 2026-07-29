@@ -5,16 +5,16 @@ ENDCLASS.
 
 CLASS zcl_stock_source_sap IMPLEMENTATION.
   METHOD zif_stock_source~get_available.
-    SELECT labst
+    SELECT SINGLE labst
       FROM mard
       WHERE matnr = @iv_material
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
-      INTO TABLE @DATA(lt_stock).
+      INTO @rs_stock-quantity.
 
-    LOOP AT lt_stock INTO DATA(lv_stock).
-      rv_quantity = rv_quantity + lv_stock.
-    ENDLOOP.
+    SELECT SINGLE meins
+      FROM mara
+      WHERE matnr = @iv_material
+      INTO @rs_stock-unit.
   ENDMETHOD.
 ENDCLASS.
-

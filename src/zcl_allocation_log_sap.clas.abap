@@ -5,11 +5,9 @@ ENDCLASS.
 
 CLASS zcl_allocation_log_sap IMPLEMENTATION.
   METHOD zif_allocation_log~record_run.
-    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
-
-    LOOP AT it_allocations INTO DATA(ls_allocation).
-      lv_shortage = lv_shortage + ls_allocation-shortage_qty.
-    ENDLOOP.
+    DATA(ls_summary) = zcl_stock_alloc_summary=>summarize(
+      it_allocations = it_allocations
+      iv_reserve = iv_reserve ).
 
     DATA(ls_header) = VALUE bal_s_log(
       object = 'ZSTOCKALLOC'
@@ -32,7 +30,7 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_text) = |Allocated { lines( it_allocations ) } demands; shortage { lv_shortage }|.
+    DATA(lv_text) = |Demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; allocated { ls_summary-allocated_qty }; shortage { ls_summary-shortage_qty }; reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
     CALL FUNCTION 'BAL_LOG_MSG_ADD_FREE_TEXT'
       EXPORTING
         i_log_handle = lv_handle

@@ -23,6 +23,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         req_qty = ls_allocation-requested_qty
         alloc_qty = ls_allocation-allocated_qty
         short_qty = ls_allocation-shortage_qty
+        reserve_qty = ls_allocation-reserve_qty
+        meins = ls_allocation-unit
+        created_on = sy-datum
+        created_at = sy-uzeit
+        created_by = sy-uname
         alloc_status = ls_allocation-status ).
       MODIFY zstockalloc FROM @ls_persisted.
     ENDLOOP.

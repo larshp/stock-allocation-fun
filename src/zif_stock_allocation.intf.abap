@@ -9,6 +9,13 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_quantity      TYPE p LENGTH 8 DECIMALS 3.
   TYPES ty_status        TYPE c LENGTH 1.
   TYPES ty_priority      TYPE i.
+  TYPES ty_unit          TYPE c LENGTH 3.
+
+  TYPES:
+    BEGIN OF ty_stock,
+      quantity TYPE ty_quantity,
+      unit     TYPE ty_unit,
+    END OF ty_stock.
 
   CONSTANTS c_status_full    TYPE ty_status VALUE 'F'.
   CONSTANTS c_status_partial TYPE ty_status VALUE 'P'.
@@ -35,8 +42,23 @@ INTERFACE zif_stock_allocation PUBLIC.
       requested_qty TYPE ty_quantity,
       allocated_qty TYPE ty_quantity,
       shortage_qty  TYPE ty_quantity,
+      reserve_qty   TYPE ty_quantity,
+      unit          TYPE ty_unit,
       status        TYPE ty_status,
     END OF ty_allocation.
   TYPES tt_allocations TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
+
+  TYPES:
+    BEGIN OF ty_summary,
+      demand_count  TYPE i,
+      full_count    TYPE i,
+      partial_count TYPE i,
+      none_count    TYPE i,
+      requested_qty TYPE ty_quantity,
+      allocated_qty TYPE ty_quantity,
+      shortage_qty  TYPE ty_quantity,
+      reserve_qty   TYPE ty_quantity,
+      unit          TYPE ty_unit,
+    END OF ty_summary.
 
 ENDINTERFACE.

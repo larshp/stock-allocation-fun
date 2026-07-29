@@ -10,6 +10,9 @@ PARAMETERS p_cutof TYPE zif_stock_allocation=>ty_cutoff_date.
 PARAMETERS p_sim AS CHECKBOX DEFAULT 'X'.
 PARAMETERS p_comp AS CHECKBOX DEFAULT ''.
 PARAMETERS p_obj TYPE zif_stock_allocation=>ty_objective DEFAULT 'S'.
+PARAMETERS p_expect TYPE i DEFAULT 0.
+PARAMETERS p_new AS CHECKBOX DEFAULT ''.
+PARAMETERS p_note TYPE zif_stock_allocation=>ty_run_note.
 
 START-OF-SELECTION.
   DATA(lo_service) = NEW zcl_stock_allocation_service(
@@ -87,7 +90,10 @@ START-OF-SELECTION.
           iv_reserve          = p_resrv
           iv_strategy         = p_strat
           iv_start_date       = p_from
-          iv_cutoff_date      = p_cutof ).
+          iv_cutoff_date      = p_cutof
+          iv_expected_version = p_expect
+          iv_require_new      = p_new
+          iv_run_note         = p_note ).
         COMMIT WORK AND WAIT.
         IF sy-subrc <> 0.
           RAISE EXCEPTION NEW zcx_stock_allocation(
@@ -102,6 +108,7 @@ START-OF-SELECTION.
         iv_reserve         = ls_plan-reserve_qty
         iv_unit            = ls_plan-unit ).
       WRITE: / 'Scope', p_matnr, p_werks, p_lgort,
+               'Version', ls_plan-version_no,
                'Strategy', ls_plan-strategy,
                'Start', ls_plan-start_date,
                'Cutoff', ls_plan-cutoff_date.

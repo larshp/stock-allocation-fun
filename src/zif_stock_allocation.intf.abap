@@ -16,6 +16,8 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_priority      TYPE i.
   TYPES ty_unit          TYPE mara-meins.
   TYPES ty_strategy      TYPE c LENGTH 1.
+  TYPES ty_run_note      TYPE c LENGTH 60.
+  TYPES ty_created_by    TYPE c LENGTH 12.
   TYPES tt_strategies TYPE STANDARD TABLE OF ty_strategy WITH EMPTY KEY.
   TYPES ty_objective     TYPE c LENGTH 1.
 
@@ -71,6 +73,7 @@ INTERFACE zif_stock_allocation PUBLIC.
 
   TYPES:
     BEGIN OF ty_plan,
+      version_no      TYPE i,
       stock_qty       TYPE ty_quantity,
       allocatable_qty TYPE ty_quantity,
       reserve_qty     TYPE ty_quantity,
@@ -89,9 +92,10 @@ INTERFACE zif_stock_allocation PUBLIC.
       plan       TYPE ty_plan,
       created_on TYPE d,
       created_at TYPE t,
-      created_by TYPE c LENGTH 12,
+      created_by TYPE ty_created_by,
       age_days   TYPE i,
       stale      TYPE abap_bool,
+      run_note   TYPE ty_run_note,
     END OF ty_saved_plan.
 
   TYPES:
@@ -101,13 +105,21 @@ INTERFACE zif_stock_allocation PUBLIC.
       allocatable_qty TYPE ty_quantity,
       reserve_qty     TYPE ty_quantity,
       demand_count    TYPE i,
+      requested_qty   TYPE ty_quantity,
+      allocated_qty   TYPE ty_quantity,
+      shortage_qty    TYPE ty_quantity,
+      full_count      TYPE i,
+      partial_count   TYPE i,
+      none_count      TYPE i,
       unit            TYPE ty_unit,
       strategy        TYPE ty_strategy,
       start_date      TYPE ty_start_date,
       cutoff_date     TYPE ty_cutoff_date,
       created_on      TYPE d,
       created_at      TYPE t,
-      created_by      TYPE c LENGTH 12,
+      created_by      TYPE ty_created_by,
+      run_note        TYPE ty_run_note,
+      age_days        TYPE i,
     END OF ty_plan_version.
   TYPES tt_plan_versions TYPE STANDARD TABLE OF ty_plan_version WITH EMPTY KEY.
 

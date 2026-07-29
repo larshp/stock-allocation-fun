@@ -54,6 +54,14 @@ const allocationViewReport = readFileSync(
   join(root, "src", "zstock_plan_view.prog.abap"),
   "utf8",
 );
+const allocationSource = readFileSync(
+  join(root, "src", "zcl_allocation_source_sap.clas.abap"),
+  "utf8",
+);
+const allocationQueryService = readFileSync(
+  join(root, "src", "zcl_allocation_query_service.clas.abap"),
+  "utf8",
+);
 
 function requireInvariant(condition, message) {
   if (!condition) {
@@ -135,10 +143,34 @@ for (const field of [
   "CREATED_ON",
   "CREATED_AT",
   "CREATED_BY",
+  "RUN_NOTE",
+  "REQUESTED_QTY",
+  "ALLOCATED_QTY",
+  "SHORTAGE_QTY",
+  "FULL_COUNT",
+  "PARTIAL_COUNT",
+  "NONE_COUNT",
 ]) {
   requireInvariant(
     allocationHeaderTable.includes(`<FIELDNAME>${field}</FIELDNAME>`),
     `ZSTOCKPLAN is missing plan context field ${field}`,
+  );
+}
+requireInvariant(
+  allocationHeaderHistory.includes("<FIELDNAME>RUN_NOTE</FIELDNAME>"),
+  "ZSTOCKPHIST must retain immutable execution rationale",
+);
+for (const field of [
+  "REQUESTED_QTY",
+  "ALLOCATED_QTY",
+  "SHORTAGE_QTY",
+  "FULL_COUNT",
+  "PARTIAL_COUNT",
+  "NONE_COUNT",
+]) {
+  requireInvariant(
+    allocationHeaderHistory.includes(`<FIELDNAME>${field}</FIELDNAME>`),
+    `ZSTOCKPHIST is missing historical outcome field ${field}`,
   );
 }
 requireInvariant(
@@ -212,6 +244,32 @@ requireInvariant(
   "Allocation service must validate every calculated plan",
 );
 requireInvariant(
+  /PARAMETERS\s+p_expect\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationReport),
+  "Allocation execution report must expose an optimistic version precondition",
+);
+requireInvariant(
+  /PARAMETERS\s+p_new\s+AS\s+CHECKBOX/i.test(allocationReport),
+  "Allocation execution report must expose a create-only precondition",
+);
+requireInvariant(
+  /PARAMETERS\s+p_note\s+TYPE\s+zif_stock_allocation=>ty_run_note\./i.test(allocationReport),
+  "Allocation execution report must expose bounded execution rationale",
+);
+const prepareVersionIndex = allocationService.indexOf("mo_allocation_sink->prepare_save(");
+const logVersionIndex = allocationService.indexOf("mo_allocation_log->record_run(");
+const persistVersionIndex = allocationService.indexOf("mo_allocation_sink->save(");
+requireInvariant(
+  prepareVersionIndex >= 0
+    && prepareVersionIndex < logVersionIndex
+    && logVersionIndex < persistVersionIndex
+    && /iv_version_no\s*=\s*lv_prepared_version/i.test(allocationService),
+  "Allocation execution must prepare and log the exact version before persistence",
+);
+requireInvariant(
+  /'Version',\s*ls_plan-version_no/i.test(allocationReport),
+  "Allocation execution report must display the assigned plan version",
+);
+requireInvariant(
   /zcl_allocation_query_service/i.test(allocationViewReport),
   "Persisted-plan report must use the authorized query service",
 );
@@ -236,6 +294,41 @@ requireInvariant(
   /PARAMETERS\s+p_before\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationViewReport),
   "Persisted-plan report must expose the history pagination cursor",
 );
+requireInvariant(
+  /PARAMETERS\s+p_hfrom\s+TYPE\s+d\./i.test(allocationViewReport)
+    && /PARAMETERS\s+p_hto\s+TYPE\s+d\./i.test(allocationViewReport),
+  "Persisted-plan report must expose history creation-date filtering",
+);
+requireInvariant(
+  /PARAMETERS\s+p_short\s+AS\s+CHECKBOX/i.test(allocationViewReport),
+  "Persisted-plan report must expose shortage-only history filtering",
+);
+requireInvariant(
+  /PARAMETERS\s+p_hstrat\s+TYPE\s+zif_stock_allocation=>ty_strategy\./i.test(allocationViewReport)
+    && /PARAMETERS\s+p_huser\s+TYPE\s+zif_stock_allocation=>ty_created_by\./i.test(allocationViewReport),
+  "Persisted-plan report must expose strategy and creator history filters",
+);
+requireInvariant(
+  /AND\s+strategy\s+IN\s+@lt_strategies/i.test(allocationSource)
+    && /AND\s+created_by\s+IN\s+@lt_creators/i.test(allocationSource),
+  "History strategy and creator filters must be applied in Open SQL before limiting",
+);
+requireInvariant(
+  /low\s*=\s*'\*'\s*\)\s*TO\s+lt_strategies/i.test(allocationSource),
+  "Unfiltered history discovery must not hide malformed strategy evidence",
+);
+for (const check of [
+  "ls_version-created_by IS INITIAL",
+  "ls_version-allocatable_qty <> lv_expected_allocatable",
+  "ls_version-unit IS INITIAL",
+  "validate_strategy( ls_version-strategy )",
+  "validate_window(",
+]) {
+  requireInvariant(
+    allocationQueryService.includes(check),
+    `Historical catalog validation is missing: ${check}`,
+  );
+}
 requireInvariant(
   /PARAMETERS\s+p_agnst\s+TYPE\s+i\s+DEFAULT\s+0\./i.test(allocationViewReport),
   "Persisted-plan report must expose saved-version drift comparison",

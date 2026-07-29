@@ -8,6 +8,11 @@ PARAMETERS p_versn TYPE i DEFAULT 0.
 PARAMETERS p_list AS CHECKBOX DEFAULT ''.
 PARAMETERS p_limit TYPE i DEFAULT 20.
 PARAMETERS p_before TYPE i DEFAULT 0.
+PARAMETERS p_hfrom TYPE d.
+PARAMETERS p_hto TYPE d.
+PARAMETERS p_short AS CHECKBOX DEFAULT ''.
+PARAMETERS p_hstrat TYPE zif_stock_allocation=>ty_strategy.
+PARAMETERS p_huser TYPE zif_stock_allocation=>ty_created_by.
 PARAMETERS p_live AS CHECKBOX DEFAULT ''.
 PARAMETERS p_agnst TYPE i DEFAULT 0.
 
@@ -23,7 +28,12 @@ START-OF-SELECTION.
           iv_plant            = p_werks
           iv_storage_location = p_lgort
           iv_max_versions     = p_limit
-          iv_before_version   = p_before ).
+          iv_before_version   = p_before
+          iv_created_from     = p_hfrom
+          iv_created_to       = p_hto
+          iv_shortages_only   = p_short
+          iv_strategy         = p_hstrat
+          iv_created_by       = p_huser ).
         IF lt_versions IS INITIAL.
           WRITE / 'No persisted allocation plan history exists for this scope'.
           RETURN.
@@ -33,12 +43,20 @@ START-OF-SELECTION.
           WRITE: / 'Version', ls_version-version_no,
                    'Created', ls_version-created_on, ls_version-created_at,
                    'By', ls_version-created_by,
+                   'Age days', ls_version-age_days,
                    'Demands', ls_version-demand_count,
+                   'Requested', ls_version-requested_qty,
+                   'Allocated', ls_version-allocated_qty,
+                   'Shortage', ls_version-shortage_qty,
+                   'Full', ls_version-full_count,
+                   'Partial', ls_version-partial_count,
+                   'None', ls_version-none_count,
                    'Stock', ls_version-stock_qty,
                    'Allocatable', ls_version-allocatable_qty,
                    'Reserve', ls_version-reserve_qty,
                    ls_version-unit,
-                   'Strategy', ls_version-strategy.
+                   'Strategy', ls_version-strategy,
+                   'Note', ls_version-run_note.
         ENDLOOP.
         RETURN.
       ENDIF.
@@ -63,6 +81,9 @@ START-OF-SELECTION.
                'Version', ls_saved-version_no.
       WRITE: / 'Created', ls_saved-created_on, ls_saved-created_at,
                'By', ls_saved-created_by, 'Age days', ls_saved-age_days.
+      IF ls_saved-run_note IS NOT INITIAL.
+        WRITE: / 'Execution note', ls_saved-run_note.
+      ENDIF.
       IF ls_saved-stale = abap_true.
         WRITE / 'Warning: persisted allocation plan exceeds the maximum age'.
       ENDIF.

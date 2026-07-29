@@ -194,6 +194,8 @@ CLASS lcl_allocation_log DEFINITION FINAL.
         iv_strategy        TYPE zif_stock_allocation=>ty_strategy
         iv_start_date      TYPE zif_stock_allocation=>ty_start_date OPTIONAL
         iv_cutoff_date     TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
+        iv_run_note        TYPE zif_stock_allocation=>ty_run_note OPTIONAL
+        iv_version_no      TYPE i OPTIONAL
       RETURNING
         VALUE(rv_matches)  TYPE abap_bool.
   PRIVATE SECTION.
@@ -206,6 +208,8 @@ CLASS lcl_allocation_log DEFINITION FINAL.
     DATA mv_strategy TYPE zif_stock_allocation=>ty_strategy.
     DATA mv_start_date TYPE zif_stock_allocation=>ty_start_date.
     DATA mv_cutoff_date TYPE zif_stock_allocation=>ty_cutoff_date.
+    DATA mv_run_note TYPE zif_stock_allocation=>ty_run_note.
+    DATA mv_version_no TYPE i.
 ENDCLASS.
 
 CLASS lcl_allocation_log IMPLEMENTATION.
@@ -222,6 +226,8 @@ CLASS lcl_allocation_log IMPLEMENTATION.
     mv_strategy = iv_strategy.
     mv_start_date = iv_start_date.
     mv_cutoff_date = iv_cutoff_date.
+    mv_run_note = iv_run_note.
+    mv_version_no = iv_version_no.
     rv_recorded = mv_recorded.
   ENDMETHOD.
 
@@ -236,7 +242,10 @@ CLASS lcl_allocation_log IMPLEMENTATION.
                       AND mv_unit = iv_unit
                       AND mv_strategy = iv_strategy
                       AND mv_start_date = iv_start_date
-                      AND mv_cutoff_date = iv_cutoff_date ).
+                      AND mv_cutoff_date = iv_cutoff_date
+                      AND mv_run_note = iv_run_note
+                      AND ( iv_version_no IS INITIAL
+                        OR mv_version_no = iv_version_no ) ).
   ENDMETHOD.
 ENDCLASS.
 
@@ -300,17 +309,57 @@ CLASS lcl_allocation_sink DEFINITION FINAL.
     METHODS get_saved
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations.
+    METHODS get_expected_version
+      RETURNING
+        VALUE(rv_expected_version) TYPE i.
+    METHODS get_require_new
+      RETURNING
+        VALUE(rv_require_new) TYPE abap_bool.
+    METHODS get_run_note
+      RETURNING
+        VALUE(rv_run_note) TYPE zif_stock_allocation=>ty_run_note.
   PRIVATE SECTION.
     DATA mt_allocations TYPE zif_stock_allocation=>tt_allocations.
+    DATA mv_expected_version TYPE i.
+    DATA mv_require_new TYPE abap_bool.
+    DATA mv_run_note TYPE zif_stock_allocation=>ty_run_note.
 ENDCLASS.
 
 CLASS lcl_allocation_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~prepare_save.
+    IF iv_expected_version > 0.
+      rv_next_version = iv_expected_version + 1.
+    ELSE.
+      rv_next_version = 1.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_allocation_sink~save.
     mt_allocations = is_plan-allocations.
+    mv_expected_version = iv_expected_version.
+    mv_require_new = iv_require_new.
+    mv_run_note = iv_run_note.
+    IF iv_expected_version > 0.
+      rv_version_no = iv_expected_version + 1.
+    ELSE.
+      rv_version_no = 1.
+    ENDIF.
   ENDMETHOD.
 
   METHOD get_saved.
     rt_allocations = mt_allocations.
+  ENDMETHOD.
+
+  METHOD get_expected_version.
+    rv_expected_version = mv_expected_version.
+  ENDMETHOD.
+
+  METHOD get_require_new.
+    rv_require_new = mv_require_new.
+  ENDMETHOD.
+
+  METHOD get_run_note.
+    rv_run_note = mv_run_note.
   ENDMETHOD.
 ENDCLASS.
 
@@ -320,8 +369,27 @@ CLASS lcl_failing_sink DEFINITION FINAL.
 ENDCLASS.
 
 CLASS lcl_failing_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~prepare_save.
+    rv_next_version = 1.
+  ENDMETHOD.
+
   METHOD zif_allocation_sink~save.
     RAISE EXCEPTION NEW cx_sy_zerodivide( ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_divergent_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_divergent_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~prepare_save.
+    rv_next_version = 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save.
+    rv_version_no = 2.
   ENDMETHOD.
 ENDCLASS.
 
@@ -457,6 +525,9 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS compares_single_snapshot FOR TESTING RAISING zcx_stock_allocation.
     METHODS applies_demand_cutoff FOR TESTING RAISING zcx_stock_allocation.
     METHODS rejects_reversed_window FOR TESTING.
+    METHODS rejects_negative_expected_ver FOR TESTING.
+    METHODS rejects_conflicting_precond FOR TESTING.
+    METHODS rejects_changed_preparation FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
@@ -482,7 +553,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA(lt_result) = lo_service->run(
       iv_material         = 'MAT-1'
       iv_plant            = '1000'
-      iv_storage_location = '0001' ).
+      iv_storage_location = '0001'
+      iv_require_new      = abap_true
+      iv_run_note         = 'Approved for promotion' ).
     DATA(lt_saved) = lo_sink->get_saved( ).
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_saved ) exp = 1 ).
@@ -504,8 +577,14 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_allocatable_qty = '5'
       iv_reserve         = '0'
       iv_unit            = 'EA'
-      iv_strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+      iv_strategy        = zif_stock_allocation=>c_strategy_fifo
+      iv_run_note        = 'Approved for promotion'
+      iv_version_no      = 1 ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_true( lo_sink->get_require_new( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_sink->get_run_note( )
+      exp = 'Approved for promotion' ).
     cl_abap_unit_assert=>assert_true( lo_lock->request_matches(
       iv_material         = 'MAT-1'
       iv_plant            = '1000'
@@ -916,12 +995,14 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_plant            = '1000'
       iv_storage_location = '0001'
       iv_strategy         = zif_stock_allocation=>c_strategy_proportional
-      iv_cutoff_date      = '20250131' ).
+      iv_cutoff_date      = '20250131'
+      iv_expected_version = 7 ).
     DATA(lt_saved) = lo_sink->get_saved( ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_plan-strategy
       exp = zif_stock_allocation=>c_strategy_proportional ).
+    cl_abap_unit_assert=>assert_equals( act = ls_plan-version_no exp = 8 ).
     cl_abap_unit_assert=>assert_equals( act = ls_plan-allocations[ 1 ]-allocated_qty exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = ls_plan-allocations[ 2 ]-allocated_qty exp = '3' ).
     cl_abap_unit_assert=>assert_equals(
@@ -935,6 +1016,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       iv_strategy        = zif_stock_allocation=>c_strategy_proportional
       iv_cutoff_date     = '20250131' ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_released( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_sink->get_expected_version( )
+      exp = 7 ).
   ENDMETHOD.
 
   METHOD rejects_invalid_strategy_first.
@@ -1107,5 +1191,83 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
     cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_negative_expected_ver.
+    DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '1' iv_latest_quantity = '1' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization   = lo_authorization
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run_plan(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_expected_version = -1 ).
+        cl_abap_unit_assert=>fail( 'Negative expected version must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_conflicting_precond.
+    DATA(lo_authorization) = NEW lcl_authorization( abap_true ).
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '1' iv_latest_quantity = '1' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_allocation_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization   = lo_authorization
+      io_allocation_log  = NEW lcl_allocation_log( abap_true ) ).
+
+    TRY.
+        lo_service->run_plan(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_expected_version = 1
+          iv_require_new      = abap_true ).
+        cl_abap_unit_assert=>fail( 'Conflicting write preconditions must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_false( lo_authorization->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_lock->was_requested( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_changed_preparation.
+    DATA(lo_lock) = NEW lcl_allocation_lock( abap_true ).
+    DATA(lo_log) = NEW lcl_allocation_log( abap_true ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_source    = NEW lcl_stock_source( iv_quantity = '1' iv_latest_quantity = '1' )
+      io_demand_source   = NEW lcl_demand_source( VALUE #( ) )
+      io_allocation_sink = NEW lcl_divergent_sink( )
+      io_allocation_lock = lo_lock
+      io_authorization   = NEW lcl_authorization( abap_true )
+      io_allocation_log  = lo_log ).
+
+    TRY.
+        lo_service->run_plan(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+        cl_abap_unit_assert=>fail( 'Changed prepared version must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lo_log->was_called( ) ).
+    cl_abap_unit_assert=>assert_true( lo_lock->was_released( ) ).
   ENDMETHOD.
 ENDCLASS.

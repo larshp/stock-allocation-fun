@@ -17,6 +17,9 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_strategy           TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
         iv_start_date         TYPE zif_stock_allocation=>ty_start_date OPTIONAL
         iv_cutoff_date        TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
+        iv_expected_version   TYPE i OPTIONAL
+        iv_require_new        TYPE abap_bool OPTIONAL
+        iv_run_note           TYPE zif_stock_allocation=>ty_run_note OPTIONAL
       RETURNING
         VALUE(rt_allocations) TYPE zif_stock_allocation=>tt_allocations
       RAISING
@@ -43,6 +46,9 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_strategy         TYPE zif_stock_allocation=>ty_strategy DEFAULT zif_stock_allocation=>c_strategy_fifo
         iv_start_date       TYPE zif_stock_allocation=>ty_start_date OPTIONAL
         iv_cutoff_date      TYPE zif_stock_allocation=>ty_cutoff_date OPTIONAL
+        iv_expected_version TYPE i OPTIONAL
+        iv_require_new      TYPE abap_bool OPTIONAL
+        iv_run_note         TYPE zif_stock_allocation=>ty_run_note OPTIONAL
       RETURNING
         VALUE(rs_plan)      TYPE zif_stock_allocation=>ty_plan
       RAISING
@@ -147,7 +153,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_reserve          = iv_reserve
       iv_strategy         = iv_strategy
       iv_start_date       = iv_start_date
-      iv_cutoff_date      = iv_cutoff_date ).
+      iv_cutoff_date      = iv_cutoff_date
+      iv_expected_version = iv_expected_version
+      iv_require_new      = iv_require_new
+      iv_run_note         = iv_run_note ).
     rt_allocations = ls_plan-allocations.
   ENDMETHOD.
 
@@ -161,6 +170,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     zcl_stock_alloc_validator=>validate_window(
       iv_start_date  = iv_start_date
       iv_cutoff_date = iv_cutoff_date ).
+    IF iv_expected_version < 0.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'Expected allocation plan version cannot be negative' ).
+    ENDIF.
+    IF iv_require_new = abap_true AND iv_expected_version > 0.
+      RAISE EXCEPTION NEW zcx_stock_allocation(
+        'New-only execution cannot also expect an existing version' ).
+    ENDIF.
     IF mo_authorization->is_authorized(
          iv_activity         = '16'
          iv_plant            = iv_plant
@@ -179,6 +196,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
 
     TRY.
+        DATA(lv_prepared_version) = mo_allocation_sink->prepare_save(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_expected_version = iv_expected_version
+          iv_require_new      = iv_require_new ).
         rs_plan = calculate(
           iv_material         = iv_material
           iv_plant            = iv_plant
@@ -191,6 +214,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_material         = iv_material
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
+          iv_version_no       = lv_prepared_version
           iv_stock_qty        = rs_plan-stock_qty
           iv_allocatable_qty  = rs_plan-allocatable_qty
           iv_reserve          = rs_plan-reserve_qty
@@ -198,16 +222,25 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_strategy         = rs_plan-strategy
           iv_start_date       = rs_plan-start_date
           iv_cutoff_date      = rs_plan-cutoff_date
+          iv_run_note         = iv_run_note
           it_allocations      = rs_plan-allocations ).
         IF lv_recorded = abap_false.
           RAISE EXCEPTION NEW zcx_stock_allocation(
             'Unable to write the stock allocation application log' ).
         ENDIF.
-        mo_allocation_sink->save(
+        DATA(lv_saved_version) = mo_allocation_sink->save(
           iv_material         = iv_material
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
-          is_plan             = rs_plan ).
+          is_plan             = rs_plan
+          iv_expected_version = iv_expected_version
+          iv_require_new      = iv_require_new
+          iv_run_note         = iv_run_note ).
+        IF lv_saved_version <> lv_prepared_version.
+          RAISE EXCEPTION NEW zcx_stock_allocation(
+            'Prepared and persisted allocation versions differ' ).
+        ENDIF.
+        rs_plan-version_no = lv_saved_version.
       CATCH cx_root INTO DATA(lo_failure).
         mo_allocation_lock->release(
           iv_material         = iv_material

@@ -134,7 +134,8 @@ CLASS zcl_stock_alloc_validator IMPLEMENTATION.
     IF lv_expected_allocatable < 0.
       CLEAR lv_expected_allocatable.
     ENDIF.
-    IF is_plan-allocatable_qty < 0
+    IF is_plan-version_no < 0
+        OR is_plan-allocatable_qty < 0
         OR is_plan-reserve_qty < 0
         OR is_plan-unit IS INITIAL
         OR is_plan-allocatable_qty <> lv_expected_allocatable.

@@ -464,3 +464,85 @@
 - Rejected malformed plans before version reads or any current/history table mutation, even when callers bypass the orchestration service.
 - Proved a rejected sink call leaves both the current version and immutable-history cardinality unchanged.
 - Closed the empty-plan gap in the shared invariant gate by validating header strategy and planning-window ordering even when no detail rows exist.
+
+## 2026-07-29 - Feature 71: Optimistic plan-version preconditions
+
+- Added optional expected-version propagation from `ZSTOCK_ALLOCATE` through the execution service to the SAP sink.
+- Checked the expected version under the existing allocation-scope lock and before any current/history table mutation.
+- Preserved zero as explicit unconditional replacement and rejected negative preconditions before authorization, locking, or data access.
+- Covered successful precondition forwarding, stale rejection with unchanged current/history data, and fail-fast invalid input.
+
+## 2026-07-29 - Feature 72: Create-only plan precondition
+
+- Added `P_NEW` for execution that is valid only while a scope has no persisted plan.
+- Enforced the absence check under the scope lock and before all current/history mutations.
+- Rejected contradictory create-only and positive expected-version inputs before authorization or locking.
+- Covered service forwarding, successful first creation, and unchanged-state rejection after a competing creation.
+
+## 2026-07-29 - Feature 73: Assigned version in execution results
+
+- Changed the persistence contract to return the version assigned after all current/history verification succeeds.
+- Added the version to the plan result, preserving zero for non-persisted previews and positive values for saved/read plans.
+- Printed the assigned version in `ZSTOCK_ALLOCATE` and kept the saved-plan wrapper and reconstructed plan version consistent.
+- Covered expected-version increment propagation through the execution service.
+
+## 2026-07-29 - Feature 74: Checked snapshot-version identity
+
+- Required every found snapshot to carry a positive version matching its reconstructed plan.
+- Required a positive historical request to return exactly the requested version rather than any found scope snapshot.
+- Rejected mismatched source results at the authorized query boundary and covered productive wrapper/plan consistency.
+
+## 2026-07-29 - Feature 75: Persisted execution rationale
+
+- Added optional 60-character `P_NOTE` rationale to committed allocation execution.
+- Persisted the note in current and immutable history headers and included it in the same-LUW BAL evidence.
+- Exposed rationale through checked snapshot reads, bounded history catalogs, and both view-report modes.
+- Covered service-to-log/sink propagation plus productive current, history, readback, and catalog persistence.
+
+## 2026-07-29 - Feature 76: History catalog age
+
+- Calculated age in days for every catalog entry after validating its creation date.
+- Exposed recency directly in `P_LIST` output without loading or reconstructing allocation details.
+- Covered current-day age calculation at the authorized query boundary.
+
+## 2026-07-29 - Feature 77: Version-correlated BAL evidence
+
+- Added a mutation-free sink preparation step under the existing allocation-scope lock.
+- Determined the exact next plan version before calculation logging and included it in BAL context.
+- Rechecked all write preconditions during save and rejected any prepared/persisted version divergence.
+- Preserved log-before-persistence behavior and covered preparation immutability, BAL correlation, and divergence failure cleanup.
+
+## 2026-07-29 - Feature 78: Date-filtered history discovery
+
+- Added optional inclusive creation-date bounds to the authorized history catalog.
+- Rejected reversed date windows before authorization or source access and normalized open bounds safely.
+- Pushed both bounds into productive `ZSTOCKPHIST` Open SQL for bounded filtering before ordering and pagination.
+- Exposed `P_HFROM` and `P_HTO` and covered an excluding future-date window against persisted history.
+
+## 2026-07-29 - Feature 79: Header-level outcome evidence
+
+- Persisted requested, allocated, and shortage quantities plus full, partial, and unallocated demand counts in current and immutable headers.
+- Derived every value from the checked summary after plan validation and verified current-header round trips before proceeding.
+- Exposed outcome KPIs in the header-only history catalog so version discovery does not require loading details.
+- Covered productive current-header and catalog reconstruction for a fully allocated replacement version.
+
+## 2026-07-29 - Feature 80: Shortage-only history discovery
+
+- Added optional `P_SHORT` filtering to return only persisted versions with positive shortage quantity.
+- Pushed the predicate into the header query before ordering, limiting, and cursor pagination.
+- Combined the filter with existing date bounds and integrity-checked outcome metadata.
+- Covered a two-version history where only the older constrained run is returned.
+
+## 2026-07-29 - Feature 81: Strategy and creator history discovery
+
+- Added optional exact strategy and creating-user filters to the authorized history catalog API and `ZSTOCK_PLAN_VIEW` through `P_HSTRAT` and `P_HUSER`.
+- Reused central strategy validation before authorization or source access, and added defense-in-depth checks that reject source rows which violate requested filters.
+- Pushed both filters into Open SQL range predicates before descending version ordering, pagination, and row limiting; unrestricted ranges enumerate valid strategies and require recorded creator provenance.
+- Added mock-boundary tests for propagation, invalid-filter rejection, and corrupt filtered responses, plus productive adapter coverage for matching strategy, matching creator, and absent creator results.
+
+## 2026-07-29 - Feature 82: Persisted catalog context integrity
+
+- Extended trusted-read validation from historical outcomes to stock, allocatable quantity, reserve arithmetic, unit, strategy, planning window, and creator provenance.
+- Required creator provenance on both detailed saved-plan reads and header-only catalog reads while retaining midnight as a valid creation time.
+- Changed unrestricted strategy discovery to a wildcard range so malformed persisted values reach the checked service boundary instead of disappearing silently.
+- Covered corrupt stock context, corrupt persisted strategy, missing detailed-read provenance, and productive retrieval of an intentionally malformed unfiltered strategy row.

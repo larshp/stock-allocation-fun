@@ -38,12 +38,16 @@ CLASS zcl_allocation_log_sap IMPLEMENTATION.
       lv_message_type = 'W'.
     ENDIF.
     DATA lt_texts TYPE STANDARD TABLE OF string WITH EMPTY KEY.
-    DATA(lv_context_text) = |Strategy { iv_strategy }; window { iv_start_date }-{ iv_cutoff_date }; |
+    DATA(lv_context_text) = |Version { iv_version_no }; strategy { iv_strategy }; |
+                          && |window { iv_start_date }-{ iv_cutoff_date }; |
                           && |stock { ls_summary-stock_qty }; allocatable { ls_summary-allocatable_qty }; |
                           && |reserve { ls_summary-reserve_qty } { ls_summary-unit }|.
     DATA(lv_demand_text) = |Demand { ls_summary-demand_count }; requested { ls_summary-requested_qty }; |
                          && |allocated { ls_summary-allocated_qty }|.
     APPEND lv_context_text TO lt_texts.
+    IF iv_run_note IS NOT INITIAL.
+      APPEND |Execution note: { iv_run_note }| TO lt_texts.
+    ENDIF.
     APPEND lv_demand_text TO lt_texts.
     APPEND |Shortage { ls_summary-shortage_qty } across { ls_summary-shortage_count } demands; |
         && |earliest { ls_summary-earliest_shortage_date }; unused { ls_summary-unused_qty }| TO lt_texts.

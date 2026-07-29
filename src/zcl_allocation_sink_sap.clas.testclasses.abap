@@ -8,8 +8,11 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL
     METHODS replaces_scope_snapshot FOR TESTING.
     METHODS clears_scope_snapshot FOR TESTING.
     METHODS rejects_corrupt_snapshot FOR TESTING.
+    METHODS rejects_corrupt_outcome FOR TESTING.
     METHODS rejects_version_overflow FOR TESTING.
     METHODS rejects_invalid_plan_unchanged FOR TESTING.
+    METHODS rejects_stale_expected_ver FOR TESTING.
+    METHODS rejects_existing_new_only FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
@@ -62,6 +65,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_material         = c_material
       iv_plant            = c_plant
       iv_storage_location = c_storage
+      iv_require_new      = abap_true
       is_plan             = VALUE #(
         stock_qty       = '12'
         allocatable_qty = '10'
@@ -69,6 +73,20 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         unit            = 'EA'
         strategy        = zif_stock_allocation=>c_strategy_fifo
         allocations     = lt_initial ) ).
+
+    DATA(lv_prepared_version) = lo_sink->zif_allocation_sink~prepare_save(
+      iv_material         = c_material
+      iv_plant            = c_plant
+      iv_storage_location = c_storage
+      iv_expected_version = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lv_prepared_version exp = 2 ).
+    SELECT COUNT( * )
+      FROM zstockphist
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage
+      INTO @DATA(lv_prepared_history_count).
+    cl_abap_unit_assert=>assert_equals( act = lv_prepared_history_count exp = 1 ).
 
     DATA(lt_replacement) = VALUE zif_stock_allocation=>tt_allocations(
       ( sales_order   = '0000000001'
@@ -85,10 +103,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         start_date    = '20260801'
         cutoff_date   = '20260831'
         status        = zif_stock_allocation=>c_status_full ) ).
-    lo_sink->zif_allocation_sink~save(
+    DATA(lv_persisted_version) = lo_sink->zif_allocation_sink~save(
       iv_material         = c_material
       iv_plant            = c_plant
       iv_storage_location = c_storage
+      iv_expected_version = 1
+      iv_run_note         = 'Approved replenishment'
       is_plan             = VALUE #(
         stock_qty       = '4'
         allocatable_qty = '3'
@@ -98,6 +118,9 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         start_date      = '20260801'
         cutoff_date     = '20260831'
         allocations     = lt_replacement ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_version
+      exp = lv_prepared_version ).
 
     SELECT *
       FROM zstockalloc
@@ -139,7 +162,14 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = ls_header-version_no exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = ls_header-available_qty exp = '3' ).
     cl_abap_unit_assert=>assert_equals( act = ls_header-demand_count exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_header-requested_qty exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_header-allocated_qty exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_header-shortage_qty exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_header-full_count exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = ls_header-start_date exp = '20260801' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_header-run_note
+      exp = 'Approved replenishment' ).
 
     DATA(ls_read_back) = NEW zcl_allocation_source_sap(
       )->zif_allocation_source~get_saved(
@@ -148,6 +178,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         iv_storage_location = c_storage ).
     cl_abap_unit_assert=>assert_true( ls_read_back-found ).
     cl_abap_unit_assert=>assert_equals( act = ls_read_back-version_no exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_read_back-plan-version_no exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_read_back-run_note
+      exp = 'Approved replenishment' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_read_back-plan-allocations[ 1 ]-sales_order
       exp = '0000000001' ).
@@ -189,6 +223,67 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_versions[ 1 ]-version_no exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = lt_versions[ 2 ]-version_no exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = lt_versions[ 1 ]-demand_count exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_versions[ 1 ]-allocated_qty exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_versions[ 1 ]-shortage_qty exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_versions[ 1 ]-full_count exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_versions[ 1 ]-run_note
+      exp = 'Approved replenishment' ).
+
+    DATA(lv_tomorrow) = sy-datum + 1.
+    DATA(lt_future_versions) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10
+        iv_created_from     = lv_tomorrow
+        iv_created_to       = lv_tomorrow ).
+    cl_abap_unit_assert=>assert_initial( lt_future_versions ).
+
+    DATA(lt_shortage_versions) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10
+        iv_shortages_only   = abap_true ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_shortage_versions ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_shortage_versions[ 1 ]-version_no
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_shortage_versions[ 1 ]-shortage_qty
+      exp = '7' ).
+
+    DATA(lt_fifo_versions) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10
+        iv_strategy         = zif_stock_allocation=>c_strategy_fifo ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_fifo_versions ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_fifo_versions[ 1 ]-version_no
+      exp = 1 ).
+
+    DATA(lt_creator_versions) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10
+        iv_created_by       = sy-uname ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_creator_versions ) exp = 2 ).
+    DATA(lt_other_creator_versions) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10
+        iv_created_by       = 'NOTME' ).
+    cl_abap_unit_assert=>assert_initial( lt_other_creator_versions ).
 
     DATA(lt_older_versions) = NEW zcl_allocation_source_sap(
       )->zif_allocation_source~list_versions(
@@ -201,6 +296,23 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_older_versions[ 1 ]-version_no
       exp = 1 ).
+
+    UPDATE zstockphist
+      SET strategy = 'X'
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage
+        AND version_no = 1.
+    DATA(lt_unfiltered_corrupt) = NEW zcl_allocation_source_sap(
+      )->zif_allocation_source~list_versions(
+        iv_material         = c_material
+        iv_plant            = c_plant
+        iv_storage_location = c_storage
+        iv_max_versions     = 10 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_unfiltered_corrupt ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_unfiltered_corrupt[ 2 ]-strategy
+      exp = 'X' ).
   ENDMETHOD.
 
   METHOD clears_scope_snapshot.
@@ -318,6 +430,34 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+  METHOD rejects_corrupt_outcome.
+    NEW zcl_allocation_sink_sap( )->zif_allocation_sink~save(
+      iv_material         = c_material
+      iv_plant            = c_plant
+      iv_storage_location = c_storage
+      is_plan             = VALUE #(
+        stock_qty       = '1'
+        allocatable_qty = '1'
+        unit            = 'EA'
+        strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+    UPDATE zstockplan
+      SET allocated_qty = 1
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage.
+
+    TRY.
+        NEW zcl_allocation_source_sap(
+          )->zif_allocation_source~get_saved(
+            iv_material         = c_material
+            iv_plant            = c_plant
+            iv_storage_location = c_storage ).
+        cl_abap_unit_assert=>fail( 'Corrupt persisted outcome must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD rejects_version_overflow.
     DATA(ls_max_version) = VALUE zstockplan(
       matnr      = c_material
@@ -408,5 +548,89 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND lgort = @c_storage
       INTO @DATA(lv_history_count).
     cl_abap_unit_assert=>assert_equals( act = lv_history_count exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_stale_expected_ver.
+    DATA(lo_sink) = NEW zcl_allocation_sink_sap( ).
+    lo_sink->zif_allocation_sink~save(
+      iv_material         = c_material
+      iv_plant            = c_plant
+      iv_storage_location = c_storage
+      is_plan             = VALUE #(
+        stock_qty       = '1'
+        allocatable_qty = '1'
+        unit            = 'EA'
+        strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+
+    TRY.
+        lo_sink->zif_allocation_sink~save(
+          iv_material         = c_material
+          iv_plant            = c_plant
+          iv_storage_location = c_storage
+          iv_expected_version = 2
+          is_plan             = VALUE #(
+            stock_qty       = '2'
+            allocatable_qty = '2'
+            unit            = 'EA'
+            strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+        cl_abap_unit_assert=>fail( 'Stale expected plan version must fail' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    SELECT SINGLE version_no, stock_qty
+      FROM zstockplan
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage
+      INTO @DATA(ls_current).
+    cl_abap_unit_assert=>assert_equals( act = ls_current-version_no exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_current-stock_qty exp = '1' ).
+    SELECT COUNT( * )
+      FROM zstockphist
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage
+      INTO @DATA(lv_history_count).
+    cl_abap_unit_assert=>assert_equals( act = lv_history_count exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_existing_new_only.
+    DATA(lo_sink) = NEW zcl_allocation_sink_sap( ).
+    lo_sink->zif_allocation_sink~save(
+      iv_material         = c_material
+      iv_plant            = c_plant
+      iv_storage_location = c_storage
+      iv_require_new      = abap_true
+      is_plan             = VALUE #(
+        stock_qty       = '1'
+        allocatable_qty = '1'
+        unit            = 'EA'
+        strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+
+    TRY.
+        lo_sink->zif_allocation_sink~save(
+          iv_material         = c_material
+          iv_plant            = c_plant
+          iv_storage_location = c_storage
+          iv_require_new      = abap_true
+          is_plan             = VALUE #(
+            stock_qty       = '2'
+            allocatable_qty = '2'
+            unit            = 'EA'
+            strategy        = zif_stock_allocation=>c_strategy_fifo ) ).
+        cl_abap_unit_assert=>fail( 'New-only save must reject an existing plan' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        cl_abap_unit_assert=>assert_not_initial( lo_error->get_text( ) ).
+    ENDTRY.
+
+    SELECT SINGLE version_no, stock_qty
+      FROM zstockplan
+      WHERE matnr = @c_material
+        AND werks = @c_plant
+        AND lgort = @c_storage
+      INTO @DATA(ls_current).
+    cl_abap_unit_assert=>assert_equals( act = ls_current-version_no exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_current-stock_qty exp = '1' ).
   ENDMETHOD.
 ENDCLASS.

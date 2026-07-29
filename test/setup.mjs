@@ -1,0 +1,9 @@
+import { SQLiteDatabaseClient } from "@abaplint/database-sqlite";
+
+export async function setup(abap, schemas, insert) {
+  const database = new SQLiteDatabaseClient();
+  abap.context.databaseConnections.DEFAULT = database;
+  await database.connect();
+  await database.execute(schemas.sqlite);
+  await database.execute(insert);
+}

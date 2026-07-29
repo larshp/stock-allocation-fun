@@ -36,6 +36,24 @@ CLASS zcl_salloc_orders_stub IMPLEMENTATION.
     mt_saved = it_demands.
   ENDMETHOD.
 
+  METHOD zif_salloc_orders~release_allocation.
+    READ TABLE mt_saved ASSIGNING FIELD-SYMBOL(<saved>)
+      WITH KEY order_id = iv_order_id.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_salloc_integration
+        EXPORTING
+          iv_operation = `RELEASE_ALLOCATION`
+          iv_reason = `Release exceeds order allocation`.
+    ELSEIF <saved>-allocated < iv_quantity.
+      RAISE EXCEPTION TYPE zcx_salloc_integration
+        EXPORTING
+          iv_operation = `RELEASE_ALLOCATION`
+          iv_reason = `Release exceeds order allocation`.
+    ENDIF.
+    <saved>-allocated = <saved>-allocated - iv_quantity.
+    <saved>-shortage = <saved>-shortage + iv_quantity.
+  ENDMETHOD.
+
   METHOD get_saved.
     rt_demands = mt_saved.
   ENDMETHOD.

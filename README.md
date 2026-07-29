@@ -17,17 +17,33 @@ saving allocations, or opening a transaction.
 - `ZIF_SALLOC_STOCK` and `ZIF_SALLOC_ORDERS` isolate SAP-specific access.
 - `ZIF_SALLOC_TRANSACTION` makes SAP LUW ownership and rollback explicit.
 - `ZCL_SALLOC_*_STUB` are in-memory test doubles.
-- `sap-stubs/` contains the minimal standard DDIC surface needed by future SAP
-  adapters. It is compiled only for local tooling and must not be transported.
+- `ZCL_SALLOC_STOCK_SAP` reads MARC/MARD and maintains `ZSALLOC_STOCK`.
+- `ZCL_SALLOC_ORDERS_SAP` reads VBAP/VBEP and maintains `ZSALLOC_ORDER`.
+- `ZCL_SALLOC_FACTORY` assembles the productive adapters and SAP LUW boundary.
+- `sap-stubs/` contains only standard DDIC test surfaces and is not transported.
 
-The first iteration intentionally leaves the target-specific SAP write adapters
-behind ports. Confirming a sales-order schedule line or creating an MM reservation
-are different business operations and cannot safely share a guessed implementation.
-See `ANOMALIES.md` for the decisions still required before productive integration.
+The productive target is a custom allocation ledger. It reserves quantities for
+sales-order schedule lines without posting a goods movement, creating an MM
+reservation, or changing SD confirmations. Allocation identity is
+`VBELN + POSNR + ETENR`.
 
 `ZCL_SALLOC_TRANSACTION_SAP` supplies the productive LUW boundary. Stock and
 order adapters used with the service must join that LUW and must not issue their
 own commits. Any checked allocation or integration failure rolls the LUW back.
+
+## SAP usage
+
+Install the Z objects from `src/`, then run report `ZSALLOC_RUN`. It starts in
+simulation mode. Clear the simulation checkbox only after the custom ledger and
+operational procedures are approved for the target system.
+
+Productive access is checked with authorization object `Z_SALLOC`: activity `03`
+for simulation and `02` for allocation, release, and reconciliation writes, scoped
+by plant (`WERKS`).
+
+Run `ZSALLOC_RECONCILE` to detect allocations no longer supported by current VBEP
+quantities, including deleted schedule lines. It also defaults to simulation and
+reports the quantity that would be released.
 
 ## Local verification
 
@@ -39,4 +55,4 @@ npm test
 ```
 
 `npm test` runs abaplint, transpiles both `src/` and `sap-stubs/`, executes ABAP
-Unit under open-abap, and fails if any test result is unsuccessful.
+Unit under open-abap, and runs a concurrent reservation safety probe.

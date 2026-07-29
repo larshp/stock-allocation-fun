@@ -7,7 +7,9 @@ CLASS zcl_salloc_service DEFINITION
       IMPORTING
         io_stock TYPE REF TO zif_salloc_stock
         io_orders TYPE REF TO zif_salloc_orders
-        io_transaction TYPE REF TO zif_salloc_transaction.
+        io_transaction TYPE REF TO zif_salloc_transaction
+        io_authorization TYPE REF TO zif_salloc_authorization
+        io_logger TYPE REF TO zif_salloc_logger.
     METHODS run
       IMPORTING
         iv_material TYPE zif_salloc_types=>ty_material
@@ -18,10 +20,21 @@ CLASS zcl_salloc_service DEFINITION
       RAISING
         zcx_salloc_invalid
         zcx_salloc_integration.
+    METHODS release
+      IMPORTING
+        iv_material TYPE zif_salloc_types=>ty_material
+        iv_plant TYPE zif_salloc_types=>ty_plant
+        iv_order_id TYPE zif_salloc_types=>ty_order_id
+        iv_quantity TYPE zif_salloc_types=>ty_quantity
+      RAISING
+        zcx_salloc_invalid
+        zcx_salloc_integration.
   PRIVATE SECTION.
     DATA mo_stock TYPE REF TO zif_salloc_stock.
     DATA mo_orders TYPE REF TO zif_salloc_orders.
     DATA mo_transaction TYPE REF TO zif_salloc_transaction.
+    DATA mo_authorization TYPE REF TO zif_salloc_authorization.
+    DATA mo_logger TYPE REF TO zif_salloc_logger.
 ENDCLASS.
 
 CLASS zcl_salloc_service IMPLEMENTATION.
@@ -29,6 +42,8 @@ CLASS zcl_salloc_service IMPLEMENTATION.
     mo_stock = io_stock.
     mo_orders = io_orders.
     mo_transaction = io_transaction.
+    mo_authorization = io_authorization.
+    mo_logger = io_logger.
   ENDMETHOD.
 
   METHOD run.
@@ -36,6 +51,16 @@ CLASS zcl_salloc_service IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_salloc_invalid
         EXPORTING iv_reason = `Material and plant are required`.
     ENDIF.
+
+    DATA activity TYPE zif_salloc_types=>ty_activity.
+    IF iv_simulate = abap_true.
+      activity = '03'.
+    ELSE.
+      activity = '02'.
+    ENDIF.
+    mo_authorization->check_authorization(
+      iv_plant = iv_plant
+      iv_activity = activity ).
 
     IF iv_simulate <> abap_true.
       mo_transaction->begin( ).
@@ -58,7 +83,15 @@ CLASS zcl_salloc_service IMPLEMENTATION.
               iv_material = iv_material
               iv_plant = iv_plant
               iv_quantity = reserved ).
-            mo_orders->save_allocations( rt_allocations ).
+            mo_orders->save_allocations(
+              iv_material = iv_material
+              iv_plant = iv_plant
+              it_demands = rt_allocations ).
+            mo_logger->log(
+              iv_event = 'ALLOCATE'
+              iv_material = iv_material
+              iv_plant = iv_plant
+              iv_quantity = reserved ).
           ENDIF.
           mo_transaction->commit( ).
         ENDIF.
@@ -66,6 +99,43 @@ CLASS zcl_salloc_service IMPLEMENTATION.
         IF iv_simulate <> abap_true.
           mo_transaction->rollback( ).
         ENDIF.
+        RAISE EXCEPTION error.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD release.
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL OR iv_order_id IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_salloc_invalid
+        EXPORTING iv_reason = `Material, plant, and order ID are required`.
+    ELSEIF iv_quantity <= 0.
+      RAISE EXCEPTION TYPE zcx_salloc_invalid
+        EXPORTING iv_reason = `Release quantity must be positive`.
+    ENDIF.
+
+    mo_authorization->check_authorization(
+      iv_plant = iv_plant
+      iv_activity = '02' ).
+
+    mo_transaction->begin( ).
+    TRY.
+        mo_orders->release_allocation(
+          iv_material = iv_material
+          iv_plant = iv_plant
+          iv_order_id = iv_order_id
+          iv_quantity = iv_quantity ).
+        mo_stock->release(
+          iv_material = iv_material
+          iv_plant = iv_plant
+          iv_quantity = iv_quantity ).
+        mo_logger->log(
+          iv_event = 'RELEASE'
+          iv_material = iv_material
+          iv_plant = iv_plant
+          iv_order_id = iv_order_id
+          iv_quantity = iv_quantity ).
+        mo_transaction->commit( ).
+      CATCH zcx_salloc_integration INTO DATA(error).
+        mo_transaction->rollback( ).
         RAISE EXCEPTION error.
     ENDTRY.
   ENDMETHOD.

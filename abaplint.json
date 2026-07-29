@@ -10,16 +10,19 @@
     }
   ],
   "syntax": {
-    "version": "v750",
-    "errorNamespace": "^(Z|Y|LCL_|LTCL_|TY_)"
+    "version": "open-abap",
+    "errorNamespace": "."
   },
   "rules": {
     "check_syntax": true,
+    "modify_only_own_db_tables": {
+      "exclude": ["src/.*\\.testclasses\\.abap"],
+      "severity": "Error"
+    },
     "parser_error": true,
     "unknown_types": true,
     "main_file_contents": true,
     "implement_methods": true,
-    "local_testclass_location": true,
     "whitespace_end": true
   }
 }

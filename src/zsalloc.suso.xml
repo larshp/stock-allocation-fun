@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_SUSO" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <TOBJ><OBJCT>Z_SALLOC</OBJCT><FIEL1>ACTVT</FIEL1><FIEL2>WERKS</FIEL2><OCLSS>Z_SALLOC</OCLSS></TOBJ>
+   <TOBJT><LANGU>E</LANGU><OBJECT>Z_SALLOC</OBJECT><TTEXT>Stock allocation by plant</TTEXT></TOBJT>
+   <TOBJVORFLG><OBJCT>Z_SALLOC</OBJCT></TOBJVORFLG>
+  </asx:values>
+ </asx:abap>
+</abapGit>

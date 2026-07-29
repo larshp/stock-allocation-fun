@@ -26,6 +26,16 @@ CLASS zcl_salloc_stock_stub IMPLEMENTATION.
     mv_reserved = mv_reserved + iv_quantity.
   ENDMETHOD.
 
+  METHOD zif_salloc_stock~release.
+    IF iv_quantity > mv_reserved.
+      RAISE EXCEPTION TYPE zcx_salloc_integration
+        EXPORTING
+          iv_operation = `RELEASE`
+          iv_reason = `Release exceeds reserved stock`.
+    ENDIF.
+    mv_reserved = mv_reserved - iv_quantity.
+  ENDMETHOD.
+
   METHOD get_reserved.
     rv_quantity = mv_reserved.
   ENDMETHOD.

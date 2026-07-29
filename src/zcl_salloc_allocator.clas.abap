@@ -21,6 +21,9 @@ CLASS zcl_salloc_allocator IMPLEMENTATION.
         EXPORTING iv_reason = `Available stock cannot be negative`.
     ENDIF.
 
+    DATA order_ids TYPE SORTED TABLE OF zif_salloc_types=>ty_order_id
+      WITH UNIQUE KEY table_line.
+
     LOOP AT ct_demands ASSIGNING FIELD-SYMBOL(<demand>).
       IF <demand>-order_id IS INITIAL.
         RAISE EXCEPTION TYPE zcx_salloc_invalid
@@ -28,6 +31,12 @@ CLASS zcl_salloc_allocator IMPLEMENTATION.
       ELSEIF <demand>-requested < 0.
         RAISE EXCEPTION TYPE zcx_salloc_invalid
           EXPORTING iv_reason = `Requested quantity cannot be negative`.
+      ENDIF.
+
+      INSERT <demand>-order_id INTO TABLE order_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_salloc_invalid
+          EXPORTING iv_reason = `Duplicate order ID is not allowed`.
       ENDIF.
     ENDLOOP.
 

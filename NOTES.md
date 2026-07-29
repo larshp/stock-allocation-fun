@@ -20,9 +20,32 @@ and DDIC files; all seven ABAP Unit tests pass.
 - Shortage is calculated by the pure allocator for full, partial, and zero fills.
 - Extended allocator and service tests to cover shortage propagation and saving.
 
+## 2026-07-29 — Iteration 3: transactional orchestration
+
+- Added `ZCX_SALLOC_INTEGRATION` so SAP access failures are explicit and checked.
+- Added `ZIF_SALLOC_TRANSACTION` with SAP and in-memory implementations.
+- Wrapped stock reservation and order allocation writes in one logical unit of work.
+- Added rollback handling for validation, read/write, and commit failures.
+- Added failure-path tests proving integration and validation errors roll back
+  without commit.
+- Increased the verified suite to nine ABAP Unit tests across 18 source objects.
+
+## 2026-07-29 — Iteration 4: demand identity integrity
+
+- Reject duplicate order IDs before sorting or changing allocation results.
+- Added a regression test proving duplicate rejection leaves prior allocation and
+  shortage values untouched.
+
+## 2026-07-29 — Iteration 5: allocation simulation
+
+- Added `iv_simulate` to calculate allocations and shortages without writes.
+- Simulation performs no reserve, save, transaction begin, commit, or rollback.
+- Added an end-to-end service test covering results and every side-effect boundary.
+- Increased the verified suite to eleven ABAP Unit tests across 18 source objects.
+
 ## Next iteration
 
 Select the productive allocation target (SD schedule-line confirmation, MM
-reservation, or a custom allocation ledger). Then add the matching SAP adapter,
-standard API stubs, rollback behavior, and contract tests without changing the
-pure allocator.
+reservation, or a custom allocation ledger). Then add the matching SAP adapters,
+standard API stubs, and contract tests without changing the pure allocator or
+transaction boundary.

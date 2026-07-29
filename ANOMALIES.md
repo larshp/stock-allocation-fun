@@ -19,10 +19,18 @@ locking, update-task, and rollback behavior. The current ports expose the
 decision boundary and test the orchestration, but no productive adapter guesses
 which irreversible SAP document operation is intended.
 
-## A-003 — Cross-port atomicity
+## A-003 — Cross-port atomicity (addressed in iteration 3)
 
 The service reserves through the stock port before saving order allocations.
-The operations must participate in one SAP LUW, and adapter failures must roll
-back both changes. In-memory test doubles cannot emulate SAP update tasks. The
-productive adapter iteration must add an explicit transaction boundary or use a
-single standard API that owns both confirmation and ATP consumption.
+Both operations now run behind `ZIF_SALLOC_TRANSACTION`; checked failures roll
+back and successful runs commit. `ZCL_SALLOC_TRANSACTION_SAP` maps this contract
+to the SAP LUW. Productive stock and order adapters must not commit independently.
+In-memory test doubles record transaction decisions but do not emulate SAP update
+tasks or reverse their own state, so SAP-side contract testing remains required.
+
+## A-004 — Simulation is not a reservation
+
+Simulation deliberately performs read-only port calls outside an SAP LUW. Stock
+or open demand can change after a simulated result and before a productive run.
+Consumers must present simulation as an estimate and must use the productive run's
+returned allocations as the authoritative result.

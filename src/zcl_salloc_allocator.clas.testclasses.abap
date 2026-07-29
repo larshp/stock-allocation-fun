@@ -6,6 +6,7 @@ CLASS ltcl_allocator DEFINITION FINAL FOR TESTING
     METHODS rejects_negative_stock FOR TESTING.
     METHODS validation_is_atomic FOR TESTING.
     METHODS honors_priority_date_id FOR TESTING RAISING zcx_salloc_invalid.
+    METHODS rejects_duplicate_order_id FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_allocator IMPLEMENTATION.
@@ -67,5 +68,24 @@ CLASS ltcl_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = demands[ 2 ]-shortage exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 3 ]-allocated exp = 0 ).
     cl_abap_unit_assert=>assert_equals( act = demands[ 3 ]-shortage exp = 4 ).
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_order_id.
+    DATA(demands) = VALUE zif_salloc_types=>tt_demands(
+      ( order_id = '100' requested = 2 allocated = 1 shortage = 1 )
+      ( order_id = '100' requested = 3 ) ).
+
+    TRY.
+        zcl_salloc_allocator=>allocate(
+          EXPORTING iv_available = 5
+          CHANGING ct_demands = demands ).
+        cl_abap_unit_assert=>fail( `Expected duplicate order exception` ).
+      CATCH zcx_salloc_invalid INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+          act = error->reason
+          exp = `Duplicate order ID is not allowed` ).
+        cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-allocated exp = 1 ).
+        cl_abap_unit_assert=>assert_equals( act = demands[ 1 ]-shortage exp = 1 ).
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.

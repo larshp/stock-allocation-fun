@@ -57,13 +57,13 @@ CLASS zcl_allocation_source_sap IMPLEMENTATION.
     IF iv_shortages_only = abap_true.
       lv_min_shortage = '0.001'.
     ENDIF.
-    RANGES lt_strategies FOR zstockphist-strategy.
+    DATA lt_strategies TYPE RANGE OF zstockphist-strategy.
     IF iv_strategy IS INITIAL.
       APPEND VALUE #( sign = 'I' option = 'CP' low = '*' ) TO lt_strategies.
     ELSE.
       APPEND VALUE #( sign = 'I' option = 'EQ' low = iv_strategy ) TO lt_strategies.
     ENDIF.
-    RANGES lt_creators FOR zstockphist-created_by.
+    DATA lt_creators TYPE RANGE OF zstockphist-created_by.
     IF iv_created_by IS INITIAL.
       APPEND VALUE #( sign = 'I' option = 'CP' low = '*' ) TO lt_creators.
     ELSE.
@@ -234,9 +234,15 @@ CLASS zcl_allocation_source_sap IMPLEMENTATION.
       iv_allocatable_qty = rs_saved-plan-allocatable_qty
       iv_reserve         = rs_saved-plan-reserve_qty
       iv_unit            = rs_saved-plan-unit ).
-    IF ls_header-requested_qty <> ls_summary-requested_qty
-        OR ls_header-allocated_qty <> ls_summary-allocated_qty
-        OR ls_header-shortage_qty <> ls_summary-shortage_qty
+    DATA lv_requested_qty TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_allocated_qty TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_shortage_qty TYPE zif_stock_allocation=>ty_quantity.
+    lv_requested_qty = ls_summary-requested_qty.
+    lv_allocated_qty = ls_summary-allocated_qty.
+    lv_shortage_qty = ls_summary-shortage_qty.
+    IF ls_header-requested_qty <> lv_requested_qty
+        OR ls_header-allocated_qty <> lv_allocated_qty
+        OR ls_header-shortage_qty <> lv_shortage_qty
         OR ls_header-full_count <> ls_summary-full_count
         OR ls_header-partial_count <> ls_summary-partial_count
         OR ls_header-none_count <> ls_summary-none_count.

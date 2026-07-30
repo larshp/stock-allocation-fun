@@ -71,6 +71,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       iv_allocatable_qty = is_plan-allocatable_qty
       iv_reserve         = is_plan-reserve_qty
       iv_unit            = is_plan-unit ).
+    DATA lv_requested_qty TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_allocated_qty TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_shortage_qty TYPE zif_stock_allocation=>ty_quantity.
+    lv_requested_qty = ls_summary-requested_qty.
+    lv_allocated_qty = ls_summary-allocated_qty.
+    lv_shortage_qty = ls_summary-shortage_qty.
     DATA(lv_version_no) = determine_next_version(
       iv_material         = iv_material
       iv_plant            = iv_plant
@@ -95,9 +101,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       available_qty = is_plan-allocatable_qty
       reserve_qty   = is_plan-reserve_qty
       demand_count  = lines( is_plan-allocations )
-      requested_qty = ls_summary-requested_qty
-      allocated_qty = ls_summary-allocated_qty
-      shortage_qty  = ls_summary-shortage_qty
+      requested_qty = lv_requested_qty
+      allocated_qty = lv_allocated_qty
+      shortage_qty  = lv_shortage_qty
       full_count    = ls_summary-full_count
       partial_count = ls_summary-partial_count
       none_count    = ls_summary-none_count
@@ -130,9 +136,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         OR ls_saved_header-available_qty <> is_plan-allocatable_qty
         OR ls_saved_header-reserve_qty <> is_plan-reserve_qty
         OR ls_saved_header-demand_count <> lines( is_plan-allocations )
-        OR ls_saved_header-requested_qty <> ls_summary-requested_qty
-        OR ls_saved_header-allocated_qty <> ls_summary-allocated_qty
-        OR ls_saved_header-shortage_qty <> ls_summary-shortage_qty
+        OR ls_saved_header-requested_qty <> lv_requested_qty
+        OR ls_saved_header-allocated_qty <> lv_allocated_qty
+        OR ls_saved_header-shortage_qty <> lv_shortage_qty
         OR ls_saved_header-full_count <> ls_summary-full_count
         OR ls_saved_header-partial_count <> ls_summary-partial_count
         OR ls_saved_header-none_count <> ls_summary-none_count
@@ -205,9 +211,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       available_qty = is_plan-allocatable_qty
       reserve_qty   = is_plan-reserve_qty
       demand_count  = lines( is_plan-allocations )
-      requested_qty = ls_summary-requested_qty
-      allocated_qty = ls_summary-allocated_qty
-      shortage_qty  = ls_summary-shortage_qty
+      requested_qty = lv_requested_qty
+      allocated_qty = lv_allocated_qty
+      shortage_qty  = lv_shortage_qty
       full_count    = ls_summary-full_count
       partial_count = ls_summary-partial_count
       none_count    = ls_summary-none_count

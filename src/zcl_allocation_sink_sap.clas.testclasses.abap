@@ -230,7 +230,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       act = lt_versions[ 1 ]-run_note
       exp = 'Approved replenishment' ).
 
-    DATA(lv_tomorrow) = sy-datum + 1.
+    DATA lv_tomorrow TYPE d.
+    lv_tomorrow = sy-datum + 1.
     DATA(lt_future_versions) = NEW zcl_allocation_source_sap(
       )->zif_allocation_source~list_versions(
         iv_material         = c_material

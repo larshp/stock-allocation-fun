@@ -15,4 +15,37 @@
 - Added the `ZSTOCK_ALLOCATE` report entry point with material, plant, and storage-location selection parameters.
 - Added the VBAK standard stub and header join so the order source only allocates sales-order demand (`VBTYP = 'C'`); the test fixture includes an excluded quotation.
 - Corrected the VBEP stub key to include `ETENR` and covered multiple schedule lines for one sales order.
+- Added typed BAPI return-message handling so reservation errors are raised before the commit call, even when the function module leaves `sy-subrc` at zero.
+- Added stock-source adapter coverage with explicit client filtering; the SQLite fixture proves a different client’s MARD quantity is ignored.
+- Applied explicit client isolation to VBAP/VBAK/VBEP joins and verified another client’s duplicate order is excluded.
+- Changed the persistence adapter to replace the current client/material/plant allocation snapshot, removing stale order rows on subsequent runs.
+- Added an end-to-end SAP-facing service test covering MARD/VBAK/VBAP/VBEP reads, allocation, reservation posting, and ZSTOCKALLOC persistence.
+- Added storage location to the allocation sink contract and ZSTOCKALLOC key so snapshots for separate LGORT values remain isolated.
+- Added an explicit reservation required date; the service derives the earliest date among allocated demands instead of defaulting every reservation to today.
+- Added commit-failure coverage for the reservation adapter in addition to BAPI `RETURN` error coverage.
+- Added early service validation for missing allocation runtime inputs before any stock or order source is called.
+- Added dependency-boundary validation so incomplete service construction raises the domain exception instead of a null-reference runtime failure.
+- Cleared stale reservation identifiers during allocation so reused demand structures cannot persist a document on an unallocated line.
+- Aligned the reservation adapter's local structures with the SAP BAPI2093 header/item field layout and supplied both classic and long-material fields.
+- Switched reservation orchestration to one reservation document per allocated demand and added compensation through `BAPI_RESERVATION_DELETE` when a later line fails.
+- Added sink-failure compensation so successfully created reservations are canceled when allocation-result persistence fails.
+- Added allocation-snapshot reads so unchanged allocated lines reuse their existing reservation documents on repeat runs; changed or removed lines are canceled before the new snapshot is saved.
+- Persisted the reservation required date, movement type, and unit so reuse is safe when any reservation-defining runtime input changes.
+- Extended the SAP vertical-slice test to execute the same allocation twice and verify reservation IDs remain stable.
+- Extended the vertical slice again to verify a changed movement type creates replacement reservations.
+- Added an explicit, opt-in stock-write boundary through `BAPI_GOODSMVT_CREATE`; the adapter posts one goods-issue item, validates `BAPIRET2`, reads `GOODSMVT_HEADRET`, and commits only after a material document is returned.
+- Kept the goods-movement BAPI stub separate from application code and covered success, BAPI error, and commit failure paths.
+- Added explicit `BAPI_TRANSACTION_ROLLBACK` calls on reservation and goods-movement BAPI errors or commit failures.
+- Added an opt-in sales-order sink for changing one schedule line's requested quantity through `BAPI_SALESORDER_CHANGE`, including `SCHEDULE_LINESX` update flags and rollback handling.
+- Kept order mutation separate from allocation orchestration so a caller must explicitly request a sales-order change.
+- Strengthened the SAP FM stubs to reject incomplete goods-movement and schedule-line payloads, making the adapter tests validate required key and checkbox fields.
+- Added `ZSTOCKALLOC_RUN` and an injected audit port; allocation runs are recorded as running, successful, failed, or partially cleaned up with available, allocated, shortage, and demand-count summaries.
+- Switched audit run IDs to Open ABAP Core's `CL_SYSTEM_UUID` C32 generator after a timestamp-based implementation collided under same-second repeated runs.
+- Added a typed `get_runs` history query to the audit port and covered filtering by client/material/plant/storage location.
+- Added an explicit retention operation that deletes only completed/failed audit rows older than a supplied date and never removes rows still marked `R`unning.
+- Added typed run summaries aggregating counts and allocated/shortage quantities for operational reporting.
+- Added typed demand allocation statuses: `F` fully allocated, `P` partially allocated, and `U` unallocated; the status is recalculated and persisted with each snapshot row.
+- Preserved originating sales document, item, and schedule-line keys in the demand model and `ZSTOCKALLOC`, so later order updates can correlate directly to `VBAP/VBEP` lines instead of parsing the composite order ID.
+- Added `VBAP-VRKME` order-unit propagation and a service boundary check that rejects demand when its sales unit differs from the configured allocation/reservation unit; the unit is also persisted in `ZSTOCKALLOC`.
+- Added `npm test` and expanded `npm run verify` so the standard project check executes the generated ABAP Unit harness as well as lint/transpilation.
 - Kept report imports out of the Open ABAP runtime bootstrap because selection-screen statements are SAP-runtime features; the report remains included in lint/transpile input.

@@ -3,20 +3,32 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_plant TYPE c LENGTH 4.
   TYPES ty_storage_location TYPE c LENGTH 4.
   TYPES ty_order_id TYPE c LENGTH 20.
+  TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES ty_sales_item TYPE n LENGTH 6.
+  TYPES ty_schedule_line TYPE n LENGTH 4.
   TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
   TYPES ty_unit TYPE c LENGTH 3.
   TYPES ty_movement_type TYPE c LENGTH 3.
   TYPES ty_priority TYPE i.
+  TYPES ty_allocation_status TYPE c LENGTH 1.
 
   TYPES:
     BEGIN OF ty_demand,
-      order_id       TYPE ty_order_id,
-      priority       TYPE ty_priority,
-      requested_on   TYPE d,
-      requested      TYPE ty_quantity,
-      allocated      TYPE ty_quantity,
-      shortage       TYPE ty_quantity,
-      reservation_id TYPE ty_order_id,
+      sales_document            TYPE ty_sales_document,
+      sales_item                TYPE ty_sales_item,
+      schedule_line             TYPE ty_schedule_line,
+      order_unit                TYPE ty_unit,
+      order_id                  TYPE ty_order_id,
+      priority                  TYPE ty_priority,
+      requested_on              TYPE d,
+      requested                 TYPE ty_quantity,
+      allocated                 TYPE ty_quantity,
+      shortage                  TYPE ty_quantity,
+      allocation_status         TYPE ty_allocation_status,
+      reservation_id            TYPE ty_order_id,
+      reservation_date          TYPE d,
+      reservation_movement_type TYPE ty_movement_type,
+      reservation_unit          TYPE ty_unit,
     END OF ty_demand.
   TYPES tt_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 

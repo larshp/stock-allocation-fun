@@ -12,6 +12,7 @@ START-OF-SELECTION.
   DATA lo_sink TYPE REF TO zif_allocation_sink.
   DATA lo_allocator TYPE REF TO zif_stock_allocation.
   DATA lo_reservation TYPE REF TO zif_stock_reservation.
+  DATA lo_audit TYPE REF TO zif_allocation_audit.
   DATA lo_service TYPE REF TO zcl_stock_allocation_service.
   DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
 
@@ -20,13 +21,15 @@ START-OF-SELECTION.
   CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
   CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
   CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+  CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
   CREATE OBJECT lo_service
     EXPORTING
       io_stock_source = lo_stock_source
       io_order_source = lo_order_source
       io_sink         = lo_sink
       io_allocator    = lo_allocator
-      io_reservation  = lo_reservation.
+      io_reservation  = lo_reservation
+      io_audit        = lo_audit.
 
   lv_remaining = lo_service->allocate(
     iv_material         = p_matnr

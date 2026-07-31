@@ -10,6 +10,7 @@ CLASS zcl_order_source_sap DEFINITION
         order_id          TYPE c LENGTH 10,
         item_id           TYPE n LENGTH 6,
         schedule_line     TYPE n LENGTH 4,
+        order_unit        TYPE c LENGTH 3,
         delivery_priority TYPE n LENGTH 2,
         requested_on      TYPE d,
         requested         TYPE p LENGTH 8 DECIMALS 3,
@@ -22,23 +23,30 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
   METHOD zif_order_source~get_open_demands.
     DATA lt_schedule TYPE tt_schedule.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
+    DATA lv_client TYPE c LENGTH 3.
     FIELD-SYMBOLS <ls_schedule> TYPE ty_schedule.
+
+    lv_client = sy-mandt.
 
     SELECT item~vbeln AS order_id,
            item~posnr AS item_id,
            schedule~etenr AS schedule_line,
+           item~vrkme AS order_unit,
            item~lprio AS delivery_priority,
            schedule~edatu AS requested_on,
            schedule~wmeng AS requested,
            schedule~bmeng AS confirmed
       FROM vbap AS item
       INNER JOIN vbak AS header
-        ON header~vbeln = item~vbeln
+        ON header~mandt = item~mandt
+       AND header~vbeln = item~vbeln
       INNER JOIN vbep AS schedule
-        ON schedule~vbeln = item~vbeln
+        ON schedule~mandt = item~mandt
+       AND schedule~vbeln = item~vbeln
        AND schedule~posnr = item~posnr
       INTO TABLE @lt_schedule
-      WHERE item~matnr = @iv_material
+      WHERE item~mandt = @lv_client
+        AND item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
         AND header~vbtyp = 'C'
@@ -50,6 +58,10 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
 
     LOOP AT lt_schedule ASSIGNING <ls_schedule>.
       CLEAR ls_demand.
+      ls_demand-sales_document = <ls_schedule>-order_id.
+      ls_demand-sales_item = <ls_schedule>-item_id.
+      ls_demand-schedule_line = <ls_schedule>-schedule_line.
+      ls_demand-order_unit = <ls_schedule>-order_unit.
       CONCATENATE <ls_schedule>-order_id
                   <ls_schedule>-item_id
                   <ls_schedule>-schedule_line

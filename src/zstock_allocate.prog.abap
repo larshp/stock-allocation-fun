@@ -44,15 +44,32 @@ START-OF-SELECTION.
       io_authority      = lo_authority
       io_audit          = lo_audit.
 
-  lv_remaining = lo_service->allocate(
-    iv_material         = p_matnr
-    iv_plant            = p_werks
-    iv_storage_location = p_lgort
-    iv_movement_type    = p_bwart
-    iv_unit             = p_meins
-    iv_batch            = p_charg
-    iv_min_shelf_life   = p_shelf
-    iv_preview          = p_test ).
+  TRY.
+      lv_remaining = lo_service->allocate(
+        iv_material         = p_matnr
+        iv_plant            = p_werks
+        iv_storage_location = p_lgort
+        iv_movement_type    = p_bwart
+        iv_unit             = p_meins
+        iv_batch            = p_charg
+        iv_min_shelf_life   = p_shelf
+        iv_preview          = p_test ).
+    CATCH zcx_stock_allocation.
+      TRY.
+          ls_summary = lo_audit->get_summary(
+            iv_material         = p_matnr
+            iv_plant            = p_werks
+            iv_storage_location = p_lgort
+            iv_batch            = p_charg
+            iv_unit             = p_meins ).
+          WRITE: / 'Allocation failed.'
+                 , / 'Last status:', ls_summary-last_status
+                 , / 'Last message:', ls_summary-last_message.
+        CATCH zcx_stock_allocation.
+          WRITE: / 'Allocation failed; audit status is unavailable.'.
+      ENDTRY.
+      RETURN.
+  ENDTRY.
   ls_summary = lo_audit->get_summary(
     iv_material         = p_matnr
     iv_plant            = p_werks

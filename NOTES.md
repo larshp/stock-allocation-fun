@@ -80,5 +80,28 @@
 - Added read-only `ZSTOCK_ALLOC_HISTORY` output for scoped audit run status, quantities, timestamps, and diagnostic messages.
 - Added `S_TABU_NAM` delete authorization enforcement for `ZSTOCKALLOC_RUN` in `ZSTOCK_ALLOC_PURGE`, before the retention API is called.
 - Added an injectable `M_MSEG_WMB` goods-movement authorization boundary to `ZCL_STOCK_MOVEMENT_SAP`, checked before `BAPI_GOODSMVT_CREATE`.
+- Added the injectable `M_RES_BWA` authorization check to `ZCL_STOCK_RESERVATION_SAP`, protecting direct reservation-adapter callers as well as the allocation service.
+- Added rejection audit records when the SAP order source rejects demand validation, preserving a diagnostic `E` run before reservation or snapshot side effects.
+- Added rejection audit records for stock and demand unit-conversion failures, preserving the failed conversion context before any reservations or snapshots.
+- Added rejection audit records for allocation-calculation and existing-snapshot read failures, keeping pre-side-effect service errors visible to operators.
+- Added rejection audit records for enqueue/lock-acquisition failures before stock reads or side effects.
+- Changed audit finalization failures from swallowed exceptions to surfaced service failures, preventing callers from mistaking an unfinished `R`unning audit row for a completed allocation.
+- Added rejection audit records for available-stock read failures before demand retrieval or allocation.
+- Distinguished reservation-side allocation failures from snapshot-persistence failures in the completed audit message; reservation failures now report `Reservation failed`.
+- Added an explicit `Reservation cleanup incomplete` audit message when compensation cannot remove created reservations; snapshot-write cleanup failures identify the same manual-reconciliation risk.
+- Added optional `P_STAT` filtering to `ZSTOCK_ALLOC_HISTORY` so operators can focus on successful, partial, running, or rejected runs within the existing material/unit scope.
+- Added optional inclusive `P_FROM`/`P_TO` start-date filtering to `ZSTOCK_ALLOC_HISTORY`, including a guard against reversed date windows.
+- Added explicit `P_STAT` validation so history operators can only request persisted run statuses `R`, `S`, `P`, or `E`.
+- Moved history date-window filtering into the audit `GET_RUNS` contract, with API-level reversed-range validation and coverage for empty windows and invalid ranges.
+- Moved history status filtering into the audit `GET_RUNS` contract, with API-level validation for the persisted `R`, `S`, `P`, and `E` status domain.
+- Extended `ZSTOCK_ALLOC_HISTORY` output with available stock and demand count so operators can explain each run's allocation and shortage from the report alone.
+- Made preview mode independent of reservation-write authorization; a preview still reads, calculates, locks, and audits, but does not require `M_RES_BWA` because no reservation write is attempted.
+- Made preview construction independent of reservation and snapshot-sink ports; it now skips snapshot reads and needs only stock, demand, allocation, and audit dependencies.
+- Added a SAP vertical preview test using the real stock/order readers and confirmed `ZSTOCKALLOC` row counts remain unchanged.
+- Added graceful `ZSTOCK_ALLOCATE` failure output: service exceptions now display the latest audited status/message when available instead of escaping as an unhandled report error.
+- Added graceful failure output to `ZSTOCK_ALLOC_HISTORY` and `ZSTOCK_ALLOC_PURGE`; audit read/retention exceptions now stop with an operator message rather than escaping as report errors.
+- Preserved the first error text from reservation BAPI `RETURN` rows in `ZCX_STOCK_ALLOCATION`; reservation audits now expose the SAP rejection message when available.
+- Preserved the first error text from goods-movement and sales-order BAPI `RETURN` rows in the same exception object for direct adapter callers.
+- Added guarded rejection auditing for invalid runtime inputs, negative shelf-life configuration, and missing service dependencies when the audit port itself is available.
 - Added `npm test` and expanded `npm run verify` so the standard project check executes the generated ABAP Unit harness as well as lint/transpilation.
 - Kept report imports out of the Open ABAP runtime bootstrap because selection-screen statements are SAP-runtime features; the report remains included in lint/transpile input.

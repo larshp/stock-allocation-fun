@@ -53,6 +53,28 @@
 - Resolved: operators could query audit summaries but not inspect individual run diagnostics; `ZSTOCK_ALLOC_HISTORY` now exposes scoped run details without side effects.
 - Resolved: any user able to start the purge report could request audit deletion; the report now requires explicit `S_TABU_NAM` activity `06` authorization for `ZSTOCKALLOC_RUN`.
 - Resolved: the opt-in goods-issue adapter could call `BAPI_GOODSMVT_CREATE` without an authorization seam; callers can now inject the standard `M_MSEG_WMB` check.
+- Resolved: direct callers of `ZCL_STOCK_RESERVATION_SAP` could bypass the service authorization check; the adapter now accepts and enforces the standard `M_RES_BWA` boundary.
+- Resolved: SAP order-source validation failures were raised without an audit trail; the service now records `Open demand validation failed` before re-raising.
+- Resolved: unit-conversion exceptions were raised without diagnostics; stock and demand conversion failures now create explicit `E` audit rows.
+- Resolved: allocator and snapshot-read exceptions could escape before a run was started without diagnostics; both boundaries now create explicit rejection audit rows.
+- Resolved: enqueue failures could escape without an audit diagnostic; lock acquisition now records `Allocation lock acquisition failed` before re-raising.
+- Resolved: `finish_audit` silently ignored persistence errors; audit-finalization failures now propagate to the caller.
+- Resolved: stock-source exceptions could escape without diagnostics; the service now records `Available stock read failed` before re-raising.
+- Resolved: reservation errors and snapshot-write errors were both reported as `Allocation failed`; completed runs now identify reservation failures explicitly.
+- Resolved: partial reservation compensation was only visible through status `P`; audit messages now state `Reservation cleanup incomplete` for manual reconciliation.
+- Resolved: the history report always displayed every scoped run; `P_STAT` now permits status-focused operational review.
+- Resolved: history review had no date-window control; inclusive `P_FROM`/`P_TO` filtering now supports bounded operational investigations and rejects reversed windows.
+- Resolved: invalid history status filters silently returned no rows; `P_STAT` now validates against the audit status domain.
+- Resolved: date filtering was previously report-local and inconsistent for other consumers; `GET_RUNS` now owns the inclusive date scope and validates reversed ranges.
+- Resolved: status filtering was previously report-local and inconsistent for other consumers; `GET_RUNS` now owns the status scope and validates the status domain.
+- Resolved: history output omitted the available-stock and demand-count context needed to interpret allocation quantities; the report now displays both fields.
+- Resolved: preview executions unnecessarily required reservation-write authorization; the service now skips that check when `IV_PREVIEW` is true.
+- Resolved: preview executions still required unused reservation and snapshot dependencies; the service now skips those ports and their snapshot read in preview mode.
+- Resolved: allocation report failures escaped as unhandled exceptions even when an audit diagnostic existed; `ZSTOCK_ALLOCATE` now presents the audited failure context.
+- Resolved: history and purge backend failures could escape as unhandled report errors; both reports now present a controlled failure message.
+- Resolved: reservation BAPI error text was discarded before audit finalization; the first actionable `RETURN` message now survives into the exception and audit row.
+- Resolved: movement and order-write adapters discarded actionable BAPI rejection text; their raised exceptions now retain the first error message.
+- Resolved: service-entry validation and missing dependencies could fail without audit context; guarded rejection rows now identify those failures when audit persistence is available.
 - Resolved: reservation creation now checks `BAPIRET2` error types (`A`, `E`, and `X`) before calling `BAPI_TRANSACTION_COMMIT`.
 - Resolved: the reservation adapter preserves the BAPI `sy-subrc` before looping over `RETURN`, because the loop itself changes `sy-subrc` for an empty message table.
 - Resolved: the SQLite harness now sets `sy-mandt` to the seeded client `000`; Open ABAP’s default runtime client is `123`.

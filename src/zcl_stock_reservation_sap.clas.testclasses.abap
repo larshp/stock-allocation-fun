@@ -7,6 +7,18 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_bapi_error FOR TESTING.
     METHODS rejects_commit_failure FOR TESTING.
     METHODS cancels_reservation_bapi FOR TESTING.
+    METHODS rejects_unauthorized FOR TESTING.
+ENDCLASS.
+
+CLASS lcl_failing_reservation_authority DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_allocation_authority.
+ENDCLASS.
+
+CLASS lcl_failing_reservation_authority IMPLEMENTATION.
+  METHOD zif_stock_allocation_authority~check.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
@@ -52,6 +64,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
   METHOD rejects_bapi_error.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
     TRY.
@@ -63,11 +76,15 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
           iv_quantity         = '3'
           iv_unit             = 'EA'
           iv_required_date    = '20260815' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation rejected by test double' ).
   ENDMETHOD.
 
   METHOD rejects_commit_failure.
@@ -96,5 +113,30 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
     lo_cut->cancel( iv_document = '0000000001' ).
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized.
+    DATA lo_cut TYPE REF TO zcl_stock_reservation_sap.
+    DATA lo_authority TYPE REF TO lcl_failing_reservation_authority.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_authority.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_authority = lo_authority.
+    TRY.
+        lo_cut->zif_stock_reservation~reserve(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '3'
+          iv_unit             = 'EA'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 ENDCLASS.

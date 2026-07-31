@@ -3,8 +3,12 @@ CLASS zcl_stock_reservation_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_stock_allocation_authority OPTIONAL.
     INTERFACES zif_stock_reservation.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_stock_allocation_authority.
     TYPES:
       BEGIN OF ty_header,
         res_date   TYPE d,
@@ -63,6 +67,10 @@ CLASS zcl_stock_reservation_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_reservation_sap IMPLEMENTATION.
+  METHOD constructor.
+    mo_authority = io_authority.
+  ENDMETHOD.
+
   METHOD zif_stock_reservation~reserve.
     DATA ls_header TYPE ty_header.
     DATA ls_item TYPE ty_item.
@@ -71,6 +79,8 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lv_reservation TYPE zif_stock_allocation=>ty_order_id.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
+    DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
     IF iv_material IS INITIAL
@@ -81,6 +91,9 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         OR iv_required_date IS INITIAL
         OR iv_quantity <= 0.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
+    IF mo_authority IS BOUND.
+      mo_authority->check( iv_movement_type = iv_movement_type ).
     ENDIF.
 
     ls_header-move_type = iv_movement_type.
@@ -110,13 +123,18 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = <ls_return>-message.
+        ENDIF.
       ENDIF.
     ENDLOOP.
     IF lv_bapi_error = abap_true
         OR lv_bapi_subrc <> 0
         OR lv_reservation IS INITIAL.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = lv_bapi_message.
+      RAISE EXCEPTION lo_error.
     ENDIF.
 
     CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
@@ -134,6 +152,8 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lv_document TYPE c LENGTH 10.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
+    DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
     IF iv_document IS INITIAL.
@@ -152,11 +172,16 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = <ls_return>-message.
+        ENDIF.
       ENDIF.
     ENDLOOP.
     IF lv_bapi_error = abap_true OR lv_bapi_subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = lv_bapi_message.
+      RAISE EXCEPTION lo_error.
     ENDIF.
 
     CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'

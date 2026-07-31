@@ -19,6 +19,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_batch_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lt_batch_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lt_unit_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lt_date_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lt_status_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_raised TYPE abap_bool.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_run_id = lo_cut->start_run(
@@ -62,6 +65,25 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_runs[ 1 ]-status
       exp = 'S' ).
+    lt_status_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_status           = 'S' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_status_runs )
+      exp = 1 ).
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_status           = 'X' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
 
     ls_summary = lo_cut->get_summary(
       iv_material         = 'MATERIAL-AUDIT'
@@ -110,6 +132,30 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_unit_runs[ 1 ]-unit
       exp = 'BOX' ).
+
+    lt_date_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_start_date_from  = '99991231' ).
+    cl_abap_unit_assert=>assert_initial( lt_date_runs ).
+    lt_date_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_start_date_to    = '00010101' ).
+    cl_abap_unit_assert=>assert_initial( lt_date_runs ).
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_start_date_from  = '99991231'
+          iv_start_date_to    = '00010101' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
 
     lv_batch_run_id = lo_cut->start_run(
       iv_material         = 'MATERIAL-AUDIT'

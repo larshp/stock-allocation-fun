@@ -7,9 +7,9 @@ CLASS zcl_stock_allocation_service DEFINITION
       IMPORTING
         io_stock_source   TYPE REF TO zif_stock_source
         io_order_source   TYPE REF TO zif_order_source
-        io_sink           TYPE REF TO zif_allocation_sink
+        io_sink           TYPE REF TO zif_allocation_sink OPTIONAL
         io_allocator      TYPE REF TO zif_stock_allocation
-        io_reservation    TYPE REF TO zif_stock_reservation
+        io_reservation    TYPE REF TO zif_stock_reservation OPTIONAL
         io_unit_converter TYPE REF TO zif_unit_conversion OPTIONAL
         io_lock           TYPE REF TO zif_stock_allocation_lock OPTIONAL
         io_authority      TYPE REF TO zif_stock_allocation_authority OPTIONAL
@@ -45,7 +45,9 @@ CLASS zcl_stock_allocation_service DEFINITION
         iv_available TYPE zif_stock_allocation=>ty_quantity
         iv_allocated TYPE zif_stock_allocation=>ty_quantity
         iv_shortage  TYPE zif_stock_allocation=>ty_quantity
-        iv_message   TYPE zif_allocation_audit=>ty_message.
+        iv_message   TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
     METHODS record_rejection
       IMPORTING
         iv_material         TYPE zif_stock_allocation=>ty_material
@@ -81,6 +83,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_cleanup_failed TYPE abap_bool.
+    DATA lv_reservation_failed TYPE abap_bool.
+    DATA lv_failure_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_lock_acquired TYPE abap_bool.
     DATA lv_min_shelf_life_date TYPE d.
     DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
@@ -98,21 +102,51 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         OR iv_storage_location IS INITIAL
         OR iv_movement_type IS INITIAL
         OR iv_unit IS INITIAL.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid allocation input' ).
+      ENDIF.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
     ENDIF.
     IF iv_min_shelf_life < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum shelf life' ).
+      ENDIF.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
     ENDIF.
     IF mo_stock_source IS NOT BOUND
         OR mo_order_source IS NOT BOUND
-        OR mo_sink IS NOT BOUND
         OR mo_allocator IS NOT BOUND
-        OR mo_reservation IS NOT BOUND
-        OR mo_audit IS NOT BOUND.
+        OR mo_audit IS NOT BOUND
+        OR ( iv_preview <> abap_true AND mo_sink IS NOT BOUND )
+        OR ( iv_preview <> abap_true AND mo_reservation IS NOT BOUND ).
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = 0
+          iv_message          = 'Allocation dependency missing' ).
+      ENDIF.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
     ENDIF.
 
-    IF mo_authority IS BOUND.
+    IF mo_authority IS BOUND AND iv_preview <> abap_true.
       TRY.
           mo_authority->check( iv_movement_type = iv_movement_type ).
         CATCH zcx_stock_allocation.
@@ -129,19 +163,43 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
 
     IF mo_lock IS BOUND.
-      mo_lock->acquire(
-        iv_material         = iv_material
-        iv_plant            = iv_plant
-        iv_storage_location = iv_storage_location
-        iv_batch            = iv_batch ).
+      TRY.
+          mo_lock->acquire(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch ).
+        CATCH zcx_stock_allocation.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = 0
+            iv_message          = 'Allocation lock acquisition failed' ).
+          RAISE EXCEPTION TYPE zcx_stock_allocation.
+      ENDTRY.
       lv_lock_acquired = abap_true.
     ENDIF.
     TRY.
-      ls_available = mo_stock_source->get_available(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_batch            = iv_batch ).
+      TRY.
+          ls_available = mo_stock_source->get_available(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch ).
+        CATCH zcx_stock_allocation.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = 0
+            iv_message          = 'Available stock read failed' ).
+          RAISE EXCEPTION TYPE zcx_stock_allocation.
+      ENDTRY.
     IF ls_available-material_found <> abap_true.
       record_rejection(
         iv_material         = iv_material
@@ -266,17 +324,49 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     IF lv_available > 0
         AND ls_available-unit <> iv_unit.
       IF mo_unit_converter IS NOT BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Stock unit conversion failed' ).
         RAISE EXCEPTION TYPE zcx_stock_allocation.
       ENDIF.
-      lv_available = mo_unit_converter->convert(
-        iv_material  = iv_material
-        iv_quantity  = lv_available
-        iv_unit_from = ls_available-unit
-        iv_unit_to   = iv_unit ).
+      TRY.
+          lv_available = mo_unit_converter->convert(
+            iv_material  = iv_material
+            iv_quantity  = lv_available
+            iv_unit_from = ls_available-unit
+            iv_unit_to   = iv_unit ).
+        CATCH zcx_stock_allocation.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Stock unit conversion failed' ).
+          RAISE EXCEPTION TYPE zcx_stock_allocation.
+      ENDTRY.
     ENDIF.
-    lt_demands = mo_order_source->get_open_demands(
-      iv_material = iv_material
-      iv_plant    = iv_plant ).
+    TRY.
+        lt_demands = mo_order_source->get_open_demands(
+          iv_material = iv_material
+          iv_plant    = iv_plant ).
+      CATCH zcx_stock_allocation.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Open demand validation failed' ).
+        RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDTRY.
     IF ls_available-batch_expiration_date IS NOT INITIAL.
       LOOP AT lt_demands ASSIGNING <ls_demand>.
         IF <ls_demand>-requested_on IS NOT INITIAL
@@ -298,26 +388,72 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       IF <ls_demand>-order_unit IS NOT INITIAL
           AND <ls_demand>-order_unit <> iv_unit.
         IF mo_unit_converter IS NOT BOUND.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Demand unit conversion failed' ).
           RAISE EXCEPTION TYPE zcx_stock_allocation.
         ENDIF.
-        <ls_demand>-requested = mo_unit_converter->convert(
-          iv_material  = iv_material
-          iv_quantity  = <ls_demand>-requested
-          iv_unit_from = <ls_demand>-order_unit
-          iv_unit_to   = iv_unit ).
+        TRY.
+            <ls_demand>-requested = mo_unit_converter->convert(
+              iv_material  = iv_material
+              iv_quantity  = <ls_demand>-requested
+              iv_unit_from = <ls_demand>-order_unit
+              iv_unit_to   = iv_unit ).
+          CATCH zcx_stock_allocation.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = iv_unit
+              iv_available        = lv_available
+              iv_message          = 'Demand unit conversion failed' ).
+            RAISE EXCEPTION TYPE zcx_stock_allocation.
+        ENDTRY.
       ENDIF.
     ENDLOOP.
-    lt_existing = mo_sink->get_allocations(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_batch            = iv_batch
-      iv_unit             = iv_unit ).
-    rv_remaining = mo_allocator->allocate(
-      EXPORTING
-        iv_available = lv_available
-      CHANGING
-        ct_demands   = lt_demands ).
+    IF iv_preview <> abap_true.
+      TRY.
+          lt_existing = mo_sink->get_allocations(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit ).
+        CATCH zcx_stock_allocation.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation snapshot read failed' ).
+          RAISE EXCEPTION TYPE zcx_stock_allocation.
+      ENDTRY.
+    ENDIF.
+    TRY.
+        rv_remaining = mo_allocator->allocate(
+          EXPORTING
+            iv_available = lv_available
+          CHANGING
+            ct_demands   = lt_demands ).
+      CATCH zcx_stock_allocation.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation calculation failed' ).
+        RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDTRY.
     DESCRIBE TABLE lt_demands LINES lv_demand_count.
     LOOP AT lt_demands ASSIGNING <ls_demand>.
       lv_allocated = lv_allocated + <ls_demand>-allocated.
@@ -346,6 +482,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_message   = 'Preview only; no reservations or snapshot were written' ).
     ELSE.
       lv_cleanup_failed = abap_false.
+      lv_reservation_failed = abap_false.
       TRY.
         LOOP AT lt_demands ASSIGNING <ls_demand>.
           IF <ls_demand>-requested_on IS INITIAL.
@@ -369,15 +506,21 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               APPEND <ls_existing>-reservation_id TO lt_reused.
               CONTINUE.
             ENDIF.
-            <ls_demand>-reservation_id = mo_reservation->reserve(
-              iv_material         = iv_material
-              iv_plant            = iv_plant
-              iv_storage_location = iv_storage_location
-              iv_movement_type    = iv_movement_type
-              iv_quantity         = <ls_demand>-allocated
-              iv_unit             = iv_unit
-              iv_required_date    = lv_required_date
-              iv_batch            = iv_batch ).
+            TRY.
+                <ls_demand>-reservation_id = mo_reservation->reserve(
+                  iv_material         = iv_material
+                  iv_plant            = iv_plant
+                  iv_storage_location = iv_storage_location
+                  iv_movement_type    = iv_movement_type
+                  iv_quantity         = <ls_demand>-allocated
+                  iv_unit             = iv_unit
+                  iv_required_date    = lv_required_date
+                  iv_batch            = iv_batch ).
+              CATCH zcx_stock_allocation INTO DATA(lo_reservation_error).
+                lv_reservation_failed = abap_true.
+                lv_failure_message = lo_reservation_error->message.
+                RAISE EXCEPTION TYPE zcx_stock_allocation.
+            ENDTRY.
             <ls_demand>-reservation_date = lv_required_date.
             <ls_demand>-reservation_movement_type = iv_movement_type.
             <ls_demand>-reservation_unit = iv_unit.
@@ -411,8 +554,18 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDLOOP.
         IF lv_cleanup_failed = abap_true.
           lv_status = 'P'.
+          lv_message = 'Reservation cleanup incomplete'.
         ELSE.
           lv_status = 'E'.
+          IF lv_reservation_failed = abap_true.
+            IF lv_failure_message IS INITIAL.
+              lv_message = 'Reservation failed'.
+            ELSE.
+              lv_message = lv_failure_message.
+            ENDIF.
+          ELSE.
+            lv_message = 'Allocation failed'.
+          ENDIF.
         ENDIF.
         finish_audit(
           iv_run_id    = lv_run_id
@@ -420,7 +573,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available = lv_available
           iv_allocated = lv_allocated
           iv_shortage  = lv_shortage
-          iv_message   = 'Allocation failed' ).
+          iv_message   = lv_message ).
         RAISE EXCEPTION TYPE zcx_stock_allocation.
       ENDTRY.
       TRY.
@@ -443,8 +596,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDLOOP.
         IF lv_cleanup_failed = abap_true.
           lv_status = 'P'.
+          lv_message = 'Allocation result was not persisted; reservation cleanup incomplete'.
         ELSE.
           lv_status = 'E'.
+          lv_message = 'Allocation result was not persisted'.
         ENDIF.
         finish_audit(
           iv_run_id    = lv_run_id
@@ -452,7 +607,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available = lv_available
           iv_allocated = lv_allocated
           iv_shortage  = lv_shortage
-          iv_message   = 'Allocation result was not persisted' ).
+          iv_message   = lv_message ).
         RAISE EXCEPTION TYPE zcx_stock_allocation.
       ENDTRY.
       IF lv_shortage > 0.
@@ -494,17 +649,13 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD finish_audit.
-    TRY.
-        mo_audit->finish_run(
-          iv_run_id    = iv_run_id
-          iv_status    = iv_status
-          iv_available = iv_available
-          iv_allocated = iv_allocated
-          iv_shortage  = iv_shortage
-          iv_message   = iv_message ).
-      CATCH zcx_stock_allocation.
-        RETURN.
-    ENDTRY.
+    mo_audit->finish_run(
+      iv_run_id    = iv_run_id
+      iv_status    = iv_status
+      iv_available = iv_available
+      iv_allocated = iv_allocated
+      iv_shortage  = iv_shortage
+      iv_message   = iv_message ).
   ENDMETHOD.
 
   METHOD record_rejection.

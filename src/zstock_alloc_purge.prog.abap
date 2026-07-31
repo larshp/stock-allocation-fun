@@ -31,12 +31,17 @@ START-OF-SELECTION.
   ENDTRY.
 
   CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
-  lv_deleted = lo_audit->purge_runs_before(
-    iv_material         = p_matnr
-    iv_plant            = p_werks
-    iv_storage_location = p_lgort
-    iv_batch            = p_charg
-    iv_unit             = p_meins
-    iv_before_date      = p_date ).
+  TRY.
+      lv_deleted = lo_audit->purge_runs_before(
+        iv_material         = p_matnr
+        iv_plant            = p_werks
+        iv_storage_location = p_lgort
+        iv_batch            = p_charg
+        iv_unit             = p_meins
+        iv_before_date      = p_date ).
+    CATCH zcx_stock_allocation.
+      WRITE: / 'No rows deleted. Retention execution failed.'.
+      RETURN.
+  ENDTRY.
 
   WRITE: / 'Deleted audit runs:', lv_deleted.

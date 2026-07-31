@@ -109,6 +109,28 @@ CLASS lcl_stock_source_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_failing_stock_source_stub DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_source.
+ENDCLASS.
+
+CLASS lcl_failing_stock_source_stub IMPLEMENTATION.
+  METHOD zif_stock_source~get_available.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_failing_allocator_stub DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_allocation.
+ENDCLASS.
+
+CLASS lcl_failing_allocator_stub IMPLEMENTATION.
+  METHOD zif_stock_allocation~allocate.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS lcl_stock_lock_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation_lock.
@@ -145,6 +167,20 @@ CLASS lcl_stock_lock_stub IMPLEMENTATION.
 
   METHOD was_released.
     rv_value = mv_released.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_failing_lock_stub DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_allocation_lock.
+ENDCLASS.
+
+CLASS lcl_failing_lock_stub IMPLEMENTATION.
+  METHOD zif_stock_allocation_lock~acquire.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_lock~release.
   ENDMETHOD.
 ENDCLASS.
 
@@ -331,11 +367,15 @@ CLASS lcl_allocation_audit_stub DEFINITION FINAL.
     INTERFACES zif_allocation_audit.
     METHODS was_finished RETURNING VALUE(rv_finished) TYPE abap_bool.
     METHODS status RETURNING VALUE(rv_status) TYPE zif_allocation_audit=>ty_run_status.
+    METHODS message RETURNING VALUE(rv_message) TYPE zif_allocation_audit=>ty_message.
     METHODS rejection_was_recorded RETURNING VALUE(rv_recorded) TYPE abap_bool.
+    METHODS fail_finish.
   PRIVATE SECTION.
     DATA mv_finished TYPE abap_bool.
     DATA mv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA mv_message TYPE zif_allocation_audit=>ty_message.
     DATA mv_rejection_recorded TYPE abap_bool.
+    DATA mv_fail_finish TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_allocation_audit_stub IMPLEMENTATION.
@@ -358,8 +398,12 @@ CLASS lcl_allocation_audit_stub IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~finish_run.
+    IF mv_fail_finish = abap_true.
+      RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
     mv_finished = abap_true.
     mv_status = iv_status.
+    mv_message = iv_message.
   ENDMETHOD.
 
   METHOD was_finished.
@@ -370,8 +414,16 @@ CLASS lcl_allocation_audit_stub IMPLEMENTATION.
     rv_status = mv_status.
   ENDMETHOD.
 
+  METHOD message.
+    rv_message = mv_message.
+  ENDMETHOD.
+
   METHOD rejection_was_recorded.
     rv_recorded = mv_rejection_recorded.
+  ENDMETHOD.
+
+  METHOD fail_finish.
+    mv_fail_finish = abap_true.
   ENDMETHOD.
 ENDCLASS.
 
@@ -409,6 +461,10 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL FOR TESTING
     METHODS cancels_on_sink_failure FOR TESTING.
     METHODS records_partial_cleanup FOR TESTING.
     METHODS rejects_unauthorized FOR TESTING.
+    METHODS audits_allocator_failure FOR TESTING.
+    METHODS audits_lock_failure FOR TESTING.
+    METHODS surfaces_audit_failure FOR TESTING.
+    METHODS audits_stock_read_failure FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
@@ -468,8 +524,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD previews_without_side_effects.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
-    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
-    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
+    DATA lo_authority TYPE REF TO lcl_failing_authority_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
@@ -477,17 +532,15 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
     CREATE OBJECT lo_stock_source.
     CREATE OBJECT lo_order_source.
-    CREATE OBJECT lo_sink.
-    CREATE OBJECT lo_reservation.
+    CREATE OBJECT lo_authority.
     CREATE OBJECT lo_audit.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source = lo_stock_source
         io_order_source = lo_order_source
-        io_sink         = lo_sink
         io_allocator    = lo_allocator
-        io_reservation  = lo_reservation
+        io_authority    = lo_authority
         io_audit        = lo_audit.
 
     lv_remaining = lo_cut->allocate(
@@ -501,8 +554,6 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
       exp = '4' ).
-    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
-    cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
     cl_abap_unit_assert=>assert_true( lo_audit->was_finished( ) ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_audit->status( )
@@ -584,6 +635,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_true(
+      lo_audit->rejection_was_recorded( ) ).
   ENDMETHOD.
 
   METHOD rejects_missing_dependency.
@@ -622,6 +675,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_true(
+      lo_audit->rejection_was_recorded( ) ).
   ENDMETHOD.
 
   METHOD converts_mismatched_unit.
@@ -763,6 +818,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lo_audit->status( )
       exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_audit->message( )
+      exp = 'Reservation failed' ).
   ENDMETHOD.
 
   METHOD cancels_on_sink_failure.
@@ -848,6 +906,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lo_audit->status( )
       exp = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_audit->message( )
+      exp = 'Reservation cleanup incomplete' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized.
@@ -894,5 +955,180 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       lo_audit->rejection_was_recorded( ) ).
     cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
     cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+  ENDMETHOD.
+
+  METHOD audits_allocator_failure.
+    DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_order_source_stub.
+    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
+    DATA lo_allocator TYPE REF TO lcl_failing_allocator_stub.
+    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
+    DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source.
+    CREATE OBJECT lo_order_source.
+    CREATE OBJECT lo_sink.
+    CREATE OBJECT lo_allocator.
+    CREATE OBJECT lo_reservation.
+    CREATE OBJECT lo_audit.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_true(
+      lo_audit->rejection_was_recorded( ) ).
+    cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
+    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+  ENDMETHOD.
+
+  METHOD audits_lock_failure.
+    DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_order_source_stub.
+    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
+    DATA lo_lock TYPE REF TO lcl_failing_lock_stub.
+    DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source.
+    CREATE OBJECT lo_order_source.
+    CREATE OBJECT lo_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation.
+    CREATE OBJECT lo_lock.
+    CREATE OBJECT lo_audit.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_lock         = lo_lock
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_true(
+      lo_audit->rejection_was_recorded( ) ).
+    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
+  ENDMETHOD.
+
+  METHOD surfaces_audit_failure.
+    DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_order_source_stub.
+    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
+    DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source.
+    CREATE OBJECT lo_order_source.
+    CREATE OBJECT lo_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation.
+    CREATE OBJECT lo_audit.
+    lo_audit->fail_finish( ).
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
+  ENDMETHOD.
+
+  METHOD audits_stock_read_failure.
+    DATA lo_stock_source TYPE REF TO lcl_failing_stock_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_order_source_stub.
+    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
+    DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source.
+    CREATE OBJECT lo_order_source.
+    CREATE OBJECT lo_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation.
+    CREATE OBJECT lo_audit.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_true(
+      lo_audit->rejection_was_recorded( ) ).
+    cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
+    cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
   ENDMETHOD.
 ENDCLASS.

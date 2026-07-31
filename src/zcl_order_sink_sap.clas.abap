@@ -54,6 +54,8 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
+    DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
     IF iv_sales_document IS INITIAL
@@ -88,11 +90,16 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = <ls_return>-message.
+        ENDIF.
       ENDIF.
     ENDLOOP.
     IF lv_bapi_error = abap_true OR lv_bapi_subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = lv_bapi_message.
+      RAISE EXCEPTION lo_error.
     ENDIF.
 
     CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'

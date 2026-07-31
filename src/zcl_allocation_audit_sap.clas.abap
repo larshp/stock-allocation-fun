@@ -104,6 +104,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_filtered TYPE zif_allocation_audit=>tt_runs.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
+    IF iv_start_date_from IS NOT INITIAL
+        AND iv_start_date_to IS NOT INITIAL
+        AND iv_start_date_from > iv_start_date_to.
+      RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
+    IF iv_status IS NOT INITIAL
+        AND iv_status <> 'R'
+        AND iv_status <> 'S'
+        AND iv_status <> 'P'
+        AND iv_status <> 'E'.
+      RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
+
     SELECT run_id,
            matnr AS material,
            werks AS plant,
@@ -130,9 +143,22 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF sy-subrc <> 0.
       CLEAR rt_runs.
     ENDIF.
-    IF iv_unit IS NOT INITIAL.
-      LOOP AT rt_runs ASSIGNING <ls_run> WHERE unit = iv_unit.
-        APPEND <ls_run> TO lt_filtered.
+    IF iv_unit IS NOT INITIAL
+        OR iv_start_date_from IS NOT INITIAL
+        OR iv_start_date_to IS NOT INITIAL
+        OR iv_status IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF iv_status IS INITIAL OR <ls_run>-status = iv_status.
+          IF iv_unit IS INITIAL OR <ls_run>-unit = iv_unit.
+            IF iv_start_date_from IS INITIAL
+                OR <ls_run>-start_date >= iv_start_date_from.
+              IF iv_start_date_to IS INITIAL
+                  OR <ls_run>-start_date <= iv_start_date_to.
+                APPEND <ls_run> TO lt_filtered.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
       ENDLOOP.
       rt_runs = lt_filtered.
     ENDIF.

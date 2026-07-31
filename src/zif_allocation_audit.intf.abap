@@ -46,6 +46,9 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_unit             TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_start_date_from  TYPE d OPTIONAL
+      iv_start_date_to    TYPE d OPTIONAL
+      iv_status           TYPE ty_run_status OPTIONAL
     RETURNING
       VALUE(rt_runs)      TYPE tt_runs
     RAISING

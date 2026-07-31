@@ -1,5 +1,8 @@
 {
-  "input_folder": "src",
+  "input_folder": [
+    "src",
+    "sap_stubs"
+  ],
   "output_folder": "output",
   "libs": [
     {
@@ -8,8 +11,13 @@
     }
   ],
   "options": {
+    "addCommonJS": true,
     "addFilenames": true,
-    "importProg": true,
+    "importProg": false,
+    "setup": {
+      "filename": "../test/setup.mjs",
+      "preFunction": "initializeDatabase"
+    },
     "unknownTypes": "runtimeError"
   },
   "write_source_map": true,

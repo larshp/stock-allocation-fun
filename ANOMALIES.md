@@ -48,7 +48,11 @@
 - Resolved: successful and partial audit runs had blank diagnostics; normal completion now records an explicit outcome message.
 - Resolved: audit retention existed only as a callable API; the new purge report exposes it with an explicit execution guard and preserves the existing protection for running rows.
 - Resolved: the purge report could otherwise accept a future cutoff that matched all completed history; future dates are rejected before the API is called.
-- Resolved: allocation had no standard SAP authorization seam; movement type `BWART` is now checked for activity `01` through `M_MSEG_WMB` before allocation begins.
+- Resolved: allocation had no standard SAP authorization seam, and the first object choice targeted goods movements; reservation movement type `BWART` is now checked for activity `01` through `M_RES_BWA` before allocation begins.
+- Resolved: delivery-blocked sales orders could be treated as allocatable demand; the SAP order reader now excludes both header and item delivery blocks.
+- Resolved: operators could query audit summaries but not inspect individual run diagnostics; `ZSTOCK_ALLOC_HISTORY` now exposes scoped run details without side effects.
+- Resolved: any user able to start the purge report could request audit deletion; the report now requires explicit `S_TABU_NAM` activity `06` authorization for `ZSTOCKALLOC_RUN`.
+- Resolved: the opt-in goods-issue adapter could call `BAPI_GOODSMVT_CREATE` without an authorization seam; callers can now inject the standard `M_MSEG_WMB` check.
 - Resolved: reservation creation now checks `BAPIRET2` error types (`A`, `E`, and `X`) before calling `BAPI_TRANSACTION_COMMIT`.
 - Resolved: the reservation adapter preserves the BAPI `sy-subrc` before looping over `RETURN`, because the loop itself changes `sy-subrc` for an empty message table.
 - Resolved: the SQLite harness now sets `sy-mandt` to the seeded client `000`; Open ABAP’s default runtime client is `123`.

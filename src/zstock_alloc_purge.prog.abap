@@ -10,6 +10,7 @@ PARAMETERS p_exec AS CHECKBOX.
 
 START-OF-SELECTION.
   DATA lo_audit TYPE REF TO zif_allocation_audit.
+  DATA lo_authority TYPE REF TO zif_allocation_retention_authority.
   DATA lv_deleted TYPE i.
 
   IF p_exec <> abap_true.
@@ -20,6 +21,14 @@ START-OF-SELECTION.
     WRITE: / 'No rows deleted. P_DATE cannot be in the future.'.
     RETURN.
   ENDIF.
+
+  CREATE OBJECT lo_authority TYPE zcl_allocation_retention_authority_sap.
+  TRY.
+      lo_authority->check( ).
+    CATCH zcx_stock_allocation.
+      WRITE: / 'No rows deleted. Retention authorization is missing.'.
+      RETURN.
+  ENDTRY.
 
   CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
   lv_deleted = lo_audit->purge_runs_before(

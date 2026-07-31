@@ -75,6 +75,10 @@
 - Added explicit completion messages to normal audit runs, distinguishing fully completed allocations from shortage-bearing partial allocations in report output.
 - Added `ZSTOCK_ALLOC_PURGE` as an explicit-`P_EXEC` operational entry point for unit- and batch-scoped audit retention; without the checkbox it performs no deletion.
 - Added a future-date guard to `ZSTOCK_ALLOC_PURGE` so an accidental cutoff cannot remove all completed history.
-- Added an injectable movement-type authorization boundary using SAP object `M_MSEG_WMB`; the report supplies the SAP adapter and unauthorized attempts are rejection-audited before stock reads or side effects.
+- Added an injectable reservation movement-type authorization boundary using SAP object `M_RES_BWA`; the report supplies the SAP adapter and unauthorized attempts are rejection-audited before stock reads or side effects.
+- Added `VBAK-LIFSK` and `VBAP-LIFSP` filtering so header- and item-delivery-blocked sales-order schedule lines never enter allocation.
+- Added read-only `ZSTOCK_ALLOC_HISTORY` output for scoped audit run status, quantities, timestamps, and diagnostic messages.
+- Added `S_TABU_NAM` delete authorization enforcement for `ZSTOCKALLOC_RUN` in `ZSTOCK_ALLOC_PURGE`, before the retention API is called.
+- Added an injectable `M_MSEG_WMB` goods-movement authorization boundary to `ZCL_STOCK_MOVEMENT_SAP`, checked before `BAPI_GOODSMVT_CREATE`.
 - Added `npm test` and expanded `npm run verify` so the standard project check executes the generated ABAP Unit harness as well as lint/transpilation.
 - Kept report imports out of the Open ABAP runtime bootstrap because selection-screen statements are SAP-runtime features; the report remains included in lint/transpile input.

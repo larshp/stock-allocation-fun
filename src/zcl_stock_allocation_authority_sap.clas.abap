@@ -8,7 +8,7 @@ ENDCLASS.
 
 CLASS zcl_stock_allocation_authority_sap IMPLEMENTATION.
   METHOD zif_stock_allocation_authority~check.
-    AUTHORITY-CHECK OBJECT 'M_MSEG_WMB'
+    AUTHORITY-CHECK OBJECT 'M_RES_BWA'
       ID 'BWART' FIELD iv_movement_type
       ID 'ACTVT' FIELD '01'.
     IF sy-subrc <> 0.

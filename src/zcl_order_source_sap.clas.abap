@@ -49,7 +49,9 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
+        AND item~lifsp = ''
         AND header~vbtyp = 'C'
+        AND header~lifsk = ''
         AND schedule~wmeng > schedule~bmeng.
     IF sy-subrc <> 0.
       CLEAR rt_demands.

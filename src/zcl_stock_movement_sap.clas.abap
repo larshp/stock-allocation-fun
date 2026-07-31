@@ -3,8 +3,12 @@ CLASS zcl_stock_movement_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_stock_movement_authority OPTIONAL.
     INTERFACES zif_stock_movement.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_stock_movement_authority.
     TYPES:
       BEGIN OF ty_header,
         pstng_date TYPE d,
@@ -53,6 +57,10 @@ CLASS zcl_stock_movement_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_movement_sap IMPLEMENTATION.
+  METHOD constructor.
+    mo_authority = io_authority.
+  ENDMETHOD.
+
   METHOD zif_stock_movement~post_goods_issue.
     DATA ls_header TYPE ty_header.
     DATA ls_code TYPE ty_code.
@@ -71,6 +79,9 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         OR iv_unit IS INITIAL
         OR iv_quantity <= 0.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
+    IF mo_authority IS BOUND.
+      mo_authority->check( iv_movement_type = iv_movement_type ).
     ENDIF.
 
     ls_header-pstng_date = sy-datum.

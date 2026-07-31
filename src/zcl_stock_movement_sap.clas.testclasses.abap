@@ -5,6 +5,18 @@ CLASS ltcl_stock_movement_sap DEFINITION FINAL FOR TESTING
     METHODS delegates_to_goods_movement FOR TESTING.
     METHODS rejects_bapi_error FOR TESTING.
     METHODS rejects_commit_failure FOR TESTING.
+    METHODS rejects_unauthorized FOR TESTING.
+ENDCLASS.
+
+CLASS lcl_failing_movement_authority DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_movement_authority.
+ENDCLASS.
+
+CLASS lcl_failing_movement_authority IMPLEMENTATION.
+  METHOD zif_stock_movement_authority~check.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_stock_movement_sap IMPLEMENTATION.
@@ -53,6 +65,30 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
     TRY.
         lo_cut->post_goods_issue(
           iv_material         = 'MATERIAL-GI-COMMIT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_unauthorized.
+    DATA lo_cut TYPE REF TO zcl_stock_movement_sap.
+    DATA lo_authority TYPE REF TO lcl_failing_movement_authority.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_authority.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_authority = lo_authority.
+    TRY.
+        lo_cut->zif_stock_movement~post_goods_issue(
+          iv_material         = 'MATERIAL-GI'
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_movement_type    = '201'

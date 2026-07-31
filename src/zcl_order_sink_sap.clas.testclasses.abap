@@ -59,6 +59,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
   METHOD rejects_commit_failure.
     DATA lo_cut TYPE REF TO zif_order_sink.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
@@ -68,11 +69,15 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
           iv_sales_item          = '000010'
           iv_schedule_line       = '0001'
           iv_quantity            = '4' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change commit failed' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized.

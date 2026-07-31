@@ -43,6 +43,9 @@
 - Added source validation that rejects positive open demand when `VBAK-AUART` is missing, before unit normalization or reservation side effects.
 - Added `ZSTOCK_ALLOC_ORDER_UPDATE` as an explicit `P_EXEC`-guarded report for authorized sales-order schedule-line quantity changes.
 - Added `ZSTOCK_ALLOC_GOODS_ISSUE` as an explicit `P_EXEC`-guarded report for authorized goods issues through `BAPI_GOODSMVT_CREATE`.
+- Added read-only `ZSTOCK_ALLOC_RESULT` output for per-demand allocation status, quantities, sales-document context, and reservation IDs.
+- Added snapshot run-ID propagation to read-only allocation results so each demand row can be reconciled to `ZSTOCKALLOC_RUN`.
+- Added explicit commit-failure messages for reservation, reservation cancellation, goods movement, and sales-order BAPI writes.
 - Strengthened the SAP FM stubs to reject incomplete goods-movement and schedule-line payloads, making the adapter tests validate required key and checkbox fields.
 - Added `ZSTOCKALLOC_RUN` and an injected audit port; allocation runs are recorded as running, successful, failed, or partially cleaned up with available, allocated, shortage, and demand-count summaries.
 - Switched audit run IDs to Open ABAP Core's `CL_SYSTEM_UUID` C32 generator after a timestamp-based implementation collided under same-second repeated runs.

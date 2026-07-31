@@ -20,6 +20,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_allocation_unit TYPE c LENGTH 3.
     DATA lv_batch TYPE c LENGTH 10.
     DATA lv_run_id TYPE c LENGTH 32.
+    DATA lt_saved_demands TYPE zif_stock_allocation=>tt_demands.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
     APPEND VALUE #( order_id  = 'STALE'
@@ -112,6 +113,16 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_status
       exp = 'P' ).
+
+    lt_saved_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-DB'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-001'
+      iv_unit             = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-DB' ).
 
     CLEAR lt_demands.
     APPEND VALUE #( order_id          = 'ORDER-DB'

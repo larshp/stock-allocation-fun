@@ -120,7 +120,9 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Sales-order change commit failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

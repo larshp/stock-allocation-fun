@@ -8,7 +8,8 @@ ENDCLASS.
 
 CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   METHOD zif_allocation_sink~get_allocations.
-    SELECT sales_document, sales_document_type, sales_item, schedule_line, order_unit,
+    SELECT run_id AS allocation_run_id,
+           sales_document, sales_document_type, sales_item, schedule_line, order_unit,
            order_id,
            requested, allocated, shortage, allocation_status,
            reservation_id,

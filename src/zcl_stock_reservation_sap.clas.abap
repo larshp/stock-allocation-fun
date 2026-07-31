@@ -142,7 +142,9 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Reservation commit failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
     rv_document = lv_reservation.
   ENDMETHOD.
@@ -189,7 +191,9 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Reservation cancellation commit failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

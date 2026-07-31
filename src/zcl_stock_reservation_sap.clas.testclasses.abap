@@ -90,6 +90,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
   METHOD rejects_commit_failure.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
     TRY.
@@ -101,11 +102,15 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
           iv_quantity         = '3'
           iv_unit             = 'EA'
           iv_required_date    = '20260815' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation commit failed' ).
   ENDMETHOD.
 
   METHOD cancels_reservation_bapi.

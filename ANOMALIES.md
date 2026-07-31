@@ -58,6 +58,9 @@
 - Resolved: open demand with a blank sales document type could enter allocation without an authorization context; the order source now rejects it at the SAP boundary.
 - Resolved: the sales-order mutation adapter had no standard operator entry point; `ZSTOCK_ALLOC_ORDER_UPDATE` now exposes it with an explicit execution guard and controlled failure output.
 - Resolved: the opt-in goods-movement adapter had no standard operator entry point; `ZSTOCK_ALLOC_GOODS_ISSUE` now exposes it with an explicit execution guard and controlled failure output.
+- Resolved: run history exposed only aggregates and operators could not inspect the current per-demand snapshot; `ZSTOCK_ALLOC_RESULT` now provides read-only detail output.
+- Resolved: per-demand result output lacked the audit-run correlation stored in `ZSTOCKALLOC`; the sink and result report now expose `RUN_ID`.
+- Resolved: BAPI commit failures raised blank domain exceptions; each SAP write adapter now preserves an operation-specific commit diagnostic.
 - Resolved: direct callers of `ZCL_STOCK_RESERVATION_SAP` could bypass the service authorization check; the adapter now accepts and enforces the standard `M_RES_BWA` boundary.
 - Resolved: SAP order-source validation failures were raised without an audit trail; the service now records `Open demand validation failed` before re-raising.
 - Resolved: unit-conversion exceptions were raised without diagnostics; stock and demand conversion failures now create explicit `E` audit rows.

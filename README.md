@@ -23,3 +23,5 @@ Direct sales-order schedule-line mutations can inject `V_VBAK_AAT` authorization
 The `ZSTOCK_ALLOC_ORDER_UPDATE` report changes one sales-order schedule-line quantity through the authorized adapter only when `p_exec` is selected; without the checkbox it performs no mutation and reports BAPI failures cleanly.
 
 The `ZSTOCK_ALLOC_GOODS_ISSUE` report posts one authorized goods issue through `BAPI_GOODSMVT_CREATE` only when `p_exec` is selected; without the checkbox it performs no mutation and reports BAPI failures cleanly.
+
+The read-only `ZSTOCK_ALLOC_RESULT` report displays the scoped per-demand allocation status, requested/allocated/shortage quantities, sales-document type, reservation IDs, and audit run ID from `ZSTOCKALLOC`.

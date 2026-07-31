@@ -31,7 +31,7 @@ START-OF-SELECTION.
         iv_movement_type    = p_bwart
         iv_quantity         = p_qty
         iv_unit             = p_meins
-        iv_batch             = p_charg ).
+        iv_batch            = p_charg ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF lo_error->message IS INITIAL.
         WRITE: / 'Goods issue failed.'.

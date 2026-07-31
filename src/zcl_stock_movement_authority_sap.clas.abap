@@ -12,7 +12,10 @@ CLASS zcl_stock_movement_authority_sap IMPLEMENTATION.
       ID 'BWART' FIELD iv_movement_type
       ID 'ACTVT' FIELD '01'.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Goods-movement authorization failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

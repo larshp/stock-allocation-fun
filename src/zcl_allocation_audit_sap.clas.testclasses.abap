@@ -82,8 +82,11 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_status           = 'X' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit status is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.

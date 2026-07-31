@@ -70,6 +70,11 @@
 - Resolved: stock-source exceptions could escape without diagnostics; the service now records `Available stock read failed` before re-raising.
 - Resolved: reservation errors and snapshot-write errors were both reported as `Allocation failed`; completed runs now identify reservation failures explicitly.
 - Resolved: partial reservation compensation was only visible through status `P`; audit messages now state `Reservation cleanup incomplete` for manual reconciliation.
+- Resolved: compensation and snapshot-persistence failures could hide the dependency's diagnostic; audit messages now retain those failure details alongside the reconciliation status.
+- Resolved: audit-finalization failures were re-raised as blank allocation exceptions; the service now preserves the audit dependency's diagnostic.
+- Resolved: direct audit API failures were largely blank exceptions; validation and persistence paths now identify the failing audit operation.
+- Resolved: history and retention reports hid audit dependency diagnostics behind generic output; both reports now display the returned message when available.
+- Resolved: SAP authorization and enqueue/dequeue failures were blank exceptions at their adapter boundaries; these paths now identify the denied or failed operation.
 - Resolved: the history report always displayed every scoped run; `P_STAT` now permits status-focused operational review.
 - Resolved: history review had no date-window control; inclusive `P_FROM`/`P_TO` filtering now supports bounded operational investigations and rejects reversed windows.
 - Resolved: invalid history status filters silently returned no rows; `P_STAT` now validates against the audit status domain.

@@ -4,12 +4,18 @@ CLASS zcl_allocation_audit_sap DEFINITION
   CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_allocation_audit.
+  PRIVATE SECTION.
+    METHODS raise_error
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~purge_runs_before.
     IF iv_before_date IS INITIAL.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit purge date is required' ).
     ENDIF.
     IF iv_unit IS INITIAL.
       DELETE FROM zstockalloc_run
@@ -78,7 +84,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     TRY.
         rv_run_id = cl_system_uuid=>create_uuid_c32_static( ).
       CATCH cx_uuid_error.
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Audit run ID generation failed' ).
     ENDTRY.
     ls_run-mandt = sy-mandt.
     ls_run-run_id = rv_run_id.
@@ -96,7 +102,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-message = iv_message.
     MODIFY zstockalloc_run FROM @ls_run.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit rejection persistence failed' ).
     ENDIF.
   ENDMETHOD.
 
@@ -107,14 +113,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_start_date_from IS NOT INITIAL
         AND iv_start_date_to IS NOT INITIAL
         AND iv_start_date_from > iv_start_date_to.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit date range is invalid' ).
     ENDIF.
     IF iv_status IS NOT INITIAL
         AND iv_status <> 'R'
         AND iv_status <> 'S'
         AND iv_status <> 'P'
         AND iv_status <> 'E'.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit status is invalid' ).
     ENDIF.
 
     SELECT run_id,
@@ -173,7 +179,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     TRY.
         rv_run_id = cl_system_uuid=>create_uuid_c32_static( ).
       CATCH cx_uuid_error.
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Audit run ID generation failed' ).
     ENDTRY.
     ls_run-mandt = sy-mandt.
     ls_run-run_id = rv_run_id.
@@ -189,7 +195,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-demand_count = iv_demand_count.
     MODIFY zstockalloc_run FROM @ls_run.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit run persistence failed' ).
     ENDIF.
   ENDMETHOD.
 
@@ -202,7 +208,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       WHERE mandt = @sy-mandt
         AND run_id = @iv_run_id.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit run was not found' ).
     ENDIF.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
@@ -213,7 +219,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-message = iv_message.
     MODIFY zstockalloc_run FROM @ls_run.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Audit finalization persistence failed' ).
     ENDIF.
+  ENDMETHOD.
+
+  METHOD raise_error.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = iv_message.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.

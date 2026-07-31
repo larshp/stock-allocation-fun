@@ -12,7 +12,10 @@ CLASS zcl_allocation_retention_authority_sap IMPLEMENTATION.
       ID 'TABLE' FIELD 'ZSTOCKALLOC_RUN'
       ID 'ACTVT' FIELD '06'.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Audit retention authorization failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

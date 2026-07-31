@@ -12,7 +12,10 @@ CLASS zcl_order_sink_authority_sap IMPLEMENTATION.
       ID 'AUART' FIELD iv_sales_document_type
       ID 'ACTVT' FIELD '02'.
     IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Sales-order authorization failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

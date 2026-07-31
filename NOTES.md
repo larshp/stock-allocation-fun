@@ -97,6 +97,11 @@
 - Added rejection audit records for available-stock read failures before demand retrieval or allocation.
 - Distinguished reservation-side allocation failures from snapshot-persistence failures in the completed audit message; reservation failures now report `Reservation failed`.
 - Added an explicit `Reservation cleanup incomplete` audit message when compensation cannot remove created reservations; snapshot-write cleanup failures identify the same manual-reconciliation risk.
+- Preserved compensation and snapshot-write exception messages in audit history, so partial or rejected runs include the actionable failure detail from the failing dependency.
+- Preserved audit-finalization exception messages through the allocation service, so callers receive the audit persistence diagnostic when finalization itself fails.
+- Added explicit messages for SAP audit validation, run creation, rejection persistence, and finalization failures.
+- Updated history and retention reports to show audit exception diagnostics when SAP audit operations fail.
+- Added explicit diagnostics for reservation, goods-movement, sales-order, retention, and allocation-lock authorization or lifecycle failures.
 - Added optional `P_STAT` filtering to `ZSTOCK_ALLOC_HISTORY` so operators can focus on successful, partial, running, or rejected runs within the existing material/unit scope.
 - Added optional inclusive `P_FROM`/`P_TO` start-date filtering to `ZSTOCK_ALLOC_HISTORY`, including a guard against reversed date windows.
 - Added explicit `P_STAT` validation so history operators can only request persisted run statuses `R`, `S`, `P`, or `E`.

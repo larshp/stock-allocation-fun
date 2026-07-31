@@ -38,8 +38,12 @@ START-OF-SELECTION.
         iv_start_date_from  = p_from
         iv_start_date_to    = p_to
         iv_status           = p_stat ).
-    CATCH zcx_stock_allocation.
-      WRITE: / 'History is unavailable for the requested scope.'.
+    CATCH zcx_stock_allocation INTO DATA(lo_error).
+      IF lo_error->message IS INITIAL.
+        WRITE: / 'History is unavailable for the requested scope.'.
+      ELSE.
+        WRITE: / 'History is unavailable:', lo_error->message.
+      ENDIF.
       RETURN.
   ENDTRY.
 

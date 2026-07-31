@@ -288,7 +288,10 @@ CLASS lcl_failing_allocation_sink_stub IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_sink~save_allocations.
-    RAISE EXCEPTION TYPE zcx_stock_allocation.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Allocation snapshot write failed'.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.
 
@@ -399,7 +402,10 @@ CLASS lcl_allocation_audit_stub IMPLEMENTATION.
 
   METHOD zif_allocation_audit~finish_run.
     IF mv_fail_finish = abap_true.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Audit finalization failed'.
+      RAISE EXCEPTION lo_error.
     ENDIF.
     mv_finished = abap_true.
     mv_status = iv_status.
@@ -442,7 +448,10 @@ CLASS lcl_partial_reservation_stub IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_reservation~cancel.
-    RAISE EXCEPTION TYPE zcx_stock_allocation.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Reservation cancellation failed'.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.
 
@@ -864,6 +873,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lo_audit->status( )
       exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_audit->message( )
+      exp = 'Allocation result was not persisted: Allocation snapshot write failed' ).
   ENDMETHOD.
 
   METHOD records_partial_cleanup.
@@ -908,7 +920,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 'P' ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_audit->message( )
-      exp = 'Reservation cleanup incomplete' ).
+      exp = 'Reservation cleanup incomplete: Reservation cancellation failed' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized.
@@ -1055,6 +1067,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
 
     CREATE OBJECT lo_stock_source.
     CREATE OBJECT lo_order_source.
@@ -1080,13 +1094,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
           iv_movement_type    = '201'
           iv_unit             = 'EA'
           iv_preview          = abap_true ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO lo_error.
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
     cl_abap_unit_assert=>assert_false( lo_sink->was_saved( ) ).
     cl_abap_unit_assert=>assert_false( lo_reservation->was_called( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Audit finalization failed' ).
   ENDMETHOD.
 
   METHOD audits_stock_read_failure.

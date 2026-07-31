@@ -39,8 +39,12 @@ START-OF-SELECTION.
         iv_batch            = p_charg
         iv_unit             = p_meins
         iv_before_date      = p_date ).
-    CATCH zcx_stock_allocation.
-      WRITE: / 'No rows deleted. Retention execution failed.'.
+    CATCH zcx_stock_allocation INTO DATA(lo_error).
+      IF lo_error->message IS INITIAL.
+        WRITE: / 'No rows deleted. Retention execution failed.'.
+      ELSE.
+        WRITE: / 'No rows deleted. Retention execution failed:', lo_error->message.
+      ENDIF.
       RETURN.
   ENDTRY.
 

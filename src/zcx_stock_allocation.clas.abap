@@ -1,0 +1,9 @@
+CLASS zcx_stock_allocation DEFINITION
+  PUBLIC
+  INHERITING FROM cx_static_check
+  FINAL
+  CREATE PUBLIC.
+ENDCLASS.
+
+CLASS zcx_stock_allocation IMPLEMENTATION.
+ENDCLASS.

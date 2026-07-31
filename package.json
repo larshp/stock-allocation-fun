@@ -1,0 +1,13 @@
+{
+  "name": "stock-allocation-fun",
+  "private": true,
+  "scripts": {
+    "lint": "abaplint abaplint.json",
+    "transpile": "abap_transpile transpiler.json",
+    "verify": "npm run lint && npm run transpile"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "^2.112.0",
+    "@abaplint/transpiler-cli": "^2.112.0"
+  }
+}

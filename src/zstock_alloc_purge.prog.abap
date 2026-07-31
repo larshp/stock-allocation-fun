@@ -25,12 +25,19 @@ START-OF-SELECTION.
   CREATE OBJECT lo_authority TYPE zcl_allocation_retention_authority_sap.
   TRY.
       lo_authority->check( ).
-    CATCH zcx_stock_allocation.
-      WRITE: / 'No rows deleted. Retention authorization is missing.'.
+    CATCH zcx_stock_allocation INTO DATA(lo_auth_error).
+      IF lo_auth_error->message IS INITIAL.
+        WRITE: / 'No rows deleted. Retention authorization is missing.'.
+      ELSE.
+        WRITE: / 'No rows deleted. Retention authorization failed:',
+                 lo_auth_error->message.
+      ENDIF.
       RETURN.
   ENDTRY.
 
-  CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+  CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap
+    EXPORTING
+      io_retention_authority = lo_authority.
   TRY.
       lv_deleted = lo_audit->purge_runs_before(
         iv_material         = p_matnr

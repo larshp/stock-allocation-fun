@@ -4,6 +4,7 @@ CLASS ltcl_stock_allocation_lock_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS acquires_and_releases FOR TESTING.
     METHODS rejects_enqueue_failure FOR TESTING.
+    METHODS rejects_dequeue_failure FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
@@ -38,6 +39,23 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
     TRY.
         lo_cut->acquire(
           iv_material         = 'MATERIAL-LOCK-ERROR'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_dequeue_failure.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_lock.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_lock_sap.
+    TRY.
+        lo_cut->release(
+          iv_material         = 'MATERIAL-UNLOCK-ERROR'
           iv_plant            = '1000'
           iv_storage_location = '0001' ).
       CATCH zcx_stock_allocation.

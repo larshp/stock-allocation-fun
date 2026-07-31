@@ -16,8 +16,13 @@ CLASS zcl_order_source_sap DEFINITION
         requested_on        TYPE d,
         requested           TYPE p LENGTH 8 DECIMALS 3,
         confirmed           TYPE p LENGTH 8 DECIMALS 3,
-      END OF ty_schedule.
+    END OF ty_schedule.
     TYPES tt_schedule TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
+    METHODS raise_error
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_order_source_sap IMPLEMENTATION.
@@ -27,6 +32,9 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
     DATA lv_client TYPE c LENGTH 3.
     FIELD-SYMBOLS <ls_schedule> TYPE ty_schedule.
 
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL.
+      raise_error( iv_message = 'Order demand scope is incomplete' ).
+    ENDIF.
     lv_client = sy-mandt.
 
     SELECT item~vbeln AS order_id,
@@ -78,13 +86,26 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       ls_demand-requested = <ls_schedule>-requested - <ls_schedule>-confirmed.
       IF ls_demand-requested > 0
           AND ls_demand-order_unit IS INITIAL.
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Open demand unit is missing' ).
       ENDIF.
       IF ls_demand-requested > 0
           AND ls_demand-sales_document_type IS INITIAL.
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Sales document type is missing' ).
+      ENDIF.
+      IF ls_demand-sales_document IS INITIAL
+          OR ls_demand-sales_item IS INITIAL
+          OR ls_demand-schedule_line IS INITIAL
+          OR ls_demand-requested <= 0.
+        raise_error( iv_message = 'Open demand record is invalid' ).
       ENDIF.
       APPEND ls_demand TO rt_demands.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD raise_error.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = iv_message.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.

@@ -12,7 +12,7 @@ PARAMETERS p_exec AS CHECKBOX.
 START-OF-SELECTION.
   DATA lo_movement TYPE REF TO zif_stock_movement.
   DATA lo_authority TYPE REF TO zif_stock_movement_authority.
-  DATA lv_document TYPE zif_stock_allocation=>ty_order_id.
+  DATA ls_document TYPE zif_stock_movement=>ty_document.
 
   IF p_exec <> abap_true.
     WRITE: / 'No goods issue posted. Select P_EXEC to execute the update.'.
@@ -24,7 +24,7 @@ START-OF-SELECTION.
     EXPORTING
       io_authority = lo_authority.
   TRY.
-      lv_document = lo_movement->post_goods_issue(
+      ls_document = lo_movement->post_goods_issue(
         iv_material         = p_matnr
         iv_plant            = p_werks
         iv_storage_location = p_lgort
@@ -41,4 +41,5 @@ START-OF-SELECTION.
       RETURN.
   ENDTRY.
 
-  WRITE: / 'Goods issue posted. Material document:', lv_document.
+  WRITE: / 'Goods issue posted. Material document:',
+           ls_document-number, 'Year:', ls_document-year.

@@ -5,15 +5,17 @@ CLASS zcl_stock_allocation_service DEFINITION
   PUBLIC SECTION.
     METHODS constructor
       IMPORTING
-        io_stock_source   TYPE REF TO zif_stock_source
-        io_order_source   TYPE REF TO zif_order_source
-        io_sink           TYPE REF TO zif_allocation_sink OPTIONAL
-        io_allocator      TYPE REF TO zif_stock_allocation
-        io_reservation    TYPE REF TO zif_stock_reservation OPTIONAL
-        io_unit_converter TYPE REF TO zif_unit_conversion OPTIONAL
-        io_lock           TYPE REF TO zif_stock_allocation_lock OPTIONAL
-        io_authority      TYPE REF TO zif_stock_allocation_authority OPTIONAL
-        io_audit          TYPE REF TO zif_allocation_audit.
+        io_stock_source    TYPE REF TO zif_stock_source
+        io_order_source    TYPE REF TO zif_order_source
+        io_sink            TYPE REF TO zif_allocation_sink OPTIONAL
+        io_allocator       TYPE REF TO zif_stock_allocation
+        io_reservation     TYPE REF TO zif_stock_reservation OPTIONAL
+        io_unit_converter  TYPE REF TO zif_unit_conversion OPTIONAL
+        io_lock            TYPE REF TO zif_stock_allocation_lock OPTIONAL
+        io_authority       TYPE REF TO zif_stock_allocation_authority OPTIONAL
+        io_write_authority TYPE REF TO zif_allocation_write_authority OPTIONAL
+        io_transaction     TYPE REF TO zif_allocation_transaction OPTIONAL
+        io_audit           TYPE REF TO zif_allocation_audit.
     METHODS allocate
       IMPORTING
         iv_material         TYPE zif_stock_allocation=>ty_material
@@ -37,6 +39,8 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mo_unit_converter TYPE REF TO zif_unit_conversion.
     DATA mo_lock TYPE REF TO zif_stock_allocation_lock.
     DATA mo_authority TYPE REF TO zif_stock_allocation_authority.
+    DATA mo_write_authority TYPE REF TO zif_allocation_write_authority.
+    DATA mo_transaction TYPE REF TO zif_allocation_transaction.
     DATA mo_audit TYPE REF TO zif_allocation_audit.
     METHODS finish_audit
       IMPORTING
@@ -57,6 +61,11 @@ CLASS zcl_stock_allocation_service DEFINITION
         iv_unit             TYPE zif_stock_allocation=>ty_unit
         iv_available        TYPE zif_stock_allocation=>ty_quantity
         iv_message          TYPE zif_allocation_audit=>ty_message.
+    METHODS raise_error
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_service IMPLEMENTATION.
@@ -67,8 +76,26 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     mo_allocator = io_allocator.
     mo_reservation = io_reservation.
     mo_unit_converter = io_unit_converter.
-    mo_lock = io_lock.
-    mo_authority = io_authority.
+    IF io_lock IS BOUND.
+      mo_lock = io_lock.
+    ELSE.
+      CREATE OBJECT mo_lock TYPE zcl_stock_allocation_lock_sap.
+    ENDIF.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_stock_allocation_authority_sap.
+    ENDIF.
+    IF io_write_authority IS BOUND.
+      mo_write_authority = io_write_authority.
+    ELSE.
+      CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_authority_sap.
+    ENDIF.
+    IF io_transaction IS BOUND.
+      mo_transaction = io_transaction.
+    ELSE.
+      CREATE OBJECT mo_transaction TYPE zcl_allocation_transaction_sap.
+    ENDIF.
     mo_audit = io_audit.
   ENDMETHOD.
 
@@ -79,6 +106,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lv_allocated TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_demand_count TYPE i.
+    DATA lv_result_count TYPE i.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
@@ -87,18 +115,36 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lv_failure_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_cleanup_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_persistence_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_release_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_audit_failure_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_converted_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA lo_cleanup_error TYPE REF TO zcx_stock_allocation.
     DATA lo_persistence_error TYPE REF TO zcx_stock_allocation.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     DATA lv_lock_acquired TYPE abap_bool.
     DATA lv_min_shelf_life_date TYPE d.
     DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_original_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_demand_order_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_result_order_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
+      WITH UNIQUE KEY table_line.
     DATA lt_existing TYPE zif_stock_allocation=>tt_demands.
     DATA lt_reservations TYPE STANDARD TABLE OF zif_stock_allocation=>ty_order_id
       WITH EMPTY KEY.
     DATA lt_reused TYPE STANDARD TABLE OF zif_stock_allocation=>ty_order_id
       WITH EMPTY KEY.
+    DATA lt_existing_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_cancel_movement_types TYPE SORTED TABLE OF zif_stock_allocation=>ty_movement_type
+      WITH UNIQUE KEY table_line.
+    DATA lt_existing_order_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
+      WITH UNIQUE KEY table_line.
+    DATA lv_existing_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_existing_run_id TYPE zif_stock_allocation=>ty_run_id.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
+    FIELD-SYMBOLS <ls_original> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_existing> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <lv_reservation> TYPE zif_stock_allocation=>ty_order_id.
 
@@ -117,7 +163,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available        = 0
           iv_message          = 'Invalid allocation input' ).
       ENDIF.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Invalid allocation input' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       IF mo_audit IS BOUND.
@@ -130,7 +176,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available        = 0
           iv_message          = 'Invalid minimum shelf life' ).
       ENDIF.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Invalid minimum shelf life' ).
     ENDIF.
     IF mo_stock_source IS NOT BOUND
         OR mo_order_source IS NOT BOUND
@@ -148,12 +194,52 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available        = 0
           iv_message          = 'Allocation dependency missing' ).
       ENDIF.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Allocation dependency missing' ).
+    ENDIF.
+
+    IF mo_write_authority IS BOUND AND iv_preview <> abap_true.
+      TRY.
+          mo_write_authority->check_result_write( ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Allocation result write authorization failed'.
+          ENDIF.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = 0
+            iv_message          = lo_error->message ).
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
+      TRY.
+          mo_write_authority->check_result_delete( ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Allocation result delete authorization failed'.
+          ENDIF.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = 0
+            iv_message          = lo_error->message ).
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
     ENDIF.
 
     IF mo_authority IS BOUND AND iv_preview <> abap_true.
       TRY.
-          mo_authority->check( iv_movement_type = iv_movement_type ).
+          mo_authority->check(
+            iv_plant         = iv_plant
+            iv_movement_type = iv_movement_type ).
+          mo_authority->check_cancel(
+            iv_plant         = iv_plant
+            iv_movement_type = iv_movement_type ).
         CATCH zcx_stock_allocation INTO lo_error.
           IF lo_error->message IS INITIAL.
             record_rejection(
@@ -174,7 +260,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Movement authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
       ENDTRY.
     ENDIF.
 
@@ -205,7 +294,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Allocation lock acquisition failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
       ENDTRY.
       lv_lock_acquired = abap_true.
     ENDIF.
@@ -236,7 +328,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Available stock read failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
       ENDTRY.
     IF ls_available-material_found <> abap_true.
       record_rejection(
@@ -247,7 +342,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = 0
         iv_message          = 'Material does not exist' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Material does not exist' ).
     ENDIF.
     IF ls_available-unit IS INITIAL.
       record_rejection(
@@ -258,7 +353,18 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = 0
         iv_message          = 'Material base unit is missing' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Material base unit is missing' ).
+    ENDIF.
+    IF ls_available-quantity < 0.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = iv_unit
+        iv_available        = 0
+        iv_message          = 'Stock quantity is invalid' ).
+      raise_error( iv_message = 'Stock quantity is invalid' ).
     ENDIF.
     lv_available = ls_available-quantity.
     IF ls_available-batch_managed = abap_true
@@ -271,7 +377,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is required' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Batch is required' ).
     ENDIF.
     IF iv_batch IS NOT INITIAL
         AND ls_available-batch_managed <> abap_true.
@@ -283,7 +389,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Material is not batch managed' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Material is not batch managed' ).
     ENDIF.
     IF iv_batch IS NOT INITIAL
         AND ls_available-batch_found <> abap_true.
@@ -295,7 +401,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Batch does not exist in storage location' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Batch does not exist in storage location' ).
     ENDIF.
     IF iv_batch IS NOT INITIAL
         AND ls_available-batch_expiration_date IS NOT INITIAL
@@ -308,7 +414,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is expired' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Batch is expired' ).
     ENDIF.
     IF iv_min_shelf_life > 0
         AND iv_batch IS INITIAL.
@@ -320,7 +426,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Minimum shelf life requires a batch' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Minimum shelf life requires a batch' ).
     ENDIF.
     IF iv_min_shelf_life > 0
         AND ls_available-batch_expiration_date IS INITIAL.
@@ -332,7 +438,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Batch expiration date is required for shelf-life policy' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Batch expiration date is required for shelf-life policy' ).
     ENDIF.
     IF iv_min_shelf_life > 0.
       lv_min_shelf_life_date = sy-datum + iv_min_shelf_life.
@@ -345,7 +451,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_unit             = iv_unit
           iv_available        = lv_available
           iv_message          = 'Batch does not meet minimum shelf life' ).
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Batch does not meet minimum shelf life' ).
       ENDIF.
     ENDIF.
     IF ls_available-batch_restricted = abap_true.
@@ -357,7 +463,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_unit             = iv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is restricted' ).
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Batch is restricted' ).
     ENDIF.
     IF lv_available > 0
         AND ls_available-unit <> iv_unit.
@@ -370,7 +476,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_unit             = iv_unit
           iv_available        = lv_available
           iv_message          = 'Stock unit conversion failed' ).
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        raise_error( iv_message = 'Stock unit conversion failed' ).
       ENDIF.
       TRY.
           lv_available = mo_unit_converter->convert(
@@ -398,8 +504,22 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_available        = lv_available
               iv_message          = lo_error->message ).
           ENDIF.
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Stock unit conversion failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
       ENDTRY.
+      IF lv_available <= 0.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = 0
+          iv_message          = 'Stock unit conversion produced invalid quantity' ).
+        raise_error( iv_message = 'Stock unit conversion produced invalid quantity' ).
+      ENDIF.
     ENDIF.
     TRY.
         lt_demands = mo_order_source->get_open_demands(
@@ -425,8 +545,38 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_available        = lv_available
             iv_message          = lo_error->message ).
         ENDIF.
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        IF lo_error->message IS INITIAL.
+          lo_error->message = 'Open demand validation failed'.
+        ENDIF.
+        RAISE EXCEPTION lo_error.
     ENDTRY.
+    LOOP AT lt_demands ASSIGNING <ls_demand>.
+      IF <ls_demand>-order_id IS INITIAL
+          OR <ls_demand>-requested <= 0.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Open demand quantity or key is invalid' ).
+        raise_error( iv_message = 'Open demand quantity or key is invalid' ).
+      ENDIF.
+      INSERT <ls_demand>-order_id INTO TABLE lt_demand_order_ids.
+      IF sy-subrc <> 0.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Open demand key is duplicated' ).
+        raise_error( iv_message = 'Open demand key is duplicated' ).
+      ENDIF.
+    ENDLOOP.
+    DESCRIBE TABLE lt_demands LINES lv_demand_count.
     IF ls_available-batch_expiration_date IS NOT INITIAL.
       LOOP AT lt_demands ASSIGNING <ls_demand>.
         IF <ls_demand>-requested_on IS NOT INITIAL
@@ -440,7 +590,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_unit             = iv_unit
             iv_available        = lv_available
             iv_message          = 'Batch expires before delivery date' ).
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          raise_error( iv_message = 'Batch expires before delivery date' ).
         ENDIF.
       ENDLOOP.
     ENDIF.
@@ -456,7 +606,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_unit             = iv_unit
             iv_available        = lv_available
             iv_message          = 'Demand unit conversion failed' ).
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
+          raise_error( iv_message = 'Demand unit conversion failed' ).
         ENDIF.
         TRY.
             <ls_demand>-requested = mo_unit_converter->convert(
@@ -464,7 +614,32 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_quantity  = <ls_demand>-requested
               iv_unit_from = <ls_demand>-order_unit
               iv_unit_to   = iv_unit ).
-          CATCH zcx_stock_allocation.
+          CATCH zcx_stock_allocation INTO lo_error.
+            IF lo_error->message IS INITIAL.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = 'Demand unit conversion failed' ).
+            ELSE.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = lo_error->message ).
+            ENDIF.
+            IF lo_error->message IS INITIAL.
+              lo_error->message = 'Demand unit conversion failed'.
+            ENDIF.
+            RAISE EXCEPTION lo_error.
+          ENDTRY.
+          IF <ls_demand>-requested <= 0.
             record_rejection(
               iv_material         = iv_material
               iv_plant            = iv_plant
@@ -472,10 +647,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_batch            = iv_batch
               iv_unit             = iv_unit
               iv_available        = lv_available
-              iv_message          = 'Demand unit conversion failed' ).
-            RAISE EXCEPTION TYPE zcx_stock_allocation.
-        ENDTRY.
-      ENDIF.
+              iv_message          = 'Demand unit conversion produced invalid quantity' ).
+            raise_error( iv_message = 'Demand unit conversion produced invalid quantity' ).
+          ENDIF.
+        ENDIF.
     ENDLOOP.
     IF iv_preview <> abap_true.
       TRY.
@@ -483,9 +658,51 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_material         = iv_material
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
-            iv_batch            = iv_batch
-            iv_unit             = iv_unit ).
-        CATCH zcx_stock_allocation.
+            iv_batch            = iv_batch ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = iv_unit
+              iv_available        = lv_available
+              iv_message          = 'Allocation snapshot read failed' ).
+          ELSE.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = iv_unit
+              iv_available        = lv_available
+              iv_message          = lo_error->message ).
+          ENDIF.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Allocation snapshot read failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
+      SORT lt_existing BY allocation_unit order_id.
+      LOOP AT lt_existing ASSIGNING <ls_existing>.
+        IF <ls_existing>-allocation_run_id IS INITIAL
+            OR <ls_existing>-order_id IS INITIAL
+            OR <ls_existing>-allocation_unit IS INITIAL
+            OR <ls_existing>-requested <= 0
+            OR <ls_existing>-allocated < 0
+            OR <ls_existing>-shortage < 0
+            OR <ls_existing>-allocated > <ls_existing>-requested
+            OR <ls_existing>-shortage <> <ls_existing>-requested
+              - <ls_existing>-allocated
+            OR ( <ls_existing>-allocated > 0
+              AND <ls_existing>-reservation_unit IS NOT INITIAL
+              AND <ls_existing>-reservation_unit <> <ls_existing>-allocation_unit )
+            OR ( <ls_existing>-allocated = 0
+              AND ( <ls_existing>-reservation_id IS NOT INITIAL
+                OR <ls_existing>-reservation_date IS NOT INITIAL
+                OR <ls_existing>-reservation_movement_type IS NOT INITIAL
+                OR <ls_existing>-reservation_unit IS NOT INITIAL ) ).
           record_rejection(
             iv_material         = iv_material
             iv_plant            = iv_plant
@@ -493,17 +710,249 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_batch            = iv_batch
             iv_unit             = iv_unit
             iv_available        = lv_available
-            iv_message          = 'Allocation snapshot read failed' ).
-          RAISE EXCEPTION TYPE zcx_stock_allocation.
-      ENDTRY.
+            iv_message          = 'Allocation snapshot read returned invalid data' ).
+          raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
+        ENDIF.
+        IF lv_existing_unit IS INITIAL
+            OR lv_existing_unit <> <ls_existing>-allocation_unit.
+          lv_existing_unit = <ls_existing>-allocation_unit.
+          lv_existing_run_id = <ls_existing>-allocation_run_id.
+          CLEAR lt_existing_order_ids.
+        ELSEIF lv_existing_run_id <> <ls_existing>-allocation_run_id.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation snapshot read returned inconsistent provenance' ).
+          raise_error( iv_message = 'Allocation snapshot read returned inconsistent provenance' ).
+        ENDIF.
+        INSERT <ls_existing>-order_id INTO TABLE lt_existing_order_ids.
+        IF sy-subrc <> 0.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation snapshot read returned duplicated demand key' ).
+          raise_error( iv_message = 'Allocation snapshot read returned duplicated demand key' ).
+        ENDIF.
+        IF <ls_existing>-allocated > 0.
+          INSERT <ls_existing>-reservation_id INTO TABLE lt_existing_reservation_ids.
+          IF sy-subrc <> 0.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = iv_unit
+              iv_available        = lv_available
+              iv_message          = 'Allocation snapshot read returned duplicated reservation correlation' ).
+            raise_error( iv_message = 'Allocation snapshot read returned duplicated reservation correlation' ).
+          ENDIF.
+        ENDIF.
+        IF <ls_existing>-allocation_status <> 'F'
+            AND <ls_existing>-allocation_status <> 'P'
+            AND <ls_existing>-allocation_status <> 'U'.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation snapshot read returned invalid data' ).
+          raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
+        ENDIF.
+        IF ( <ls_existing>-allocation_status = 'F'
+              AND ( <ls_existing>-allocated <> <ls_existing>-requested
+                OR <ls_existing>-shortage <> 0 ) )
+            OR ( <ls_existing>-allocation_status = 'P'
+              AND ( <ls_existing>-allocated <= 0
+                OR <ls_existing>-allocated >= <ls_existing>-requested
+                OR <ls_existing>-shortage <= 0 ) )
+            OR ( <ls_existing>-allocation_status = 'U'
+              AND ( <ls_existing>-allocated <> 0
+                OR <ls_existing>-shortage <> <ls_existing>-requested ) )
+            OR ( <ls_existing>-allocated > 0
+              AND ( <ls_existing>-reservation_id IS INITIAL
+                OR <ls_existing>-reservation_date IS INITIAL
+                OR <ls_existing>-reservation_movement_type IS INITIAL
+                OR <ls_existing>-reservation_unit IS INITIAL ) ).
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation snapshot read returned invalid data' ).
+          raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
+      ENDIF.
+      ENDLOOP.
+      LOOP AT lt_existing ASSIGNING <ls_existing>.
+        IF <ls_existing>-allocation_unit = iv_unit
+            AND <ls_existing>-allocated > 0
+            AND <ls_existing>-reservation_movement_type <> iv_movement_type.
+          INSERT <ls_existing>-reservation_movement_type
+            INTO TABLE lt_cancel_movement_types.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT lt_cancel_movement_types INTO DATA(lv_cancel_movement_type).
+        TRY.
+            mo_authority->check_cancel(
+              iv_plant         = iv_plant
+              iv_movement_type = lv_cancel_movement_type ).
+          CATCH zcx_stock_allocation INTO lo_error.
+            IF lo_error->message IS INITIAL.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = 'Reservation cancellation authorization failed' ).
+              lo_error->message = 'Reservation cancellation authorization failed'.
+            ELSE.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = lo_error->message ).
+            ENDIF.
+            RAISE EXCEPTION lo_error.
+        ENDTRY.
+      ENDLOOP.
+      LOOP AT lt_existing ASSIGNING <ls_existing>.
+        IF <ls_existing>-allocation_unit IS INITIAL
+            OR <ls_existing>-allocation_unit = iv_unit
+            OR <ls_existing>-allocated <= 0
+            OR <ls_existing>-reservation_id IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        IF mo_unit_converter IS NOT BOUND.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Existing allocation unit conversion failed' ).
+          raise_error( iv_message = 'Existing allocation unit conversion failed' ).
+        ENDIF.
+        TRY.
+            lv_converted_quantity = mo_unit_converter->convert(
+              iv_material  = iv_material
+              iv_quantity  = <ls_existing>-allocated
+              iv_unit_from = <ls_existing>-allocation_unit
+              iv_unit_to   = iv_unit ).
+          CATCH zcx_stock_allocation INTO lo_error.
+            IF lo_error->message IS INITIAL.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = 'Existing allocation unit conversion failed' ).
+            ELSE.
+              record_rejection(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch
+                iv_unit             = iv_unit
+                iv_available        = lv_available
+                iv_message          = lo_error->message ).
+            ENDIF.
+            IF lo_error->message IS INITIAL.
+              lo_error->message = 'Existing allocation unit conversion failed'.
+            ENDIF.
+            RAISE EXCEPTION lo_error.
+        ENDTRY.
+        IF lv_converted_quantity <= 0.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Existing allocation unit conversion produced invalid quantity' ).
+          raise_error( iv_message = 'Existing allocation unit conversion produced invalid quantity' ).
+        ENDIF.
+        lv_reserved_quantity = lv_reserved_quantity + lv_converted_quantity.
+      ENDLOOP.
+      IF lv_available > 0.
+        IF lv_reserved_quantity >= lv_available.
+          CLEAR lv_available.
+        ELSE.
+          lv_available = lv_available - lv_reserved_quantity.
+        ENDIF.
+      ENDIF.
     ENDIF.
+    lt_original_demands = lt_demands.
     TRY.
         rv_remaining = mo_allocator->allocate(
           EXPORTING
             iv_available = lv_available
           CHANGING
             ct_demands   = lt_demands ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO lo_error.
+        IF lo_error->message IS INITIAL.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = 'Allocation calculation failed' ).
+        ELSE.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = iv_unit
+            iv_available        = lv_available
+            iv_message          = lo_error->message ).
+        ENDIF.
+        IF lo_error->message IS INITIAL.
+          lo_error->message = 'Allocation calculation failed'.
+        ENDIF.
+        RAISE EXCEPTION lo_error.
+    ENDTRY.
+    DESCRIBE TABLE lt_demands LINES lv_result_count.
+    IF lv_result_count <> lv_demand_count.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = iv_unit
+        iv_available        = lv_available
+        iv_message          = 'Allocation result is invalid' ).
+      raise_error( iv_message = 'Allocation result is invalid' ).
+    ENDIF.
+    LOOP AT lt_demands ASSIGNING <ls_demand>.
+      IF <ls_demand>-order_id IS INITIAL
+          OR <ls_demand>-requested <= 0
+          OR <ls_demand>-allocated < 0
+          OR <ls_demand>-shortage < 0
+          OR <ls_demand>-allocated > <ls_demand>-requested
+          OR <ls_demand>-shortage <> <ls_demand>-requested
+            - <ls_demand>-allocated.
         record_rejection(
           iv_material         = iv_material
           iv_plant            = iv_plant
@@ -511,35 +960,143 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_batch            = iv_batch
           iv_unit             = iv_unit
           iv_available        = lv_available
-          iv_message          = 'Allocation calculation failed' ).
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
-    ENDTRY.
-    DESCRIBE TABLE lt_demands LINES lv_demand_count.
-    LOOP AT lt_demands ASSIGNING <ls_demand>.
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      READ TABLE lt_demand_order_ids
+        WITH TABLE KEY table_line = <ls_demand>-order_id
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      READ TABLE lt_original_demands ASSIGNING <ls_original>
+        WITH KEY order_id = <ls_demand>-order_id.
+      IF sy-subrc <> 0
+          OR <ls_demand>-sales_document <> <ls_original>-sales_document
+          OR <ls_demand>-sales_document_type <> <ls_original>-sales_document_type
+          OR <ls_demand>-sales_item <> <ls_original>-sales_item
+          OR <ls_demand>-schedule_line <> <ls_original>-schedule_line
+          OR <ls_demand>-order_unit <> <ls_original>-order_unit
+          OR <ls_demand>-priority <> <ls_original>-priority
+          OR <ls_demand>-requested_on <> <ls_original>-requested_on
+          OR <ls_demand>-requested <> <ls_original>-requested.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      INSERT <ls_demand>-order_id INTO TABLE lt_result_order_ids.
+      IF sy-subrc <> 0.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      IF <ls_demand>-allocation_status <> 'F'
+          AND <ls_demand>-allocation_status <> 'P'
+          AND <ls_demand>-allocation_status <> 'U'.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      IF ( <ls_demand>-allocation_status = 'F'
+            AND ( <ls_demand>-allocated <> <ls_demand>-requested
+              OR <ls_demand>-shortage <> 0 ) )
+          OR ( <ls_demand>-allocation_status = 'P'
+            AND ( <ls_demand>-allocated <= 0
+              OR <ls_demand>-allocated >= <ls_demand>-requested
+              OR <ls_demand>-shortage <= 0 ) )
+          OR ( <ls_demand>-allocation_status = 'U'
+            AND ( <ls_demand>-allocated <> 0
+              OR <ls_demand>-shortage <> <ls_demand>-requested ) ).
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      IF ( <ls_demand>-reservation_id IS NOT INITIAL
+            OR <ls_demand>-reservation_date IS NOT INITIAL
+            OR <ls_demand>-reservation_movement_type IS NOT INITIAL
+            OR <ls_demand>-reservation_unit IS NOT INITIAL ).
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
       lv_allocated = lv_allocated + <ls_demand>-allocated.
       lv_shortage = lv_shortage + <ls_demand>-shortage.
     ENDLOOP.
-    lv_run_id = mo_audit->start_run(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_available        = lv_available
-      iv_demand_count     = lv_demand_count
-      iv_batch            = iv_batch
-      iv_unit             = iv_unit ).
+    IF rv_remaining < 0
+        OR rv_remaining + lv_allocated <> lv_available.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = iv_unit
+        iv_available        = lv_available
+        iv_message          = 'Allocation result is invalid' ).
+      raise_error( iv_message = 'Allocation result is invalid' ).
+    ENDIF.
+    TRY.
+        lv_run_id = mo_audit->start_run(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_available        = lv_available
+          iv_demand_count     = lv_demand_count
+          iv_batch            = iv_batch
+          iv_unit             = iv_unit ).
+      CATCH zcx_stock_allocation INTO lo_error.
+        IF lo_error->message IS INITIAL.
+          lo_error->message = 'Audit run start failed'.
+        ENDIF.
+        RAISE EXCEPTION lo_error.
+    ENDTRY.
+    IF lv_run_id IS INITIAL.
+      raise_error( iv_message = 'Audit run ID was not returned' ).
+    ENDIF.
     IF iv_preview = abap_true.
       IF lv_shortage > 0.
         lv_status = 'P'.
       ELSE.
         lv_status = 'S'.
       ENDIF.
-      finish_audit(
-        iv_run_id    = lv_run_id
-        iv_status    = lv_status
-        iv_available = lv_available
-        iv_allocated = lv_allocated
-        iv_shortage  = lv_shortage
-        iv_message   = 'Preview only; no reservations or snapshot were written' ).
+      lv_message = 'Preview only; no reservations or snapshot were written'.
     ELSE.
       lv_cleanup_failed = abap_false.
       lv_reservation_failed = abap_false.
@@ -550,9 +1107,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ELSE.
             lv_required_date = <ls_demand>-requested_on.
           ENDIF.
-          IF <ls_demand>-allocated > 0.
-            READ TABLE lt_existing ASSIGNING <ls_existing>
-              WITH KEY order_id = <ls_demand>-order_id.
+            IF <ls_demand>-allocated > 0.
+              READ TABLE lt_existing ASSIGNING <ls_existing>
+                WITH KEY order_id       = <ls_demand>-order_id
+                         allocation_unit = iv_unit.
             IF sy-subrc = 0
                 AND <ls_existing>-allocated = <ls_demand>-allocated
                 AND <ls_existing>-reservation_id IS NOT INITIAL
@@ -576,40 +1134,29 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                   iv_unit             = iv_unit
                   iv_required_date    = lv_required_date
                   iv_batch            = iv_batch ).
-              CATCH zcx_stock_allocation INTO DATA(lo_reservation_error).
+            CATCH zcx_stock_allocation INTO DATA(lo_reservation_error).
                 lv_reservation_failed = abap_true.
                 lv_failure_message = lo_reservation_error->message.
                 RAISE EXCEPTION TYPE zcx_stock_allocation.
             ENDTRY.
+            IF <ls_demand>-reservation_id IS INITIAL.
+              lv_reservation_failed = abap_true.
+              lv_failure_message = 'Reservation document was not returned'.
+              RAISE EXCEPTION TYPE zcx_stock_allocation.
+            ENDIF.
             <ls_demand>-reservation_date = lv_required_date.
             <ls_demand>-reservation_movement_type = iv_movement_type.
             <ls_demand>-reservation_unit = iv_unit.
             APPEND <ls_demand>-reservation_id TO lt_reservations.
           ENDIF.
         ENDLOOP.
-        LOOP AT lt_existing ASSIGNING <ls_existing>.
-          IF <ls_existing>-reservation_id IS NOT INITIAL.
-            READ TABLE lt_reused
-              WITH TABLE KEY table_line = <ls_existing>-reservation_id
-              TRANSPORTING NO FIELDS.
-            IF sy-subrc <> 0.
-              TRY.
-                  mo_reservation->cancel(
-                    iv_document = <ls_existing>-reservation_id ).
-                CATCH zcx_stock_allocation INTO lo_cleanup_error.
-                  lv_cleanup_failed = abap_true.
-                  IF lv_cleanup_message IS INITIAL.
-                    lv_cleanup_message = lo_cleanup_error->message.
-                  ENDIF.
-                  RAISE EXCEPTION TYPE zcx_stock_allocation.
-              ENDTRY.
-            ENDIF.
-          ENDIF.
-        ENDLOOP.
       CATCH zcx_stock_allocation.
         LOOP AT lt_reservations ASSIGNING <lv_reservation>.
           TRY.
-              mo_reservation->cancel( iv_document = <lv_reservation> ).
+              mo_reservation->cancel(
+                iv_document      = <lv_reservation>
+                iv_plant         = iv_plant
+                iv_movement_type = iv_movement_type ).
             CATCH zcx_stock_allocation INTO lo_cleanup_error.
               lv_cleanup_failed = abap_true.
               IF lv_cleanup_message IS INITIAL.
@@ -620,7 +1167,16 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDLOOP.
         IF lv_cleanup_failed = abap_true.
           lv_status = 'P'.
-          IF lv_cleanup_message IS INITIAL.
+          IF lv_failure_message IS NOT INITIAL
+              AND lv_cleanup_message IS NOT INITIAL.
+            CONCATENATE 'Reservation failed:' lv_failure_message
+              '; reservation cleanup incomplete:' lv_cleanup_message
+              INTO lv_message SEPARATED BY space.
+          ELSEIF lv_failure_message IS NOT INITIAL.
+            CONCATENATE 'Reservation failed:' lv_failure_message
+              '; reservation cleanup incomplete'
+              INTO lv_message SEPARATED BY space.
+          ELSEIF lv_cleanup_message IS INITIAL.
             lv_message = 'Reservation cleanup incomplete'.
           ELSE.
             CONCATENATE 'Reservation cleanup incomplete:' lv_cleanup_message
@@ -638,14 +1194,59 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             lv_message = 'Allocation failed'.
           ENDIF.
         ENDIF.
-        finish_audit(
-          iv_run_id    = lv_run_id
-          iv_status    = lv_status
-          iv_available = lv_available
-          iv_allocated = lv_allocated
-          iv_shortage  = lv_shortage
-          iv_message   = lv_message ).
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        TRY.
+            finish_audit(
+              iv_run_id    = lv_run_id
+              iv_status    = lv_status
+              iv_available = lv_available
+              iv_allocated = lv_allocated
+              iv_shortage  = lv_shortage
+              iv_message   = lv_message ).
+          CATCH zcx_stock_allocation INTO DATA(lo_reservation_audit_error).
+            IF lo_reservation_audit_error->message IS INITIAL
+                OR lo_reservation_audit_error->message = 'Audit finalization failed'.
+              lv_audit_failure_message = 'Audit finalization failed'.
+            ELSE.
+              CONCATENATE 'Audit finalization failed:'
+                lo_reservation_audit_error->message
+                INTO lv_audit_failure_message SEPARATED BY space.
+            ENDIF.
+            IF lv_message IS INITIAL.
+              lv_message = lv_audit_failure_message.
+            ELSE.
+              CONCATENATE lv_message lv_audit_failure_message
+                INTO lv_message SEPARATED BY '; '.
+            ENDIF.
+        ENDTRY.
+        IF lv_lock_acquired = abap_true.
+          TRY.
+              mo_lock->release(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch ).
+              CLEAR lv_lock_acquired.
+            CATCH zcx_stock_allocation INTO DATA(lo_reservation_release_error).
+              IF lo_reservation_release_error->message IS INITIAL.
+                lv_release_message = 'Allocation lock release failed'.
+              ELSE.
+                CONCATENATE 'Allocation lock release failed:'
+                  lo_reservation_release_error->message
+                  INTO lv_release_message SEPARATED BY space.
+              ENDIF.
+              IF lv_message IS INITIAL.
+                lv_message = lv_release_message.
+              ELSE.
+                CONCATENATE lv_message lv_release_message
+                  INTO lv_message SEPARATED BY '; '.
+              ENDIF.
+              CLEAR lv_lock_acquired.
+          ENDTRY.
+        ENDIF.
+        CLEAR lo_error.
+        CREATE OBJECT lo_error.
+        lo_error->message = lv_message.
+        RAISE EXCEPTION lo_error.
       ENDTRY.
       TRY.
         mo_sink->save_allocations(
@@ -656,11 +1257,17 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_run_id           = lv_run_id
           iv_unit             = iv_unit
           it_demands          = lt_demands ).
+        IF mo_transaction IS BOUND.
+          mo_transaction->commit( ).
+        ENDIF.
       CATCH zcx_stock_allocation INTO lo_persistence_error.
         lv_persistence_message = lo_persistence_error->message.
         LOOP AT lt_reservations ASSIGNING <lv_reservation>.
           TRY.
-              mo_reservation->cancel( iv_document = <lv_reservation> ).
+              mo_reservation->cancel(
+                iv_document      = <lv_reservation>
+                iv_plant         = iv_plant
+                iv_movement_type = iv_movement_type ).
             CATCH zcx_stock_allocation INTO lo_cleanup_error.
               lv_cleanup_failed = abap_true.
               IF lv_cleanup_message IS INITIAL.
@@ -693,29 +1300,97 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               INTO lv_message SEPARATED BY space.
           ENDIF.
         ENDIF.
-        finish_audit(
-          iv_run_id    = lv_run_id
-          iv_status    = lv_status
-          iv_available = lv_available
-          iv_allocated = lv_allocated
-          iv_shortage  = lv_shortage
-          iv_message   = lv_message ).
-        RAISE EXCEPTION TYPE zcx_stock_allocation.
+        TRY.
+            finish_audit(
+              iv_run_id    = lv_run_id
+              iv_status    = lv_status
+              iv_available = lv_available
+              iv_allocated = lv_allocated
+              iv_shortage  = lv_shortage
+              iv_message   = lv_message ).
+          CATCH zcx_stock_allocation INTO DATA(lo_persistence_audit_error).
+            IF lo_persistence_audit_error->message IS INITIAL
+                OR lo_persistence_audit_error->message = 'Audit finalization failed'.
+              lv_audit_failure_message = 'Audit finalization failed'.
+            ELSE.
+              CONCATENATE 'Audit finalization failed:'
+                lo_persistence_audit_error->message
+                INTO lv_audit_failure_message SEPARATED BY space.
+            ENDIF.
+            IF lv_message IS INITIAL.
+              lv_message = lv_audit_failure_message.
+            ELSE.
+              CONCATENATE lv_message lv_audit_failure_message
+                INTO lv_message SEPARATED BY '; '.
+            ENDIF.
+        ENDTRY.
+        IF lv_lock_acquired = abap_true.
+          TRY.
+              mo_lock->release(
+                iv_material         = iv_material
+                iv_plant            = iv_plant
+                iv_storage_location = iv_storage_location
+                iv_batch            = iv_batch ).
+              CLEAR lv_lock_acquired.
+            CATCH zcx_stock_allocation INTO DATA(lo_persistence_release_error).
+              IF lo_persistence_release_error->message IS INITIAL.
+                lv_release_message = 'Allocation lock release failed'.
+              ELSE.
+                CONCATENATE 'Allocation lock release failed:'
+                  lo_persistence_release_error->message
+                  INTO lv_release_message SEPARATED BY space.
+              ENDIF.
+              IF lv_message IS INITIAL.
+                lv_message = lv_release_message.
+              ELSE.
+                CONCATENATE lv_message lv_release_message
+                  INTO lv_message SEPARATED BY '; '.
+              ENDIF.
+              CLEAR lv_lock_acquired.
+          ENDTRY.
+        ENDIF.
+        CLEAR lo_error.
+        CREATE OBJECT lo_error.
+        lo_error->message = lv_message.
+        RAISE EXCEPTION lo_error.
       ENDTRY.
-      IF lv_shortage > 0.
-      lv_status = 'P'.
-      lv_message = 'Allocation completed with shortage'.
-    ELSE.
-      lv_status = 'S'.
-      lv_message = 'Allocation completed'.
-    ENDIF.
-      finish_audit(
-        iv_run_id    = lv_run_id
-        iv_status    = lv_status
-        iv_available = lv_available
-        iv_allocated = lv_allocated
-        iv_shortage  = lv_shortage
-        iv_message   = lv_message ).
+      LOOP AT lt_existing ASSIGNING <ls_existing>.
+        IF <ls_existing>-allocation_unit = iv_unit
+            AND <ls_existing>-reservation_id IS NOT INITIAL.
+          READ TABLE lt_reused
+            WITH TABLE KEY table_line = <ls_existing>-reservation_id
+            TRANSPORTING NO FIELDS.
+          IF sy-subrc <> 0.
+            TRY.
+                mo_reservation->cancel(
+                  iv_document      = <ls_existing>-reservation_id
+                  iv_plant         = iv_plant
+                  iv_movement_type = <ls_existing>-reservation_movement_type ).
+              CATCH zcx_stock_allocation INTO lo_cleanup_error.
+                lv_cleanup_failed = abap_true.
+                IF lv_cleanup_message IS INITIAL.
+                  lv_cleanup_message = lo_cleanup_error->message.
+                ENDIF.
+                CONTINUE.
+            ENDTRY.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      IF lv_cleanup_failed = abap_true.
+        lv_status = 'P'.
+        IF lv_cleanup_message IS INITIAL.
+          lv_message = 'Allocation completed; reservation cleanup incomplete'.
+        ELSE.
+          CONCATENATE 'Allocation completed; reservation cleanup incomplete:'
+            lv_cleanup_message INTO lv_message SEPARATED BY space.
+        ENDIF.
+      ELSEIF lv_shortage > 0.
+        lv_status = 'P'.
+        lv_message = 'Allocation completed with shortage'.
+      ELSE.
+        lv_status = 'S'.
+        lv_message = 'Allocation completed'.
+      ENDIF.
     ENDIF.
     CATCH zcx_stock_allocation INTO lo_error.
       IF lv_lock_acquired = abap_true.
@@ -725,29 +1400,112 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch ).
-          CATCH zcx_stock_allocation.
+          CATCH zcx_stock_allocation INTO DATA(lo_release_error).
+            IF lo_release_error->message IS INITIAL.
+              lv_release_message = 'Allocation lock release failed'.
+            ELSE.
+              CONCATENATE 'Allocation lock release failed:' lo_release_error->message
+                INTO lv_release_message SEPARATED BY space.
+            ENDIF.
+            IF lo_error->message IS INITIAL.
+              lo_error->message = lv_release_message.
+            ELSE.
+              CONCATENATE lo_error->message lv_release_message
+                INTO lo_error->message SEPARATED BY '; '.
+            ENDIF.
             CLEAR lv_lock_acquired.
         ENDTRY.
       ENDIF.
       RAISE EXCEPTION lo_error.
     ENDTRY.
     IF lv_lock_acquired = abap_true.
-      mo_lock->release(
-        iv_material         = iv_material
-        iv_plant            = iv_plant
-        iv_storage_location = iv_storage_location
-        iv_batch            = iv_batch ).
+      TRY.
+          mo_lock->release(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch ).
+          CLEAR lv_lock_acquired.
+          CATCH zcx_stock_allocation INTO lo_error.
+            IF lo_error->message IS INITIAL.
+              lv_release_message = 'Allocation lock release failed'.
+          ELSE.
+            CONCATENATE 'Allocation lock release failed:' lo_error->message
+                INTO lv_release_message SEPARATED BY space.
+            ENDIF.
+            IF lv_cleanup_failed = abap_true.
+              IF lv_message IS INITIAL.
+                lv_message = lv_release_message.
+              ELSE.
+                CONCATENATE lv_message lv_release_message
+                  INTO lv_message SEPARATED BY '; '.
+              ENDIF.
+              lv_release_message = lv_message.
+            ENDIF.
+            TRY.
+                finish_audit(
+                iv_run_id    = lv_run_id
+                iv_status    = 'P'
+                iv_available = lv_available
+                iv_allocated = lv_allocated
+                iv_shortage  = lv_shortage
+                iv_message   = lv_release_message ).
+            CATCH zcx_stock_allocation INTO DATA(lo_audit_release_error).
+              IF lv_release_message IS INITIAL.
+                lv_release_message = lo_audit_release_error->message.
+              ENDIF.
+          ENDTRY.
+          lo_error->message = lv_release_message.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
+    ENDIF.
+    TRY.
+        finish_audit(
+          iv_run_id    = lv_run_id
+          iv_status    = lv_status
+          iv_available = lv_available
+          iv_allocated = lv_allocated
+          iv_shortage  = lv_shortage
+          iv_message   = lv_message ).
+      CATCH zcx_stock_allocation INTO lo_error.
+        IF lv_cleanup_failed = abap_true.
+          IF lo_error->message IS INITIAL
+              OR lo_error->message = 'Audit finalization failed'.
+            lv_audit_failure_message = 'Audit finalization failed'.
+          ELSE.
+            CONCATENATE 'Audit finalization failed:'
+              lo_error->message INTO lv_audit_failure_message SEPARATED BY space.
+          ENDIF.
+          CONCATENATE lv_message lv_audit_failure_message
+            INTO lv_message SEPARATED BY '; '.
+          lo_error->message = lv_message.
+        ENDIF.
+        RAISE EXCEPTION lo_error.
+    ENDTRY.
+    IF lv_cleanup_failed = abap_true.
+      CLEAR lo_error.
+      CREATE OBJECT lo_error.
+      lo_error->message = lv_message.
+      RAISE EXCEPTION lo_error.
     ENDIF.
   ENDMETHOD.
 
   METHOD finish_audit.
-    mo_audit->finish_run(
-      iv_run_id    = iv_run_id
-      iv_status    = iv_status
-      iv_available = iv_available
-      iv_allocated = iv_allocated
-      iv_shortage  = iv_shortage
-      iv_message   = iv_message ).
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    TRY.
+        mo_audit->finish_run(
+          iv_run_id    = iv_run_id
+          iv_status    = iv_status
+          iv_available = iv_available
+          iv_allocated = iv_allocated
+          iv_shortage  = iv_shortage
+          iv_message   = iv_message ).
+      CATCH zcx_stock_allocation INTO lo_error.
+        IF lo_error->message IS INITIAL.
+          lo_error->message = 'Audit finalization failed'.
+        ENDIF.
+        RAISE EXCEPTION lo_error.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD record_rejection.
@@ -763,5 +1521,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       CATCH zcx_stock_allocation.
         RETURN.
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD raise_error.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = iv_message.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.

@@ -62,13 +62,22 @@ CLASS zcl_stock_reservation_sap DEFINITION
         row        TYPE i,
         field      TYPE c LENGTH 30,
         system     TYPE c LENGTH 10,
-      END OF ty_return.
+    END OF ty_return.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
+    METHODS raise_error
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_stock_reservation_sap IMPLEMENTATION.
   METHOD constructor.
-    mo_authority = io_authority.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_stock_allocation_authority_sap.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_stock_reservation~reserve.
@@ -78,6 +87,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA lv_reservation TYPE zif_stock_allocation=>ty_order_id.
     DATA lv_bapi_subrc TYPE sy-subrc.
+    DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
@@ -90,10 +100,19 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         OR iv_unit IS INITIAL
         OR iv_required_date IS INITIAL
         OR iv_quantity <= 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Reservation input is invalid' ).
     ENDIF.
     IF mo_authority IS BOUND.
-      mo_authority->check( iv_movement_type = iv_movement_type ).
+      TRY.
+          mo_authority->check(
+            iv_plant         = iv_plant
+            iv_movement_type = iv_movement_type ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Reservation authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
     ENDIF.
 
     ls_header-move_type = iv_movement_type.
@@ -132,6 +151,15 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         OR lv_bapi_subrc <> 0
         OR lv_reservation IS INITIAL.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
+      IF lv_bapi_message IS INITIAL.
+        lv_bapi_message = 'Reservation creation failed'.
+      ENDIF.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lv_bapi_message
+                    'Transaction rollback failed'
+               INTO lv_bapi_message SEPARATED BY '; '.
+      ENDIF.
       CREATE OBJECT lo_error.
       lo_error->message = lv_bapi_message.
       RAISE EXCEPTION lo_error.
@@ -142,8 +170,14 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
       CREATE OBJECT lo_error.
       lo_error->message = 'Reservation commit failed'.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lo_error->message
+                    'Transaction rollback failed'
+               INTO lo_error->message SEPARATED BY '; '.
+      ENDIF.
       RAISE EXCEPTION lo_error.
     ENDIF.
     rv_document = lv_reservation.
@@ -153,13 +187,29 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA lv_document TYPE c LENGTH 10.
     DATA lv_bapi_subrc TYPE sy-subrc.
+    DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
-    IF iv_document IS INITIAL.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+    IF iv_document IS INITIAL
+        OR iv_plant IS INITIAL
+        OR iv_movement_type IS INITIAL.
+      raise_error( iv_message = 'Reservation document is required' ).
+    ENDIF.
+
+    IF mo_authority IS BOUND.
+      TRY.
+          mo_authority->check_cancel(
+            iv_plant         = iv_plant
+            iv_movement_type = iv_movement_type ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Reservation cancellation authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
     ENDIF.
 
     lv_document = iv_document.
@@ -181,6 +231,15 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     ENDLOOP.
     IF lv_bapi_error = abap_true OR lv_bapi_subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
+      IF lv_bapi_message IS INITIAL.
+        lv_bapi_message = 'Reservation cancellation failed'.
+      ENDIF.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lv_bapi_message
+                    'Transaction rollback failed'
+               INTO lv_bapi_message SEPARATED BY '; '.
+      ENDIF.
       CREATE OBJECT lo_error.
       lo_error->message = lv_bapi_message.
       RAISE EXCEPTION lo_error.
@@ -191,9 +250,22 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
       CREATE OBJECT lo_error.
       lo_error->message = 'Reservation cancellation commit failed'.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lo_error->message
+                    'Transaction rollback failed'
+               INTO lo_error->message SEPARATED BY '; '.
+      ENDIF.
       RAISE EXCEPTION lo_error.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD raise_error.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = iv_message.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.

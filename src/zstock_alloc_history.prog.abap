@@ -11,6 +11,7 @@ PARAMETERS p_to TYPE d.
 
 START-OF-SELECTION.
   DATA lo_audit TYPE REF TO zif_allocation_audit.
+  DATA lo_authority TYPE REF TO zif_allocation_read_authority.
   DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
   FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
@@ -27,7 +28,21 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-  CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+  CREATE OBJECT lo_authority TYPE zcl_allocation_read_authority_sap.
+  TRY.
+      lo_authority->check_audit( ).
+    CATCH zcx_stock_allocation INTO DATA(lo_auth_error).
+      IF lo_auth_error->message IS INITIAL.
+        WRITE: / 'History is unavailable; read authorization is missing.'.
+      ELSE.
+        WRITE: / 'History is unavailable:', lo_auth_error->message.
+      ENDIF.
+      RETURN.
+  ENDTRY.
+
+  CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap
+    EXPORTING
+      io_read_authority = lo_authority.
   TRY.
       lt_runs = lo_audit->get_runs(
         iv_material         = p_matnr
@@ -53,7 +68,8 @@ START-OF-SELECTION.
   ENDIF.
 
   WRITE: / 'Run ID', 34 'Status', 42 'Unit', 48 'Available',
-           62 'Allocated', 76 'Shortage', 90 'Demand', 100 'Started'.
+           62 'Allocated', 76 'Shortage', 90 'Demand', 100 'Started',
+           122 'Finished'.
   LOOP AT lt_runs ASSIGNING <ls_run>.
     WRITE: / <ls_run>-run_id,
              34 <ls_run>-status,
@@ -63,6 +79,8 @@ START-OF-SELECTION.
              76 <ls_run>-shortage,
              90 <ls_run>-demand_count,
              100 <ls_run>-start_date,
-             <ls_run>-start_time.
+             <ls_run>-start_time,
+             122 <ls_run>-finish_date,
+             <ls_run>-finish_time.
     WRITE: / 'Message:', <ls_run>-message.
   ENDLOOP.

@@ -5,7 +5,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_plant            TYPE zif_stock_allocation=>ty_plant
       iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
-      iv_unit             TYPE zif_stock_allocation=>ty_unit
+      iv_unit             TYPE zif_stock_allocation=>ty_unit OPTIONAL
     RETURNING
       VALUE(rt_demands)   TYPE zif_stock_allocation=>tt_demands
     RAISING

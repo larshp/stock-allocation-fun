@@ -1,4 +1,10 @@
 INTERFACE zif_stock_movement PUBLIC.
+  TYPES:
+    BEGIN OF ty_document,
+      number TYPE c LENGTH 10,
+      year   TYPE n LENGTH 4,
+    END OF ty_document.
+
   METHODS post_goods_issue
     IMPORTING
       iv_material         TYPE zif_stock_allocation=>ty_material
@@ -9,7 +15,7 @@ INTERFACE zif_stock_movement PUBLIC.
       iv_unit             TYPE zif_stock_allocation=>ty_unit
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
     RETURNING
-      VALUE(rv_document)  TYPE zif_stock_allocation=>ty_order_id
+      VALUE(rs_document)  TYPE ty_document
     RAISING
       zcx_stock_allocation.
 ENDINTERFACE.

@@ -44,13 +44,22 @@ CLASS zcl_order_sink_sap DEFINITION
         row        TYPE i,
         field      TYPE c LENGTH 30,
         system     TYPE c LENGTH 10,
-      END OF ty_return.
+    END OF ty_return.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
+    METHODS raise_error
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_order_sink_sap IMPLEMENTATION.
   METHOD constructor.
-    mo_authority = io_authority.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_order_sink_authority_sap.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_order_sink~change_schedule_quantity.
@@ -61,6 +70,7 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     DATA lt_schedule_x TYPE tt_schedule_x.
     DATA lt_return TYPE tt_return.
     DATA lv_bapi_subrc TYPE sy-subrc.
+    DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
@@ -71,11 +81,19 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
         OR iv_sales_item IS INITIAL
         OR iv_schedule_line IS INITIAL
         OR iv_quantity <= 0.
-      RAISE EXCEPTION TYPE zcx_stock_allocation.
+      raise_error( iv_message = 'Sales-order change input is invalid' ).
     ENDIF.
 
     IF mo_authority IS BOUND.
-      mo_authority->check( iv_sales_document_type = iv_sales_document_type ).
+      TRY.
+          mo_authority->check(
+            iv_sales_document_type = iv_sales_document_type ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            lo_error->message = 'Sales-order change authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
     ENDIF.
 
     ls_header_x-updateflag = 'U'.
@@ -110,6 +128,15 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     ENDLOOP.
     IF lv_bapi_error = abap_true OR lv_bapi_subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
+      IF lv_bapi_message IS INITIAL.
+        lv_bapi_message = 'Sales-order change failed'.
+      ENDIF.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lv_bapi_message
+                    'Transaction rollback failed'
+               INTO lv_bapi_message SEPARATED BY '; '.
+      ENDIF.
       CREATE OBJECT lo_error.
       lo_error->message = lv_bapi_message.
       RAISE EXCEPTION lo_error.
@@ -120,9 +147,22 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
         wait = abap_true.
     IF sy-subrc <> 0.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      lv_rollback_subrc = sy-subrc.
       CREATE OBJECT lo_error.
       lo_error->message = 'Sales-order change commit failed'.
+      IF lv_rollback_subrc <> 0.
+        CONCATENATE lo_error->message
+                    'Transaction rollback failed'
+               INTO lo_error->message SEPARATED BY '; '.
+      ENDIF.
       RAISE EXCEPTION lo_error.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD raise_error.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = iv_message.
+    RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.

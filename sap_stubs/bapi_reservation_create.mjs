@@ -1,19 +1,36 @@
 export function installBapiStockStub(abap) {
   let commitFails = false;
+  let rollbackFails = false;
   let reservationCounter = 0;
   let movementCounter = 0;
   abap.FunctionModules["ENQUEUE_EZSTOCKALLOC"] = async (input) => {
     const material = input.exporting.matnr.get()?.trim();
     abap.builtin.sy.get().subrc.set(material === "MATERIAL-LOCK-ERROR" ? 1 : 0);
   };
-  abap.FunctionModules["DEQUEUE_EZSTOCKALLOC"] = async () => {
-    abap.builtin.sy.get().subrc.set(0);
+  abap.FunctionModules["DEQUEUE_EZSTOCKALLOC"] = async (input) => {
+    const material = input.exporting.matnr.get()?.trim();
+    abap.builtin.sy.get().subrc.set(material === "MATERIAL-UNLOCK-ERROR" ? 1 : 0);
   };
   abap.FunctionModules["MD_CONVERT_MATERIAL_UNIT"] = async (input) => {
     const material = input.exporting.i_matnr.get()?.trim();
     const unitIn = input.exporting.i_in_me.get()?.trim();
     const unitOut = input.exporting.i_out_me.get()?.trim();
     const quantity = Number(input.exporting.i_menge.get());
+    if (material === "MATERIAL-ZERO-CONVERSION") {
+      input.importing.e_menge.set("0");
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
+    if (material === "MATERIAL-NEGATIVE-CONVERSION") {
+      input.importing.e_menge.set("-1");
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
+    if (material === "MATERIAL-POSITIVE-ZERO-CONVERSION") {
+      input.importing.e_menge.set("1");
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
     if (material === "MATERIAL-BOX" && unitIn === "BOX" && unitOut === "EA") {
       input.importing.e_menge.set(String(quantity * 10));
       abap.builtin.sy.get().subrc.set(0);
@@ -36,8 +53,12 @@ export function installBapiStockStub(abap) {
     const item = items[0]?.get();
     const material = item?.material_external?.get()?.trim()
       || item?.material?.get()?.trim();
-    commitFails = material === "MATERIAL-COMMIT-ERROR";
-    if (material === "MATERIAL-ERROR") {
+    commitFails = material === "MATERIAL-COMMIT-ERROR"
+      || material === "MATERIAL-ROLLBACK-ERROR";
+    rollbackFails = material === "MATERIAL-ROLLBACK-ERROR"
+      || material === "MATERIAL-ERROR-ROLLBACK";
+    if (material === "MATERIAL-ERROR"
+        || material === "MATERIAL-ERROR-ROLLBACK") {
       const returnRow = input.tables.return.getRowType().clone();
       returnRow.setField("type", "E");
       returnRow.setField("message", "Reservation rejected by test double");
@@ -52,8 +73,12 @@ export function installBapiStockStub(abap) {
     const item = items[0]?.get();
     const material = item?.material_external?.get()?.trim()
       || item?.material?.get()?.trim();
-    commitFails = material === "MATERIAL-GI-COMMIT";
+    commitFails = material === "MATERIAL-GI-COMMIT"
+      || material === "MATERIAL-GI-ROLLBACK";
+    rollbackFails = material === "MATERIAL-GI-ROLLBACK"
+      || material === "MATERIAL-GI-ERROR-ROLLBACK";
     if (material === "MATERIAL-GI-ERROR"
+        || material === "MATERIAL-GI-ERROR-ROLLBACK"
         || !item?.plant?.get()?.trim()
         || !item?.stge_loc?.get()?.trim()
         || !item?.move_type?.get()?.trim()
@@ -61,6 +86,7 @@ export function installBapiStockStub(abap) {
       const returnRow = input.tables.return.getRowType().clone();
       returnRow.setField("type", "E");
       returnRow.setField("message", material === "MATERIAL-GI-ERROR"
+        || material === "MATERIAL-GI-ERROR-ROLLBACK"
         ? "Goods movement rejected by test double"
         : "Goods movement item is incomplete");
       input.tables.return.append(returnRow);
@@ -70,6 +96,9 @@ export function installBapiStockStub(abap) {
       "mat_doc",
       String(movementCounter).padStart(10, "0")
     );
+    if (material !== "MATERIAL-GI-NO-YEAR") {
+      input.importing.goodsmvt_headret.setField("doc_year", "2026");
+    }
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_SALESORDER_CHANGE"] = async (input) => {
@@ -78,8 +107,12 @@ export function installBapiStockStub(abap) {
     const schedule = schedules[0]?.get();
     const scheduleXs = input.tables.schedule_linesx.array();
     const scheduleX = scheduleXs[0]?.get();
-    commitFails = salesDocument === "ORDCOMMIT1";
+    commitFails = salesDocument === "ORDCOMMIT1"
+      || salesDocument === "ORDROLLBK";
+    rollbackFails = salesDocument === "ORDROLLBK"
+      || salesDocument === "ORDERERBKC";
     if (salesDocument === "ORDERERR01"
+        || salesDocument === "ORDERERBKC"
         || !schedule?.itm_number?.get()?.trim()
         || !schedule?.sched_line?.get()?.trim()
         || !scheduleX?.itm_number?.get()?.trim()
@@ -89,13 +122,24 @@ export function installBapiStockStub(abap) {
       const returnRow = input.tables.return.getRowType().clone();
       returnRow.setField("type", "E");
       returnRow.setField("message", salesDocument === "ORDERERR01"
+        || salesDocument === "ORDERERBKC"
         ? "Sales-order change rejected by test double"
         : "Sales-order schedule change is incomplete");
       input.tables.return.append(returnRow);
     }
     abap.builtin.sy.get().subrc.set(0);
   };
-  abap.FunctionModules["BAPI_RESERVATION_DELETE"] = async () => {
+  abap.FunctionModules["BAPI_RESERVATION_DELETE"] = async (input) => {
+    const reservation = input.exporting.reservation.get()?.trim();
+    commitFails = reservation === "RESROLLBK1";
+    rollbackFails = reservation === "RESROLLBK1"
+      || reservation === "RESERRRBK1";
+    if (reservation === "RESERRRBK1") {
+      const returnRow = input.tables.return.getRowType().clone();
+      returnRow.setField("type", "E");
+      returnRow.setField("message", "Reservation deletion rejected by test double");
+      input.tables.return.append(returnRow);
+    }
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_TRANSACTION_COMMIT"] = async () => {
@@ -103,7 +147,9 @@ export function installBapiStockStub(abap) {
     commitFails = false;
   };
   abap.FunctionModules["BAPI_TRANSACTION_ROLLBACK"] = async () => {
+    const failed = rollbackFails;
+    rollbackFails = false;
     commitFails = false;
-    abap.builtin.sy.get().subrc.set(0);
+    abap.builtin.sy.get().subrc.set(failed ? 1 : 0);
   };
 }

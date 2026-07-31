@@ -18,6 +18,42 @@ CLASS ltcl_stock_allocation_service_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_delivery_expiry FOR TESTING.
     METHODS rejects_restricted_batch FOR TESTING.
     METHODS rejects_short_shelf_life FOR TESTING.
+    METHODS rejects_transaction_failure FOR TESTING.
+    METHODS rejects_result_delete_auth FOR TESTING.
+ENDCLASS.
+
+CLASS lcl_failing_allocation_transaction DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_transaction.
+ENDCLASS.
+
+CLASS lcl_failing_allocation_transaction IMPLEMENTATION.
+  METHOD zif_allocation_transaction~commit.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Allocation transaction test failure'.
+    RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_failing_result_delete_authority DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_write_authority.
+ENDCLASS.
+
+CLASS lcl_failing_result_delete_authority IMPLEMENTATION.
+  METHOD zif_allocation_write_authority~check_audit_write.
+  ENDMETHOD.
+
+  METHOD zif_allocation_write_authority~check_result_write.
+  ENDMETHOD.
+
+  METHOD zif_allocation_write_authority~check_result_delete.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Result delete authorization test failure'.
+    RAISE EXCEPTION lo_error.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
@@ -401,7 +437,7 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
       exp = 'E' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
-      exp = 'Open demand validation failed' ).
+      exp = 'Open demand unit is missing' ).
   ENDMETHOD.
 
   METHOD rejects_stock_conversion.
@@ -459,7 +495,7 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
       exp = 'E' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
-      exp = 'Stock unit conversion failed' ).
+      exp = 'Unit conversion failed' ).
   ENDMETHOD.
 
   METHOD rejects_demand_conversion.
@@ -528,7 +564,7 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
       exp = 'E' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
-      exp = 'Demand unit conversion failed' ).
+      exp = 'Unit conversion failed' ).
   ENDMETHOD.
 
   METHOD rejects_reservation_failure.
@@ -914,5 +950,110 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_transaction_failure.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_transaction TYPE REF TO zif_allocation_transaction.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_transaction TYPE lcl_failing_allocation_transaction.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_transaction  = lo_transaction
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-TXN-FAIL'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation result was not persisted: Allocation transaction test failure' ).
+    SELECT SINGLE status
+      FROM zstockalloc_run
+      INTO @lv_status
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-TXN-FAIL'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+  ENDMETHOD.
+
+  METHOD rejects_result_delete_auth.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_write_authority TYPE REF TO zif_allocation_write_authority.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_write_authority TYPE lcl_failing_result_delete_authority.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source    = lo_stock_source
+        io_order_source    = lo_order_source
+        io_sink            = lo_sink
+        io_allocator       = lo_allocator
+        io_reservation     = lo_reservation
+        io_write_authority = lo_write_authority
+        io_audit           = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-DELETE-AUTH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Result delete authorization test failure' ).
   ENDMETHOD.
 ENDCLASS.

@@ -5,6 +5,7 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
     METHODS maps_delivery_priority FOR TESTING.
     METHODS rejects_missing_order_unit FOR TESTING.
     METHODS rejects_missing_doc_type FOR TESTING.
+    METHODS rejects_invalid_identity FOR TESTING.
     METHODS filters_delivery_blocks FOR TESTING.
 ENDCLASS.
 
@@ -50,17 +51,22 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
   METHOD rejects_missing_order_unit.
     DATA lo_cut TYPE REF TO zif_order_source.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
     TRY.
         lo_cut->get_open_demands(
           iv_material = 'MATERIAL-NO-UNIT'
           iv_plant    = '1000' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand unit is missing' ).
   ENDMETHOD.
 
   METHOD filters_delivery_blocks.
@@ -86,19 +92,45 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
       exp = 4 ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_identity.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-MALFORMED'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand record is invalid' ).
+  ENDMETHOD.
+
   METHOD rejects_missing_doc_type.
     DATA lo_cut TYPE REF TO zif_order_source.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
     TRY.
         lo_cut->get_open_demands(
           iv_material = 'MATERIAL-NO-TYPE'
           iv_plant    = '1000' ).
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
+        lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales document type is missing' ).
   ENDMETHOD.
 ENDCLASS.

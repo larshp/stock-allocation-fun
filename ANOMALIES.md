@@ -48,11 +48,11 @@
 - Resolved: successful and partial audit runs had blank diagnostics; normal completion now records an explicit outcome message.
 - Resolved: audit retention existed only as a callable API; the new purge report exposes it with an explicit execution guard and preserves the existing protection for running rows.
 - Resolved: the purge report could otherwise accept a future cutoff that matched all completed history; future dates are rejected before the API is called.
-- Resolved: allocation had no standard SAP authorization seam, and the first object choice targeted goods movements; reservation movement type `BWART` is now checked for activity `01` through `M_RES_BWA` before allocation begins.
+- Resolved: allocation had no standard SAP authorization seam, and the first object choice targeted goods movements; reservation movement type `BWART` is now checked for activity `01` through `M_MRES_BWA` before allocation begins.
 - Resolved: delivery-blocked sales orders could be treated as allocatable demand; the SAP order reader now excludes both header and item delivery blocks.
 - Resolved: operators could query audit summaries but not inspect individual run diagnostics; `ZSTOCK_ALLOC_HISTORY` now exposes scoped run details without side effects.
 - Resolved: any user able to start the purge report could request audit deletion; the report now requires explicit `S_TABU_NAM` activity `06` authorization for `ZSTOCKALLOC_RUN`.
-- Resolved: the opt-in goods-issue adapter could call `BAPI_GOODSMVT_CREATE` without an authorization seam; callers can now inject the standard `M_MSEG_WMB` check.
+- Resolved: the opt-in goods-issue adapter could call `BAPI_GOODSMVT_CREATE` without an authorization seam; callers can now inject standard goods-movement checks for movement type, plant, and storage location.
 - Resolved: the direct sales-order adapter could call `BAPI_SALESORDER_CHANGE` without a document-type authorization seam; callers now supply the document type and can inject the standard `V_VBAK_AAT` change check.
 - Resolved: sales document type was available only in SAP header data and was lost before persistence; `AUART` now travels through demand reads and allocation snapshots.
 - Resolved: open demand with a blank sales document type could enter allocation without an authorization context; the order source now rejects it at the SAP boundary.
@@ -61,7 +61,7 @@
 - Resolved: run history exposed only aggregates and operators could not inspect the current per-demand snapshot; `ZSTOCK_ALLOC_RESULT` now provides read-only detail output.
 - Resolved: per-demand result output lacked the audit-run correlation stored in `ZSTOCKALLOC`; the sink and result report now expose `RUN_ID`.
 - Resolved: BAPI commit failures raised blank domain exceptions; each SAP write adapter now preserves an operation-specific commit diagnostic.
-- Resolved: direct callers of `ZCL_STOCK_RESERVATION_SAP` could bypass the service authorization check; the adapter now accepts and enforces the standard `M_RES_BWA` boundary.
+- Resolved: direct callers of `ZCL_STOCK_RESERVATION_SAP` could bypass the service authorization check; the adapter now accepts and enforces the standard `M_MRES_BWA` boundary.
 - Resolved: SAP order-source validation failures were raised without an audit trail; the service now records `Open demand validation failed` before re-raising.
 - Resolved: unit-conversion exceptions were raised without diagnostics; stock and demand conversion failures now create explicit `E` audit rows.
 - Resolved: allocator and snapshot-read exceptions could escape before a run was started without diagnostics; both boundaries now create explicit rejection audit rows.
@@ -98,3 +98,94 @@
 - Resolved: reservation requests now carry the earliest allocated schedule date; direct reservation callers must provide a noninitial required date.
 - Resolved: the allocator clears prior reservation identifiers when recalculating demand allocations.
 - Resolved: the reservation adapter no longer passes application-only item field names to `BAPI_RESERVATION_CREATE1`; its local structures now mirror the standard BAPI communication structures.
+- Resolved: malformed injected demand could reach the allocator with a zero quantity or missing key; the allocation service now rejects and audits invalid open-demand records before any allocation side effects.
+- Resolved: a faulty demand-unit converter could produce a non-positive quantity after initial validation; the service now rejects that output before allocation, reservation, or persistence and retains converter diagnostics.
+- Resolved: a dequeue failure after a successful allocation could leave a misleading successful audit row; the service now records a partial run with the release diagnostic before surfacing the lock error.
+- Resolved: unit-keyed snapshots could reserve the same physical stock twice across EA/BOX runs; allocation now reconciles active reservations from other units after material-unit conversion and only replaces the current unit snapshot.
+- Resolved: operational reports could read allocation audit and result tables without an explicit SAP read authorization boundary; the reports now enforce `S_TABU_NAM` activity `03` before querying those tables.
+- Resolved: direct service callers received blank exceptions for several dependency failures even though audit rows contained diagnostics; the service now rethrows the original exception with a default operation message when needed.
+- Resolved: malformed or duplicate direct sink input could delete an existing snapshot before the write failed; the sink now validates all demand keys and quantities before deleting and replacing the current unit snapshot.
+- Resolved: direct callers of the audit purge API could bypass the purge report's future-date and scope safeguards; the SAP audit adapter now rejects incomplete scopes and future cutoffs before deletion.
+- Resolved: direct audit lifecycle callers could persist incomplete scopes, negative metrics, or an invalid final status; `START_RUN` and `FINISH_RUN` now validate their write contracts before database access.
+- Resolved: direct snapshot callers could persist zero-quantity or unknown-status allocation rows; the sink now validates positive requests and the allocator status domain before deleting the prior snapshot.
+- Resolved: `ZSTOCK_ALLOC_RESULT` hid sink read failures behind a generic message; the report now displays the exception diagnostic when one is available.
+- Resolved: direct result readers could call the snapshot sink with an incomplete material/plant/storage scope; the sink now rejects that request before querying `ZSTOCKALLOC`.
+- Resolved: direct SAP adapter validation and blank BAPI failures raised context-free exceptions; reservation, movement, order-change, and unit-conversion adapters now provide operation-specific messages, while preserving actionable dependency text.
+- Resolved: order-source and allocator validation failures were context-free; both now identify the malformed scope, source field, stock, duplicate key, or demand condition that stopped allocation.
+- Resolved: a successful unit-conversion BAPI response could return a non-positive quantity for positive input; the converter now rejects that result before it reaches stock or demand allocation.
+- Resolved: blank exceptions from injected reservation, movement, and sales-order authority checks escaped direct adapters; each adapter now supplies a contextual authorization diagnostic when needed.
+- Resolved: direct stock reads with missing material, plant, or storage location were silently treated as empty results; the reader now rejects incomplete scope before database access.
+- Resolved: snapshot replacement wrote rows one at a time after deleting the prior unit; validated replacements are now assembled first and persisted with a single bulk database operation, reducing partial-write exposure.
+- Resolved: direct audit history reads accepted incomplete scope; `GET_RUNS` now rejects missing material, plant, or storage location before database access.
+- Resolved: custom audit and allocation snapshot writes relied on caller discipline for authorization; SAP write-authority checks now cover both tables, and the allocation/purge reports inject them into their adapters.
+- Resolved: direct audit and result adapter callers could bypass report-level read authorization; `GET_RUNS` and `GET_ALLOCATIONS` now enforce injected read authority before SQL execution.
+- Resolved: an already finalized audit row could be overwritten by a second `FINISH_RUN`; the audit adapter now rejects non-running rows before modification.
+- Resolved: direct rejection callers could create error audit rows with no diagnostic; `RECORD_REJECTION` now rejects blank messages before generating or persisting a run.
+- Resolved: reservation authorization used the wrong SAP object and cancellation could bypass the injected authority; the adapter now uses `M_MRES_BWA` with activity `01` for creation and `06` for cancellation, while the allocation service preflights both permissions outside preview mode.
+- Resolved: the goods-issue adapter supplied movement type to the plant authorization object; it now checks `M_MSEG_BWA`, `M_MSEG_WWA`, and `M_MSEG_LGO` with the corresponding movement, plant, and storage fields before posting.
+- Resolved: reservation authorization was scoped only by movement type; `M_MRES_WWA` now checks the reservation plant for both create and delete activities, and plant is required on the cancellation contract.
+- Resolved: a blank audit `START_RUN` exception escaped without context after allocation calculation; the service now supplies an operation-specific diagnostic and stops before reservation or snapshot writes.
+- Resolved: a blank audit `FINISH_RUN` exception escaped without context; the service now supplies `Audit finalization failed` without replacing a dependency's nonblank diagnostic.
+- Resolved: blank injected authority exceptions from direct audit and result-snapshot adapters escaped without context; each boundary now supplies a stable operation-specific authorization diagnostic.
+- Resolved: direct snapshot callers could persist quantities inconsistent with the allocation status; the sink now enforces the requested/allocated/shortage equation and status-specific invariants before deleting the prior snapshot.
+- Resolved: concurrent audit finalizers could both read a running row and overwrite each other; `FINISH_RUN` now performs a status-guarded atomic update after validating the row.
+- Resolved: an injected allocator could return inconsistent quantities or status values that reached later service steps; the service now rejects malformed allocation results before starting the audit run or performing reservations.
+- Resolved: malformed persisted snapshots could influence stock reconciliation or reservation reuse; the service now rejects invalid snapshot rows immediately after reading them.
+- Resolved: direct snapshot callers could persist allocated rows without reservation correlation; the sink now requires a reservation ID whenever allocated quantity is positive.
+- Resolved: allocated snapshots could carry an ID but omit cancellation metadata; persistence and service reads now require reservation date, movement type, and unit as a complete lifecycle tuple.
+- Resolved: direct audit callers could finalize partial or error runs without a diagnostic; `FINISH_RUN` now requires a message for statuses `P` and `E` while preserving message-free success rows.
+- Resolved: `ZSTOCK_ALLOCATE` only controlled summary failures while handling allocation failures; post-success audit-summary errors now produce controlled output while preserving the successful allocation result.
+- Resolved: direct allocation-result readers could expose malformed persisted snapshot rows because validation only ran on writes; the SAP sink now validates every row returned by `GET_ALLOCATIONS`.
+- Resolved: persisted allocation rows could lose their audit-run provenance while retaining otherwise valid quantities; snapshot reads and service reconciliation now reject rows with a blank `RUN_ID`.
+- Resolved: direct callers could bypass SAP authorization or allocation locking by omitting optional ports; concrete adapters now default to SAP authority implementations, and the service defaults to the enqueue/dequeue lock and reservation authority.
+- Resolved: direct audit callers could finalize a successful run with shortage or report more allocated stock than the run recorded as available; `FINISH_RUN` now enforces success metrics and the available-stock ceiling while preserving partial cleanup outcomes.
+- Resolved: normal allocation finalized its audit run before dequeue, so a release failure could not be reflected in the final status; successful and preview paths now finalize only after the lock is released.
+- Resolved: dequeue failures were audited with contextual text but returned the raw dependency exception; the service now returns the same `Allocation lock release failed: ...` diagnostic.
+- Resolved: a dequeue failure during an already-audited reservation or persistence error was silently discarded; the service now appends the lock-release diagnostic to the original exception.
+- Resolved: audit finalization failures inside reservation or snapshot compensation handlers could bypass the outer lock cleanup; those handlers now preserve the original failure, attempt dequeue directly, and append both diagnostics when cleanup also fails.
+- Resolved: direct audit callers could replace the run's recorded available-stock baseline during finalization; `FINISH_RUN` now requires the original `AVAILABLE` value.
+- Resolved: a corrupted snapshot could mix rows from multiple replacement runs within one allocation unit; the sink and service now reject inconsistent per-unit provenance while preserving valid cross-unit history.
+- Resolved: a corrupted snapshot could associate one reservation document with multiple allocated demands; the sink and service now reject duplicated positive reservation correlations.
+- Resolved: an injected or corrupted snapshot provider could return duplicate demand keys that reconciliation would silently collapse to the first row; the service now rejects duplicates within each allocation unit.
+- Resolved: an order source could return the same demand key more than once and trigger duplicate side effects; the service now rejects duplicate open-demand keys before allocation begins.
+- Resolved: technically present SAP schedule keys could contain zero item or schedule identities; the order adapter now rejects malformed demand records before exposing them to allocation.
+- Resolved: direct stock readers could return negative stock or report an existing material with no base unit; the SAP stock adapter now rejects both output states.
+- Resolved: an injected reservation provider could return success with an empty document ID; the service now rejects and audits that response before saving an allocated result.
+- Resolved: reservation and snapshot failures were audited with useful messages but re-raised as blank service exceptions; callers now receive the same actionable failure or cleanup diagnostic.
+- Resolved: service validation failures were audited with useful messages but returned blank exceptions; the validation boundary now returns the recorded diagnostic to callers.
+- Resolved: SAP write adapters discarded rollback failures and could report only the original BAPI or commit error; reservation, goods-movement, and order-change adapters now append the rollback diagnostic.
+- Resolved: injected stock providers could return negative available quantity even though the SAP stock adapter rejected it; the allocation service now rejects and audits that output before allocation side effects.
+- Resolved: an injected stock-unit converter could return a non-positive quantity even though the SAP converter rejected it; the allocation service now rejects and audits that output before allocation side effects.
+- Resolved: an injected audit provider could report successful run creation without a run ID; the allocation service now rejects the response and releases its lock before any side effect.
+- Resolved: allocated snapshots could carry reservation metadata in a unit different from the allocation snapshot; SAP sink reads/writes and service reconciliation now reject that inconsistent correlation.
+- Resolved: an injected allocator could mutate or drop demand keys after source validation; the service now requires the original demand-key set and cardinality before side effects.
+- Resolved: an injected allocator could change requested quantities or source-order metadata while preserving allocation arithmetic; the service now compares allocator output with the validated input contract.
+- Resolved: unallocated snapshots could retain stale reservation metadata; sink writes/reads and service reconciliation now reject reservation correlation when allocated quantity is zero.
+- Resolved: replacing a snapshot could create new reservations before discovering that an older reservation used an unauthorized movement type; the service now preflights all current-unit cancellation movement types.
+- Resolved: direct audit rejection callers could persist negative available quantities; `RECORD_REJECTION` now enforces the same nonnegative metric contract as run lifecycle writes.
+- Resolved: batch-managed stock with an `MCHB` row but missing `MCHA` metadata could enter allocation; the SAP stock reader now rejects the incomplete batch master state.
+- Resolved: old reservations were canceled before snapshot persistence, so a failed replacement could orphan the previous snapshot; cancellation now follows successful persistence and is reported partial when cleanup fails.
+- Resolved: post-persistence cancellation failures were not represented as a distinct successful-replacement partial outcome; the audit now records the persisted replacement and cleanup diagnostic together.
+- Resolved: audit reads trusted malformed persisted runs, allowing impossible metrics or lifecycle combinations into histories and summaries; `GET_RUNS` now validates every returned run.
+- Resolved: finalized audit rows could report a finish timestamp before their start timestamp; history reads now reject inverted lifecycle timestamps.
+- Resolved: the SAP unit-conversion adapter could expose a negative provider result for a zero input; conversion outputs are now always nonnegative.
+- Resolved: the SAP unit-conversion adapter could expose a positive provider result for zero input; zero conversions now require an exact zero result.
+- Resolved: the production allocation transaction adapter lacked direct BAPI commit/rollback regression coverage; both diagnostic paths are now tested against the SAP stub.
+- Resolved: the allocation report constructed separate transaction boundaries for service and audit writes; both adapters now share the report-owned port.
+- Resolved: audit retention deleted `ZSTOCKALLOC_RUN` rows without deleting their linked `ZSTOCKALLOC` snapshots; purge now removes snapshots by the selected run IDs and scope.
+- Resolved: allocation snapshot persistence had no explicit LUW boundary before old-reservation cleanup; the service now commits through an injectable SAP transaction port and treats commit failure as persistence failure.
+- Resolved: retention deleted audit and snapshot rows without an explicit LUW commit; purge now commits both table changes through the SAP transaction port and surfaces commit failures.
+- Resolved: rejection and finalized audit writes could remain uncommitted after failure handling; both now commit explicitly and surface commit failures.
+- Resolved: retention removed audit rows before linked snapshots; purge now cleans snapshots first and commits both deletions together.
+- Resolved: `ZSTOCK_ALLOC_RESULT` labeled the original sales-order unit as the quantity unit even when demand had been normalized; the report now displays allocation and order units separately.
+- Resolved: the goods-issue adapter returned only the material-document number, which is ambiguous across fiscal years; it now returns and reports the SAP material-document year as well.
+- Resolved: a goods-movement BAPI response with a material-document number but no fiscal year could be treated as successful; the adapter now rejects incomplete document identity and rolls the LUW back.
+- Resolved: retention deleted linked `ZSTOCKALLOC` snapshots under authorization scoped only to `ZSTOCKALLOC_RUN`; the SAP retention boundary now requires activity `06` for both tables.
+- Resolved: normal snapshot replacement deleted stale `ZSTOCKALLOC` rows under change authorization alone; the service, report, sink, and SAP authority adapter now require explicit activity `06` delete permission before replacement.
+- Resolved: the purge report discarded the retention adapter's table-specific authorization diagnostic; it now displays the returned failure message while keeping the no-delete behavior.
+- Resolved: the allocation report replaced the primary failure with a generic audit-status message when fallback history lookup failed; it now displays both diagnostics when available.
+- Resolved: history retrieved audit finish timestamps but omitted them from the report, leaving run duration and running-state visibility incomplete; the output now shows the finalized timestamp when present.
+- Resolved: allocation results exposed reservation IDs without the date, movement type, and unit required to reconcile or safely cancel them; the result report now displays the complete lifecycle tuple.
+- Resolved: `GET_SUMMARY` could add quantities from different units when its optional unit filter was omitted; mixed-unit summaries now identify the condition and suppress invalid aggregate quantities.
+- Resolved: allocation summaries exposed the latest run's start time but not its finish time; the summary contract and report now propagate both lifecycle timestamps.
+- Resolved: direct snapshot writers could persist a nonblank but nonexistent, unrelated, or finalized audit `RUN_ID`; `ZSTOCKALLOC` persistence now validates the active run and its complete scope before replacement.

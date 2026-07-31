@@ -8,10 +8,25 @@ PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
 
 START-OF-SELECTION.
   DATA lo_sink TYPE REF TO zif_allocation_sink.
+  DATA lo_authority TYPE REF TO zif_allocation_read_authority.
   DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
   FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
 
-  CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+  CREATE OBJECT lo_authority TYPE zcl_allocation_read_authority_sap.
+  TRY.
+      lo_authority->check_results( ).
+    CATCH zcx_stock_allocation INTO DATA(lo_auth_error).
+      IF lo_auth_error->message IS INITIAL.
+        WRITE: / 'Allocation results are unavailable; read authorization is missing.'.
+      ELSE.
+        WRITE: / 'Allocation results are unavailable:', lo_auth_error->message.
+      ENDIF.
+      RETURN.
+  ENDTRY.
+
+  CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap
+    EXPORTING
+      io_read_authority = lo_authority.
   TRY.
       lt_demands = lo_sink->get_allocations(
         iv_material         = p_matnr
@@ -19,8 +34,12 @@ START-OF-SELECTION.
         iv_storage_location = p_lgort
         iv_batch            = p_charg
         iv_unit             = p_meins ).
-    CATCH zcx_stock_allocation.
-      WRITE: / 'Allocation results are unavailable for the requested scope.'.
+    CATCH zcx_stock_allocation INTO DATA(lo_error).
+      IF lo_error->message IS INITIAL.
+        WRITE: / 'Allocation results are unavailable for the requested scope.'.
+      ELSE.
+        WRITE: / 'Allocation results are unavailable:', lo_error->message.
+      ENDIF.
       RETURN.
   ENDTRY.
 
@@ -30,18 +49,23 @@ START-OF-SELECTION.
   ENDIF.
 
   WRITE: / 'Run', 34 'Sales document', 50 'Type', 56 'Item', 64 'Schedule',
-           74 'Unit', 80 'Requested', 94 'Allocated', 108 'Shortage',
-           122 'Status', 130 'Reservation'.
+           74 'Alloc.unit', 86 'Order.unit', 98 'Requested', 112 'Allocated',
+           126 'Shortage', 138 'Status', 146 'Reservation', 168 'Res.date',
+           180 'Res.move', 190 'Res.unit'.
   LOOP AT lt_demands ASSIGNING <ls_demand>.
     WRITE: / <ls_demand>-allocation_run_id,
              34 <ls_demand>-sales_document,
              50 <ls_demand>-sales_document_type,
              56 <ls_demand>-sales_item,
              64 <ls_demand>-schedule_line,
-             74 <ls_demand>-order_unit,
-             80 <ls_demand>-requested,
-             94 <ls_demand>-allocated,
-             108 <ls_demand>-shortage,
-             122 <ls_demand>-allocation_status,
-             130 <ls_demand>-reservation_id.
+             74 <ls_demand>-allocation_unit,
+             86 <ls_demand>-order_unit,
+             98 <ls_demand>-requested,
+             112 <ls_demand>-allocated,
+             126 <ls_demand>-shortage,
+             138 <ls_demand>-allocation_status,
+             146 <ls_demand>-reservation_id,
+             168 <ls_demand>-reservation_date,
+             180 <ls_demand>-reservation_movement_type,
+             190 <ls_demand>-reservation_unit.
   ENDLOOP.

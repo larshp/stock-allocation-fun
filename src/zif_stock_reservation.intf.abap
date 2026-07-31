@@ -15,7 +15,9 @@ INTERFACE zif_stock_reservation PUBLIC.
       zcx_stock_allocation.
   METHODS cancel
     IMPORTING
-      iv_document TYPE zif_stock_allocation=>ty_order_id
+      iv_document      TYPE zif_stock_allocation=>ty_order_id
+      iv_plant         TYPE zif_stock_allocation=>ty_plant
+      iv_movement_type TYPE zif_stock_allocation=>ty_movement_type
     RAISING
       zcx_stock_allocation.
 ENDINTERFACE.

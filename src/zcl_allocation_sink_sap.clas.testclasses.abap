@@ -64,6 +64,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_missing_reservation FOR TESTING.
     METHODS rejects_corrupt_read FOR TESTING.
     METHODS rejects_mixed_run_read FOR TESTING.
+    METHODS rejects_orphan_read FOR TESTING.
+    METHODS rejects_invalid_run_status FOR TESTING.
     METHODS rejects_unknown_run FOR TESTING.
     METHODS rejects_inconsistent_run FOR TESTING.
     METHODS rejects_finalized_run FOR TESTING.
@@ -188,9 +190,24 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA ls_first TYPE zstockalloc.
     DATA ls_second TYPE zstockalloc.
+    DATA ls_run TYPE zstockalloc_run.
     DATA lv_raised TYPE abap_bool.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-MIXED-ONE'.
+    ls_run-matnr = 'MATERIAL-MIXED-RUN'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-run_id = 'RUN-MIXED-TWO'.
+    INSERT zstockalloc_run FROM @ls_run.
     ls_first-mandt = sy-mandt.
     ls_first-matnr = 'MATERIAL-MIXED-RUN'.
     ls_first-werks = '1000'.
@@ -230,12 +247,28 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND matnr = 'MATERIAL-MIXED-RUN'
         AND werks = '1000'
         AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-MIXED-RUN'.
 
     ls_first-run_id = 'RUN-DUPLICATE'.
     ls_first-order_id = 'DUPLICATE-ONE'.
     ls_first-reservation_id = 'RES-DUPLICATE'.
     ls_second = ls_first.
     ls_second-order_id = 'DUPLICATE-TWO'.
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-DUPLICATE'.
+    ls_run-matnr = 'MATERIAL-MIXED-RUN'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 2.
+    ls_run-demand_count = 2.
+    INSERT zstockalloc_run FROM @ls_run.
     INSERT zstockalloc FROM @ls_first.
     INSERT zstockalloc FROM @ls_second.
     CLEAR lv_raised.
@@ -257,7 +290,109 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND matnr = 'MATERIAL-MIXED-RUN'
         AND werks = '1000'
         AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-MIXED-RUN'.
 
+  ENDMETHOD.
+
+  METHOD rejects_orphan_read.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-ORPHAN-READ'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-ORPHAN-READ'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'ORPHAN-READ'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'RES-ORPHAN-READ'.
+    ls_allocation-reservation_date = '20260101'.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'EA'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-ORPHAN-READ'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot run was not found' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-ORPHAN-READ'
+        AND werks = '1000'
+        AND lgort = '0001'.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_run_status.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-INVALID-STATUS-READ'.
+    ls_run-matnr = 'MATERIAL-INVALID-STATUS'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'X'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-INVALID-STATUS'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-INVALID-STATUS-READ'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'INVALID-STATUS-READ'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'RES-INVALID-STATUS'.
+    ls_allocation-reservation_date = '20260101'.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'EA'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-INVALID-STATUS'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot run status is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-INVALID-STATUS'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE mandt = @sy-mandt
+        AND run_id = 'RUN-INVALID-STATUS-READ'.
   ENDMETHOD.
 
   METHOD rejects_unknown_run.

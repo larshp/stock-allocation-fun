@@ -17,6 +17,17 @@ CLASS zcl_allocation_sink_sap DEFINITION
         iv_require_run_id TYPE abap_bool OPTIONAL
       RAISING
         zcx_stock_allocation.
+    METHODS validate_run_reference
+      IMPORTING
+        iv_run_id           TYPE zif_stock_allocation=>ty_run_id
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
+        iv_batch            TYPE zif_stock_allocation=>ty_batch
+        iv_unit             TYPE zif_stock_allocation=>ty_unit
+        iv_require_running  TYPE abap_bool OPTIONAL
+      RAISING
+        zcx_stock_allocation.
     METHODS raise_error
       IMPORTING
         iv_message TYPE zif_allocation_audit=>ty_message
@@ -84,6 +95,13 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       validate_demand(
         is_demand         = <ls_demand>
         iv_require_run_id = abap_true ).
+      validate_run_reference(
+        iv_run_id           = <ls_demand>-allocation_run_id
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = <ls_demand>-allocation_unit ).
       IF lv_allocation_unit IS INITIAL
           OR lv_allocation_unit <> <ls_demand>-allocation_unit.
         lv_allocation_unit = <ls_demand>-allocation_unit.
@@ -102,12 +120,6 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
 
   METHOD zif_allocation_sink~save_allocations.
     DATA ls_allocation TYPE zstockalloc.
-    DATA lv_run_material TYPE zstockalloc_run-matnr.
-    DATA lv_run_plant TYPE zstockalloc_run-werks.
-    DATA lv_run_storage_location TYPE zstockalloc_run-lgort.
-    DATA lv_run_batch TYPE zstockalloc_run-batch.
-    DATA lv_run_unit TYPE zstockalloc_run-unit.
-    DATA lv_run_status TYPE zstockalloc_run-status.
     DATA lt_allocations TYPE STANDARD TABLE OF zstockalloc WITH EMPTY KEY.
     DATA lt_order_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
       WITH UNIQUE KEY table_line.
@@ -178,25 +190,14 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ENDTRY.
     ENDIF.
 
-    SELECT SINGLE matnr, werks, lgort, batch, unit, status
-      FROM zstockalloc_run
-      INTO (@lv_run_material, @lv_run_plant, @lv_run_storage_location,
-            @lv_run_batch, @lv_run_unit, @lv_run_status)
-      WHERE mandt = @sy-mandt
-        AND run_id = @iv_run_id.
-    IF sy-subrc <> 0.
-      raise_error( iv_message = 'Allocation snapshot run was not found' ).
-    ENDIF.
-    IF lv_run_material <> iv_material
-        OR lv_run_plant <> iv_plant
-        OR lv_run_storage_location <> iv_storage_location
-        OR lv_run_batch <> iv_batch
-        OR lv_run_unit <> iv_unit.
-      raise_error( iv_message = 'Allocation snapshot run scope is inconsistent' ).
-    ENDIF.
-    IF lv_run_status <> 'R'.
-      raise_error( iv_message = 'Allocation snapshot run is not active' ).
-    ENDIF.
+    validate_run_reference(
+      iv_run_id           = iv_run_id
+      iv_material         = iv_material
+      iv_plant            = iv_plant
+      iv_storage_location = iv_storage_location
+      iv_batch            = iv_batch
+      iv_unit             = iv_unit
+      iv_require_running  = abap_true ).
 
     DELETE FROM zstockalloc
       WHERE mandt = @sy-mandt
@@ -253,6 +254,42 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             OR is_demand-reservation_movement_type IS NOT INITIAL
             OR is_demand-reservation_unit IS NOT INITIAL ) ).
       raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_run_reference.
+    DATA lv_run_material TYPE zstockalloc_run-matnr.
+    DATA lv_run_plant TYPE zstockalloc_run-werks.
+    DATA lv_run_storage_location TYPE zstockalloc_run-lgort.
+    DATA lv_run_batch TYPE zstockalloc_run-batch.
+    DATA lv_run_unit TYPE zstockalloc_run-unit.
+    DATA lv_run_status TYPE zstockalloc_run-status.
+
+    SELECT SINGLE matnr, werks, lgort, batch, unit, status
+      FROM zstockalloc_run
+      INTO (@lv_run_material, @lv_run_plant, @lv_run_storage_location,
+            @lv_run_batch, @lv_run_unit, @lv_run_status)
+      WHERE mandt = @sy-mandt
+        AND run_id = @iv_run_id.
+    IF sy-subrc <> 0.
+      raise_error( iv_message = 'Allocation snapshot run was not found' ).
+    ENDIF.
+    IF lv_run_material <> iv_material
+        OR lv_run_plant <> iv_plant
+        OR lv_run_storage_location <> iv_storage_location
+        OR lv_run_batch <> iv_batch
+        OR lv_run_unit <> iv_unit.
+      raise_error( iv_message = 'Allocation snapshot run scope is inconsistent' ).
+    ENDIF.
+    IF lv_run_status <> 'R'
+        AND lv_run_status <> 'S'
+        AND lv_run_status <> 'P'
+        AND lv_run_status <> 'E'.
+      raise_error( iv_message = 'Allocation snapshot run status is invalid' ).
+    ENDIF.
+    IF iv_require_running = abap_true
+        AND lv_run_status <> 'R'.
+      raise_error( iv_message = 'Allocation snapshot run is not active' ).
     ENDIF.
   ENDMETHOD.
 

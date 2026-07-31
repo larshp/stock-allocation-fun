@@ -6,7 +6,7 @@ The current branch provides deterministic priority allocation with explicit full
 
 The service validates injected provider and allocator postconditions before side effects, preserves demand identity and source metadata, rejects inconsistent or stale snapshot reservation metadata, preflights cancellation authority for legacy reservations, and persists replacement snapshots before canceling superseded reservations. Cleanup uncertainty is recorded as a partial run with the actionable diagnostic; failed persistence leaves the prior snapshot/reservation pair untouched.
 
-Snapshot persistence also verifies that the supplied run ID exists in `ZSTOCKALLOC_RUN`, belongs to the same material/plant/storage/batch/unit scope, and is still running. Direct result writers therefore cannot create orphaned snapshots or attach a result to a finalized or unrelated audit run.
+Snapshot persistence and reads verify that the supplied run ID exists in `ZSTOCKALLOC_RUN`, has a recognized lifecycle status, and belongs to the same material/plant/storage/batch/unit scope. Writes additionally require the run to be active, while reads accept any legitimate lifecycle status so operators can inspect finalized results. Direct result writers cannot create orphaned snapshots, and result readers cannot silently consume orphaned, malformed, or cross-scope rows.
 
 Run the checks with:
 

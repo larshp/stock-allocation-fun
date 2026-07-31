@@ -189,3 +189,5 @@
 - Resolved: `GET_SUMMARY` could add quantities from different units when its optional unit filter was omitted; mixed-unit summaries now identify the condition and suppress invalid aggregate quantities.
 - Resolved: allocation summaries exposed the latest run's start time but not its finish time; the summary contract and report now propagate both lifecycle timestamps.
 - Resolved: direct snapshot writers could persist a nonblank but nonexistent, unrelated, or finalized audit `RUN_ID`; `ZSTOCKALLOC` persistence now validates the active run and its complete scope before replacement.
+- Resolved: result reads could accept a valid-shaped snapshot whose audit run was missing or belonged to another scope; snapshot reads now validate the run reference and exact scope while preserving legitimate lifecycle states.
+- Resolved: the result report could expose rows linked to an unknown audit status; snapshot reads now accept only `R`, `S`, `P`, or `E` run states.

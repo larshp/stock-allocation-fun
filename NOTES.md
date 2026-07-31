@@ -209,3 +209,5 @@
 - Made unit-omitted audit summaries safe: when runs contain multiple allocation units, the summary now sets `MIXED_UNITS` and clears allocated/shortage totals instead of adding incomparable quantities.
 - Extended audit summaries and `ZSTOCK_ALLOCATE` output with the last run's finish date/time, completing lifecycle visibility alongside the existing start timestamp.
 - Added snapshot-to-audit referential validation: `ZSTOCKALLOC` writes now require an existing active `ZSTOCKALLOC_RUN` with the exact same material/plant/storage/batch/unit scope.
+- Extended snapshot referential validation to reads, rejecting orphaned or cross-scope result rows while allowing active and finalized audit lifecycle states.
+- Added audit-status validation to snapshot reads so a result cannot be served from a run with an unknown lifecycle state.

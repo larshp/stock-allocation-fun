@@ -2,7 +2,9 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_material TYPE c LENGTH 40.
   TYPES ty_plant TYPE c LENGTH 4.
   TYPES ty_storage_location TYPE c LENGTH 4.
+  TYPES ty_batch TYPE c LENGTH 10.
   TYPES ty_order_id TYPE c LENGTH 20.
+  TYPES ty_run_id TYPE c LENGTH 32.
   TYPES ty_sales_document TYPE c LENGTH 10.
   TYPES ty_sales_item TYPE n LENGTH 6.
   TYPES ty_schedule_line TYPE n LENGTH 4.
@@ -11,6 +13,16 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_movement_type TYPE c LENGTH 3.
   TYPES ty_priority TYPE i.
   TYPES ty_allocation_status TYPE c LENGTH 1.
+  TYPES:
+    BEGIN OF ty_available,
+      quantity              TYPE ty_quantity,
+      unit                  TYPE ty_unit,
+      material_found        TYPE abap_bool,
+      batch_managed         TYPE abap_bool,
+      batch_found           TYPE abap_bool,
+      batch_expiration_date TYPE d,
+      batch_restricted      TYPE abap_bool,
+    END OF ty_available.
 
   TYPES:
     BEGIN OF ty_demand,

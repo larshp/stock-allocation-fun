@@ -7,6 +7,7 @@ INTERFACE zif_stock_movement PUBLIC.
       iv_movement_type    TYPE zif_stock_allocation=>ty_movement_type
       iv_quantity         TYPE zif_stock_allocation=>ty_quantity
       iv_unit             TYPE zif_stock_allocation=>ty_unit
+      iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
     RETURNING
       VALUE(rv_document)  TYPE zif_stock_allocation=>ty_order_id
     RAISING

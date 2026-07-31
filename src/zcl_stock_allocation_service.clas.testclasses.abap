@@ -3,6 +3,16 @@ CLASS ltcl_stock_allocation_service_sap DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS allocates_sap_vertical_slice FOR TESTING.
+    METHODS allocates_batch_slice FOR TESTING.
+    METHODS rejects_missing_material FOR TESTING.
+    METHODS rejects_missing_base_unit FOR TESTING.
+    METHODS rejects_missing_batch FOR TESTING.
+    METHODS rejects_unknown_batch FOR TESTING.
+    METHODS rejects_non_batch_material FOR TESTING.
+    METHODS rejects_expired_batch FOR TESTING.
+    METHODS rejects_delivery_expiry FOR TESTING.
+    METHODS rejects_restricted_batch FOR TESTING.
+    METHODS rejects_short_shelf_life FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
@@ -159,9 +169,444 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
         AND matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND status = 'S'.
+        AND status = 'P'.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 3 ).
+  ENDMETHOD.
+
+  METHOD allocates_batch_slice.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_allocation_count TYPE i.
+    DATA lv_batch TYPE zif_stock_allocation=>ty_batch.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    lv_remaining = lo_cut->allocate(
+      iv_material         = 'MATERIAL-BATCH-PRIO'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_unit             = 'EA'
+      iv_batch            = 'BATCH-001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining
+      exp = '0' ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      INTO @lv_allocation_count
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-BATCH-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_allocation_count
+      exp = 1 ).
+    SELECT SINGLE batch
+      FROM zstockalloc
+      INTO @lv_batch
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-BATCH-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_batch
+      exp = 'BATCH-001' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_material.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-MISSING'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      INTO (@lv_status, @lv_message)
+      WHERE mandt = @sy-mandt
+        AND matnr = 'MATERIAL-MISSING'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Material does not exist' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_base_unit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-NO-BASE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_batch.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-BATCH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_expired_batch.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-EXPIRED'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'EXPIRED-01' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_batch.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-BATCH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'UNKNOWN-01' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_non_batch_material.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-STOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'BATCH-001' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_restricted_batch.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-RESTRICTED'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'BLOCKED-01' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_delivery_expiry.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-EXPIRING'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'EXPIRE-01' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_short_shelf_life.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-BATCH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_batch            = 'BATCH-001'
+          iv_min_shelf_life   = 200 ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 ENDCLASS.

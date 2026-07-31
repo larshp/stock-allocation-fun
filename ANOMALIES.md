@@ -20,7 +20,35 @@
 - Resolved: audit retention is caller-invoked and date-scoped; active `R`unning records are protected from deletion.
 - Resolved: consumers no longer need to infer line outcome from quantities; `ZSTOCKALLOC` now persists explicit full, partial, or unallocated status.
 - Resolved: composite allocation order IDs no longer discard their SAP source keys; document, item, and schedule-line identifiers are now stored separately.
-- Resolved: sales-order quantity units are no longer silently assumed to match the reservation unit; mismatches are rejected before allocation side effects.
+- Resolved: alternate sales units are converted through `MD_CONVERT_MATERIAL_UNIT`; an unknown or failed conversion still aborts before allocation side effects.
+- Resolved: shortage-bearing runs are no longer reported as successful; the service now records audit status `P` when allocation completes with a shortage.
+- Resolved: available stock is no longer compared in an implicit unit; `MARD-LABST` is returned with `MARA-MEINS` and normalized before allocation.
+- Resolved: batch-managed stock is no longer collapsed into a material/location snapshot; `MCHB-CLABS`, reservation payloads, allocation persistence, and audit history all retain the selected batch.
+- Resolved: batch-managed materials no longer allow an empty batch input; the service rejects the run before reading demands or creating side effects.
+- Resolved: selected expired batches are no longer allocatable; the service checks `MCHA-VFDAT` against the allocation date before continuing.
+- Resolved: restricted batches are no longer allocatable; the service checks the batch status before reading demands or creating side effects.
+- Resolved: a batch that expires before an order’s requested delivery date is now rejected before allocation side effects.
+- Resolved: audit run quantities now carry explicit unit context through `ZSTOCKALLOC_RUN-UNIT`; consumers no longer need to infer the unit from current configuration.
+- Resolved: a requested batch with zero stock can no longer be confused with an unknown batch; `MCHB` existence is carried separately, and batch input is rejected for non-batch-managed materials.
+- Resolved: allocation snapshots no longer lose their run provenance; `ZSTOCKALLOC-RUN_ID` now links each result row to the corresponding audit run.
+- Resolved: a missing material is no longer indistinguishable from a material with zero available stock; `MARA` existence is now validated explicitly.
+- Resolved: normalized snapshot quantities no longer depend on reservation presence to identify their unit; every `ZSTOCKALLOC` row stores `ALLOCATION_UNIT`.
+- Resolved: concurrent runs could previously read the same stock before either persisted reservations; the report now injects an enqueue/dequeue lock and the service releases it on success and failure paths.
+- Resolved: open demand with blank `VBAP-VRKME` could be mistaken for demand already expressed in the allocation unit; the order reader now rejects it.
+- Resolved: material records with blank `MARA-MEINS` could produce unitless stock; the service now rejects them before allocation.
+- Resolved: pre-side-effect validation failures previously left no run history; the audit port now records rejected attempts as completed `E` runs with messages.
+- Resolved: audit summaries could combine quantities from different allocation units; callers can now scope history and summaries by `UNIT` and receive the selected unit in the summary.
+- Resolved: retention could delete completed history from unrelated allocation units; `purge_runs_before` now supports the same unit scope as history queries.
+- Resolved: the executable report previously printed only remaining quantity; it now surfaces the audited allocation outcome and unit context.
+- Resolved: operators had no safe report-level simulation path; `P_TEST` now previews allocation without creating reservations or result snapshots.
+- Resolved: reservation creation previously raised directly on commit failure without rolling back the BAPI LUW; the failure path now rolls back explicitly.
+- Resolved: aggregate audit counts did not expose the latest run outcome; summaries now include the latest status and diagnostic message.
+- Resolved: a non-expired batch could still be allocated when the business required additional remaining shelf life; `P_SHELF` now enforces the configured minimum before side effects.
+- Resolved: snapshot persistence could replace a same-order allocation from another unit; `ALLOCATION_UNIT` is now a key and sink reconciliation is unit-scoped.
+- Resolved: successful and partial audit runs had blank diagnostics; normal completion now records an explicit outcome message.
+- Resolved: audit retention existed only as a callable API; the new purge report exposes it with an explicit execution guard and preserves the existing protection for running rows.
+- Resolved: the purge report could otherwise accept a future cutoff that matched all completed history; future dates are rejected before the API is called.
+- Resolved: allocation had no standard SAP authorization seam; movement type `BWART` is now checked for activity `01` through `M_MSEG_WMB` before allocation begins.
 - Resolved: reservation creation now checks `BAPIRET2` error types (`A`, `E`, and `X`) before calling `BAPI_TRANSACTION_COMMIT`.
 - Resolved: the reservation adapter preserves the BAPI `sy-subrc` before looping over `RETURN`, because the loop itself changes `sy-subrc` for an empty message table.
 - Resolved: the SQLite harness now sets `sy-mandt` to the seeded client `000`; Open ABAP’s default runtime client is `123`.

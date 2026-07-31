@@ -19,7 +19,8 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_movement_type    = '201'
       iv_quantity         = '2'
-      iv_unit             = 'EA' ).
+      iv_unit             = 'EA'
+      iv_batch            = 'BATCH-001' ).
 
     cl_abap_unit_assert=>assert_not_initial( lv_document ).
   ENDMETHOD.

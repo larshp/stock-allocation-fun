@@ -22,7 +22,8 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
       iv_movement_type    = '201'
       iv_quantity         = '3'
       iv_unit             = 'EA'
-      iv_required_date    = '20260815' ).
+      iv_required_date    = '20260815'
+      iv_batch            = 'BATCH-001' ).
 
     cl_abap_unit_assert=>assert_not_initial( lv_document ).
   ENDMETHOD.

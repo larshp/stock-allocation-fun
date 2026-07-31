@@ -71,6 +71,10 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         ls_demand-priority = 100 - <ls_schedule>-delivery_priority.
       ENDIF.
       ls_demand-requested = <ls_schedule>-requested - <ls_schedule>-confirmed.
+      IF ls_demand-requested > 0
+          AND ls_demand-order_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_stock_allocation.
+      ENDIF.
       APPEND ls_demand TO rt_demands.
     ENDLOOP.
   ENDMETHOD.

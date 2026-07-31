@@ -90,6 +90,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     ls_item-material_external = iv_material.
     ls_item-plant = iv_plant.
     ls_item-stge_loc = iv_storage_location.
+    ls_item-batch = iv_batch.
     ls_item-entry_qnt = iv_quantity.
     ls_item-entry_uom = iv_unit.
     ls_item-req_date = iv_required_date.
@@ -122,6 +123,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
       EXPORTING
         wait = abap_true.
     IF sy-subrc <> 0.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
     ENDIF.
     rv_document = lv_reservation.

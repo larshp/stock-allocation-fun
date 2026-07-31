@@ -8,6 +8,7 @@ INTERFACE zif_stock_reservation PUBLIC.
       iv_quantity         TYPE zif_stock_allocation=>ty_quantity
       iv_unit             TYPE zif_stock_allocation=>ty_unit
       iv_required_date    TYPE d
+      iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
     RETURNING
       VALUE(rv_document)  TYPE zif_stock_allocation=>ty_order_id
     RAISING

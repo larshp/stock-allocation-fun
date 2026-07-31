@@ -18,7 +18,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       WHERE mandt = @sy-mandt
         AND matnr = @iv_material
         AND werks = @iv_plant
-        AND lgort = @iv_storage_location.
+        AND lgort = @iv_storage_location
+        AND batch = @iv_batch
+        AND allocation_unit = @iv_unit.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
     ENDIF.
@@ -32,7 +34,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       WHERE mandt = @sy-mandt
         AND matnr = @iv_material
         AND werks = @iv_plant
-        AND lgort = @iv_storage_location.
+        AND lgort = @iv_storage_location
+        AND batch = @iv_batch
+        AND allocation_unit = @iv_unit.
 
     LOOP AT it_demands ASSIGNING <ls_demand>.
       CLEAR ls_allocation.
@@ -40,6 +44,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ls_allocation-matnr = iv_material.
       ls_allocation-werks = iv_plant.
       ls_allocation-lgort = iv_storage_location.
+      ls_allocation-batch = iv_batch.
+      ls_allocation-run_id = iv_run_id.
+      ls_allocation-allocation_unit = iv_unit.
       ls_allocation-sales_document = <ls_demand>-sales_document.
       ls_allocation-sales_item = <ls_demand>-sales_item.
       ls_allocation-schedule_line = <ls_demand>-schedule_line.

@@ -23,6 +23,7 @@ CLASS zcl_stock_movement_sap DEFINITION
         move_type         TYPE c LENGTH 3,
         entry_qnt         TYPE p LENGTH 8 DECIMALS 3,
         entry_uom         TYPE c LENGTH 3,
+        batch             TYPE c LENGTH 10,
         material_external TYPE c LENGTH 40,
       END OF ty_item.
     TYPES tt_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
@@ -79,6 +80,7 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
     ls_item-material_external = iv_material.
     ls_item-plant = iv_plant.
     ls_item-stge_loc = iv_storage_location.
+    ls_item-batch = iv_batch.
     ls_item-move_type = iv_movement_type.
     ls_item-entry_qnt = iv_quantity.
     ls_item-entry_uom = iv_unit.

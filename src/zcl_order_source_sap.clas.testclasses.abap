@@ -3,6 +3,7 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS maps_delivery_priority FOR TESTING.
+    METHODS rejects_missing_order_unit FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_order_source_sap IMPLEMENTATION.
@@ -39,5 +40,21 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ order_id = 'PRIO0000010000100002' ]-requested
       exp = '2' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_order_unit.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-NO-UNIT'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 ENDCLASS.

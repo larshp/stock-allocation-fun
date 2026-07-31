@@ -46,6 +46,35 @@
 - Added typed run summaries aggregating counts and allocated/shortage quantities for operational reporting.
 - Added typed demand allocation statuses: `F` fully allocated, `P` partially allocated, and `U` unallocated; the status is recalculated and persisted with each snapshot row.
 - Preserved originating sales document, item, and schedule-line keys in the demand model and `ZSTOCKALLOC`, so later order updates can correlate directly to `VBAP/VBEP` lines instead of parsing the composite order ID.
-- Added `VBAP-VRKME` order-unit propagation and a service boundary check that rejects demand when its sales unit differs from the configured allocation/reservation unit; the unit is also persisted in `ZSTOCKALLOC`.
+- Added `VBAP-VRKME` order-unit propagation; the original sales unit is persisted in `ZSTOCKALLOC` while demand is normalized before allocation when conversion is needed.
+- Replaced mismatch rejection with a typed `MD_CONVERT_MATERIAL_UNIT` adapter: demand quantities are normalized to the configured allocation/reservation unit before prioritization, while the original sales unit remains persisted for traceability.
+- Classified successful allocation runs with a nonzero shortage as partial (`P`) audit runs; fully satisfied runs remain successful (`S`).
+- Extended the stock-source contract with the SAP stock unit (`MARA-MEINS`) and convert `MARD-LABST` into the configured reservation unit before allocation, preventing alternate-unit capacity overstatement.
+- Added optional batch scoping: batch stock is read from `MCHB-CLABS`, passed to reservation and goods-movement adapters, and included in allocation/audit keys and report input so different batches cannot reuse or overwrite each other’s snapshots.
+- Added `MARA-XCHPF` propagation and a fail-fast guard: batch-managed materials cannot fall back to aggregate MARD stock or empty-batch reservations.
+- Added selected-batch shelf-life validation from `MCHA-VFDAT`; expired batches are rejected before demand reads, reservations, or persistence.
+- Added `MCHA-ZUSTD` propagation and restricted-batch rejection so quality-blocked batches cannot be allocated or reserved.
+- Added delivery-date shelf-life validation: a batch must remain valid through every open demand’s requested date, not merely on the allocation run date.
+- Persisted the configured allocation/reservation unit with each `ZSTOCKALLOC_RUN` record so audit quantities remain interpretable after conversion.
+- Added explicit batch existence and batch-management validation: unknown batches and batch inputs for non-batch-managed materials now fail before allocation side effects.
+- Added the audit run UUID to each `ZSTOCKALLOC` snapshot row, allowing persisted allocation results to be traced directly to their `ZSTOCKALLOC_RUN` record.
+- Added explicit material existence propagation from `MARA`; missing materials now fail before allocation side effects instead of being treated as zero stock.
+- Persisted `ZSTOCKALLOC-ALLOCATION_UNIT` alongside normalized requested, allocated, and shortage quantities so even unallocated lines retain unit context.
+- Added an injectable allocation lock and SAP `ENQUEUE_EZSTOCKALLOC`/`DEQUEUE_EZSTOCKALLOC` adapter; stock reads, reservation reconciliation, and snapshot persistence now execute under one serialized critical section when the report supplies the lock.
+- Added SAP demand validation for missing sales units: positive open schedule lines with blank `VBAP-VRKME` are rejected before unit normalization or reservation.
+- Added base-unit validation for material master data: `MARA-MEINS` must be present before stock can enter the allocation flow.
+- Added one-shot rejection auditing: pre-side-effect material, unit, batch, and delivery-date validation failures now produce completed `E` rows in `ZSTOCKALLOC_RUN` with an explanatory message.
+- Added optional allocation-unit filtering to audit history and summaries so quantities from different units are not mixed when operators query a specific unit.
+- Extended audit retention with the same optional unit scope, preserving unrelated-unit history while continuing to protect `R`unning rows.
+- Enhanced `ZSTOCK_ALLOCATE` output to display unit-scoped run counts, allocated quantity, shortage, and the last audit run ID alongside remaining stock.
+- Added `ZSTOCK_ALLOCATE-P_TEST` preview mode: allocation calculation and audit complete, while reservation and snapshot side effects are skipped.
+- Closed the reservation-create commit-failure gap: a failed `BAPI_TRANSACTION_COMMIT` now explicitly invokes `BAPI_TRANSACTION_ROLLBACK` before raising.
+- Extended audit summaries with the last run status and message so report consumers can distinguish successful, partial, preview, and rejected outcomes.
+- Added an optional minimum remaining batch shelf-life policy; the service and `ZSTOCK_ALLOCATE-P_SHELF` reject selected batches whose expiration date is too near, before demand, reservation, or snapshot side effects.
+- Made `ZSTOCKALLOC-ALLOCATION_UNIT` part of the snapshot key and scoped sink reads/deletes by unit, preventing an EA allocation from overwriting a parallel BOX allocation for the same demand.
+- Added explicit completion messages to normal audit runs, distinguishing fully completed allocations from shortage-bearing partial allocations in report output.
+- Added `ZSTOCK_ALLOC_PURGE` as an explicit-`P_EXEC` operational entry point for unit- and batch-scoped audit retention; without the checkbox it performs no deletion.
+- Added a future-date guard to `ZSTOCK_ALLOC_PURGE` so an accidental cutoff cannot remove all completed history.
+- Added an injectable movement-type authorization boundary using SAP object `M_MSEG_WMB`; the report supplies the SAP adapter and unauthorized attempts are rejection-audited before stock reads or side effects.
 - Added `npm test` and expanded `npm run verify` so the standard project check executes the generated ABAP Unit harness as well as lint/transpilation.
 - Kept report imports out of the Open ABAP runtime bootstrap because selection-screen statements are SAP-runtime features; the report remains included in lint/transpile input.

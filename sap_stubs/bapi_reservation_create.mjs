@@ -2,6 +2,35 @@ export function installBapiStockStub(abap) {
   let commitFails = false;
   let reservationCounter = 0;
   let movementCounter = 0;
+  abap.FunctionModules["ENQUEUE_EZSTOCKALLOC"] = async (input) => {
+    const material = input.exporting.matnr.get()?.trim();
+    abap.builtin.sy.get().subrc.set(material === "MATERIAL-LOCK-ERROR" ? 1 : 0);
+  };
+  abap.FunctionModules["DEQUEUE_EZSTOCKALLOC"] = async () => {
+    abap.builtin.sy.get().subrc.set(0);
+  };
+  abap.FunctionModules["MD_CONVERT_MATERIAL_UNIT"] = async (input) => {
+    const material = input.exporting.i_matnr.get()?.trim();
+    const unitIn = input.exporting.i_in_me.get()?.trim();
+    const unitOut = input.exporting.i_out_me.get()?.trim();
+    const quantity = Number(input.exporting.i_menge.get());
+    if (material === "MATERIAL-BOX" && unitIn === "BOX" && unitOut === "EA") {
+      input.importing.e_menge.set(String(quantity * 10));
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
+    if (material === "MATERIAL-BOX" && unitIn === "EA" && unitOut === "BOX") {
+      input.importing.e_menge.set(String(quantity / 10));
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
+    if (unitIn === unitOut) {
+      input.importing.e_menge.set(String(quantity));
+      abap.builtin.sy.get().subrc.set(0);
+      return;
+    }
+    abap.builtin.sy.get().subrc.set(1);
+  };
   abap.FunctionModules["BAPI_RESERVATION_CREATE1"] = async (input) => {
     const items = input.tables.reservationitems.array();
     const item = items[0]?.get();

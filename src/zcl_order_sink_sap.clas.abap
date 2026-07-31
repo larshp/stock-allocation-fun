@@ -3,8 +3,12 @@ CLASS zcl_order_sink_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_order_sink_authority OPTIONAL.
     INTERFACES zif_order_sink.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_order_sink_authority.
     TYPES:
       BEGIN OF ty_header_x,
         updateflag TYPE c LENGTH 1,
@@ -45,6 +49,10 @@ CLASS zcl_order_sink_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_order_sink_sap IMPLEMENTATION.
+  METHOD constructor.
+    mo_authority = io_authority.
+  ENDMETHOD.
+
   METHOD zif_order_sink~change_schedule_quantity.
     DATA ls_header_x TYPE ty_header_x.
     DATA ls_schedule TYPE ty_schedule.
@@ -59,10 +67,15 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
     IF iv_sales_document IS INITIAL
+        OR iv_sales_document_type IS INITIAL
         OR iv_sales_item IS INITIAL
         OR iv_schedule_line IS INITIAL
         OR iv_quantity <= 0.
       RAISE EXCEPTION TYPE zcx_stock_allocation.
+    ENDIF.
+
+    IF mo_authority IS BOUND.
+      mo_authority->check( iv_sales_document_type = iv_sales_document_type ).
     ENDIF.
 
     ls_header_x-updateflag = 'U'.

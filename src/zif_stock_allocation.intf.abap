@@ -6,6 +6,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_order_id TYPE c LENGTH 20.
   TYPES ty_run_id TYPE c LENGTH 32.
   TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES ty_sales_document_type TYPE c LENGTH 4.
   TYPES ty_sales_item TYPE n LENGTH 6.
   TYPES ty_schedule_line TYPE n LENGTH 4.
   TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
@@ -27,6 +28,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES:
     BEGIN OF ty_demand,
       sales_document            TYPE ty_sales_document,
+      sales_document_type       TYPE ty_sales_document_type,
       sales_item                TYPE ty_sales_item,
       schedule_line             TYPE ty_schedule_line,
       order_unit                TYPE ty_unit,

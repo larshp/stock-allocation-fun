@@ -13,6 +13,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_reservation_id TYPE c LENGTH 20.
     DATA lv_allocation_status TYPE c LENGTH 1.
     DATA lv_sales_document TYPE c LENGTH 10.
+    DATA lv_sales_document_type TYPE c LENGTH 4.
     DATA lv_sales_item TYPE n LENGTH 6.
     DATA lv_schedule_line TYPE n LENGTH 4.
     DATA lv_order_unit TYPE c LENGTH 3.
@@ -44,16 +45,17 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       it_demands          = lt_demands ).
 
     CLEAR lt_demands.
-    APPEND VALUE #( sales_document    = 'ORDER-DB01'
-                    sales_item        = '000010'
-                    schedule_line     = '0001'
-                    order_unit        = 'EA'
-                    order_id          = 'ORDER-DB'
-                    requested         = '5'
-                    allocated         = '4'
-                    shortage          = '1'
-                    allocation_status = 'P'
-                    reservation_id    = 'RES-DB' ) TO lt_demands.
+    APPEND VALUE #( sales_document      = 'ORDER-DB01'
+                    sales_document_type = 'OR'
+                    sales_item          = '000010'
+                    schedule_line       = '0001'
+                    order_unit          = 'EA'
+                    order_id            = 'ORDER-DB'
+                    requested           = '5'
+                    allocated           = '4'
+                    shortage            = '1'
+                    allocation_status   = 'P'
+                    reservation_id      = 'RES-DB' ) TO lt_demands.
 
     lo_cut->save_allocations(
       iv_material         = 'MATERIAL-DB'
@@ -64,10 +66,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_unit             = 'EA'
       it_demands          = lt_demands ).
 
-    SELECT SINGLE run_id, batch, allocation_unit, sales_document, sales_item, schedule_line, order_unit,
+    SELECT SINGLE run_id, batch, allocation_unit, sales_document, sales_document_type,
+                  sales_item, schedule_line, order_unit,
                   order_id, reservation_id, allocation_status
       FROM zstockalloc
-      INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_sales_document, @lv_sales_item, @lv_schedule_line, @lv_order_unit,
+      INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_sales_document, @lv_sales_document_type,
+            @lv_sales_item, @lv_schedule_line, @lv_order_unit,
             @lv_order_id, @lv_reservation_id, @lv_allocation_status)
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
@@ -90,6 +94,9 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_sales_document
       exp = 'ORDER-DB01' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_sales_document_type
+      exp = 'OR' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_sales_item
       exp = '000010' ).

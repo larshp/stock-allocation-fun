@@ -38,6 +38,11 @@
 - Added explicit `BAPI_TRANSACTION_ROLLBACK` calls on reservation and goods-movement BAPI errors or commit failures.
 - Added an opt-in sales-order sink for changing one schedule line's requested quantity through `BAPI_SALESORDER_CHANGE`, including `SCHEDULE_LINESX` update flags and rollback handling.
 - Kept order mutation separate from allocation orchestration so a caller must explicitly request a sales-order change.
+- Added an injectable sales-order mutation authorization boundary using `V_VBAK_AAT` for activity `02` and the supplied sales document type.
+- Added SAP sales document type (`VBAK-AUART`) to the demand model and `ZSTOCKALLOC` snapshot so authorized order mutations retain their exact document context.
+- Added source validation that rejects positive open demand when `VBAK-AUART` is missing, before unit normalization or reservation side effects.
+- Added `ZSTOCK_ALLOC_ORDER_UPDATE` as an explicit `P_EXEC`-guarded report for authorized sales-order schedule-line quantity changes.
+- Added `ZSTOCK_ALLOC_GOODS_ISSUE` as an explicit `P_EXEC`-guarded report for authorized goods issues through `BAPI_GOODSMVT_CREATE`.
 - Strengthened the SAP FM stubs to reject incomplete goods-movement and schedule-line payloads, making the adapter tests validate required key and checkbox fields.
 - Added `ZSTOCKALLOC_RUN` and an injected audit port; allocation runs are recorded as running, successful, failed, or partially cleaned up with available, allocated, shortage, and demand-count summaries.
 - Switched audit run IDs to Open ABAP Core's `CL_SYSTEM_UUID` C32 generator after a timestamp-based implementation collided under same-second repeated runs.
@@ -94,6 +99,7 @@
 - Added explicit `P_STAT` validation so history operators can only request persisted run statuses `R`, `S`, `P`, or `E`.
 - Moved history date-window filtering into the audit `GET_RUNS` contract, with API-level reversed-range validation and coverage for empty windows and invalid ranges.
 - Moved history status filtering into the audit `GET_RUNS` contract, with API-level validation for the persisted `R`, `S`, `P`, and `E` status domain.
+- Ordered `GET_RUNS` results newest-first by start date, time, and run ID for deterministic history and operator output.
 - Extended `ZSTOCK_ALLOC_HISTORY` output with available stock and demand count so operators can explain each run's allocation and shortage from the report alone.
 - Made preview mode independent of reservation-write authorization; a preview still reads, calculates, locks, and audits, but does not require `M_RES_BWA` because no reservation write is attempted.
 - Made preview construction independent of reservation and snapshot-sink ports; it now skips snapshot reads and needs only stock, demand, allocation, and audit dependencies.

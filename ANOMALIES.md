@@ -53,6 +53,11 @@
 - Resolved: operators could query audit summaries but not inspect individual run diagnostics; `ZSTOCK_ALLOC_HISTORY` now exposes scoped run details without side effects.
 - Resolved: any user able to start the purge report could request audit deletion; the report now requires explicit `S_TABU_NAM` activity `06` authorization for `ZSTOCKALLOC_RUN`.
 - Resolved: the opt-in goods-issue adapter could call `BAPI_GOODSMVT_CREATE` without an authorization seam; callers can now inject the standard `M_MSEG_WMB` check.
+- Resolved: the direct sales-order adapter could call `BAPI_SALESORDER_CHANGE` without a document-type authorization seam; callers now supply the document type and can inject the standard `V_VBAK_AAT` change check.
+- Resolved: sales document type was available only in SAP header data and was lost before persistence; `AUART` now travels through demand reads and allocation snapshots.
+- Resolved: open demand with a blank sales document type could enter allocation without an authorization context; the order source now rejects it at the SAP boundary.
+- Resolved: the sales-order mutation adapter had no standard operator entry point; `ZSTOCK_ALLOC_ORDER_UPDATE` now exposes it with an explicit execution guard and controlled failure output.
+- Resolved: the opt-in goods-movement adapter had no standard operator entry point; `ZSTOCK_ALLOC_GOODS_ISSUE` now exposes it with an explicit execution guard and controlled failure output.
 - Resolved: direct callers of `ZCL_STOCK_RESERVATION_SAP` could bypass the service authorization check; the adapter now accepts and enforces the standard `M_RES_BWA` boundary.
 - Resolved: SAP order-source validation failures were raised without an audit trail; the service now records `Open demand validation failed` before re-raising.
 - Resolved: unit-conversion exceptions were raised without diagnostics; stock and demand conversion failures now create explicit `E` audit rows.
@@ -67,6 +72,7 @@
 - Resolved: invalid history status filters silently returned no rows; `P_STAT` now validates against the audit status domain.
 - Resolved: date filtering was previously report-local and inconsistent for other consumers; `GET_RUNS` now owns the inclusive date scope and validates reversed ranges.
 - Resolved: status filtering was previously report-local and inconsistent for other consumers; `GET_RUNS` now owns the status scope and validates the status domain.
+- Resolved: audit history order depended on database retrieval order; `GET_RUNS` now returns deterministic newest-first results.
 - Resolved: history output omitted the available-stock and demand-count context needed to interpret allocation quantities; the report now displays both fields.
 - Resolved: preview executions unnecessarily required reservation-write authorization; the service now skips that check when `IV_PREVIEW` is true.
 - Resolved: preview executions still required unused reservation and snapshot dependencies; the service now skips those ports and their snapshot read in preview mode.

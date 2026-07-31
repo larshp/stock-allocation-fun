@@ -21,6 +21,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_unit_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lt_date_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lt_status_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lt_ordered_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_old_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_new_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_raised TYPE abap_bool.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
@@ -219,5 +222,55 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_unit_runs )
       exp = 1 ).
+
+    lv_old_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-ORDER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_available        = '1'
+      iv_demand_count     = 1
+      iv_unit             = 'EA' ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_old_run_id
+      iv_status    = 'S'
+      iv_available = '1'
+      iv_allocated = '1'
+      iv_shortage  = '0'
+      iv_message   = '' ).
+    lv_new_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-ORDER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_available        = '2'
+      iv_demand_count     = 1
+      iv_unit             = 'EA' ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_new_run_id
+      iv_status    = 'P'
+      iv_available = '2'
+      iv_allocated = '1'
+      iv_shortage  = '1'
+      iv_message   = '' ).
+    UPDATE zstockalloc_run
+      SET start_date = '20260701', start_time = '010000'
+      WHERE mandt = @sy-mandt
+        AND run_id = @lv_old_run_id.
+    UPDATE zstockalloc_run
+      SET start_date = '20260702', start_time = '010000'
+      WHERE mandt = @sy-mandt
+        AND run_id = @lv_new_run_id.
+    lt_ordered_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-ORDER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_ordered_runs )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 1 ]-run_id
+      exp = lv_new_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 2 ]-run_id
+      exp = lv_old_run_id ).
   ENDMETHOD.
 ENDCLASS.

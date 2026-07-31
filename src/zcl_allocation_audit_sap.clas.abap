@@ -162,6 +162,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDLOOP.
       rt_runs = lt_filtered.
     ENDIF.
+    SORT rt_runs BY start_date DESCENDING
+                    start_time DESCENDING
+                    run_id DESCENDING.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~start_run.

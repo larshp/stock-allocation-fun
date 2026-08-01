@@ -48,15 +48,12 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
            schedule~bmeng AS confirmed
       FROM vbap AS item
       INNER JOIN vbak AS header
-        ON header~mandt = item~mandt
-       AND header~vbeln = item~vbeln
+        ON header~vbeln = item~vbeln
       INNER JOIN vbep AS schedule
-        ON schedule~mandt = item~mandt
-       AND schedule~vbeln = item~vbeln
+        ON schedule~vbeln = item~vbeln
        AND schedule~posnr = item~posnr
       INTO TABLE @lt_schedule
-      WHERE item~mandt = @lv_client
-        AND item~matnr = @iv_material
+      WHERE item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
         AND item~lifsp = ''

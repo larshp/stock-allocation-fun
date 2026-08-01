@@ -78,7 +78,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
            reservation_id,
            reservation_date, reservation_movement_type, reservation_unit
       FROM zstockalloc
-      INTO TABLE @rt_demands
+      INTO CORRESPONDING FIELDS OF TABLE @rt_demands
       WHERE matnr = @iv_material
         AND werks = @iv_plant
         AND lgort = @iv_storage_location

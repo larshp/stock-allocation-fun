@@ -801,12 +801,16 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       act = lv_allocation_status
       exp = 'P' ).
 
-    lt_saved_demands = lo_cut->get_allocations(
-      iv_material         = 'MATERIAL-DB'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_batch            = 'BATCH-001'
-      iv_unit             = 'EA' ).
+    TRY.
+        lt_saved_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-DB'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_batch            = 'BATCH-001'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_initial_read_error).
+        cl_abap_unit_assert=>fail( msg = lo_initial_read_error->message ).
+    ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       act = lt_saved_demands[ 1 ]-allocation_run_id
       exp = 'RUN-DB' ).
@@ -877,11 +881,15 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       act = lv_other_location_count
       exp = 1 ).
 
-    lt_saved_demands = lo_cut->get_allocations(
-      iv_material         = 'MATERIAL-DB'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_batch            = 'BATCH-001' ).
+    TRY.
+        lt_saved_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-DB'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_batch            = 'BATCH-001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_combined_read_error).
+        cl_abap_unit_assert=>fail( msg = lo_combined_read_error->message ).
+    ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_saved_demands )
       exp = 2 ).

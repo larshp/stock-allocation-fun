@@ -1358,7 +1358,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         IF <ls_existing>-allocation_unit = iv_unit
             AND <ls_existing>-reservation_id IS NOT INITIAL.
           READ TABLE lt_reused
-            WITH TABLE KEY table_line = <ls_existing>-reservation_id
+            WITH KEY table_line = <ls_existing>-reservation_id
             TRANSPORTING NO FIELDS.
           IF sy-subrc <> 0.
             TRY.

@@ -27,6 +27,7 @@
     "parser_error": true,
     "max_one_method_parameter_per_line": true,
     "modify_only_own_db_tables": true,
+    "xml_consistency": true,
     "check_syntax": true,
     "object_naming": {
       "exclude": [

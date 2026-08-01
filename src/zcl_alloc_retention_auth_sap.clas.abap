@@ -1,13 +1,13 @@
-CLASS zcl_allocation_retention_authority_sap DEFINITION
+CLASS zcl_alloc_retention_auth_sap DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
-    INTERFACES zif_allocation_retention_authority.
+    INTERFACES zif_alloc_retention_auth.
 ENDCLASS.
 
-CLASS zcl_allocation_retention_authority_sap IMPLEMENTATION.
-  METHOD zif_allocation_retention_authority~check.
+CLASS zcl_alloc_retention_auth_sap IMPLEMENTATION.
+  METHOD zif_alloc_retention_auth~check.
     AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
       ID 'TABLE' FIELD 'ZSTOCKALLOC_RUN'
       ID 'ACTVT' FIELD '06'.

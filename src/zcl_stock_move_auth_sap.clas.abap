@@ -1,4 +1,4 @@
-CLASS zcl_stock_movement_authority_sap DEFINITION
+CLASS zcl_stock_move_auth_sap DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
@@ -6,7 +6,7 @@ CLASS zcl_stock_movement_authority_sap DEFINITION
     INTERFACES zif_stock_movement_authority.
 ENDCLASS.
 
-CLASS zcl_stock_movement_authority_sap IMPLEMENTATION.
+CLASS zcl_stock_move_auth_sap IMPLEMENTATION.
   METHOD zif_stock_movement_authority~check.
     AUTHORITY-CHECK OBJECT 'M_MSEG_BWA'
       ID 'BWART' FIELD iv_movement_type

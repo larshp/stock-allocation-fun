@@ -2,7 +2,7 @@ CLASS lcl_failing_allocation_write_authority DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_read_authority.
     INTERFACES zif_allocation_write_authority.
-    INTERFACES zif_allocation_retention_authority.
+    INTERFACES zif_alloc_retention_auth.
 ENDCLASS.
 
 CLASS lcl_failing_allocation_write_authority IMPLEMENTATION.
@@ -41,7 +41,7 @@ CLASS lcl_failing_allocation_write_authority IMPLEMENTATION.
     RAISE EXCEPTION lo_error.
   ENDMETHOD.
 
-  METHOD zif_allocation_retention_authority~check.
+  METHOD zif_alloc_retention_auth~check.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     CREATE OBJECT lo_error.
     lo_error->message = 'Retention authorization test failure'.
@@ -53,7 +53,7 @@ CLASS lcl_blank_allocation_authority DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_read_authority.
     INTERFACES zif_allocation_write_authority.
-    INTERFACES zif_allocation_retention_authority.
+    INTERFACES zif_alloc_retention_auth.
 ENDCLASS.
 
 CLASS lcl_blank_allocation_authority IMPLEMENTATION.
@@ -77,7 +77,7 @@ CLASS lcl_blank_allocation_authority IMPLEMENTATION.
     RAISE EXCEPTION TYPE zcx_stock_allocation.
   ENDMETHOD.
 
-  METHOD zif_allocation_retention_authority~check.
+  METHOD zif_alloc_retention_auth~check.
     RAISE EXCEPTION TYPE zcx_stock_allocation.
   ENDMETHOD.
 ENDCLASS.

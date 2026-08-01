@@ -19,7 +19,7 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-  CREATE OBJECT lo_authority TYPE zcl_stock_movement_authority_sap.
+  CREATE OBJECT lo_authority TYPE zcl_stock_move_auth_sap.
   CREATE OBJECT lo_movement TYPE zcl_stock_movement_sap
     EXPORTING
       io_authority = lo_authority.

@@ -12,7 +12,7 @@ START-OF-SELECTION.
   DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
   FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
 
-  CREATE OBJECT lo_authority TYPE zcl_allocation_read_authority_sap.
+  CREATE OBJECT lo_authority TYPE zcl_allocation_read_auth_sap.
   TRY.
       lo_authority->check_results( ).
     CATCH zcx_stock_allocation INTO DATA(lo_auth_error).

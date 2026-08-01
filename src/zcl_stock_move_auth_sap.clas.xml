@@ -3,9 +3,9 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZCL_ALLOCATION_WRITE_AUTHORITY_SAP</CLSNAME>
+    <CLSNAME>ZCL_STOCK_MOVE_AUTH_SAP</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>SAP allocation write authorization</DESCRIPT>
+    <DESCRIPT>SAP goods movement authorization</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>

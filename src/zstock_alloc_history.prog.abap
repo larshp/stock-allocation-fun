@@ -28,7 +28,7 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-  CREATE OBJECT lo_authority TYPE zcl_allocation_read_authority_sap.
+  CREATE OBJECT lo_authority TYPE zcl_allocation_read_auth_sap.
   TRY.
       lo_authority->check_audit( ).
     CATCH zcx_stock_allocation INTO DATA(lo_auth_error).

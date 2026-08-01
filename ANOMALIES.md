@@ -2,6 +2,8 @@
 
 ## 2026-08-01
 
+- Resolved: `npm test` failed without live GitHub access because the transpiler cloned Open ABAP Core on every run; the dependency is now commit-pinned in `package-lock.json` and consumed from `node_modules`.
+- Resolved: six global ABAP object names exposed by metadata linting exceeded SAP's 30-character limit; the objects and every reference now use valid shortened names.
 - Resolved: executable reports had ABAP source files but no abapGit `.prog.xml` metadata; all six reports now carry importable program-directory metadata, report titles, and selection texts.
 - Resolved: global classes and interfaces had ABAP source files but no abapGit `.clas.xml` or `.intf.xml` metadata, preventing complete object import; every global class and interface now has a matching descriptor.
 

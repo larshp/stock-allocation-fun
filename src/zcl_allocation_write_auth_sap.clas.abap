@@ -1,4 +1,4 @@
-CLASS zcl_allocation_write_authority_sap DEFINITION
+CLASS zcl_allocation_write_auth_sap DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
@@ -6,7 +6,7 @@ CLASS zcl_allocation_write_authority_sap DEFINITION
     INTERFACES zif_allocation_write_authority.
 ENDCLASS.
 
-CLASS zcl_allocation_write_authority_sap IMPLEMENTATION.
+CLASS zcl_allocation_write_auth_sap IMPLEMENTATION.
   METHOD zif_allocation_write_authority~check_audit_write.
     AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
       ID 'TABLE' FIELD 'ZSTOCKALLOC_RUN'

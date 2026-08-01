@@ -10,7 +10,7 @@ PARAMETERS p_exec AS CHECKBOX.
 
 START-OF-SELECTION.
   DATA lo_audit TYPE REF TO zif_allocation_audit.
-  DATA lo_authority TYPE REF TO zif_allocation_retention_authority.
+  DATA lo_authority TYPE REF TO zif_alloc_retention_auth.
   DATA lv_deleted TYPE i.
 
   IF p_exec <> abap_true.
@@ -22,7 +22,7 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-  CREATE OBJECT lo_authority TYPE zcl_allocation_retention_authority_sap.
+  CREATE OBJECT lo_authority TYPE zcl_alloc_retention_auth_sap.
   TRY.
       lo_authority->check( ).
     CATCH zcx_stock_allocation INTO DATA(lo_auth_error).

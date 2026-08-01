@@ -2,6 +2,8 @@
 
 ## 2026-08-01
 
+- Pinned Open ABAP Core as a local npm development dependency and configured lint/transpilation to use it, removing the live GitHub clone requirement from every test run.
+- Renamed five authority classes and one retention interface whose names exceeded SAP's 30-character global object limit, updating all source and abapGit metadata references.
 - Added abapGit program metadata for all six executable stock-allocation reports, including report titles and selection-screen text elements.
 - Added abapGit metadata companions for all 19 global classes and 17 interfaces, including exception-category metadata and unit-test flags for classes with test includes.
 

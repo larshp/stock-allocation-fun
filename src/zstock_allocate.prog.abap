@@ -32,10 +32,10 @@ START-OF-SELECTION.
   CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
   CREATE OBJECT lo_unit_converter TYPE zcl_unit_conversion_sap.
   CREATE OBJECT lo_lock TYPE zcl_stock_allocation_lock_sap.
-  CREATE OBJECT lo_authority TYPE zcl_stock_allocation_authority_sap.
+  CREATE OBJECT lo_authority TYPE zcl_stock_alloc_auth_sap.
   CREATE OBJECT lo_transaction TYPE zcl_allocation_transaction_sap.
-  CREATE OBJECT lo_read_authority TYPE zcl_allocation_read_authority_sap.
-  CREATE OBJECT lo_write_authority TYPE zcl_allocation_write_authority_sap.
+  CREATE OBJECT lo_read_authority TYPE zcl_allocation_read_auth_sap.
+  CREATE OBJECT lo_write_authority TYPE zcl_allocation_write_auth_sap.
   TRY.
       lo_read_authority->check_audit( ).
     CATCH zcx_stock_allocation INTO DATA(lo_read_error).

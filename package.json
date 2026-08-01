@@ -11,6 +11,7 @@
     "@abaplint/database-sqlite": "^2.13.40",
     "@abaplint/cli": "^2.120.10",
     "@abaplint/transpiler-cli": "^2.13.41",
-    "@abaplint/runtime": "^2.13.41"
+    "@abaplint/runtime": "^2.13.41",
+    "open-abap-core": "https://github.com/open-abap/open-abap-core/archive/48335c7351ad72265f7272177e1e3e2fec259a16.tar.gz"
   }
 }

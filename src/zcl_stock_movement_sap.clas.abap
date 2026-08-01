@@ -66,7 +66,7 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
     IF io_authority IS BOUND.
       mo_authority = io_authority.
     ELSE.
-      CREATE OBJECT mo_authority TYPE zcl_stock_movement_authority_sap.
+      CREATE OBJECT mo_authority TYPE zcl_stock_move_auth_sap.
     ENDIF.
   ENDMETHOD.
 

@@ -1,4 +1,4 @@
-CLASS zcl_allocation_read_authority_sap DEFINITION
+CLASS zcl_allocation_read_auth_sap DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
@@ -12,7 +12,7 @@ CLASS zcl_allocation_read_authority_sap DEFINITION
         zcx_stock_allocation.
 ENDCLASS.
 
-CLASS zcl_allocation_read_authority_sap IMPLEMENTATION.
+CLASS zcl_allocation_read_auth_sap IMPLEMENTATION.
   METHOD zif_allocation_read_authority~check_audit.
     AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
       ID 'TABLE' FIELD 'ZSTOCKALLOC_RUN'

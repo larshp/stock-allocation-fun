@@ -3,7 +3,7 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZCL_ALLOCATION_RETENTION_AUTHORITY_SAP</CLSNAME>
+    <CLSNAME>ZCL_ALLOC_RETENTION_AUTH_SAP</CLSNAME>
     <LANGU>E</LANGU>
     <DESCRIPT>SAP allocation retention authorization</DESCRIPT>
     <STATE>1</STATE>

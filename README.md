@@ -15,7 +15,7 @@ npm test
 npm run verify
 ```
 
-`npm test` transpiles and runs the generated ABAP Unit harness. `npm run verify` adds the lint pass. The transpiler configuration uses Open ABAP Core as a dependency and emits the ABAP Unit runner into `output/`.
+`npm test` transpiles and runs the generated ABAP Unit harness. `npm run verify` adds the lint pass. Open ABAP Core is pinned by commit as an npm development dependency; lint and transpilation use its installed local folder, so checks do not require a fresh GitHub clone after `npm install`. The transpiler emits the ABAP Unit runner into `output/`.
 
 The `ZSTOCK_ALLOCATE` report prints the remaining quantity plus the unit-scoped run totals, allocated quantity, shortage, last audit run ID, start/finish timestamps, and status/message after a successful allocation. Completed runs include explicit success or shortage messages; rejected allocations are reported with the latest audited status/message, while the original service diagnostic is retained if the audit summary itself is unavailable. Set `p_shelf` to require that a selected batch expires at least that many days from the allocation date. Select `p_test` to preview and audit the calculation without reservation or snapshot dependencies, reservations, or `ZSTOCKALLOC` writes.
 

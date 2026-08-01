@@ -84,12 +84,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     IF io_authority IS BOUND.
       mo_authority = io_authority.
     ELSE.
-      CREATE OBJECT mo_authority TYPE zcl_stock_allocation_authority_sap.
+      CREATE OBJECT mo_authority TYPE zcl_stock_alloc_auth_sap.
     ENDIF.
     IF io_write_authority IS BOUND.
       mo_write_authority = io_write_authority.
     ELSE.
-      CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_authority_sap.
+      CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_auth_sap.
     ENDIF.
     IF io_transaction IS BOUND.
       mo_transaction = io_transaction.

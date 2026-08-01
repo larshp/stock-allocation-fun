@@ -40,12 +40,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF io_read_authority IS BOUND.
       mo_read_authority = io_read_authority.
     ELSE.
-      CREATE OBJECT mo_read_authority TYPE zcl_allocation_read_authority_sap.
+      CREATE OBJECT mo_read_authority TYPE zcl_allocation_read_auth_sap.
     ENDIF.
     IF io_write_authority IS BOUND.
       mo_write_authority = io_write_authority.
     ELSE.
-      CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_authority_sap.
+      CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_auth_sap.
     ENDIF.
   ENDMETHOD.
 

@@ -56,7 +56,7 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       WHERE item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
-        AND item~lifsp = ''
+        AND schedule~lifsp = ''
         AND header~vbtyp = 'C'
         AND header~lifsk = ''
         AND schedule~wmeng > schedule~bmeng.

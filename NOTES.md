@@ -93,7 +93,7 @@
 - Added `ZSTOCK_ALLOC_PURGE` as an explicit-`P_EXEC` operational entry point for unit- and batch-scoped audit retention; without the checkbox it performs no deletion.
 - Added a future-date guard to `ZSTOCK_ALLOC_PURGE` so an accidental cutoff cannot remove all completed history.
 - Added an injectable reservation movement-type authorization boundary using SAP object `M_MRES_BWA`; the report supplies the SAP adapter and unauthorized attempts are rejection-audited before stock reads or side effects.
-- Added `VBAK-LIFSK` and `VBAP-LIFSP` filtering so header- and item-delivery-blocked sales-order schedule lines never enter allocation.
+- Added `VBAK-LIFSK` and `VBEP-LIFSP` filtering so header- and schedule-line-delivery-blocked sales-order schedule lines never enter allocation.
 - Added read-only `ZSTOCK_ALLOC_HISTORY` output for scoped audit run status, quantities, timestamps, and diagnostic messages.
 - Added `S_TABU_NAM` delete authorization enforcement for `ZSTOCKALLOC_RUN` in `ZSTOCK_ALLOC_PURGE`, before the retention API is called.
 - Added injectable goods-movement authorization boundaries to `ZCL_STOCK_MOVEMENT_SAP`: `M_MSEG_BWA` checks movement type, `M_MSEG_WWA` checks plant, and `M_MSEG_LGO` checks storage location before `BAPI_GOODSMVT_CREATE`.

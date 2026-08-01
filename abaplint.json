@@ -23,6 +23,7 @@
     "align_parameters": true,
     "easy_to_find_messages": true,
     "local_testclass_consistency": true,
+    "no_mandt_in_database_operations": true,
     "allowed_object_naming": true,
     "parser_error": true,
     "max_one_method_parameter_per_line": true,

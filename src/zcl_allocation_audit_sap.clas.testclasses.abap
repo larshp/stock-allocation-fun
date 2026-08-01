@@ -170,8 +170,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit run data is invalid' ).
     ENDTRY.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-AUDIT-CORRUPT'.
+      WHERE run_id = 'RUN-AUDIT-CORRUPT'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
@@ -209,8 +208,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit run data is invalid' ).
     ENDTRY.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-AUDIT-TIME'.
+      WHERE run_id = 'RUN-AUDIT-TIME'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
@@ -262,8 +260,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_snapshot_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PURGE-SNAPSHOT'
+      WHERE matnr = 'MATERIAL-PURGE-SNAPSHOT'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -311,8 +308,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit transaction test failure' ).
     ENDTRY.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-PURGE-COMMIT-FAIL'.
+      WHERE run_id = 'RUN-PURGE-COMMIT-FAIL'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
@@ -348,8 +344,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit transaction test failure' ).
     ENDTRY.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
@@ -377,8 +372,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit transaction test failure' ).
     ENDTRY.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-REJECTION-COMMIT'.
+      WHERE matnr = 'MATERIAL-REJECTION-COMMIT'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
@@ -726,8 +720,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     SELECT SINGLE status, allocated, unit, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_allocated, @lv_unit, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id.
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'S' ).
@@ -912,8 +905,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_unit             = 'EA' ).
     UPDATE zstockalloc_run
       SET start_date = '20260101'
-      WHERE mandt = @sy-mandt
-        AND run_id = @lv_purge_run_id.
+      WHERE run_id = @lv_purge_run_id.
     lv_deleted = lo_cut->purge_runs_before(
       iv_material         = 'MATERIAL-AUDIT'
       iv_plant            = '1000'
@@ -1006,12 +998,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_message   = 'Partial run' ).
     UPDATE zstockalloc_run
       SET start_date = '20260701', start_time = '010000'
-      WHERE mandt = @sy-mandt
-        AND run_id = @lv_old_run_id.
+      WHERE run_id = @lv_old_run_id.
     UPDATE zstockalloc_run
       SET start_date = '20260702', start_time = '010000'
-      WHERE mandt = @sy-mandt
-        AND run_id = @lv_new_run_id.
+      WHERE run_id = @lv_new_run_id.
     lt_ordered_runs = lo_cut->get_runs(
       iv_material         = 'MATERIAL-AUDIT-ORDER'
       iv_plant            = '1000'

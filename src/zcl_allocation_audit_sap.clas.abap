@@ -80,8 +80,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       SELECT run_id
         FROM zstockalloc_run
         INTO TABLE @lt_run_ids
-        WHERE mandt = @sy-mandt
-          AND matnr = @iv_material
+        WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
@@ -91,8 +90,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       SELECT run_id
         FROM zstockalloc_run
         INTO TABLE @lt_run_ids
-        WHERE mandt = @sy-mandt
-          AND matnr = @iv_material
+        WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
@@ -103,16 +101,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     LOOP AT lt_run_ids INTO lv_run_id.
       IF iv_unit IS INITIAL.
         DELETE FROM zstockalloc
-          WHERE mandt = @sy-mandt
-            AND matnr = @iv_material
+          WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
             AND run_id = @lv_run_id.
       ELSE.
         DELETE FROM zstockalloc
-          WHERE mandt = @sy-mandt
-            AND matnr = @iv_material
+          WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
@@ -122,8 +118,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDLOOP.
     IF iv_unit IS INITIAL.
       DELETE FROM zstockalloc_run
-        WHERE mandt = @sy-mandt
-          AND matnr = @iv_material
+        WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
@@ -131,8 +126,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND status <> 'R'.
     ELSE.
       DELETE FROM zstockalloc_run
-        WHERE mandt = @sy-mandt
-          AND matnr = @iv_material
+        WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
@@ -312,8 +306,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
            message
       FROM zstockalloc_run
       INTO TABLE @rt_runs
-      WHERE mandt = @sy-mandt
-        AND matnr = @iv_material
+      WHERE matnr = @iv_material
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
         AND batch = @iv_batch.
@@ -426,8 +419,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     SELECT SINGLE status, available
       FROM zstockalloc_run
       INTO (@lv_current_status, @lv_current_available)
-      WHERE mandt = @sy-mandt
-        AND run_id = @iv_run_id.
+      WHERE run_id = @iv_run_id.
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Audit run was not found' ).
     ENDIF.
@@ -447,8 +439,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           allocated   = @iv_allocated,
           shortage    = @iv_shortage,
           message     = @iv_message
-      WHERE mandt = @sy-mandt
-        AND run_id = @iv_run_id
+      WHERE run_id = @iv_run_id
         AND status = 'R'.
     IF sy-subrc <> 0 OR sy-dbcnt <> 1.
       raise_error( iv_message = 'Audit finalization persistence failed' ).

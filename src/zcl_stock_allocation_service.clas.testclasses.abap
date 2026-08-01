@@ -105,8 +105,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_allocation_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -116,8 +115,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_reservation_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100001'.
@@ -125,8 +123,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_second_reservation_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100002'.
@@ -149,16 +146,14 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_rerun_reservation_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100001'.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_rerun_second_reservation_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100002'.
@@ -182,16 +177,14 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_changed_reservation_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100001'.
     SELECT SINGLE reservation_id
       FROM zstockalloc
       INTO @lv_changed_second_id
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND order_id = 'PRIO0000010000100002'.
@@ -206,8 +199,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc_run
       INTO @lv_run_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND status = 'P'.
@@ -257,8 +249,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_allocation_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-BATCH-PRIO'
+      WHERE matnr = 'MATERIAL-BATCH-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'.
@@ -268,8 +259,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE batch
       FROM zstockalloc
       INTO @lv_batch
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-BATCH-PRIO'
+      WHERE matnr = 'MATERIAL-BATCH-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'.
@@ -302,8 +292,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_before_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND allocation_unit = 'EA'.
@@ -322,8 +311,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_after_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND allocation_unit = 'EA'.
@@ -374,8 +362,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-MISSING'
+      WHERE matnr = 'MATERIAL-MISSING'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -428,8 +415,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-NO-UNIT'
+      WHERE matnr = 'MATERIAL-NO-UNIT'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -485,8 +471,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-PRIO'
+      WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND unit = 'BOX'.
@@ -544,8 +529,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_allocation_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DEMAND-FAIL'
+      WHERE matnr = 'MATERIAL-DEMAND-FAIL'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -554,8 +538,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DEMAND-FAIL'
+      WHERE matnr = 'MATERIAL-DEMAND-FAIL'
         AND werks = '1000'
         AND lgort = '0001'
         AND unit = 'EA'.
@@ -610,8 +593,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @lv_allocation_count
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-ERROR'
+      WHERE matnr = 'MATERIAL-ERROR'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(
@@ -620,8 +602,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status, message
       FROM zstockalloc_run
       INTO (@lv_status, @lv_message)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-ERROR'
+      WHERE matnr = 'MATERIAL-ERROR'
         AND werks = '1000'
         AND lgort = '0001'
         AND unit = 'EA'.
@@ -1001,8 +982,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     SELECT SINGLE status
       FROM zstockalloc_run
       INTO @lv_status
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-TXN-FAIL'
+      WHERE matnr = 'MATERIAL-TXN-FAIL'
         AND werks = '1000'
         AND lgort = '0001'.
     cl_abap_unit_assert=>assert_equals(

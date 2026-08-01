@@ -180,8 +180,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-CORRUPT'
+      WHERE matnr = 'MATERIAL-CORRUPT'
         AND werks = '1000'
         AND lgort = '0001'.
   ENDMETHOD.
@@ -243,13 +242,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-MIXED-RUN'
+      WHERE matnr = 'MATERIAL-MIXED-RUN'
         AND werks = '1000'
         AND lgort = '0001'.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-MIXED-RUN'.
+      WHERE matnr = 'MATERIAL-MIXED-RUN'.
 
     ls_first-run_id = 'RUN-DUPLICATE'.
     ls_first-order_id = 'DUPLICATE-ONE'.
@@ -286,13 +283,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-MIXED-RUN'
+      WHERE matnr = 'MATERIAL-MIXED-RUN'
         AND werks = '1000'
         AND lgort = '0001'.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-MIXED-RUN'.
+      WHERE matnr = 'MATERIAL-MIXED-RUN'.
 
   ENDMETHOD.
 
@@ -331,8 +326,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-ORPHAN-READ'
+      WHERE matnr = 'MATERIAL-ORPHAN-READ'
         AND werks = '1000'
         AND lgort = '0001'.
   ENDMETHOD.
@@ -386,13 +380,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-INVALID-STATUS'
+      WHERE matnr = 'MATERIAL-INVALID-STATUS'
         AND werks = '1000'
         AND lgort = '0001'.
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-INVALID-STATUS-READ'.
+      WHERE run_id = 'RUN-INVALID-STATUS-READ'.
   ENDMETHOD.
 
   METHOD rejects_unknown_run.
@@ -470,8 +462,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-INCONSISTENT-SCOPE'.
+      WHERE run_id = 'RUN-INCONSISTENT-SCOPE'.
   ENDMETHOD.
 
   METHOD rejects_finalized_run.
@@ -521,8 +512,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc_run
-      WHERE mandt = @sy-mandt
-        AND run_id = 'RUN-FINALIZED-SNAPSHOT'.
+      WHERE run_id = 'RUN-FINALIZED-SNAPSHOT'.
   ENDMETHOD.
 
   METHOD fallback_authority_messages.
@@ -856,8 +846,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @DATA(lv_unit_count)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DB'
+      WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
@@ -869,8 +858,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @DATA(lv_stale_count)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DB'
+      WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
@@ -882,8 +870,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @DATA(lv_other_location_count)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DB'
+      WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0002'.
     cl_abap_unit_assert=>assert_equals(
@@ -1006,8 +993,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     SELECT COUNT( * )
       FROM zstockalloc
       INTO @DATA(lv_ea_count)
-      WHERE mandt = @sy-mandt
-        AND matnr = 'MATERIAL-DB'
+      WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'

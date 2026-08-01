@@ -79,8 +79,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
            reservation_date, reservation_movement_type, reservation_unit
       FROM zstockalloc
       INTO TABLE @rt_demands
-      WHERE mandt = @sy-mandt
-        AND matnr = @iv_material
+      WHERE matnr = @iv_material
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
         AND batch = @iv_batch.
@@ -201,8 +200,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       iv_require_running  = abap_true ).
 
     DELETE FROM zstockalloc
-      WHERE mandt = @sy-mandt
-        AND matnr = @iv_material
+      WHERE matnr = @iv_material
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
         AND batch = @iv_batch
@@ -270,8 +268,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       FROM zstockalloc_run
       INTO (@lv_run_material, @lv_run_plant, @lv_run_storage_location,
             @lv_run_batch, @lv_run_unit, @lv_run_status)
-      WHERE mandt = @sy-mandt
-        AND run_id = @iv_run_id.
+      WHERE run_id = @iv_run_id.
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Allocation snapshot run was not found' ).
     ENDIF.

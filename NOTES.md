@@ -1,5 +1,9 @@
 # Progress notes
 
+## 2026-08-01
+
+- Added abapGit metadata companions for all 19 global classes and 17 interfaces, including exception-category metadata and unit-test flags for classes with test includes.
+
 ## 2026-07-31
 
 - Added `ZSTOCKALLOC-REQUESTED_ON` persistence and result-report output so allocation snapshots retain the originating schedule-line delivery date used for prioritization, shelf-life validation, reservation reuse, and reservation creation.

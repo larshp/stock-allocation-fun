@@ -1,5 +1,9 @@
 # Anomalies and known issues
 
+## 2026-08-01
+
+- Resolved: global classes and interfaces had ABAP source files but no abapGit `.clas.xml` or `.intf.xml` metadata, preventing complete object import; every global class and interface now has a matching descriptor.
+
 ## 2026-07-31
 
 - Resolved: persisted allocation results omitted the originating schedule-line delivery date; `ZSTOCKALLOC-REQUESTED_ON` now retains it and `ZSTOCK_ALLOC_RESULT` displays it for reconciliation.

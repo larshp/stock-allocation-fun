@@ -2,6 +2,7 @@
 
 ## 2026-08-01
 
+- Added abapGit program metadata for all six executable stock-allocation reports, including report titles and selection-screen text elements.
 - Added abapGit metadata companions for all 19 global classes and 17 interfaces, including exception-category metadata and unit-test flags for classes with test includes.
 
 ## 2026-07-31

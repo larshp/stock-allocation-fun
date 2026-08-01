@@ -2,6 +2,7 @@
 
 ## 2026-08-01
 
+- Resolved: executable reports had ABAP source files but no abapGit `.prog.xml` metadata; all six reports now carry importable program-directory metadata, report titles, and selection texts.
 - Resolved: global classes and interfaces had ABAP source files but no abapGit `.clas.xml` or `.intf.xml` metadata, preventing complete object import; every global class and interface now has a matching descriptor.
 
 ## 2026-07-31

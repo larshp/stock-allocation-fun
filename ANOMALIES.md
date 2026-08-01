@@ -2,6 +2,7 @@
 
 ## 2026-08-01
 
+- Resolved: custom quantity fields lacked DDIC unit references and could not activate in SAP; every `QUAN` field in `ZSTOCKALLOC` and `ZSTOCKALLOC_RUN` now points to its table's unit field.
 - Resolved: `npm test` failed without live GitHub access because the transpiler cloned Open ABAP Core on every run; the dependency is now commit-pinned in `package-lock.json` and consumed from `node_modules`.
 - Resolved: six global ABAP object names exposed by metadata linting exceeded SAP's 30-character limit; the objects and every reference now use valid shortened names.
 - Resolved: executable reports had ABAP source files but no abapGit `.prog.xml` metadata; all six reports now carry importable program-directory metadata, report titles, and selection texts.

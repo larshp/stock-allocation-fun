@@ -30,4 +30,4 @@ The `ZSTOCK_ALLOC_ORDER_UPDATE` report changes one sales-order schedule-line qua
 
 The `ZSTOCK_ALLOC_GOODS_ISSUE` report posts one authorized goods issue through `BAPI_GOODSMVT_CREATE` only when `p_exec` is selected; without the checkbox it performs no mutation and reports BAPI failures cleanly. Successful output includes both the material-document number and document year from `GOODSMVT_HEADRET`.
 
-The read-only `ZSTOCK_ALLOC_RESULT` report displays the scoped per-demand allocation status, normalized allocation unit, original sales-order unit, requested/allocated/shortage quantities, sales-document type, reservation ID and lifecycle metadata (date, movement type, and unit), and audit run ID from `ZSTOCKALLOC`.
+The read-only `ZSTOCK_ALLOC_RESULT` report displays the scoped per-demand allocation status, requested delivery date, normalized allocation unit, original sales-order unit, requested/allocated/shortage quantities, sales-document type, reservation ID and lifecycle metadata (date, movement type, and unit), and audit run ID from `ZSTOCKALLOC`.

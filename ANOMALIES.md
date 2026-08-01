@@ -2,6 +2,7 @@
 
 ## 2026-07-31
 
+- Resolved: persisted allocation results omitted the originating schedule-line delivery date; `ZSTOCKALLOC-REQUESTED_ON` now retains it and `ZSTOCK_ALLOC_RESULT` displays it for reconciliation.
 - Resolved: the local DDIC stubs initially omitted the abapGit wrapper and used unresolved SAP data elements. The stubs now use the standard wrapper plus built-in DDIC types and transpile successfully.
 - Resolved: Open ABAP does not accept the attempted global SAP class stub in the application input set. The reservation adapter now calls the real SAP function-module names, while the test harness installs isolated FM doubles from `sap_stubs/`.
 - Resolved: Open ABAP cannot execute selection-screen `PARAMETERS` in the generated Node harness. `importProg` is disabled for the transpiler bootstrap; the `ZSTOCK_ALLOCATE` report is still linted and transpiled for SAP deployment.

@@ -14,10 +14,7 @@
     }
   ],
   "syntax": {
-    "version": {
-      "release": "Newest",
-      "language": "Normal"
-    },
+    "version": "v758",
     "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)"
   },
   "rules": {

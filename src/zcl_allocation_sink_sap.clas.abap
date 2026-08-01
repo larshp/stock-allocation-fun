@@ -73,7 +73,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     SELECT run_id AS allocation_run_id,
            allocation_unit,
            sales_document, sales_document_type, sales_item, schedule_line, order_unit,
-           order_id,
+           requested_on, order_id,
            requested, allocated, shortage, allocation_status,
            reservation_id,
            reservation_date, reservation_movement_type, reservation_unit
@@ -159,6 +159,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ls_allocation-sales_item = <ls_demand>-sales_item.
       ls_allocation-schedule_line = <ls_demand>-schedule_line.
       ls_allocation-order_unit = <ls_demand>-order_unit.
+      ls_allocation-requested_on = <ls_demand>-requested_on.
       ls_allocation-order_id = <ls_demand>-order_id.
       ls_allocation-requested = <ls_demand>-requested.
       ls_allocation-allocated = <ls_demand>-allocated.

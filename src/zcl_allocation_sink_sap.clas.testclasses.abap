@@ -588,6 +588,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_sales_item TYPE n LENGTH 6.
     DATA lv_schedule_line TYPE n LENGTH 4.
     DATA lv_order_unit TYPE c LENGTH 3.
+    DATA lv_requested_on TYPE d.
     DATA lv_allocation_unit TYPE c LENGTH 3.
     DATA lv_batch TYPE c LENGTH 10.
     DATA lv_run_id TYPE c LENGTH 32.
@@ -725,6 +726,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     sales_item                = '000010'
                     schedule_line             = '0001'
                     order_unit                = 'EA'
+                    requested_on              = '20260115'
                     order_id                  = 'ORDER-DB'
                     requested                 = '5'
                     allocated                 = '4'
@@ -760,11 +762,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       it_demands          = lt_demands ).
 
     SELECT SINGLE run_id, batch, allocation_unit, sales_document, sales_document_type,
-                  sales_item, schedule_line, order_unit,
+                  sales_item, schedule_line, order_unit, requested_on,
                   order_id, reservation_id, allocation_status
       FROM zstockalloc
       INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_sales_document, @lv_sales_document_type,
-            @lv_sales_item, @lv_schedule_line, @lv_order_unit,
+            @lv_sales_item, @lv_schedule_line, @lv_order_unit, @lv_requested_on,
             @lv_order_id, @lv_reservation_id, @lv_allocation_status)
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
@@ -799,6 +801,9 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_order_unit
       exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_requested_on
+      exp = '20260115' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_reservation_id
       exp = 'RES-DB' ).

@@ -49,23 +49,25 @@ START-OF-SELECTION.
   ENDIF.
 
   WRITE: / 'Run', 34 'Sales document', 50 'Type', 56 'Item', 64 'Schedule',
-           74 'Alloc.unit', 86 'Order.unit', 98 'Requested', 112 'Allocated',
-           126 'Shortage', 138 'Status', 146 'Reservation', 168 'Res.date',
-           180 'Res.move', 190 'Res.unit'.
+           70 'Requested on',
+           84 'Alloc.unit', 96 'Order.unit', 108 'Requested', 122 'Allocated',
+           136 'Shortage', 148 'Status', 156 'Reservation', 178 'Res.date',
+           190 'Res.move', 200 'Res.unit'.
   LOOP AT lt_demands ASSIGNING <ls_demand>.
     WRITE: / <ls_demand>-allocation_run_id,
              34 <ls_demand>-sales_document,
              50 <ls_demand>-sales_document_type,
              56 <ls_demand>-sales_item,
              64 <ls_demand>-schedule_line,
-             74 <ls_demand>-allocation_unit,
-             86 <ls_demand>-order_unit,
-             98 <ls_demand>-requested,
-             112 <ls_demand>-allocated,
-             126 <ls_demand>-shortage,
-             138 <ls_demand>-allocation_status,
-             146 <ls_demand>-reservation_id,
-             168 <ls_demand>-reservation_date,
-             180 <ls_demand>-reservation_movement_type,
-             190 <ls_demand>-reservation_unit.
+             70 <ls_demand>-requested_on,
+             84 <ls_demand>-allocation_unit,
+             96 <ls_demand>-order_unit,
+             108 <ls_demand>-requested,
+             122 <ls_demand>-allocated,
+             136 <ls_demand>-shortage,
+             148 <ls_demand>-allocation_status,
+             156 <ls_demand>-reservation_id,
+             178 <ls_demand>-reservation_date,
+             190 <ls_demand>-reservation_movement_type,
+             200 <ls_demand>-reservation_unit.
   ENDLOOP.

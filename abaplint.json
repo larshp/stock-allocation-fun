@@ -22,6 +22,7 @@
     "align_parameters": true,
     "easy_to_find_messages": true,
     "local_testclass_consistency": true,
+    "allowed_object_naming": true,
     "max_one_method_parameter_per_line": true,
     "modify_only_own_db_tables": true,
     "check_syntax": true,

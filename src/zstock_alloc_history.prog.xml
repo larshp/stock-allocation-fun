@@ -41,6 +41,24 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_REQF</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNTIL</KEY>
+     <ENTRY>Requested through</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RUNID</KEY>
+     <ENTRY>Run ID</ENTRY>
+     <LENGTH>38</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>
@@ -62,6 +80,156 @@
      <KEY>P_TO</KEY>
      <ENTRY>To date</ENTRY>
      <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FFROM</KEY>
+     <ENTRY>Finished from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FTO</KEY>
+     <ENTRY>Finished to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHF</KEY>
+     <ENTRY>Shortage from</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHT</KEY>
+     <ENTRY>Shortage to</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AF</KEY>
+     <ENTRY>Allocated from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AT</KEY>
+     <ENTRY>Allocated to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AVF</KEY>
+     <ENTRY>Available from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AVT</KEY>
+     <ENTRY>Available to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QF</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QT</KEY>
+     <ENTRY>Requested to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DFROM</KEY>
+     <ENTRY>Demand count from</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DTO</KEY>
+     <ENTRY>Demand count to</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TFROM</KEY>
+     <ENTRY>Duration seconds from</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TTO</KEY>
+     <ENTRY>Duration seconds to</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHRT</KEY>
+     <ENTRY>Shortage-first order</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVF</KEY>
+     <ENTRY>Coverage from (%)</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVT</KEY>
+     <ENTRY>Coverage to (%)</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COV</KEY>
+     <ENTRY>Coverage-first order</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TDUR</KEY>
+     <ENTRY>Slowest duration first</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SUM</KEY>
+     <ENTRY>Summary only</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MAX</KEY>
+     <ENTRY>Maximum runs</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Message contains</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Rows with message only</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CSV</KEY>
+     <ENTRY>CSV run output</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON run output</ENTRY>
+     <LENGTH>21</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

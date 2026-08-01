@@ -63,6 +63,12 @@
      <ENTRY>Execute</ENTRY>
      <LENGTH>15</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON output</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

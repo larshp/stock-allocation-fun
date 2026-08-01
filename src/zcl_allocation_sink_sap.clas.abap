@@ -50,8 +50,23 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_sink~get_allocations.
+    TYPES:
+      BEGIN OF ty_coverage_line,
+        coverage        TYPE zif_allocation_audit=>ty_coverage,
+        shortage        TYPE zif_stock_allocation=>ty_quantity,
+        requested_on    TYPE d,
+        allocation_unit TYPE zif_stock_allocation=>ty_unit,
+        priority        TYPE zif_stock_allocation=>ty_priority,
+        order_id        TYPE zif_stock_allocation=>ty_order_id,
+        demand          TYPE zif_stock_allocation=>ty_demand,
+      END OF ty_coverage_line.
     DATA lv_run_id TYPE zif_stock_allocation=>ty_run_id.
     DATA lv_allocation_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_limit_start TYPE i.
+    DATA lt_coverage_filtered TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_line
+      WITH EMPTY KEY.
     DATA lt_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
       WITH UNIQUE KEY table_line.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
@@ -59,6 +74,84 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Allocation snapshot scope is incomplete' ).
+    ENDIF.
+    IF iv_max_rows < 0.
+      raise_error( iv_message = 'Allocation result row limit is invalid' ).
+    ENDIF.
+    IF iv_reserved_only = abap_true
+        AND iv_unreserved_only = abap_true.
+      raise_error(
+        iv_message = 'Allocation result reservation filters conflict' ).
+    ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Allocation result date range is invalid' ).
+    ENDIF.
+    IF iv_reservation_date_from IS NOT INITIAL
+        AND iv_reservation_date_to IS NOT INITIAL
+        AND iv_reservation_date_from > iv_reservation_date_to.
+      raise_error(
+        iv_message = 'Allocation result reservation date range is invalid' ).
+    ENDIF.
+    IF iv_priority_from IS NOT INITIAL
+        AND iv_priority_to IS NOT INITIAL
+        AND iv_priority_from > iv_priority_to.
+      raise_error( iv_message = 'Allocation result priority range is invalid' ).
+    ENDIF.
+    IF ( iv_shortage_from IS NOT INITIAL AND iv_shortage_from < 0 )
+        OR ( iv_shortage_to IS NOT INITIAL AND iv_shortage_to < 0 ).
+      raise_error( iv_message = 'Allocation result shortage range is invalid' ).
+    ENDIF.
+    IF iv_shortage_from IS NOT INITIAL
+        AND iv_shortage_to IS NOT INITIAL
+        AND iv_shortage_from > iv_shortage_to.
+      raise_error( iv_message = 'Allocation result shortage range is invalid' ).
+    ENDIF.
+    IF ( iv_requested_quantity_from IS NOT INITIAL
+          AND iv_requested_quantity_from < 0 )
+        OR ( iv_requested_quantity_to IS NOT INITIAL
+          AND iv_requested_quantity_to < 0 ).
+      raise_error(
+        iv_message = 'Allocation result requested quantity range is invalid' ).
+    ENDIF.
+    IF iv_requested_quantity_from IS NOT INITIAL
+        AND iv_requested_quantity_to IS NOT INITIAL
+        AND iv_requested_quantity_from > iv_requested_quantity_to.
+      raise_error(
+        iv_message = 'Allocation result requested quantity range is invalid' ).
+    ENDIF.
+    IF ( iv_allocated_quantity_from IS NOT INITIAL
+          AND iv_allocated_quantity_from < 0 )
+        OR ( iv_allocated_quantity_to IS NOT INITIAL
+          AND iv_allocated_quantity_to < 0 ).
+      raise_error(
+        iv_message = 'Allocation result allocated quantity range is invalid' ).
+    ENDIF.
+    IF iv_allocated_quantity_from IS NOT INITIAL
+        AND iv_allocated_quantity_to IS NOT INITIAL
+        AND iv_allocated_quantity_from > iv_allocated_quantity_to.
+      raise_error(
+        iv_message = 'Allocation result allocated quantity range is invalid' ).
+    ENDIF.
+    IF ( iv_coverage_from IS NOT INITIAL
+          AND ( iv_coverage_from < 0 OR iv_coverage_from > 100 ) )
+        OR ( iv_coverage_to IS NOT INITIAL
+          AND ( iv_coverage_to < 0 OR iv_coverage_to > 100 ) ).
+      raise_error(
+        iv_message = 'Allocation result coverage range is invalid' ).
+    ENDIF.
+    IF iv_coverage_from IS NOT INITIAL
+        AND iv_coverage_to IS NOT INITIAL
+        AND iv_coverage_from > iv_coverage_to.
+      raise_error(
+        iv_message = 'Allocation result coverage range is invalid' ).
+    ENDIF.
+    IF iv_status IS NOT INITIAL
+        AND iv_status <> 'F'
+        AND iv_status <> 'P'
+        AND iv_status <> 'U'.
+      raise_error( iv_message = 'Allocation snapshot status is invalid' ).
     ENDIF.
     IF mo_read_authority IS BOUND.
       TRY.
@@ -73,7 +166,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     SELECT run_id AS allocation_run_id,
            allocation_unit,
            sales_document, sales_document_type, sales_item, schedule_line, order_unit,
-           requested_on, order_id,
+           requested_on, order_id, priority,
            requested, allocated, shortage, allocation_status,
            reservation_id,
            reservation_date, reservation_movement_type, reservation_unit
@@ -89,7 +182,148 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_unit IS NOT INITIAL.
       DELETE rt_demands WHERE allocation_unit <> iv_unit.
     ENDIF.
-    SORT rt_demands BY allocation_unit order_id.
+    IF iv_run_id IS NOT INITIAL.
+      DELETE rt_demands WHERE allocation_run_id <> iv_run_id.
+    ENDIF.
+    IF iv_status IS NOT INITIAL.
+      DELETE rt_demands WHERE allocation_status <> iv_status.
+    ENDIF.
+    IF iv_sales_document IS NOT INITIAL.
+      DELETE rt_demands WHERE sales_document <> iv_sales_document.
+    ENDIF.
+    IF iv_sales_document_type IS NOT INITIAL.
+      DELETE rt_demands
+        WHERE sales_document_type <> iv_sales_document_type.
+    ENDIF.
+    IF iv_sales_item IS NOT INITIAL.
+      DELETE rt_demands WHERE sales_item <> iv_sales_item.
+    ENDIF.
+    IF iv_schedule_line IS NOT INITIAL.
+      DELETE rt_demands WHERE schedule_line <> iv_schedule_line.
+    ENDIF.
+    IF iv_order_unit IS NOT INITIAL.
+      DELETE rt_demands WHERE order_unit <> iv_order_unit.
+    ENDIF.
+    IF iv_order_id IS NOT INITIAL.
+      DELETE rt_demands WHERE order_id <> iv_order_id.
+    ENDIF.
+    IF iv_reservation_id IS NOT INITIAL.
+      DELETE rt_demands WHERE reservation_id <> iv_reservation_id.
+    ENDIF.
+    IF iv_movement_type IS NOT INITIAL.
+      DELETE rt_demands
+        WHERE reservation_movement_type <> iv_movement_type.
+    ENDIF.
+    IF iv_reservation_unit IS NOT INITIAL.
+      DELETE rt_demands WHERE reservation_unit <> iv_reservation_unit.
+    ENDIF.
+    IF iv_reserved_only = abap_true.
+      DELETE rt_demands WHERE reservation_id IS INITIAL.
+    ENDIF.
+    IF iv_unreserved_only = abap_true.
+      DELETE rt_demands WHERE reservation_id IS NOT INITIAL.
+    ENDIF.
+    IF iv_shortage_only = abap_true.
+      DELETE rt_demands WHERE shortage <= 0.
+    ENDIF.
+    IF iv_overdue_only = abap_true.
+      DELETE rt_demands WHERE requested_on IS INITIAL.
+      DELETE rt_demands WHERE requested_on >= sy-datum.
+    ENDIF.
+    IF iv_reservation_date_from IS NOT INITIAL.
+      DELETE rt_demands
+        WHERE reservation_date < iv_reservation_date_from.
+    ENDIF.
+    IF iv_reservation_date_to IS NOT INITIAL.
+      DELETE rt_demands
+        WHERE reservation_date > iv_reservation_date_to.
+    ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL.
+      DELETE rt_demands WHERE requested_on < iv_requested_on_from.
+    ENDIF.
+    IF iv_requested_on_to IS NOT INITIAL.
+      DELETE rt_demands WHERE requested_on > iv_requested_on_to.
+    ENDIF.
+    IF iv_priority_from IS NOT INITIAL.
+      DELETE rt_demands WHERE priority < iv_priority_from.
+    ENDIF.
+    IF iv_priority_to IS NOT INITIAL.
+      DELETE rt_demands WHERE priority > iv_priority_to.
+    ENDIF.
+    IF iv_shortage_from IS NOT INITIAL.
+      DELETE rt_demands WHERE shortage < iv_shortage_from.
+    ENDIF.
+    IF iv_shortage_to IS NOT INITIAL.
+      DELETE rt_demands WHERE shortage > iv_shortage_to.
+    ENDIF.
+    IF iv_requested_quantity_from IS NOT INITIAL.
+      DELETE rt_demands WHERE requested < iv_requested_quantity_from.
+    ENDIF.
+    IF iv_requested_quantity_to IS NOT INITIAL.
+      DELETE rt_demands WHERE requested > iv_requested_quantity_to.
+    ENDIF.
+    IF iv_allocated_quantity_from IS NOT INITIAL.
+      DELETE rt_demands WHERE allocated < iv_allocated_quantity_from.
+    ENDIF.
+    IF iv_allocated_quantity_to IS NOT INITIAL.
+      DELETE rt_demands WHERE allocated > iv_allocated_quantity_to.
+    ENDIF.
+    IF iv_coverage_from IS NOT INITIAL OR iv_coverage_to IS NOT INITIAL.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        IF <ls_demand>-requested > 0.
+          lv_coverage = <ls_demand>-allocated * 100
+            / <ls_demand>-requested.
+          IF ( iv_coverage_from IS INITIAL
+                OR lv_coverage >= iv_coverage_from )
+              AND ( iv_coverage_to IS INITIAL
+                OR lv_coverage <= iv_coverage_to ).
+            APPEND <ls_demand> TO lt_coverage_filtered.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      rt_demands = lt_coverage_filtered.
+    ENDIF.
+    IF iv_sort_by_priority = abap_true.
+      SORT rt_demands BY allocation_unit priority order_id.
+    ELSEIF iv_sort_by_coverage = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CLEAR lv_coverage.
+        IF <ls_demand>-requested > 0.
+          lv_coverage = <ls_demand>-allocated * 100
+            / <ls_demand>-requested.
+        ENDIF.
+        APPEND VALUE #(
+          coverage        = lv_coverage
+          shortage        = <ls_demand>-shortage
+          requested_on    = <ls_demand>-requested_on
+          allocation_unit = <ls_demand>-allocation_unit
+          priority        = <ls_demand>-priority
+          order_id        = <ls_demand>-order_id
+          demand          = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY coverage shortage DESCENDING requested_on
+                                 allocation_unit priority order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_coverage_line>).
+        APPEND <ls_coverage_line>-demand TO rt_demands.
+      ENDLOOP.
+    ELSEIF iv_sort_by_requested_quantity = abap_true.
+      SORT rt_demands BY requested DESCENDING shortage DESCENDING requested_on
+                         allocation_unit priority order_id.
+    ELSEIF iv_sort_by_allocated_quantity = abap_true.
+      SORT rt_demands BY allocated DESCENDING requested DESCENDING
+                         shortage DESCENDING requested_on allocation_unit
+                         priority order_id.
+    ELSEIF iv_sort_by_requested_date = abap_true.
+      SORT rt_demands BY requested_on allocation_unit priority order_id.
+    ELSEIF iv_sort_by_reservation_date = abap_true.
+      SORT rt_demands BY reservation_date allocation_unit priority order_id.
+    ELSEIF iv_sort_by_shortage = abap_true.
+      SORT rt_demands BY shortage DESCENDING requested_on
+                         allocation_unit priority order_id.
+    ELSE.
+      SORT rt_demands BY allocation_unit order_id.
+    ENDIF.
     LOOP AT rt_demands ASSIGNING <ls_demand>.
       validate_demand(
         is_demand         = <ls_demand>
@@ -115,6 +349,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    IF iv_max_rows > 0 AND lines( rt_demands ) > iv_max_rows.
+      lv_limit_start = iv_max_rows + 1.
+      DELETE rt_demands FROM lv_limit_start.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_allocation_sink~save_allocations.
@@ -160,6 +398,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ls_allocation-order_unit = <ls_demand>-order_unit.
       ls_allocation-requested_on = <ls_demand>-requested_on.
       ls_allocation-order_id = <ls_demand>-order_id.
+      ls_allocation-priority = <ls_demand>-priority.
       ls_allocation-requested = <ls_demand>-requested.
       ls_allocation-allocated = <ls_demand>-allocated.
       ls_allocation-shortage = <ls_demand>-shortage.

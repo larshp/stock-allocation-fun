@@ -5,6 +5,7 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
     METHODS allocates_sap_vertical_slice FOR TESTING.
     METHODS allocates_batch_slice FOR TESTING.
     METHODS previews_without_writes FOR TESTING.
+    METHODS rejects_bad_date_window FOR TESTING.
     METHODS rejects_missing_material FOR TESTING.
     METHODS rejects_order_source FOR TESTING.
     METHODS rejects_stock_conversion FOR TESTING.
@@ -57,6 +58,44 @@ CLASS lcl_fail_result_delete_auth IMPLEMENTATION.
 ENDCLASS.
 
 CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
+  METHOD rejects_bad_date_window.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material          = 'MATERIAL-PRIO'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_movement_type     = '201'
+          iv_unit              = 'EA'
+          iv_requested_on_from = '20260820'
+          iv_requested_on_to   = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Requested delivery date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'.
+  ENDMETHOD.
+
   METHOD allocates_sap_vertical_slice.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -75,6 +114,9 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_changed_second_id TYPE zif_stock_allocation=>ty_order_id.
     DATA lv_reservations_differ TYPE abap_bool.
     DATA lv_run_count TYPE i.
+    DATA lv_full_count TYPE i.
+    DATA lv_partial_count TYPE i.
+    DATA lv_unallocated_count TYPE i.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
@@ -206,6 +248,23 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 3 ).
+
+    SELECT SUM( full_count ), SUM( partial_count ), SUM( unallocated_count )
+      FROM zstockalloc_run
+      INTO (@lv_full_count, @lv_partial_count, @lv_unallocated_count)
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND status = 'P'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_full_count
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_partial_count
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_unallocated_count
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD allocates_batch_slice.

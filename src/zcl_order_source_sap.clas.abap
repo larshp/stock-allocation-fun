@@ -30,12 +30,22 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
     DATA lt_schedule TYPE tt_schedule.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
     DATA lv_client TYPE c LENGTH 3.
+    DATA lv_requested_on_from TYPE d.
+    DATA lv_requested_on_to TYPE d.
     FIELD-SYMBOLS <ls_schedule> TYPE ty_schedule.
 
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
       raise_error( iv_message = 'Order demand scope is incomplete' ).
     ENDIF.
     lv_client = sy-mandt.
+    lv_requested_on_from = iv_requested_on_from.
+    IF lv_requested_on_from IS INITIAL.
+      lv_requested_on_from = '00000000'.
+    ENDIF.
+    lv_requested_on_to = iv_requested_on_to.
+    IF lv_requested_on_to IS INITIAL.
+      lv_requested_on_to = '99991231'.
+    ENDIF.
 
     SELECT item~vbeln AS order_id,
            header~auart AS sales_document_type,
@@ -59,6 +69,8 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND schedule~lifsp = ''
         AND header~vbtyp = 'C'
         AND header~lifsk = ''
+        AND schedule~edatu >= @lv_requested_on_from
+        AND schedule~edatu <= @lv_requested_on_to
         AND schedule~wmeng > schedule~bmeng.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
@@ -66,6 +78,14 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
     ENDIF.
 
     LOOP AT lt_schedule ASSIGNING <ls_schedule>.
+      IF iv_requested_on_from IS NOT INITIAL
+          AND <ls_schedule>-requested_on < iv_requested_on_from.
+        CONTINUE.
+      ENDIF.
+      IF iv_requested_on_to IS NOT INITIAL
+          AND <ls_schedule>-requested_on > iv_requested_on_to.
+        CONTINUE.
+      ENDIF.
       CLEAR ls_demand.
       ls_demand-sales_document = <ls_schedule>-order_id.
       ls_demand-sales_document_type = <ls_schedule>-sales_document_type.

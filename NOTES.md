@@ -220,3 +220,82 @@
 - Added snapshot-to-audit referential validation: `ZSTOCKALLOC` writes now require an existing active `ZSTOCKALLOC_RUN` with the exact same material/plant/storage/batch/unit scope.
 - Extended snapshot referential validation to reads, rejecting orphaned or cross-scope result rows while allowing active and finalized audit lifecycle states.
 - Added audit-status validation to snapshot reads so a result cannot be served from a run with an unknown lifecycle state.
+- Added optional run-ID and allocation-status filters to the result sink and `ZSTOCK_ALLOC_RESULT`, allowing operators to reconcile one persisted audit run or focus on full, partial, or unallocated lines without mixing parallel result snapshots.
+- Added an optional exact order-ID result filter and printed the persisted order key in `ZSTOCK_ALLOC_RESULT`, completing the report's direct reconciliation path from audit run to demand line.
+- Added inclusive requested-delivery-date filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with API-level reversed-range validation for planning-horizon queries.
+- Added filtered-result outcome counts to `ZSTOCK_ALLOC_RESULT`, reporting full, partial, and unallocated line totals before the detailed reconciliation rows.
+- Persisted demand priority in `ZSTOCKALLOC` and displayed it in `ZSTOCK_ALLOC_RESULT`, preserving the allocator's ordering rationale for post-run analysis.
+- Added inclusive priority-range filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with API-level reversed-range validation.
+- Made the result report's unit filter optional, enabling cross-unit snapshot inspection while retaining the normalized allocation unit on every displayed row.
+- Added persisted full, partial, and unallocated line counts to `ZSTOCKALLOC_RUN`; the allocation service records them and allocation/history reports display them with the existing run quantities.
+- Added optional reservation-document filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, allowing a SAP reservation ID to be traced directly to its allocation demand.
+- Added an optional `ZSTOCK_ALLOCATE-P_UNTIL` requested-delivery cutoff, filtered SAP open demand through that date, and persisted the cutoff on every `ZSTOCKALLOC_RUN` outcome, including rejected runs, for audit reproducibility.
+- Added an exact requested-cutoff filter to the audit API and `ZSTOCK_ALLOC_HISTORY`, allowing runs for one planning horizon to be reconciled directly.
+- Added an exact run-ID filter to the audit API and `ZSTOCK_ALLOC_HISTORY`, allowing one lifecycle record to be inspected directly.
+- Added filtered-population lifecycle and demand-outcome totals to `ZSTOCK_ALLOC_HISTORY` before its detailed run rows.
+- Added persisted audit run context to exact-`p_runid` `ZSTOCK_ALLOC_RESULT` output, including the requested-delivery window and lifecycle timestamps.
+- Added unit-safe requested/allocated/shortage totals to `ZSTOCK_ALLOC_RESULT`; cross-unit filtered views now report that quantity aggregation is omitted.
+- Added inclusive reservation-posting-date filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with reversed-range validation.
+- Added read-only purge previews that count eligible audit runs and linked snapshots before `ZSTOCK_ALLOC_PURGE` execution.
+- Extended purge previews to report older running audit rows separately, making the protected-row behavior visible before execution.
+- Pushed the optional requested-delivery horizon into the SAP open-demand SQL predicate while retaining defensive post-read filtering.
+- Added unit-safe available/allocated/shortage totals to `ZSTOCK_ALLOC_HISTORY`; mixed-unit filtered populations explicitly suppress quantity aggregation.
+- Added an inclusive requested-date allocation window with `P_FROM`/`P_UNTIL`, persisted both bounds on audit runs, and rejected reversed windows before side effects.
+- Added the same reversed-window validation to direct audit start/rejection calls and persisted audit-row reads.
+- Added unit-safe allocation coverage percentages to the history and result report summaries; mixed-unit populations continue to omit quantity-derived totals.
+- Added exact-run result reconciliation: an unfiltered `p_runid` view compares snapshot and audit demand outcome counts plus allocated/shortage quantities and reports `OK` or `MISMATCH`; narrower filtered views omit the comparison.
+- Added the persisted requested-window lower-bound filter `p_reqf` to `ZSTOCK_ALLOC_HISTORY`, including API and report-level reversed-range validation.
+- Exact `p_runid` result inspection now retains audit lifecycle/reconciliation output even when no snapshot rows exist; unfiltered empty result queries still exit immediately.
+- Exact-run result context now includes persisted audit counters and the diagnostic message, and reports when the supplied run ID is absent from the scoped audit history.
+- Added optional reservation movement-type filtering (`p_rmov`) to result reads, preserving direct visibility of the persisted movement type used for reconciliation.
+- Added optional reservation-unit filtering (`p_runit`) to result reads, separating persisted SAP reservation units from normalized allocation units during reconciliation.
+- Added direct sales-document/item/schedule-line result filters (`p_vbeln`, `p_posnr`, `p_etenr`) for exact SAP demand-key traceability.
+- Added sales-document-type filtering (`p_auart`) so result queries can distinguish persisted document categories as well as document numbers.
+- Added original sales-order-unit filtering (`p_ounit`) to separate source order units from normalized allocation and reservation units.
+- Added finish-date range filtering (`p_ffrom`/`p_fto`) to audit history; running rows are excluded whenever a completion window is requested.
+- Added reserved-only result filtering (`p_rsv`) for isolating snapshot rows with a persisted reservation ID.
+- Added inclusive shortage-quantity filtering (`p_shf`/`p_sht`) with API-level nonnegative and reversed-range validation.
+- Added inclusive allocated-quantity filtering (`p_af`/`p_at`) to audit history with API-level nonnegative and reversed-range validation.
+- Added inclusive requested-quantity filtering (`p_qf`/`p_qt`) with matching API-level validation and persisted-row coverage.
+- Added inclusive allocated-quantity filtering (`p_af`/`p_at`) to result rows with matching nonnegative and reversed-range validation.
+- Added inclusive derived requested-quantity filtering (`p_qf`/`p_qt`) to audit history using persisted allocated plus shortage totals, with matching nonnegative and reversed-range validation.
+- Added inclusive demand-count filtering (`p_dfrom`/`p_dto`) to audit history with nonnegative and reversed-range validation.
+- Added inclusive available-stock filtering (`p_avf`/`p_avt`) to audit history with nonnegative and reversed-range validation.
+- Added shortage-first audit-history ordering (`p_shrt`) with deterministic start-time and run-ID tie-breakers while preserving newest-first default ordering.
+- Added typed allocation-coverage filtering (`p_covf`/`p_covt`) to audit history; bounds are restricted to 0–100 and zero-request runs are excluded when coverage is requested.
+- Added matching result-line allocation-coverage filtering (`p_covf`/`p_covt`) with 0–100 validation and zero-request exclusion.
+- Added coverage-first result ordering (`p_cov`) with shortage, requested-date, unit, priority, and order-key tie-breakers; priority sorting remains highest precedence.
+- Added coverage-first audit-history ordering (`p_cov`) with shortage and newest-start tie-breakers; coverage ordering takes precedence over shortage ordering.
+- Added calculated per-run and per-result Coverage columns to the read-only reports, displaying `n/a` for zero-request rows.
+- Added `p_sum` summary-only mode to history and result reports, retaining totals and exact-run reconciliation context while suppressing detail rows.
+- Added positive `p_max` result-row limiting after filter/sort, with capped exact-run views excluded from reconciliation.
+- Added matching audit-history `p_max` limiting after filter/sort with negative-limit validation.
+- Added largest-demand-first result ordering (`p_big`) by requested quantity with shortage/date/unit/priority tie-breakers.
+- Added most-allocated-first result ordering (`p_done`) by allocated quantity with requested/shortage/date/unit/priority tie-breakers.
+- Added reservation-date-first result ordering (`p_rdate`) with deterministic unit, priority, and order-key tie-breakers; unreserved rows sort first.
+- Added semicolon-delimited result export (`p_csv`) with stable detail header, coverage, and reservation provenance fields.
+- Added matching semicolon-delimited audit-history export (`p_csv`) with scope, horizon, quantities, coverage, lifecycle, outcome counts, and timestamps.
+- Added positive-shortage backlog filtering (`p_bklg`) for combined partial/unallocated result follow-up, excluding those views from reconciliation.
+- Added overdue requested-delivery filtering (`p_ovrd`) for result follow-up, excluding blank/today/future dates and exact-run reconciliation.
+- Added mutually exclusive unreserved-result filtering (`p_unrsv`) alongside reserved-only filtering for reservation follow-up.
+- Added persisted audit diagnostic messages to history CSV and JSON exports.
+- Added compact JSON summary objects when `p_sum` is combined with result or history `p_json` output, including mixed-unit safeguards.
+- Added elapsed `duration_seconds` to history human, CSV, and JSON detail outputs, with `n/a` for running rows.
+- Added inclusive elapsed-duration filtering (`p_tfrom`/`p_tto`) to audit history, excluding running rows from duration-bounded queries and validating nonnegative, non-reversed bounds.
+- Added slowest-first audit-history ordering (`p_tdur`) using elapsed duration with deterministic start-time and run-ID tie-breakers.
+- Added case-insensitive diagnostic-message substring filtering (`p_msg`) to audit history for direct failure and cleanup follow-up.
+- Added `p_monly` audit-history filtering for runs with any persisted diagnostic message, combinable with message substring search.
+- Added shared CSV quoting for result and history exports, including delimiter-safe fields, doubled embedded quotes, and line-break preservation.
+- Added result-report JSON array export (`p_json`) with stable detail properties and mutual exclusion with CSV mode.
+- Added matching audit-history JSON array export (`p_json`) with stable run properties and mutual exclusion with CSV mode.
+- Added abapGit class metadata for the shared CSV and JSON helper classes so the new report capabilities are deployable SAP objects.
+- Added allocation-report JSON summary output (`p_json`) for successful and preview runs, preserving scope, quantities, counters, lifecycle timestamps, status, and diagnostics.
+- Added purge-report JSON preview and execution output (`p_json`) with retention scope and eligible/protected/deleted counts.
+- Added shared JSON error envelopes and wired purge validation, authorization, preview, and execution failures to return valid machine-readable errors.
+- Extended JSON error envelopes to `ZSTOCK_ALLOCATE` authorization, allocation, and summary failure paths.
+- Extended JSON error envelopes to result/history authorization and read failures.
+- Added JSON success/error output to the authorized goods-issue and sales-order update reports.
+- Added JSON error envelopes for all history-report filter and horizon validation failures.
+- Added optional priority-ordered result reads (`p_pri`) so reconciliation output can follow allocator decision order.
+- Added global requested-delivery-date ordering (`p_date`) with allocation-unit, priority, and order-key tie-breakers; priority sorting takes precedence when both controls are selected.
+- Added shortage-first result ordering (`p_shrt`) with requested-date and priority tie-breakers for backlog triage.

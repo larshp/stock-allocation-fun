@@ -59,9 +59,27 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_FROM</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNTIL</KEY>
+     <ENTRY>Requested through</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Preview</ENTRY>
      <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON summary output</ENTRY>
+     <LENGTH>25</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

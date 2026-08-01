@@ -69,9 +69,577 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_unknown_run FOR TESTING.
     METHODS rejects_inconsistent_run FOR TESTING.
     METHODS rejects_finalized_run FOR TESTING.
+    METHODS filters_by_run_and_status FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
+  METHOD filters_by_run_and_status.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_overdue_date TYPE d.
+    DATA lv_future_date TYPE d.
+    DATA lv_future_window TYPE d.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    lv_overdue_date = sy-datum - 1.
+    lv_future_date = sy-datum + 1.
+    lv_future_window = sy-datum + 2.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-FILTER-U'.
+    ls_run-matnr = 'MATERIAL-FILTER'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
+    ls_run-status = 'S'.
+    ls_run-available = 0.
+    ls_run-demand_count = 1.
+    ls_run-shortage = 5.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-FILTER-F'.
+    ls_run-matnr = 'MATERIAL-FILTER'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'BOX'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
+    ls_run-status = 'P'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-allocated = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CLEAR ls_allocation.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-FILTER'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-FILTER-U'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'FILTER-UNALLOCATED'.
+    ls_allocation-requested_on = lv_overdue_date.
+    ls_allocation-priority = 42.
+    ls_allocation-requested = 5.
+    ls_allocation-shortage = 5.
+    ls_allocation-allocation_status = 'U'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    CLEAR ls_allocation.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-FILTER'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-FILTER-F'.
+    ls_allocation-allocation_unit = 'BOX'.
+    ls_allocation-sales_document = '5000000001'.
+    ls_allocation-sales_document_type = 'OR'.
+    ls_allocation-sales_item = '000010'.
+    ls_allocation-schedule_line = '0001'.
+    ls_allocation-order_unit = 'EA'.
+    ls_allocation-order_id = 'FILTER-FULL'.
+    ls_allocation-requested_on = lv_future_date.
+    ls_allocation-priority = 1.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'FILTER-RES'.
+    ls_allocation-reservation_date = sy-datum.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'BOX'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 2 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id           = 'RUN-FILTER-F' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_overdue_only     = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material              = 'MATERIAL-FILTER'
+      iv_plant                 = '1000'
+      iv_storage_location      = '0001'
+      iv_reservation_date_from = sy-datum
+      iv_reservation_date_to   = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-reservation_movement_type
+      exp = '201' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_reservation_unit = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-reservation_unit
+      exp = 'BOX' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unreserved_only  = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_reserved_only    = abap_true
+          iv_unreserved_only  = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_reservation_filter_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_reservation_filter_error->message
+          exp = 'Allocation result reservation filters conflict' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_raised
+      exp = abap_true ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material            = 'MATERIAL-FILTER'
+      iv_plant               = '1000'
+      iv_storage_location    = '0001'
+      iv_sales_document      = '5000000001'
+      iv_sales_document_type = 'OR'
+      iv_sales_item          = '000010'
+      iv_schedule_line       = '0001'
+      iv_order_unit          = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-sales_document
+      exp = '5000000001' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_order_unit       = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_unit
+      exp = 'EA' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_reserved_only    = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_not_initial(
+      lt_demands[ 1 ]-reservation_id ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_priority_from    = 40
+      iv_priority_to      = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-priority
+      exp = 42 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_reservation_id   = 'FILTER-RES' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_status           = 'U' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sort_by_coverage = abap_true
+      iv_max_rows         = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+    lt_demands = lo_cut->get_allocations(
+      iv_material                   = 'MATERIAL-FILTER'
+      iv_plant                      = '1000'
+      iv_storage_location           = '0001'
+      iv_sort_by_requested_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+    lt_demands = lo_cut->get_allocations(
+      iv_material                   = 'MATERIAL-FILTER'
+      iv_plant                      = '1000'
+      iv_storage_location           = '0001'
+      iv_sort_by_allocated_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_shortage_from    = 5
+      iv_shortage_to      = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-shortage
+      exp = 5 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sort_by_coverage = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_shortage_only    = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material                = 'MATERIAL-FILTER'
+      iv_plant                   = '1000'
+      iv_storage_location        = '0001'
+      iv_requested_quantity_from = 1
+      iv_requested_quantity_to   = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-requested
+      exp = 1 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material                = 'MATERIAL-FILTER'
+      iv_plant                   = '1000'
+      iv_storage_location        = '0001'
+      iv_allocated_quantity_from = 1
+      iv_allocated_quantity_to   = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocated
+      exp = 1 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_coverage_from    = 100
+      iv_coverage_to      = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sort_by_priority = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-priority
+      exp = 1 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material               = 'MATERIAL-FILTER'
+      iv_plant                  = '1000'
+      iv_storage_location       = '0001'
+      iv_sort_by_requested_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-requested_on
+      exp = lv_overdue_date ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material                 = 'MATERIAL-FILTER'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_sort_by_reservation_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sort_by_shortage = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-shortage
+      exp = 5 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_order_id         = 'FILTER-FULL' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material          = 'MATERIAL-FILTER'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_on_from = sy-datum
+      iv_requested_on_to   = lv_future_window ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_status           = 'X' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_status_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_status_error->message
+          exp = 'Allocation snapshot status is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_max_rows         = -1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_row_limit_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_row_limit_error->message
+          exp = 'Allocation result row limit is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_coverage_from    = 101
+          iv_coverage_to      = 100 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_coverage_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_coverage_error->message
+          exp = 'Allocation result coverage range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material                = 'MATERIAL-FILTER'
+          iv_plant                   = '1000'
+          iv_storage_location        = '0001'
+          iv_allocated_quantity_from = 6
+          iv_allocated_quantity_to   = 5 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_allocated_quantity_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_allocated_quantity_error->message
+          exp = 'Allocation result allocated quantity range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material                = 'MATERIAL-FILTER'
+          iv_plant                   = '1000'
+          iv_storage_location        = '0001'
+          iv_requested_quantity_from = 6
+          iv_requested_quantity_to   = 5 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_requested_quantity_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_requested_quantity_error->message
+          exp = 'Allocation result requested quantity range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_shortage_from    = 6
+          iv_shortage_to      = 5 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_shortage_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_shortage_error->message
+          exp = 'Allocation result shortage range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material              = 'MATERIAL-FILTER'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_reservation_date_from = '20260821'
+          iv_reservation_date_to   = '20260816' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_reservation_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_reservation_date_error->message
+          exp = 'Allocation result reservation date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material          = 'MATERIAL-FILTER'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_requested_on_from = '20260821'
+          iv_requested_on_to   = '20260816' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_date_error->message
+          exp = 'Allocation result date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_priority_from    = 50
+          iv_priority_to      = 40 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_priority_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_priority_error->message
+          exp = 'Allocation result priority range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD rejects_missing_reservation.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
@@ -580,6 +1148,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_order_unit TYPE c LENGTH 3.
     DATA lv_requested_on TYPE d.
     DATA lv_allocation_unit TYPE c LENGTH 3.
+    DATA lv_priority TYPE i.
     DATA lv_batch TYPE c LENGTH 10.
     DATA lv_run_id TYPE c LENGTH 32.
     DATA lt_saved_demands TYPE zif_stock_allocation=>tt_demands.
@@ -718,6 +1287,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     order_unit                = 'EA'
                     requested_on              = '20260115'
                     order_id                  = 'ORDER-DB'
+                    priority                  = 42
                     requested                 = '5'
                     allocated                 = '4'
                     shortage                  = '1'
@@ -751,11 +1321,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_unit             = 'EA'
       it_demands          = lt_demands ).
 
-    SELECT SINGLE run_id, batch, allocation_unit, sales_document, sales_document_type,
+    SELECT SINGLE run_id, batch, allocation_unit, priority, sales_document, sales_document_type,
                   sales_item, schedule_line, order_unit, requested_on,
-                  order_id, reservation_id, allocation_status
+      order_id, reservation_id, allocation_status
       FROM zstockalloc
-      INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_sales_document, @lv_sales_document_type,
+      INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_priority, @lv_sales_document, @lv_sales_document_type,
             @lv_sales_item, @lv_schedule_line, @lv_order_unit, @lv_requested_on,
             @lv_order_id, @lv_reservation_id, @lv_allocation_status)
       WHERE matnr = 'MATERIAL-DB'
@@ -772,6 +1342,9 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_unit
       exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_priority
+      exp = 42 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_order_id

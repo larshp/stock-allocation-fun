@@ -632,6 +632,9 @@ CLASS lcl_allocation_audit_stub IMPLEMENTATION.
   METHOD zif_allocation_audit~purge_runs_before.
   ENDMETHOD.
 
+  METHOD zif_allocation_audit~get_purge_preview.
+  ENDMETHOD.
+
   METHOD zif_allocation_audit~record_rejection.
     mv_rejection_recorded = abap_true.
     mv_rejection_message = iv_message.

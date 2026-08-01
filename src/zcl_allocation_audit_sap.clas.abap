@@ -147,6 +147,104 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_allocation_audit~get_purge_preview.
+    DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
+      WITH UNIQUE KEY table_line.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_snapshot_count TYPE i.
+
+    IF iv_material IS INITIAL
+        OR iv_plant IS INITIAL
+        OR iv_storage_location IS INITIAL.
+      raise_error( iv_message = 'Audit purge scope is incomplete' ).
+    ENDIF.
+    IF iv_before_date IS INITIAL.
+      raise_error( iv_message = 'Audit purge date is required' ).
+    ENDIF.
+    IF iv_before_date > sy-datum.
+      raise_error( iv_message = 'Audit purge date cannot be in the future' ).
+    ENDIF.
+    IF mo_retention_authority IS BOUND.
+      TRY.
+          mo_retention_authority->check( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_retention_error).
+          IF lo_retention_error->message IS INITIAL.
+            lo_retention_error->message = 'Audit retention authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_retention_error.
+      ENDTRY.
+    ENDIF.
+    IF iv_unit IS INITIAL.
+      SELECT run_id
+        FROM zstockalloc_run
+        INTO TABLE @lt_run_ids
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND start_date < @iv_before_date
+          AND status <> 'R'.
+    ELSE.
+      SELECT run_id
+        FROM zstockalloc_run
+        INTO TABLE @lt_run_ids
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND unit = @iv_unit
+          AND start_date < @iv_before_date
+          AND status <> 'R'.
+    ENDIF.
+    rs_preview-audit_count = lines( lt_run_ids ).
+    IF iv_unit IS INITIAL.
+      SELECT COUNT( * )
+        FROM zstockalloc_run
+        INTO @rs_preview-running_count
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND start_date < @iv_before_date
+          AND status = 'R'.
+    ELSE.
+      SELECT COUNT( * )
+        FROM zstockalloc_run
+        INTO @rs_preview-running_count
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND unit = @iv_unit
+          AND start_date < @iv_before_date
+          AND status = 'R'.
+    ENDIF.
+    LOOP AT lt_run_ids INTO lv_run_id.
+      IF iv_unit IS INITIAL.
+        SELECT COUNT( * )
+          FROM zstockalloc
+          INTO @lv_snapshot_count
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @lv_run_id.
+      ELSE.
+        SELECT COUNT( * )
+          FROM zstockalloc
+          INTO @lv_snapshot_count
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND allocation_unit = @iv_unit
+            AND run_id = @lv_run_id.
+      ENDIF.
+      rs_preview-snapshot_count =
+        rs_preview-snapshot_count + lv_snapshot_count.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_allocation_audit~get_summary.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lv_summary_unit TYPE zif_stock_allocation=>ty_unit.
@@ -172,6 +270,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         rs_summary-allocated = rs_summary-allocated + <ls_run>-allocated.
         rs_summary-shortage = rs_summary-shortage + <ls_run>-shortage.
       ENDIF.
+      rs_summary-full_count = rs_summary-full_count + <ls_run>-full_count.
+      rs_summary-partial_count = rs_summary-partial_count + <ls_run>-partial_count.
+      rs_summary-unallocated_count =
+        rs_summary-unallocated_count + <ls_run>-unallocated_count.
       IF <ls_run>-status = 'R'.
         rs_summary-running_runs = rs_summary-running_runs + 1.
       ELSEIF <ls_run>-status = 'S'.
@@ -187,6 +289,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         rs_summary-last_run_id = <ls_run>-run_id.
         rs_summary-last_start_date = <ls_run>-start_date.
         rs_summary-last_start_time = <ls_run>-start_time.
+        rs_summary-last_requested_on_from = <ls_run>-requested_on_from.
+        rs_summary-last_requested_on_to = <ls_run>-requested_on_to.
         rs_summary-last_finish_date = <ls_run>-finish_date.
         rs_summary-last_finish_time = <ls_run>-finish_time.
         rs_summary-last_status = <ls_run>-status.
@@ -205,6 +309,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~record_rejection.
     DATA ls_run TYPE zstockalloc_run.
 
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Audit requested date range is invalid' ).
+    ENDIF.
     IF iv_message IS INITIAL.
       raise_error( iv_message = 'Audit rejection message is required' ).
     ENDIF.
@@ -232,6 +341,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-werks = iv_plant.
     ls_run-lgort = iv_storage_location.
     ls_run-batch = iv_batch.
+    ls_run-requested_on_from = iv_requested_on_from.
+    ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = iv_unit.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
@@ -257,7 +368,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~get_runs.
+    TYPES:
+      BEGIN OF ty_coverage_run,
+        coverage         TYPE zif_allocation_audit=>ty_coverage,
+        shortage         TYPE zif_stock_allocation=>ty_quantity,
+        start_date       TYPE d,
+        start_time       TYPE t,
+        run_id           TYPE zif_allocation_audit=>ty_run_id,
+        duration_seconds TYPE i,
+        run              TYPE zif_allocation_audit=>ty_run,
+      END OF ty_coverage_run.
     DATA lt_filtered TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_duration_seconds TYPE i.
+    DATA lv_limit_start TYPE i.
+    DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_run
+      WITH EMPTY KEY.
+    DATA lt_duration_sorted TYPE STANDARD TABLE OF ty_coverage_run
+      WITH EMPTY KEY.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
     IF iv_material IS INITIAL
@@ -265,10 +393,88 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Audit read scope is incomplete' ).
     ENDIF.
+    IF iv_max_rows < 0.
+      raise_error( iv_message = 'Audit history row limit is invalid' ).
+    ENDIF.
     IF iv_start_date_from IS NOT INITIAL
         AND iv_start_date_to IS NOT INITIAL
         AND iv_start_date_from > iv_start_date_to.
       raise_error( iv_message = 'Audit date range is invalid' ).
+    ENDIF.
+    IF iv_finish_date_from IS NOT INITIAL
+        AND iv_finish_date_to IS NOT INITIAL
+        AND iv_finish_date_from > iv_finish_date_to.
+      raise_error( iv_message = 'Audit finish date range is invalid' ).
+    ENDIF.
+    IF ( iv_shortage_from IS NOT INITIAL AND iv_shortage_from < 0 )
+        OR ( iv_shortage_to IS NOT INITIAL AND iv_shortage_to < 0 ).
+      raise_error( iv_message = 'Audit shortage range is invalid' ).
+    ENDIF.
+    IF iv_shortage_from IS NOT INITIAL
+        AND iv_shortage_to IS NOT INITIAL
+        AND iv_shortage_from > iv_shortage_to.
+      raise_error( iv_message = 'Audit shortage range is invalid' ).
+    ENDIF.
+    IF ( iv_allocated_from IS NOT INITIAL AND iv_allocated_from < 0 )
+        OR ( iv_allocated_to IS NOT INITIAL AND iv_allocated_to < 0 ).
+      raise_error( iv_message = 'Audit allocated range is invalid' ).
+    ENDIF.
+    IF iv_allocated_from IS NOT INITIAL
+        AND iv_allocated_to IS NOT INITIAL
+        AND iv_allocated_from > iv_allocated_to.
+      raise_error( iv_message = 'Audit allocated range is invalid' ).
+    ENDIF.
+    IF ( iv_available_from IS NOT INITIAL AND iv_available_from < 0 )
+        OR ( iv_available_to IS NOT INITIAL AND iv_available_to < 0 ).
+      raise_error( iv_message = 'Audit available range is invalid' ).
+    ENDIF.
+    IF iv_available_from IS NOT INITIAL
+        AND iv_available_to IS NOT INITIAL
+        AND iv_available_from > iv_available_to.
+      raise_error( iv_message = 'Audit available range is invalid' ).
+    ENDIF.
+    IF ( iv_requested_from IS NOT INITIAL AND iv_requested_from < 0 )
+        OR ( iv_requested_to IS NOT INITIAL AND iv_requested_to < 0 ).
+      raise_error( iv_message = 'Audit requested quantity range is invalid' ).
+    ENDIF.
+    IF iv_requested_from IS NOT INITIAL
+        AND iv_requested_to IS NOT INITIAL
+        AND iv_requested_from > iv_requested_to.
+      raise_error( iv_message = 'Audit requested quantity range is invalid' ).
+    ENDIF.
+    IF iv_demand_from IS NOT INITIAL AND iv_demand_from < 0
+        OR iv_demand_to IS NOT INITIAL AND iv_demand_to < 0.
+      raise_error( iv_message = 'Audit demand count range is invalid' ).
+    ENDIF.
+    IF iv_demand_from IS NOT INITIAL
+        AND iv_demand_to IS NOT INITIAL
+        AND iv_demand_from > iv_demand_to.
+      raise_error( iv_message = 'Audit demand count range is invalid' ).
+    ENDIF.
+    IF ( iv_duration_from IS NOT INITIAL AND iv_duration_from < 0 )
+        OR ( iv_duration_to IS NOT INITIAL AND iv_duration_to < 0 ).
+      raise_error( iv_message = 'Audit duration range is invalid' ).
+    ENDIF.
+    IF iv_duration_from IS NOT INITIAL
+        AND iv_duration_to IS NOT INITIAL
+        AND iv_duration_from > iv_duration_to.
+      raise_error( iv_message = 'Audit duration range is invalid' ).
+    ENDIF.
+    IF ( iv_coverage_from IS NOT INITIAL
+          AND ( iv_coverage_from < 0 OR iv_coverage_from > 100 ) )
+        OR ( iv_coverage_to IS NOT INITIAL
+          AND ( iv_coverage_to < 0 OR iv_coverage_to > 100 ) ).
+      raise_error( iv_message = 'Audit coverage range is invalid' ).
+    ENDIF.
+    IF iv_coverage_from IS NOT INITIAL
+        AND iv_coverage_to IS NOT INITIAL
+        AND iv_coverage_from > iv_coverage_to.
+      raise_error( iv_message = 'Audit coverage range is invalid' ).
+    ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Audit requested date range is invalid' ).
     ENDIF.
     IF iv_status IS NOT INITIAL
         AND iv_status <> 'R'
@@ -296,11 +502,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
            unit,
            start_date,
            start_time,
-           finish_date,
-           finish_time,
-           status,
-           available,
+            finish_date,
+            finish_time,
+            status,
+            available,
            demand_count,
+           requested_on_from,
+           requested_on_to,
+            full_count,
+           partial_count,
+           unallocated_count,
            allocated,
            shortage,
            message
@@ -316,18 +527,103 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     LOOP AT rt_runs ASSIGNING <ls_run>.
       validate_run( is_run = <ls_run> ).
     ENDLOOP.
-    IF iv_unit IS NOT INITIAL
+    IF iv_run_id IS NOT INITIAL
+        OR iv_requested_on_from IS NOT INITIAL
+        OR iv_requested_on_to IS NOT INITIAL
+        OR iv_unit IS NOT INITIAL
         OR iv_start_date_from IS NOT INITIAL
         OR iv_start_date_to IS NOT INITIAL
+        OR iv_finish_date_from IS NOT INITIAL
+        OR iv_finish_date_to IS NOT INITIAL
+        OR iv_shortage_from IS NOT INITIAL
+        OR iv_shortage_to IS NOT INITIAL
+        OR iv_allocated_from IS NOT INITIAL
+        OR iv_allocated_to IS NOT INITIAL
+        OR iv_available_from IS NOT INITIAL
+        OR iv_available_to IS NOT INITIAL
+        OR iv_requested_from IS NOT INITIAL
+        OR iv_requested_to IS NOT INITIAL
+        OR iv_demand_from IS NOT INITIAL
+        OR iv_demand_to IS NOT INITIAL
+        OR iv_coverage_from IS NOT INITIAL
+        OR iv_coverage_to IS NOT INITIAL
         OR iv_status IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
-        IF iv_status IS INITIAL OR <ls_run>-status = iv_status.
-          IF iv_unit IS INITIAL OR <ls_run>-unit = iv_unit.
-            IF iv_start_date_from IS INITIAL
-                OR <ls_run>-start_date >= iv_start_date_from.
-              IF iv_start_date_to IS INITIAL
-                  OR <ls_run>-start_date <= iv_start_date_to.
-                APPEND <ls_run> TO lt_filtered.
+        IF iv_run_id IS INITIAL OR <ls_run>-run_id = iv_run_id.
+          IF iv_requested_on_from IS INITIAL
+              OR <ls_run>-requested_on_from = iv_requested_on_from.
+            IF iv_requested_on_to IS INITIAL
+                OR <ls_run>-requested_on_to = iv_requested_on_to.
+              IF iv_status IS INITIAL OR <ls_run>-status = iv_status.
+                IF iv_unit IS INITIAL OR <ls_run>-unit = iv_unit.
+                  IF iv_start_date_from IS INITIAL
+                      OR <ls_run>-start_date >= iv_start_date_from.
+                    IF iv_start_date_to IS INITIAL
+                        OR <ls_run>-start_date <= iv_start_date_to.
+                      IF ( iv_finish_date_from IS INITIAL
+                            AND iv_finish_date_to IS INITIAL )
+                          OR ( <ls_run>-finish_date IS NOT INITIAL
+                            AND ( iv_finish_date_from IS INITIAL
+                              OR <ls_run>-finish_date >= iv_finish_date_from )
+                            AND ( iv_finish_date_to IS INITIAL
+                              OR <ls_run>-finish_date <= iv_finish_date_to ) ).
+                        IF ( iv_shortage_from IS INITIAL
+                              AND iv_shortage_to IS INITIAL )
+                            OR ( ( iv_shortage_from IS INITIAL
+                              OR <ls_run>-shortage >= iv_shortage_from )
+                              AND ( iv_shortage_to IS INITIAL
+                                OR <ls_run>-shortage <= iv_shortage_to ) ).
+                          IF ( iv_allocated_from IS INITIAL
+                                AND iv_allocated_to IS INITIAL )
+                              OR ( ( iv_allocated_from IS INITIAL
+                                OR <ls_run>-allocated >= iv_allocated_from )
+                                AND ( iv_allocated_to IS INITIAL
+                                  OR <ls_run>-allocated <= iv_allocated_to ) ).
+                            IF ( iv_available_from IS INITIAL
+                                  AND iv_available_to IS INITIAL )
+                                OR ( ( iv_available_from IS INITIAL
+                                  OR <ls_run>-available >= iv_available_from )
+                                  AND ( iv_available_to IS INITIAL
+                                    OR <ls_run>-available <= iv_available_to ) ).
+                              IF ( iv_requested_from IS INITIAL
+                                    AND iv_requested_to IS INITIAL )
+                                  OR ( ( iv_requested_from IS INITIAL
+                                    OR <ls_run>-allocated + <ls_run>-shortage
+                                      >= iv_requested_from )
+                                    AND ( iv_requested_to IS INITIAL
+                                      OR <ls_run>-allocated + <ls_run>-shortage
+                                        <= iv_requested_to ) ).
+                                IF ( iv_demand_from IS INITIAL
+                                      AND iv_demand_to IS INITIAL )
+                                    OR ( ( iv_demand_from IS INITIAL
+                                      OR <ls_run>-demand_count >= iv_demand_from )
+                                      AND ( iv_demand_to IS INITIAL
+                                        OR <ls_run>-demand_count <= iv_demand_to ) ).
+                                  IF ( iv_coverage_from IS INITIAL
+                                        AND iv_coverage_to IS INITIAL ).
+                                    APPEND <ls_run> TO lt_filtered.
+                                  ELSE.
+                                    CLEAR lv_coverage.
+                                    IF <ls_run>-allocated + <ls_run>-shortage > 0.
+                                      lv_coverage = <ls_run>-allocated * 100
+                                        / ( <ls_run>-allocated + <ls_run>-shortage ).
+                                      IF ( iv_coverage_from IS INITIAL
+                                            OR lv_coverage >= iv_coverage_from )
+                                          AND ( iv_coverage_to IS INITIAL
+                                            OR lv_coverage <= iv_coverage_to ).
+                                        APPEND <ls_run> TO lt_filtered.
+                                      ENDIF.
+                                    ENDIF.
+                                  ENDIF.
+                                ENDIF.
+                              ENDIF.
+                            ENDIF.
+                          ENDIF.
+                        ENDIF.
+                      ENDIF.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
               ENDIF.
             ENDIF.
           ENDIF.
@@ -335,14 +631,114 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDLOOP.
       rt_runs = lt_filtered.
     ENDIF.
-    SORT rt_runs BY start_date DESCENDING
-                    start_time DESCENDING
-                    run_id DESCENDING.
+    IF iv_duration_from IS NOT INITIAL OR iv_duration_to IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-finish_date IS INITIAL.
+          DELETE rt_runs.
+        ELSE.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = <ls_run>-finish_date
+              time1    = <ls_run>-finish_time
+              date2    = <ls_run>-start_date
+              time2    = <ls_run>-start_time
+            IMPORTING
+              res_secs = lv_duration_seconds ).
+          IF ( iv_duration_from IS NOT INITIAL
+                AND lv_duration_seconds < iv_duration_from )
+              OR ( iv_duration_to IS NOT INITIAL
+                AND lv_duration_seconds > iv_duration_to ).
+            DELETE rt_runs.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_message_contains IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF to_upper( <ls_run>-message ) NS to_upper( iv_message_contains ).
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_message_only = abap_true.
+      DELETE rt_runs WHERE message IS INITIAL.
+    ENDIF.
+    IF iv_sort_by_coverage = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        CLEAR lv_coverage.
+        IF <ls_run>-allocated + <ls_run>-shortage > 0.
+          lv_coverage = <ls_run>-allocated * 100
+            / ( <ls_run>-allocated + <ls_run>-shortage ).
+        ENDIF.
+        APPEND VALUE #(
+          coverage   = lv_coverage
+          shortage   = <ls_run>-shortage
+          start_date = <ls_run>-start_date
+          start_time = <ls_run>-start_time
+          run_id     = <ls_run>-run_id
+          run        = <ls_run> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY coverage shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_coverage_run>).
+        APPEND <ls_coverage_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_duration = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-finish_date IS INITIAL.
+          lv_duration_seconds = -1.
+        ELSE.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = <ls_run>-finish_date
+              time1    = <ls_run>-finish_time
+              date2    = <ls_run>-start_date
+              time2    = <ls_run>-start_time
+            IMPORTING
+              res_secs = lv_duration_seconds ).
+        ENDIF.
+        APPEND VALUE #(
+          coverage         = 0
+          shortage         = <ls_run>-shortage
+          start_date       = <ls_run>-start_date
+          start_time       = <ls_run>-start_time
+          run_id           = <ls_run>-run_id
+          duration_seconds = lv_duration_seconds
+          run              = <ls_run> ) TO lt_duration_sorted.
+      ENDLOOP.
+      SORT lt_duration_sorted BY duration_seconds DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_duration_sorted ASSIGNING FIELD-SYMBOL(<ls_duration_run>).
+        APPEND <ls_duration_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_shortage = abap_true.
+      SORT rt_runs BY shortage DESCENDING
+                      start_date DESCENDING
+                      start_time DESCENDING
+                      run_id DESCENDING.
+    ELSE.
+      SORT rt_runs BY start_date DESCENDING
+                      start_time DESCENDING
+                      run_id DESCENDING.
+    ENDIF.
+    IF iv_max_rows > 0 AND lines( rt_runs ) > iv_max_rows.
+      lv_limit_start = iv_max_rows + 1.
+      DELETE rt_runs FROM lv_limit_start.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~start_run.
     DATA ls_run TYPE zstockalloc_run.
 
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Audit requested date range is invalid' ).
+    ENDIF.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
@@ -373,6 +769,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-werks = iv_plant.
     ls_run-lgort = iv_storage_location.
     ls_run-batch = iv_batch.
+    ls_run-requested_on_from = iv_requested_on_from.
+    ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = iv_unit.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
@@ -403,7 +801,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_available < 0
         OR iv_allocated < 0
-        OR iv_shortage < 0.
+        OR iv_shortage < 0
+        OR iv_full_count < 0
+        OR iv_partial_count < 0
+        OR iv_unallocated_count < 0.
       raise_error( iv_message = 'Audit final metrics are invalid' ).
     ENDIF.
     IF mo_write_authority IS BOUND.
@@ -435,10 +836,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       SET finish_date = @sy-datum,
           finish_time = @sy-uzeit,
           status      = @iv_status,
-          available   = @iv_available,
-          allocated   = @iv_allocated,
-          shortage    = @iv_shortage,
-          message     = @iv_message
+           available   = @iv_available,
+           allocated   = @iv_allocated,
+           shortage    = @iv_shortage,
+           message     = @iv_message,
+           full_count  = @iv_full_count,
+           partial_count = @iv_partial_count,
+           unallocated_count = @iv_unallocated_count
       WHERE run_id = @iv_run_id
         AND status = 'R'.
     IF sy-subrc <> 0 OR sy-dbcnt <> 1.
@@ -464,6 +868,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_run.
+    IF is_run-requested_on_from IS NOT INITIAL
+        AND is_run-requested_on_to IS NOT INITIAL
+        AND is_run-requested_on_from > is_run-requested_on_to.
+      raise_error( iv_message = 'Audit run requested date range is invalid' ).
+    ENDIF.
     IF is_run-run_id IS INITIAL
         OR is_run-material IS INITIAL
         OR is_run-plant IS INITIAL
@@ -473,6 +882,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR is_run-start_time IS INITIAL
         OR is_run-available < 0
         OR is_run-demand_count < 0
+        OR is_run-full_count < 0
+        OR is_run-partial_count < 0
+        OR is_run-unallocated_count < 0
         OR is_run-allocated < 0
         OR is_run-shortage < 0
         OR is_run-allocated > is_run-available.
@@ -489,6 +901,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR is_run-finish_time IS NOT INITIAL
             OR is_run-allocated <> 0
             OR is_run-shortage <> 0
+            OR is_run-full_count <> 0
+            OR is_run-partial_count <> 0
+            OR is_run-unallocated_count <> 0
             OR is_run-message IS NOT INITIAL ) )
         OR ( is_run-status <> 'R'
           AND ( is_run-finish_date IS INITIAL

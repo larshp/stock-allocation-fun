@@ -6,12 +6,22 @@ PARAMETERS p_posnr TYPE zif_order_sink=>ty_sales_item OBLIGATORY.
 PARAMETERS p_etenr TYPE zif_order_sink=>ty_schedule_line OBLIGATORY.
 PARAMETERS p_qty TYPE zif_stock_allocation=>ty_quantity OBLIGATORY.
 PARAMETERS p_exec AS CHECKBOX.
+PARAMETERS p_json AS CHECKBOX.
 
 START-OF-SELECTION.
   DATA lo_sink TYPE REF TO zif_order_sink.
   DATA lo_authority TYPE REF TO zif_order_sink_authority.
+  DATA lv_json_line TYPE string.
+  DATA lv_error_message TYPE string.
+  DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
   IF p_exec <> abap_true.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Select P_EXEC to execute the sales-order update' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
     WRITE: / 'No sales-order change made. Select P_EXEC to execute the update.'.
     RETURN.
   ENDIF.
@@ -28,6 +38,17 @@ START-OF-SELECTION.
         iv_schedule_line       = p_etenr
         iv_quantity            = p_qty ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).
+      IF p_json = abap_true.
+        IF lo_error->message IS INITIAL.
+          lv_json_line = zcl_stock_json=>error(
+            'Sales-order change failed' ).
+        ELSE.
+          lv_error_message = lo_error->message.
+          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+        ENDIF.
+        WRITE: / lv_json_line.
+        RETURN.
+      ENDIF.
       IF lo_error->message IS INITIAL.
         WRITE: / 'Sales-order change failed.'.
       ELSE.
@@ -35,6 +56,31 @@ START-OF-SELECTION.
       ENDIF.
       RETURN.
   ENDTRY.
+
+  IF p_json = abap_true.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'mode'
+      iv_value = 'sales_order_update' ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'sales_document'
+      iv_value = p_vbeln ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'sales_document_type'
+      iv_value = p_auart ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'sales_item'
+      iv_value = p_posnr ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'schedule_line'
+      iv_value = p_etenr ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'quantity'
+      iv_value = p_qty ) TO lt_json_fields.
+    CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
+    CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
 
   WRITE: / 'Sales-order schedule quantity changed:',
            p_vbeln, p_posnr, p_etenr.

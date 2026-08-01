@@ -1,11 +1,11 @@
-CLASS lcl_failing_allocation_write_authority DEFINITION FINAL.
+CLASS lcl_fail_alloc_write_auth DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_read_authority.
     INTERFACES zif_allocation_write_authority.
     INTERFACES zif_alloc_retention_auth.
 ENDCLASS.
 
-CLASS lcl_failing_allocation_write_authority IMPLEMENTATION.
+CLASS lcl_fail_alloc_write_auth IMPLEMENTATION.
   METHOD zif_allocation_read_authority~check_audit.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     CREATE OBJECT lo_error.
@@ -465,7 +465,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_purge_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_raised TYPE abap_bool.
     DATA lv_future_date TYPE d.
-    DATA lo_write_authority TYPE REF TO lcl_failing_allocation_write_authority.
+    DATA lo_write_authority TYPE REF TO lcl_fail_alloc_write_auth.
     DATA lo_guarded_audit TYPE REF TO zif_allocation_audit.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.

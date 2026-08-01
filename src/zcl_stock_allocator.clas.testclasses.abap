@@ -203,12 +203,12 @@ CLASS lcl_mutating_allocator_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_mutating_demand_allocator_stub DEFINITION FINAL.
+CLASS lcl_mutating_demand_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation.
 ENDCLASS.
 
-CLASS lcl_mutating_demand_allocator_stub IMPLEMENTATION.
+CLASS lcl_mutating_demand_stub IMPLEMENTATION.
   METHOD zif_stock_allocation~allocate.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
     rv_remaining = 0.
@@ -257,12 +257,12 @@ CLASS lcl_failing_authority_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_failing_cancel_authority_stub DEFINITION FINAL.
+CLASS lcl_fail_cancel_auth_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation_authority.
 ENDCLASS.
 
-CLASS lcl_failing_cancel_authority_stub IMPLEMENTATION.
+CLASS lcl_fail_cancel_auth_stub IMPLEMENTATION.
   METHOD zif_stock_allocation_authority~check.
   ENDMETHOD.
 
@@ -274,12 +274,12 @@ CLASS lcl_failing_cancel_authority_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_legacy_cancel_authority_stub DEFINITION FINAL.
+CLASS lcl_legacy_cancel_auth_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation_authority.
 ENDCLASS.
 
-CLASS lcl_legacy_cancel_authority_stub IMPLEMENTATION.
+CLASS lcl_legacy_cancel_auth_stub IMPLEMENTATION.
   METHOD zif_stock_allocation_authority~check.
   ENDMETHOD.
 
@@ -367,12 +367,12 @@ CLASS lcl_invalid_demand_source_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_duplicate_demand_source_stub DEFINITION FINAL.
+CLASS lcl_duplicate_demand_src_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_order_source.
 ENDCLASS.
 
-CLASS lcl_duplicate_demand_source_stub IMPLEMENTATION.
+CLASS lcl_duplicate_demand_src_stub IMPLEMENTATION.
   METHOD zif_order_source~get_open_demands.
     APPEND VALUE #( order_id  = 'ORDER-DUPLICATE'
                     requested = '1' ) TO rt_demands.
@@ -381,12 +381,12 @@ CLASS lcl_duplicate_demand_source_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_mismatched_order_source_stub DEFINITION FINAL.
+CLASS lcl_mismatch_order_src_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_order_source.
 ENDCLASS.
 
-CLASS lcl_mismatched_order_source_stub IMPLEMENTATION.
+CLASS lcl_mismatch_order_src_stub IMPLEMENTATION.
   METHOD zif_order_source~get_open_demands.
     APPEND VALUE #( order_id   = 'ORDER-BOX'
                     order_unit = 'BOX'
@@ -411,12 +411,12 @@ CLASS lcl_unit_conversion_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_invalid_unit_conversion_stub DEFINITION FINAL.
+CLASS lcl_invalid_unit_conv_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_unit_conversion.
 ENDCLASS.
 
-CLASS lcl_invalid_unit_conversion_stub IMPLEMENTATION.
+CLASS lcl_invalid_unit_conv_stub IMPLEMENTATION.
   METHOD zif_unit_conversion~convert.
     rv_quantity = 0.
   ENDMETHOD.
@@ -482,7 +482,7 @@ CLASS lcl_allocation_sink_stub IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_failing_allocation_sink_stub DEFINITION FINAL.
+CLASS lcl_fail_alloc_sink_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_sink.
     METHODS set_existing
@@ -492,7 +492,7 @@ CLASS lcl_failing_allocation_sink_stub DEFINITION FINAL.
     DATA mt_existing TYPE zif_stock_allocation=>tt_demands.
 ENDCLASS.
 
-CLASS lcl_failing_allocation_sink_stub IMPLEMENTATION.
+CLASS lcl_fail_alloc_sink_stub IMPLEMENTATION.
   METHOD zif_allocation_sink~get_allocations.
     rt_demands = mt_existing.
   ENDMETHOD.
@@ -1087,7 +1087,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD rejects_duplicate_demand_key.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
-    DATA lo_order_source TYPE REF TO lcl_duplicate_demand_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_duplicate_demand_src_stub.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
@@ -1135,7 +1135,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD converts_mismatched_unit.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
-    DATA lo_order_source TYPE REF TO lcl_mismatched_order_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_mismatch_order_src_stub.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
@@ -1186,11 +1186,11 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD rejects_invalid_conversion.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
-    DATA lo_order_source TYPE REF TO lcl_mismatched_order_source_stub.
+    DATA lo_order_source TYPE REF TO lcl_mismatch_order_src_stub.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
-    DATA lo_unit_converter TYPE REF TO lcl_invalid_unit_conversion_stub.
+    DATA lo_unit_converter TYPE REF TO lcl_invalid_unit_conv_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
@@ -1239,7 +1239,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
-    DATA lo_unit_converter TYPE REF TO lcl_invalid_unit_conversion_stub.
+    DATA lo_unit_converter TYPE REF TO lcl_invalid_unit_conv_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
@@ -1565,7 +1565,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD cancels_on_sink_failure.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
-    DATA lo_sink TYPE REF TO lcl_failing_allocation_sink_stub.
+    DATA lo_sink TYPE REF TO lcl_fail_alloc_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
@@ -1616,7 +1616,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD preserves_old_on_sink_failure.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
-    DATA lo_sink TYPE REF TO lcl_failing_allocation_sink_stub.
+    DATA lo_sink TYPE REF TO lcl_fail_alloc_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
@@ -1723,7 +1723,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD keeps_persistence_audit_error.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
-    DATA lo_sink TYPE REF TO lcl_failing_allocation_sink_stub.
+    DATA lo_sink TYPE REF TO lcl_fail_alloc_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
     DATA lo_lock TYPE REF TO lcl_stock_lock_stub.
@@ -2027,7 +2027,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
-    DATA lo_authority TYPE REF TO lcl_failing_cancel_authority_stub.
+    DATA lo_authority TYPE REF TO lcl_fail_cancel_auth_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
@@ -2078,7 +2078,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
-    DATA lo_authority TYPE REF TO lcl_legacy_cancel_authority_stub.
+    DATA lo_authority TYPE REF TO lcl_legacy_cancel_auth_stub.
     DATA lo_lock TYPE REF TO lcl_stock_lock_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
@@ -2291,7 +2291,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
     DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
-    DATA lo_allocator TYPE REF TO lcl_mutating_demand_allocator_stub.
+    DATA lo_allocator TYPE REF TO lcl_mutating_demand_stub.
     DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.

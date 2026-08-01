@@ -11,12 +11,12 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_unauthorized FOR TESTING.
 ENDCLASS.
 
-CLASS lcl_failing_order_sink_authority DEFINITION FINAL.
+CLASS lcl_fail_order_sink_auth DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_order_sink_authority.
 ENDCLASS.
 
-CLASS lcl_failing_order_sink_authority IMPLEMENTATION.
+CLASS lcl_fail_order_sink_auth IMPLEMENTATION.
   METHOD zif_order_sink_authority~check.
     RAISE EXCEPTION TYPE zcx_stock_allocation.
   ENDMETHOD.
@@ -157,7 +157,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
 
   METHOD rejects_unauthorized.
     DATA lo_cut TYPE REF TO zcl_order_sink_sap.
-    DATA lo_authority TYPE REF TO lcl_failing_order_sink_authority.
+    DATA lo_authority TYPE REF TO lcl_fail_order_sink_auth.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
 

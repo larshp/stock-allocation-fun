@@ -1,4 +1,4 @@
-CLASS ltcl_allocation_transaction_sap DEFINITION FINAL FOR TESTING
+CLASS ltcl_alloc_transaction_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
@@ -22,7 +22,7 @@ CLASS ltcl_allocation_transaction_sap DEFINITION FINAL FOR TESTING
     METHODS reports_rollback_failure FOR TESTING.
 ENDCLASS.
 
-CLASS ltcl_allocation_transaction_sap IMPLEMENTATION.
+CLASS ltcl_alloc_transaction_sap IMPLEMENTATION.
   METHOD commits_transaction.
     DATA lo_cut TYPE REF TO zif_allocation_transaction.
 

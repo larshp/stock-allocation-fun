@@ -1,10 +1,10 @@
-CLASS lcl_failing_result_write_authority DEFINITION FINAL.
+CLASS lcl_fail_result_write_auth DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_read_authority.
     INTERFACES zif_allocation_write_authority.
 ENDCLASS.
 
-CLASS lcl_failing_result_write_authority IMPLEMENTATION.
+CLASS lcl_fail_result_write_auth IMPLEMENTATION.
   METHOD zif_allocation_read_authority~check_audit.
   ENDMETHOD.
 
@@ -595,7 +595,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lt_saved_demands TYPE zif_stock_allocation=>tt_demands.
     DATA lt_guard_demands TYPE zif_stock_allocation=>tt_demands.
     DATA lv_raised TYPE abap_bool.
-    DATA lo_write_authority TYPE REF TO lcl_failing_result_write_authority.
+    DATA lo_write_authority TYPE REF TO lcl_fail_result_write_auth.
     DATA lo_guarded_sink TYPE REF TO zif_allocation_sink.
     DATA ls_run TYPE zstockalloc_run.
 

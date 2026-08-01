@@ -1,4 +1,4 @@
-CLASS ltcl_stock_allocation_service_sap DEFINITION FINAL FOR TESTING
+CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
@@ -22,12 +22,12 @@ CLASS ltcl_stock_allocation_service_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_result_delete_auth FOR TESTING.
 ENDCLASS.
 
-CLASS lcl_failing_allocation_transaction DEFINITION FINAL.
+CLASS lcl_fail_alloc_transaction DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_transaction.
 ENDCLASS.
 
-CLASS lcl_failing_allocation_transaction IMPLEMENTATION.
+CLASS lcl_fail_alloc_transaction IMPLEMENTATION.
   METHOD zif_allocation_transaction~commit.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     CREATE OBJECT lo_error.
@@ -36,12 +36,12 @@ CLASS lcl_failing_allocation_transaction IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS lcl_failing_result_delete_authority DEFINITION FINAL.
+CLASS lcl_fail_result_delete_auth DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_write_authority.
 ENDCLASS.
 
-CLASS lcl_failing_result_delete_authority IMPLEMENTATION.
+CLASS lcl_fail_result_delete_auth IMPLEMENTATION.
   METHOD zif_allocation_write_authority~check_audit_write.
   ENDMETHOD.
 
@@ -56,7 +56,7 @@ CLASS lcl_failing_result_delete_authority IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
-CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
+CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
   METHOD allocates_sap_vertical_slice.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -971,7 +971,7 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
     CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
-    CREATE OBJECT lo_transaction TYPE lcl_failing_allocation_transaction.
+    CREATE OBJECT lo_transaction TYPE lcl_fail_alloc_transaction.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source = lo_stock_source
@@ -1028,7 +1028,7 @@ CLASS ltcl_stock_allocation_service_sap IMPLEMENTATION.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
     CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
-    CREATE OBJECT lo_write_authority TYPE lcl_failing_result_delete_authority.
+    CREATE OBJECT lo_write_authority TYPE lcl_fail_result_delete_auth.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source    = lo_stock_source

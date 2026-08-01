@@ -15,12 +15,12 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_cancel_unauthorized FOR TESTING.
 ENDCLASS.
 
-CLASS lcl_failing_reservation_authority DEFINITION FINAL.
+CLASS lcl_fail_reservation_auth DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation_authority.
 ENDCLASS.
 
-CLASS lcl_failing_reservation_authority IMPLEMENTATION.
+CLASS lcl_fail_reservation_auth IMPLEMENTATION.
   METHOD zif_stock_allocation_authority~check.
     RAISE EXCEPTION TYPE zcx_stock_allocation.
   ENDMETHOD.
@@ -235,7 +235,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
 
   METHOD rejects_unauthorized.
     DATA lo_cut TYPE REF TO zcl_stock_reservation_sap.
-    DATA lo_authority TYPE REF TO lcl_failing_reservation_authority.
+    DATA lo_authority TYPE REF TO lcl_fail_reservation_auth.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
 
@@ -265,7 +265,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
 
   METHOD rejects_cancel_unauthorized.
     DATA lo_cut TYPE REF TO zcl_stock_reservation_sap.
-    DATA lo_authority TYPE REF TO lcl_failing_reservation_authority.
+    DATA lo_authority TYPE REF TO lcl_fail_reservation_auth.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
 

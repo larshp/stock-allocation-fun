@@ -88,10 +88,17 @@ START-OF-SELECTION.
   DATA lv_total_shortage TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_total_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_total_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_summary_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_mixed_units TYPE abap_bool.
+  DATA lv_mixed_units_text TYPE string.
   DATA lv_oldest_age TYPE i.
   DATA lv_newest_age TYPE i.
   DATA lv_total_coverage_text TYPE string.
   DATA lv_total_shortage_pct_text TYPE string.
+  DATA lv_total_available_text TYPE string.
+  DATA lv_total_requested_text TYPE string.
+  DATA lv_total_allocated_text TYPE string.
+  DATA lv_total_shortage_text TYPE string.
   DATA lv_oldest_age_text TYPE string.
   DATA lv_newest_age_text TYPE string.
   DATA lv_candidate_count TYPE i.
@@ -461,6 +468,11 @@ START-OF-SELECTION.
   ENDIF.
 
   LOOP AT lt_alerts ASSIGNING <ls_alert>.
+    IF sy-tabix = 1.
+      lv_summary_unit = <ls_alert>-unit.
+    ELSEIF <ls_alert>-unit <> lv_summary_unit.
+      lv_mixed_units = abap_true.
+    ENDIF.
     lv_total_available = lv_total_available + <ls_alert>-available.
     lv_total_requested = lv_total_requested + <ls_alert>-requested.
     lv_total_allocated = lv_total_allocated + <ls_alert>-allocated.
@@ -472,15 +484,37 @@ START-OF-SELECTION.
       lv_newest_age = <ls_alert>-age_seconds.
     ENDIF.
   ENDLOOP.
-  IF lv_total_requested > 0.
+  IF lines( lt_alerts ) = 0.
+    lv_summary_unit = 'n/a'.
+  ENDIF.
+  IF lv_mixed_units = abap_true.
+    lv_summary_unit = 'mixed'.
+    lv_mixed_units_text = 'true'.
+    lv_total_coverage_text = 'n/a'.
+    lv_total_shortage_pct_text = 'n/a'.
+  ELSE.
+    lv_mixed_units_text = 'false'.
+  ENDIF.
+  IF lv_mixed_units = abap_false AND lv_total_requested > 0.
     lv_total_coverage = lv_total_allocated * 100 / lv_total_requested.
     lv_total_coverage_text = zcl_stock_csv=>number( lv_total_coverage ).
     lv_total_shortage_pct = lv_total_shortage * 100 / lv_total_requested.
     lv_total_shortage_pct_text = zcl_stock_csv=>number(
       lv_total_shortage_pct ).
-  ELSE.
+  ELSEIF lv_mixed_units = abap_false.
     lv_total_coverage_text = 'n/a'.
     lv_total_shortage_pct_text = 'n/a'.
+  ENDIF.
+  IF lv_mixed_units = abap_true.
+    lv_total_available_text = 'n/a'.
+    lv_total_requested_text = 'n/a'.
+    lv_total_allocated_text = 'n/a'.
+    lv_total_shortage_text = 'n/a'.
+  ELSE.
+    lv_total_available_text = zcl_stock_csv=>number( lv_total_available ).
+    lv_total_requested_text = zcl_stock_csv=>number( lv_total_requested ).
+    lv_total_allocated_text = zcl_stock_csv=>number( lv_total_allocated ).
+    lv_total_shortage_text = zcl_stock_csv=>number( lv_total_shortage ).
   ENDIF.
   IF lines( lt_alerts ) > 0.
     lv_oldest_age_text = zcl_stock_csv=>number( lv_oldest_age ).
@@ -501,11 +535,11 @@ START-OF-SELECTION.
         && 'maximum_coverage;minimum_requested_quantity;maximum_requested_quantity;'
         && 'minimum_allocated_quantity;maximum_allocated_quantity;'
         && 'stale_threshold_seconds;maximum_age_seconds;'
-        && 'candidate_count;limited;alert_count;available;requested;allocated;shortage;coverage_pct;'
-        && 'shortage_pct;'
+        && 'candidate_count;limited;alert_count;unit;mixed_units;available;requested;'
+        && 'allocated;shortage;coverage_pct;shortage_pct;'
         && 'oldest_age_seconds;newest_age_seconds'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       APPEND lv_strategy_filter TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
@@ -534,10 +568,19 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_candidate_count ) TO lt_csv_fields.
       APPEND lv_limited_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lines( lt_alerts ) ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( lv_total_available ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( lv_total_requested ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( lv_total_allocated ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( lv_total_shortage ) TO lt_csv_fields.
+      APPEND lv_summary_unit TO lt_csv_fields.
+      APPEND lv_mixed_units_text TO lt_csv_fields.
+      IF lv_mixed_units = abap_true.
+        APPEND 'n/a' TO lt_csv_fields.
+        APPEND 'n/a' TO lt_csv_fields.
+        APPEND 'n/a' TO lt_csv_fields.
+        APPEND 'n/a' TO lt_csv_fields.
+      ELSE.
+        APPEND zcl_stock_csv=>number( lv_total_available ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( lv_total_requested ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( lv_total_allocated ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( lv_total_shortage ) TO lt_csv_fields.
+      ENDIF.
       APPEND lv_total_coverage_text TO lt_csv_fields.
       APPEND lv_total_shortage_pct_text TO lt_csv_fields.
       APPEND lv_oldest_age_text TO lt_csv_fields.
@@ -562,7 +605,7 @@ START-OF-SELECTION.
       && 'coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_strategy_filter ) TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
@@ -703,7 +746,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 28 ).
+          iv_value = 30 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -901,6 +944,72 @@ START-OF-SELECTION.
           iv_value = |{ p_matnr }/{ p_werks }/{ p_lgort }| ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'unit'
+          iv_value = lv_summary_unit ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>boolean_property(
+          iv_name  = 'mixed_units'
+          iv_value = lv_mixed_units ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property( iv_name = 'available' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'available'
+            iv_value = lv_total_available ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property( iv_name = 'requested' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'requested'
+            iv_value = lv_total_requested ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property( iv_name = 'allocated' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'allocated'
+            iv_value = lv_total_allocated ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property( iv_name = 'shortage' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'shortage'
+            iv_value = lv_total_shortage ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_false AND lv_total_requested > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'coverage_pct'
+            iv_value = lv_total_coverage ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'coverage_pct' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_false AND lv_total_requested > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'shortage_pct'
+            iv_value = lv_total_shortage_pct ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'shortage_pct' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
         CONCATENATE '{' lv_json_ndjson_prefix ',' lv_item '}'
           INTO lv_json_line.
         WRITE: / lv_json_line.
@@ -915,7 +1024,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 28 ).
+      iv_value = 30 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -1076,31 +1185,55 @@ START-OF-SELECTION.
     lv_json_count = zcl_stock_json=>number_property(
       iv_name  = 'alert_count'
       iv_value = lines( lt_alerts ) ).
-    lv_field = zcl_stock_json=>number_property(
-      iv_name  = 'available'
-      iv_value = lv_total_available ).
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'unit'
+      iv_value = lv_summary_unit ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
-    lv_field = zcl_stock_json=>number_property(
-      iv_name  = 'requested'
-      iv_value = lv_total_requested ).
+    lv_field = zcl_stock_json=>boolean_property(
+      iv_name  = 'mixed_units'
+      iv_value = lv_mixed_units ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
-    lv_field = zcl_stock_json=>number_property(
-      iv_name  = 'allocated'
-      iv_value = lv_total_allocated ).
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property( iv_name = 'available' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'available'
+        iv_value = lv_total_available ).
+    ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
-    lv_field = zcl_stock_json=>number_property(
-      iv_name  = 'shortage'
-      iv_value = lv_total_shortage ).
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property( iv_name = 'requested' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'requested'
+        iv_value = lv_total_requested ).
+    ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
-    IF lv_total_requested > 0.
-    lv_field = zcl_stock_json=>number_property(
-      iv_name  = 'coverage_pct'
-      iv_value = lv_total_coverage ).
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property( iv_name = 'allocated' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'allocated'
+        iv_value = lv_total_allocated ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property( iv_name = 'shortage' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'shortage'
+        iv_value = lv_total_shortage ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF lv_mixed_units = abap_false AND lv_total_requested > 0.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'coverage_pct'
+        iv_value = lv_total_coverage ).
     ELSE.
       lv_field = zcl_stock_json=>null_property( iv_name = 'coverage_pct' ).
     ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
-    IF lv_total_requested > 0.
+    IF lv_mixed_units = abap_false AND lv_total_requested > 0.
       lv_field = zcl_stock_json=>number_property(
         iv_name  = 'shortage_pct'
         iv_value = lv_total_shortage_pct ).
@@ -1171,10 +1304,12 @@ START-OF-SELECTION.
          / 'Maximum allocated quantity:', lv_max_allocated_filter,
          / 'Minimum coverage:', lv_min_coverage_filter,
          / 'Maximum coverage:', lv_coverage_filter,
-         / 'Available:', lv_total_available,
-         / 'Requested:', lv_total_requested,
-         / 'Allocated:', lv_total_allocated,
-         / 'Shortage:', lv_total_shortage,
+         / 'Unit:', lv_summary_unit,
+         / 'Mixed units:', lv_mixed_units_text,
+         / 'Available:', lv_total_available_text,
+         / 'Requested:', lv_total_requested_text,
+         / 'Allocated:', lv_total_allocated_text,
+         / 'Shortage:', lv_total_shortage_text,
          / 'Coverage:', lv_total_coverage_text,
          / 'Shortage percentage:', lv_total_shortage_pct_text,
          / 'Scope:', p_matnr, p_werks, p_lgort.

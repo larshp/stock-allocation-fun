@@ -11,6 +11,7 @@
     <CLASSMODE>0</CLASSMODE>
     <FINAL>X</FINAL>
     <PUBLIC>X</PUBLIC>
+    <FIXPT>X</FIXPT>
     <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
   </asx:values>

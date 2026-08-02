@@ -7,6 +7,9 @@
 - Added `p_spct` shortage-percentage-first ordering to `ZSTOCK_ALLOC_WATCH`, with applicable percentages first, deterministic shortage/age/time/run-ID ties, detail `shortage_pct` output, and watch schema version `24`.
 - Added case-insensitive run-ID substring filtering (`p_runq`) to `ZSTOCK_ALLOC_WATCH`, combinable with exact `p_runid`; filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `25`.
 - Added `p_legacy` blank-strategy filtering to `ZSTOCK_ALLOC_WATCH`, mutually exclusive with `p_strat`; boolean filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `26`.
+- Added mixed-unit safeguards to `ZSTOCK_ALLOC_WATCH`; summaries now expose `unit` and `mixed_units`, and suppress non-comparable quantity, coverage, and shortage-percentage totals as `n/a`/JSON `null`. Watch contracts advance to schema version `30`.
+- Added aggregate quantity, coverage, and shortage-percentage context to every watch NDJSON line so streaming consumers receive the same page summary as regular JSON. Watch contracts advance to schema version `29`.
+- Added aggregate `shortage_pct` to watch human, CSV-summary, and JSON-summary output, calculated from returned requested and shortage totals with `n/a`/`null` for zero-request pages. Watch contracts advance to schema version `28`.
 - Added opt-in `p_typed` JSON output to `ZSTOCK_ALLOC_WATCH`; numeric filter bounds become JSON numbers, blank numeric bounds become `null`, and the default string-valued contract remains unchanged. Watch contracts advance to schema version `27`.
 
 - Added an optional maximum running-age filter (`p_age_to`/`iv_running_age_to`) to audit history, complementing the existing stale minimum; bounds are validated, the shared direct-read contract is covered by ABAP Unit, and reversed age windows are rejected.

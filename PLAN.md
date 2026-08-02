@@ -6,6 +6,6 @@ open-abap does not include the business logic needed, add SAP standard stubs in 
 
 keep your notes and progrss in NOTES.md
 
-these abaplint rules also be enabled: modify_only_own_db_tables + align_type_expressions + easy_to_find_messages + max_one_method_parameter_per_line + align_parameters + local_testclass_consistency + allowed_object_naming
+these abaplint rules also be enabled: modify_only_own_db_tables + align_type_expressions + easy_to_find_messages + max_one_method_parameter_per_line + align_parameters + local_testclass_consistency + allowed_object_naming + line_length
 
 use https://github.com/open-abap/open-abap-core as a dependency in abaplint and the transpiler configurations

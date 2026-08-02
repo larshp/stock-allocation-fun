@@ -21,13 +21,19 @@
     <item><ID>S</ID><KEY>P_MSG</KEY><ENTRY>Diagnostic message contains</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_MONLY</KEY><ENTRY>Only runs with diagnostics</ENTRY><LENGTH>29</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHF</KEY><ENTRY>Minimum shortage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COVF</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_COVT</KEY><ENTRY>Maximum coverage percentage</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AGE_TO</KEY><ENTRY>Maximum age seconds</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_MAX</KEY><ENTRY>Maximum alerts</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SKIP</KEY><ENTRY>Alert offset</ENTRY><LENGTH>18</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHRT</KEY><ENTRY>Sort by shortage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Sort by coverage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_NEW</KEY><ENTRY>Sort by newest</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_SUM</KEY><ENTRY>Summary CSV</ENTRY><LENGTH>16</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
     <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
+    <item><ID>S</ID><KEY>P_NDJSON</KEY><ENTRY>NDJSON output</ENTRY><LENGTH>20</LENGTH></item>
    </TPOOL>
   </asx:values>
  </asx:abap>

@@ -485,6 +485,13 @@
 - Added one-based post-sort alert `rank` to watch detail output so capped consumers can process a deterministic returned order; watch contracts advance to schema version `9`.
 - Added case-insensitive server-side diagnostic-message substring filtering (`p_msg`) with exported filter provenance; watch contracts advance to schema version `10`.
 - Added `p_monly` diagnostic-presence filtering through the audit read port with boolean filter provenance; watch contracts advance to schema version `11`.
+- Added per-alert `coverage_pct` to watch human, CSV, and JSON detail output, using `n/a`/`null` for zero-request alerts; watch contracts advance to schema version `12`.
+- Added `p_ndjson` streaming watch output with self-describing one-object-per-line alerts and summary-mode exclusion; watch contracts advance to schema version `13`.
+- Added validated `p_skip` offset pagination with `has_more`, global ranks, and offset-aware watch ordering tests; watch contracts advance to schema version `14`.
+- Added minimum coverage filtering (`p_covf`) and inclusive coverage-range validation/provenance beside `p_covt`; watch contracts advance to schema version `15`.
+- Added optional maximum running-age filtering (`p_age_to`) to bound stale-watch windows and exported the age-range provenance; watch contracts advance to schema version `16`.
+- Added coverage-first watch ordering (`p_cov`) with non-applicable zero-request alerts sorted after applicable coverage values, deterministic ties, and ABAP Unit coverage; watch contracts advance to schema version `17`.
+- Added newest-first watch ordering (`p_new`) with explicit precedence and deterministic start-time ties; watch contracts advance to schema version `18`.
 - Added selectable best-fit allocation (`p_strat = B`) with deterministic exact-fit/lookahead selection, audit counters, per-strategy summary totals, and schema updates through allocation, history, and result exports.
 - Added live `running_age_seconds` to history detail CSV, JSON, metadata, and human output; finalized rows retain non-applicable `n/a`/`null`, and detail schemas advance to `9`.
 - Added summary-level `oldest_running_age_seconds` to history CSV, JSON, metadata, and human output; history summary schemas advance to `17`.

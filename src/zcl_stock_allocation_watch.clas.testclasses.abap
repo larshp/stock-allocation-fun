@@ -5,6 +5,7 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_shortage_pct FOR TESTING.
+    METHODS summarizes_units FOR TESTING.
     METHODS sorts_by_newest FOR TESTING.
     METHODS sorts_by_age_by_default FOR TESTING.
     METHODS limits_alerts_after_sort FOR TESTING.
@@ -12,6 +13,42 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
+  METHOD summarizes_units.
+    DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
+    DATA ls_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
+
+    APPEND VALUE #( unit = 'EA' ) TO lt_alerts.
+    APPEND VALUE #( unit = 'EA' ) TO lt_alerts.
+    ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-mixed_units
+      exp = abap_false ).
+
+    APPEND VALUE #( unit = 'BOX' ) TO lt_alerts.
+    ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-unit
+      exp = 'mixed' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-mixed_units
+      exp = abap_true ).
+
+    CLEAR lt_alerts.
+    ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-unit
+      exp = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-mixed_units
+      exp = abap_false ).
+  ENDMETHOD.
+
   METHOD sorts_by_shortage.
     DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
 

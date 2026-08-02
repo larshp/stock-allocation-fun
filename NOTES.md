@@ -1,5 +1,31 @@
 # Progress notes
 
+## 2026-08-02
+
+- Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to history and the audit read API; filter provenance is exported and negative shelf-life bounds are rejected.
+- Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to stale-run watch, passing them through audit reads and exposing their provenance; watch JSON/NDJSON advance to schema `37`, detail CSV to `36`, and summary CSV to `35`.
+- Added originating allocation movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to the result sink and `ZSTOCK_ALLOC_RESULT`; reservation movement type remains independently filterable through `p_rmov`, and result detail/summary schemas advance to `15`/`16`.
+- Extended result human, CSV, JSON, and NDJSON exports with explicit `movement_type_filter` and `minimum_shelf_life_filter` values; result detail/summary schemas advance to `16`/`17`.
+- Extended `zif_allocation_audit=>ty_summary` with machine-readable movement-type and minimum-shelf-life policy context, including explicit availability and mixed-policy flags; added a mixed-policy ABAP Unit regression test.
+- Added movement-type and minimum-shelf-life policy context to history summaries; a page reports one policy, `mixed`, or `n/a` across human, CSV, typed JSON, and metadata summary output, advancing history summary schemas to `22`.
+- Extended stale-run watch alerts with persisted movement type and minimum shelf-life policy in human, CSV, JSON, and NDJSON detail output; watch detail CSV advances to schema `35` and watch JSON/NDJSON to schema `36` (summary CSV remains `34`).
+- Extended `ZSTOCK_ALLOC_RESULT` exact-run provenance with persisted movement type and minimum shelf-life policy across human, CSV, typed JSON, and metadata output; result detail schemas advance to `14` and summary schemas to `15`.
+- Persisted movement type and minimum shelf-life policy on `ZSTOCKALLOC_RUN`; history detail output now exposes both fields (detail schema `11`), comparison context advances to schema `28`, and audit metadata reasons classify movement-type and shelf-life changes.
+- Extended `ZSTOCK_ALLOCATE` provenance output with movement type, minimum shelf-life days, and the entered requested-date filter in human, CSV, and JSON summaries; allocation CSV and typed JSON schemas are now version `23`.
+- Preserved movement type, minimum shelf-life policy, and even reversed requested-date inputs on rejected audit rows; rejection auditing no longer rejects the invalid input it is meant to diagnose.
+- Added comparison contextual `filters_applied` and stable `filters` provenance metadata to human, CSV, and JSON output; comparison contextual schemas advance to version `27`, while row-only JSON and NDJSON remain unchanged.
+- Added watch `filters_applied` and stable `filters` provenance metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `35`, while watch CSV schemas advance to version `34`.
+- Added explicit material, plant, storage-location, batch, and requested-unit scope fields to watch human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `34`, while watch CSV schemas advance to version `33`.
+- Added comparison contextual `page_count` and `last_offset` pagination metadata to human, CSV, and JSON output; comparison contextual schemas advance to version `26`.
+- Added watch `page_count` and `last_offset` pagination metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `33`, while watch CSV schemas advance to version `32`.
+- Added watch `next_offset`, `has_previous`, `previous_offset`, and `page_number` navigation metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `32`, while watch CSV schemas advance to version `31`.
+- Added typed watch `filter_values` JSON/NDJSON objects for numeric bounds, stale threshold, age, offset, and limit; watch JSON/NDJSON schemas advance to version `31`, while watch CSV remains version `30`.
+- Added boolean `typed: true` markers to typed comparison rows and contextual JSON envelopes; comparison contextual schemas advance to version `25`, while default row output remains unchanged.
+- Added comparison contextual `filter_values` provenance for pagination, exposing numeric `offset` and `max_rows` (`null` when unbounded) in JSON and as a quoted JSON object in CSV; comparison contextual schemas advance to version `21`, while row-only JSON and NDJSON remain unchanged.
+- Added material, plant, storage-location, batch, and unit scope to comparison contextual human, CSV, and JSON outputs; comparison contextual schemas advance to version `22`, while row-only JSON and NDJSON remain unchanged.
+- Added comparison contextual `has_more` and nullable `next_offset` pagination metadata for direct page navigation; comparison contextual schemas advance to version `23`, while row-only JSON and NDJSON remain unchanged.
+- Added comparison contextual `has_previous`, nullable `previous_offset`, and nullable `page_number` pagination metadata for backward/page-label navigation; comparison contextual schemas advance to version `24`, while row-only JSON and NDJSON remain unchanged.
+
 ## 2026-08-01
 
 - Added optional shortage bounds (`p_shf`/`p_sht`), demand-count bounds (`p_dfrom`/`p_dto`), available-stock bounds (`p_avf`/`p_avt`), requested-quantity bounds (`p_qf`/`p_qt`), and allocated-quantity bounds (`p_af`/`p_at`) to `ZSTOCK_ALLOC_WATCH`, using the validated audit read ranges and exporting the filters in human, CSV, JSON, and NDJSON output; watch contracts advance to schema version `22`.
@@ -510,3 +536,5 @@
 - Propagated `oldest_running_age_seconds` into the audit summary API and `ZSTOCK_ALLOCATE` CSV, JSON, and human output; allocation success schemas advance to `19`, with regression coverage for active-run age.
 - Added `oldest_running_run_id` beside the live age metric across history and allocation summaries, making stalled-run follow-up direct; history/allocation schemas advance to `18`/`20`.
 - Added exact-running-audit `audit_running_age_seconds` to result detail CSV, typed/metadata JSON, and human context; result detail schemas advance to `12`, while finalized or non-exact rows remain non-applicable.
+- Added typed/metadata history JSON `filter_values` objects with numeric quantity, count, duration, age, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. History detail/summary contracts advance to schema versions `10`/`21`.
+- Added typed/metadata result JSON `filter_values` objects with numeric priority, reservation-age, quantity, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. Result detail/summary contracts advance to schema versions `13`/`14`.

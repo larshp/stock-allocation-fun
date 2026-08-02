@@ -23,6 +23,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       plant             TYPE zif_stock_allocation=>ty_plant,
       storage_location  TYPE zif_stock_allocation=>ty_storage_location,
       batch             TYPE zif_stock_allocation=>ty_batch,
+      movement_type     TYPE zif_stock_allocation=>ty_movement_type,
+      min_shelf_life    TYPE i,
       requested_on_from TYPE d,
       requested_on_to   TYPE d,
       unit              TYPE zif_stock_allocation=>ty_unit,
@@ -116,6 +118,10 @@ INTERFACE zif_allocation_audit PUBLIC.
       newest_running_run_id      TYPE ty_run_id,
       unit                       TYPE zif_stock_allocation=>ty_unit,
       mixed_units                TYPE abap_bool,
+      movement_type_context      TYPE string,
+      min_shelf_life_context     TYPE i,
+      policy_context_available   TYPE abap_bool,
+      mixed_policies             TYPE abap_bool,
       last_status                TYPE ty_run_status,
       last_message               TYPE ty_message,
     END OF ty_summary.
@@ -126,6 +132,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_plant             TYPE zif_stock_allocation=>ty_plant
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life    TYPE i OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
       iv_run_id            TYPE ty_run_id OPTIONAL
@@ -178,6 +186,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_unit             TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_movement_type    TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life   TYPE i OPTIONAL
       iv_strategy         TYPE ty_strategy OPTIONAL
       iv_legacy_strategy  TYPE abap_bool OPTIONAL
     RETURNING
@@ -226,6 +236,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_plant             TYPE zif_stock_allocation=>ty_plant
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life    TYPE i OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
@@ -242,6 +254,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_plant             TYPE zif_stock_allocation=>ty_plant
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life    TYPE i OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL

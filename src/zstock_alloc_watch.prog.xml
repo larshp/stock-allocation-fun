@@ -15,6 +15,8 @@
     <item><ID>S</ID><KEY>P_WERKS</KEY><ENTRY>Plant</ENTRY><LENGTH>13</LENGTH></item>
     <item><ID>S</ID><KEY>P_LGORT</KEY><ENTRY>Storage location</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_CHARG</KEY><ENTRY>Batch</ENTRY><LENGTH>13</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MVT</KEY><ENTRY>Movement type</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHELF</KEY><ENTRY>Minimum shelf-life days</ENTRY><LENGTH>28</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>24</LENGTH></item>

@@ -47,6 +47,12 @@ CLASS zcl_stock_json DEFINITION
         it_values       TYPE tt_strings
       RETURNING
         VALUE(rv_value) TYPE string.
+    CLASS-METHODS object_property
+      IMPORTING
+        iv_name         TYPE string
+        it_fields       TYPE tt_strings
+      RETURNING
+        VALUE(rv_value) TYPE string.
     CLASS-METHODS error
       IMPORTING
         iv_message      TYPE string
@@ -147,6 +153,15 @@ CLASS zcl_stock_json IMPLEMENTATION.
     lv_quoted_name = quote( iv_name ).
     CONCATENATE lv_quoted_name ':[' lv_items ']'
       INTO rv_value.
+  ENDMETHOD.
+
+  METHOD object_property.
+    DATA lv_fields TYPE string.
+    DATA lv_quoted_name TYPE string.
+
+    CONCATENATE LINES OF it_fields INTO lv_fields SEPARATED BY ','.
+    lv_quoted_name = quote( iv_name ).
+    CONCATENATE lv_quoted_name ':{' lv_fields '}' INTO rv_value.
   ENDMETHOD.
 
   METHOD error.

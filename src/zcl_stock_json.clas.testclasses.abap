@@ -12,6 +12,7 @@ CLASS ltcl_stock_json DEFINITION FINAL FOR TESTING
     METHODS formats_boolean_property FOR TESTING.
     METHODS formats_null_property FOR TESTING.
     METHODS formats_string_array_property FOR TESTING.
+    METHODS formats_object_property FOR TESTING.
     METHODS formats_error_envelope FOR TESTING.
     METHODS formats_correlated_error FOR TESTING.
 ENDCLASS.
@@ -130,6 +131,22 @@ CLASS ltcl_stock_json IMPLEMENTATION.
         iv_name   = 'filters'
         it_values = lt_values )
       exp = '"filters":[]' ).
+  ENDMETHOD.
+
+  METHOD formats_object_property.
+    DATA lt_fields TYPE zcl_stock_json=>tt_strings.
+
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'minimum_shortage'
+      iv_value = 12 ) TO lt_fields.
+    APPEND zcl_stock_json=>null_property(
+      iv_name = 'maximum_shortage' ) TO lt_fields.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>object_property(
+        iv_name   = 'filter_values'
+        it_fields = lt_fields )
+      exp = '"filter_values":{"minimum_shortage":12,"maximum_shortage":null}' ).
   ENDMETHOD.
 
   METHOD formats_error_envelope.

@@ -64,8 +64,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       END OF ty_coverage_line.
     TYPES:
       BEGIN OF ty_strategy_run,
-        run_id   TYPE zif_stock_allocation=>ty_run_id,
-        strategy TYPE c LENGTH 1,
+        run_id         TYPE zif_stock_allocation=>ty_run_id,
+        strategy       TYPE c LENGTH 1,
+        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life TYPE i,
       END OF ty_strategy_run.
     DATA lv_run_id TYPE zif_stock_allocation=>ty_run_id.
     DATA lv_allocation_unit TYPE zif_stock_allocation=>ty_unit.
@@ -200,6 +202,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation result strategy filters conflict' ).
     ENDIF.
+    IF iv_min_shelf_life < 0.
+      raise_error(
+        iv_message = 'Allocation result minimum shelf-life is invalid' ).
+    ENDIF.
     IF mo_read_authority IS BOUND.
       TRY.
           mo_read_authority->check_results( ).
@@ -258,7 +264,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF lines( rt_demands ) > 0.
       IF iv_strategy IS NOT INITIAL.
-        SELECT run_id, strategy
+        SELECT run_id, strategy, movement_type, min_shelf_life
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -267,7 +273,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND strategy = @iv_strategy.
       ELSEIF iv_legacy_strategy = abap_true.
-        SELECT run_id, strategy
+        SELECT run_id, strategy, movement_type, min_shelf_life
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -276,7 +282,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND strategy = @space.
       ELSE.
-        SELECT run_id, strategy
+        SELECT run_id, strategy, movement_type, min_shelf_life
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -289,11 +295,22 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
           WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
         IF sy-subrc <> 0.
           IF iv_strategy IS NOT INITIAL
-              OR iv_legacy_strategy = abap_true.
+              OR iv_legacy_strategy = abap_true
+              OR iv_allocation_movement_type IS NOT INITIAL
+              OR iv_min_shelf_life IS NOT INITIAL.
             DELETE rt_demands.
           ENDIF.
         ELSE.
-          <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+          IF iv_allocation_movement_type IS NOT INITIAL
+              AND <ls_strategy_run>-movement_type
+                <> iv_allocation_movement_type.
+            DELETE rt_demands.
+          ELSEIF iv_min_shelf_life IS NOT INITIAL
+              AND <ls_strategy_run>-min_shelf_life <> iv_min_shelf_life.
+            DELETE rt_demands.
+          ELSE.
+            <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+          ENDIF.
         ENDIF.
       ENDLOOP.
     ENDIF.

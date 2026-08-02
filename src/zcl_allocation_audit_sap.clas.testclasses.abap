@@ -113,6 +113,7 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS reports_completion_running FOR TESTING.
     METHODS reports_running_age FOR TESTING.
     METHODS summarizes_legacy_strategy FOR TESTING.
+    METHODS summarizes_policy_context FOR TESTING.
     METHODS purges_linked_snapshots FOR TESTING.
     METHODS rejects_purge_commit_failure FOR TESTING.
     METHODS rejects_finish_commit_failure FOR TESTING.
@@ -497,6 +498,81 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit strategy filters conflict' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD summarizes_policy_context.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_min_shelf_life   = 5
+      iv_unit             = 'EA'
+      iv_available        = '10'
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = '10'
+      iv_allocated = '1'
+      iv_shortage  = '0'
+      iv_message   = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '202'
+      iv_min_shelf_life   = 7
+      iv_unit             = 'EA'
+      iv_available        = '10'
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = '10'
+      iv_allocated = '2'
+      iv_shortage  = '0'
+      iv_message   = '' ).
+
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-movement_type_context
+      exp = 'mixed' ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-policy_context_available ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-mixed_policies ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-min_shelf_life_context ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_min_shelf_life   = 7 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
   ENDMETHOD.
 
   METHOD rejects_bad_rejection_metric.
@@ -2063,6 +2139,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_plant            = '1000'
       iv_storage_location = '0001'
       iv_batch            = 'BATCH-001'
+      iv_movement_type    = '201'
+      iv_min_shelf_life   = 5
       iv_available        = '4'
       iv_demand_count     = 1
       iv_unit             = 'EA' ).
@@ -2084,6 +2162,12 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_batch_runs[ 1 ]-batch
       exp = 'BATCH-001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_batch_runs[ 1 ]-movement_type
+      exp = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_batch_runs[ 1 ]-min_shelf_life
+      exp = 5 ).
 
     lv_run_id = lo_cut->start_run(
       iv_material         = 'MATERIAL-AUDIT'

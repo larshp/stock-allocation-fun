@@ -190,6 +190,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
     ls_run-status = 'S'.
+    ls_run-movement_type = '201'.
+    ls_run-min_shelf_life = 5.
     ls_run-available = 0.
     ls_run-demand_count = 1.
     ls_run-shortage = 5.
@@ -203,6 +205,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-lgort = '0001'.
     ls_run-unit = 'BOX'.
     ls_run-strategy = 'F'.
+    ls_run-movement_type = '202'.
+    ls_run-min_shelf_life = 7.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-finish_date = sy-datum.
@@ -287,6 +291,45 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-allocation_strategy
       exp = 'F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material                 = 'MATERIAL-FILTER'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_allocation_movement_type = '202' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_min_shelf_life   = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_min_shelf_life   = -1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_shelf_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_shelf_error->message
+          exp = 'Allocation result minimum shelf-life is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material         = 'MATERIAL-FILTER'

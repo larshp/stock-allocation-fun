@@ -1,5 +1,7 @@
 # Anomalies and known issues
 
+- Resolved: audit-run reads relied on positional SQL mapping even though the typed run structure and selected columns were ordered differently; audit history now uses corresponding-field mapping and persists movement type plus minimum shelf-life policy for reproducible run context.
+- Resolved: rejection auditing discarded policy context and could reject reversed date input before recording it; service rejection rows now retain movement type, minimum shelf life, and the original invalid horizon.
 - Resolved: allocation callers and report consumers could lose the durable run identity when a post-start reservation or persistence step failed; the service now exports the run ID and allocation error envelopes carry it when available.
 - Resolved: successful allocation output could expose a concurrently created scope-level latest run as the current execution; `ZSTOCK_ALLOCATE` now emits the exact current `run_id` separately from `last_run_id`.
 

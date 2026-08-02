@@ -41,6 +41,18 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_MVT</KEY>
+     <ENTRY>Movement type</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHELF</KEY>
+     <ENTRY>Minimum shelf-life days</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_REQF</KEY>
      <ENTRY>Requested from</ENTRY>
      <LENGTH>21</LENGTH>

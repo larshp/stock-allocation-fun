@@ -439,6 +439,14 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
       append_reason( EXPORTING iv_reason = 'unit'
                    CHANGING cv_reasons   = rv_reasons ).
     ENDIF.
+    IF iv_old_run-movement_type <> iv_new_run-movement_type.
+      append_reason( EXPORTING iv_reason = 'movement_type'
+                   CHANGING cv_reasons   = rv_reasons ).
+    ENDIF.
+    IF iv_old_run-min_shelf_life <> iv_new_run-min_shelf_life.
+      append_reason( EXPORTING iv_reason = 'shelf_life'
+                   CHANGING cv_reasons   = rv_reasons ).
+    ENDIF.
     IF iv_old_run-requested_on_from <> iv_new_run-requested_on_from
         OR iv_old_run-requested_on_to <> iv_new_run-requested_on_to.
       append_reason( EXPORTING iv_reason = 'horizon'

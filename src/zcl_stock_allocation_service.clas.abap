@@ -49,6 +49,8 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mo_audit TYPE REF TO zif_allocation_audit.
     DATA mv_requested_on_from TYPE d.
     DATA mv_requested_on_to TYPE d.
+    DATA mv_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+    DATA mv_min_shelf_life TYPE i.
     METHODS finish_audit
       IMPORTING
         iv_run_id            TYPE zif_allocation_audit=>ty_run_id
@@ -164,6 +166,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     CLEAR ev_run_id.
     mv_requested_on_from = iv_requested_on_from.
     mv_requested_on_to = iv_requested_on_to.
+    mv_movement_type = iv_movement_type.
+    mv_min_shelf_life = iv_min_shelf_life.
 
     IF iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
@@ -1122,6 +1126,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available         = lv_available
           iv_demand_count      = lv_demand_count
           iv_batch             = iv_batch
+          iv_movement_type     = iv_movement_type
+          iv_min_shelf_life    = iv_min_shelf_life
           iv_requested_on_from = iv_requested_on_from
           iv_requested_on_to   = iv_requested_on_to
           iv_unit              = iv_unit
@@ -1576,6 +1582,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant             = iv_plant
           iv_storage_location  = iv_storage_location
           iv_batch             = iv_batch
+          iv_movement_type     = mv_movement_type
+          iv_min_shelf_life    = mv_min_shelf_life
           iv_unit              = iv_unit
           iv_requested_on_from = mv_requested_on_from
           iv_requested_on_to   = mv_requested_on_to

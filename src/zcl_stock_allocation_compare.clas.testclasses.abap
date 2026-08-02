@@ -62,6 +62,10 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     ls_new_run-strategy = 'F'.
     ls_old_run-unit = 'EA'.
     ls_new_run-unit = 'CS'.
+    ls_old_run-movement_type = '201'.
+    ls_new_run-movement_type = '202'.
+    ls_old_run-min_shelf_life = 2.
+    ls_new_run-min_shelf_life = 5.
     ls_old_run-requested_on_from = '20260101'.
     ls_new_run-requested_on_from = '20260102'.
     ls_old_run-start_date = '20260101'.
@@ -72,7 +76,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       act = lo_cut->get_audit_metadata_reasons(
         iv_old_run = ls_old_run
         iv_new_run = ls_new_run )
-      exp = 'status|strategy|unit|horizon|timestamps|message' ).
+      exp = 'status|strategy|unit|movement_type|shelf_life|horizon|timestamps|message' ).
   ENDMETHOD.
 
   METHOD calculates_running_age.

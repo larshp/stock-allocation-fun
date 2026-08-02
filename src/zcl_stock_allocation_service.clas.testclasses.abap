@@ -65,6 +65,8 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_persisted_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+    DATA lv_persisted_min_shelf_life TYPE i.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
@@ -83,6 +85,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
           iv_storage_location  = '0001'
           iv_movement_type     = '201'
           iv_unit              = 'EA'
+          iv_min_shelf_life    = 7
           iv_requested_on_from = '20260820'
           iv_requested_on_to   = '20260815' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -92,6 +95,21 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
           exp = 'Requested delivery date range is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE movement_type, min_shelf_life
+      FROM zstockalloc_run
+      INTO (@lv_persisted_movement_type, @lv_persisted_min_shelf_life)
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND requested_on_from = '20260820'
+        AND requested_on_to = '20260815'
+        AND status = 'E'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_movement_type
+      exp = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_min_shelf_life
+      exp = 7 ).
     DELETE FROM zstockalloc_run
       WHERE matnr = 'MATERIAL-PRIO'.
   ENDMETHOD.
@@ -115,6 +133,8 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_reservations_differ TYPE abap_bool.
     DATA lv_run_count TYPE i.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_persisted_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+    DATA lv_persisted_min_shelf_life TYPE i.
     DATA lv_full_count TYPE i.
     DATA lv_partial_count TYPE i.
     DATA lv_unallocated_count TYPE i.
@@ -148,6 +168,16 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       act = lv_remaining
       exp = '0' ).
     cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
+    SELECT SINGLE movement_type, min_shelf_life
+      FROM zstockalloc_run
+      INTO (@lv_persisted_movement_type, @lv_persisted_min_shelf_life)
+      WHERE run_id = @lv_run_id.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_movement_type
+      exp = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_min_shelf_life
+      exp = 0 ).
 
     SELECT COUNT( * )
       FROM zstockalloc

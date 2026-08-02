@@ -4,6 +4,8 @@ PARAMETERS p_matnr TYPE zif_stock_allocation=>ty_material OBLIGATORY.
 PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_location OBLIGATORY.
 PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
+PARAMETERS p_mvt TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_shelf TYPE i.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_strat TYPE zif_allocation_audit=>ty_strategy.
 PARAMETERS p_legacy AS CHECKBOX.
@@ -62,6 +64,8 @@ START-OF-SELECTION.
   DATA lv_run_contains_filter TYPE string.
   DATA lv_message_filter TYPE string.
   DATA lv_message_only_text TYPE string.
+  DATA lv_movement_filter TYPE string.
+  DATA lv_min_shelf_filter TYPE string.
   DATA lv_shortage_filter TYPE string.
   DATA lv_max_shortage_filter TYPE string.
   DATA lv_min_shortage_pct_filter TYPE string.
@@ -88,7 +92,7 @@ START-OF-SELECTION.
   DATA lv_total_shortage TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_total_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_total_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
-  DATA lv_summary_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_summary_unit TYPE string.
   DATA lv_mixed_units TYPE abap_bool.
   DATA lv_mixed_units_text TYPE string.
   DATA lv_oldest_age TYPE i.
@@ -99,6 +103,7 @@ START-OF-SELECTION.
   DATA lv_total_requested_text TYPE string.
   DATA lv_total_allocated_text TYPE string.
   DATA lv_total_shortage_text TYPE string.
+  DATA ls_unit_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
   DATA lv_oldest_age_text TYPE string.
   DATA lv_newest_age_text TYPE string.
   DATA lv_candidate_count TYPE i.
@@ -106,15 +111,32 @@ START-OF-SELECTION.
   DATA lv_limited_text TYPE string.
   DATA lv_has_more TYPE abap_bool.
   DATA lv_has_more_text TYPE string.
+  DATA lv_next_offset TYPE i.
+  DATA lv_next_offset_text TYPE string.
+  DATA lv_has_previous TYPE abap_bool.
+  DATA lv_has_previous_text TYPE string.
+  DATA lv_previous_offset TYPE i.
+  DATA lv_previous_offset_text TYPE string.
+  DATA lv_page_number TYPE i.
+  DATA lv_page_number_text TYPE string.
+  DATA lv_page_count TYPE i.
+  DATA lv_page_count_text TYPE string.
+  DATA lv_last_offset TYPE i.
+  DATA lv_last_offset_text TYPE string.
+  DATA lv_filters_applied TYPE abap_bool.
+  DATA lt_filter_names TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lv_filter_names_text TYPE string.
   DATA lv_rank TYPE i.
   DATA lv_alert_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_alert_coverage_text TYPE string.
   DATA lv_alert_shortage_pct_text TYPE string.
+  DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
   FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
   DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
   FIELD-SYMBOLS <ls_alert> TYPE zcl_stock_allocation_watch=>ty_alert.
 
+  TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_strat TO UPPER CASE.
   lv_strategy_filter = p_strat.
   IF lv_strategy_filter IS INITIAL.
@@ -141,6 +163,15 @@ START-OF-SELECTION.
     lv_message_only_text = 'true'.
   ELSE.
     lv_message_only_text = 'false'.
+  ENDIF.
+  lv_movement_filter = p_mvt.
+  IF lv_movement_filter IS INITIAL.
+    lv_movement_filter = 'n/a'.
+  ENDIF.
+  IF p_shelf IS INITIAL.
+    lv_min_shelf_filter = 'n/a'.
+  ELSE.
+    lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
   ENDIF.
   IF p_shf IS INITIAL.
     lv_shortage_filter = 'n/a'.
@@ -285,6 +316,8 @@ START-OF-SELECTION.
     lv_error_message = 'Offset must not be negative'.
   ELSEIF p_shf < 0.
     lv_error_message = 'Minimum shortage must not be negative'.
+  ELSEIF p_shelf < 0.
+    lv_error_message = 'Minimum shelf-life filter must not be negative'.
   ELSEIF p_sht < 0.
     lv_error_message = 'Maximum shortage must not be negative'.
   ELSEIF p_shf IS NOT INITIAL AND p_sht IS NOT INITIAL
@@ -350,6 +383,212 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
+  CLEAR lt_filter_names.
+  IF p_charg IS NOT INITIAL.
+    APPEND 'batch' TO lt_filter_names.
+  ENDIF.
+  IF p_mvt IS NOT INITIAL.
+    APPEND 'movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_shelf IS NOT INITIAL.
+    APPEND 'minimum_shelf_life' TO lt_filter_names.
+  ENDIF.
+  IF p_meins IS NOT INITIAL.
+    APPEND 'unit' TO lt_filter_names.
+  ENDIF.
+  IF p_strat IS NOT INITIAL.
+    APPEND 'strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_legacy = abap_true.
+    APPEND 'legacy_strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_runid IS NOT INITIAL.
+    APPEND 'run_id' TO lt_filter_names.
+  ENDIF.
+  IF p_runq IS NOT INITIAL.
+    APPEND 'run_id_contains' TO lt_filter_names.
+  ENDIF.
+  IF p_msg IS NOT INITIAL.
+    APPEND 'message' TO lt_filter_names.
+  ENDIF.
+  IF p_monly = abap_true.
+    APPEND 'message_only' TO lt_filter_names.
+  ENDIF.
+  IF p_shf IS NOT INITIAL.
+    APPEND 'minimum_shortage' TO lt_filter_names.
+  ENDIF.
+  IF p_sht IS NOT INITIAL.
+    APPEND 'maximum_shortage' TO lt_filter_names.
+  ENDIF.
+  IF p_spf IS NOT INITIAL.
+    APPEND 'minimum_shortage_pct' TO lt_filter_names.
+  ENDIF.
+  IF p_spt IS NOT INITIAL.
+    APPEND 'maximum_shortage_pct' TO lt_filter_names.
+  ENDIF.
+  IF p_dfrom IS NOT INITIAL.
+    APPEND 'minimum_demand_count' TO lt_filter_names.
+  ENDIF.
+  IF p_dto IS NOT INITIAL.
+    APPEND 'maximum_demand_count' TO lt_filter_names.
+  ENDIF.
+  IF p_avf IS NOT INITIAL.
+    APPEND 'minimum_available_stock' TO lt_filter_names.
+  ENDIF.
+  IF p_avt IS NOT INITIAL.
+    APPEND 'maximum_available_stock' TO lt_filter_names.
+  ENDIF.
+  IF p_qf IS NOT INITIAL.
+    APPEND 'minimum_requested_quantity' TO lt_filter_names.
+  ENDIF.
+  IF p_qt IS NOT INITIAL.
+    APPEND 'maximum_requested_quantity' TO lt_filter_names.
+  ENDIF.
+  IF p_af IS NOT INITIAL.
+    APPEND 'minimum_allocated_quantity' TO lt_filter_names.
+  ENDIF.
+  IF p_at IS NOT INITIAL.
+    APPEND 'maximum_allocated_quantity' TO lt_filter_names.
+  ENDIF.
+  IF p_covf IS NOT INITIAL.
+    APPEND 'minimum_coverage' TO lt_filter_names.
+  ENDIF.
+  IF p_covt IS NOT INITIAL.
+    APPEND 'maximum_coverage' TO lt_filter_names.
+  ENDIF.
+  IF p_stale <> 3600.
+    APPEND 'stale_threshold' TO lt_filter_names.
+  ENDIF.
+  IF p_age_to IS NOT INITIAL.
+    APPEND 'maximum_age_seconds' TO lt_filter_names.
+  ENDIF.
+  IF p_skip IS NOT INITIAL.
+    APPEND 'offset' TO lt_filter_names.
+  ENDIF.
+  IF p_max IS NOT INITIAL.
+    APPEND 'max_rows' TO lt_filter_names.
+  ENDIF.
+  IF lines( lt_filter_names ) > 0.
+    lv_filters_applied = abap_true.
+    CONCATENATE LINES OF lt_filter_names INTO lv_filter_names_text
+      SEPARATED BY '|'.
+  ELSE.
+    lv_filters_applied = abap_false.
+    lv_filter_names_text = 'n/a'.
+  ENDIF.
+
+  IF p_typed = abap_true.
+    CLEAR lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_shelf_life'
+      iv_value   = p_shelf
+      iv_text    = lv_min_shelf_filter
+      iv_present = xsdbool( p_shelf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_demand_count'
+      iv_value   = p_dfrom
+      iv_text    = lv_min_demand_filter
+      iv_present = xsdbool( p_dfrom IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_demand_count'
+      iv_value   = p_dto
+      iv_text    = lv_max_demand_filter
+      iv_present = xsdbool( p_dto IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_available_stock'
+      iv_value   = p_avf
+      iv_text    = lv_min_available_filter
+      iv_present = xsdbool( p_avf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_available_stock'
+      iv_value   = p_avt
+      iv_text    = lv_max_available_filter
+      iv_present = xsdbool( p_avt IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_requested_quantity'
+      iv_value   = p_qf
+      iv_text    = lv_min_requested_filter
+      iv_present = xsdbool( p_qf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_requested_quantity'
+      iv_value   = p_qt
+      iv_text    = lv_max_requested_filter
+      iv_present = xsdbool( p_qt IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_allocated_quantity'
+      iv_value   = p_af
+      iv_text    = lv_min_allocated_filter
+      iv_present = xsdbool( p_af IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_allocated_quantity'
+      iv_value   = p_at
+      iv_text    = lv_max_allocated_filter
+      iv_present = xsdbool( p_at IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_shortage'
+      iv_value   = p_shf
+      iv_text    = lv_shortage_filter
+      iv_present = xsdbool( p_shf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_shortage'
+      iv_value   = p_sht
+      iv_text    = lv_max_shortage_filter
+      iv_present = xsdbool( p_sht IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_shortage_pct'
+      iv_value   = p_spf
+      iv_text    = lv_min_shortage_pct_filter
+      iv_present = xsdbool( p_spf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_shortage_pct'
+      iv_value   = p_spt
+      iv_text    = lv_max_shortage_pct_filter
+      iv_present = xsdbool( p_spt IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'minimum_coverage'
+      iv_value   = p_covf
+      iv_text    = lv_min_coverage_filter
+      iv_present = xsdbool( p_covf IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_coverage'
+      iv_value   = p_covt
+      iv_text    = lv_coverage_filter
+      iv_present = xsdbool( p_covt IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'stale_threshold_seconds'
+      iv_value = p_stale ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'maximum_age_seconds'
+      iv_value   = p_age_to
+      iv_text    = lv_max_age_filter
+      iv_present = xsdbool( p_age_to IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'offset'
+      iv_value = p_skip ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'max_rows'
+      iv_value   = p_max
+      iv_text    = 'n/a'
+      iv_present = xsdbool( p_max IS NOT INITIAL )
+      iv_typed   = abap_true ) TO lt_filter_value_fields.
+  ENDIF.
+
   CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
   TRY.
       lt_runs = lo_audit->get_runs(
@@ -358,6 +597,8 @@ START-OF-SELECTION.
           iv_plant             = p_werks
           iv_storage_location  = p_lgort
           iv_batch             = p_charg
+          iv_movement_type     = p_mvt
+          iv_min_shelf_life    = p_shelf
           iv_unit              = p_meins
           iv_strategy          = p_strat
           iv_legacy_strategy   = p_legacy
@@ -422,6 +663,8 @@ START-OF-SELECTION.
       APPEND VALUE #(
         run_id                 = <ls_run>-run_id
         strategy               = <ls_run>-strategy
+        movement_type          = <ls_run>-movement_type
+        min_shelf_life         = <ls_run>-min_shelf_life
         unit                   = <ls_run>-unit
         start_date             = <ls_run>-start_date
         start_time             = <ls_run>-start_time
@@ -459,6 +702,55 @@ START-OF-SELECTION.
     lv_has_more = abap_false.
     lv_has_more_text = 'false'.
   ENDIF.
+  IF lv_has_more = abap_true.
+    lv_next_offset = p_skip + lines( lt_alerts ).
+    lv_next_offset_text = zcl_stock_csv=>number( lv_next_offset ).
+  ELSE.
+    lv_next_offset = 0.
+    lv_next_offset_text = 'n/a'.
+  ENDIF.
+  IF p_max > 0.
+    lv_page_number = p_skip DIV p_max + 1.
+    lv_page_number_text = zcl_stock_csv=>number( lv_page_number ).
+    IF p_skip > 0.
+      lv_has_previous = abap_true.
+      lv_has_previous_text = 'true'.
+      IF p_skip >= p_max.
+        lv_previous_offset = p_skip - p_max.
+      ELSE.
+        lv_previous_offset = 0.
+      ENDIF.
+      lv_previous_offset_text = zcl_stock_csv=>number(
+        lv_previous_offset ).
+    ELSE.
+      lv_has_previous = abap_false.
+      lv_has_previous_text = 'false'.
+      lv_previous_offset = 0.
+      lv_previous_offset_text = 'n/a'.
+    ENDIF.
+  ELSE.
+    lv_has_previous = abap_false.
+    lv_has_previous_text = 'false'.
+    lv_previous_offset = 0.
+    lv_previous_offset_text = 'n/a'.
+    lv_page_number = 0.
+    lv_page_number_text = 'n/a'.
+  ENDIF.
+  IF p_max > 0.
+    lv_page_count = ( lv_candidate_count + p_max - 1 ) DIV p_max.
+    lv_page_count_text = zcl_stock_csv=>number( lv_page_count ).
+    IF lv_page_count > 0.
+      lv_last_offset = ( lv_page_count - 1 ) * p_max.
+    ELSE.
+      lv_last_offset = 0.
+    ENDIF.
+    lv_last_offset_text = zcl_stock_csv=>number( lv_last_offset ).
+  ELSE.
+    lv_page_count = 0.
+    lv_page_count_text = 'n/a'.
+    lv_last_offset = 0.
+    lv_last_offset_text = 'n/a'.
+  ENDIF.
   IF p_skip > 0 OR lv_has_more = abap_true.
     lv_limited = abap_true.
     lv_limited_text = 'true'.
@@ -468,11 +760,6 @@ START-OF-SELECTION.
   ENDIF.
 
   LOOP AT lt_alerts ASSIGNING <ls_alert>.
-    IF sy-tabix = 1.
-      lv_summary_unit = <ls_alert>-unit.
-    ELSEIF <ls_alert>-unit <> lv_summary_unit.
-      lv_mixed_units = abap_true.
-    ENDIF.
     lv_total_available = lv_total_available + <ls_alert>-available.
     lv_total_requested = lv_total_requested + <ls_alert>-requested.
     lv_total_allocated = lv_total_allocated + <ls_alert>-allocated.
@@ -484,9 +771,9 @@ START-OF-SELECTION.
       lv_newest_age = <ls_alert>-age_seconds.
     ENDIF.
   ENDLOOP.
-  IF lines( lt_alerts ) = 0.
-    lv_summary_unit = 'n/a'.
-  ENDIF.
+  ls_unit_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
+  lv_summary_unit = ls_unit_summary-unit.
+  lv_mixed_units = ls_unit_summary-mixed_units.
   IF lv_mixed_units = abap_true.
     lv_summary_unit = 'mixed'.
     lv_mixed_units_text = 'true'.
@@ -526,9 +813,13 @@ START-OF-SELECTION.
 
   IF p_csv = abap_true.
     IF p_sum = abap_true.
-      WRITE: / 'schema_version;sort_mode;strategy_filter;legacy_strategy_filter;'
+      WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
+        && 'filters_applied;filters;'
+        && 'sort_mode;strategy_filter;movement_type_filter;minimum_shelf_life_filter;'
+        && 'legacy_strategy_filter;'
         && 'run_id_filter;run_id_contains_filter;'
-        && 'message_filter;message_only;offset;has_more;'
+        && 'message_filter;message_only;offset;has_more;next_offset;has_previous;'
+        && 'previous_offset;page_number;page_count;last_offset;'
         && 'minimum_demand_count;maximum_demand_count;minimum_available_stock;'
         && 'maximum_available_stock;minimum_shortage;maximum_shortage;'
         && 'minimum_shortage_pct;maximum_shortage_pct;minimum_coverage;'
@@ -539,9 +830,22 @@ START-OF-SELECTION.
         && 'allocated;shortage;coverage_pct;shortage_pct;'
         && 'oldest_age_seconds;newest_age_seconds'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 35 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      IF lv_filters_applied = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
+      APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       APPEND lv_strategy_filter TO lt_csv_fields.
+      APPEND lv_movement_filter TO lt_csv_fields.
+      APPEND lv_min_shelf_filter TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
       APPEND lv_run_filter TO lt_csv_fields.
       APPEND lv_run_contains_filter TO lt_csv_fields.
@@ -549,6 +853,12 @@ START-OF-SELECTION.
       APPEND lv_message_only_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND lv_has_more_text TO lt_csv_fields.
+      APPEND lv_next_offset_text TO lt_csv_fields.
+      APPEND lv_has_previous_text TO lt_csv_fields.
+      APPEND lv_previous_offset_text TO lt_csv_fields.
+      APPEND lv_page_number_text TO lt_csv_fields.
+      APPEND lv_page_count_text TO lt_csv_fields.
+      APPEND lv_last_offset_text TO lt_csv_fields.
       APPEND lv_min_demand_filter TO lt_csv_fields.
       APPEND lv_max_demand_filter TO lt_csv_fields.
       APPEND lv_min_available_filter TO lt_csv_fields.
@@ -592,22 +902,39 @@ START-OF-SELECTION.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
-    WRITE: / 'schema_version;sort_mode;strategy_filter;legacy_strategy_filter;'
+    WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
+      && 'filters_applied;filters;'
+      && 'sort_mode;strategy_filter;movement_type_filter;minimum_shelf_life_filter;'
+      && 'legacy_strategy_filter;'
       && 'run_id_filter;run_id_contains_filter;'
-      && 'message_filter;message_only;offset;has_more;'
+      && 'message_filter;message_only;offset;has_more;next_offset;has_previous;'
+      && 'previous_offset;page_number;page_count;last_offset;'
       && 'minimum_demand_count;maximum_demand_count;minimum_available_stock;'
       && 'maximum_available_stock;minimum_requested_quantity;maximum_requested_quantity;'
       && 'minimum_allocated_quantity;maximum_allocated_quantity;maximum_age_seconds;'
       && 'minimum_shortage;maximum_shortage;minimum_shortage_pct;'
       && 'maximum_shortage_pct;minimum_coverage;maximum_coverage;'
       && 'candidate_count;limited;rank;'
-      && 'run_id;strategy;unit;start_date;start_time;age_seconds;available;requested;allocated;shortage;'
-      && 'coverage_pct;shortage_pct;demand_count;message'.
+      && 'run_id;strategy;movement_type;min_shelf_life;unit;start_date;start_time;age_seconds;'
+      && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 36 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      IF lv_filters_applied = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
+      APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_strategy_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
+      APPEND lv_min_shelf_filter TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_run_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_run_contains_filter ) TO lt_csv_fields.
@@ -615,6 +942,12 @@ START-OF-SELECTION.
       APPEND lv_message_only_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND lv_has_more_text TO lt_csv_fields.
+      APPEND lv_next_offset_text TO lt_csv_fields.
+      APPEND lv_has_previous_text TO lt_csv_fields.
+      APPEND lv_previous_offset_text TO lt_csv_fields.
+      APPEND lv_page_number_text TO lt_csv_fields.
+      APPEND lv_page_count_text TO lt_csv_fields.
+      APPEND lv_last_offset_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_demand_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_max_demand_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_available_filter ) TO lt_csv_fields.
@@ -636,6 +969,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_rank ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-run_id ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( <ls_alert>-movement_type ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-unit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-start_time ) TO lt_csv_fields.
@@ -680,6 +1015,20 @@ START-OF-SELECTION.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'strategy'
         iv_value = <ls_alert>-strategy ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>property(
+        iv_name  = 'movement_type'
+        iv_value = <ls_alert>-movement_type ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      IF p_typed = abap_true.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'min_shelf_life'
+          iv_value = <ls_alert>-min_shelf_life ).
+      ELSE.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'min_shelf_life'
+          iv_value = <ls_alert>-min_shelf_life ).
+      ENDIF.
       CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'unit'
@@ -746,7 +1095,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 30 ).
+          iv_value = 37 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -762,6 +1111,25 @@ START-OF-SELECTION.
         lv_field = zcl_stock_json=>property(
           iv_name  = 'strategy_filter'
           iv_value = lv_strategy_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'movement_type_filter'
+          iv_value = lv_movement_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF p_typed = abap_true.
+          lv_field = zcl_stock_json=>filter_number_property(
+            iv_name    = 'minimum_shelf_life_filter'
+            iv_value   = p_shelf
+            iv_text    = lv_min_shelf_filter
+            iv_present = xsdbool( p_shelf IS NOT INITIAL )
+            iv_typed   = abap_true ).
+        ELSE.
+          lv_field = zcl_stock_json=>property(
+            iv_name  = 'minimum_shelf_life_filter'
+            iv_value = lv_min_shelf_filter ).
+        ENDIF.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -797,6 +1165,68 @@ START-OF-SELECTION.
         lv_field = zcl_stock_json=>boolean_property(
           iv_name  = 'has_more'
           iv_value = lv_has_more ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF p_typed = abap_true.
+          lv_field = zcl_stock_json=>object_property(
+            iv_name   = 'filter_values'
+            it_fields = lt_filter_value_fields ).
+          CONCATENATE lv_json_ndjson_prefix lv_field
+            INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        ENDIF.
+        IF lv_has_more = abap_true.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'next_offset'
+            iv_value = lv_next_offset ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'next_offset' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>boolean_property(
+          iv_name  = 'has_previous'
+          iv_value = lv_has_previous ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_has_previous = abap_true.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'previous_offset'
+            iv_value = lv_previous_offset ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'previous_offset' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF p_max > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'page_number'
+            iv_value = lv_page_number ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'page_number' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF p_max > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'page_count'
+            iv_value = lv_page_count ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'page_count' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF p_max > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'last_offset'
+            iv_value = lv_last_offset ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'last_offset' ).
+        ENDIF.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>filter_number_property(
@@ -945,6 +1375,41 @@ START-OF-SELECTION.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>property(
+          iv_name  = 'material'
+          iv_value = p_matnr ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'plant'
+          iv_value = p_werks ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'storage_location'
+          iv_value = p_lgort ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'batch'
+          iv_value = p_charg ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'requested_unit'
+          iv_value = p_meins ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>boolean_property(
+          iv_name  = 'filters_applied'
+          iv_value = lv_filters_applied ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>string_array_property(
+          iv_name   = 'filters'
+          it_values = lt_filter_names ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
           iv_name  = 'unit'
           iv_value = lv_summary_unit ).
         CONCATENATE lv_json_ndjson_prefix lv_field
@@ -1024,7 +1489,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 30 ).
+      iv_value = 37 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -1037,6 +1502,23 @@ START-OF-SELECTION.
     lv_field = zcl_stock_json=>property(
       iv_name  = 'strategy_filter'
       iv_value = lv_strategy_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'movement_type_filter'
+      iv_value = lv_movement_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF p_typed = abap_true.
+      lv_field = zcl_stock_json=>filter_number_property(
+        iv_name    = 'minimum_shelf_life_filter'
+        iv_value   = p_shelf
+        iv_text    = lv_min_shelf_filter
+        iv_present = xsdbool( p_shelf IS NOT INITIAL )
+        iv_typed   = abap_true ).
+    ELSE.
+      lv_field = zcl_stock_json=>property(
+        iv_name  = 'minimum_shelf_life_filter'
+        iv_value = lv_min_shelf_filter ).
+    ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'legacy_strategy_filter'
@@ -1065,6 +1547,61 @@ START-OF-SELECTION.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'has_more'
       iv_value = lv_has_more ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF p_typed = abap_true.
+      lv_field = zcl_stock_json=>object_property(
+        iv_name   = 'filter_values'
+        it_fields = lt_filter_value_fields ).
+      CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    ENDIF.
+    IF lv_has_more = abap_true.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'next_offset'
+        iv_value = lv_next_offset ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'next_offset' ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>boolean_property(
+      iv_name  = 'has_previous'
+      iv_value = lv_has_previous ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF lv_has_previous = abap_true.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'previous_offset'
+        iv_value = lv_previous_offset ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'previous_offset' ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF p_max > 0.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'page_number'
+        iv_value = lv_page_number ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'page_number' ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF p_max > 0.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'page_count'
+        iv_value = lv_page_count ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'page_count' ).
+    ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    IF p_max > 0.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'last_offset'
+        iv_value = lv_last_offset ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'last_offset' ).
+    ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>filter_number_property(
       iv_name    = 'minimum_demand_count'
@@ -1260,6 +1797,34 @@ START-OF-SELECTION.
         iv_name = 'newest_age_seconds' ).
     ENDIF.
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'material'
+      iv_value = p_matnr ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'plant'
+      iv_value = p_werks ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'storage_location'
+      iv_value = p_lgort ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'batch'
+      iv_value = p_charg ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'requested_unit'
+      iv_value = p_meins ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>boolean_property(
+      iv_name  = 'filters_applied'
+      iv_value = lv_filters_applied ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>string_array_property(
+      iv_name   = 'filters'
+      it_values = lt_filter_names ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_json_runs = zcl_stock_json=>property(
       iv_name  = 'scope'
       iv_value = |{ p_matnr }/{ p_werks }/{ p_lgort }| ).
@@ -1283,13 +1848,23 @@ START-OF-SELECTION.
          / 'Maximum age (seconds):', lv_max_age_filter,
          / 'Sort mode:', lv_sort_mode,
          / 'Strategy filter:', lv_strategy_filter,
+         / 'Movement type filter:', lv_movement_filter,
+         / 'Minimum shelf-life filter:', lv_min_shelf_filter,
          / 'Legacy strategy filter:', lv_legacy_filter_text,
          / 'Run ID filter:', lv_run_filter,
          / 'Run ID contains filter:', lv_run_contains_filter,
          / 'Message filter:', lv_message_filter,
          / 'Message only:', lv_message_only_text,
+         / 'Filters applied:', lv_filters_applied,
+         / 'Filters:', lv_filter_names_text,
          / 'Offset:', p_skip,
          / 'Has more:', lv_has_more_text,
+         / 'Next offset:', lv_next_offset_text,
+         / 'Has previous:', lv_has_previous_text,
+         / 'Previous offset:', lv_previous_offset_text,
+         / 'Page number:', lv_page_number_text,
+         / 'Page count:', lv_page_count_text,
+         / 'Last offset:', lv_last_offset_text,
          / 'Minimum shortage:', lv_shortage_filter,
          / 'Maximum shortage:', lv_max_shortage_filter,
          / 'Minimum shortage percentage:', lv_min_shortage_pct_filter,
@@ -1312,7 +1887,7 @@ START-OF-SELECTION.
          / 'Shortage:', lv_total_shortage_text,
          / 'Coverage:', lv_total_coverage_text,
          / 'Shortage percentage:', lv_total_shortage_pct_text,
-         / 'Scope:', p_matnr, p_werks, p_lgort.
+         / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
   IF p_sum = abap_true.
     RETURN.
   ENDIF.
@@ -1335,6 +1910,8 @@ START-OF-SELECTION.
              <ls_alert>-run_id,
              'age', <ls_alert>-age_seconds,
              'strategy', <ls_alert>-strategy,
+             'movement type', <ls_alert>-movement_type,
+             'minimum shelf-life days', <ls_alert>-min_shelf_life,
              'unit', <ls_alert>-unit,
              'shortage', <ls_alert>-shortage,
              'coverage', lv_alert_coverage_text,

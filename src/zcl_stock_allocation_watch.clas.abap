@@ -7,6 +7,8 @@ CLASS zcl_stock_allocation_watch DEFINITION
       BEGIN OF ty_alert,
         run_id                 TYPE zif_allocation_audit=>ty_run_id,
         strategy               TYPE zif_allocation_audit=>ty_strategy,
+        movement_type          TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life         TYPE i,
         unit                   TYPE zif_stock_allocation=>ty_unit,
         start_date             TYPE d,
         start_time             TYPE t,
@@ -23,6 +25,17 @@ CLASS zcl_stock_allocation_watch DEFINITION
         message                TYPE zif_allocation_audit=>ty_message,
       END OF ty_alert.
     TYPES tt_alerts TYPE STANDARD TABLE OF ty_alert WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_unit_summary,
+        unit        TYPE string,
+        mixed_units TYPE abap_bool,
+      END OF ty_unit_summary.
+
+    CLASS-METHODS summarize_units
+      IMPORTING
+        it_alerts         TYPE tt_alerts
+      RETURNING
+        VALUE(rs_summary) TYPE ty_unit_summary.
 
     CLASS-METHODS sort_and_limit
       IMPORTING
@@ -37,6 +50,22 @@ CLASS zcl_stock_allocation_watch DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_allocation_watch IMPLEMENTATION.
+  METHOD summarize_units.
+    LOOP AT it_alerts ASSIGNING FIELD-SYMBOL(<ls_alert>).
+      IF sy-tabix = 1.
+        rs_summary-unit = <ls_alert>-unit.
+      ELSEIF <ls_alert>-unit <> rs_summary-unit.
+        rs_summary-mixed_units = abap_true.
+      ENDIF.
+    ENDLOOP.
+
+    IF lines( it_alerts ) = 0.
+      rs_summary-unit = 'n/a'.
+    ELSEIF rs_summary-mixed_units = abap_true.
+      rs_summary-unit = 'mixed'.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD sort_and_limit.
     FIELD-SYMBOLS <ls_alert> TYPE ty_alert.
 

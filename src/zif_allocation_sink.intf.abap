@@ -10,6 +10,8 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_run_id_contains            TYPE zif_stock_allocation=>ty_run_id OPTIONAL
       iv_strategy                   TYPE zif_allocation_audit=>ty_strategy OPTIONAL
       iv_legacy_strategy            TYPE abap_bool OPTIONAL
+      iv_allocation_movement_type   TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life             TYPE i OPTIONAL
       iv_status                     TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
       iv_sales_document             TYPE zif_stock_allocation=>ty_sales_document OPTIONAL
       iv_sales_document_type        TYPE zif_stock_allocation=>ty_sales_document_type OPTIONAL

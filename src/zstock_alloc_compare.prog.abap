@@ -98,13 +98,31 @@ START-OF-SELECTION.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lt_summary_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
   DATA lv_csv_line TYPE string.
   DATA lv_json_line TYPE string.
   DATA lv_json_fields TYPE string.
   DATA lv_summary_json_fields TYPE string.
+  DATA lv_filter_value_body TYPE string.
+  DATA lv_filter_values_json TYPE string.
   DATA lv_error_message TYPE string.
   DATA lv_first TYPE abap_bool.
   DATA lv_total_rows TYPE i.
+  DATA lv_has_more TYPE abap_bool.
+  DATA lv_next_offset TYPE i.
+  DATA lv_next_offset_text TYPE string.
+  DATA lv_has_previous TYPE abap_bool.
+  DATA lv_previous_offset TYPE i.
+  DATA lv_previous_offset_text TYPE string.
+  DATA lv_page_number TYPE i.
+  DATA lv_page_number_text TYPE string.
+  DATA lv_page_count TYPE i.
+  DATA lv_page_count_text TYPE string.
+  DATA lv_last_offset TYPE i.
+  DATA lv_last_offset_text TYPE string.
+  DATA lv_filters_applied TYPE abap_bool.
+  DATA lt_filter_names TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lv_filter_names_text TYPE string.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
   TRANSLATE p_reason TO LOWER CASE.
@@ -202,6 +220,54 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+
+  CLEAR lt_filter_names.
+  IF p_charg IS NOT INITIAL.
+    APPEND 'batch' TO lt_filter_names.
+  ENDIF.
+  IF p_meins IS NOT INITIAL.
+    APPEND 'unit' TO lt_filter_names.
+  ENDIF.
+  IF p_chg IS NOT INITIAL.
+    APPEND 'change_type' TO lt_filter_names.
+  ENDIF.
+  IF p_reason IS NOT INITIAL.
+    APPEND 'reason' TO lt_filter_names.
+  ENDIF.
+  IF p_all = abap_true.
+    APPEND 'include_unchanged' TO lt_filter_names.
+  ENDIF.
+  IF p_guard = abap_true.
+    APPEND 'reconciliation_guard' TO lt_filter_names.
+  ENDIF.
+  IF p_skip IS NOT INITIAL.
+    APPEND 'offset' TO lt_filter_names.
+  ENDIF.
+  IF p_max IS NOT INITIAL.
+    APPEND 'max_rows' TO lt_filter_names.
+  ENDIF.
+  IF lines( lt_filter_names ) > 0.
+    lv_filters_applied = abap_true.
+    CONCATENATE LINES OF lt_filter_names INTO lv_filter_names_text
+      SEPARATED BY '|'.
+  ELSE.
+    lv_filters_applied = abap_false.
+    lv_filter_names_text = 'n/a'.
+  ENDIF.
+
+  CLEAR lt_filter_value_fields.
+  APPEND zcl_stock_json=>number_property(
+    iv_name  = 'offset'
+    iv_value = p_skip ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'max_rows'
+    iv_value   = p_max
+    iv_text    = 'n/a'
+    iv_present = xsdbool( p_max > 0 )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  CONCATENATE LINES OF lt_filter_value_fields INTO lv_filter_value_body
+    SEPARATED BY ','.
+  CONCATENATE '{' lv_filter_value_body '}' INTO lv_filter_values_json.
 
   CREATE OBJECT lo_authority TYPE zcl_allocation_read_auth_sap.
   CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap
@@ -302,6 +368,55 @@ START-OF-SELECTION.
       ENDIF.
       RETURN.
   ENDTRY.
+
+  IF p_max > 0 AND p_skip + lines( lt_changes ) < lv_total_rows.
+    lv_has_more = abap_true.
+    lv_next_offset = p_skip + lines( lt_changes ).
+    lv_next_offset_text = zcl_stock_csv=>number( lv_next_offset ).
+  ELSE.
+    lv_has_more = abap_false.
+    lv_next_offset = 0.
+    lv_next_offset_text = 'n/a'.
+  ENDIF.
+  IF p_max > 0.
+    lv_page_number = p_skip DIV p_max + 1.
+    lv_page_number_text = zcl_stock_csv=>number( lv_page_number ).
+    IF p_skip > 0.
+      lv_has_previous = abap_true.
+      IF p_skip >= p_max.
+        lv_previous_offset = p_skip - p_max.
+      ELSE.
+        lv_previous_offset = 0.
+      ENDIF.
+      lv_previous_offset_text = zcl_stock_csv=>number(
+        lv_previous_offset ).
+    ELSE.
+      lv_has_previous = abap_false.
+      lv_previous_offset = 0.
+      lv_previous_offset_text = 'n/a'.
+    ENDIF.
+  ELSE.
+    lv_has_previous = abap_false.
+    lv_previous_offset = 0.
+    lv_previous_offset_text = 'n/a'.
+    lv_page_number = 0.
+    lv_page_number_text = 'n/a'.
+  ENDIF.
+  IF p_max > 0.
+    lv_page_count = ( lv_total_rows + p_max - 1 ) DIV p_max.
+    lv_page_count_text = zcl_stock_csv=>number( lv_page_count ).
+    IF lv_page_count > 0.
+      lv_last_offset = ( lv_page_count - 1 ) * p_max.
+    ELSE.
+      lv_last_offset = 0.
+    ENDIF.
+    lv_last_offset_text = zcl_stock_csv=>number( lv_last_offset ).
+  ELSE.
+    lv_page_count = 0.
+    lv_page_count_text = 'n/a'.
+    lv_last_offset = 0.
+    lv_last_offset_text = 'n/a'.
+  ENDIF.
 
   ls_old_reconciliation = lo_compare->reconcile(
     it_snapshot = lt_old
@@ -552,9 +667,12 @@ START-OF-SELECTION.
 
   IF p_sum = abap_true.
     IF p_csv = abap_true.
-      WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;change_type;reason_filter;'
+      WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;'
+        && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+        && 'change_type;reason_filter;'
         && 'include_unchanged;'
-        && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_start_date;'
+        && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
+        && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_start_date;'
         && 'new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_finish_time;'
         && 'new_finish_time;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;'
         && 'old_available;new_available;old_duration_seconds;new_duration_seconds;old_running_age_seconds;'
@@ -576,13 +694,25 @@ START-OF-SELECTION.
         && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
         && 'new_snapshot_shortage;unit;mixed_units;total_rows;returned_rows;offset;max_rows;added_rows;removed_rows;'
         && 'changed_rows;unchanged_rows;old_requested;new_requested;delta_requested;old_allocated;new_allocated;'
-        && 'delta_allocated;old_shortage;new_shortage;delta_shortage'.
+        && 'delta_allocated;old_shortage;new_shortage;delta_shortage;filter_values;has_more;next_offset;'
+        && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 20 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_new ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      IF lv_filters_applied = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
+      APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_chg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_all ) TO lt_csv_fields.
@@ -591,6 +721,10 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-strategy ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_old_run-movement_type ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_new_run-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_time ) TO lt_csv_fields.
@@ -696,6 +830,14 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lines( lt_changes ) ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_filter_values_json ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_has_more ) TO lt_csv_fields.
+      APPEND lv_next_offset_text TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_has_previous ) TO lt_csv_fields.
+      APPEND lv_previous_offset_text TO lt_csv_fields.
+      APPEND lv_page_number_text TO lt_csv_fields.
+      APPEND lv_page_count_text TO lt_csv_fields.
+      APPEND lv_last_offset_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_summary-added_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_summary-removed_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_summary-changed_rows ) TO lt_csv_fields.
@@ -865,7 +1007,12 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 20 ) TO lt_json_fields.
+        iv_value = 28 ) TO lt_json_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'typed'
+          iv_value = abap_true ) TO lt_json_fields.
+      ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -878,6 +1025,27 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'new_run'
         iv_value = p_new ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'material'
+        iv_value = p_matnr ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'storage_location'
+        iv_value = p_lgort ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'batch'
+        iv_value = p_charg ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = p_meins ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'filters_applied'
+        iv_value = lv_filters_applied ) TO lt_json_fields.
+      APPEND zcl_stock_json=>string_array_property(
+        iv_name   = 'filters'
+        it_values = lt_filter_names ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'change_type'
         iv_value = p_chg ) TO lt_json_fields.
@@ -902,6 +1070,27 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'new_run_strategy'
         iv_value = ls_new_run-strategy ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_movement_type'
+        iv_value = ls_old_run-movement_type ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_movement_type'
+        iv_value = ls_new_run-movement_type ) TO lt_json_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'old_min_shelf_life'
+          iv_value = ls_old_run-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'new_min_shelf_life'
+          iv_value = ls_new_run-min_shelf_life ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'old_min_shelf_life'
+          iv_value = ls_old_run-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'new_min_shelf_life'
+          iv_value = ls_new_run-min_shelf_life ) TO lt_json_fields.
+      ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'old_start_date'
         iv_value = ls_old_run-start_date ) TO lt_json_fields.
@@ -1313,6 +1502,52 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'max_rows'
         iv_value = p_max ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'filter_values'
+        it_fields = lt_filter_value_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'has_more'
+        iv_value = lv_has_more ) TO lt_json_fields.
+      IF lv_has_more = abap_true.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'next_offset'
+          iv_value = lv_next_offset ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'next_offset' ) TO lt_json_fields.
+      ENDIF.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'has_previous'
+        iv_value = lv_has_previous ) TO lt_json_fields.
+      IF lv_has_previous = abap_true.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'previous_offset'
+          iv_value = lv_previous_offset ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'previous_offset' ) TO lt_json_fields.
+      ENDIF.
+      IF p_max > 0.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'page_number'
+          iv_value = lv_page_number ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'page_number' ) TO lt_json_fields.
+      ENDIF.
+      IF p_max > 0.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'page_count'
+          iv_value = lv_page_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'last_offset'
+          iv_value = lv_last_offset ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'page_count' ) TO lt_json_fields.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'last_offset' ) TO lt_json_fields.
+      ENDIF.
       IF p_meta = abap_true.
         CONCATENATE '"summary":{' lv_summary_json_fields '}'
           INTO lv_json_line.
@@ -1338,7 +1573,8 @@ START-OF-SELECTION.
       && 'new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage;old_reservation_id;'
       && 'new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;'
       && 'new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;'
-      && 'old_run_strategy;new_run_strategy;old_start_date;new_start_date;old_start_time;new_start_time;'
+      && 'old_run_strategy;new_run_strategy;old_movement_type;new_movement_type;old_min_shelf_life;'
+      && 'new_min_shelf_life;old_start_date;new_start_date;old_start_time;new_start_time;'
       && 'old_finish_date;new_finish_date;old_requested_on_from;new_requested_on_from;old_requested_on_to;'
       && 'new_requested_on_to;old_available;new_available;old_duration_seconds;new_duration_seconds;'
       && 'old_running_age_seconds;new_running_age_seconds;audit_running_age_delta_seconds;audit_running_age_trend;'
@@ -1357,10 +1593,13 @@ START-OF-SELECTION.
       && 'new_snapshot_rows;old_snapshot_requested;new_snapshot_requested;old_snapshot_full_rows;'
       && 'new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;'
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
-      && 'new_snapshot_shortage;reconciliation_guard;reason_filter;total_rows;offset;max_rows'.
+      && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
+      && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+      && 'total_rows;offset;max_rows;filter_values;has_more;next_offset;'
+      && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 20 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -1424,6 +1663,10 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-strategy ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_old_run-movement_type ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_new_run-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_time ) TO lt_csv_fields.
@@ -1521,9 +1764,28 @@ START-OF-SELECTION.
         ls_new_reconciliation-snapshot_shortage ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_guard ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      IF lv_filters_applied = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
+      APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_filter_values_json ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_has_more ) TO lt_csv_fields.
+      APPEND lv_next_offset_text TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_has_previous ) TO lt_csv_fields.
+      APPEND lv_previous_offset_text TO lt_csv_fields.
+      APPEND lv_page_number_text TO lt_csv_fields.
+      APPEND lv_page_count_text TO lt_csv_fields.
+      APPEND lv_last_offset_text TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
       WRITE: / lv_csv_line.
     ENDLOOP.
@@ -1535,7 +1797,13 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 20 ) NO-GAP.
+        iv_value = 28 ) NO-GAP.
+      IF p_typed = abap_true.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>boolean_property(
+          iv_name  = 'typed'
+          iv_value = abap_true ) NO-GAP.
+      ENDIF.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'generated_date'
@@ -1557,6 +1825,71 @@ START-OF-SELECTION.
         iv_name  = 'max_rows'
         iv_value = p_max ) NO-GAP.
       WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>object_property(
+        iv_name   = 'filter_values'
+        it_fields = lt_filter_value_fields ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'filters_applied'
+        iv_value = lv_filters_applied ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>string_array_property(
+        iv_name   = 'filters'
+        it_values = lt_filter_names ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'has_more'
+        iv_value = lv_has_more ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      IF lv_has_more = abap_true.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'next_offset'
+          iv_value = lv_next_offset ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>null_property(
+          iv_name = 'next_offset' ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'has_previous'
+        iv_value = lv_has_previous ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      IF lv_has_previous = abap_true.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'previous_offset'
+          iv_value = lv_previous_offset ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>null_property(
+          iv_name = 'previous_offset' ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
+      IF p_max > 0.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'page_number'
+          iv_value = lv_page_number ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>null_property(
+          iv_name = 'page_number' ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
+      IF p_max > 0.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'page_count'
+          iv_value = lv_page_count ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>null_property(
+          iv_name = 'page_count' ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
+      IF p_max > 0.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'last_offset'
+          iv_value = lv_last_offset ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>null_property(
+          iv_name = 'last_offset' ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'old_run'
         iv_value = p_old ) NO-GAP.
@@ -1564,6 +1897,26 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'new_run'
         iv_value = p_new ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'material'
+        iv_value = p_matnr ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'storage_location'
+        iv_value = p_lgort ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'batch'
+        iv_value = p_charg ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = p_meins ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'change_type'
@@ -1596,6 +1949,32 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'new_run_strategy'
         iv_value = ls_new_run-strategy ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_movement_type'
+        iv_value = ls_old_run-movement_type ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_movement_type'
+        iv_value = ls_new_run-movement_type ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      IF p_typed = abap_true.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'old_min_shelf_life'
+          iv_value = ls_old_run-min_shelf_life ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'new_min_shelf_life'
+          iv_value = ls_new_run-min_shelf_life ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'old_min_shelf_life'
+          iv_value = ls_old_run-min_shelf_life ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'new_min_shelf_life'
+          iv_value = ls_new_run-min_shelf_life ) NO-GAP.
+      ENDIF.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'old_start_date'
@@ -2099,6 +2478,11 @@ START-OF-SELECTION.
     lv_first = abap_true.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_json_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'typed'
+          iv_value = abap_true ) TO lt_json_fields.
+      ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'change_type'
         iv_value = <ls_change>-change_type ) TO lt_json_fields.
@@ -2282,10 +2666,16 @@ START-OF-SELECTION.
     WRITE: / 'Generated date/time:', sy-datum, sy-uzeit.
     WRITE: / 'Old run:', p_old.
     WRITE: / 'New run:', p_new.
+    WRITE: / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
     WRITE: / 'Reason filter:', p_reason.
+    WRITE: / 'Filters applied:', lv_filters_applied.
+    WRITE: / 'Filters:', lv_filter_names_text.
     WRITE: / 'Reconciliation guard:', p_guard.
     WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
       'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
+    WRITE: / 'Old movement type/shelf life:', ls_old_run-movement_type,
+      ls_old_run-min_shelf_life, 'New movement type/shelf life:',
+      ls_new_run-movement_type, ls_new_run-min_shelf_life.
     WRITE: / 'Old start/finish:', ls_old_run-start_date,
       ls_old_run-start_time, ls_old_run-finish_date,
       ls_old_run-finish_time,
@@ -2394,6 +2784,12 @@ START-OF-SELECTION.
         ls_summary-new_shortage, ls_summary-delta_shortage.
     ENDIF.
     WRITE: / 'Offset:', p_skip, 'Max rows:', p_max.
+    WRITE: / 'Has more:', lv_has_more, 'Next offset:', lv_next_offset_text.
+    WRITE: / 'Has previous:', lv_has_previous,
+      'Previous offset:', lv_previous_offset_text,
+      'Page number:', lv_page_number_text,
+      'Page count:', lv_page_count_text,
+      'Last offset:', lv_last_offset_text.
     RETURN.
   ENDIF.
 
@@ -2402,10 +2798,16 @@ START-OF-SELECTION.
   WRITE: / 'Generated date/time:', sy-datum, sy-uzeit.
   WRITE: / 'Old run:', p_old.
   WRITE: / 'New run:', p_new.
+  WRITE: / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
   WRITE: / 'Reason filter:', p_reason.
+  WRITE: / 'Filters applied:', lv_filters_applied.
+  WRITE: / 'Filters:', lv_filter_names_text.
   WRITE: / 'Reconciliation guard:', p_guard.
   WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
     'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
+  WRITE: / 'Old movement type/shelf life:', ls_old_run-movement_type,
+    ls_old_run-min_shelf_life, 'New movement type/shelf life:',
+    ls_new_run-movement_type, ls_new_run-min_shelf_life.
   WRITE: / 'Old start/finish:', ls_old_run-start_date,
     ls_old_run-start_time, ls_old_run-finish_date,
     ls_old_run-finish_time,
@@ -2496,6 +2898,12 @@ START-OF-SELECTION.
   WRITE: / 'Total matching changes:', lv_total_rows.
   WRITE: / 'Returned changes:', lines( lt_changes ).
   WRITE: / 'Offset:', p_skip, 'Max rows:', p_max.
+  WRITE: / 'Has more:', lv_has_more, 'Next offset:', lv_next_offset_text.
+  WRITE: / 'Has previous:', lv_has_previous,
+    'Previous offset:', lv_previous_offset_text,
+    'Page number:', lv_page_number_text,
+    'Page count:', lv_page_count_text,
+    'Last offset:', lv_last_offset_text.
   IF lt_changes IS INITIAL.
     WRITE: / 'No allocation changes found.'.
     RETURN.

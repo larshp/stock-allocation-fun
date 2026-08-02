@@ -4,6 +4,7 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS delegates_to_reservation_bapi FOR TESTING.
     METHODS rejects_non_positive FOR TESTING.
+    METHODS rejects_invalid_movement_type FOR TESTING.
     METHODS rejects_bapi_error FOR TESTING.
     METHODS rejects_bapi_rollback_failure FOR TESTING.
     METHODS rejects_commit_failure FOR TESTING.
@@ -11,6 +12,7 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
     METHODS cancels_reservation_bapi FOR TESTING.
     METHODS rejects_cancel_bapi_rollback FOR TESTING.
     METHODS rejects_cancel_rollback FOR TESTING.
+    METHODS rejects_cancel_bad_movement FOR TESTING.
     METHODS rejects_unauthorized FOR TESTING.
     METHODS rejects_cancel_unauthorized FOR TESTING.
 ENDCLASS.
@@ -42,7 +44,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_movement_type    = '201'
       iv_quantity         = '3'
-      iv_unit             = 'EA'
+      iv_unit             = 'ea'
       iv_required_date    = '20260815'
       iv_batch            = 'BATCH-001' ).
 
@@ -62,6 +64,32 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
           iv_storage_location = '0001'
           iv_movement_type    = '201'
           iv_quantity         = '0'
+          iv_unit             = 'EA'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation input is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_movement_type.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->reserve(
+          iv_material         = 'MATERIAL-1'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '2A1'
+          iv_quantity         = '3'
           iv_unit             = 'EA'
           iv_required_date    = '20260815' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -287,5 +315,27 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Reservation cancellation authorization failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_cancel_bad_movement.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->cancel(
+          iv_document      = '0000000001'
+          iv_plant         = '1000'
+          iv_movement_type = '2A1' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation document is required' ).
   ENDMETHOD.
 ENDCLASS.

@@ -18,15 +18,20 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
     DATA lv_input TYPE ty_quantity.
     DATA lv_output TYPE ty_quantity.
     DATA lv_subrc TYPE sy-subrc.
+    DATA lv_unit_from TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_unit_to TYPE zif_stock_allocation=>ty_unit.
+
+    lv_unit_from = to_upper( iv_unit_from ).
+    lv_unit_to = to_upper( iv_unit_to ).
 
     IF iv_material IS INITIAL
-        OR iv_unit_from IS INITIAL
-        OR iv_unit_to IS INITIAL
+        OR lv_unit_from IS INITIAL
+        OR lv_unit_to IS INITIAL
         OR iv_quantity < 0.
       raise_error( iv_message = 'Unit conversion input is invalid' ).
     ENDIF.
 
-    IF iv_unit_from = iv_unit_to.
+    IF lv_unit_from = lv_unit_to.
       rv_quantity = iv_quantity.
       RETURN.
     ENDIF.
@@ -35,8 +40,8 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
     CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'
       EXPORTING
         i_matnr  = iv_material
-        i_in_me  = iv_unit_from
-        i_out_me = iv_unit_to
+        i_in_me  = lv_unit_from
+        i_out_me = lv_unit_to
         i_menge  = lv_input
       IMPORTING
         e_menge  = lv_output.

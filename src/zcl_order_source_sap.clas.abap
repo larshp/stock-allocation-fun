@@ -37,6 +37,11 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
       raise_error( iv_message = 'Order demand scope is incomplete' ).
     ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Requested delivery date range is invalid' ).
+    ENDIF.
     lv_client = sy-mandt.
     lv_requested_on_from = iv_requested_on_from.
     IF lv_requested_on_from IS INITIAL.
@@ -86,12 +91,15 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
           AND <ls_schedule>-requested_on > iv_requested_on_to.
         CONTINUE.
       ENDIF.
+      IF <ls_schedule>-requested_on IS INITIAL.
+        raise_error( iv_message = 'Open demand requested date is missing' ).
+      ENDIF.
       CLEAR ls_demand.
       ls_demand-sales_document = <ls_schedule>-order_id.
       ls_demand-sales_document_type = <ls_schedule>-sales_document_type.
       ls_demand-sales_item = <ls_schedule>-item_id.
       ls_demand-schedule_line = <ls_schedule>-schedule_line.
-      ls_demand-order_unit = <ls_schedule>-order_unit.
+      ls_demand-order_unit = to_upper( <ls_schedule>-order_unit ).
       CONCATENATE <ls_schedule>-order_id
                   <ls_schedule>-item_id
                   <ls_schedule>-schedule_line

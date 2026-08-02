@@ -772,6 +772,7 @@ START-OF-SELECTION.
     ENDIF.
   ENDLOOP.
   ls_unit_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
+  DATA(lv_total_demand_count) = ls_unit_summary-demand_count.
   lv_summary_unit = ls_unit_summary-unit.
   lv_mixed_units = ls_unit_summary-mixed_units.
   IF lv_mixed_units = abap_true.
@@ -826,11 +827,11 @@ START-OF-SELECTION.
         && 'maximum_coverage;minimum_requested_quantity;maximum_requested_quantity;'
         && 'minimum_allocated_quantity;maximum_allocated_quantity;'
         && 'stale_threshold_seconds;maximum_age_seconds;'
-        && 'candidate_count;limited;alert_count;unit;mixed_units;available;requested;'
+        && 'candidate_count;limited;alert_count;demand_count;unit;mixed_units;available;requested;'
         && 'allocated;shortage;coverage_pct;shortage_pct;'
         && 'oldest_age_seconds;newest_age_seconds'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 35 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 36 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -878,6 +879,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_candidate_count ) TO lt_csv_fields.
       APPEND lv_limited_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lines( lt_alerts ) ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_total_demand_count ) TO lt_csv_fields.
       APPEND lv_summary_unit TO lt_csv_fields.
       APPEND lv_mixed_units_text TO lt_csv_fields.
       IF lv_mixed_units = abap_true.
@@ -1095,7 +1097,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 37 ).
+          iv_value = 38 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1369,6 +1371,11 @@ START-OF-SELECTION.
           iv_value = lines( lt_alerts ) ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'demand_count'
+          iv_value = lv_total_demand_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>property(
           iv_name  = 'scope'
           iv_value = |{ p_matnr }/{ p_werks }/{ p_lgort }| ).
@@ -1489,7 +1496,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 37 ).
+      iv_value = 38 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -1722,6 +1729,10 @@ START-OF-SELECTION.
     lv_json_count = zcl_stock_json=>number_property(
       iv_name  = 'alert_count'
       iv_value = lines( lt_alerts ) ).
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'demand_count'
+      iv_value = lv_total_demand_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
     lv_field = zcl_stock_json=>property(
       iv_name  = 'unit'
       iv_value = lv_summary_unit ).
@@ -1842,6 +1853,7 @@ START-OF-SELECTION.
   ENDIF.
 
   WRITE: / 'Stale running allocations:', lines( lt_alerts ),
+         / 'Demand lines:', lv_total_demand_count,
          / 'Candidate alerts:', lv_candidate_count,
          / 'Limited:', lv_limited_text,
          / 'Threshold (seconds):', p_stale,

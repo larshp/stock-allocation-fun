@@ -1,9 +1,49 @@
 # Anomalies and known issues
 
+- Resolved: malformed preview flags were treated as execute mode by the allocation service; only initial or `X` is now accepted, with invalid values rejected and audited before side effects.
+- Resolved: malformed movement types could pass the allocation service's blank-only input check and reach SAP boundaries; the service now rejects non-numeric movement types and records the rejection before side effects.
+- Resolved: direct goods-movement and reservation adapter callers could bypass orchestration validation with malformed movement types; all public movement/reservation BAPI paths now reject non-numeric values before SAP calls.
+- Resolved: direct audit and allocation-snapshot writes could persist malformed movement types even after BAPI ports were guarded; audit and snapshot persistence now reject non-numeric values while allowing legacy blank audit policy fields.
+- Resolved: malformed NUMC sales-order item or schedule-line keys could reach `BAPI_SALESORDER_CHANGE`; the sales-order adapter now rejects non-numeric keys before authorization or SAP calls.
+- Resolved: malformed movement-type read filters were treated as valid no-match values; audit history/purge and allocation-result APIs now reject them explicitly.
+- Resolved: direct conversion, goods-issue, and reservation callers could pass lowercase unit keys that SAP stubs/standard APIs treat differently; adapters now canonicalize unit keys before conversion or BAPI calls.
+- Resolved: lowercase unit filters could silently miss uppercase audit or allocation-result rows; history/summary and result reads now normalize unit filters case-insensitively while preserving stored units.
+- Resolved: purge preview and execution still bound lowercase unit filters directly to retention SQL; both paths now canonicalize the unit before selecting audit and snapshot rows.
+- Resolved: allocation-service callers could pass lowercase units that adapters accepted but audit and snapshot persistence stored verbatim; the service now canonicalizes the unit before validation, diagnostics, downstream calls, and durable writes.
+- Resolved: lowercase unit values returned by SAP material or sales-order reads could leak into allocation demand/provenance; stock and order source adapters now canonicalize returned unit fields.
+- Resolved: direct audit and snapshot writers could persist lowercase unit keys or miss uppercase run references; write APIs now normalize units before all validation and SQL boundaries.
+- Resolved: direct snapshot payloads could store lowercase order or reservation units even when the scope unit was normalized; save now validates and maps a canonicalized local demand copy.
+- Resolved: comparison treated unit casing differences as snapshot additions/removals or field changes; old/new demand copies are canonicalized before comparison and aggregate unit classification.
+- Resolved: invalid allocation strategies could reach audit start after earlier service work, while lowercase valid strategies were not canonicalized by the service; strategy validation now runs at the input gate and canonical values are persisted.
+- Resolved: direct audit lifecycle callers could supply lowercase strategy/status values that were rejected despite equivalent read filters accepting them; lifecycle writes now canonicalize both values before persistence.
+- Resolved: direct purge preview and execution required uppercase finalized-status filters even though other audit APIs normalized status input; both retention paths now normalize status before validation and filtering.
+- Resolved: open SAP schedule lines with an initial requested date could flow into allocation and be treated as due on the current date; the order source now rejects undated demand explicitly.
+- Resolved: direct allocation-result reads required uppercase status and strategy filters while other read APIs normalized equivalent filters; result reads now normalize both filters before validation and selection.
+- Resolved: direct audit callers had to provide uppercase one-character status and strategy filters even though run IDs and diagnostics were normalized case-insensitively; `get_runs` now normalizes both filters before validation and selection.
+- Resolved: direct SAP demand reads silently returned an empty population for reversed requested-delivery bounds; the order source now rejects the range with the service-level diagnostic.
+- Resolved: stock reads could consume deletion-marked SAP material, stock, or batch records; the SAP source now rejects MARA, MARD, MCHB, and MCHA rows carrying `LVORM = X`.
+- Resolved: allocation success exports omitted the aggregate demand-line population even though the audit summary API calculated it; human, CSV, typed JSON, and default JSON now expose `demand_count` under allocation schema `24`.
+- Resolved: result summary exports exposed only the ambiguous `result_lines` count; summary mode now also emits explicit snapshot `demand_count` across human, CSV, typed JSON, and metadata/default JSON under schema `18`.
+- Resolved: stale-run watch summaries exposed quantity aggregates but not the total persisted demand-line population represented by the alerts; human, summary CSV, JSON, and NDJSON now expose aggregate `demand_count`.
+- Resolved: stale-watch demand-count aggregation lived only in report presentation code; the watch domain service now owns and tests the aggregate.
 - Resolved: audit-run reads relied on positional SQL mapping even though the typed run structure and selected columns were ordered differently; audit history now uses corresponding-field mapping and persists movement type plus minimum shelf-life policy for reproducible run context.
 - Resolved: rejection auditing discarded policy context and could reject reversed date input before recording it; service rejection rows now retain movement type, minimum shelf life, and the original invalid horizon.
 - Resolved: allocation callers and report consumers could lose the durable run identity when a post-start reservation or persistence step failed; the service now exports the run ID and allocation error envelopes carry it when available.
 - Resolved: successful allocation output could expose a concurrently created scope-level latest run as the current execution; `ZSTOCK_ALLOCATE` now emits the exact current `run_id` separately from `last_run_id`.
+- Resolved: retention treated every non-`R` status as purgeable; purge now deletes only recognized finalized `S`, `P`, and `E` runs and preserves unknown/corrupt lifecycle rows for investigation.
+- Resolved: a host-variable `OR` predicate used to make optional exact run-ID retention filtering look equivalent in SAP Open SQL but evaluate incorrectly in the transpiled fixed-character SQL harness; retention now uses explicit initial/non-initial query branches and regression coverage for both finalized and running rows.
+- Resolved: direct audit summaries could not reproduce detail-read populations selected by run ID or lifecycle status; `get_summary` now accepts exact, case-insensitive fragment, and status filters through the canonical `get_runs` path.
+- Resolved: result latest-run selection treated run-ID fragments case-insensitively while direct snapshot reads relied on the raw comparison operator; result-sink filtering now normalizes both operands explicitly.
+- Resolved: direct audit summaries could not isolate diagnostic-bearing runs even though detailed reads supported message filters; `get_summary` now forwards case-insensitive message and message-presence filters to `get_runs`.
+- Resolved: direct audit summaries could aggregate runs outside a requested-delivery planning window; summary calls now forward inclusive horizon bounds and inherit the shared reversed-range validation.
+- Resolved: direct audit summaries could not constrain lifecycle creation or completion periods; start/finish date windows now forward to `get_runs` with shared reversed-range validation.
+- Resolved: direct audit summaries could not isolate slow or fast runs even though history reads validated duration bounds; summary calls now forward duration ranges to `get_runs`.
+- Resolved: direct audit summaries could not isolate under-covered or shortage-heavy runs; coverage and shortage-percentage bounds now reuse the validated detail-read semantics.
+- Resolved: direct audit summaries could not isolate runs by absolute shortage or allocated quantity; summary calls now forward both quantity ranges to `get_runs`.
+- Resolved: direct audit summaries could not isolate runs by available stock, derived requested quantity, or demand count; summary calls now forward those capacity and run-size ranges to `get_runs`.
+- Resolved: direct audit summaries could not isolate active runs by live age even though detailed reads supported stale and maximum-age bounds; summary calls now reuse those validated operational filters.
+- Resolved: direct audit summaries exposed outcome-line counters but not the total persisted demand-line population; `ty_summary-demand_count` now aggregates demand counts across the selected runs.
+- Resolved: history summary exports omitted the aggregate demand-line population even though the audit summary API now calculated it; human, CSV, typed JSON, and metadata summaries now expose `demand_count` under history summary schema `24`.
 
 ## 2026-08-01
 

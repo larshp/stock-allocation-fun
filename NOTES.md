@@ -2,10 +2,62 @@
 
 ## 2026-08-02
 
+- Added service-level preview-flag validation so only initial or `X` values are accepted; malformed values now produce a durable rejection before execution-side dependencies or writes.
+- Added service-level movement-type validation so only numeric SAP movement types reach authorization, stock, reservation, and goods-movement boundaries; malformed values now produce a durable rejection before side effects.
+- Extended movement-type validation to direct goods-movement and reservation adapters, including reservation cancellation, so public BAPI ports reject malformed values before authorization or SAP calls.
+- Extended movement-type validation to audit run/rejection persistence and allocation snapshot validation, preventing malformed direct writes while retaining blank movement types for legacy audit history.
+- Added explicit numeric validation for sales-order item and schedule-line keys before `BAPI_SALESORDER_CHANGE`, with direct-adapter regression coverage.
+- Added malformed movement-filter validation to audit history/purge and allocation-result reads, preventing invalid `p_mvt`/`p_rmov` values from silently returning empty populations.
+- Normalized lowercase unit inputs to uppercase SAP unit keys in material conversion, goods-issue, and reservation BAPI adapters, with lowercase integration coverage.
+- Normalized lowercase unit filters in audit history/summary and allocation-result reads, matching stored uppercase allocation, order, and reservation units without changing persisted values.
+- Normalized lowercase unit filters in purge preview and execution SQL selection, extending case-insensitive unit behavior across all audit retention paths.
+- Canonicalized allocation-service unit input once at the orchestration boundary, forwarding uppercase units to stock conversion, demand processing, reservations, audit, and snapshot persistence; lowercase end-to-end coverage verifies uppercase stored provenance.
+- Canonicalized SAP stock base-unit and sales-order demand-unit outputs at their read adapters, with lowercase DDIC fixture coverage proving downstream allocation receives stable uppercase unit keys.
+- Canonicalized direct audit start/rejection writes and allocation-snapshot persistence units before validation, run-reference checks, deletion, and database writes, with lowercase direct-call coverage.
+- Normalized allocation, order, and reservation units on a local demand copy before snapshot validation and persistence, preventing mixed-case direct payloads from leaking into result history.
+- Normalized old and new snapshot demand units in the comparison domain before keying and field comparison, preserving stable diffs for legacy mixed-case snapshots.
+- Added service-level strategy validation before locking, stock reads, allocation, or reservations; valid strategy input is canonicalized before audit persistence and invalid input is regression-tested.
+- Normalized direct audit lifecycle writes case-insensitively: `start_run` canonicalizes strategy and `finish_run` canonicalizes final status before validation and persistence.
+- Normalized direct purge preview and execution status filters case-insensitively, with lowercase regression coverage for both retention paths.
+- Added direct SAP demand validation for open schedule lines with an initial requested-delivery date, preventing allocation from silently treating undated demand as due today.
+- Normalized direct allocation-result `status` and `strategy` filters case-insensitively before validation and snapshot filtering, with regression coverage for lowercase calls.
+- Normalized direct audit `status` and `strategy` filters case-insensitively before validation and selection, with regression coverage through `get_runs` and `get_summary`.
+- Added direct order-source validation for reversed requested-delivery windows so `zif_order_source` returns the same diagnostic as the allocation service instead of silently returning no demands.
+- Added deletion-mark protection to the SAP stock source for MARA, MARD, MCHB, and MCHA, with local DDIC stub fields and regression coverage for material, storage-stock, batch-stock, and batch-master flags.
+- Exposed aggregate demand-line count in `ZSTOCK_ALLOCATE` human, CSV, typed JSON, and default JSON success output; allocation success contracts advance to schema `24` while preserving the existing summary API and history export metric.
+- Exposed explicit snapshot `demand_count` in `ZSTOCK_ALLOC_RESULT` summary human, CSV, typed JSON, and metadata/default JSON output; result summary contracts advance to schema `18` while detail contracts remain at `16`.
+- Added aggregate stale-alert `demand_count` to `ZSTOCK_ALLOC_WATCH` human, summary CSV, JSON, and NDJSON contexts; summary CSV advances to schema `36` and watch JSON/NDJSON to schema `38`.
+- Centralized stale-alert demand-count aggregation in `zcl_stock_allocation_watch=>summarize_units` and added ABAP Unit coverage for single- and mixed-unit populations.
 - Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to history and the audit read API; filter provenance is exported and negative shelf-life bounds are rejected.
 - Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to stale-run watch, passing them through audit reads and exposing their provenance; watch JSON/NDJSON advance to schema `37`, detail CSV to `36`, and summary CSV to `35`.
 - Added originating allocation movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to the result sink and `ZSTOCK_ALLOC_RESULT`; reservation movement type remains independently filterable through `p_rmov`, and result detail/summary schemas advance to `15`/`16`.
 - Extended result human, CSV, JSON, and NDJSON exports with explicit `movement_type_filter` and `minimum_shelf_life_filter` values; result detail/summary schemas advance to `16`/`17`.
+- Added abapGit selection texts for `p_mvt` and `p_shelf` in result, history, and stale-watch program descriptors so the policy filters are available on SAP selection screens.
+- Added comparison policy guards `p_mvt` and `p_shelf` for exact old/new audit-run resolution, with policy-filter diagnostics, filter provenance, typed values, and contextual schema `29`.
+- Added explicit comparison `movement_type_filter` and `minimum_shelf_life_filter` fields to CSV and contextual JSON envelopes; comparison contracts advance to schema `30`.
+- Added explicit history `movement_type_filter` and `minimum_shelf_life_filter` values to CSV and typed/metadata JSON, including `filter_values` policy entries; history detail/summary schemas advance to `12`/`23`.
+- Exposed aggregate demand-line count in history human, summary CSV, typed JSON, and metadata summary output; history summary contracts advance to schema `24` while detail contracts remain at `12`.
+- Added policy-scoped purge preview and execution with optional `p_mvt`/`p_shelf` filters, matching audit policy fields and protecting nonmatching history; purge exports now expose stable optional-filter provenance and typed `filter_values`, advancing CSV to `4`/`5` and typed JSON to `5`/`6` for preview/execution.
+- Added finalized-run status filtering (`p_stat`/`iv_status`) to purge preview and execution; only `S`, `P`, and `E` are accepted, running rows remain protected, and purge contracts advance to CSV `5`/`6` and typed JSON `6`/`7`.
+- Added per-status eligible counts to purge previews (`success`, `partial`, and `error`) across human, CSV, and JSON output; preview contracts advance to CSV schema `6` and typed JSON schema `7`.
+- Added per-status deleted counts to purge execution API and reports; execution contracts advance to CSV schema `7` and typed JSON schema `8`.
+- Hardened purge safety so only recognized finalized statuses (`S`, `P`, `E`) are eligible; unknown lifecycle rows are preserved and covered by regression tests.
+- Added exact run-ID purge scoping (`p_runid`/`iv_run_id`) across preview, execution, provenance, selection metadata, and regression coverage; purge contracts advance to CSV `7`/`8` and typed JSON `8`/`9`.
+- Pushed exact retention run-ID predicates into the SAP candidate reads, using explicit initial/non-initial query branches so both exact scopes and unfiltered previews preserve their original semantics under Open SQL and the transpiled test harness.
+- Added `protected_unknown_runs` to purge previews so unknown lifecycle rows are visible as protected rather than silently absent; preview CSV advances to schema `8` and typed preview JSON to schema `9`.
+- Extended purge execution results with `protected_running_runs` and `protected_unknown_runs`, preserving the audit trail of rows intentionally left untouched; execution CSV advances to schema `9` and typed execution JSON to schema `10`.
+- Standardized audit run-ID fragment filtering as case-insensitive across history, result, and stale-run watch consumers, with regression coverage for lower-case fragments.
+- Extended the direct audit `get_summary` API with exact run-ID, case-insensitive run-ID fragment, and lifecycle-status filters, reusing the canonical `get_runs` population and adding regression coverage for exact and lower-case fragment selection.
+- Standardized result-sink run-ID fragment matching as case-insensitive, aligning direct detail reads with result latest-run selection and adding lower-case fragment regression coverage.
+- Added diagnostic-message substring and message-presence filters to direct audit summaries, matching `get_runs` semantics and covering case-insensitive failure isolation.
+- Added requested-delivery horizon filters to direct audit summaries, keeping summary populations aligned with planning-window history reads.
+- Added start-date and finish-date windows to direct audit summaries, allowing lifecycle-period operations to reuse the canonical history filtering semantics.
+- Added duration-range filters to direct audit summaries, enabling slow-run and latency-window analysis through the shared validated read contract.
+- Added available-stock, derived-requested-quantity, and demand-count bounds to direct audit summaries, completing the run-size and capacity filters already available through `get_runs`.
+- Added stale-running and maximum-running-age bounds to direct audit summaries, allowing aggregate operational views to isolate active runs by live age.
+- Added aggregate `demand_count` to `ty_summary`, so direct audit-summary consumers can see the total demand-line population represented by their selected runs.
+- Added coverage and shortage-percentage bounds to direct audit summaries, enabling quality/risk-focused run populations with zero-request exclusion and shared ratio validation.
+- Added shortage and allocated-quantity bounds to direct audit summaries, enabling absolute impact-focused run populations through the shared nonnegative range validation.
 - Extended `zif_allocation_audit=>ty_summary` with machine-readable movement-type and minimum-shelf-life policy context, including explicit availability and mixed-policy flags; added a mixed-policy ABAP Unit regression test.
 - Added movement-type and minimum-shelf-life policy context to history summaries; a page reports one policy, `mixed`, or `n/a` across human, CSV, typed JSON, and metadata summary output, advancing history summary schemas to `22`.
 - Extended stale-run watch alerts with persisted movement type and minimum shelf-life policy in human, CSV, JSON, and NDJSON detail output; watch detail CSV advances to schema `35` and watch JSON/NDJSON to schema `36` (summary CSV remains `34`).
@@ -408,7 +460,7 @@
 - Added derived bounded `page_count` to result/history pagination context, with `null`/`n/a` for unbounded reads and human-readable `Page X of Y` output.
 - Added bounded `last_offset` navigation to result/history pagination context, with schema version `3` exports and `null`/`n/a` for unbounded reads.
 - Added opt-in `p_ndjson` streaming exports to result/history JSON modes, preserving regular or typed row objects as one JSON object per line.
-- Added case-sensitive run-ID fragment filtering (`p_rid`/`iv_run_id_contains`) to result/history reports and both direct read ports, including latest-run selection.
+- Added case-insensitive run-ID fragment filtering (`p_rid`/`iv_run_id_contains`) to result/history reports and both direct read ports, including latest-run selection.
 - Optimized large result/history offsets with bounded internal-table range deletion while preserving pre-pagination `total_rows` and page contents.
 - Optimized exact run-ID reads by applying the run ID in the SAP audit and snapshot SELECT predicates; fragment and compound filters retain the broader read path.
 - Added `run_id_contains` values to result/history metadata scope so fragment-filtered JSON pages expose the complete run-ID query context.

@@ -435,7 +435,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 23 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 24 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -497,6 +497,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_summary-full_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-partial_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-unallocated_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-demand_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_to ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_run_id ) TO lt_csv_fields.
@@ -528,7 +529,7 @@ START-OF-SELECTION.
       && 'smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;'
       && 'largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;'
       && 'legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;'
-      && 'full_count;partial_count;unallocated_count;requested_on_from;requested_on_to;run_id;last_run_id;'
+      && 'full_count;partial_count;unallocated_count;demand_count;requested_on_from;requested_on_to;run_id;last_run_id;'
       && 'last_strategy;last_start_date;last_start_time;last_finish_date;last_finish_time;last_duration_seconds;'
       && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
       && 'oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id;'
@@ -552,7 +553,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 23 ) TO lt_json_fields.
+        iv_value = 24 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -761,6 +762,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'unallocated_count'
         iv_value = ls_summary-unallocated_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'demand_count'
+        iv_value = ls_summary-demand_count ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>property(
         iv_name  = 'remaining'
@@ -918,6 +922,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'unallocated_count'
         iv_value = ls_summary-unallocated_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'demand_count'
+        iv_value = ls_summary-demand_count ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_from'
@@ -1074,6 +1081,7 @@ START-OF-SELECTION.
          / 'Fully allocated lines:', ls_summary-full_count,
          / 'Partially allocated lines:', ls_summary-partial_count,
          / 'Unallocated lines:', ls_summary-unallocated_count,
+         / 'Demand lines:', ls_summary-demand_count,
          / 'Completion:', ls_summary-completion_pct, '%',
          / 'Success rate:', ls_summary-success_rate_pct, '%',
          / 'Partial rate:', ls_summary-partial_rate_pct, '%',

@@ -3,6 +3,7 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS classifies_snapshot_changes FOR TESTING.
+    METHODS ignores_unit_case FOR TESTING.
     METHODS detects_metadata_changes FOR TESTING.
     METHODS suppresses_mixed_unit_totals FOR TESTING.
     METHODS reconciles_snapshot_metrics FOR TESTING.
@@ -304,6 +305,59 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ 1 ]-order_id
       exp = 'CHANGED' ).
+  ENDMETHOD.
+
+  METHOD ignores_unit_case.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_old TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_new TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+    DATA ls_summary TYPE zif_stock_allocation_compare=>ty_summary.
+
+    APPEND VALUE #(
+      allocation_unit   = 'ea'
+      order_id          = 'CASE-UNIT'
+      order_unit        = 'box'
+      requested         = 2
+      allocated         = 2
+      allocation_status = 'F'
+      reservation_id    = 'RES-CASE'
+      reservation_unit  = 'box' ) TO lt_old.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'CASE-UNIT'
+      order_unit        = 'BOX'
+      requested         = 2
+      allocated         = 2
+      allocation_status = 'F'
+      reservation_id    = 'RES-CASE'
+      reservation_unit  = 'BOX' ) TO lt_new.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_changes = lo_cut->compare(
+      EXPORTING
+        it_old               = lt_old
+        it_new               = lt_new
+        iv_include_unchanged = abap_true
+      IMPORTING
+        es_summary           = ls_summary ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_changes )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_changes[ 1 ]-change_type
+      exp = 'U' ).
+    cl_abap_unit_assert=>assert_initial( lt_changes[ 1 ]-change_reasons ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_false( ls_summary-mixed_units ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_changes[ 1 ]-old_order_unit
+      exp = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_changes[ 1 ]-new_reservation_unit
+      exp = 'BOX' ).
   ENDMETHOD.
 
   METHOD detects_metadata_changes.

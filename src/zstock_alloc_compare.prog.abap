@@ -4,6 +4,8 @@ PARAMETERS p_matnr TYPE zif_stock_allocation=>ty_material OBLIGATORY.
 PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_location OBLIGATORY.
 PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
+PARAMETERS p_mvt TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_shelf TYPE i.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_old TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_new TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
@@ -123,9 +125,21 @@ START-OF-SELECTION.
   DATA lv_filters_applied TYPE abap_bool.
   DATA lt_filter_names TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_filter_names_text TYPE string.
+  DATA lv_movement_filter TYPE string.
+  DATA lv_min_shelf_filter TYPE string.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
+  TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_reason TO LOWER CASE.
+  lv_movement_filter = p_mvt.
+  IF lv_movement_filter IS INITIAL.
+    lv_movement_filter = 'n/a'.
+  ENDIF.
+  IF p_shelf IS INITIAL.
+    lv_min_shelf_filter = 'n/a'.
+  ELSE.
+    lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
+  ENDIF.
   IF p_old = p_new.
     lv_error_message = 'Old and new allocation run IDs must be different'.
     IF p_json = abap_true.
@@ -220,6 +234,20 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_shelf < 0.
+    lv_error_message = 'Minimum shelf-life filter must not be negative'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
 
   CLEAR lt_filter_names.
   IF p_charg IS NOT INITIAL.
@@ -227,6 +255,12 @@ START-OF-SELECTION.
   ENDIF.
   IF p_meins IS NOT INITIAL.
     APPEND 'unit' TO lt_filter_names.
+  ENDIF.
+  IF p_mvt IS NOT INITIAL.
+    APPEND 'movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_shelf IS NOT INITIAL.
+    APPEND 'minimum_shelf_life' TO lt_filter_names.
   ENDIF.
   IF p_chg IS NOT INITIAL.
     APPEND 'change_type' TO lt_filter_names.
@@ -256,6 +290,15 @@ START-OF-SELECTION.
   ENDIF.
 
   CLEAR lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'movement_type'
+    iv_value = p_mvt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_shelf_life'
+    iv_value   = p_shelf
+    iv_text    = 'n/a'
+    iv_present = xsdbool( p_shelf IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>number_property(
     iv_name  = 'offset'
     iv_value = p_skip ) TO lt_filter_value_fields.
@@ -297,6 +340,8 @@ START-OF-SELECTION.
         iv_storage_location = p_lgort
         iv_batch            = p_charg
         iv_unit             = p_meins
+        iv_movement_type    = p_mvt
+        iv_min_shelf_life   = p_shelf
         iv_run_id           = p_old ).
       lt_new_runs = lo_audit->get_runs(
         iv_material         = p_matnr
@@ -304,17 +349,29 @@ START-OF-SELECTION.
         iv_storage_location = p_lgort
         iv_batch            = p_charg
         iv_unit             = p_meins
+        iv_movement_type    = p_mvt
+        iv_min_shelf_life   = p_shelf
         iv_run_id           = p_new ).
       READ TABLE lt_old_runs INTO ls_old_run INDEX 1.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
-        lo_missing_run_error->message = 'Old allocation run was not found'.
+        IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL.
+          lo_missing_run_error->message =
+            'Old allocation run does not match the policy filters'.
+        ELSE.
+          lo_missing_run_error->message = 'Old allocation run was not found'.
+        ENDIF.
         RAISE EXCEPTION lo_missing_run_error.
       ENDIF.
       READ TABLE lt_new_runs INTO ls_new_run INDEX 1.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
-        lo_missing_run_error->message = 'New allocation run was not found'.
+        IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL.
+          lo_missing_run_error->message =
+            'New allocation run does not match the policy filters'.
+        ELSE.
+          lo_missing_run_error->message = 'New allocation run was not found'.
+        ENDIF.
         RAISE EXCEPTION lo_missing_run_error.
       ENDIF.
     CATCH zcx_stock_allocation INTO DATA(lo_read_error).
@@ -669,6 +726,7 @@ START-OF-SELECTION.
     IF p_csv = abap_true.
       WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;'
         && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+        && 'movement_type_filter;minimum_shelf_life_filter;'
         && 'change_type;reason_filter;'
         && 'include_unchanged;'
         && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
@@ -697,7 +755,7 @@ START-OF-SELECTION.
         && 'delta_allocated;old_shortage;new_shortage;delta_shortage;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -713,6 +771,8 @@ START-OF-SELECTION.
         APPEND 'false' TO lt_csv_fields.
       ENDIF.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_chg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_all ) TO lt_csv_fields.
@@ -1007,7 +1067,7 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 28 ) TO lt_json_fields.
+        iv_value = 30 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -1046,6 +1106,21 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>string_array_property(
         iv_name   = 'filters'
         it_values = lt_filter_names ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'movement_type_filter'
+        iv_value = lv_movement_filter ) TO lt_json_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>filter_number_property(
+          iv_name    = 'minimum_shelf_life_filter'
+          iv_value   = p_shelf
+          iv_text    = lv_min_shelf_filter
+          iv_present = xsdbool( p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'minimum_shelf_life_filter'
+          iv_value = lv_min_shelf_filter ) TO lt_json_fields.
+      ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'change_type'
         iv_value = p_chg ) TO lt_json_fields.
@@ -1595,11 +1670,12 @@ START-OF-SELECTION.
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
       && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
       && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+      && 'movement_type_filter;minimum_shelf_life_filter;'
       && 'total_rows;offset;max_rows;filter_values;has_more;next_offset;'
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -1775,6 +1851,8 @@ START-OF-SELECTION.
         APPEND 'false' TO lt_csv_fields.
       ENDIF.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
@@ -1797,7 +1875,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 28 ) NO-GAP.
+        iv_value = 30 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -1836,6 +1914,23 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>string_array_property(
         iv_name   = 'filters'
         it_values = lt_filter_names ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'movement_type_filter'
+        iv_value = lv_movement_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      IF p_typed = abap_true.
+        WRITE: / zcl_stock_json=>filter_number_property(
+          iv_name    = 'minimum_shelf_life_filter'
+          iv_value   = p_shelf
+          iv_text    = lv_min_shelf_filter
+          iv_present = xsdbool( p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'minimum_shelf_life_filter'
+          iv_value = lv_min_shelf_filter ) NO-GAP.
+      ENDIF.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'has_more'
@@ -2670,6 +2765,8 @@ START-OF-SELECTION.
     WRITE: / 'Reason filter:', p_reason.
     WRITE: / 'Filters applied:', lv_filters_applied.
     WRITE: / 'Filters:', lv_filter_names_text.
+    WRITE: / 'Movement type filter:', lv_movement_filter.
+    WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
     WRITE: / 'Reconciliation guard:', p_guard.
     WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
       'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
@@ -2802,6 +2899,8 @@ START-OF-SELECTION.
   WRITE: / 'Reason filter:', p_reason.
   WRITE: / 'Filters applied:', lv_filters_applied.
   WRITE: / 'Filters:', lv_filter_names_text.
+  WRITE: / 'Movement type filter:', lv_movement_filter.
+  WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
   WRITE: / 'Reconciliation guard:', p_guard.
   WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
     'New status/strategy:', ls_new_run-status, ls_new_run-strategy.

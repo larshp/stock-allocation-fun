@@ -15,6 +15,10 @@ INTERFACE zif_allocation_audit PUBLIC.
       audit_count    TYPE i,
       snapshot_count TYPE i,
       running_count  TYPE i,
+      success_count  TYPE i,
+      partial_count  TYPE i,
+      error_count    TYPE i,
+      unknown_count  TYPE i,
     END OF ty_purge_preview.
   TYPES:
     BEGIN OF ty_run,
@@ -66,6 +70,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       allocated                  TYPE zif_stock_allocation=>ty_quantity,
       shortage                   TYPE zif_stock_allocation=>ty_quantity,
       requested                  TYPE zif_stock_allocation=>ty_quantity,
+      demand_count               TYPE i,
       coverage                   TYPE ty_coverage,
       shortage_pct               TYPE ty_coverage,
       priority_allocated         TYPE zif_stock_allocation=>ty_quantity,
@@ -181,17 +186,46 @@ INTERFACE zif_allocation_audit PUBLIC.
       zcx_stock_allocation.
   METHODS get_summary
     IMPORTING
-      iv_material         TYPE zif_stock_allocation=>ty_material
-      iv_plant            TYPE zif_stock_allocation=>ty_plant
-      iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
-      iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
-      iv_unit             TYPE zif_stock_allocation=>ty_unit OPTIONAL
-      iv_movement_type    TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
-      iv_min_shelf_life   TYPE i OPTIONAL
-      iv_strategy         TYPE ty_strategy OPTIONAL
-      iv_legacy_strategy  TYPE abap_bool OPTIONAL
+      iv_material          TYPE zif_stock_allocation=>ty_material
+      iv_plant             TYPE zif_stock_allocation=>ty_plant
+      iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
+      iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_run_id            TYPE ty_run_id OPTIONAL
+      iv_run_id_contains   TYPE ty_run_id OPTIONAL
+      iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life    TYPE i OPTIONAL
+      iv_requested_on_from TYPE d OPTIONAL
+      iv_requested_on_to   TYPE d OPTIONAL
+      iv_start_date_from   TYPE d OPTIONAL
+      iv_start_date_to     TYPE d OPTIONAL
+      iv_finish_date_from  TYPE d OPTIONAL
+      iv_finish_date_to    TYPE d OPTIONAL
+      iv_duration_from     TYPE i OPTIONAL
+      iv_duration_to       TYPE i OPTIONAL
+      iv_coverage_from     TYPE ty_coverage OPTIONAL
+      iv_coverage_to       TYPE ty_coverage OPTIONAL
+      iv_shortage_pct_from TYPE ty_coverage OPTIONAL
+      iv_shortage_pct_to   TYPE ty_coverage OPTIONAL
+      iv_shortage_from     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_shortage_to       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_allocated_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_allocated_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_available_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_available_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_requested_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_requested_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_demand_from       TYPE i OPTIONAL
+      iv_demand_to         TYPE i OPTIONAL
+      iv_stale_seconds     TYPE i OPTIONAL
+      iv_running_age_to    TYPE i OPTIONAL
+      iv_status            TYPE ty_run_status OPTIONAL
+      iv_strategy          TYPE ty_strategy OPTIONAL
+      iv_legacy_strategy   TYPE abap_bool OPTIONAL
+      iv_message_contains  TYPE ty_message OPTIONAL
+      iv_message_only      TYPE abap_bool OPTIONAL
     RETURNING
-      VALUE(rs_summary)   TYPE ty_summary
+      VALUE(rs_summary)    TYPE ty_summary
     RAISING
       zcx_stock_allocation.
 
@@ -209,10 +243,19 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_plant             TYPE zif_stock_allocation=>ty_plant
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_run_id            TYPE ty_run_id OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life    TYPE i OPTIONAL
+      iv_status            TYPE ty_run_status OPTIONAL
       iv_before_date       TYPE d
     EXPORTING
       ev_deleted_snapshots TYPE i
+      ev_deleted_success   TYPE i
+      ev_deleted_partial   TYPE i
+      ev_deleted_error     TYPE i
+      ev_protected_running TYPE i
+      ev_protected_unknown TYPE i
     RETURNING
       VALUE(rv_deleted)    TYPE i
       RAISING
@@ -223,7 +266,11 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_plant            TYPE zif_stock_allocation=>ty_plant
       iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_run_id           TYPE ty_run_id OPTIONAL
       iv_unit             TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_movement_type    TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life   TYPE i OPTIONAL
+      iv_status           TYPE ty_run_status OPTIONAL
       iv_before_date      TYPE d
     RETURNING
       VALUE(rs_preview)   TYPE ty_purge_preview

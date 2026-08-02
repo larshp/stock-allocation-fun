@@ -914,7 +914,8 @@ START-OF-SELECTION.
         WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
           && 'movement_type_filter;minimum_shelf_life_filter;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-          && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;'
+          && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;'
+          && 'demand_count;full_count;partial_count;'
           && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
           && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
           && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
@@ -1192,7 +1193,8 @@ START-OF-SELECTION.
        WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
          && 'movement_type_filter;minimum_shelf_life_filter;offset;max_rows;'
          && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-         && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;'
+         && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;'
+         && 'demand_count;full_count;partial_count;'
          && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
          && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
          && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
@@ -1205,7 +1207,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 17 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 18 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1264,7 +1266,8 @@ START-OF-SELECTION.
          APPEND 'false' TO lt_csv_fields.
        ENDIF.
        APPEND lv_summary_strategy TO lt_csv_fields.
-       lv_csv_field = zcl_stock_csv=>number( lines( lt_demands ) ).
+      lv_csv_field = zcl_stock_csv=>number( lines( lt_demands ) ).
+      APPEND lv_csv_field TO lt_csv_fields.
       APPEND lv_csv_field TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lv_full_count ).
       APPEND lv_csv_field TO lt_csv_fields.
@@ -1535,7 +1538,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 17 ) TO lt_json_fields.
+          iv_value = 18 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -1845,6 +1848,9 @@ START-OF-SELECTION.
           iv_name  = 'result_lines'
           iv_value = lines( lt_demands ) ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
+          iv_name  = 'demand_count'
+          iv_value = lines( lt_demands ) ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
           iv_name  = 'full_count'
           iv_value = lv_full_count ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
@@ -2030,6 +2036,9 @@ START-OF-SELECTION.
       ELSE.
         APPEND zcl_stock_json=>property(
           iv_name  = 'result_lines'
+          iv_value = lines( lt_demands ) ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'demand_count'
           iv_value = lines( lt_demands ) ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'full_count'
@@ -2339,7 +2348,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 17 ) TO lt_json_fields.
+          iv_value = 18 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3558,6 +3567,7 @@ START-OF-SELECTION.
   WRITE: / 'Allocation movement type filter:', lv_movement_filter,
          / 'Minimum shelf-life filter:', lv_min_shelf_filter,
          / 'Result lines:', lines( lt_demands ),
+           / 'Demand lines:', lines( lt_demands ),
          'Total matching lines:', lv_total_rows,
            / 'Fully allocated:', lv_full_count,
            / 'Partially allocated:', lv_partial_count,

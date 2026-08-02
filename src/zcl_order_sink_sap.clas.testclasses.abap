@@ -4,6 +4,7 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS changes_schedule_quantity FOR TESTING.
     METHODS rejects_invalid_input FOR TESTING.
+    METHODS rejects_non_numeric_keys FOR TESTING.
     METHODS rejects_bapi_error FOR TESTING.
     METHODS rejects_bapi_rollback_failure FOR TESTING.
     METHODS rejects_commit_failure FOR TESTING.
@@ -57,6 +58,30 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
       iv_sales_item          = '000010'
       iv_schedule_line       = '0001'
       iv_quantity            = '4' ).
+  ENDMETHOD.
+
+  METHOD rejects_non_numeric_keys.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '0000000001'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '-1'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change input is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_bapi_error.

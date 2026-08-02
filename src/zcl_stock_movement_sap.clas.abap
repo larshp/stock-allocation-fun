@@ -81,14 +81,17 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
     DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
+    lv_unit = to_upper( iv_unit ).
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
         OR iv_movement_type IS INITIAL
-        OR iv_unit IS INITIAL
+        OR iv_movement_type CN '0123456789'
+        OR lv_unit IS INITIAL
         OR iv_quantity <= 0.
       raise_error( iv_message = 'Goods movement input is invalid' ).
     ENDIF.
@@ -116,7 +119,7 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
     ls_item-batch = iv_batch.
     ls_item-move_type = iv_movement_type.
     ls_item-entry_qnt = iv_quantity.
-    ls_item-entry_uom = iv_unit.
+    ls_item-entry_uom = lv_unit.
     APPEND ls_item TO lt_items.
 
     CALL FUNCTION 'BAPI_GOODSMVT_CREATE'

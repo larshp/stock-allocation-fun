@@ -17,8 +17,10 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
     DATA ls_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
 
-    APPEND VALUE #( unit = 'EA' ) TO lt_alerts.
-    APPEND VALUE #( unit = 'EA' ) TO lt_alerts.
+    APPEND VALUE #( unit         = 'EA'
+                    demand_count = 2 ) TO lt_alerts.
+    APPEND VALUE #( unit         = 'EA'
+                    demand_count = 3 ) TO lt_alerts.
     ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -27,8 +29,12 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-mixed_units
       exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-demand_count
+      exp = 5 ).
 
-    APPEND VALUE #( unit = 'BOX' ) TO lt_alerts.
+    APPEND VALUE #( unit         = 'BOX'
+                    demand_count = 4 ) TO lt_alerts.
     ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -47,6 +53,9 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-mixed_units
       exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-demand_count
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD sorts_by_shortage.

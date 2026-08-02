@@ -6,6 +6,9 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
     METHODS allocates_batch_slice FOR TESTING.
     METHODS previews_without_writes FOR TESTING.
     METHODS rejects_bad_date_window FOR TESTING.
+    METHODS rejects_invalid_strategy FOR TESTING.
+    METHODS rejects_invalid_preview FOR TESTING.
+    METHODS rejects_invalid_movement_type FOR TESTING.
     METHODS rejects_missing_material FOR TESTING.
     METHODS rejects_order_source FOR TESTING.
     METHODS rejects_stock_conversion FOR TESTING.
@@ -114,6 +117,188 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       WHERE matnr = 'MATERIAL-PRIO'.
   ENDMETHOD.
 
+  METHOD rejects_invalid_strategy.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_run_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_strategy         = 'X' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Invalid allocation strategy' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_run_count
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_run_count
+      exp = 1 ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      INTO (@lv_status, @lv_message)
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Invalid allocation strategy' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_preview.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_run_count TYPE i.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = 'Y' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Invalid preview flag' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_run_count
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_run_count
+      exp = 1 ).
+    SELECT SINGLE message
+      FROM zstockalloc_run
+      INTO @lv_message
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Invalid preview flag' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_movement_type.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_run_count TYPE i.
+    DATA lv_persisted_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '2A1'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Invalid movement type' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_run_count
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_run_count
+      exp = 1 ).
+    SELECT SINGLE movement_type, message
+      FROM zstockalloc_run
+      INTO (@lv_persisted_movement_type, @lv_message)
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Invalid movement type' ).
+    cl_abap_unit_assert=>assert_initial( lv_persisted_movement_type ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+  ENDMETHOD.
+
   METHOD allocates_sap_vertical_slice.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -135,6 +320,9 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_persisted_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA lv_persisted_min_shelf_life TYPE i.
+    DATA lv_persisted_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_persisted_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_persisted_allocation_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_full_count TYPE i.
     DATA lv_partial_count TYPE i.
     DATA lv_unallocated_count TYPE i.
@@ -160,17 +348,20 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
         iv_plant            = '1000'
         iv_storage_location = '0001'
         iv_movement_type    = '201'
-        iv_unit             = 'EA'
-      IMPORTING
+        iv_unit             = 'ea'
+        iv_strategy         = 'l'
+       IMPORTING
         ev_run_id           = lv_run_id ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
       exp = '0' ).
     cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
-    SELECT SINGLE movement_type, min_shelf_life
+    SELECT SINGLE movement_type, min_shelf_life, strategy
       FROM zstockalloc_run
-      INTO (@lv_persisted_movement_type, @lv_persisted_min_shelf_life)
+      INTO ( @lv_persisted_movement_type,
+             @lv_persisted_min_shelf_life,
+             @lv_persisted_strategy )
       WHERE run_id = @lv_run_id.
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_movement_type
@@ -178,6 +369,23 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_min_shelf_life
       exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_strategy
+      exp = 'L' ).
+    SELECT SINGLE unit
+      FROM zstockalloc_run
+      INTO @lv_persisted_unit
+      WHERE run_id = @lv_run_id.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_unit
+      exp = 'EA' ).
+    SELECT SINGLE allocation_unit
+      FROM zstockalloc
+      INTO @lv_persisted_allocation_unit
+      WHERE run_id = @lv_run_id.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_persisted_allocation_unit
+      exp = 'EA' ).
 
     SELECT COUNT( * )
       FROM zstockalloc

@@ -4,6 +4,7 @@ CLASS ltcl_stock_movement_sap DEFINITION FINAL FOR TESTING
     PRIVATE SECTION.
     METHODS delegates_to_goods_movement FOR TESTING.
     METHODS rejects_invalid_input FOR TESTING.
+    METHODS rejects_invalid_movement_type FOR TESTING.
     METHODS rejects_bapi_error FOR TESTING.
     METHODS rejects_missing_document_year FOR TESTING.
     METHODS rejects_bapi_rollback_failure FOR TESTING.
@@ -49,6 +50,31 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       exp = 'Goods movement input is invalid' ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_movement_type.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '2A1'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement input is invalid' ).
+  ENDMETHOD.
+
   METHOD delegates_to_goods_movement.
     DATA lo_cut TYPE REF TO zif_stock_movement.
     DATA ls_document TYPE zif_stock_movement=>ty_document.
@@ -60,7 +86,7 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_movement_type    = '201'
       iv_quantity         = '2'
-      iv_unit             = 'EA'
+      iv_unit             = 'ea'
       iv_batch            = 'BATCH-001' ).
 
     cl_abap_unit_assert=>assert_not_initial( ls_document-number ).

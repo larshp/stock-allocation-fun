@@ -60,6 +60,7 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS persists_allocation FOR TESTING.
+    METHODS rejects_invalid_movement_type FOR TESTING.
     METHODS fallback_authority_messages FOR TESTING.
     METHODS rejects_missing_reservation FOR TESTING.
     METHODS rejects_corrupt_read FOR TESTING.
@@ -70,6 +71,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_inconsistent_run FOR TESTING.
     METHODS rejects_finalized_run FOR TESTING.
     METHODS filters_by_run_and_status FOR TESTING.
+    METHODS accepts_lowercase_units FOR TESTING.
+    METHODS rejects_bad_mvt_filter FOR TESTING.
     METHODS filters_by_shortage_percentage FOR TESTING.
 ENDCLASS.
 
@@ -130,6 +133,19 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       act = lt_demands[ 1 ]-order_id
       exp = 'FILTER-UNALLOCATED' ).
 
+    lt_demands = lo_cut->get_allocations(
+      iv_material                 = 'MATERIAL-FILTER'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_allocation_movement_type = '202'
+      iv_min_shelf_life           = 7 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
     CLEAR lv_raised.
     TRY.
         lo_cut->get_allocations(
@@ -172,6 +188,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_future_date TYPE d.
     DATA lv_future_window TYPE d.
     DATA lv_total_rows TYPE i.
+    DATA lv_run_fragment TYPE zif_stock_allocation=>ty_run_id.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
     lv_overdue_date = sy-datum - 1.
@@ -281,7 +298,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_material         = 'MATERIAL-FILTER'
       iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_strategy         = 'F' ).
+      iv_strategy         = 'f' ).
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_demands )
       exp = 1 ).
@@ -378,6 +395,19 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-order_id
       exp = 'FILTER-UNALLOCATED' ).
+
+    lv_run_fragment = 'run-filter-u'.
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id_contains  = lv_run_fragment ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material              = 'MATERIAL-FILTER'
@@ -514,7 +544,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_material         = 'MATERIAL-FILTER'
       iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_status           = 'U' ).
+      iv_status           = 'u' ).
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_demands )
       exp = 1 ).
@@ -1178,6 +1208,83 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND lgort = '0001'.
   ENDMETHOD.
 
+  METHOD rejects_bad_mvt_filter.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material                 = 'MATERIAL-FILTER'
+          iv_plant                    = '1000'
+          iv_storage_location         = '0001'
+          iv_allocation_movement_type = '2A1' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_allocation_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_allocation_error->message
+          exp = 'Allocation result movement type is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '2A1' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_reservation_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_reservation_error->message
+          exp = 'Allocation result movement type is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD accepts_lowercase_units.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_unit             = 'ea' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_unit
+      exp = 'EA' ).
+
+    lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_order_unit       = 'ea' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
+    lt_demands = lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_reservation_unit = 'box' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+  ENDMETHOD.
+
   METHOD rejects_invalid_run_status.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA ls_allocation TYPE zstockalloc.
@@ -1425,6 +1532,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_sales_item TYPE n LENGTH 6.
     DATA lv_schedule_line TYPE n LENGTH 4.
     DATA lv_order_unit TYPE c LENGTH 3.
+    DATA lv_reservation_unit TYPE c LENGTH 3.
     DATA lv_requested_on TYPE d.
     DATA lv_allocation_unit TYPE c LENGTH 3.
     DATA lv_priority TYPE i.
@@ -1563,7 +1671,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     sales_document_type       = 'OR'
                     sales_item                = '000010'
                     schedule_line             = '0001'
-                    order_unit                = 'EA'
+                    order_unit                = 'ea'
                     requested_on              = '20260115'
                     order_id                  = 'ORDER-DB'
                     priority                  = 42
@@ -1597,15 +1705,15 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_batch            = 'BATCH-001'
       iv_run_id           = 'RUN-DB'
-      iv_unit             = 'EA'
+      iv_unit             = 'ea'
       it_demands          = lt_demands ).
 
     SELECT SINGLE run_id, batch, allocation_unit, priority, sales_document, sales_document_type,
-                  sales_item, schedule_line, order_unit, requested_on,
+                  sales_item, schedule_line, order_unit, reservation_unit, requested_on,
       order_id, reservation_id, allocation_status
       FROM zstockalloc
       INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_priority, @lv_sales_document, @lv_sales_document_type,
-            @lv_sales_item, @lv_schedule_line, @lv_order_unit, @lv_requested_on,
+            @lv_sales_item, @lv_schedule_line, @lv_order_unit, @lv_reservation_unit, @lv_requested_on,
             @lv_order_id, @lv_reservation_id, @lv_allocation_status)
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
@@ -1624,6 +1732,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_priority
       exp = 42 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_order_unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_reservation_unit
+      exp = 'EA' ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_order_id
@@ -1861,5 +1975,40 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_ea_count
       exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_movement_type.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    APPEND VALUE #( order_id                  = 'INVALID-MVT'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    shortage                  = '0'
+                    allocation_status         = 'F'
+                    reservation_id            = 'RES-INVALID'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '2A1'
+                    reservation_unit          = 'ea' ) TO lt_demands.
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-DB'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-INVALID-MVT'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation snapshot demand is invalid' ).
   ENDMETHOD.
 ENDCLASS.

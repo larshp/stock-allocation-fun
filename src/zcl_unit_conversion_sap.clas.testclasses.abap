@@ -3,6 +3,7 @@ CLASS ltcl_unit_conversion_sap DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS converts_material_unit FOR TESTING.
+    METHODS normalizes_lowercase_units FOR TESTING.
     METHODS rejects_unknown_conversion FOR TESTING.
     METHODS rejects_invalid_output FOR TESTING.
     METHODS rejects_negative_output FOR TESTING.
@@ -20,6 +21,22 @@ CLASS ltcl_unit_conversion_sap IMPLEMENTATION.
       iv_quantity  = '2'
       iv_unit_from = 'BOX'
       iv_unit_to   = 'EA' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '20' ).
+  ENDMETHOD.
+
+  METHOD normalizes_lowercase_units.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-BOX'
+      iv_quantity  = '2'
+      iv_unit_from = 'box'
+      iv_unit_to   = 'ea' ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_quantity

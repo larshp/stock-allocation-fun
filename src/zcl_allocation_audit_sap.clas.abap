@@ -89,16 +89,40 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~purge_runs_before.
+    TYPES:
+      BEGIN OF ty_purge_candidate,
+        run_id         TYPE zif_allocation_audit=>ty_run_id,
+        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life TYPE i,
+        status         TYPE zif_allocation_audit=>ty_run_status,
+      END OF ty_purge_candidate.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
+    ENDIF.
+    lv_status = to_upper( iv_status ).
+    lv_unit = to_upper( iv_unit ).
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_before_date IS INITIAL.
       raise_error( iv_message = 'Audit purge date is required' ).
     ENDIF.
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
+    ENDIF.
+    IF iv_min_shelf_life < 0.
+      raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
+    ENDIF.
+    IF lv_status IS NOT INITIAL
+        AND lv_status <> 'S'
+        AND lv_status <> 'P'
+        AND lv_status <> 'E'.
+      raise_error( iv_message = 'Audit purge status filter is invalid' ).
     ENDIF.
     IF mo_retention_authority IS BOUND.
       TRY.
@@ -114,28 +138,192 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_deleted_snapshots TYPE i.
+    DATA lv_deleted_success TYPE i.
+    DATA lv_deleted_partial TYPE i.
+    DATA lv_deleted_error TYPE i.
+    DATA lv_protected_running TYPE i.
+    DATA lv_protected_unknown TYPE i.
+    DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
+    DATA ls_candidate TYPE ty_purge_candidate.
     IF iv_unit IS INITIAL.
-      SELECT run_id
-        FROM zstockalloc_run
-        INTO TABLE @lt_run_ids
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ENDIF.
     ELSE.
-      SELECT run_id
-        FROM zstockalloc_run
-        INTO TABLE @lt_run_ids
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND unit = @iv_unit
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ENDIF.
     ENDIF.
+    LOOP AT lt_candidates INTO ls_candidate.
+      IF ( iv_movement_type IS INITIAL
+          OR ls_candidate-movement_type = iv_movement_type )
+          AND ( iv_run_id IS INITIAL
+          OR ls_candidate-run_id = iv_run_id )
+          AND ( iv_min_shelf_life IS INITIAL
+          OR ls_candidate-min_shelf_life = iv_min_shelf_life )
+          AND ( lv_status IS INITIAL
+          OR ls_candidate-status = lv_status ).
+        INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+        CASE ls_candidate-status.
+          WHEN 'S'.
+            lv_deleted_success = lv_deleted_success + 1.
+          WHEN 'P'.
+            lv_deleted_partial = lv_deleted_partial + 1.
+          WHEN 'E'.
+            lv_deleted_error = lv_deleted_error + 1.
+        ENDCASE.
+      ENDIF.
+    ENDLOOP.
+    CLEAR lt_candidates.
+    IF iv_unit IS INITIAL.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND ( status = 'R'
+               OR ( status <> 'S'
+                AND status <> 'P'
+                AND status <> 'E' ) ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'R'
+               OR ( status <> 'S'
+                AND status <> 'P'
+                AND status <> 'E' ) ).
+      ENDIF.
+    ELSE.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND start_date < @iv_before_date
+            AND ( status = 'R'
+               OR ( status <> 'S'
+                AND status <> 'P'
+                AND status <> 'E' ) ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'R'
+               OR ( status <> 'S'
+                AND status <> 'P'
+                AND status <> 'E' ) ).
+      ENDIF.
+    ENDIF.
+    LOOP AT lt_candidates INTO ls_candidate.
+      IF ( iv_movement_type IS INITIAL
+          OR ls_candidate-movement_type = iv_movement_type )
+          AND ( iv_run_id IS INITIAL
+          OR ls_candidate-run_id = iv_run_id )
+          AND ( iv_min_shelf_life IS INITIAL
+          OR ls_candidate-min_shelf_life = iv_min_shelf_life )
+          AND ( lv_status IS INITIAL
+          OR ls_candidate-status = lv_status ).
+        IF ls_candidate-status = 'R'.
+          lv_protected_running = lv_protected_running + 1.
+        ELSE.
+          lv_protected_unknown = lv_protected_unknown + 1.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
     LOOP AT lt_run_ids INTO lv_run_id.
       IF iv_unit IS INITIAL.
         DELETE FROM zstockalloc
@@ -150,31 +338,23 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
-            AND allocation_unit = @iv_unit
+            AND allocation_unit = @lv_unit
             AND run_id = @lv_run_id.
       ENDIF.
       lv_deleted_snapshots = lv_deleted_snapshots + sy-dbcnt.
     ENDLOOP.
-    IF iv_unit IS INITIAL.
+    CLEAR rv_deleted.
+    LOOP AT lt_run_ids INTO lv_run_id.
       DELETE FROM zstockalloc_run
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
-    ELSE.
-      DELETE FROM zstockalloc_run
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND unit = @iv_unit
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
-    ENDIF.
-    rv_deleted = sy-dbcnt.
+        WHERE run_id = @lv_run_id.
+      rv_deleted = rv_deleted + sy-dbcnt.
+    ENDLOOP.
     ev_deleted_snapshots = lv_deleted_snapshots.
+    ev_deleted_success = lv_deleted_success.
+    ev_deleted_partial = lv_deleted_partial.
+    ev_deleted_error = lv_deleted_error.
+    ev_protected_running = lv_protected_running.
+    ev_protected_unknown = lv_protected_unknown.
     IF mo_transaction IS BOUND.
       TRY.
           mo_transaction->commit( ).
@@ -188,8 +368,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~get_purge_preview.
+    TYPES:
+      BEGIN OF ty_purge_candidate,
+        run_id         TYPE zif_allocation_audit=>ty_run_id,
+        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life TYPE i,
+        status         TYPE zif_allocation_audit=>ty_run_status,
+      END OF ty_purge_candidate.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
       WITH UNIQUE KEY table_line.
+    DATA ls_candidate TYPE ty_purge_candidate.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_snapshot_count TYPE i.
 
@@ -198,11 +389,26 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
     ENDIF.
+    lv_status = to_upper( iv_status ).
+    lv_unit = to_upper( iv_unit ).
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      raise_error( iv_message = 'Audit movement type is invalid' ).
+    ENDIF.
     IF iv_before_date IS INITIAL.
       raise_error( iv_message = 'Audit purge date is required' ).
     ENDIF.
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
+    ENDIF.
+    IF iv_min_shelf_life < 0.
+      raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
+    ENDIF.
+    IF lv_status IS NOT INITIAL
+        AND lv_status <> 'S'
+        AND lv_status <> 'P'
+        AND lv_status <> 'E'.
+      raise_error( iv_message = 'Audit purge status filter is invalid' ).
     ENDIF.
     IF mo_retention_authority IS BOUND.
       TRY.
@@ -215,50 +421,256 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDTRY.
     ENDIF.
     IF iv_unit IS INITIAL.
-      SELECT run_id
-        FROM zstockalloc_run
-        INTO TABLE @lt_run_ids
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ENDIF.
     ELSE.
-      SELECT run_id
-        FROM zstockalloc_run
-        INTO TABLE @lt_run_ids
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND unit = @iv_unit
-          AND start_date < @iv_before_date
-          AND status <> 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( status = 'S'
+               OR status = 'P'
+               OR status = 'E' ).
+      ENDIF.
     ENDIF.
+    LOOP AT lt_candidates INTO ls_candidate.
+      IF ( iv_movement_type IS INITIAL
+          OR ls_candidate-movement_type = iv_movement_type )
+          AND ( iv_run_id IS INITIAL
+          OR ls_candidate-run_id = iv_run_id )
+          AND ( iv_min_shelf_life IS INITIAL
+          OR ls_candidate-min_shelf_life = iv_min_shelf_life )
+          AND ( lv_status IS INITIAL
+          OR ls_candidate-status = lv_status ).
+        INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+        CASE ls_candidate-status.
+          WHEN 'S'.
+            rs_preview-success_count = rs_preview-success_count + 1.
+          WHEN 'P'.
+            rs_preview-partial_count = rs_preview-partial_count + 1.
+          WHEN 'E'.
+            rs_preview-error_count = rs_preview-error_count + 1.
+        ENDCASE.
+      ENDIF.
+    ENDLOOP.
     rs_preview-audit_count = lines( lt_run_ids ).
+    CLEAR lt_candidates.
     IF iv_unit IS INITIAL.
-      SELECT COUNT( * )
-        FROM zstockalloc_run
-        INTO @rs_preview-running_count
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND start_date < @iv_before_date
-          AND status = 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND status = 'R'.
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND status = 'R'.
+      ENDIF.
     ELSE.
-      SELECT COUNT( * )
-        FROM zstockalloc_run
-        INTO @rs_preview-running_count
-        WHERE matnr = @iv_material
-          AND werks = @iv_plant
-          AND lgort = @iv_storage_location
-          AND batch = @iv_batch
-          AND unit = @iv_unit
-          AND start_date < @iv_before_date
-          AND status = 'R'.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND start_date < @iv_before_date
+            AND status = 'R'.
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND status = 'R'.
+      ENDIF.
     ENDIF.
+    CLEAR rs_preview-running_count.
+    LOOP AT lt_candidates INTO ls_candidate.
+      IF ( iv_movement_type IS INITIAL
+          OR ls_candidate-movement_type = iv_movement_type )
+          AND ( iv_run_id IS INITIAL
+          OR ls_candidate-run_id = iv_run_id )
+          AND ( iv_min_shelf_life IS INITIAL
+          OR ls_candidate-min_shelf_life = iv_min_shelf_life )
+          AND ( lv_status IS INITIAL
+          OR ls_candidate-status = lv_status ).
+        rs_preview-running_count = rs_preview-running_count + 1.
+      ENDIF.
+    ENDLOOP.
+    CLEAR lt_candidates.
+    IF iv_unit IS INITIAL.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND status <> 'R'
+            AND status <> 'S'
+            AND status <> 'P'
+            AND status <> 'E'.
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND status <> 'R'
+            AND status <> 'S'
+            AND status <> 'P'
+            AND status <> 'E'.
+      ENDIF.
+    ELSE.
+      IF iv_run_id IS INITIAL.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND start_date < @iv_before_date
+            AND status <> 'R'
+            AND status <> 'S'
+            AND status <> 'P'
+            AND status <> 'E'.
+      ELSE.
+        SELECT run_id,
+               movement_type,
+               min_shelf_life,
+               status
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND unit = @lv_unit
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND status <> 'R'
+            AND status <> 'S'
+            AND status <> 'P'
+            AND status <> 'E'.
+      ENDIF.
+    ENDIF.
+    LOOP AT lt_candidates INTO ls_candidate.
+      IF ( iv_movement_type IS INITIAL
+          OR ls_candidate-movement_type = iv_movement_type )
+          AND ( iv_run_id IS INITIAL
+          OR ls_candidate-run_id = iv_run_id )
+          AND ( iv_min_shelf_life IS INITIAL
+          OR ls_candidate-min_shelf_life = iv_min_shelf_life )
+          AND ( lv_status IS INITIAL
+          OR ls_candidate-status = lv_status ).
+        rs_preview-unknown_count = rs_preview-unknown_count + 1.
+      ENDIF.
+    ENDLOOP.
     LOOP AT lt_run_ids INTO lv_run_id.
       IF iv_unit IS INITIAL.
         SELECT COUNT( * )
@@ -277,7 +689,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
-            AND allocation_unit = @iv_unit
+            AND allocation_unit = @lv_unit
             AND run_id = @lv_run_id.
       ENDIF.
       rs_preview-snapshot_count =
@@ -302,20 +714,51 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
     lt_runs = zif_allocation_audit~get_runs(
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_batch            = iv_batch
-      iv_movement_type    = iv_movement_type
-      iv_min_shelf_life   = iv_min_shelf_life
-      iv_unit             = iv_unit
-      iv_strategy         = iv_strategy
-      iv_legacy_strategy  = iv_legacy_strategy ).
+      iv_material          = iv_material
+      iv_plant             = iv_plant
+      iv_storage_location  = iv_storage_location
+      iv_batch             = iv_batch
+      iv_run_id            = iv_run_id
+      iv_run_id_contains   = iv_run_id_contains
+      iv_movement_type     = iv_movement_type
+      iv_min_shelf_life    = iv_min_shelf_life
+      iv_requested_on_from = iv_requested_on_from
+      iv_requested_on_to   = iv_requested_on_to
+      iv_start_date_from   = iv_start_date_from
+      iv_start_date_to     = iv_start_date_to
+      iv_finish_date_from  = iv_finish_date_from
+      iv_finish_date_to    = iv_finish_date_to
+      iv_duration_from     = iv_duration_from
+      iv_duration_to       = iv_duration_to
+      iv_coverage_from     = iv_coverage_from
+      iv_coverage_to       = iv_coverage_to
+      iv_shortage_pct_from = iv_shortage_pct_from
+      iv_shortage_pct_to   = iv_shortage_pct_to
+      iv_shortage_from     = iv_shortage_from
+      iv_shortage_to       = iv_shortage_to
+      iv_allocated_from    = iv_allocated_from
+      iv_allocated_to      = iv_allocated_to
+      iv_available_from    = iv_available_from
+      iv_available_to      = iv_available_to
+      iv_requested_from    = iv_requested_from
+      iv_requested_to      = iv_requested_to
+      iv_demand_from       = iv_demand_from
+      iv_demand_to         = iv_demand_to
+      iv_stale_seconds     = iv_stale_seconds
+      iv_running_age_to    = iv_running_age_to
+      iv_unit              = iv_unit
+      iv_status            = iv_status
+      iv_strategy          = iv_strategy
+      iv_legacy_strategy   = iv_legacy_strategy
+      iv_message_contains  = iv_message_contains
+      iv_message_only      = iv_message_only ).
     IF iv_unit IS NOT INITIAL.
-      rs_summary-unit = iv_unit.
+      rs_summary-unit = to_upper( iv_unit ).
     ENDIF.
     LOOP AT lt_runs ASSIGNING <ls_run>.
       rs_summary-total_runs = rs_summary-total_runs + 1.
+      rs_summary-demand_count = rs_summary-demand_count
+        + <ls_run>-demand_count.
       CASE <ls_run>-strategy.
         WHEN 'P'.
           rs_summary-priority_runs = rs_summary-priority_runs + 1.
@@ -620,9 +1063,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
 
   METHOD zif_allocation_audit~record_rejection.
     DATA ls_run TYPE zstockalloc_run.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
 
+    lv_unit = to_upper( iv_unit ).
     IF iv_message IS INITIAL.
       raise_error( iv_message = 'Audit rejection message is required' ).
+    ENDIF.
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_available < 0.
       raise_error( iv_message = 'Audit rejection metrics are invalid' ).
@@ -652,7 +1101,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-min_shelf_life = iv_min_shelf_life.
     ls_run-requested_on_from = iv_requested_on_from.
     ls_run-requested_on_to = iv_requested_on_to.
-    ls_run-unit = iv_unit.
+    ls_run-unit = lv_unit.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-finish_date = sy-datum.
@@ -696,6 +1145,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_duration_seconds TYPE i.
     DATA lv_running_age_seconds TYPE i.
     DATA lv_limit_start TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_run
       WITH EMPTY KEY.
     DATA lt_duration_sorted TYPE STANDARD TABLE OF ty_coverage_run
@@ -706,6 +1158,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Audit read scope is incomplete' ).
+    ENDIF.
+    lv_status = to_upper( iv_status ).
+    lv_strategy = to_upper( iv_strategy ).
+    lv_unit = to_upper( iv_unit ).
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_max_rows < 0.
       raise_error( iv_message = 'Audit history row limit is invalid' ).
@@ -818,24 +1277,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf-life filter is invalid' ).
     ENDIF.
-    IF iv_status IS NOT INITIAL
-        AND iv_status <> 'R'
-        AND iv_status <> 'S'
-        AND iv_status <> 'P'
-        AND iv_status <> 'E'.
+    IF lv_status IS NOT INITIAL
+        AND lv_status <> 'R'
+        AND lv_status <> 'S'
+        AND lv_status <> 'P'
+        AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit status is invalid' ).
     ENDIF.
-    IF iv_strategy IS NOT INITIAL
-        AND iv_strategy <> 'P'
-        AND iv_strategy <> 'F'
-        AND iv_strategy <> 'N'
-        AND iv_strategy <> 'S'
-        AND iv_strategy <> 'L'
-        AND iv_strategy <> 'B'.
+    IF lv_strategy IS NOT INITIAL
+        AND lv_strategy <> 'P'
+        AND lv_strategy <> 'F'
+        AND lv_strategy <> 'N'
+        AND lv_strategy <> 'S'
+        AND lv_strategy <> 'L'
+        AND lv_strategy <> 'B'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_legacy_strategy = abap_true
-        AND iv_strategy IS NOT INITIAL.
+        AND lv_strategy IS NOT INITIAL.
       raise_error( iv_message = 'Audit strategy filters conflict' ).
     ENDIF.
     IF mo_read_authority IS BOUND.
@@ -880,7 +1339,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
-          AND ( @iv_strategy = @space OR strategy = @iv_strategy ).
+          AND ( @lv_strategy = @space OR strategy = @lv_strategy ).
     ELSE.
       SELECT run_id,
              matnr AS material,
@@ -913,7 +1372,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
           AND run_id = @iv_run_id
-          AND ( @iv_strategy = @space OR strategy = @iv_strategy ).
+          AND ( @lv_strategy = @space OR strategy = @lv_strategy ).
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rt_runs.
@@ -924,14 +1383,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDLOOP.
     IF iv_run_id_contains IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
-        IF <ls_run>-run_id NS iv_run_id_contains.
+        IF to_upper( <ls_run>-run_id ) NS to_upper( iv_run_id_contains ).
           DELETE rt_runs.
         ENDIF.
       ENDLOOP.
     ENDIF.
-    IF iv_strategy IS NOT INITIAL.
+    IF lv_strategy IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
-        IF <ls_run>-strategy <> iv_strategy.
+        IF <ls_run>-strategy <> lv_strategy.
           DELETE rt_runs.
         ENDIF.
       ENDLOOP.
@@ -956,7 +1415,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_run_id IS NOT INITIAL
         OR iv_requested_on_from IS NOT INITIAL
         OR iv_requested_on_to IS NOT INITIAL
-        OR iv_unit IS NOT INITIAL
+        OR lv_unit IS NOT INITIAL
         OR iv_start_date_from IS NOT INITIAL
         OR iv_start_date_to IS NOT INITIAL
         OR iv_finish_date_from IS NOT INITIAL
@@ -973,15 +1432,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR iv_demand_to IS NOT INITIAL
         OR iv_coverage_from IS NOT INITIAL
         OR iv_coverage_to IS NOT INITIAL
-        OR iv_status IS NOT INITIAL.
+        OR lv_status IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
         IF iv_run_id IS INITIAL OR <ls_run>-run_id = iv_run_id.
           IF iv_requested_on_from IS INITIAL
               OR <ls_run>-requested_on_from = iv_requested_on_from.
             IF iv_requested_on_to IS INITIAL
                 OR <ls_run>-requested_on_to = iv_requested_on_to.
-              IF iv_status IS INITIAL OR <ls_run>-status = iv_status.
-                IF iv_unit IS INITIAL OR <ls_run>-unit = iv_unit.
+              IF lv_status IS INITIAL OR <ls_run>-status = lv_status.
+                IF lv_unit IS INITIAL
+                    OR to_upper( <ls_run>-unit ) = lv_unit.
                   IF iv_start_date_from IS INITIAL
                       OR <ls_run>-start_date >= iv_start_date_from.
                     IF iv_start_date_to IS INITIAL
@@ -1254,6 +1714,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
 
   METHOD zif_allocation_audit~start_run.
     DATA ls_run TYPE zstockalloc_run.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+
+    lv_strategy = to_upper( iv_strategy ).
+    lv_unit = to_upper( iv_unit ).
 
     IF iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
@@ -1263,19 +1728,23 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf life is invalid' ).
     ENDIF.
-    IF iv_strategy IS NOT INITIAL
-        AND iv_strategy <> 'P'
-        AND iv_strategy <> 'F'
-        AND iv_strategy <> 'N'
-        AND iv_strategy <> 'S'
-        AND iv_strategy <> 'L'
-        AND iv_strategy <> 'B'.
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      raise_error( iv_message = 'Audit movement type is invalid' ).
+    ENDIF.
+    IF lv_strategy IS NOT INITIAL
+        AND lv_strategy <> 'P'
+        AND lv_strategy <> 'F'
+        AND lv_strategy <> 'N'
+        AND lv_strategy <> 'S'
+        AND lv_strategy <> 'L'
+        AND lv_strategy <> 'B'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
-        OR iv_unit IS INITIAL.
+        OR lv_unit IS INITIAL.
       raise_error( iv_message = 'Audit run scope is incomplete' ).
     ENDIF.
     IF iv_available < 0 OR iv_demand_count < 0.
@@ -1306,8 +1775,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-min_shelf_life = iv_min_shelf_life.
     ls_run-requested_on_from = iv_requested_on_from.
     ls_run-requested_on_to = iv_requested_on_to.
-    ls_run-unit = iv_unit.
-    ls_run-strategy = iv_strategy.
+    ls_run-unit = lv_unit.
+    ls_run-strategy = lv_strategy.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-status = 'R'.
@@ -1322,16 +1791,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~finish_run.
     DATA lv_current_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_current_available TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+
+    lv_status = to_upper( iv_status ).
 
     IF iv_run_id IS INITIAL.
       raise_error( iv_message = 'Audit run ID is required' ).
     ENDIF.
-    IF iv_status <> 'S'
-        AND iv_status <> 'P'
-        AND iv_status <> 'E'.
+    IF lv_status <> 'S'
+        AND lv_status <> 'P'
+        AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit final status is invalid' ).
     ENDIF.
-    IF ( iv_status = 'P' OR iv_status = 'E' )
+    IF ( lv_status = 'P' OR lv_status = 'E' )
         AND iv_message IS INITIAL.
       raise_error( iv_message = 'Audit final message is required' ).
     ENDIF.
@@ -1365,14 +1837,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_available <> lv_current_available
         OR iv_allocated > lv_current_available
-        OR ( iv_status = 'S' AND iv_shortage <> 0 )
-        OR ( iv_status = 'P' AND iv_shortage <= 0 ).
+        OR ( lv_status = 'S' AND iv_shortage <> 0 )
+        OR ( lv_status = 'P' AND iv_shortage <= 0 ).
       raise_error( iv_message = 'Audit final metrics are invalid' ).
     ENDIF.
     UPDATE zstockalloc_run
       SET finish_date = @sy-datum,
           finish_time = @sy-uzeit,
-          status      = @iv_status,
+           status      = @lv_status,
            available   = @iv_available,
            allocated   = @iv_allocated,
            shortage    = @iv_shortage,
@@ -1425,6 +1897,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR is_run-allocated < 0
         OR is_run-shortage < 0
         OR is_run-allocated > is_run-available.
+      raise_error( iv_message = 'Audit run data is invalid' ).
+    ENDIF.
+    IF is_run-movement_type IS NOT INITIAL
+        AND is_run-movement_type CN '0123456789'.
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF is_run-status <> 'R'

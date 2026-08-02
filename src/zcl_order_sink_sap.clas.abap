@@ -80,6 +80,8 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
         OR iv_sales_document_type IS INITIAL
         OR iv_sales_item IS INITIAL
         OR iv_schedule_line IS INITIAL
+        OR iv_sales_item CN '0123456789'
+        OR iv_schedule_line CN '0123456789'
         OR iv_quantity <= 0.
       raise_error( iv_message = 'Sales-order change input is invalid' ).
     ENDIF.

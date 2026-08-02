@@ -158,6 +158,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_existing_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_existing_run_id TYPE zif_stock_allocation=>ty_run_id.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_original> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_existing> TYPE zif_stock_allocation=>ty_demand.
@@ -168,6 +170,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     mv_requested_on_to = iv_requested_on_to.
     mv_movement_type = iv_movement_type.
     mv_min_shelf_life = iv_min_shelf_life.
+    lv_strategy = to_upper( iv_strategy ).
+    lv_unit = to_upper( iv_unit ).
 
     IF iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
@@ -178,25 +182,74 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = 0
           iv_message          = 'Requested delivery date range is invalid' ).
       ENDIF.
       raise_error( iv_message = 'Requested delivery date range is invalid' ).
     ENDIF.
 
-    IF iv_material IS INITIAL
-        OR iv_plant IS INITIAL
-        OR iv_storage_location IS INITIAL
-        OR iv_movement_type IS INITIAL
-        OR iv_unit IS INITIAL.
+    IF lv_strategy IS NOT INITIAL
+        AND lv_strategy <> 'P'
+        AND lv_strategy <> 'F'
+        AND lv_strategy <> 'N'
+        AND lv_strategy <> 'S'
+        AND lv_strategy <> 'L'
+        AND lv_strategy <> 'B'.
       IF mo_audit IS BOUND.
         record_rejection(
           iv_material         = iv_material
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid allocation strategy' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid allocation strategy' ).
+    ENDIF.
+
+    IF iv_preview IS NOT INITIAL AND iv_preview <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid preview flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid preview flag' ).
+    ENDIF.
+
+    IF iv_movement_type IS NOT INITIAL
+        AND iv_movement_type CN '0123456789'.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid movement type' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid movement type' ).
+    ENDIF.
+
+    IF iv_material IS INITIAL
+        OR iv_plant IS INITIAL
+        OR iv_storage_location IS INITIAL
+        OR iv_movement_type IS INITIAL
+        OR lv_unit IS INITIAL.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
           iv_available        = 0
           iv_message          = 'Invalid allocation input' ).
       ENDIF.
@@ -209,7 +262,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = 0
           iv_message          = 'Invalid minimum shelf life' ).
       ENDIF.
@@ -227,7 +280,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = 0
           iv_message          = 'Allocation dependency missing' ).
       ENDIF.
@@ -246,7 +299,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = 0
             iv_message          = lo_error->message ).
           RAISE EXCEPTION lo_error.
@@ -262,7 +315,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = 0
             iv_message          = lo_error->message ).
           RAISE EXCEPTION lo_error.
@@ -284,7 +337,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = 'Movement authorization failed' ).
           ELSE.
@@ -293,7 +346,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
@@ -318,7 +371,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = 'Allocation lock acquisition failed' ).
           ELSE.
@@ -327,7 +380,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
@@ -352,7 +405,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = 'Available stock read failed' ).
           ELSE.
@@ -361,7 +414,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = 0
               iv_message          = lo_error->message ).
           ENDIF.
@@ -376,7 +429,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = 0
         iv_message          = 'Material does not exist' ).
       raise_error( iv_message = 'Material does not exist' ).
@@ -387,7 +440,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = 0
         iv_message          = 'Material base unit is missing' ).
       raise_error( iv_message = 'Material base unit is missing' ).
@@ -398,7 +451,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = 0
         iv_message          = 'Stock quantity is invalid' ).
       raise_error( iv_message = 'Stock quantity is invalid' ).
@@ -411,7 +464,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is required' ).
       raise_error( iv_message = 'Batch is required' ).
@@ -423,7 +476,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Material is not batch managed' ).
       raise_error( iv_message = 'Material is not batch managed' ).
@@ -435,7 +488,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Batch does not exist in storage location' ).
       raise_error( iv_message = 'Batch does not exist in storage location' ).
@@ -448,7 +501,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is expired' ).
       raise_error( iv_message = 'Batch is expired' ).
@@ -460,7 +513,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Minimum shelf life requires a batch' ).
       raise_error( iv_message = 'Minimum shelf life requires a batch' ).
@@ -472,7 +525,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Batch expiration date is required for shelf-life policy' ).
       raise_error( iv_message = 'Batch expiration date is required for shelf-life policy' ).
@@ -485,7 +538,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Batch does not meet minimum shelf life' ).
         raise_error( iv_message = 'Batch does not meet minimum shelf life' ).
@@ -497,20 +550,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Batch is restricted' ).
       raise_error( iv_message = 'Batch is restricted' ).
     ENDIF.
     IF lv_available > 0
-        AND ls_available-unit <> iv_unit.
+        AND ls_available-unit <> lv_unit.
       IF mo_unit_converter IS NOT BOUND.
         record_rejection(
           iv_material         = iv_material
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Stock unit conversion failed' ).
         raise_error( iv_message = 'Stock unit conversion failed' ).
@@ -520,7 +573,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_material  = iv_material
             iv_quantity  = lv_available
             iv_unit_from = ls_available-unit
-            iv_unit_to   = iv_unit ).
+            iv_unit_to   = lv_unit ).
         CATCH zcx_stock_allocation INTO lo_error.
           IF lo_error->message IS INITIAL.
             record_rejection(
@@ -528,7 +581,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = 'Stock unit conversion failed' ).
           ELSE.
@@ -537,7 +590,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = lo_error->message ).
           ENDIF.
@@ -552,7 +605,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = 0
           iv_message          = 'Stock unit conversion produced invalid quantity' ).
         raise_error( iv_message = 'Stock unit conversion produced invalid quantity' ).
@@ -571,7 +624,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Open demand validation failed' ).
         ELSE.
@@ -580,7 +633,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = lo_error->message ).
         ENDIF.
@@ -597,7 +650,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Open demand quantity or key is invalid' ).
         raise_error( iv_message = 'Open demand quantity or key is invalid' ).
@@ -609,7 +662,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Open demand key is duplicated' ).
         raise_error( iv_message = 'Open demand key is duplicated' ).
@@ -626,7 +679,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Batch expires before delivery date' ).
           raise_error( iv_message = 'Batch expires before delivery date' ).
@@ -635,14 +688,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
     LOOP AT lt_demands ASSIGNING <ls_demand>.
       IF <ls_demand>-order_unit IS NOT INITIAL
-          AND <ls_demand>-order_unit <> iv_unit.
+          AND <ls_demand>-order_unit <> lv_unit.
         IF mo_unit_converter IS NOT BOUND.
           record_rejection(
             iv_material         = iv_material
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Demand unit conversion failed' ).
           raise_error( iv_message = 'Demand unit conversion failed' ).
@@ -652,7 +705,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_material  = iv_material
               iv_quantity  = <ls_demand>-requested
               iv_unit_from = <ls_demand>-order_unit
-              iv_unit_to   = iv_unit ).
+              iv_unit_to   = lv_unit ).
           CATCH zcx_stock_allocation INTO lo_error.
             IF lo_error->message IS INITIAL.
               record_rejection(
@@ -660,7 +713,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = 'Demand unit conversion failed' ).
             ELSE.
@@ -669,7 +722,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = lo_error->message ).
             ENDIF.
@@ -684,7 +737,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = 'Demand unit conversion produced invalid quantity' ).
             raise_error( iv_message = 'Demand unit conversion produced invalid quantity' ).
@@ -705,7 +758,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = 'Allocation snapshot read failed' ).
           ELSE.
@@ -714,7 +767,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = lo_error->message ).
           ENDIF.
@@ -747,7 +800,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation snapshot read returned invalid data' ).
           raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
@@ -763,7 +816,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation snapshot read returned inconsistent provenance' ).
           raise_error( iv_message = 'Allocation snapshot read returned inconsistent provenance' ).
@@ -775,7 +828,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation snapshot read returned duplicated demand key' ).
           raise_error( iv_message = 'Allocation snapshot read returned duplicated demand key' ).
@@ -788,7 +841,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_plant            = iv_plant
               iv_storage_location = iv_storage_location
               iv_batch            = iv_batch
-              iv_unit             = iv_unit
+              iv_unit             = lv_unit
               iv_available        = lv_available
               iv_message          = 'Allocation snapshot read returned duplicated reservation correlation' ).
             raise_error( iv_message = 'Allocation snapshot read returned duplicated reservation correlation' ).
@@ -802,7 +855,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation snapshot read returned invalid data' ).
           raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
@@ -827,14 +880,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation snapshot read returned invalid data' ).
           raise_error( iv_message = 'Allocation snapshot read returned invalid data' ).
       ENDIF.
       ENDLOOP.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
-        IF <ls_existing>-allocation_unit = iv_unit
+        IF <ls_existing>-allocation_unit = lv_unit
             AND <ls_existing>-allocated > 0
             AND <ls_existing>-reservation_movement_type <> iv_movement_type.
           INSERT <ls_existing>-reservation_movement_type
@@ -853,7 +906,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = 'Reservation cancellation authorization failed' ).
               lo_error->message = 'Reservation cancellation authorization failed'.
@@ -863,7 +916,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = lo_error->message ).
             ENDIF.
@@ -872,7 +925,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       ENDLOOP.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
         IF <ls_existing>-allocation_unit IS INITIAL
-            OR <ls_existing>-allocation_unit = iv_unit
+            OR <ls_existing>-allocation_unit = lv_unit
             OR <ls_existing>-allocated <= 0
             OR <ls_existing>-reservation_id IS INITIAL.
           CONTINUE.
@@ -883,7 +936,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Existing allocation unit conversion failed' ).
           raise_error( iv_message = 'Existing allocation unit conversion failed' ).
@@ -893,7 +946,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
               iv_material  = iv_material
               iv_quantity  = <ls_existing>-allocated
               iv_unit_from = <ls_existing>-allocation_unit
-              iv_unit_to   = iv_unit ).
+              iv_unit_to   = lv_unit ).
           CATCH zcx_stock_allocation INTO lo_error.
             IF lo_error->message IS INITIAL.
               record_rejection(
@@ -901,7 +954,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = 'Existing allocation unit conversion failed' ).
             ELSE.
@@ -910,7 +963,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 iv_plant            = iv_plant
                 iv_storage_location = iv_storage_location
                 iv_batch            = iv_batch
-                iv_unit             = iv_unit
+                iv_unit             = lv_unit
                 iv_available        = lv_available
                 iv_message          = lo_error->message ).
             ENDIF.
@@ -925,7 +978,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Existing allocation unit conversion produced invalid quantity' ).
           raise_error( iv_message = 'Existing allocation unit conversion produced invalid quantity' ).
@@ -954,7 +1007,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = 'Allocation calculation failed' ).
         ELSE.
@@ -963,7 +1016,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch
-            iv_unit             = iv_unit
+            iv_unit             = lv_unit
             iv_available        = lv_available
             iv_message          = lo_error->message ).
         ENDIF.
@@ -979,7 +1032,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Allocation result is invalid' ).
       raise_error( iv_message = 'Allocation result is invalid' ).
@@ -997,7 +1050,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1011,7 +1064,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1032,7 +1085,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1044,7 +1097,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1057,7 +1110,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1077,7 +1130,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1091,7 +1144,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_plant            = iv_plant
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           iv_available        = lv_available
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1113,7 +1166,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_plant            = iv_plant
         iv_storage_location = iv_storage_location
         iv_batch            = iv_batch
-        iv_unit             = iv_unit
+        iv_unit             = lv_unit
         iv_available        = lv_available
         iv_message          = 'Allocation result is invalid' ).
       raise_error( iv_message = 'Allocation result is invalid' ).
@@ -1130,8 +1183,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_min_shelf_life    = iv_min_shelf_life
           iv_requested_on_from = iv_requested_on_from
           iv_requested_on_to   = iv_requested_on_to
-          iv_unit              = iv_unit
-          iv_strategy          = iv_strategy ).
+          iv_unit              = lv_unit
+          iv_strategy          = lv_strategy ).
       CATCH zcx_stock_allocation INTO lo_error.
         IF lo_error->message IS INITIAL.
           lo_error->message = 'Audit run start failed'.
@@ -1162,17 +1215,17 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             IF <ls_demand>-allocated > 0.
               READ TABLE lt_existing ASSIGNING <ls_existing>
                 WITH KEY order_id       = <ls_demand>-order_id
-                         allocation_unit = iv_unit.
+                         allocation_unit = lv_unit.
             IF sy-subrc = 0
                 AND <ls_existing>-allocated = <ls_demand>-allocated
                 AND <ls_existing>-reservation_id IS NOT INITIAL
                 AND <ls_existing>-reservation_date = lv_required_date
                 AND <ls_existing>-reservation_movement_type = iv_movement_type
-                AND <ls_existing>-reservation_unit = iv_unit.
+                AND <ls_existing>-reservation_unit = lv_unit.
               <ls_demand>-reservation_id = <ls_existing>-reservation_id.
               <ls_demand>-reservation_date = lv_required_date.
               <ls_demand>-reservation_movement_type = iv_movement_type.
-              <ls_demand>-reservation_unit = iv_unit.
+              <ls_demand>-reservation_unit = lv_unit.
               APPEND <ls_existing>-reservation_id TO lt_reused.
               CONTINUE.
             ENDIF.
@@ -1183,7 +1236,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                   iv_storage_location = iv_storage_location
                   iv_movement_type    = iv_movement_type
                   iv_quantity         = <ls_demand>-allocated
-                  iv_unit             = iv_unit
+                  iv_unit             = lv_unit
                   iv_required_date    = lv_required_date
                   iv_batch            = iv_batch ).
             CATCH zcx_stock_allocation INTO DATA(lo_reservation_error).
@@ -1198,7 +1251,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             ENDIF.
             <ls_demand>-reservation_date = lv_required_date.
             <ls_demand>-reservation_movement_type = iv_movement_type.
-            <ls_demand>-reservation_unit = iv_unit.
+            <ls_demand>-reservation_unit = lv_unit.
             APPEND <ls_demand>-reservation_id TO lt_reservations.
           ENDIF.
         ENDLOOP.
@@ -1310,7 +1363,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_storage_location = iv_storage_location
           iv_batch            = iv_batch
           iv_run_id           = lv_run_id
-          iv_unit             = iv_unit
+          iv_unit             = lv_unit
           it_demands          = lt_demands ).
         IF mo_transaction IS BOUND.
           mo_transaction->commit( ).
@@ -1413,7 +1466,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         RAISE EXCEPTION lo_error.
       ENDTRY.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
-        IF <ls_existing>-allocation_unit = iv_unit
+        IF <ls_existing>-allocation_unit = lv_unit
             AND <ls_existing>-reservation_id IS NOT INITIAL.
           READ TABLE lt_reused
             WITH KEY table_line = <ls_existing>-reservation_id
@@ -1576,13 +1629,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD record_rejection.
+    DATA lv_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+
+    lv_movement_type = mv_movement_type.
+    IF lv_movement_type IS NOT INITIAL
+        AND lv_movement_type CN '0123456789'.
+      CLEAR lv_movement_type.
+    ENDIF.
     TRY.
         mo_audit->record_rejection(
           iv_material          = iv_material
           iv_plant             = iv_plant
           iv_storage_location  = iv_storage_location
           iv_batch             = iv_batch
-          iv_movement_type     = mv_movement_type
+          iv_movement_type     = lv_movement_type
           iv_min_shelf_life    = mv_min_shelf_life
           iv_unit              = iv_unit
           iv_requested_on_from = mv_requested_on_from

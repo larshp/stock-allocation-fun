@@ -27,8 +27,9 @@ CLASS zcl_stock_allocation_watch DEFINITION
     TYPES tt_alerts TYPE STANDARD TABLE OF ty_alert WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_unit_summary,
-        unit        TYPE string,
-        mixed_units TYPE abap_bool,
+        unit         TYPE string,
+        mixed_units  TYPE abap_bool,
+        demand_count TYPE i,
       END OF ty_unit_summary.
 
     CLASS-METHODS summarize_units
@@ -52,6 +53,8 @@ ENDCLASS.
 CLASS zcl_stock_allocation_watch IMPLEMENTATION.
   METHOD summarize_units.
     LOOP AT it_alerts ASSIGNING FIELD-SYMBOL(<ls_alert>).
+      rs_summary-demand_count = rs_summary-demand_count
+        + <ls_alert>-demand_count.
       IF sy-tabix = 1.
         rs_summary-unit = <ls_alert>-unit.
       ELSEIF <ls_alert>-unit <> rs_summary-unit.

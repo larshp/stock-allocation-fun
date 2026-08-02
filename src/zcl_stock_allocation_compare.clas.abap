@@ -41,6 +41,7 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     DATA lt_all_changes TYPE zif_stock_allocation_compare=>tt_changes.
     DATA ls_change TYPE zif_stock_allocation_compare=>ty_change.
     DATA lv_limit_start TYPE i.
+    DATA ls_normalized TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_old> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_new> TYPE zif_stock_allocation=>ty_demand.
@@ -80,22 +81,30 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     ENDIF.
 
     LOOP AT it_old ASSIGNING <ls_demand>.
-      INSERT <ls_demand> INTO TABLE lt_old.
+      ls_normalized = <ls_demand>.
+      ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
+      ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
+      ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).
+      INSERT ls_normalized INTO TABLE lt_old.
       IF sy-subrc <> 0.
         raise_error( iv_message = 'Comparison old snapshot has duplicate keys' ).
       ENDIF.
       INSERT VALUE #(
-        allocation_unit = <ls_demand>-allocation_unit
-        order_id        = <ls_demand>-order_id ) INTO TABLE lt_keys.
+        allocation_unit = ls_normalized-allocation_unit
+        order_id        = ls_normalized-order_id ) INTO TABLE lt_keys.
     ENDLOOP.
     LOOP AT it_new ASSIGNING <ls_demand>.
-      INSERT <ls_demand> INTO TABLE lt_new.
+      ls_normalized = <ls_demand>.
+      ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
+      ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
+      ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).
+      INSERT ls_normalized INTO TABLE lt_new.
       IF sy-subrc <> 0.
         raise_error( iv_message = 'Comparison new snapshot has duplicate keys' ).
       ENDIF.
       INSERT VALUE #(
-        allocation_unit = <ls_demand>-allocation_unit
-        order_id        = <ls_demand>-order_id ) INTO TABLE lt_keys.
+        allocation_unit = ls_normalized-allocation_unit
+        order_id        = ls_normalized-order_id ) INTO TABLE lt_keys.
     ENDLOOP.
 
     LOOP AT lt_keys ASSIGNING <ls_key>.

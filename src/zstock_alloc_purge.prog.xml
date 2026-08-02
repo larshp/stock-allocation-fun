@@ -41,6 +41,30 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_RUNID</KEY>
+     <ENTRY>Exact audit run ID</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MVT</KEY>
+     <ENTRY>Allocation movement type</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHELF</KEY>
+     <ENTRY>Minimum shelf-life days</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STAT</KEY>
+     <ENTRY>Final run status</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>

@@ -129,7 +129,7 @@ START-OF-SELECTION.
   DATA lt_strategy_totals TYPE SORTED TABLE OF ty_strategy_total
     WITH UNIQUE KEY strategy.
   DATA lv_csv_line TYPE string.
-  DATA lv_csv_field TYPE string.
+  DATA lv_csv_field TYPE c LENGTH 1024.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_json_line TYPE string.
   DATA lv_summary_json TYPE string.

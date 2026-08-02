@@ -68,10 +68,12 @@ CLASS zcl_stock_json IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD property.
+    DATA lv_formatted TYPE c LENGTH 1024.
     DATA lv_text TYPE string.
     DATA lv_quoted TYPE string.
 
-    WRITE iv_value TO lv_text.
+    WRITE iv_value TO lv_formatted.
+    lv_text = lv_formatted.
     lv_quoted = quote( lv_text ).
     CONCATENATE '"' iv_name '":' lv_quoted INTO rv_value.
   ENDMETHOD.

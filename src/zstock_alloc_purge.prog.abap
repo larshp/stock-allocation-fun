@@ -21,7 +21,7 @@ START-OF-SELECTION.
   DATA lv_error_message TYPE string.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_csv_line TYPE string.
-  DATA lv_csv_field TYPE string.
+  DATA lv_csv_field TYPE c LENGTH 1024.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
   IF p_csv = abap_true AND p_json = abap_true.

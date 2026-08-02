@@ -89,7 +89,8 @@ CLASS ltcl_stock_json IMPLEMENTATION.
   METHOD formats_string_array_property.
     DATA lt_values TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
-    lt_values = VALUE #( ( 'material' ) ( 'message "locked"' ) ).
+    APPEND 'material' TO lt_values.
+    APPEND 'message "locked"' TO lt_values.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_json=>string_array_property(
         iv_name   = 'filters'

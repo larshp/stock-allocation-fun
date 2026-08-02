@@ -141,7 +141,7 @@ START-OF-SELECTION.
   DATA lv_minimum_duration_text TYPE string.
   DATA lv_maximum_duration_text TYPE string.
   DATA lv_csv_line TYPE string.
-  DATA lv_csv_field TYPE string.
+  DATA lv_csv_field TYPE c LENGTH 1024.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_json_line TYPE string.
   DATA lv_summary_json TYPE string.

@@ -21,6 +21,15 @@ CLASS zcl_stock_json DEFINITION
         iv_value        TYPE any
       RETURNING
         VALUE(rv_value) TYPE string.
+    CLASS-METHODS filter_number_property
+      IMPORTING
+        iv_name         TYPE string
+        iv_value        TYPE any
+        iv_text         TYPE string
+        iv_present      TYPE abap_bool
+        iv_typed        TYPE abap_bool
+      RETURNING
+        VALUE(rv_value) TYPE string.
     CLASS-METHODS boolean_property
       IMPORTING
         iv_name         TYPE string
@@ -87,6 +96,22 @@ CLASS zcl_stock_json IMPLEMENTATION.
     REPLACE ALL OCCURRENCES OF ',' IN lv_text WITH '.'.
     CONDENSE lv_text NO-GAPS.
     CONCATENATE '"' iv_name '":' lv_text INTO rv_value.
+  ENDMETHOD.
+
+  METHOD filter_number_property.
+    IF iv_typed = abap_true.
+      IF iv_present = abap_true.
+        rv_value = number_property(
+          iv_name  = iv_name
+          iv_value = iv_value ).
+      ELSE.
+        rv_value = null_property( iv_name = iv_name ).
+      ENDIF.
+    ELSE.
+      rv_value = property(
+        iv_name  = iv_name
+        iv_value = iv_text ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD boolean_property.

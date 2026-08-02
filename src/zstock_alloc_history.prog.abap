@@ -29,6 +29,7 @@ PARAMETERS p_dto TYPE i.
 PARAMETERS p_tfrom TYPE i.
 PARAMETERS p_tto TYPE i.
 PARAMETERS p_stale TYPE i.
+PARAMETERS p_age_to TYPE i.
 PARAMETERS p_shrt AS CHECKBOX.
 PARAMETERS p_covf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_covt TYPE zif_allocation_audit=>ty_coverage.
@@ -200,6 +201,12 @@ START-OF-SELECTION.
       lv_csv_error_message = 'Row limit must not be negative'.
     ELSEIF p_stale < 0.
       lv_csv_error_message = 'Stale-running threshold must not be negative'.
+    ELSEIF p_age_to < 0.
+      lv_csv_error_message = 'Maximum running age must not be negative'.
+    ELSEIF p_stale IS NOT INITIAL AND p_age_to IS NOT INITIAL
+        AND p_age_to < p_stale.
+      lv_csv_error_message =
+        'Maximum running age must not be below stale threshold'.
     ELSEIF p_stat IS NOT INITIAL
         AND p_stat <> 'R'
         AND p_stat <> 'S'
@@ -353,6 +360,27 @@ START-OF-SELECTION.
       RETURN.
     ENDIF.
     WRITE: / 'Stale-running threshold must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_age_to < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Maximum running age must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Maximum running age must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_stale IS NOT INITIAL AND p_age_to IS NOT INITIAL
+      AND p_age_to < p_stale.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Maximum running age must not be below stale threshold' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Maximum running age must not be below stale threshold.'.
     RETURN.
   ENDIF.
 
@@ -670,6 +698,7 @@ START-OF-SELECTION.
         iv_duration_from     = p_tfrom
         iv_duration_to       = p_tto
         iv_stale_seconds     = p_stale
+        iv_running_age_to    = p_age_to
         iv_sort_by_shortage  = p_shrt
         iv_coverage_from     = p_covf
         iv_coverage_to       = p_covt
@@ -786,6 +815,7 @@ START-OF-SELECTION.
       OR p_tfrom IS NOT INITIAL
       OR p_tto IS NOT INITIAL
       OR p_stale IS NOT INITIAL
+      OR p_age_to IS NOT INITIAL
       OR p_covf IS NOT INITIAL
       OR p_covt IS NOT INITIAL
       OR p_spf IS NOT INITIAL
@@ -846,6 +876,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_stale IS NOT INITIAL.
     APPEND 'stale_running' TO lt_filter_names.
+  ENDIF.
+  IF p_age_to IS NOT INITIAL.
+    APPEND 'maximum_running_age' TO lt_filter_names.
   ENDIF.
   IF p_covf IS NOT INITIAL OR p_covt IS NOT INITIAL.
     APPEND 'coverage' TO lt_filter_names.

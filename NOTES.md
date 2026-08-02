@@ -2,6 +2,15 @@
 
 ## 2026-08-01
 
+- Added optional shortage bounds (`p_shf`/`p_sht`), demand-count bounds (`p_dfrom`/`p_dto`), available-stock bounds (`p_avf`/`p_avt`), requested-quantity bounds (`p_qf`/`p_qt`), and allocated-quantity bounds (`p_af`/`p_at`) to `ZSTOCK_ALLOC_WATCH`, using the validated audit read ranges and exporting the filters in human, CSV, JSON, and NDJSON output; watch contracts advance to schema version `22`.
+- Added optional shortage-percentage bounds (`p_spf`/`p_spt`) to `ZSTOCK_ALLOC_WATCH`, reusing the validated audit range and zero-request exclusion semantics; filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `23`.
+- Added `p_spct` shortage-percentage-first ordering to `ZSTOCK_ALLOC_WATCH`, with applicable percentages first, deterministic shortage/age/time/run-ID ties, detail `shortage_pct` output, and watch schema version `24`.
+- Added case-insensitive run-ID substring filtering (`p_runq`) to `ZSTOCK_ALLOC_WATCH`, combinable with exact `p_runid`; filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `25`.
+- Added `p_legacy` blank-strategy filtering to `ZSTOCK_ALLOC_WATCH`, mutually exclusive with `p_strat`; boolean filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `26`.
+- Added opt-in `p_typed` JSON output to `ZSTOCK_ALLOC_WATCH`; numeric filter bounds become JSON numbers, blank numeric bounds become `null`, and the default string-valued contract remains unchanged. Watch contracts advance to schema version `27`.
+
+- Added an optional maximum running-age filter (`p_age_to`/`iv_running_age_to`) to audit history, complementing the existing stale minimum; bounds are validated, the shared direct-read contract is covered by ABAP Unit, and reversed age windows are rejected.
+
 - Added explicit DDIC reference table/field metadata for all custom `QUAN` fields: result quantities reference `ZSTOCKALLOC-ALLOCATION_UNIT`, and audit quantities reference `ZSTOCKALLOC_RUN-UNIT`.
 - Pinned Open ABAP Core as a local npm development dependency and configured lint/transpilation to use it, removing the live GitHub clone requirement from every test run.
 - Renamed five authority classes and one retention interface whose names exceeded SAP's 30-character global object limit, updating all source and abapGit metadata references.

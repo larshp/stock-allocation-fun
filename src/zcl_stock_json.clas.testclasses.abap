@@ -6,6 +6,7 @@ CLASS ltcl_stock_json DEFINITION FINAL FOR TESTING
     METHODS escapes_control_chars FOR TESTING.
     METHODS formats_property FOR TESTING.
     METHODS formats_number_property FOR TESTING.
+    METHODS formats_filter_number_property FOR TESTING.
     METHODS formats_decimal_number FOR TESTING.
     METHODS formats_negative_number FOR TESTING.
     METHODS formats_boolean_property FOR TESTING.
@@ -43,6 +44,33 @@ CLASS ltcl_stock_json IMPLEMENTATION.
         iv_name  = 'row_count'
         iv_value = 12 )
       exp = '"row_count":12' ).
+  ENDMETHOD.
+
+  METHOD formats_filter_number_property.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>filter_number_property(
+        iv_name    = 'minimum_shortage'
+        iv_value   = 12
+        iv_text    = '12'
+        iv_present = abap_true
+        iv_typed   = abap_true )
+      exp = '"minimum_shortage":12' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>filter_number_property(
+        iv_name    = 'minimum_shortage'
+        iv_value   = 12
+        iv_text    = 'n/a'
+        iv_present = abap_false
+        iv_typed   = abap_true )
+      exp = '"minimum_shortage":null' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>filter_number_property(
+        iv_name    = 'minimum_shortage'
+        iv_value   = 12
+        iv_text    = 'n/a'
+        iv_present = abap_false
+        iv_typed   = abap_false )
+      exp = '"minimum_shortage":"n/a"' ).
   ENDMETHOD.
 
   METHOD formats_decimal_number.

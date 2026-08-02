@@ -148,6 +148,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_duration_from     TYPE i OPTIONAL
       iv_duration_to       TYPE i OPTIONAL
       iv_stale_seconds     TYPE i OPTIONAL
+      iv_running_age_to    TYPE i OPTIONAL
       iv_coverage_from     TYPE ty_coverage OPTIONAL
       iv_coverage_to       TYPE ty_coverage OPTIONAL
       iv_shortage_pct_from TYPE ty_coverage OPTIONAL

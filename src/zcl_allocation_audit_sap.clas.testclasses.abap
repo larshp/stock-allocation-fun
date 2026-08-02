@@ -105,6 +105,7 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_corrupt_read FOR TESTING.
     METHODS rejects_inverted_timestamp FOR TESTING.
     METHODS filters_duration_bounds FOR TESTING.
+    METHODS filters_max_running_age FOR TESTING.
     METHODS filters_shortage_percentage FOR TESTING.
     METHODS accepts_largest_strategy FOR TESTING.
     METHODS accepts_best_strategy FOR TESTING.
@@ -702,6 +703,85 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-AUDIT-STALE'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD filters_max_running_age.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-AUDIT-AGE-OLD'.
+    ls_run-matnr = 'MATERIAL-AUDIT-AGE'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = '20260101'.
+    ls_run-start_time = '010000'.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-AUDIT-AGE-NOW'.
+    ls_run-matnr = 'MATERIAL-AUDIT-AGE'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-AGE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_running_age_to   = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-run_id
+      exp = 'RUN-AUDIT-AGE-NOW' ).
+
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-AGE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_running_age_to   = -1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_age_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_age_error->message
+          exp = 'Audit maximum running age is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-AGE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_stale_seconds    = 10
+          iv_running_age_to   = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_age_bounds_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_age_bounds_error->message
+          exp = 'Audit running age bounds are invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-AUDIT-AGE'.
   ENDMETHOD.
 
   METHOD filters_shortage_percentage.

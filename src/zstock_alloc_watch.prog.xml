@@ -17,10 +17,23 @@
     <item><ID>S</ID><KEY>P_CHARG</KEY><ENTRY>Batch</ENTRY><LENGTH>13</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNID</KEY><ENTRY>Audit run ID</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RUNQ</KEY><ENTRY>Audit run ID contains</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_MSG</KEY><ENTRY>Diagnostic message contains</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_MONLY</KEY><ENTRY>Only runs with diagnostics</ENTRY><LENGTH>29</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHF</KEY><ENTRY>Minimum shortage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHT</KEY><ENTRY>Maximum shortage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPF</KEY><ENTRY>Minimum shortage percentage</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DFROM</KEY><ENTRY>Minimum demand count</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DTO</KEY><ENTRY>Maximum demand count</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVF</KEY><ENTRY>Minimum available stock</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVT</KEY><ENTRY>Maximum available stock</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QF</KEY><ENTRY>Minimum requested quantity</ENTRY><LENGTH>29</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QT</KEY><ENTRY>Maximum requested quantity</ENTRY><LENGTH>29</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AF</KEY><ENTRY>Minimum allocated quantity</ENTRY><LENGTH>29</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AT</KEY><ENTRY>Maximum allocated quantity</ENTRY><LENGTH>29</LENGTH></item>
     <item><ID>S</ID><KEY>P_COVF</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_COVT</KEY><ENTRY>Maximum coverage percentage</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
@@ -29,10 +42,12 @@
     <item><ID>S</ID><KEY>P_SKIP</KEY><ENTRY>Alert offset</ENTRY><LENGTH>18</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHRT</KEY><ENTRY>Sort by shortage</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Sort by coverage</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPCT</KEY><ENTRY>Sort by shortage percentage</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_NEW</KEY><ENTRY>Sort by newest</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_SUM</KEY><ENTRY>Summary CSV</ENTRY><LENGTH>16</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
     <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TYPED</KEY><ENTRY>Typed JSON filters</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_NDJSON</KEY><ENTRY>NDJSON output</ENTRY><LENGTH>20</LENGTH></item>
    </TPOOL>
   </asx:values>

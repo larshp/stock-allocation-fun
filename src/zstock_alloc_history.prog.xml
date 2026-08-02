@@ -191,6 +191,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_AGE_TO</KEY>
+     <ENTRY>Maximum running age seconds</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SHRT</KEY>
      <ENTRY>Shortage-first order</ENTRY>
      <LENGTH>27</LENGTH>

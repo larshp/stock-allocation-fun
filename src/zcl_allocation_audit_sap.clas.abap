@@ -667,7 +667,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_status_rank TYPE i.
     DATA lv_duration_seconds TYPE i.
-    DATA lv_stale_seconds TYPE i.
+    DATA lv_running_age_seconds TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_run
       WITH EMPTY KEY.
@@ -752,6 +752,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_stale_seconds < 0.
       raise_error( iv_message = 'Audit stale-running threshold is invalid' ).
+    ENDIF.
+    IF iv_running_age_to < 0.
+      raise_error( iv_message = 'Audit maximum running age is invalid' ).
+    ENDIF.
+    IF iv_stale_seconds IS NOT INITIAL
+        AND iv_running_age_to IS NOT INITIAL
+        AND iv_running_age_to < iv_stale_seconds.
+      raise_error( iv_message = 'Audit running age bounds are invalid' ).
     ENDIF.
     IF ( iv_coverage_from IS NOT INITIAL
           AND ( iv_coverage_from < 0 OR iv_coverage_from > 100 ) )
@@ -1053,7 +1061,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_message_only = abap_true.
       DELETE rt_runs WHERE message IS INITIAL.
     ENDIF.
-    IF iv_stale_seconds IS NOT INITIAL.
+    IF iv_stale_seconds IS NOT INITIAL OR iv_running_age_to IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
         IF <ls_run>-status <> 'R'.
           DELETE rt_runs.
@@ -1065,8 +1073,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               date2    = <ls_run>-start_date
               time2    = <ls_run>-start_time
             IMPORTING
-              res_secs = lv_stale_seconds ).
-          IF lv_stale_seconds < iv_stale_seconds.
+              res_secs = lv_running_age_seconds ).
+          IF lv_running_age_seconds < iv_stale_seconds
+              OR ( iv_running_age_to IS NOT INITIAL
+                AND lv_running_age_seconds > iv_running_age_to ).
             DELETE rt_runs.
           ENDIF.
         ENDIF.

@@ -4,6 +4,7 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
+    METHODS sorts_by_shortage_pct FOR TESTING.
     METHODS sorts_by_newest FOR TESTING.
     METHODS sorts_by_age_by_default FOR TESTING.
     METHODS limits_alerts_after_sort FOR TESTING.
@@ -68,6 +69,42 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_alerts[ 2 ]-run_id
       exp = 'HIGH' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 3 ]-run_id
+      exp = 'NA' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_shortage_pct.
+    DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
+
+    APPEND VALUE #( run_id                 = 'LOW'
+                    shortage_pct           = '20'
+                    shortage_pct_available = abap_true
+                    shortage               = '2'
+                    age_seconds            = 3600 ) TO lt_alerts.
+    APPEND VALUE #( run_id                 = 'HIGH'
+                    shortage_pct           = '80'
+                    shortage_pct_available = abap_true
+                    shortage               = '1'
+                    age_seconds            = 900 ) TO lt_alerts.
+    APPEND VALUE #( run_id                 = 'NA'
+                    shortage_pct_available = abap_false
+                    age_seconds            = 7200 ) TO lt_alerts.
+
+    zcl_stock_allocation_watch=>sort_and_limit(
+      EXPORTING
+        iv_sort_by_shortage = abap_false
+        iv_sort_by_shrt_pct = abap_true
+        iv_max              = 0
+      CHANGING
+        ct_alerts           = lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 1 ]-run_id
+      exp = 'HIGH' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 2 ]-run_id
+      exp = 'LOW' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_alerts[ 3 ]-run_id
       exp = 'NA' ).

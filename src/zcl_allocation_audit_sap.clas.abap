@@ -51,6 +51,43 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_allocation_audit~get_running_age.
+    DATA lv_seconds TYPE i.
+    DATA lv_now_date TYPE d.
+    DATA lv_now_time TYPE t.
+
+    CLEAR rs_age.
+    lv_now_date = sy-datum.
+    lv_now_time = sy-uzeit.
+    IF iv_now_date IS NOT INITIAL.
+      lv_now_date = iv_now_date.
+    ENDIF.
+    IF iv_now_time IS NOT INITIAL.
+      lv_now_time = iv_now_time.
+    ENDIF.
+    IF is_run-status <> 'R'
+        OR is_run-finish_date IS NOT INITIAL
+        OR is_run-start_date IS INITIAL
+        OR is_run-start_time IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    cl_abap_tstmp=>td_subtract(
+      EXPORTING
+        date1    = lv_now_date
+        time1    = lv_now_time
+        date2    = is_run-start_date
+        time2    = is_run-start_time
+      IMPORTING
+        res_secs = lv_seconds ).
+    IF lv_seconds < 0.
+      RETURN.
+    ENDIF.
+
+    rs_age-available = abap_true.
+    rs_age-seconds = lv_seconds.
+  ENDMETHOD.
+
   METHOD zif_allocation_audit~purge_runs_before.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -76,6 +113,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
       WITH UNIQUE KEY table_line.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_deleted_snapshots TYPE i.
     IF iv_unit IS INITIAL.
       SELECT run_id
         FROM zstockalloc_run
@@ -115,6 +153,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND allocation_unit = @iv_unit
             AND run_id = @lv_run_id.
       ENDIF.
+      lv_deleted_snapshots = lv_deleted_snapshots + sy-dbcnt.
     ENDLOOP.
     IF iv_unit IS INITIAL.
       DELETE FROM zstockalloc_run
@@ -135,6 +174,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND status <> 'R'.
     ENDIF.
     rv_deleted = sy-dbcnt.
+    ev_deleted_snapshots = lv_deleted_snapshots.
     IF mo_transaction IS BOUND.
       TRY.
           mo_transaction->commit( ).
@@ -248,6 +288,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~get_summary.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lv_summary_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_last_duration_seconds TYPE i.
+    DATA lv_duration_seconds TYPE i.
+    DATA lv_duration_total TYPE p LENGTH 12 DECIMALS 2.
+    DATA lv_duration_count TYPE i.
+    DATA lv_running_age_seconds TYPE i.
+    DATA lv_running_age_count TYPE i.
+    DATA ls_running_age TYPE zif_allocation_audit=>ty_running_age.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
     lt_runs = zif_allocation_audit~get_runs(
@@ -255,12 +302,31 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_plant            = iv_plant
       iv_storage_location = iv_storage_location
       iv_batch            = iv_batch
-      iv_unit             = iv_unit ).
+      iv_unit             = iv_unit
+      iv_strategy         = iv_strategy
+      iv_legacy_strategy  = iv_legacy_strategy ).
     IF iv_unit IS NOT INITIAL.
       rs_summary-unit = iv_unit.
     ENDIF.
     LOOP AT lt_runs ASSIGNING <ls_run>.
       rs_summary-total_runs = rs_summary-total_runs + 1.
+      CASE <ls_run>-strategy.
+        WHEN 'P'.
+          rs_summary-priority_runs = rs_summary-priority_runs + 1.
+        WHEN 'F'.
+          rs_summary-fifo_runs = rs_summary-fifo_runs + 1.
+        WHEN 'N'.
+          rs_summary-full_only_runs = rs_summary-full_only_runs + 1.
+        WHEN 'S'.
+          rs_summary-smallest_runs = rs_summary-smallest_runs + 1.
+        WHEN 'L'.
+          rs_summary-largest_runs = rs_summary-largest_runs + 1.
+        WHEN 'B'.
+          rs_summary-best_runs = rs_summary-best_runs + 1.
+        WHEN OTHERS.
+          rs_summary-legacy_strategy_runs =
+            rs_summary-legacy_strategy_runs + 1.
+      ENDCASE.
       IF lv_summary_unit IS INITIAL.
         lv_summary_unit = <ls_run>-unit.
       ELSEIF lv_summary_unit <> <ls_run>-unit.
@@ -269,6 +335,66 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       IF rs_summary-mixed_units <> abap_true.
         rs_summary-allocated = rs_summary-allocated + <ls_run>-allocated.
         rs_summary-shortage = rs_summary-shortage + <ls_run>-shortage.
+        rs_summary-requested = rs_summary-requested
+          + <ls_run>-allocated + <ls_run>-shortage.
+        CASE <ls_run>-strategy.
+          WHEN 'P'.
+            rs_summary-priority_allocated =
+              rs_summary-priority_allocated + <ls_run>-allocated.
+            rs_summary-priority_shortage =
+              rs_summary-priority_shortage + <ls_run>-shortage.
+            rs_summary-priority_requested =
+              rs_summary-priority_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN 'F'.
+            rs_summary-fifo_allocated =
+              rs_summary-fifo_allocated + <ls_run>-allocated.
+            rs_summary-fifo_shortage =
+              rs_summary-fifo_shortage + <ls_run>-shortage.
+            rs_summary-fifo_requested =
+              rs_summary-fifo_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN 'N'.
+            rs_summary-full_only_allocated =
+              rs_summary-full_only_allocated + <ls_run>-allocated.
+            rs_summary-full_only_shortage =
+              rs_summary-full_only_shortage + <ls_run>-shortage.
+            rs_summary-full_only_requested =
+              rs_summary-full_only_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN 'S'.
+            rs_summary-smallest_allocated =
+              rs_summary-smallest_allocated + <ls_run>-allocated.
+            rs_summary-smallest_shortage =
+              rs_summary-smallest_shortage + <ls_run>-shortage.
+            rs_summary-smallest_requested =
+              rs_summary-smallest_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN 'L'.
+            rs_summary-largest_allocated =
+              rs_summary-largest_allocated + <ls_run>-allocated.
+            rs_summary-largest_shortage =
+              rs_summary-largest_shortage + <ls_run>-shortage.
+            rs_summary-largest_requested =
+              rs_summary-largest_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN 'B'.
+            rs_summary-best_allocated =
+              rs_summary-best_allocated + <ls_run>-allocated.
+            rs_summary-best_shortage =
+              rs_summary-best_shortage + <ls_run>-shortage.
+            rs_summary-best_requested =
+              rs_summary-best_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+          WHEN OTHERS.
+            rs_summary-legacy_allocated =
+              rs_summary-legacy_allocated + <ls_run>-allocated.
+            rs_summary-legacy_shortage =
+              rs_summary-legacy_shortage + <ls_run>-shortage.
+            rs_summary-legacy_requested =
+              rs_summary-legacy_requested + <ls_run>-allocated
+              + <ls_run>-shortage.
+        ENDCASE.
       ENDIF.
       rs_summary-full_count = rs_summary-full_count + <ls_run>-full_count.
       rs_summary-partial_count = rs_summary-partial_count + <ls_run>-partial_count.
@@ -276,6 +402,26 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         rs_summary-unallocated_count + <ls_run>-unallocated_count.
       IF <ls_run>-status = 'R'.
         rs_summary-running_runs = rs_summary-running_runs + 1.
+        ls_running_age = zif_allocation_audit~get_running_age(
+          is_run = <ls_run> ).
+        IF ls_running_age-available = abap_true.
+          lv_running_age_seconds = ls_running_age-seconds.
+          lv_running_age_count = lv_running_age_count + 1.
+          IF lv_running_age_count = 1
+              OR lv_running_age_seconds
+                 > rs_summary-oldest_running_age_seconds.
+            rs_summary-oldest_running_age_seconds =
+              lv_running_age_seconds.
+            rs_summary-oldest_running_run_id = <ls_run>-run_id.
+          ENDIF.
+          IF lv_running_age_count = 1
+              OR lv_running_age_seconds
+                 < rs_summary-newest_running_age_seconds.
+            rs_summary-newest_running_age_seconds =
+              lv_running_age_seconds.
+            rs_summary-newest_running_run_id = <ls_run>-run_id.
+          ENDIF.
+        ENDIF.
       ELSEIF <ls_run>-status = 'S'.
         rs_summary-success_runs = rs_summary-success_runs + 1.
       ELSEIF <ls_run>-status = 'P'.
@@ -283,26 +429,162 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSEIF <ls_run>-status = 'E'.
         rs_summary-error_runs = rs_summary-error_runs + 1.
       ENDIF.
+      IF <ls_run>-finish_date IS NOT INITIAL.
+        CLEAR lv_duration_seconds.
+        cl_abap_tstmp=>td_subtract(
+          EXPORTING
+            date1    = <ls_run>-finish_date
+            time1    = <ls_run>-finish_time
+            date2    = <ls_run>-start_date
+            time2    = <ls_run>-start_time
+        IMPORTING
+            res_secs = lv_duration_seconds ).
+        lv_duration_total = lv_duration_total + lv_duration_seconds.
+        IF lv_duration_count = 0
+            OR lv_duration_seconds < rs_summary-minimum_duration_seconds.
+          rs_summary-minimum_duration_seconds = lv_duration_seconds.
+        ENDIF.
+        IF lv_duration_count = 0
+            OR lv_duration_seconds > rs_summary-maximum_duration_seconds.
+          rs_summary-maximum_duration_seconds = lv_duration_seconds.
+        ENDIF.
+        lv_duration_count = lv_duration_count + 1.
+      ENDIF.
       IF <ls_run>-start_date > rs_summary-last_start_date
           OR ( <ls_run>-start_date = rs_summary-last_start_date
-            AND <ls_run>-start_time > rs_summary-last_start_time ).
+            AND <ls_run>-start_time > rs_summary-last_start_time )
+          OR ( <ls_run>-start_date = rs_summary-last_start_date
+            AND <ls_run>-start_time = rs_summary-last_start_time
+            AND <ls_run>-run_id > rs_summary-last_run_id ).
         rs_summary-last_run_id = <ls_run>-run_id.
         rs_summary-last_start_date = <ls_run>-start_date.
         rs_summary-last_start_time = <ls_run>-start_time.
         rs_summary-last_requested_on_from = <ls_run>-requested_on_from.
         rs_summary-last_requested_on_to = <ls_run>-requested_on_to.
+        rs_summary-last_strategy = <ls_run>-strategy.
         rs_summary-last_finish_date = <ls_run>-finish_date.
         rs_summary-last_finish_time = <ls_run>-finish_time.
+        CLEAR lv_last_duration_seconds.
+        IF <ls_run>-finish_date IS NOT INITIAL.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = <ls_run>-finish_date
+              time1    = <ls_run>-finish_time
+              date2    = <ls_run>-start_date
+              time2    = <ls_run>-start_time
+            IMPORTING
+              res_secs = lv_last_duration_seconds ).
+        ENDIF.
+        rs_summary-last_duration_seconds = lv_last_duration_seconds.
         rs_summary-last_status = <ls_run>-status.
         rs_summary-last_message = <ls_run>-message.
       ENDIF.
     ENDLOOP.
+    IF lv_duration_count > 0.
+      rs_summary-average_duration_seconds = lv_duration_total
+        / lv_duration_count.
+    ENDIF.
+    rs_summary-completed_duration_runs = lv_duration_count.
+    IF rs_summary-total_runs > 0.
+      rs_summary-completion_pct =
+        ( rs_summary-success_runs + rs_summary-partial_runs
+          + rs_summary-error_runs ) * 100 / rs_summary-total_runs.
+    ENDIF.
+    IF rs_summary-success_runs + rs_summary-partial_runs
+        + rs_summary-error_runs > 0.
+      rs_summary-success_rate_pct = rs_summary-success_runs * 100
+        / ( rs_summary-success_runs + rs_summary-partial_runs
+          + rs_summary-error_runs ).
+      rs_summary-partial_rate_pct = rs_summary-partial_runs * 100
+        / ( rs_summary-success_runs + rs_summary-partial_runs
+          + rs_summary-error_runs ).
+      rs_summary-error_rate_pct = rs_summary-error_runs * 100
+        / ( rs_summary-success_runs + rs_summary-partial_runs
+          + rs_summary-error_runs ).
+    ENDIF.
     IF rs_summary-mixed_units = abap_true.
       CLEAR: rs_summary-allocated,
              rs_summary-shortage,
+             rs_summary-requested,
+             rs_summary-coverage,
+             rs_summary-shortage_pct,
+             rs_summary-priority_allocated,
+             rs_summary-priority_shortage,
+             rs_summary-priority_requested,
+             rs_summary-fifo_allocated,
+             rs_summary-fifo_shortage,
+             rs_summary-fifo_requested,
+             rs_summary-full_only_allocated,
+             rs_summary-full_only_shortage,
+             rs_summary-full_only_requested,
+             rs_summary-smallest_allocated,
+             rs_summary-smallest_shortage,
+             rs_summary-smallest_requested,
+             rs_summary-largest_allocated,
+             rs_summary-largest_shortage,
+             rs_summary-largest_requested,
+             rs_summary-best_allocated,
+             rs_summary-best_shortage,
+             rs_summary-best_requested,
+             rs_summary-legacy_allocated,
+             rs_summary-legacy_shortage,
+             rs_summary-legacy_requested,
              rs_summary-unit.
     ELSEIF iv_unit IS INITIAL.
       rs_summary-unit = lv_summary_unit.
+    ENDIF.
+    IF rs_summary-mixed_units = abap_false.
+      IF rs_summary-requested > 0.
+        rs_summary-coverage = rs_summary-allocated * 100
+          / rs_summary-requested.
+        rs_summary-shortage_pct = rs_summary-shortage * 100
+          / rs_summary-requested.
+      ENDIF.
+      IF rs_summary-priority_requested > 0.
+        rs_summary-priority_coverage =
+          rs_summary-priority_allocated * 100
+          / rs_summary-priority_requested.
+      ENDIF.
+      IF rs_summary-fifo_requested > 0.
+        rs_summary-fifo_coverage =
+          rs_summary-fifo_allocated * 100
+          / rs_summary-fifo_requested.
+      ENDIF.
+      IF rs_summary-full_only_requested > 0.
+        rs_summary-full_only_coverage =
+          rs_summary-full_only_allocated * 100
+          / rs_summary-full_only_requested.
+      ENDIF.
+      IF rs_summary-smallest_requested > 0.
+        rs_summary-smallest_coverage =
+          rs_summary-smallest_allocated * 100
+          / rs_summary-smallest_requested.
+      ENDIF.
+      IF rs_summary-largest_requested > 0.
+        rs_summary-largest_coverage =
+          rs_summary-largest_allocated * 100
+          / rs_summary-largest_requested.
+      ENDIF.
+      IF rs_summary-best_requested > 0.
+        rs_summary-best_coverage =
+          rs_summary-best_allocated * 100
+          / rs_summary-best_requested.
+      ENDIF.
+      IF rs_summary-legacy_requested > 0.
+        rs_summary-legacy_coverage =
+          rs_summary-legacy_allocated * 100
+          / rs_summary-legacy_requested.
+      ENDIF.
+    ELSE.
+      CLEAR: rs_summary-coverage,
+             rs_summary-shortage_pct,
+             rs_summary-priority_coverage,
+             rs_summary-fifo_coverage,
+             rs_summary-full_only_coverage,
+             rs_summary-smallest_coverage,
+             rs_summary-largest_coverage,
+             rs_summary-best_coverage,
+             rs_summary-legacy_coverage.
     ENDIF.
   ENDMETHOD.
 
@@ -371,16 +653,21 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     TYPES:
       BEGIN OF ty_coverage_run,
         coverage         TYPE zif_allocation_audit=>ty_coverage,
+        shortage_pct     TYPE zif_allocation_audit=>ty_coverage,
         shortage         TYPE zif_stock_allocation=>ty_quantity,
         start_date       TYPE d,
         start_time       TYPE t,
         run_id           TYPE zif_allocation_audit=>ty_run_id,
+        status_rank      TYPE i,
         duration_seconds TYPE i,
         run              TYPE zif_allocation_audit=>ty_run,
       END OF ty_coverage_run.
     DATA lt_filtered TYPE zif_allocation_audit=>tt_runs.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_status_rank TYPE i.
     DATA lv_duration_seconds TYPE i.
+    DATA lv_stale_seconds TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_run
       WITH EMPTY KEY.
@@ -395,6 +682,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_max_rows < 0.
       raise_error( iv_message = 'Audit history row limit is invalid' ).
+    ENDIF.
+    IF iv_offset < 0.
+      raise_error( iv_message = 'Audit history row offset is invalid' ).
     ENDIF.
     IF iv_start_date_from IS NOT INITIAL
         AND iv_start_date_to IS NOT INITIAL
@@ -460,6 +750,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_duration_from > iv_duration_to.
       raise_error( iv_message = 'Audit duration range is invalid' ).
     ENDIF.
+    IF iv_stale_seconds < 0.
+      raise_error( iv_message = 'Audit stale-running threshold is invalid' ).
+    ENDIF.
     IF ( iv_coverage_from IS NOT INITIAL
           AND ( iv_coverage_from < 0 OR iv_coverage_from > 100 ) )
         OR ( iv_coverage_to IS NOT INITIAL
@@ -470,6 +763,17 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_coverage_to IS NOT INITIAL
         AND iv_coverage_from > iv_coverage_to.
       raise_error( iv_message = 'Audit coverage range is invalid' ).
+    ENDIF.
+    IF ( iv_shortage_pct_from IS NOT INITIAL
+          AND ( iv_shortage_pct_from < 0 OR iv_shortage_pct_from > 100 ) )
+        OR ( iv_shortage_pct_to IS NOT INITIAL
+          AND ( iv_shortage_pct_to < 0 OR iv_shortage_pct_to > 100 ) ).
+      raise_error( iv_message = 'Audit shortage percentage range is invalid' ).
+    ENDIF.
+    IF iv_shortage_pct_from IS NOT INITIAL
+        AND iv_shortage_pct_to IS NOT INITIAL
+        AND iv_shortage_pct_from > iv_shortage_pct_to.
+      raise_error( iv_message = 'Audit shortage percentage range is invalid' ).
     ENDIF.
     IF iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
@@ -483,6 +787,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_status <> 'E'.
       raise_error( iv_message = 'Audit status is invalid' ).
     ENDIF.
+    IF iv_strategy IS NOT INITIAL
+        AND iv_strategy <> 'P'
+        AND iv_strategy <> 'F'
+        AND iv_strategy <> 'N'
+        AND iv_strategy <> 'S'
+        AND iv_strategy <> 'L'
+        AND iv_strategy <> 'B'.
+      raise_error( iv_message = 'Audit strategy is invalid' ).
+    ENDIF.
+    IF iv_legacy_strategy = abap_true
+        AND iv_strategy IS NOT INITIAL.
+      raise_error( iv_message = 'Audit strategy filters conflict' ).
+    ENDIF.
     IF mo_read_authority IS BOUND.
       TRY.
           mo_read_authority->check_audit( ).
@@ -494,39 +811,96 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDTRY.
     ENDIF.
 
-    SELECT run_id,
-           matnr AS material,
-           werks AS plant,
-           lgort AS storage_location,
-           batch,
-           unit,
-           start_date,
-           start_time,
-            finish_date,
-            finish_time,
-            status,
-            available,
-           demand_count,
-           requested_on_from,
-           requested_on_to,
-            full_count,
-           partial_count,
-           unallocated_count,
-           allocated,
-           shortage,
-           message
-      FROM zstockalloc_run
-      INTO TABLE @rt_runs
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-        AND batch = @iv_batch.
+    IF iv_run_id IS INITIAL.
+      SELECT run_id,
+             matnr AS material,
+             werks AS plant,
+             lgort AS storage_location,
+             batch,
+             unit,
+             strategy,
+             start_date,
+             start_time,
+              finish_date,
+              finish_time,
+              status,
+              available,
+             demand_count,
+             requested_on_from,
+             requested_on_to,
+              full_count,
+             partial_count,
+             unallocated_count,
+             allocated,
+             shortage,
+             message
+        FROM zstockalloc_run
+        INTO TABLE @rt_runs
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND ( @iv_strategy = @space OR strategy = @iv_strategy ).
+    ELSE.
+      SELECT run_id,
+             matnr AS material,
+             werks AS plant,
+             lgort AS storage_location,
+             batch,
+             unit,
+             strategy,
+             start_date,
+             start_time,
+              finish_date,
+              finish_time,
+              status,
+              available,
+             demand_count,
+             requested_on_from,
+             requested_on_to,
+              full_count,
+             partial_count,
+             unallocated_count,
+             allocated,
+             shortage,
+             message
+        FROM zstockalloc_run
+        INTO TABLE @rt_runs
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND run_id = @iv_run_id
+          AND ( @iv_strategy = @space OR strategy = @iv_strategy ).
+    ENDIF.
     IF sy-subrc <> 0.
       CLEAR rt_runs.
     ENDIF.
     LOOP AT rt_runs ASSIGNING <ls_run>.
       validate_run( is_run = <ls_run> ).
+      <ls_run>-requested = <ls_run>-allocated + <ls_run>-shortage.
     ENDLOOP.
+    IF iv_run_id_contains IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-run_id NS iv_run_id_contains.
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_strategy IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-strategy <> iv_strategy.
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_legacy_strategy = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-strategy IS NOT INITIAL.
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
     IF iv_run_id IS NOT INITIAL
         OR iv_requested_on_from IS NOT INITIAL
         OR iv_requested_on_to IS NOT INITIAL
@@ -631,6 +1005,22 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDLOOP.
       rt_runs = lt_filtered.
     ENDIF.
+    IF iv_shortage_pct_from IS NOT INITIAL
+        OR iv_shortage_pct_to IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-allocated + <ls_run>-shortage > 0.
+          lv_shortage_pct = <ls_run>-shortage * 100
+            / ( <ls_run>-allocated + <ls_run>-shortage ).
+          IF ( iv_shortage_pct_from IS INITIAL
+                OR lv_shortage_pct >= iv_shortage_pct_from )
+              AND ( iv_shortage_pct_to IS INITIAL
+                OR lv_shortage_pct <= iv_shortage_pct_to ).
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        DELETE rt_runs.
+      ENDLOOP.
+    ENDIF.
     IF iv_duration_from IS NOT INITIAL OR iv_duration_to IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
         IF <ls_run>-finish_date IS INITIAL.
@@ -663,6 +1053,25 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_message_only = abap_true.
       DELETE rt_runs WHERE message IS INITIAL.
     ENDIF.
+    IF iv_stale_seconds IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-status <> 'R'.
+          DELETE rt_runs.
+        ELSE.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = sy-datum
+              time1    = sy-uzeit
+              date2    = <ls_run>-start_date
+              time2    = <ls_run>-start_time
+            IMPORTING
+              res_secs = lv_stale_seconds ).
+          IF lv_stale_seconds < iv_stale_seconds.
+            DELETE rt_runs.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
     IF iv_sort_by_coverage = abap_true.
       LOOP AT rt_runs ASSIGNING <ls_run>.
         CLEAR lv_coverage.
@@ -684,6 +1093,56 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       CLEAR rt_runs.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_coverage_run>).
         APPEND <ls_coverage_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_shrt_pct = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        CLEAR lv_shortage_pct.
+        IF <ls_run>-allocated + <ls_run>-shortage > 0.
+          lv_shortage_pct = <ls_run>-shortage * 100
+            / ( <ls_run>-allocated + <ls_run>-shortage ).
+        ENDIF.
+        APPEND VALUE #(
+          shortage_pct = lv_shortage_pct
+          shortage     = <ls_run>-shortage
+          start_date   = <ls_run>-start_date
+          start_time   = <ls_run>-start_time
+          run_id       = <ls_run>-run_id
+          run          = <ls_run> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY shortage_pct DESCENDING shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_run>).
+        APPEND <ls_shortage_pct_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_status = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        CASE <ls_run>-status.
+          WHEN 'E'.
+            lv_status_rank = 1.
+          WHEN 'P'.
+            lv_status_rank = 2.
+          WHEN 'R'.
+            lv_status_rank = 3.
+          WHEN OTHERS.
+            lv_status_rank = 4.
+        ENDCASE.
+        APPEND VALUE #(
+          status_rank = lv_status_rank
+          shortage    = <ls_run>-shortage
+          start_date  = <ls_run>-start_date
+          start_time  = <ls_run>-start_time
+          run_id      = <ls_run>-run_id
+          run         = <ls_run> ) TO lt_duration_sorted.
+      ENDLOOP.
+      SORT lt_duration_sorted BY status_rank
+                                 shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_duration_sorted ASSIGNING FIELD-SYMBOL(<ls_status_run>).
+        APPEND <ls_status_run>-run TO rt_runs.
       ENDLOOP.
     ELSEIF iv_sort_by_duration = abap_true.
       LOOP AT rt_runs ASSIGNING <ls_run>.
@@ -725,6 +1184,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                       start_time DESCENDING
                       run_id DESCENDING.
     ENDIF.
+    ev_total_rows = lines( rt_runs ).
+    IF iv_offset > 0.
+      IF iv_offset >= lines( rt_runs ).
+        CLEAR rt_runs.
+      ELSE.
+        DELETE rt_runs FROM 1 TO iv_offset.
+      ENDIF.
+    ENDIF.
     IF iv_max_rows > 0 AND lines( rt_runs ) > iv_max_rows.
       lv_limit_start = iv_max_rows + 1.
       DELETE rt_runs FROM lv_limit_start.
@@ -738,6 +1205,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_requested_on_to IS NOT INITIAL
         AND iv_requested_on_from > iv_requested_on_to.
       raise_error( iv_message = 'Audit requested date range is invalid' ).
+    ENDIF.
+    IF iv_strategy IS NOT INITIAL
+        AND iv_strategy <> 'P'
+        AND iv_strategy <> 'F'
+        AND iv_strategy <> 'N'
+        AND iv_strategy <> 'S'
+        AND iv_strategy <> 'L'
+        AND iv_strategy <> 'B'.
+      raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -772,6 +1248,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-requested_on_from = iv_requested_on_from.
     ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = iv_unit.
+    ls_run-strategy = iv_strategy.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-status = 'R'.
@@ -829,7 +1306,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_available <> lv_current_available
         OR iv_allocated > lv_current_available
-        OR ( iv_status = 'S' AND iv_shortage <> 0 ).
+        OR ( iv_status = 'S' AND iv_shortage <> 0 )
+        OR ( iv_status = 'P' AND iv_shortage <= 0 ).
       raise_error( iv_message = 'Audit final metrics are invalid' ).
     ENDIF.
     UPDATE zstockalloc_run
@@ -896,6 +1374,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND is_run-status <> 'E'.
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
+    IF is_run-strategy IS NOT INITIAL
+        AND is_run-strategy <> 'P'
+        AND is_run-strategy <> 'F'
+        AND is_run-strategy <> 'N'
+        AND is_run-strategy <> 'S'
+        AND is_run-strategy <> 'L'
+        AND is_run-strategy <> 'B'.
+      raise_error( iv_message = 'Audit run data is invalid' ).
+    ENDIF.
     IF ( is_run-status = 'R'
           AND ( is_run-finish_date IS NOT INITIAL
             OR is_run-finish_time IS NOT INITIAL
@@ -911,6 +1398,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR ( is_run-status = 'S'
           AND ( is_run-shortage <> 0
             OR is_run-message IS NOT INITIAL ) )
+        OR ( is_run-status = 'P'
+          AND is_run-shortage <= 0 )
         OR ( ( is_run-status = 'P' OR is_run-status = 'E' )
           AND is_run-message IS INITIAL )
         OR ( is_run-status <> 'R'

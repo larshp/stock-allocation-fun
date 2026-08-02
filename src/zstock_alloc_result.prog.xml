@@ -47,9 +47,33 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_RUNID</KEY>
-     <ENTRY>Allocation run</ENTRY>
-     <LENGTH>20</LENGTH>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Allocation run</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STRAT</KEY>
+     <ENTRY>Alloc strategy (P/F/N/S/L/B)</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LEGACY</KEY>
+    <ENTRY>Legacy strategy runs only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LATEST</KEY>
+     <ENTRY>Latest matching run only</ENTRY>
+     <LENGTH>29</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -149,6 +173,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_RAGE</KEY>
+     <ENTRY>Reservation age days</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_FROM</KEY>
      <ENTRY>Requested from</ENTRY>
      <LENGTH>20</LENGTH>
@@ -221,9 +251,27 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_SPF</KEY>
+     <ENTRY>Shortage percentage from (%)</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPT</KEY>
+     <ENTRY>Shortage percentage to (%)</ENTRY>
+     <LENGTH>33</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_PRI</KEY>
      <ENTRY>Sort by priority</ENTRY>
      <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SSTAT</KEY>
+     <ENTRY>Shortage status first</ENTRY>
+     <LENGTH>27</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -251,6 +299,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_SPCT</KEY>
+     <ENTRY>Sort by shortage percentage</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SUM</KEY>
      <ENTRY>Summary only</ENTRY>
      <LENGTH>18</LENGTH>
@@ -259,6 +313,12 @@
      <ID>S</ID>
      <KEY>P_MAX</KEY>
      <ENTRY>Maximum rows</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SKIP</KEY>
+     <ENTRY>Rows to skip</ENTRY>
      <LENGTH>18</LENGTH>
     </item>
     <item>
@@ -285,6 +345,24 @@
      <ENTRY>JSON detail output</ENTRY>
      <LENGTH>23</LENGTH>
     </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_META</KEY>
+    <ENTRY>JSON metadata wrapper</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TYPED</KEY>
+    <ENTRY>Typed JSON row fields</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDJSON</KEY>
+    <ENTRY>NDJSON detail output</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

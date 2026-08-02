@@ -7,6 +7,9 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_batch                      TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_unit                       TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_run_id                     TYPE zif_stock_allocation=>ty_run_id OPTIONAL
+      iv_run_id_contains            TYPE zif_stock_allocation=>ty_run_id OPTIONAL
+      iv_strategy                   TYPE zif_allocation_audit=>ty_strategy OPTIONAL
+      iv_legacy_strategy            TYPE abap_bool OPTIONAL
       iv_status                     TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
       iv_sales_document             TYPE zif_stock_allocation=>ty_sales_document OPTIONAL
       iv_sales_document_type        TYPE zif_stock_allocation=>ty_sales_document_type OPTIONAL
@@ -23,6 +26,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_overdue_only               TYPE abap_bool OPTIONAL
       iv_reservation_date_from      TYPE d OPTIONAL
       iv_reservation_date_to        TYPE d OPTIONAL
+      iv_reservation_age_from       TYPE i OPTIONAL
       iv_requested_on_from          TYPE d OPTIONAL
       iv_requested_on_to            TYPE d OPTIONAL
       iv_priority_from              TYPE zif_stock_allocation=>ty_priority OPTIONAL
@@ -35,14 +39,21 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_allocated_quantity_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_coverage_from              TYPE zif_allocation_audit=>ty_coverage OPTIONAL
       iv_coverage_to                TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+      iv_shortage_pct_from          TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+      iv_shortage_pct_to            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
       iv_max_rows                   TYPE i OPTIONAL
       iv_sort_by_priority           TYPE abap_bool OPTIONAL
+      iv_sort_by_status             TYPE abap_bool OPTIONAL
       iv_sort_by_requested_date     TYPE abap_bool OPTIONAL
       iv_sort_by_reservation_date   TYPE abap_bool OPTIONAL
       iv_sort_by_shortage           TYPE abap_bool OPTIONAL
       iv_sort_by_coverage           TYPE abap_bool OPTIONAL
+      iv_sort_by_shrt_pct           TYPE abap_bool OPTIONAL
       iv_sort_by_requested_quantity TYPE abap_bool OPTIONAL
       iv_sort_by_allocated_quantity TYPE abap_bool OPTIONAL
+      iv_offset                     TYPE i OPTIONAL
+    EXPORTING
+      ev_total_rows                 TYPE i
     RETURNING
       VALUE(rt_demands)             TYPE zif_stock_allocation=>tt_demands
     RAISING

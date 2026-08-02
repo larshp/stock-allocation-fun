@@ -52,7 +52,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   METHOD zif_allocation_sink~get_allocations.
     TYPES:
       BEGIN OF ty_coverage_line,
+        status_rank     TYPE i,
         coverage        TYPE zif_allocation_audit=>ty_coverage,
+        shortage_pct    TYPE zif_allocation_audit=>ty_coverage,
         shortage        TYPE zif_stock_allocation=>ty_quantity,
         requested_on    TYPE d,
         allocation_unit TYPE zif_stock_allocation=>ty_unit,
@@ -60,16 +62,27 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         order_id        TYPE zif_stock_allocation=>ty_order_id,
         demand          TYPE zif_stock_allocation=>ty_demand,
       END OF ty_coverage_line.
+    TYPES:
+      BEGIN OF ty_strategy_run,
+        run_id   TYPE zif_stock_allocation=>ty_run_id,
+        strategy TYPE c LENGTH 1,
+      END OF ty_strategy_run.
     DATA lv_run_id TYPE zif_stock_allocation=>ty_run_id.
     DATA lv_allocation_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_reservation_cutoff TYPE d.
+    DATA lv_status_rank TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lt_coverage_filtered TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_strategy_runs TYPE SORTED TABLE OF ty_strategy_run
+      WITH UNIQUE KEY run_id.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_line
       WITH EMPTY KEY.
     DATA lt_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
       WITH UNIQUE KEY table_line.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
+    FIELD-SYMBOLS <ls_strategy_run> TYPE ty_strategy_run.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
@@ -77,6 +90,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF iv_max_rows < 0.
       raise_error( iv_message = 'Allocation result row limit is invalid' ).
+    ENDIF.
+    IF iv_offset < 0.
+      raise_error( iv_message = 'Allocation result row offset is invalid' ).
     ENDIF.
     IF iv_reserved_only = abap_true
         AND iv_unreserved_only = abap_true.
@@ -93,6 +109,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND iv_reservation_date_from > iv_reservation_date_to.
       raise_error(
         iv_message = 'Allocation result reservation date range is invalid' ).
+    ENDIF.
+    IF iv_reservation_age_from < 0.
+      raise_error(
+        iv_message = 'Allocation result reservation age is invalid' ).
     ENDIF.
     IF iv_priority_from IS NOT INITIAL
         AND iv_priority_to IS NOT INITIAL
@@ -147,11 +167,38 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation result coverage range is invalid' ).
     ENDIF.
+    IF ( iv_shortage_pct_from IS NOT INITIAL
+          AND ( iv_shortage_pct_from < 0 OR iv_shortage_pct_from > 100 ) )
+        OR ( iv_shortage_pct_to IS NOT INITIAL
+          AND ( iv_shortage_pct_to < 0 OR iv_shortage_pct_to > 100 ) ).
+      raise_error(
+        iv_message = 'Allocation result shortage percentage range is invalid' ).
+    ENDIF.
+    IF iv_shortage_pct_from IS NOT INITIAL
+        AND iv_shortage_pct_to IS NOT INITIAL
+        AND iv_shortage_pct_from > iv_shortage_pct_to.
+      raise_error(
+        iv_message = 'Allocation result shortage percentage range is invalid' ).
+    ENDIF.
     IF iv_status IS NOT INITIAL
         AND iv_status <> 'F'
         AND iv_status <> 'P'
         AND iv_status <> 'U'.
       raise_error( iv_message = 'Allocation snapshot status is invalid' ).
+    ENDIF.
+    IF iv_strategy IS NOT INITIAL
+        AND iv_strategy <> 'P'
+        AND iv_strategy <> 'F'
+        AND iv_strategy <> 'N'
+        AND iv_strategy <> 'S'
+        AND iv_strategy <> 'L'
+        AND iv_strategy <> 'B'.
+      raise_error( iv_message = 'Allocation snapshot strategy is invalid' ).
+    ENDIF.
+    IF iv_strategy IS NOT INITIAL
+        AND iv_legacy_strategy = abap_true.
+      raise_error(
+        iv_message = 'Allocation result strategy filters conflict' ).
     ENDIF.
     IF mo_read_authority IS BOUND.
       TRY.
@@ -163,19 +210,36 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
           RAISE EXCEPTION lo_read_error.
       ENDTRY.
     ENDIF.
-    SELECT run_id AS allocation_run_id,
-           allocation_unit,
-           sales_document, sales_document_type, sales_item, schedule_line, order_unit,
-           requested_on, order_id, priority,
-           requested, allocated, shortage, allocation_status,
-           reservation_id,
-           reservation_date, reservation_movement_type, reservation_unit
-      FROM zstockalloc
-      INTO CORRESPONDING FIELDS OF TABLE @rt_demands
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-        AND batch = @iv_batch.
+    IF iv_run_id IS INITIAL.
+      SELECT run_id AS allocation_run_id,
+             allocation_unit,
+             sales_document, sales_document_type, sales_item, schedule_line, order_unit,
+             requested_on, order_id, priority,
+             requested, allocated, shortage, allocation_status,
+             reservation_id,
+             reservation_date, reservation_movement_type, reservation_unit
+        FROM zstockalloc
+        INTO CORRESPONDING FIELDS OF TABLE @rt_demands
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch.
+    ELSE.
+      SELECT run_id AS allocation_run_id,
+             allocation_unit,
+             sales_document, sales_document_type, sales_item, schedule_line, order_unit,
+             requested_on, order_id, priority,
+             requested, allocated, shortage, allocation_status,
+             reservation_id,
+             reservation_date, reservation_movement_type, reservation_unit
+        FROM zstockalloc
+        INTO CORRESPONDING FIELDS OF TABLE @rt_demands
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND lgort = @iv_storage_location
+          AND batch = @iv_batch
+          AND run_id = @iv_run_id.
+    ENDIF.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
     ENDIF.
@@ -184,6 +248,54 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF iv_run_id IS NOT INITIAL.
       DELETE rt_demands WHERE allocation_run_id <> iv_run_id.
+    ENDIF.
+    IF iv_run_id_contains IS NOT INITIAL.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        IF <ls_demand>-allocation_run_id NS iv_run_id_contains.
+          DELETE rt_demands.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF lines( rt_demands ) > 0.
+      IF iv_strategy IS NOT INITIAL.
+        SELECT run_id, strategy
+          FROM zstockalloc_run
+          INTO TABLE @lt_strategy_runs
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND strategy = @iv_strategy.
+      ELSEIF iv_legacy_strategy = abap_true.
+        SELECT run_id, strategy
+          FROM zstockalloc_run
+          INTO TABLE @lt_strategy_runs
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND strategy = @space.
+      ELSE.
+        SELECT run_id, strategy
+          FROM zstockalloc_run
+          INTO TABLE @lt_strategy_runs
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch.
+      ENDIF.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+          WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+        IF sy-subrc <> 0.
+          IF iv_strategy IS NOT INITIAL
+              OR iv_legacy_strategy = abap_true.
+            DELETE rt_demands.
+          ENDIF.
+        ELSE.
+          <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
     IF iv_status IS NOT INITIAL.
       DELETE rt_demands WHERE allocation_status <> iv_status.
@@ -238,6 +350,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       DELETE rt_demands
         WHERE reservation_date > iv_reservation_date_to.
     ENDIF.
+    IF iv_reservation_age_from IS NOT INITIAL.
+      lv_reservation_cutoff = sy-datum - iv_reservation_age_from.
+      DELETE rt_demands WHERE reservation_date IS INITIAL.
+      DELETE rt_demands WHERE reservation_date > lv_reservation_cutoff.
+    ENDIF.
     IF iv_requested_on_from IS NOT INITIAL.
       DELETE rt_demands WHERE requested_on < iv_requested_on_from.
     ENDIF.
@@ -269,6 +386,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       DELETE rt_demands WHERE allocated > iv_allocated_quantity_to.
     ENDIF.
     IF iv_coverage_from IS NOT INITIAL OR iv_coverage_to IS NOT INITIAL.
+      CLEAR lt_coverage_filtered.
       LOOP AT rt_demands ASSIGNING <ls_demand>.
         IF <ls_demand>-requested > 0.
           lv_coverage = <ls_demand>-allocated * 100
@@ -283,8 +401,50 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ENDLOOP.
       rt_demands = lt_coverage_filtered.
     ENDIF.
+    IF iv_shortage_pct_from IS NOT INITIAL
+        OR iv_shortage_pct_to IS NOT INITIAL.
+      CLEAR lt_coverage_filtered.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        IF <ls_demand>-requested > 0.
+          lv_shortage_pct = <ls_demand>-shortage * 100
+            / <ls_demand>-requested.
+          IF ( iv_shortage_pct_from IS INITIAL
+                OR lv_shortage_pct >= iv_shortage_pct_from )
+              AND ( iv_shortage_pct_to IS INITIAL
+                OR lv_shortage_pct <= iv_shortage_pct_to ).
+            APPEND <ls_demand> TO lt_coverage_filtered.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      rt_demands = lt_coverage_filtered.
+    ENDIF.
     IF iv_sort_by_priority = abap_true.
       SORT rt_demands BY allocation_unit priority order_id.
+    ELSEIF iv_sort_by_status = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CASE <ls_demand>-allocation_status.
+          WHEN 'U'.
+            lv_status_rank = 1.
+          WHEN 'P'.
+            lv_status_rank = 2.
+          WHEN OTHERS.
+            lv_status_rank = 3.
+        ENDCASE.
+        APPEND VALUE #(
+          status_rank     = lv_status_rank
+          shortage        = <ls_demand>-shortage
+          requested_on    = <ls_demand>-requested_on
+          allocation_unit = <ls_demand>-allocation_unit
+          priority        = <ls_demand>-priority
+          order_id        = <ls_demand>-order_id
+          demand          = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY status_rank shortage DESCENDING requested_on
+                                 allocation_unit priority order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_status_line>).
+        APPEND <ls_status_line>-demand TO rt_demands.
+      ENDLOOP.
     ELSEIF iv_sort_by_coverage = abap_true.
       LOOP AT rt_demands ASSIGNING <ls_demand>.
         CLEAR lv_coverage.
@@ -306,6 +466,28 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       CLEAR rt_demands.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_coverage_line>).
         APPEND <ls_coverage_line>-demand TO rt_demands.
+      ENDLOOP.
+    ELSEIF iv_sort_by_shrt_pct = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CLEAR lv_shortage_pct.
+        IF <ls_demand>-requested > 0.
+          lv_shortage_pct = <ls_demand>-shortage * 100
+            / <ls_demand>-requested.
+        ENDIF.
+        APPEND VALUE #(
+          shortage_pct    = lv_shortage_pct
+          shortage        = <ls_demand>-shortage
+          requested_on    = <ls_demand>-requested_on
+          allocation_unit = <ls_demand>-allocation_unit
+          priority        = <ls_demand>-priority
+          order_id        = <ls_demand>-order_id
+          demand          = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY shortage_pct DESCENDING shortage DESCENDING
+                                 requested_on allocation_unit priority order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_line>).
+        APPEND <ls_shortage_pct_line>-demand TO rt_demands.
       ENDLOOP.
     ELSEIF iv_sort_by_requested_quantity = abap_true.
       SORT rt_demands BY requested DESCENDING shortage DESCENDING requested_on
@@ -349,6 +531,14 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    ev_total_rows = lines( rt_demands ).
+    IF iv_offset > 0.
+      IF iv_offset >= lines( rt_demands ).
+        CLEAR rt_demands.
+      ELSE.
+        DELETE rt_demands FROM 1 TO iv_offset.
+      ENDIF.
+    ENDIF.
     IF iv_max_rows > 0 AND lines( rt_demands ) > iv_max_rows.
       lv_limit_start = iv_max_rows + 1.
       DELETE rt_demands FROM lv_limit_start.

@@ -57,6 +57,18 @@
      <ENTRY>JSON output</ENTRY>
      <LENGTH>18</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CSV</KEY>
+     <ENTRY>CSV output</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TYPED</KEY>
+     <ENTRY>Typed JSON output</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

@@ -28,6 +28,9 @@ CLASS zcl_stock_allocation_service DEFINITION
         iv_requested_on_to   TYPE d OPTIONAL
         iv_preview           TYPE abap_bool OPTIONAL
         iv_min_shelf_life    TYPE i OPTIONAL
+        iv_strategy          TYPE zif_allocation_audit=>ty_strategy OPTIONAL
+      EXPORTING
+        ev_run_id            TYPE zif_allocation_audit=>ty_run_id
       RETURNING
         VALUE(rv_remaining)  TYPE zif_stock_allocation=>ty_quantity
       RAISING
@@ -158,6 +161,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_existing> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <lv_reservation> TYPE zif_stock_allocation=>ty_order_id.
 
+    CLEAR ev_run_id.
     mv_requested_on_from = iv_requested_on_from.
     mv_requested_on_to = iv_requested_on_to.
 
@@ -1120,7 +1124,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_batch             = iv_batch
           iv_requested_on_from = iv_requested_on_from
           iv_requested_on_to   = iv_requested_on_to
-          iv_unit              = iv_unit ).
+          iv_unit              = iv_unit
+          iv_strategy          = iv_strategy ).
       CATCH zcx_stock_allocation INTO lo_error.
         IF lo_error->message IS INITIAL.
           lo_error->message = 'Audit run start failed'.
@@ -1130,6 +1135,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     IF lv_run_id IS INITIAL.
       raise_error( iv_message = 'Audit run ID was not returned' ).
     ENDIF.
+    ev_run_id = lv_run_id.
     IF iv_preview = abap_true.
       IF lv_shortage > 0.
         lv_status = 'P'.

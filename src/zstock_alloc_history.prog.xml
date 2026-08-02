@@ -53,13 +53,19 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_RUNID</KEY>
-     <ENTRY>Run ID</ENTRY>
-     <LENGTH>38</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_MEINS</KEY>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Run ID</ENTRY>
+    <LENGTH>38</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MEINS</KEY>
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>
     </item>
@@ -68,6 +74,18 @@
      <KEY>P_STAT</KEY>
      <ENTRY>Status</ENTRY>
      <LENGTH>14</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STRAT</KEY>
+     <ENTRY>Alloc strategy (P/F/N/S/L/B)</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_LEGACY</KEY>
+     <ENTRY>Legacy blank strategy only</ENTRY>
+     <LENGTH>28</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -167,6 +185,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_STALE</KEY>
+     <ENTRY>Stale running seconds</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SHRT</KEY>
      <ENTRY>Shortage-first order</ENTRY>
      <LENGTH>27</LENGTH>
@@ -185,9 +209,33 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_SPF</KEY>
+     <ENTRY>Shortage percentage from (%)</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPT</KEY>
+     <ENTRY>Shortage percentage to (%)</ENTRY>
+     <LENGTH>33</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_COV</KEY>
      <ENTRY>Coverage-first order</ENTRY>
      <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPCT</KEY>
+     <ENTRY>Shortage percentage first</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SSTAT</KEY>
+     <ENTRY>Risk status first</ENTRY>
+     <LENGTH>23</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -203,8 +251,20 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_LATEST</KEY>
+     <ENTRY>Latest matching run only</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MAX</KEY>
      <ENTRY>Maximum runs</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SKIP</KEY>
+     <ENTRY>Rows to skip</ENTRY>
      <LENGTH>18</LENGTH>
     </item>
     <item>
@@ -231,6 +291,24 @@
      <ENTRY>JSON run output</ENTRY>
      <LENGTH>21</LENGTH>
     </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_META</KEY>
+    <ENTRY>JSON metadata wrapper</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TYPED</KEY>
+    <ENTRY>Typed JSON row fields</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDJSON</KEY>
+    <ENTRY>NDJSON run output</ENTRY>
+    <LENGTH>17</LENGTH>
+   </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

@@ -629,6 +629,9 @@ CLASS lcl_allocation_audit_stub IMPLEMENTATION.
   METHOD zif_allocation_audit~get_summary.
   ENDMETHOD.
 
+  METHOD zif_allocation_audit~get_running_age.
+  ENDMETHOD.
+
   METHOD zif_allocation_audit~purge_runs_before.
   ENDMETHOD.
 

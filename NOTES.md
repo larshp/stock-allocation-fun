@@ -273,6 +273,9 @@
 - Added largest-demand-first result ordering (`p_big`) by requested quantity with shortage/date/unit/priority tie-breakers.
 - Added most-allocated-first result ordering (`p_done`) by allocated quantity with requested/shortage/date/unit/priority tie-breakers.
 - Added reservation-date-first result ordering (`p_rdate`) with deterministic unit, priority, and order-key tie-breakers; unreserved rows sort first.
+- Added shortage-status-first result ordering (`p_sstat`) with unallocated, partial, and full risk ordering plus deterministic shortage/date/unit/priority/order-key ties.
+- Added validated `p_skip` pagination offsets to history and result reads, applied after filtering/sorting and before `p_max`; paged exact-run result views omit reconciliation.
+- Added stale-reservation age filtering (`p_rage`) to result reads, excluding unreserved rows and validating nonnegative age input.
 - Added semicolon-delimited result export (`p_csv`) with stable detail header, coverage, and reservation provenance fields.
 - Added matching semicolon-delimited audit-history export (`p_csv`) with scope, horizon, quantities, coverage, lifecycle, outcome counts, and timestamps.
 - Added positive-shortage backlog filtering (`p_bklg`) for combined partial/unallocated result follow-up, excluding those views from reconciliation.
@@ -283,10 +286,73 @@
 - Added elapsed `duration_seconds` to history human, CSV, and JSON detail outputs, with `n/a` for running rows.
 - Added inclusive elapsed-duration filtering (`p_tfrom`/`p_tto`) to audit history, excluding running rows from duration-bounded queries and validating nonnegative, non-reversed bounds.
 - Added slowest-first audit-history ordering (`p_tdur`) using elapsed duration with deterministic start-time and run-ID tie-breakers.
+- Added risk-status-first audit-history ordering (`p_sstat`) grouping error, partial, running, and successful runs with deterministic shortage and start-time ties.
+- Added stale-running audit detection (`p_stale`) using elapsed seconds from the current time, with nonnegative threshold validation.
 - Added case-insensitive diagnostic-message substring filtering (`p_msg`) to audit history for direct failure and cleanup follow-up.
 - Added `p_monly` audit-history filtering for runs with any persisted diagnostic message, combinable with message substring search.
 - Added shared CSV quoting for result and history exports, including delimiter-safe fields, doubled embedded quotes, and line-break preservation.
+- Added shared locale-independent CSV number formatting for result and history exports, using period decimal separators and no thousands grouping while preserving `n/a` for unavailable values.
+- Added stable one-row purge CSV preview/execution summaries with retention scope, numeric counts, and `n/a` for non-applicable mode-specific values.
+- Added opt-in typed JSON retention counts to purge preview and execution summaries while preserving default JSON strings.
+- Added stable one-row allocation CSV preview/execution summaries with scope, quantities, run counters, lifecycle context, and diagnostics.
+- Added opt-in typed JSON numbers to the allocation summary report for remaining quantity, totals, counters, and line outcomes while preserving default JSON strings.
+- Added status-bearing CSV output to the sales-order update report, covering not-executed, success, and error outcomes.
+- Added opt-in typed JSON quantity output to the sales-order update report while preserving the default JSON string contract.
+- Added status-bearing CSV output to the goods-issue report, covering not-executed, success, and error outcomes with material-document identity.
+- Added opt-in typed JSON quantity and document-year output to the goods-issue report while preserving default JSON strings.
+- Added self-describing `schema_version` and `typed` markers to all opt-in typed action-report JSON responses.
+- Added generated date/time traceability fields to typed action-report JSON responses.
+- Extended self-describing typed JSON markers to direct result/history summaries and detail rows.
+- Added shared CSV error envelopes (`mode;status;message`) for allocation and purge failures so CSV mode never mixes human-readable diagnostics with machine output.
+- Extended shared CSV error envelopes to result and history validation, authorization, and retrieval failures; empty successful reads still emit their normal CSV headers.
+- Added explicit early negative `p_max` validation to result and history reports, keeping CSV, JSON, human, and backend contracts aligned.
 - Added result-report JSON array export (`p_json`) with stable detail properties and mutual exclusion with CSV mode.
+- Added opt-in result JSON metadata wrapping (`p_meta`) with row count and pagination fields while retaining the default array contract.
+- Added matching opt-in history JSON metadata wrapping (`p_meta`) with row count and pagination fields while retaining the default array contract.
+- Enriched both JSON metadata wrappers with material/plant/storage/batch/run scope fields for self-describing pages.
+- Extended result JSON metadata for exact `p_runid` views with persisted audit lifecycle status, diagnostic message, outcome counters, and quantity metrics.
+- Added machine-readable exact-run reconciliation outcomes to result JSON metadata, distinguishing matching, mismatched, filtered, and unavailable contexts.
+- Extended history JSON metadata for exact `p_runid` views with persisted audit lifecycle status, diagnostic message, outcome counters, and quantity metrics.
+- Added audit start/finish timestamps to exact-run JSON metadata for direct lifecycle-age and completion analysis.
+- Added numeric JSON property formatting for opt-in metadata pagination fields and audit metrics while preserving the existing detail-row encoding.
+- Added `has_more` pagination metadata to result and history JSON detail wrappers, using one lookahead row while preserving the requested page size.
+- Added numeric `next_offset` pagination metadata to both detail wrappers for direct follow-up page requests.
+- Made opt-in result/history metadata wrappers consistent for empty pages; legacy JSON arrays remain unchanged.
+- Hardened JSON number formatting against SAP user locale separators by removing grouping and normalizing the decimal separator.
+- Added opt-in metadata envelopes for result/history JSON summary mode, nesting the existing compact summary beside scope and pagination fields without changing the default contract.
+- Added explicit validation requiring `p_json` whenever `p_meta` is selected, preventing silently ignored metadata requests.
+- Typed numeric counts, quantities, and coverage inside opt-in nested summary objects while preserving legacy summary JSON encoding.
+- Added per-row `numeric` sub-objects to opt-in result/history metadata detail pages for machine-readable metrics without changing flat row compatibility.
+- Added numeric `schema_version` markers to all opt-in result/history metadata envelopes for forward-compatible clients.
+- Added JSON `null` formatting for non-applicable numeric row metrics in opt-in metadata detail output.
+- Added generated date/time fields to all opt-in result/history metadata envelopes for response traceability.
+- Added summary-only CSV output to result and history reports when `p_sum` is selected, with stable one-row schemas and mixed-unit safeguards.
+- Added generated date/time fields to result and history summary CSV rows for export traceability.
+- Added generated date/time fields to normal action-report CSV rows for allocation, purge, sales-order update, and goods issue exports.
+- Added generated date/time fields to result and history detail CSV rows for paginated export traceability.
+- Added numeric `schema_version` `1` to successful action and summary CSV schemas, and version `2` detail CSV schemas after adding page context; CSV error envelopes remain unchanged.
+- Added sort, filter, offset, limit, and page-navigation context to result/history detail CSV rows, making every exported page self-describing like the summary CSV contract.
+- Added page context and generated date/time to typed result/history JSON summaries and detail rows; all typed read-only JSON contracts now use `schema_version` `2`.
+- Preserved both primary allocation and fallback audit-summary diagnostics in `ZSTOCK_ALLOCATE` JSON/CSV failure output.
+- Added material/plant/storage/batch scope to typed result/history summary JSON so standalone typed responses are self-describing.
+- Added material/plant/storage/batch scope to result detail CSV and typed detail JSON rows for standalone page exports; history detail CSV already carried that scope.
+- Extended result default JSON detail rows with the same material/plant/storage/batch scope while preserving one common row shape for typed and untyped output.
+- Added generated date/time to typed result/history detail JSON rows to match the documented schema-2 contract.
+- Added sort, filter, offset, limit, and page-navigation context to result/history summary CSV rows so page-scoped aggregates are self-describing.
+- Added a consistent `mode` marker to allocation JSON success responses, distinguishing preview from execute output.
+- Added explicit `mixed_units` booleans to result/history summary JSON and CSV outputs while retaining `unit=mixed` and `n/a` totals.
+- Added escaped `filters` string arrays to result/history JSON metadata envelopes so clients can identify active query filters directly.
+- Added `p_latest` to the history report for one newest matching run, with offset validation and machine-readable filter metadata.
+- Added pipe-delimited active filter names to result/history summary CSV rows for parity with JSON metadata.
+- Added `p_latest` to the result report so operators can inspect the newest matching run without copying an audit ID.
+- Made result `p_latest` selection honor the requested-delivery horizon when `p_from`/`p_to` are supplied.
+- Extended generated date/time traceability to default action JSON success responses; typed markers and error envelopes remain unchanged.
+- Added exact-run audit lifecycle context to opt-in result/history summary envelopes for parity with detail metadata.
+- Added effective `sort` descriptors to all opt-in result/history metadata envelopes for deterministic client pagination.
+- Added `filters_applied` booleans to opt-in result/history metadata so clients can distinguish broad-scope and narrowed reads.
+- Added one-based `page_number` metadata for bounded result/history pages, with `null` for unbounded reads.
+- Added `has_previous` and `previous_offset` metadata for direct backward navigation through bounded pages.
+- Added opt-in `p_typed` JSON row mode to result/history reports for direct numeric fields without metadata wrapping.
 - Added matching audit-history JSON array export (`p_json`) with stable run properties and mutual exclusion with CSV mode.
 - Added abapGit class metadata for the shared CSV and JSON helper classes so the new report capabilities are deployable SAP objects.
 - Added allocation-report JSON summary output (`p_json`) for successful and preview runs, preserving scope, quantities, counters, lifecycle timestamps, status, and diagnostics.
@@ -299,3 +365,129 @@
 - Added optional priority-ordered result reads (`p_pri`) so reconciliation output can follow allocator decision order.
 - Added global requested-delivery-date ordering (`p_date`) with allocation-unit, priority, and order-key tie-breakers; priority sorting takes precedence when both controls are selected.
 - Added shortage-first result ordering (`p_shrt`) with requested-date and priority tie-breakers for backlog triage.
+- Added the deleted linked-snapshot count to the retention API and `ZSTOCK_ALLOC_PURGE` execution JSON/CSV/human output; typed execution JSON and execution CSV now use schema version `2`.
+- Added `total_rows` before offset/limit to result/history read-port pagination context, typed and metadata JSON envelopes, and CSV summary/detail exports; summary CSV schemas are now version `2`.
+- Added derived bounded `page_count` to result/history pagination context, with `null`/`n/a` for unbounded reads and human-readable `Page X of Y` output.
+- Added bounded `last_offset` navigation to result/history pagination context, with schema version `3` exports and `null`/`n/a` for unbounded reads.
+- Added opt-in `p_ndjson` streaming exports to result/history JSON modes, preserving regular or typed row objects as one JSON object per line.
+- Added case-sensitive run-ID fragment filtering (`p_rid`/`iv_run_id_contains`) to result/history reports and both direct read ports, including latest-run selection.
+- Optimized large result/history offsets with bounded internal-table range deletion while preserving pre-pagination `total_rows` and page contents.
+- Optimized exact run-ID reads by applying the run ID in the SAP audit and snapshot SELECT predicates; fragment and compound filters retain the broader read path.
+- Added `run_id_contains` values to result/history metadata scope so fragment-filtered JSON pages expose the complete run-ID query context.
+- Hardened audit finalization so partial (`P`) runs require a positive shortage, matching the service outcome semantics and persisted-row validation.
+- Added explicit requested quantity to `ZSTOCK_ALLOCATE` human/CSV/JSON success output; allocation CSV and typed JSON schemas are now version `2`.
+- Added explicit `requested` quantity to the typed audit summary API, with the same mixed-unit suppression as allocated and shortage totals.
+- Exposed the generated audit run ID from the allocation service after `START_RUN`, preserving correlation for callers when later side effects fail.
+- Added correlated allocation `run_id` to post-start `ZSTOCK_ALLOCATE` JSON, CSV, and human error output while preserving pre-start error envelopes.
+- Added the exact current `run_id` to successful allocation output, separate from the independently queried `last_run_id` summary field for concurrency-safe correlation.
+- Refreshed successful allocation lifecycle metadata from the exact current audit run, with summary values retained as a safe fallback if that contextual read is unavailable.
+- Completed allocation error-output parity by retaining the correlated run ID in the human fallback path when audit summary retrieval fails.
+- Added derived `requested` quantity to individual audit run API records, calculated as allocated plus shortage after read validation.
+- Added a production-selectable FIFO allocator (`p_strat = F`) while preserving priority-first as the default; success exports identify the normalized strategy and use schema version `5` for CSV/typed JSON.
+- Added a full-only allocator (`p_strat = N`) that skips oversized lines without consuming stock, allowing later complete demands to be fulfilled.
+- Persisted the selected allocation strategy on audit runs and exposed it through run history and summary results, while allowing blank strategy values for legacy rows; valid strategies are now `P`, `F`, `N`, and `S`.
+- Added `ZSTOCK_ALLOC_HISTORY-p_strat` filtering with normalized uppercase validation and metadata filter reporting.
+- Added the persisted strategy to history detail CSV/JSON rows and advanced the history output schema version to `6`.
+- Added strategy context to history summary CSV/JSON (`P`, `F`, `N`, `S`, or `mixed`) and covered strategy-filtered summaries in audit tests.
+- Added per-strategy run counters to the audit summary contract, including a legacy-blank bucket.
+- Exposed the per-strategy counters in `ZSTOCK_ALLOCATE` human, CSV, and JSON success output and advanced its success schema version to `5`.
+- Added `audit_strategy` to exact-run result JSON context and advanced result CSV/JSON success schemas to `4`.
+- Added per-strategy run counts to history summary CSV/JSON outputs and advanced history schemas to `6`.
+- Added the smallest-demand-first allocator (`p_strat = S`) with deterministic tie-breakers, persisted strategy validation, dedicated analytics, and allocation/history schema updates.
+- Pushed exact strategy filtering into both audit history SQL paths while retaining post-read filtering for defensive consistency.
+- Added strategy context and a strategy column to human-readable history output.
+- Added `ZSTOCK_ALLOC_HISTORY-p_legacy` to isolate legacy blank-strategy runs, with conflict validation against `p_strat`.
+- Labeled blank persisted strategies as `LEGACY` in human-readable history while preserving blank CSV/JSON values for compatibility.
+- Added the same explicit `LEGACY` label to human-readable exact-run result context.
+- Added strategy-aware `ZSTOCK_ALLOC_RESULT` filtering through the snapshot sink, including legacy blank-strategy selection and strategy-aware latest-run resolution.
+- Enriched result rows with the persisted allocation strategy across human, CSV, JSON, NDJSON, and metadata output; advanced result schemas to version `5`.
+- Added per-strategy result-line counters (`P`, `F`, `N`, `S`, and legacy blank) to human and summary exports; advanced result schemas to version `6`.
+- Added result-summary `strategy_context` (`P`, `F`, `N`, `S`, `legacy`, `mixed`, or `n/a`) across human, CSV, JSON, and metadata outputs; advanced result schemas to version `7`.
+- Added unit-safe per-strategy requested/allocated/shortage totals to result summaries, suppressing all strategy quantity totals for mixed-unit pages; advanced result schemas to version `8`.
+- Made history summary strategy context derive from the returned page in CSV, JSON, and human output, including `legacy` and `n/a` labels for blank-strategy and empty pages.
+- Added human-readable history per-strategy run counts to match the CSV and JSON summary contracts.
+- Made empty history `p_sum` requests emit zero-count summaries with `n/a` strategy context instead of an empty detail response.
+- Made empty result `p_sum` requests emit zero-count summaries with `n/a` strategy context instead of an empty detail response, keeping both read reports symmetric.
+- Added a deterministic largest-demand-first allocator (`p_strat = L`) with priority/date/order tie-breakers and dedicated unit tests.
+- Persisted `L` strategy support through audit validation, allocation selection, history/result filtering, per-strategy counters, and typed/CSV summary quantities.
+- Advanced allocation, history, and result export schemas to versions `6`, `7`, and `9` respectively because the new largest-strategy counters and totals extend their machine-readable columns/properties.
+- Added `iv_legacy_strategy` to the direct audit `get_summary` API, matching `get_runs` filtering and validating conflicts with an explicit strategy.
+- Added unit-safe per-strategy requested/allocated/shortage totals to the audit summary API, with all per-strategy quantity fields suppressed for mixed-unit populations.
+- Exposed the audit summary's unit-safe per-strategy requested/allocated/shortage totals in `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `7`.
+- Added the same unit-safe per-strategy requested/allocated/shortage totals to `ZSTOCK_ALLOC_HISTORY` summary human, CSV, JSON, and typed JSON output; history detail schemas remain version `7`, while summary schemas are now version `8`.
+- Added `last_strategy` to successful `ZSTOCK_ALLOCATE` human, CSV, and JSON output beside `last_run_id`; allocation success schemas are now version `8`.
+- Added zero-safe per-strategy coverage percentages to the audit summary API and allocation success human, CSV, and JSON output; allocation success schemas are now version `9`.
+- Propagated aggregate unit-safe coverage to `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `10`, and typed JSON now matches the documented schema version.
+- Made direct audit summaries choose the same deterministic latest run as `GET_RUNS`, using the run ID as a tie-breaker when start timestamps match, with regression coverage.
+- Added `last_duration_seconds` to the audit summary API and `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `11`.
+- Added `minimum_duration_seconds` and `maximum_duration_seconds` alongside `average_duration_seconds` and its `completed_duration_runs` denominator to the audit summary API and `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; completed runs are measured while running rows are excluded, and allocation success schemas are now version `14`.
+- Propagated page-scoped `minimum_duration_seconds` and `maximum_duration_seconds` alongside `average_duration_seconds` and `completed_duration_runs` to `ZSTOCK_ALLOC_HISTORY` summary CSV, JSON, and human output; history summary schemas are now version `12`, while detail schemas remain `7`.
+- Added unit-independent `completion_pct` to the audit summary API, allocation success output, and page-scoped history summaries; it measures finalized (`S`, `P`, or `E`) runs against all selected runs, and allocation/history summary schemas advance to `15`/`13`.
+- Added finalized-run `success_rate_pct` to the audit summary API, allocation success output, and page-scoped history summaries; it measures successful (`S`) runs against finalized runs only, and allocation/history summary schemas advance to `16`/`14`.
+- Added finalized-run `partial_rate_pct` and `error_rate_pct` to complete the outcome mix; they partition finalized runs alongside `success_rate_pct`, and allocation/history summary schemas advance to `17`/`15`.
+- Added unit-safe aggregate `shortage_pct` beside `coverage` to the audit summary API, allocation success output, and history summaries; mixed-unit and zero-request populations remain unavailable, and allocation/history summary schemas advance to `18`/`16`.
+- Added exact-run `audit_duration_seconds` to result JSON metadata and human context, using JSON `null` for running audits; aligned result detail and summary schema markers to version `10`.
+- Added per-strategy coverage percentages to result and history summaries; result summary schemas are now version `10`, while history detail schemas remain `7` and summary schemas are now `9`.
+- Added aggregate `shortage_pct` to result summary CSV, JSON, metadata, and human output; result detail schemas remain `10`, while result summary schemas are now `11`.
+- Added row-level `shortage_pct` to result detail CSV, JSON, metadata, and human output; result detail schemas are now `11` and result summary schemas are now `12`, with `null`/`n/a` preserved for zero-request rows.
+- Added row-level `shortage_pct` to history detail CSV, JSON, metadata, and human output; history detail schemas are now `8`, while summary schemas remain `16`, with `null`/`n/a` preserved for zero-request rows.
+- Added validated shortage-percentage range filters to result/history reports (`p_spf`/`p_spt`) and their direct read ports; active filter metadata now identifies `shortage_percentage`, while zero-request rows remain non-applicable.
+- Added shortage-percentage-first ordering (`p_spct`) to result/history reports and their direct read ports, with deterministic shortage/date/scope tie-breakers.
+- Aligned result `p_latest` selection with its aggregate coverage and shortage-percentage bounds so the chosen audit run satisfies the same percentage criteria as the returned snapshot view.
+- Added early result-report coverage-bound validation across CSV, JSON, and human modes, matching history behavior before latest-run or snapshot reads occur.
+- Added `ZSTOCK_ALLOC_COMPARE` with a reusable comparison contract/class, read-authorized old/new snapshot loading, added/removed/changed/unchanged classifications, quantity deltas, and CSV/JSON/typed JSON output.
+- Added comparison change-type filtering (`p_chg`), offset/limit pagination (`p_skip`/`p_max`), and optional JSON page metadata (`p_meta` with filtered `total_rows`) to `ZSTOCK_ALLOC_COMPARE`.
+- Added old/new run IDs, active change-type filter, and unchanged-row flag to comparison JSON metadata so paged responses retain their comparison context.
+- Added comparison summary mode (`p_sum`) with added/removed/changed/unchanged counts and old/new/delta quantity totals calculated before pagination, available in human, CSV, and JSON output.
+- Added comparison `p_ndjson` streaming output with the same regular/typed row contract as array JSON; it requires JSON and is mutually exclusive with metadata and summary modes.
+- Added mixed-unit safeguards to comparison summaries; parallel-unit pages now expose `mixed_units` and suppress non-comparable quantity totals in CSV/JSON/human output.
+- Added authorized old/new audit lifecycle context (status, strategy, start/finish dates, and diagnostics) to comparison CSV, human, summary JSON, and metadata JSON outputs while preserving plain row-array and NDJSON shapes.
+- Extended comparison change rows to detect and export persisted source-document, schedule-line, order-unit, allocation-strategy, and reservation-date/movement/unit mutations in addition to quantity and reservation-ID changes.
+- Added deterministic `change_reasons` labels to comparison rows, with `added`/`removed` classifications and pipe-delimited changed-field names for `C` rows.
+- Added validated `p_reason`/`iv_reason` filtering to comparison rows, preserving filtered `total_rows` and exposing the active reason in contextual output metadata.
+- Added old/new snapshot-to-audit reconciliation to `ZSTOCK_ALLOC_COMPARE`; contextual CSV, JSON metadata, summary, and human output now expose `OK`/`MISMATCH` status and snapshot row counts after checking line outcomes and allocated/shortage totals against each audit run.
+- Added `p_guard` to `ZSTOCK_ALLOC_COMPARE` so integrations can fail closed when either compared snapshot does not reconcile to its persisted audit counters and quantities.
+- Improved comparison read diagnostics so a missing old or new audit run reports which run context was not found instead of returning a blank generic exception.
+- Completed comparison reconciliation by checking snapshot requested totals against the audit run, and exposed old/new snapshot requested totals in contextual exports.
+- Aligned exact-run `ZSTOCK_ALLOC_RESULT` reconciliation with the comparison contract so JSON and human output also reject requested-total drift.
+- Added exact-run result `reconciliation_fields` diagnostics, identifying mismatched audit metrics in JSON metadata and human output.
+- Added snapshot-side reconciliation metrics to comparison context and exact-run result output, including outcome counts and requested/allocated/shortage totals.
+- Added audit-side unit, outcome counters, and requested/allocated/shortage totals to comparison summary/detail CSV, JSON metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 6` alongside persisted lifecycle times, generated response date/time, duration, requested-delivery horizon, and available-stock baselines, while row-only plain JSON and NDJSON shapes remain unchanged.
+- Added audit-side coverage and shortage-percentage fields to comparison summary/detail CSV, JSON metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 7`, using numeric typed JSON when requested is positive and `null`/`n/a` for zero-request runs.
+- Added explicit audit-unit comparability and run-to-run allocated/shortage plus coverage/shortage-percentage deltas to comparison contextual outputs; schema advances to numeric `schema_version: 8`, with incompatible-unit or unavailable ratio deltas represented as typed `null` and regular `n/a`.
+- Added audit requested/available-stock deltas and an audit requested-delivery-horizon change indicator to comparison contextual outputs; schema advances to numeric `schema_version: 9`, preserving typed `null` and regular `n/a` for incompatible-unit deltas.
+- Added audit status-changed and strategy-changed indicators to comparison contextual outputs; schema advances to numeric `schema_version: 10` across CSV, JSON metadata, and human context.
+- Added audit running-state change and finished-run duration delta fields to comparison contextual outputs; schema advances to numeric `schema_version: 11`, with typed `null` and regular `n/a` while either run is unfinished.
+- Added audit start-time and finish-time deltas to comparison contextual outputs; schema advances to numeric `schema_version: 12`, with typed `null` and regular `n/a` when either corresponding timestamp is missing.
+- Added an audit reconciliation-status change indicator to comparison contextual outputs; schema advances to numeric `schema_version: 13` across CSV, JSON metadata, and human context.
+- Added direct audit demand/full/partial/unallocated outcome-counter deltas to comparison contextual outputs; schema advances to numeric `schema_version: 14` across CSV, JSON metadata, and human context.
+- Added combined `audit_reconciliation_ok` health context to comparison outputs; schema advances to numeric `schema_version: 15`, while per-run reconciliation statuses and transition diagnostics remain available.
+- Added aggregate `audit_metadata_changed` alert context covering lifecycle, strategy, unit, horizon, timestamps, and diagnostics; schema advances to numeric `schema_version: 16`.
+- Added pipe-delimited `audit_metadata_change_reasons` categories beside the aggregate metadata alert; schema advances to numeric `schema_version: 17`.
+- Added direct `audit_reconciliation_transition` classifications (`both_ok`, `recovered`, `regressed`, `both_mismatch`, or `unavailable`) to comparison context; schema advances to numeric `schema_version: 18`.
+- Extracted reconciliation transition classification into the comparison interface and covered all transition states with ABAP Unit tests; the compare report now consumes the tested API.
+- Extracted audit metadata reason generation into the comparison interface, preserving deterministic category ordering and covering unchanged and all-category changes with ABAP Unit tests.
+- Added tested live running-age calculation to the comparison interface and exposed old/new ages plus a safe delta in comparison CSV, JSON, metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 19`, with typed `null` and regular `n/a` when a run is not active or timestamps are unusable.
+- Added tested `audit_running_age_trend` classification (`older`, `younger`, `unchanged`, or `unavailable`) to comparison contextual outputs; schemas advance to numeric `schema_version: 20` so consumers can use an explicit direction without interpreting the numeric age delta.
+- Centralized active-audit running-age calculation in the audit interface; allocation summaries, comparison, history, and result reports now share the same valid-running/timestamp semantics and unit-tested behavior.
+- Added optional reference date/time inputs to the audit running-age API, preserving system-clock defaults while enabling deterministic replay and exact elapsed-time regression tests.
+- Added newest active-run age and run ID beside the oldest active-run telemetry in the audit summary, allocation summary, and history summary; allocation schemas advance to `22` and history summary schemas to `20`.
+- Added `ZSTOCK_ALLOC_WATCH`, an oldest-first stale-running allocation monitor with a configurable age threshold, alert limit, canonical running-age calculation, and human/CSV/JSON output.
+- Extended `ZSTOCK_ALLOC_WATCH` with optional normalized strategy filtering (`p_strat = P/F/N/S/L/B`) so operators can isolate stale runs by allocator behavior without post-filtering the alert feed.
+- Added the applied watch strategy filter to human, CSV, and JSON output; the watch machine-readable contract advances to schema version `2` so empty alert feeds remain self-describing.
+- Added an optional minimum-shortage filter (`p_shf`) to `ZSTOCK_ALLOC_WATCH`; filter provenance is exported in all modes and the machine-readable contract advances to schema version `3`.
+- Added an optional maximum-coverage filter (`p_covt`) to `ZSTOCK_ALLOC_WATCH`; zero-request runs are excluded for non-applicable coverage and the machine-readable contract advances to schema version `4`.
+- Added `p_shrt` shortage-first ordering to `ZSTOCK_ALLOC_WATCH`, with deterministic age/time/run-ID tie-breakers and exported `sort_mode`; the machine-readable contract advances to schema version `5`.
+- Added page-scoped alert count, quantity, coverage, and age-range aggregates to watch JSON/human output; `p_sum` now emits a compact aggregate CSV row using schema version `6` while detail CSV remains version `5`.
+- Aligned watch `p_sum` across human, CSV, and JSON modes so all three suppress detail alerts and retain only the aggregate summary.
+- Added exact active-run targeting (`p_runid`) to `ZSTOCK_ALLOC_WATCH`, including filter provenance in every output mode; watch contracts advance to schema version `7`.
+- Added pre-limit `candidate_count` and boolean `limited` truncation metadata to `ZSTOCK_ALLOC_WATCH` human, CSV, and JSON outputs; watch contracts advance to schema version `8`.
+- Added one-based post-sort alert `rank` to watch detail output so capped consumers can process a deterministic returned order; watch contracts advance to schema version `9`.
+- Added case-insensitive server-side diagnostic-message substring filtering (`p_msg`) with exported filter provenance; watch contracts advance to schema version `10`.
+- Added `p_monly` diagnostic-presence filtering through the audit read port with boolean filter provenance; watch contracts advance to schema version `11`.
+- Added selectable best-fit allocation (`p_strat = B`) with deterministic exact-fit/lookahead selection, audit counters, per-strategy summary totals, and schema updates through allocation, history, and result exports.
+- Added live `running_age_seconds` to history detail CSV, JSON, metadata, and human output; finalized rows retain non-applicable `n/a`/`null`, and detail schemas advance to `9`.
+- Added summary-level `oldest_running_age_seconds` to history CSV, JSON, metadata, and human output; history summary schemas advance to `17`.
+- Propagated `oldest_running_age_seconds` into the audit summary API and `ZSTOCK_ALLOCATE` CSV, JSON, and human output; allocation success schemas advance to `19`, with regression coverage for active-run age.
+- Added `oldest_running_run_id` beside the live age metric across history and allocation summaries, making stalled-run follow-up direct; history/allocation schemas advance to `18`/`20`.
+- Added exact-running-audit `audit_running_age_seconds` to result detail CSV, typed/metadata JSON, and human context; result detail schemas advance to `12`, while finalized or non-exact rows remain non-applicable.

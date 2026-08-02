@@ -28,6 +28,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES:
     BEGIN OF ty_demand,
       allocation_run_id         TYPE ty_run_id,
+      allocation_strategy       TYPE c LENGTH 1,
       allocation_unit           TYPE ty_unit,
       sales_document            TYPE ty_sales_document,
       sales_document_type       TYPE ty_sales_document_type,

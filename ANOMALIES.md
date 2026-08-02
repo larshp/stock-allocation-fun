@@ -1,5 +1,8 @@
 # Anomalies and known issues
 
+- Resolved: allocation callers and report consumers could lose the durable run identity when a post-start reservation or persistence step failed; the service now exports the run ID and allocation error envelopes carry it when available.
+- Resolved: successful allocation output could expose a concurrently created scope-level latest run as the current execution; `ZSTOCK_ALLOCATE` now emits the exact current `run_id` separately from `last_run_id`.
+
 ## 2026-08-01
 
 - Resolved: custom quantity fields lacked DDIC unit references and could not activate in SAP; every `QUAN` field in `ZSTOCKALLOC` and `ZSTOCKALLOC_RUN` now points to its table's unit field.
@@ -7,6 +10,7 @@
 - Resolved: six global ABAP object names exposed by metadata linting exceeded SAP's 30-character limit; the objects and every reference now use valid shortened names.
 - Resolved: executable reports had ABAP source files but no abapGit `.prog.xml` metadata; all six reports now carry importable program-directory metadata, report titles, and selection texts.
 - Resolved: global classes and interfaces had ABAP source files but no abapGit `.clas.xml` or `.intf.xml` metadata, preventing complete object import; every global class and interface now has a matching descriptor.
+- Resolved: `ZSTOCK_ALLOCATE` discarded the audit-summary failure diagnostic in JSON and CSV fallback output; the primary allocation error and secondary audit-read error are now combined consistently.
 
 ## 2026-07-31
 
@@ -196,7 +200,66 @@
 - Resolved: history retrieved audit finish timestamps but omitted them from the report, leaving run duration and running-state visibility incomplete; the output now shows the finalized timestamp when present.
 - Resolved: allocation results exposed reservation IDs without the date, movement type, and unit required to reconcile or safely cancel them; the result report now displays the complete lifecycle tuple.
 - Resolved: `GET_SUMMARY` could add quantities from different units when its optional unit filter was omitted; mixed-unit summaries now identify the condition and suppress invalid aggregate quantities.
+- Resolved: comparison outputs showed running-state changes but not the current age of active snapshots; schema version 19 now exposes old/new running ages and a safe age delta with unavailable-value semantics.
+- Resolved: consumers had to infer comparison age direction from a signed delta; schema version 20 now supplies an explicit running-age trend classification.
+- Resolved: reports used subtly different running-age timestamp checks; the audit API now provides one canonical calculation consumed by summaries, comparison, history, and result output.
+- Resolved: running-age boundary tests depended on the machine clock; optional reference timestamps now make exact age calculations reproducible without changing default runtime behavior.
+- Resolved: summary consumers could identify the oldest active run but not the current active-run age range; audit, allocation, and history summaries now expose both oldest and newest active runs.
+- Resolved: operators had to combine history filters and manual age calculations to monitor long-running allocations; `ZSTOCK_ALLOC_WATCH` now provides a dedicated thresholded alert feed.
+- Resolved: largest-first could consume stock on a partial line while a later combination of demands could be fully satisfied; best-fit now prefers exact and follow-up-fitting choices with deterministic fallbacks.
 - Resolved: allocation summaries exposed the latest run's start time but not its finish time; the summary contract and report now propagate both lifecycle timestamps.
+- Resolved: `ZSTOCK_ALLOCATE` exposed per-strategy coverage without the aggregate percentage now available from the audit summary; CSV, JSON, and human success output now include unit-safe aggregate coverage, with schema version `10`.
+- Resolved: direct audit summaries could choose an arbitrary latest run when two runs shared a start timestamp; summary selection now uses the run ID tie-breaker used by ordered history reads.
+- Resolved: allocation summaries exposed latest-run timestamps without elapsed time; the audit summary and allocation report now expose `last_duration_seconds` derived from persisted lifecycle timestamps.
+- Resolved: scoped allocation summaries had no aggregate performance baseline; `minimum_duration_seconds`, `average_duration_seconds`, and `maximum_duration_seconds` now describe completed-run duration without including active runs, and `completed_duration_runs` exposes the denominator.
+- Resolved: history summary exports exposed duration only on individual rows; summary CSV, JSON, and human modes now include the minimum, average, and maximum completed-run durations and completed-run denominator for the returned page.
+- Resolved: lifecycle summaries exposed raw status counts without a normalized completion signal; `completion_pct` now reports finalized statuses over all selected runs, including active runs in the denominator.
+- Resolved: lifecycle summaries exposed finalized status counts without a normalized outcome signal; `success_rate_pct` now reports successful finalized runs over the finalized population, excluding active runs from the denominator.
+- Resolved: lifecycle summaries exposed only the successful portion of the finalized outcome mix; `partial_rate_pct` and `error_rate_pct` now complete the finalized outcome partition.
+- Resolved: quantity summaries exposed allocation coverage without its complementary shortage percentage; `shortage_pct` now reports the unit-safe aggregate shortage ratio.
+- Resolved: exact-run result context exposed audit timestamps without elapsed duration, and source schema markers lagged the documented contract; result metadata now includes `audit_duration_seconds` and all result success/detail markers use schema `10`.
+- Resolved: result summaries exposed aggregate shortage quantities without the complementary ratio; summary CSV, JSON, metadata, and human output now include unit-safe `shortage_pct`, with summary schema `11` and detail schema `10`.
+- Resolved: result detail rows exposed shortage quantity without its row-level ratio; detail CSV, JSON, metadata, and human output now include `shortage_pct`, with detail schema `11` and summary schema `12`.
+- Resolved: history detail rows exposed shortage quantity without its row-level ratio; detail CSV, JSON, metadata, and human output now include `shortage_pct`, with detail schema `8` and summary schema `16`.
 - Resolved: direct snapshot writers could persist a nonblank but nonexistent, unrelated, or finalized audit `RUN_ID`; `ZSTOCKALLOC` persistence now validates the active run and its complete scope before replacement.
 - Resolved: result reads could accept a valid-shaped snapshot whose audit run was missing or belonged to another scope; snapshot reads now validate the run reference and exact scope while preserving legitimate lifecycle states.
 - Resolved: the result report could expose rows linked to an unknown audit status; snapshot reads now accept only `R`, `S`, `P`, or `E` run states.
+- Resolved: result and history consumers could filter raw shortage or coverage but not relative shortage risk; both read paths now validate and apply inclusive shortage-percentage ranges, excluding non-applicable zero-request rows.
+- Resolved: percentage-based shortage risk could be filtered but not ranked; result and history reads now support deterministic shortage-percentage-first ordering.
+- Resolved: result latest-run selection ignored aggregate percentage bounds until after choosing the run; `p_latest` now applies coverage and shortage-percentage criteria during audit-run selection.
+- Resolved: invalid result coverage bounds could bypass report-level validation and produce adapter-specific errors; result CSV, JSON, and human modes now reject them consistently before reads.
+- Resolved: operators had to inspect two result runs manually to find allocation changes; `ZSTOCK_ALLOC_COMPARE` now reports added, removed, changed, and optional unchanged demand keys with old/new quantities and deltas.
+- Resolved: comparison consumers received every matching change without a stable page contract; `ZSTOCK_ALLOC_COMPARE` now supports change-type filtering, offset/limit pagination, and JSON metadata containing the filtered total row count.
+- Resolved: paged comparison metadata did not identify the source runs or inclusion mode; JSON metadata now carries both run IDs, the active change filter, and the unchanged-row flag.
+- Resolved: comparison consumers had to scan detail rows to measure run-to-run impact; `p_sum` now exposes pre-pagination change counts and requested/allocated/shortage deltas.
+- Resolved: large comparison exports required an in-memory JSON array; `p_ndjson` now streams one complete comparison row object per line with typed-number parity.
+- Resolved: comparison summaries could silently add quantities from parallel allocation units; mixed-unit summaries now mark the condition and emit safe non-applicable totals.
+- Resolved: comparison exports lacked the lifecycle context behind their run IDs; contextual outputs now include authorized status, strategy, timestamps, and diagnostic messages for both runs.
+- Resolved: run comparisons could miss source identity or reservation metadata mutations; classification and detail exports now cover all persisted demand metadata fields.
+- Resolved: consumers had to infer why a comparison row changed by diffing every old/new field; rows now include a deterministic field-level reason list.
+- Resolved: reason labels could be produced but not queried; comparison now validates and filters by one specific change reason before pagination.
+- Resolved: comparison context showed audit lifecycle metadata without proving that persisted snapshots matched their audit counters; `ZSTOCK_ALLOC_COMPARE` now reports per-run `OK`/`MISMATCH` reconciliation status and snapshot row counts in contextual outputs.
+- Resolved: consumers could see a comparison despite a detected snapshot/audit mismatch; `p_guard` now provides an explicit fail-closed mode with a structured error response.
+- Resolved: missing old/new comparison audit context surfaced as a blank generic exception; the report now identifies the absent old or new run.
+- Resolved: comparison reconciliation could miss requested-quantity drift when line counts and allocated/shortage totals matched; requested totals are now checked and exported for diagnosis.
+- Resolved: exact-run result reconciliation checked outcome, allocated, and shortage metrics but not requested totals; JSON and human result paths now include requested-total equality.
+- Resolved: result reconciliation reported only a boolean status; exact-run JSON and human output now identify the specific mismatched metrics.
+- Resolved: reconciliation diagnostics named a mismatch without exposing the snapshot-side values; comparison and exact-run result outputs now include snapshot outcome and quantity metrics.
+- Resolved: comparison reconciliation exposed snapshot metrics without the corresponding audit-side values; summary/detail CSV, JSON metadata, and human context now expose both sides under schema version `6`, without altering row-only JSON streams.
+- Resolved: comparison context exposed raw audit quantities without unit-safe ratios; schema version `7` now exposes audit coverage and shortage percentages, with zero-request runs explicitly represented as unavailable.
+- Resolved: consumers had to infer whether old/new audit quantities were comparable before calculating deltas; schema version `8` now reports unit comparability and emits safe run-to-run deltas.
+- Resolved: comparison context exposed requested horizons and available baselines independently but not their run-to-run changes; schema version `9` now reports the horizon-change flag and unit-safe requested/available deltas.
+- Resolved: consumers had to infer audit lifecycle and policy changes from old/new strings; schema version `10` now reports explicit status and strategy change indicators.
+- Resolved: comparison context exposed each lifecycle duration but not elapsed-time movement or completion-state transitions; schema version `11` now reports both explicitly.
+- Resolved: lifecycle context showed absolute start/finish timestamps without relative scheduling movement; schema version `12` now reports start and finish deltas in seconds.
+- Resolved: consumers had to infer reconciliation transitions from old/new status fields; schema version `13` now reports the transition explicitly.
+- Resolved: audit context exposed old/new outcome counts but required consumers to calculate trends; schema version `14` now reports all four outcome-counter deltas directly.
+- Resolved: consumers had to combine two reconciliation statuses to determine overall health; schema version `15` now reports `audit_reconciliation_ok` directly.
+- Resolved: consumers had to combine several old/new audit context fields to detect metadata movement; schema version `16` now reports `audit_metadata_changed` directly.
+- Resolved: the aggregate metadata alert did not identify its trigger; schema version `17` now reports stable pipe-delimited change categories.
+- Resolved: running audit rows exposed no elapsed age while their duration was necessarily unavailable; history detail schema version `9` now reports live `running_age_seconds`.
+- Resolved: operators had to scan running history rows to find the oldest active run; history summaries now expose `oldest_running_age_seconds` directly.
+- Resolved: allocation summaries omitted the age of active work; the audit API and allocation report now expose `oldest_running_age_seconds` consistently.
+- Resolved: operators could see the oldest active age but still had to search for the corresponding run; summary outputs now include `oldest_running_run_id`.
+- Resolved: exact result views exposed a running audit without its current elapsed age; `audit_running_age_seconds` is now available across result export and human contexts.
+- Resolved: consumers had to derive reconciliation recovery or regression from two status fields; schema version `18` now reports the transition classification directly.

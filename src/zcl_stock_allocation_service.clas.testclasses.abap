@@ -114,6 +114,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_changed_second_id TYPE zif_stock_allocation=>ty_order_id.
     DATA lv_reservations_differ TYPE abap_bool.
     DATA lv_run_count TYPE i.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_full_count TYPE i.
     DATA lv_partial_count TYPE i.
     DATA lv_unallocated_count TYPE i.
@@ -134,15 +135,19 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
         io_audit        = lo_audit.
 
     lv_remaining = lo_cut->allocate(
-      iv_material         = 'MATERIAL-PRIO'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_movement_type    = '201'
-      iv_unit             = 'EA' ).
+      EXPORTING
+        iv_material         = 'MATERIAL-PRIO'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_movement_type    = '201'
+        iv_unit             = 'EA'
+      IMPORTING
+        ev_run_id           = lv_run_id ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
       exp = '0' ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
 
     SELECT COUNT( * )
       FROM zstockalloc
@@ -1004,6 +1009,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
@@ -1024,26 +1030,28 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
 
     TRY.
         lo_cut->allocate(
-          iv_material         = 'MATERIAL-TXN-FAIL'
-          iv_plant            = '1000'
-          iv_storage_location = '0001'
-          iv_movement_type    = '201'
-          iv_unit             = 'EA' ).
+          EXPORTING
+            iv_material         = 'MATERIAL-TXN-FAIL'
+            iv_plant            = '1000'
+            iv_storage_location = '0001'
+            iv_movement_type    = '201'
+            iv_unit             = 'EA'
+          IMPORTING
+            ev_run_id           = lv_run_id ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
         lv_message = lo_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Allocation result was not persisted: Allocation transaction test failure' ).
     SELECT SINGLE status
       FROM zstockalloc_run
       INTO @lv_status
-      WHERE matnr = 'MATERIAL-TXN-FAIL'
-        AND werks = '1000'
-        AND lgort = '0001'.
+      WHERE run_id = @lv_run_id.
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).

@@ -235,7 +235,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( ls_preview-running_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-      WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;before_date;eligible_audit_runs;linked_result_snapshots;protected_running_runs;deleted_audit_runs'.
+      WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
+        && 'before_date;eligible_audit_runs;linked_result_snapshots;protected_running_runs;deleted_audit_runs'.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
@@ -376,7 +377,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( lv_deleted ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_deleted_snapshots ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-    WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;before_date;eligible_audit_runs;linked_result_snapshots;protected_running_runs;deleted_audit_runs;deleted_result_snapshots'.
+    WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
+      && 'before_date;eligible_audit_runs;linked_result_snapshots;protected_running_runs;deleted_audit_runs;'
+      && 'deleted_result_snapshots'.
     WRITE: / lv_csv_line.
     RETURN.
   ENDIF.

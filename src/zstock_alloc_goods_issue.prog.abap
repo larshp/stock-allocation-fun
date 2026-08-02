@@ -68,7 +68,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote(
         'Select P_EXEC to execute the goods issue' ) TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-      WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;movement_type;unit;batch;quantity;material_document;document_year;status;message'.
+      WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;'
+        && 'movement_type;unit;batch;quantity;material_document;document_year;status;message'.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
@@ -130,7 +131,8 @@ START-OF-SELECTION.
           APPEND zcl_stock_csv=>quote( lo_error->message ) TO lt_csv_fields.
         ENDIF.
         CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-        WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;movement_type;unit;batch;quantity;material_document;document_year;status;message'.
+        WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;'
+          && 'movement_type;unit;batch;quantity;material_document;document_year;status;message'.
         WRITE: / lv_csv_line.
       ENDIF.
       RETURN.
@@ -154,7 +156,8 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'success' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( 'Goods issue posted' ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-    WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;movement_type;unit;batch;quantity;material_document;document_year;status;message'.
+    WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;storage_location;'
+      && 'movement_type;unit;batch;quantity;material_document;document_year;status;message'.
     WRITE: / lv_csv_line.
     RETURN.
   ENDIF.

@@ -773,9 +773,24 @@ START-OF-SELECTION.
     ENDIF.
     IF p_csv = abap_true.
       IF p_sum = abap_true.
-        WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct'.
+        WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;'
+          && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
+          && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;'
+          && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
+          && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
+          && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
+          && 'fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;'
+          && 'full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;'
+          && 'smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;'
+          && 'best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;'
+          && 'legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct'.
       ELSE.
-        WRITE: / 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;plant;storage_location;batch;sales_document;sales_document_type;sales_item;schedule_line;requested_on;priority;allocation_unit;order_unit;requested;allocated;shortage;coverage_pct;shortage_pct;allocation_status;reservation_id;reservation_date;reservation_movement_type;reservation_unit;order_id;audit_running_age_seconds'.
+        WRITE: / 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
+          && 'offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;'
+          && 'total_rows;material;plant;storage_location;batch;sales_document;sales_document_type;sales_item;'
+          && 'schedule_line;requested_on;priority;allocation_unit;order_unit;requested;allocated;shortage;coverage_pct;'
+          && 'shortage_pct;allocation_status;reservation_id;reservation_date;reservation_movement_type;'
+          && 'reservation_unit;order_id;audit_running_age_seconds'.
       ENDIF.
       RETURN.
     ENDIF.
@@ -1032,7 +1047,17 @@ START-OF-SELECTION.
         lv_line_coverage_text = 'n/a'.
         lv_line_shortage_text = 'n/a'.
       ENDIF.
-       WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct'.
+       WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;'
+         && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
+         && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;full_count;partial_count;'
+         && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
+         && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
+         && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
+         && 'fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;'
+         && 'full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;'
+         && 'smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;'
+         && 'best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;'
+         && 'legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct'.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
@@ -1189,7 +1214,13 @@ START-OF-SELECTION.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
-    lv_csv_line = 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;filters;offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;plant;storage_location;batch;sales_document;sales_document_type;sales_item;schedule_line;requested_on;priority;allocation_unit;order_unit;requested;allocated;shortage;coverage_pct;shortage_pct;allocation_status;reservation_id;reservation_date;reservation_movement_type;reservation_unit;order_id;audit_running_age_seconds'.
+    lv_csv_line = 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;'
+      && 'filters;'
+      && 'offset;max_rows;page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;'
+      && 'total_rows;material;plant;storage_location;batch;sales_document;sales_document_type;sales_item;'
+      && 'schedule_line;requested_on;priority;allocation_unit;order_unit;requested;allocated;shortage;coverage_pct;'
+      && 'shortage_pct;allocation_status;reservation_id;reservation_date;reservation_movement_type;'
+      && 'reservation_unit;order_id;audit_running_age_seconds'.
     WRITE: / lv_csv_line.
     LOOP AT lt_demands ASSIGNING <ls_demand>.
       CLEAR: lv_line_coverage,

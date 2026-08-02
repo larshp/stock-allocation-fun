@@ -67,7 +67,8 @@ START-OF-SELECTION.
       AND p_strat <> 'S' AND p_strat <> 'L' AND p_strat <> 'B'.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error(
-        'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest), or B (best-fit).' ).
+        'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
+          && ' or B (best-fit).' ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -75,10 +76,12 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;message'.
       WRITE: / zcl_stock_csv=>error(
         iv_mode    = 'zstock_allocate'
-        iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest), or B (best-fit).' ).
+        iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
+          && ' or B (best-fit).' ).
       RETURN.
     ENDIF.
-    WRITE: / 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest), or B (best-fit).'.
+    WRITE: / 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
+      && ' or B (best-fit).'.
     RETURN.
   ENDIF.
   IF p_strat = 'F'.
@@ -511,7 +514,20 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_summary-last_status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_message ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-    WRITE: / 'mode;strategy;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;remaining;requested;runs;successful_runs;partial_runs;error_runs;priority_runs;fifo_runs;full_only_runs;smallest_runs;largest_runs;best_runs;legacy_strategy_runs;completion_pct;success_rate_pct;partial_rate_pct;error_rate_pct;priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;full_count;partial_count;unallocated_count;requested_on_from;requested_on_to;run_id;last_run_id;last_strategy;last_start_date;last_start_time;last_finish_date;last_finish_time;last_duration_seconds;average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id;last_status;last_message'.
+    WRITE: / 'mode;strategy;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
+      && 'remaining;requested;runs;successful_runs;partial_runs;error_runs;priority_runs;fifo_runs;full_only_runs;'
+      && 'smallest_runs;largest_runs;best_runs;legacy_strategy_runs;completion_pct;success_rate_pct;'
+      && 'partial_rate_pct;error_rate_pct;priority_requested;priority_allocated;priority_shortage;'
+      && 'priority_coverage_pct;fifo_requested;fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;'
+      && 'full_only_allocated;full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;'
+      && 'smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;'
+      && 'largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;'
+      && 'legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;'
+      && 'full_count;partial_count;unallocated_count;requested_on_from;requested_on_to;run_id;last_run_id;'
+      && 'last_strategy;last_start_date;last_start_time;last_finish_date;last_finish_time;last_duration_seconds;'
+      && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
+      && 'oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id;'
+      && 'last_status;last_message'.
     WRITE: / lv_csv_line.
     RETURN.
   ENDIF.

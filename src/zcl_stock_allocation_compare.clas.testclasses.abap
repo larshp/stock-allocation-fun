@@ -366,7 +366,8 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = '202' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ 1 ]-change_reasons
-      exp = 'allocation_strategy|sales_document|sales_item|schedule_line|order_unit|reservation_date|reservation_movement_type|reservation_unit' ).
+      exp = 'allocation_strategy|sales_document|sales_item|schedule_line|order_unit|reservation_date|'
+        && 'reservation_movement_type|reservation_unit' ).
   ENDMETHOD.
 
   METHOD suppresses_mixed_unit_totals.

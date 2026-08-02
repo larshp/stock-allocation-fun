@@ -322,7 +322,10 @@ START-OF-SELECTION.
 
   IF p_csv = abap_true.
     IF p_sum = abap_true.
-      WRITE: / 'schema_version;sort_mode;strategy_filter;run_id_filter;message_filter;message_only;offset;has_more;minimum_shortage;minimum_coverage;maximum_coverage;stale_threshold_seconds;maximum_age_seconds;candidate_count;limited;alert_count;available;requested;allocated;shortage;coverage_pct;oldest_age_seconds;newest_age_seconds'.
+      WRITE: / 'schema_version;sort_mode;strategy_filter;run_id_filter;message_filter;message_only;offset;has_more;'
+        && 'minimum_shortage;minimum_coverage;maximum_coverage;stale_threshold_seconds;maximum_age_seconds;'
+        && 'candidate_count;limited;alert_count;available;requested;allocated;shortage;coverage_pct;'
+        && 'oldest_age_seconds;newest_age_seconds'.
       CLEAR lt_csv_fields.
       APPEND zcl_stock_csv=>number( 18 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
@@ -354,7 +357,10 @@ START-OF-SELECTION.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
-    WRITE: / 'schema_version;sort_mode;strategy_filter;run_id_filter;message_filter;message_only;offset;has_more;maximum_age_seconds;minimum_shortage;minimum_coverage;maximum_coverage;candidate_count;limited;rank;run_id;strategy;unit;start_date;start_time;age_seconds;available;requested;allocated;shortage;coverage_pct;demand_count;message'.
+    WRITE: / 'schema_version;sort_mode;strategy_filter;run_id_filter;message_filter;message_only;offset;has_more;'
+      && 'maximum_age_seconds;minimum_shortage;minimum_coverage;maximum_coverage;candidate_count;limited;rank;'
+      && 'run_id;strategy;unit;start_date;start_time;age_seconds;available;requested;allocated;shortage;'
+      && 'coverage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
       APPEND zcl_stock_csv=>number( 18 ) TO lt_csv_fields.

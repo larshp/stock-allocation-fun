@@ -61,7 +61,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote(
         'Select P_EXEC to execute the sales-order update' ) TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-      WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;sales_item;schedule_line;quantity;status;message'.
+      WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;'
+        && 'sales_item;schedule_line;quantity;status;message'.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
@@ -118,7 +119,8 @@ START-OF-SELECTION.
           APPEND zcl_stock_csv=>quote( lo_error->message ) TO lt_csv_fields.
         ENDIF.
         CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-        WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;sales_item;schedule_line;quantity;status;message'.
+        WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;'
+          && 'sales_item;schedule_line;quantity;status;message'.
         WRITE: / lv_csv_line.
       ENDIF.
       RETURN.
@@ -139,7 +141,8 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'Sales-order schedule quantity changed' )
       TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-    WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;sales_item;schedule_line;quantity;status;message'.
+    WRITE: / 'mode;generated_date;generated_time;schema_version;sales_document;sales_document_type;'
+      && 'sales_item;schedule_line;quantity;status;message'.
     WRITE: / lv_csv_line.
     RETURN.
   ENDIF.

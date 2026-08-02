@@ -552,7 +552,31 @@ START-OF-SELECTION.
 
   IF p_sum = abap_true.
     IF p_csv = abap_true.
-      WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;change_type;reason_filter;include_unchanged;reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_start_date;new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_finish_time;new_finish_time;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;old_available;new_available;old_duration_seconds;new_duration_seconds;old_running_age_seconds;new_running_age_seconds;audit_running_age_delta_seconds;audit_running_age_trend;old_message;new_message;old_reconciliation;new_reconciliation;audit_reconciliation_changed;audit_reconciliation_ok;audit_reconciliation_transition;audit_metadata_changed;audit_metadata_change_reasons;old_reconciliation_fields;new_reconciliation_fields;old_audit_unit;new_audit_unit;audit_units_match;audit_horizon_changed;audit_status_changed;audit_strategy_changed;audit_running_changed;audit_duration_delta_seconds;audit_start_delta_seconds;audit_finish_delta_seconds;old_audit_demand_count;new_audit_demand_count;old_audit_full_rows;new_audit_full_rows;old_audit_partial_rows;new_audit_partial_rows;old_audit_unallocated_rows;new_audit_unallocated_rows;audit_demand_count_delta;audit_full_rows_delta;audit_partial_rows_delta;audit_unallocated_rows_delta;old_audit_requested;new_audit_requested;old_audit_allocated;new_audit_allocated;old_audit_shortage;new_audit_shortage;old_audit_coverage_pct;new_audit_coverage_pct;old_audit_shortage_pct;new_audit_shortage_pct;audit_requested_delta;audit_available_delta;audit_allocated_delta;audit_shortage_delta;audit_coverage_delta_pct;audit_shortage_pct_delta;old_snapshot_rows;new_snapshot_rows;old_snapshot_requested;new_snapshot_requested;old_snapshot_full_rows;new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;new_snapshot_shortage;unit;mixed_units;total_rows;returned_rows;offset;max_rows;added_rows;removed_rows;changed_rows;unchanged_rows;old_requested;new_requested;delta_requested;old_allocated;new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage'.
+      WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;change_type;reason_filter;'
+        && 'include_unchanged;'
+        && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_start_date;'
+        && 'new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_finish_time;'
+        && 'new_finish_time;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;'
+        && 'old_available;new_available;old_duration_seconds;new_duration_seconds;old_running_age_seconds;'
+        && 'new_running_age_seconds;audit_running_age_delta_seconds;audit_running_age_trend;old_message;new_message;'
+        && 'old_reconciliation;new_reconciliation;audit_reconciliation_changed;audit_reconciliation_ok;'
+        && 'audit_reconciliation_transition;audit_metadata_changed;audit_metadata_change_reasons;'
+        && 'old_reconciliation_fields;new_reconciliation_fields;old_audit_unit;new_audit_unit;audit_units_match;'
+        && 'audit_horizon_changed;audit_status_changed;audit_strategy_changed;audit_running_changed;'
+        && 'audit_duration_delta_seconds;audit_start_delta_seconds;audit_finish_delta_seconds;old_audit_demand_count;'
+        && 'new_audit_demand_count;old_audit_full_rows;new_audit_full_rows;old_audit_partial_rows;'
+        && 'new_audit_partial_rows;old_audit_unallocated_rows;new_audit_unallocated_rows;audit_demand_count_delta;'
+        && 'audit_full_rows_delta;audit_partial_rows_delta;audit_unallocated_rows_delta;old_audit_requested;'
+        && 'new_audit_requested;old_audit_allocated;new_audit_allocated;old_audit_shortage;new_audit_shortage;'
+        && 'old_audit_coverage_pct;new_audit_coverage_pct;old_audit_shortage_pct;new_audit_shortage_pct;'
+        && 'audit_requested_delta;audit_available_delta;audit_allocated_delta;audit_shortage_delta;'
+        && 'audit_coverage_delta_pct;audit_shortage_pct_delta;old_snapshot_rows;new_snapshot_rows;'
+        && 'old_snapshot_requested;new_snapshot_requested;old_snapshot_full_rows;new_snapshot_full_rows;'
+        && 'old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;'
+        && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
+        && 'new_snapshot_shortage;unit;mixed_units;total_rows;returned_rows;offset;max_rows;added_rows;removed_rows;'
+        && 'changed_rows;unchanged_rows;old_requested;new_requested;delta_requested;old_allocated;new_allocated;'
+        && 'delta_allocated;old_shortage;new_shortage;delta_shortage'.
       CLEAR lt_csv_fields.
       APPEND zcl_stock_csv=>number( 20 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
@@ -1306,7 +1330,34 @@ START-OF-SELECTION.
   ENDIF.
 
   IF p_csv = abap_true.
-    WRITE: / 'schema_version;generated_date;generated_time;change_type;change_reasons;allocation_unit;order_id;old_allocation_strategy;new_allocation_strategy;old_sales_document;new_sales_document;old_sales_document_type;new_sales_document_type;old_sales_item;new_sales_item;old_schedule_line;new_schedule_line;old_order_unit;new_order_unit;old_requested_on;new_requested_on;old_priority;new_priority;old_status;new_status;old_requested;new_requested;delta_requested;old_allocated;new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage;old_reservation_id;new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_start_date;new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;old_available;new_available;old_duration_seconds;new_duration_seconds;old_running_age_seconds;new_running_age_seconds;audit_running_age_delta_seconds;audit_running_age_trend;old_message;new_message;old_reconciliation;new_reconciliation;audit_reconciliation_changed;audit_reconciliation_ok;audit_reconciliation_transition;audit_metadata_changed;audit_metadata_change_reasons;old_reconciliation_fields;new_reconciliation_fields;old_audit_unit;new_audit_unit;audit_units_match;audit_horizon_changed;audit_status_changed;audit_strategy_changed;audit_running_changed;audit_duration_delta_seconds;audit_start_delta_seconds;audit_finish_delta_seconds;old_audit_demand_count;new_audit_demand_count;old_audit_full_rows;new_audit_full_rows;old_audit_partial_rows;new_audit_partial_rows;old_audit_unallocated_rows;new_audit_unallocated_rows;audit_demand_count_delta;audit_full_rows_delta;audit_partial_rows_delta;audit_unallocated_rows_delta;old_audit_requested;new_audit_requested;old_audit_allocated;new_audit_allocated;old_audit_shortage;new_audit_shortage;old_audit_coverage_pct;new_audit_coverage_pct;old_audit_shortage_pct;new_audit_shortage_pct;audit_requested_delta;audit_available_delta;audit_allocated_delta;audit_shortage_delta;audit_coverage_delta_pct;audit_shortage_pct_delta;old_snapshot_rows;new_snapshot_rows;old_snapshot_requested;new_snapshot_requested;old_snapshot_full_rows;new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;new_snapshot_shortage;reconciliation_guard;reason_filter;total_rows;offset;max_rows'.
+    WRITE: / 'schema_version;generated_date;generated_time;change_type;change_reasons;allocation_unit;order_id;'
+      && 'old_allocation_strategy;new_allocation_strategy;old_sales_document;new_sales_document;'
+      && 'old_sales_document_type;new_sales_document_type;old_sales_item;new_sales_item;old_schedule_line;'
+      && 'new_schedule_line;old_order_unit;new_order_unit;old_requested_on;new_requested_on;old_priority;'
+      && 'new_priority;old_status;new_status;old_requested;new_requested;delta_requested;old_allocated;'
+      && 'new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage;old_reservation_id;'
+      && 'new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;'
+      && 'new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;'
+      && 'old_run_strategy;new_run_strategy;old_start_date;new_start_date;old_start_time;new_start_time;'
+      && 'old_finish_date;new_finish_date;old_requested_on_from;new_requested_on_from;old_requested_on_to;'
+      && 'new_requested_on_to;old_available;new_available;old_duration_seconds;new_duration_seconds;'
+      && 'old_running_age_seconds;new_running_age_seconds;audit_running_age_delta_seconds;audit_running_age_trend;'
+      && 'old_message;new_message;old_reconciliation;new_reconciliation;audit_reconciliation_changed;'
+      && 'audit_reconciliation_ok;audit_reconciliation_transition;audit_metadata_changed;'
+      && 'audit_metadata_change_reasons;old_reconciliation_fields;new_reconciliation_fields;old_audit_unit;'
+      && 'new_audit_unit;audit_units_match;audit_horizon_changed;audit_status_changed;audit_strategy_changed;'
+      && 'audit_running_changed;audit_duration_delta_seconds;audit_start_delta_seconds;audit_finish_delta_seconds;'
+      && 'old_audit_demand_count;new_audit_demand_count;old_audit_full_rows;new_audit_full_rows;'
+      && 'old_audit_partial_rows;new_audit_partial_rows;old_audit_unallocated_rows;new_audit_unallocated_rows;'
+      && 'audit_demand_count_delta;audit_full_rows_delta;audit_partial_rows_delta;audit_unallocated_rows_delta;'
+      && 'old_audit_requested;new_audit_requested;old_audit_allocated;new_audit_allocated;old_audit_shortage;'
+      && 'new_audit_shortage;old_audit_coverage_pct;new_audit_coverage_pct;old_audit_shortage_pct;'
+      && 'new_audit_shortage_pct;audit_requested_delta;audit_available_delta;audit_allocated_delta;'
+      && 'audit_shortage_delta;audit_coverage_delta_pct;audit_shortage_pct_delta;old_snapshot_rows;'
+      && 'new_snapshot_rows;old_snapshot_requested;new_snapshot_requested;old_snapshot_full_rows;'
+      && 'new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;'
+      && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
+      && 'new_snapshot_shortage;reconciliation_guard;reason_filter;total_rows;offset;max_rows'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
     APPEND zcl_stock_csv=>number( 20 ) TO lt_csv_fields.

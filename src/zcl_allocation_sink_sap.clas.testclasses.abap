@@ -67,11 +67,17 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_mixed_run_read FOR TESTING.
     METHODS rejects_orphan_read FOR TESTING.
     METHODS rejects_invalid_run_status FOR TESTING.
+    METHODS rejects_invalid_run_strategy FOR TESTING.
+    METHODS rejects_alloc_unit_mismatch FOR TESTING.
+    METHODS rejects_alloc_run_mismatch FOR TESTING.
+    METHODS rejects_strategy_mismatch FOR TESTING.
+    METHODS rejects_date_mismatch FOR TESTING.
     METHODS rejects_unknown_run FOR TESTING.
     METHODS rejects_inconsistent_run FOR TESTING.
     METHODS rejects_finalized_run FOR TESTING.
     METHODS filters_by_run_and_status FOR TESTING.
     METHODS accepts_lowercase_units FOR TESTING.
+    METHODS accepts_lowercase_status FOR TESTING.
     METHODS rejects_bad_mvt_filter FOR TESTING.
     METHODS filters_by_shortage_percentage FOR TESTING.
 ENDCLASS.
@@ -1066,6 +1072,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA ls_first TYPE zstockalloc.
     DATA ls_second TYPE zstockalloc.
+    DATA ls_third TYPE zstockalloc.
     DATA ls_run TYPE zstockalloc_run.
     DATA lv_raised TYPE abap_bool.
 
@@ -1115,6 +1122,78 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         lv_raised = abap_true.
         cl_abap_unit_assert=>assert_equals(
           act = lo_error->message
+          exp = 'Allocation snapshot provenance is inconsistent' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-MIXED-RUN'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-MIXED-RUN'.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-INTERLEAVED-ONE'.
+    ls_run-matnr = 'MATERIAL-MIXED-RUN'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-run_id = 'RUN-INTERLEAVED-BOX'.
+    ls_run-unit = 'BOX'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-run_id = 'RUN-INTERLEAVED-TWO'.
+    ls_run-unit = 'EA'.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CLEAR ls_first.
+    ls_first-mandt = sy-mandt.
+    ls_first-matnr = 'MATERIAL-MIXED-RUN'.
+    ls_first-werks = '1000'.
+    ls_first-lgort = '0001'.
+    ls_first-run_id = 'RUN-INTERLEAVED-ONE'.
+    ls_first-allocation_unit = 'EA'.
+    ls_first-requested_on = '20260101'.
+    ls_first-order_id = 'INTERLEAVED-ONE'.
+    ls_first-requested = 1.
+    ls_first-allocated = 1.
+    ls_first-allocation_status = 'F'.
+    ls_first-reservation_id = 'RES-INTERLEAVED-ONE'.
+    ls_first-reservation_date = '20260101'.
+    ls_first-reservation_movement_type = '201'.
+    ls_first-reservation_unit = 'EA'.
+    ls_second = ls_first.
+    ls_second-run_id = 'RUN-INTERLEAVED-BOX'.
+    ls_second-allocation_unit = 'BOX'.
+    ls_second-requested_on = '20260102'.
+    ls_second-order_id = 'INTERLEAVED-BOX'.
+    ls_second-reservation_id = 'RES-INTERLEAVED-BOX'.
+    ls_second-reservation_unit = 'BOX'.
+    ls_third = ls_first.
+    ls_third-run_id = 'RUN-INTERLEAVED-TWO'.
+    ls_third-requested_on = '20260103'.
+    ls_third-order_id = 'INTERLEAVED-TWO'.
+    ls_third-reservation_id = 'RES-INTERLEAVED-TWO'.
+    INSERT zstockalloc FROM @ls_first.
+    INSERT zstockalloc FROM @ls_second.
+    INSERT zstockalloc FROM @ls_third.
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material               = 'MATERIAL-MIXED-RUN'
+          iv_plant                  = '1000'
+          iv_storage_location       = '0001'
+          iv_sort_by_requested_date = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_interleaved_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_interleaved_error->message
           exp = 'Allocation snapshot provenance is inconsistent' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
@@ -1285,6 +1364,108 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       exp = 'FILTER-FULL' ).
   ENDMETHOD.
 
+  METHOD accepts_lowercase_status.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_saved_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-LOWERCASE-STATUS'.
+    ls_run-matnr = 'MATERIAL-LOWERCASE-STATUS'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'ea'.
+    ls_run-strategy = 'p'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'r'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    APPEND VALUE #( order_id                  = 'LOWERCASE-STATUS'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    shortage                  = '0'
+                    allocation_strategy       = 'p'
+                    allocation_status         = 'f'
+                    reservation_id            = 'RES-LOWERCASE-STATUS'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'ea' ) TO lt_demands.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    lo_cut->save_allocations(
+      iv_material         = 'MATERIAL-LOWERCASE-STATUS'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id           = 'RUN-LOWERCASE-STATUS'
+      iv_unit             = 'ea'
+      it_demands          = lt_demands ).
+
+    lt_saved_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-LOWERCASE-STATUS'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id           = 'RUN-LOWERCASE-STATUS'
+      iv_unit             = 'EA'
+      iv_strategy         = 'p' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_saved_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-allocation_status
+      exp = 'F' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-allocation_strategy
+      exp = 'P' ).
+
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-LOWERCASE-STATUS'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-LOWERCASE-STATUS'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-LOWERCASE-STATUS'.
+    ls_allocation-allocation_unit = 'ea'.
+    ls_allocation-order_id = 'LOWERCASE-LEGACY'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'f'.
+    ls_allocation-reservation_id = 'RES-LOWERCASE-LEGACY'.
+    ls_allocation-reservation_date = '20260101'.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'ea'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    lt_saved_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-LOWERCASE-STATUS'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id           = 'RUN-LOWERCASE-STATUS'
+      iv_strategy         = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-allocation_status
+      exp = 'F' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-allocation_unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_saved_demands[ 1 ]-reservation_unit
+      exp = 'EA' ).
+
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-LOWERCASE-STATUS'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-LOWERCASE-STATUS'.
+  ENDMETHOD.
+
   METHOD rejects_invalid_run_status.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA ls_allocation TYPE zstockalloc.
@@ -1339,6 +1520,281 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND lgort = '0001'.
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-INVALID-STATUS-READ'.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_run_strategy.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-INVALID-STRATEGY-READ'.
+    ls_run-matnr = 'MATERIAL-INVALID-STRATEGY'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-strategy = 'X'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-INVALID-STRATEGY'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-INVALID-STRATEGY-READ'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'INVALID-STRATEGY-READ'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'RES-INVALID-STRATEGY'.
+    ls_allocation-reservation_date = '20260101'.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'EA'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-INVALID-STRATEGY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot run strategy is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-INVALID-STRATEGY'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-INVALID-STRATEGY-READ'.
+  ENDMETHOD.
+
+  METHOD rejects_alloc_unit_mismatch.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( allocation_unit           = 'BOX'
+                    order_id                  = 'MISMATCHED-UNIT'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = 'RES-MISMATCHED-UNIT'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-MISMATCHED-UNIT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-MISMATCHED-UNIT'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot demand is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_alloc_run_mismatch.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_saved_count TYPE i.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( allocation_run_id         = 'RUN-PAYLOAD'
+                    order_id                  = 'MISMATCHED-RUN'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = 'RES-MISMATCHED-RUN'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-MISMATCHED-RUN'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-SCOPE'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot demand is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      INTO @lv_saved_count
+      WHERE matnr = 'MATERIAL-MISMATCHED-RUN'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_saved_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_strategy_mismatch.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_saved_count TYPE i.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-STRATEGY-SCOPE'.
+    ls_run-matnr = 'MATERIAL-STRATEGY'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-strategy = 'F'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( allocation_run_id         = 'RUN-STRATEGY-SCOPE'
+                    allocation_strategy       = 'P'
+                    order_id                  = 'MISMATCHED-STRATEGY'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = 'RES-MISMATCHED-STRATEGY'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-STRATEGY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-STRATEGY-SCOPE'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot run strategy is inconsistent' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      INTO @lv_saved_count
+      WHERE matnr = 'MATERIAL-STRATEGY'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_saved_count
+      exp = 0 ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-STRATEGY-SCOPE'.
+  ENDMETHOD.
+
+  METHOD rejects_date_mismatch.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_saved_count TYPE i.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-DATE-SCOPE'.
+    ls_run-matnr = 'MATERIAL-DATE'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-requested_on_from = '20260801'.
+    ls_run-requested_on_to = '20260807'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( allocation_run_id = 'RUN-DATE-SCOPE'
+                    requested_on      = '20260808'
+                    order_id          = 'MISMATCHED-DATE'
+                    requested         = '1'
+                    allocated         = '0'
+                    shortage          = '1'
+                    allocation_status = 'U' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-DATE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-DATE-SCOPE'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_write_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_write_error->message
+          exp = 'Allocation snapshot requested date is inconsistent' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      INTO @lv_saved_count
+      WHERE matnr = 'MATERIAL-DATE'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_saved_count
+      exp = 0 ).
+
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-DATE'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-DATE-SCOPE'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-requested_on = '20260808'.
+    ls_allocation-order_id = 'MISMATCHED-DATE'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocation_status = 'U'.
+    ls_allocation-shortage = 1.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-DATE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_read_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_read_error->message
+          exp = 'Allocation snapshot requested date is inconsistent' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-DATE'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-DATE-SCOPE'.
   ENDMETHOD.
 
   METHOD rejects_unknown_run.
@@ -1683,6 +2139,21 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
+    APPEND VALUE #( sales_document            = 'ORDER-DB01'
+                    sales_document_type       = 'OR'
+                    sales_item                = '000020'
+                    schedule_line             = '0001'
+                    order_unit                = 'ea'
+                    requested_on              = '20260116'
+                    order_id                  = 'ORDER-DB-2'
+                    priority                  = 43
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = 'RES-DB-2'
+                    reservation_date          = '20260101'
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
 
     CLEAR ls_run.
     ls_run-mandt = sy-mandt.
@@ -1695,8 +2166,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-status = 'R'.
-    ls_run-available = 5.
-    ls_run-demand_count = 1.
+    ls_run-available = 6.
+    ls_run-demand_count = 2.
+    ls_run-requested_on_from = '20260101'.
+    ls_run-requested_on_to = '20260131'.
     INSERT zstockalloc_run FROM @ls_run.
 
     lo_cut->save_allocations(
@@ -1718,7 +2191,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
-        AND batch = 'BATCH-001'.
+        AND batch = 'BATCH-001'
+        AND order_id = 'ORDER-DB'.
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_id
@@ -1858,7 +2332,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_saved_demands )
-      exp = 2 ).
+      exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_saved_demands[ allocation_unit = 'BOX' ]-allocated
       exp = '3' ).
@@ -1974,7 +2448,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         AND allocation_unit = 'EA'.
     cl_abap_unit_assert=>assert_equals(
       act = lv_ea_count
-      exp = 1 ).
+      exp = 2 ).
   ENDMETHOD.
 
   METHOD rejects_invalid_movement_type.

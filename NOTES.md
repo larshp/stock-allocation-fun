@@ -310,6 +310,15 @@
 - Added snapshot-to-audit referential validation: `ZSTOCKALLOC` writes now require an existing active `ZSTOCKALLOC_RUN` with the exact same material/plant/storage/batch/unit scope.
 - Extended snapshot referential validation to reads, rejecting orphaned or cross-scope result rows while allowing active and finalized audit lifecycle states.
 - Added audit-status validation to snapshot reads so a result cannot be served from a run with an unknown lifecycle state.
+- Tightened direct snapshot payload validation: blank allocation units are filled from the requested scope, while conflicting nonblank allocation units are rejected before replacement.
+- Tightened direct snapshot payload provenance: blank run IDs are filled from the requested scope, while conflicting nonblank run IDs are rejected before replacement.
+- Tightened direct snapshot run validation: corrupt nonblank run strategies are rejected, and nonblank payload strategies must match the persisted run while blank legacy strategies remain supported.
+- Added snapshot requested-date validation: demand date ranges must stay within a persisted audit run's requested-delivery window on both write and read, while runs with blank windows remain backward-compatible.
+- Consolidated snapshot read run-reference checks by run and allocation unit, validating the complete returned requested-date range once before retaining row-level demand and provenance checks.
+- Normalized allocation strategies during direct snapshot comparison so lowercase and uppercase strategy values do not create false changes.
+- Made snapshot provenance validation order-independent: every allocation unit is now checked against one run ID even when result sorting interleaves units.
+- Normalized watch alert units before summary aggregation so case-only unit differences are not reported as mixed populations.
+- Canonicalized persisted audit run units to uppercase during reads, keeping summaries consistent with case-insensitive unit filters and write paths.
 - Added optional run-ID and allocation-status filters to the result sink and `ZSTOCK_ALLOC_RESULT`, allowing operators to reconcile one persisted audit run or focus on full, partial, or unallocated lines without mixing parallel result snapshots.
 - Added an optional exact order-ID result filter and printed the persisted order key in `ZSTOCK_ALLOC_RESULT`, completing the report's direct reconciliation path from audit run to demand line.
 - Added inclusive requested-delivery-date filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with API-level reversed-range validation for planning-horizon queries.
@@ -556,6 +565,18 @@
 - Added pipe-delimited `audit_metadata_change_reasons` categories beside the aggregate metadata alert; schema advances to numeric `schema_version: 17`.
 - Added direct `audit_reconciliation_transition` classifications (`both_ok`, `recovered`, `regressed`, `both_mismatch`, or `unavailable`) to comparison context; schema advances to numeric `schema_version: 18`.
 - Extracted reconciliation transition classification into the comparison interface and covered all transition states with ABAP Unit tests; the compare report now consumes the tested API.
+- Reconciliation now reports `status` explicitly when a snapshot row has an unknown allocation status, instead of silently leaving the row out of the outcome counters.
+- Direct comparison and reconciliation normalize outcome status codes case-insensitively, matching the existing unit and strategy normalization at those API boundaries.
+- Reconciliation now validates each snapshot row's requested, allocated, shortage, and outcome-status relationship and reports `snapshot` when aggregate values could otherwise hide malformed line data.
+- Reconciliation now reports `unit` when snapshot rows do not belong to the audit run's configured allocation unit; blank legacy audit units remain nonrestrictive.
+- Direct audit metadata reasons and running-age calculation now normalize status, strategy, and unit codes before comparison.
+- Running-age regression coverage now verifies a lowercase persisted running status remains reportable.
+- The canonical audit running-age API now applies the same case-insensitive running-status handling as comparison helpers.
+- Direct allocation-snapshot writes now canonicalize allocation outcome statuses on the local demand copy, so lowercase `f`, `p`, and `u` callers persist the same uppercase codes as service-generated results.
+- Allocation-result reads now canonicalize persisted outcome and unit codes before filtering and validation, keeping legacy lowercase snapshot rows readable and returning stable uppercase codes.
+- Audit history reads now canonicalize persisted status and strategy codes before validation; strategy-scoped reads no longer lose legacy rows that use lowercase valid codes.
+- Result reads now normalize persisted audit run status, strategy, and unit fields before referential validation, and apply strategy filters after normalization so lowercase legacy run metadata remains queryable.
+- Audit purge preview and execution now classify legacy lowercase run statuses and units case-insensitively from one shared candidate population, and remove all snapshots linked to each selected run ID.
 - Extracted audit metadata reason generation into the comparison interface, preserving deterministic category ordering and covering unchanged and all-category changes with ABAP Unit tests.
 - Added tested live running-age calculation to the comparison interface and exposed old/new ages plus a safe delta in comparison CSV, JSON, metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 19`, with typed `null` and regular `n/a` when a run is not active or timestamps are unusable.
 - Added tested `audit_running_age_trend` classification (`older`, `younger`, `unchanged`, or `unavailable`) to comparison contextual outputs; schemas advance to numeric `schema_version: 20` so consumers can use an explicit direction without interpreting the numeric age delta.

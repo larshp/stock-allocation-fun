@@ -19,13 +19,17 @@ CLASS zcl_allocation_sink_sap DEFINITION
         zcx_stock_allocation.
     METHODS validate_run_reference
       IMPORTING
-        iv_run_id           TYPE zif_stock_allocation=>ty_run_id
-        iv_material         TYPE zif_stock_allocation=>ty_material
-        iv_plant            TYPE zif_stock_allocation=>ty_plant
-        iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
-        iv_batch            TYPE zif_stock_allocation=>ty_batch
-        iv_unit             TYPE zif_stock_allocation=>ty_unit
-        iv_require_running  TYPE abap_bool OPTIONAL
+        iv_run_id                TYPE zif_stock_allocation=>ty_run_id
+        iv_material              TYPE zif_stock_allocation=>ty_material
+        iv_plant                 TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location      TYPE zif_stock_allocation=>ty_storage_location
+        iv_batch                 TYPE zif_stock_allocation=>ty_batch
+        iv_unit                  TYPE zif_stock_allocation=>ty_unit
+        iv_strategy              TYPE zif_allocation_audit=>ty_strategy OPTIONAL
+        iv_snapshot_date_from    TYPE d OPTIONAL
+        iv_snapshot_date_to      TYPE d OPTIONAL
+        iv_snapshot_date_present TYPE abap_bool OPTIONAL
+        iv_require_running       TYPE abap_bool OPTIONAL
       RAISING
         zcx_stock_allocation.
     METHODS raise_error
@@ -69,8 +73,19 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         movement_type  TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life TYPE i,
       END OF ty_strategy_run.
-    DATA lv_run_id TYPE zif_stock_allocation=>ty_run_id.
-    DATA lv_allocation_unit TYPE zif_stock_allocation=>ty_unit.
+    TYPES:
+      BEGIN OF ty_run_validation,
+        run_id          TYPE zif_stock_allocation=>ty_run_id,
+        allocation_unit TYPE zif_stock_allocation=>ty_unit,
+        date_from       TYPE d,
+        date_to         TYPE d,
+        date_missing    TYPE abap_bool,
+      END OF ty_run_validation.
+    TYPES:
+      BEGIN OF ty_unit_provenance,
+        allocation_unit TYPE zif_stock_allocation=>ty_unit,
+        run_id          TYPE zif_stock_allocation=>ty_run_id,
+      END OF ty_unit_provenance.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_reservation_cutoff TYPE d.
@@ -84,6 +99,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lt_coverage_filtered TYPE zif_stock_allocation=>tt_demands.
     DATA lt_strategy_runs TYPE SORTED TABLE OF ty_strategy_run
       WITH UNIQUE KEY run_id.
+    DATA lt_run_validations TYPE SORTED TABLE OF ty_run_validation
+      WITH UNIQUE KEY run_id allocation_unit.
+    DATA ls_unit_provenance TYPE ty_unit_provenance.
+    DATA lt_unit_provenance TYPE SORTED TABLE OF ty_unit_provenance
+      WITH UNIQUE KEY allocation_unit.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_line
       WITH EMPTY KEY.
     DATA lt_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
@@ -265,6 +285,15 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
     ENDIF.
+    LOOP AT rt_demands ASSIGNING <ls_demand>.
+      <ls_demand>-allocation_status =
+        to_upper( <ls_demand>-allocation_status ).
+      <ls_demand>-allocation_unit =
+        to_upper( <ls_demand>-allocation_unit ).
+      <ls_demand>-order_unit = to_upper( <ls_demand>-order_unit ).
+      <ls_demand>-reservation_unit =
+        to_upper( <ls_demand>-reservation_unit ).
+    ENDLOOP.
     IF lv_unit_filter IS NOT INITIAL.
       LOOP AT rt_demands ASSIGNING <ls_demand>.
         IF to_upper( <ls_demand>-allocation_unit ) <> lv_unit_filter.
@@ -291,8 +320,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
-            AND batch = @iv_batch
-            AND strategy = @lv_strategy.
+            AND batch = @iv_batch.
       ELSEIF iv_legacy_strategy = abap_true.
         SELECT run_id, strategy, movement_type, min_shelf_life
           FROM zstockalloc_run
@@ -322,6 +350,15 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             DELETE rt_demands.
           ENDIF.
         ELSE.
+          <ls_strategy_run>-strategy =
+            to_upper( <ls_strategy_run>-strategy ).
+          IF ( lv_strategy IS NOT INITIAL
+                AND <ls_strategy_run>-strategy <> lv_strategy )
+              OR ( iv_legacy_strategy = abap_true
+                AND <ls_strategy_run>-strategy IS NOT INITIAL ).
+            DELETE rt_demands.
+            CONTINUE.
+          ENDIF.
           IF iv_allocation_movement_type IS NOT INITIAL
               AND <ls_strategy_run>-movement_type
                 <> iv_allocation_movement_type.
@@ -557,18 +594,53 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       validate_demand(
         is_demand         = <ls_demand>
         iv_require_run_id = abap_true ).
+      READ TABLE lt_run_validations ASSIGNING FIELD-SYMBOL(<ls_run_validation>)
+        WITH TABLE KEY run_id = <ls_demand>-allocation_run_id
+                       allocation_unit = <ls_demand>-allocation_unit.
+      IF sy-subrc <> 0.
+        INSERT VALUE #(
+          run_id          = <ls_demand>-allocation_run_id
+          allocation_unit = <ls_demand>-allocation_unit
+          date_from       = <ls_demand>-requested_on
+          date_to         = <ls_demand>-requested_on
+          date_missing    = xsdbool( <ls_demand>-requested_on IS INITIAL ) )
+          INTO TABLE lt_run_validations.
+      ELSEIF <ls_demand>-requested_on IS INITIAL.
+        <ls_run_validation>-date_missing = abap_true.
+        CLEAR: <ls_run_validation>-date_from,
+               <ls_run_validation>-date_to.
+      ELSEIF <ls_run_validation>-date_missing = abap_false.
+        IF <ls_run_validation>-date_from IS INITIAL
+            OR <ls_demand>-requested_on < <ls_run_validation>-date_from.
+          <ls_run_validation>-date_from = <ls_demand>-requested_on.
+        ENDIF.
+        IF <ls_run_validation>-date_to IS INITIAL
+            OR <ls_demand>-requested_on > <ls_run_validation>-date_to.
+          <ls_run_validation>-date_to = <ls_demand>-requested_on.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT lt_run_validations ASSIGNING <ls_run_validation>.
       validate_run_reference(
-        iv_run_id           = <ls_demand>-allocation_run_id
-        iv_material         = iv_material
-        iv_plant            = iv_plant
-        iv_storage_location = iv_storage_location
-        iv_batch            = iv_batch
-        iv_unit             = <ls_demand>-allocation_unit ).
-      IF lv_allocation_unit IS INITIAL
-          OR lv_allocation_unit <> <ls_demand>-allocation_unit.
-        lv_allocation_unit = <ls_demand>-allocation_unit.
-        lv_run_id = <ls_demand>-allocation_run_id.
-    ELSEIF lv_run_id <> <ls_demand>-allocation_run_id.
+        iv_run_id                = <ls_run_validation>-run_id
+        iv_material              = iv_material
+        iv_plant                 = iv_plant
+        iv_storage_location      = iv_storage_location
+        iv_batch                 = iv_batch
+        iv_unit                  = <ls_run_validation>-allocation_unit
+        iv_snapshot_date_from    = <ls_run_validation>-date_from
+        iv_snapshot_date_to      = <ls_run_validation>-date_to
+        iv_snapshot_date_present = abap_true ).
+    ENDLOOP.
+    LOOP AT rt_demands ASSIGNING <ls_demand>.
+      READ TABLE lt_unit_provenance INTO ls_unit_provenance
+        WITH TABLE KEY allocation_unit = <ls_demand>-allocation_unit.
+      IF sy-subrc <> 0.
+        ls_unit_provenance-allocation_unit =
+          <ls_demand>-allocation_unit.
+        ls_unit_provenance-run_id = <ls_demand>-allocation_run_id.
+        INSERT ls_unit_provenance INTO TABLE lt_unit_provenance.
+      ELSEIF ls_unit_provenance-run_id <> <ls_demand>-allocation_run_id.
         raise_error( iv_message = 'Allocation snapshot provenance is inconsistent' ).
       ENDIF.
       IF <ls_demand>-allocated > 0.
@@ -600,6 +672,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lt_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
       WITH UNIQUE KEY table_line.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_requested_on_min TYPE d.
+    DATA lv_requested_on_max TYPE d.
+    DATA lv_requested_on_missing TYPE abap_bool.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
 
@@ -613,9 +689,41 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     LOOP AT it_demands ASSIGNING <ls_demand>.
       ls_demand = <ls_demand>.
+      ls_demand-allocation_strategy = to_upper( ls_demand-allocation_strategy ).
+      ls_demand-allocation_status = to_upper( ls_demand-allocation_status ).
       ls_demand-allocation_unit = to_upper( ls_demand-allocation_unit ).
       ls_demand-order_unit = to_upper( ls_demand-order_unit ).
       ls_demand-reservation_unit = to_upper( ls_demand-reservation_unit ).
+      IF ls_demand-allocation_unit IS NOT INITIAL
+          AND ls_demand-allocation_unit <> lv_unit.
+        raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
+      ENDIF.
+      IF ls_demand-allocation_run_id IS NOT INITIAL
+          AND ls_demand-allocation_run_id <> iv_run_id.
+        raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
+      ENDIF.
+      IF ls_demand-allocation_strategy IS NOT INITIAL.
+        IF lv_strategy IS INITIAL.
+          lv_strategy = ls_demand-allocation_strategy.
+        ELSEIF lv_strategy <> ls_demand-allocation_strategy.
+          raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
+        ENDIF.
+      ENDIF.
+      IF ls_demand-requested_on IS INITIAL.
+        lv_requested_on_missing = abap_true.
+        CLEAR: lv_requested_on_min, lv_requested_on_max.
+      ELSEIF lv_requested_on_missing = abap_false.
+        IF lv_requested_on_min IS INITIAL
+            OR ls_demand-requested_on < lv_requested_on_min.
+          lv_requested_on_min = ls_demand-requested_on.
+        ENDIF.
+        IF lv_requested_on_max IS INITIAL
+            OR ls_demand-requested_on > lv_requested_on_max.
+          lv_requested_on_max = ls_demand-requested_on.
+        ENDIF.
+      ENDIF.
+      ls_demand-allocation_unit = lv_unit.
+      ls_demand-allocation_run_id = iv_run_id.
       validate_demand( is_demand = ls_demand ).
       INSERT ls_demand-order_id INTO TABLE lt_order_ids.
       IF sy-subrc <> 0.
@@ -674,13 +782,17 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
 
     validate_run_reference(
-      iv_run_id           = iv_run_id
-      iv_material         = iv_material
-      iv_plant            = iv_plant
-      iv_storage_location = iv_storage_location
-      iv_batch            = iv_batch
-      iv_unit             = lv_unit
-      iv_require_running  = abap_true ).
+      iv_run_id                = iv_run_id
+      iv_material              = iv_material
+      iv_plant                 = iv_plant
+      iv_storage_location      = iv_storage_location
+      iv_batch                 = iv_batch
+      iv_unit                  = lv_unit
+      iv_strategy              = lv_strategy
+      iv_snapshot_date_from    = lv_requested_on_min
+      iv_snapshot_date_to      = lv_requested_on_max
+      iv_snapshot_date_present = xsdbool( lines( lt_allocations ) > 0 )
+      iv_require_running       = abap_true ).
 
     DELETE FROM zstockalloc
       WHERE matnr = @iv_material
@@ -749,16 +861,25 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_run_storage_location TYPE zstockalloc_run-lgort.
     DATA lv_run_batch TYPE zstockalloc_run-batch.
     DATA lv_run_unit TYPE zstockalloc_run-unit.
+    DATA lv_run_strategy TYPE zstockalloc_run-strategy.
+    DATA lv_run_requested_on_from TYPE zstockalloc_run-requested_on_from.
+    DATA lv_run_requested_on_to TYPE zstockalloc_run-requested_on_to.
     DATA lv_run_status TYPE zstockalloc_run-status.
 
-    SELECT SINGLE matnr, werks, lgort, batch, unit, status
+    SELECT SINGLE matnr, werks, lgort, batch, unit, strategy,
+                  requested_on_from, requested_on_to, status
       FROM zstockalloc_run
       INTO (@lv_run_material, @lv_run_plant, @lv_run_storage_location,
-            @lv_run_batch, @lv_run_unit, @lv_run_status)
+            @lv_run_batch, @lv_run_unit, @lv_run_strategy,
+            @lv_run_requested_on_from, @lv_run_requested_on_to,
+            @lv_run_status)
       WHERE run_id = @iv_run_id.
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Allocation snapshot run was not found' ).
     ENDIF.
+    lv_run_unit = to_upper( lv_run_unit ).
+    lv_run_strategy = to_upper( lv_run_strategy ).
+    lv_run_status = to_upper( lv_run_status ).
     IF lv_run_material <> iv_material
         OR lv_run_plant <> iv_plant
         OR lv_run_storage_location <> iv_storage_location
@@ -771,6 +892,28 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND lv_run_status <> 'P'
         AND lv_run_status <> 'E'.
       raise_error( iv_message = 'Allocation snapshot run status is invalid' ).
+    ENDIF.
+    IF lv_run_strategy IS NOT INITIAL
+        AND lv_run_strategy <> 'P'
+        AND lv_run_strategy <> 'F'
+        AND lv_run_strategy <> 'N'
+        AND lv_run_strategy <> 'S'
+        AND lv_run_strategy <> 'L'
+        AND lv_run_strategy <> 'B'.
+      raise_error( iv_message = 'Allocation snapshot run strategy is invalid' ).
+    ENDIF.
+    IF iv_strategy IS NOT INITIAL
+        AND lv_run_strategy <> iv_strategy.
+      raise_error( iv_message = 'Allocation snapshot run strategy is inconsistent' ).
+    ENDIF.
+    IF iv_snapshot_date_present = abap_true
+        AND ( ( lv_run_requested_on_from IS NOT INITIAL
+              AND ( iv_snapshot_date_from IS INITIAL
+                OR iv_snapshot_date_from < lv_run_requested_on_from ) )
+          OR ( lv_run_requested_on_to IS NOT INITIAL
+              AND ( iv_snapshot_date_to IS INITIAL
+                OR iv_snapshot_date_to > lv_run_requested_on_to ) ) ).
+      raise_error( iv_message = 'Allocation snapshot requested date is inconsistent' ).
     ENDIF.
     IF iv_require_running = abap_true
         AND lv_run_status <> 'R'.

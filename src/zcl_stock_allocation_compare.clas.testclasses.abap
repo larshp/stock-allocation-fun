@@ -78,6 +78,18 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
         iv_old_run = ls_old_run
         iv_new_run = ls_new_run )
       exp = 'status|strategy|unit|movement_type|shelf_life|horizon|timestamps|message' ).
+
+    CLEAR: ls_old_run, ls_new_run.
+    ls_old_run-status = 'r'.
+    ls_new_run-status = 'R'.
+    ls_old_run-strategy = 'p'.
+    ls_new_run-strategy = 'P'.
+    ls_old_run-unit = 'ea'.
+    ls_new_run-unit = 'EA'.
+    cl_abap_unit_assert=>assert_initial(
+      lo_cut->get_audit_metadata_reasons(
+        iv_old_run = ls_old_run
+        iv_new_run = ls_new_run ) ).
   ENDMETHOD.
 
   METHOD calculates_running_age.
@@ -94,6 +106,10 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( ls_age-available ).
     lv_age_is_long_enough = xsdbool( ls_age-seconds >= 86399 ).
     cl_abap_unit_assert=>assert_true( lv_age_is_long_enough ).
+
+    ls_run-status = 'r'.
+    ls_age = lo_cut->get_running_age( ls_run ).
+    cl_abap_unit_assert=>assert_true( ls_age-available ).
 
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
@@ -315,23 +331,25 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     DATA ls_summary TYPE zif_stock_allocation_compare=>ty_summary.
 
     APPEND VALUE #(
-      allocation_unit   = 'ea'
-      order_id          = 'CASE-UNIT'
-      order_unit        = 'box'
-      requested         = 2
-      allocated         = 2
-      allocation_status = 'F'
-      reservation_id    = 'RES-CASE'
-      reservation_unit  = 'box' ) TO lt_old.
+      allocation_unit     = 'ea'
+      order_id            = 'CASE-UNIT'
+      allocation_strategy = 'p'
+      order_unit          = 'box'
+      requested           = 2
+      allocated           = 2
+      allocation_status   = 'f'
+      reservation_id      = 'RES-CASE'
+      reservation_unit    = 'box' ) TO lt_old.
     APPEND VALUE #(
-      allocation_unit   = 'EA'
-      order_id          = 'CASE-UNIT'
-      order_unit        = 'BOX'
-      requested         = 2
-      allocated         = 2
-      allocation_status = 'F'
-      reservation_id    = 'RES-CASE'
-      reservation_unit  = 'BOX' ) TO lt_new.
+      allocation_unit     = 'EA'
+      order_id            = 'CASE-UNIT'
+      allocation_strategy = 'P'
+      order_unit          = 'BOX'
+      requested           = 2
+      allocated           = 2
+      allocation_status   = 'F'
+      reservation_id      = 'RES-CASE'
+      reservation_unit    = 'BOX' ) TO lt_new.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
     lt_changes = lo_cut->compare(
@@ -548,6 +566,74 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_reconciliation-mismatch_fields
       exp = 'requested' ).
+
+    CLEAR lt_snapshot.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'INVALID-STATUS'
+      requested         = 1
+      shortage          = 1
+      allocation_status = 'X' ) TO lt_snapshot.
+    CLEAR ls_audit.
+    ls_audit-demand_count = 1.
+    ls_audit-requested = 1.
+    ls_audit-shortage = 1.
+    ls_reconciliation = lo_cut->reconcile(
+      it_snapshot = lt_snapshot
+      is_audit    = ls_audit ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-status
+      exp = 'MISMATCH' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-mismatch_fields
+      exp = 'status' ).
+
+    CLEAR lt_snapshot.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'INVALID-METRICS'
+      requested         = 2
+      allocated         = 1
+      shortage          = 1
+      allocation_status = 'F' ) TO lt_snapshot.
+    CLEAR ls_audit.
+    ls_audit-demand_count = 1.
+    ls_audit-full_count = 1.
+    ls_audit-requested = 2.
+    ls_audit-allocated = 1.
+    ls_audit-shortage = 1.
+    ls_reconciliation = lo_cut->reconcile(
+      it_snapshot = lt_snapshot
+      is_audit    = ls_audit ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-status
+      exp = 'MISMATCH' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-mismatch_fields
+      exp = 'snapshot' ).
+
+    CLEAR lt_snapshot.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'WRONG-UNIT'
+      requested         = 1
+      allocated         = 1
+      allocation_status = 'F' ) TO lt_snapshot.
+    CLEAR ls_audit.
+    ls_audit-unit = 'BOX'.
+    ls_audit-demand_count = 1.
+    ls_audit-full_count = 1.
+    ls_audit-requested = 1.
+    ls_audit-allocated = 1.
+    ls_reconciliation = lo_cut->reconcile(
+      it_snapshot = lt_snapshot
+      is_audit    = ls_audit ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-status
+      exp = 'MISMATCH' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-mismatch_fields
+      exp = 'unit' ).
   ENDMETHOD.
 
   METHOD rejects_duplicate_keys.

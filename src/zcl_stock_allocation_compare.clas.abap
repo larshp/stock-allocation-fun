@@ -82,6 +82,10 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
 
     LOOP AT it_old ASSIGNING <ls_demand>.
       ls_normalized = <ls_demand>.
+      ls_normalized-allocation_strategy =
+        to_upper( ls_normalized-allocation_strategy ).
+      ls_normalized-allocation_status =
+        to_upper( ls_normalized-allocation_status ).
       ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
       ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
       ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).
@@ -95,6 +99,10 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     ENDLOOP.
     LOOP AT it_new ASSIGNING <ls_demand>.
       ls_normalized = <ls_demand>.
+      ls_normalized-allocation_strategy =
+        to_upper( ls_normalized-allocation_strategy ).
+      ls_normalized-allocation_status =
+        to_upper( ls_normalized-allocation_status ).
       ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
       ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
       ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).
@@ -316,22 +324,55 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
 
   METHOD zif_stock_allocation_compare~reconcile.
     FIELD-SYMBOLS <ls_snapshot> TYPE zif_stock_allocation=>ty_demand.
+    DATA lv_status TYPE zif_stock_allocation=>ty_allocation_status.
+    DATA lv_invalid_status TYPE abap_bool.
+    DATA lv_invalid_snapshot TYPE abap_bool.
+    DATA lv_invalid_unit TYPE abap_bool.
 
     CLEAR rs_reconciliation.
     LOOP AT it_snapshot ASSIGNING <ls_snapshot>.
+      lv_status = to_upper( <ls_snapshot>-allocation_status ).
+      IF is_audit-unit IS NOT INITIAL
+          AND to_upper( <ls_snapshot>-allocation_unit )
+            <> to_upper( is_audit-unit ).
+        lv_invalid_unit = abap_true.
+      ENDIF.
       rs_reconciliation-snapshot_rows =
         rs_reconciliation-snapshot_rows + 1.
-      CASE <ls_snapshot>-allocation_status.
+      CASE lv_status.
         WHEN 'F'.
           rs_reconciliation-snapshot_full_count =
             rs_reconciliation-snapshot_full_count + 1.
+          IF <ls_snapshot>-allocated <> <ls_snapshot>-requested
+              OR <ls_snapshot>-shortage <> 0.
+            lv_invalid_snapshot = abap_true.
+          ENDIF.
         WHEN 'P'.
           rs_reconciliation-snapshot_partial_count =
             rs_reconciliation-snapshot_partial_count + 1.
+          IF <ls_snapshot>-allocated <= 0
+              OR <ls_snapshot>-allocated >= <ls_snapshot>-requested
+              OR <ls_snapshot>-shortage <= 0.
+            lv_invalid_snapshot = abap_true.
+          ENDIF.
         WHEN 'U'.
           rs_reconciliation-snapshot_unallocated_count =
             rs_reconciliation-snapshot_unallocated_count + 1.
+          IF <ls_snapshot>-allocated <> 0
+              OR <ls_snapshot>-shortage <> <ls_snapshot>-requested.
+            lv_invalid_snapshot = abap_true.
+          ENDIF.
+        WHEN OTHERS.
+          lv_invalid_status = abap_true.
       ENDCASE.
+      IF <ls_snapshot>-requested <= 0
+          OR <ls_snapshot>-allocated < 0
+          OR <ls_snapshot>-shortage < 0
+          OR <ls_snapshot>-allocated > <ls_snapshot>-requested
+          OR <ls_snapshot>-shortage <> <ls_snapshot>-requested
+            - <ls_snapshot>-allocated.
+        lv_invalid_snapshot = abap_true.
+      ENDIF.
       rs_reconciliation-snapshot_requested =
         rs_reconciliation-snapshot_requested + <ls_snapshot>-requested.
       rs_reconciliation-snapshot_allocated =
@@ -340,6 +381,18 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         rs_reconciliation-snapshot_shortage + <ls_snapshot>-shortage.
     ENDLOOP.
 
+    IF lv_invalid_status = abap_true.
+      append_reason( EXPORTING iv_reason = 'status'
+                   CHANGING cv_reasons   = rs_reconciliation-mismatch_fields ).
+    ENDIF.
+    IF lv_invalid_snapshot = abap_true.
+      append_reason( EXPORTING iv_reason = 'snapshot'
+                   CHANGING cv_reasons   = rs_reconciliation-mismatch_fields ).
+    ENDIF.
+    IF lv_invalid_unit = abap_true.
+      append_reason( EXPORTING iv_reason = 'unit'
+                   CHANGING cv_reasons   = rs_reconciliation-mismatch_fields ).
+    ENDIF.
     IF rs_reconciliation-snapshot_rows <> is_audit-demand_count.
       append_reason( EXPORTING iv_reason = 'demand_count'
                    CHANGING cv_reasons   = rs_reconciliation-mismatch_fields ).
@@ -397,7 +450,7 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     DATA lv_seconds TYPE i.
 
     CLEAR rs_age.
-    IF is_run-status <> 'R'
+    IF to_upper( is_run-status ) <> 'R'
         OR is_run-finish_date IS NOT INITIAL
         OR is_run-start_date IS INITIAL
         OR is_run-start_time IS INITIAL.
@@ -436,15 +489,15 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_allocation_compare~get_audit_metadata_reasons.
-    IF iv_old_run-status <> iv_new_run-status.
+    IF to_upper( iv_old_run-status ) <> to_upper( iv_new_run-status ).
       append_reason( EXPORTING iv_reason = 'status'
                    CHANGING cv_reasons   = rv_reasons ).
     ENDIF.
-    IF iv_old_run-strategy <> iv_new_run-strategy.
+    IF to_upper( iv_old_run-strategy ) <> to_upper( iv_new_run-strategy ).
       append_reason( EXPORTING iv_reason = 'strategy'
                    CHANGING cv_reasons   = rv_reasons ).
     ENDIF.
-    IF iv_old_run-unit <> iv_new_run-unit.
+    IF to_upper( iv_old_run-unit ) <> to_upper( iv_new_run-unit ).
       append_reason( EXPORTING iv_reason = 'unit'
                    CHANGING cv_reasons   = rv_reasons ).
     ENDIF.

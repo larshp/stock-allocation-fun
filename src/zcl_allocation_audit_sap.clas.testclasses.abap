@@ -107,6 +107,7 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_inverted_timestamp FOR TESTING.
     METHODS filters_duration_bounds FOR TESTING.
     METHODS accepts_lowercase_unit FOR TESTING.
+    METHODS accepts_lowercase_codes FOR TESTING.
     METHODS filters_max_running_age FOR TESTING.
     METHODS filters_shortage_percentage FOR TESTING.
     METHODS accepts_largest_strategy FOR TESTING.
@@ -414,6 +415,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( ls_age-available ).
     cl_abap_unit_assert=>assert_true(
       xsdbool( ls_age-seconds >= 86399 ) ).
+
+    ls_run-status = 'r'.
+    ls_age = lo_cut->get_running_age( ls_run ).
+    cl_abap_unit_assert=>assert_true( ls_age-available ).
 
     ls_run-start_date = '20260101'.
     ls_run-start_time = '120001'.
@@ -1009,6 +1014,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_unit             = 'EA'
       iv_available        = '1'
       iv_demand_count     = 1 ).
+    UPDATE zstockalloc_run
+      SET unit = 'ea'
+      WHERE run_id = @lv_run_id.
     lt_runs = lo_cut->get_runs(
       iv_material         = 'MATERIAL-AUDIT-UNIT'
       iv_plant            = '1000'
@@ -1017,6 +1025,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_runs )
       exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-unit
+      exp = 'EA' ).
     ls_summary = lo_cut->get_summary(
       iv_material         = 'MATERIAL-AUDIT-UNIT'
       iv_plant            = '1000'
@@ -1027,6 +1038,54 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 'EA' ).
     DELETE FROM zstockalloc_run
       WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
+  METHOD accepts_lowercase_codes.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA ls_run TYPE zstockalloc_run.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-AUDIT-LOWERCASE-CODES'.
+    ls_run-matnr = 'MATERIAL-AUDIT-LOWERCASE'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'ea'.
+    ls_run-strategy = 'p'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
+    ls_run-status = 's'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-full_count = 1.
+    ls_run-allocated = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-LOWERCASE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_status           = 'S'
+      iv_strategy         = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-status
+      exp = 'S' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-strategy
+      exp = 'P' ).
+
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-AUDIT-LOWERCASE-CODES'.
   ENDMETHOD.
 
   METHOD filters_max_running_age.
@@ -1495,7 +1554,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-matnr = 'MATERIAL-PURGE-STATUS'.
     ls_run-werks = '1000'.
     ls_run-lgort = '0001'.
-    ls_run-unit = 'EA'.
+    ls_run-unit = 'ea'.
     ls_run-start_date = '20260101'.
     ls_run-start_time = '010000'.
     ls_run-finish_date = '20260101'.
@@ -1504,10 +1563,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-demand_count = 1.
     ls_run-allocated = 1.
     ls_run-shortage = 0.
-    ls_run-status = 'S'.
+    ls_run-status = 's'.
     ls_run-run_id = 'RUN-PURGE-STATUS-SUCCESS'.
     INSERT zstockalloc_run FROM @ls_run.
-    ls_run-status = 'P'.
+    ls_run-status = 'p'.
     ls_run-shortage = 1.
     ls_run-allocated = 0.
     ls_run-message = 'Shortage retained for status test'.
@@ -1533,14 +1592,14 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-matnr = 'MATERIAL-PURGE-STATUS'.
     ls_run-werks = '1000'.
     ls_run-lgort = '0001'.
-    ls_run-unit = 'EA'.
+    ls_run-unit = 'ea'.
     ls_run-start_date = '20260101'.
     ls_run-start_time = '010000'.
-    ls_run-status = 'R'.
+    ls_run-status = 'r'.
     ls_run-available = 1.
     INSERT zstockalloc_run FROM @ls_run.
     ls_run-run_id = 'RUN-PURGE-STATUS-UNKNOWN'.
-    ls_run-status = 'X'.
+    ls_run-status = 'x'.
     INSERT zstockalloc_run FROM @ls_run.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.

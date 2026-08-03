@@ -266,6 +266,15 @@
 - Resolved: direct snapshot writers could persist a nonblank but nonexistent, unrelated, or finalized audit `RUN_ID`; `ZSTOCKALLOC` persistence now validates the active run and its complete scope before replacement.
 - Resolved: result reads could accept a valid-shaped snapshot whose audit run was missing or belonged to another scope; snapshot reads now validate the run reference and exact scope while preserving legitimate lifecycle states.
 - Resolved: the result report could expose rows linked to an unknown audit status; snapshot reads now accept only `R`, `S`, `P`, or `E` run states.
+- Resolved: direct snapshot writes could silently overwrite a conflicting payload allocation unit with the method scope; writes now reject the mismatch and normalize only blank payload units.
+- Resolved: direct snapshot writes could silently overwrite a conflicting payload allocation run ID with the method scope; writes now reject the mismatch and normalize only blank payload run IDs.
+- Resolved: direct snapshot writes and reads could trust a corrupt run strategy or silently mask a conflicting payload strategy; run references now validate recognized strategies and enforce nonblank payload agreement while preserving legacy blanks.
+- Resolved: direct snapshot writes and reads could accept demand dates outside the audit run's persisted requested-delivery window; nonblank run windows now constrain snapshot dates while blank legacy windows remain supported.
+- Resolved: multi-line snapshot reads repeated the same audit-run lookup for every row; run-reference validation now groups rows by run and allocation unit while checking the complete returned date range.
+- Resolved: direct snapshot comparison treated case-only allocation-strategy differences as changes; comparison now normalizes strategy values before classification.
+- Resolved: interleaved snapshot sort orders could hide different run IDs within one allocation unit; provenance validation now uses a keyed per-unit map instead of adjacent-row state.
+- Resolved: watch summaries treated lowercase and uppercase forms of the same allocation unit as mixed units; summary aggregation now normalizes unit values.
+- Resolved: lowercase persisted audit units were accepted but returned unnormalized; audit reads now canonicalize unit values before summaries and consumers use them.
 - Resolved: result and history consumers could filter raw shortage or coverage but not relative shortage risk; both read paths now validate and apply inclusive shortage-percentage ranges, excluding non-applicable zero-request rows.
 - Resolved: percentage-based shortage risk could be filtered but not ranked; result and history reads now support deterministic shortage-percentage-first ordering.
 - Resolved: result latest-run selection ignored aggregate percentage bounds until after choosing the run; `p_latest` now applies coverage and shortage-percentage criteria during audit-run selection.
@@ -305,3 +314,15 @@
 - Resolved: operators could see the oldest active age but still had to search for the corresponding run; summary outputs now include `oldest_running_run_id`.
 - Resolved: exact result views exposed a running audit without its current elapsed age; `audit_running_age_seconds` is now available across result export and human contexts.
 - Resolved: consumers had to derive reconciliation recovery or regression from two status fields; schema version `18` now reports the transition classification directly.
+- Resolved: comparison reconciliation silently omitted snapshot rows with unknown allocation statuses from outcome counters; reconciliation now identifies the invalid `status` field explicitly.
+- Resolved: direct comparison treated lowercase persisted outcome codes as changes while reconciliation treated them as unknown; both APIs now canonicalize `F`, `P`, and `U` case-insensitively.
+- Resolved: aggregate-only comparison reconciliation could report `OK` for internally inconsistent snapshot rows; reconciliation now reports `snapshot` for invalid per-line quantity/status relationships.
+- Resolved: comparison reconciliation could aggregate snapshot quantities from a different allocation unit when the audit unit was known; reconciliation now reports a `unit` mismatch while preserving blank legacy-unit compatibility.
+- Resolved: direct audit metadata and running-age helpers treated lowercase status, strategy, or unit codes as distinct; those code comparisons now ignore case consistently.
+- Resolved: a lowercase running audit status could suppress elapsed-age reporting; the running-age helper now recognizes the canonical status case-insensitively.
+- Resolved: the canonical audit age API and comparison age helper disagreed on lowercase running statuses; both now recognize `R` case-insensitively.
+- Resolved: direct allocation-snapshot writes canonicalized strategies and units but rejected equivalent lowercase outcome statuses; snapshot writes now normalize `F`, `P`, and `U` before validation and persistence.
+- Resolved: legacy lowercase snapshot status or unit codes could pass case-insensitive filters but fail later validation; result reads now canonicalize those codes before filtering, provenance checks, and validation.
+- Resolved: legacy lowercase audit status or strategy codes could fail history validation or be missed by strategy-scoped reads; audit history now canonicalizes valid codes before validation and in-memory filters.
+- Resolved: lowercase legacy run metadata could still make result reads fail scope/lifecycle validation or miss strategy-scoped rows; result reads now canonicalize run references and filter strategy after normalization.
+- Resolved: purge preview and execution could skip lowercase legacy finalized statuses or unit-scoped runs and leave case-variant snapshots behind; retention now normalizes candidate metadata and deletes selected run-linked snapshots by run ID.

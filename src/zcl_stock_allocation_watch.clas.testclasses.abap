@@ -19,7 +19,7 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
 
     APPEND VALUE #( unit         = 'EA'
                     demand_count = 2 ) TO lt_alerts.
-    APPEND VALUE #( unit         = 'EA'
+    APPEND VALUE #( unit         = 'ea'
                     demand_count = 3 ) TO lt_alerts.
     ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
 

@@ -52,12 +52,14 @@ ENDCLASS.
 
 CLASS zcl_stock_allocation_watch IMPLEMENTATION.
   METHOD summarize_units.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     LOOP AT it_alerts ASSIGNING FIELD-SYMBOL(<ls_alert>).
+      lv_unit = to_upper( <ls_alert>-unit ).
       rs_summary-demand_count = rs_summary-demand_count
         + <ls_alert>-demand_count.
       IF sy-tabix = 1.
-        rs_summary-unit = <ls_alert>-unit.
-      ELSEIF <ls_alert>-unit <> rs_summary-unit.
+        rs_summary-unit = lv_unit.
+      ELSEIF lv_unit <> rs_summary-unit.
         rs_summary-mixed_units = abap_true.
       ENDIF.
     ENDLOOP.

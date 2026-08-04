@@ -1,5 +1,29 @@
 # Progress notes
 
+## 2026-08-04
+
+- Refined result `audit_deadline_age_days` JSON serialization so typed and metadata contexts emit a numeric value or `null`, while regular JSON retains the readable signed text and no-deadline `n/a` behavior.
+- Added signed last/oldest/newest deadline-age telemetry to `ZSTOCK_ALLOCATE` human, CSV, typed JSON, and default JSON success output; typed JSON emits numeric values or `null`, regular JSON uses readable signed text, and allocation success contracts advance to schema `28`.
+- Promoted last/oldest/newest signed deadline ages into the canonical audit `ty_summary` read model, using the SAP system date as the reference and adding regression assertions; allocation output now consumes the shared summary values.
+- Added `deadline_age_reference_date` to the audit summary and allocation success exports so signed ages carry explicit SAP system-date provenance; allocation success contracts advance to schema `29`.
+- Added `deadline_age_reference_date` to watch detail and summary human, CSV, JSON, and NDJSON exports; watch contracts advance to CSV schema `47` and JSON/NDJSON schema `50`.
+- Added `deadline_age_reference_date` to history detail and summary human, CSV, JSON, and NDJSON/metadata exports; history contracts advance to detail schema `21` and summary schema `34`.
+- Added `deadline_age_reference_date` to result detail, summary, exact-run, metadata, NDJSON, CSV, JSON, and human exports; result contracts advance to detail schema `24` and summary schema `26`.
+- Added `deadline_age_reference_date` to comparison contextual/detail CSV, JSON, and human exports; comparison contracts advance to schema `39`.
+- Corrected result CSV summary/detail rows without an exact audit run to emit the full audit context column count, including `audit_deadline_age_days` and `deadline_age_reference_date` as `n/a`/the selected reference date.
+- Hardened audit summary age calculation by capturing the SAP system date once per summary call and using that same value for all signed ages and the exposed `deadline_age_reference_date`.
+- Promoted `deadline_age_reference_date` into the stale-watch alert and unit-summary domain models, with ABAP Unit coverage; watch report output keeps the existing contract while summary consumers receive the provenance directly.
+- Added a watch-summary consistency guard: mixed or missing alert reference dates are marked with `deadline_age_mixed` and the summary date is cleared rather than treating the first date as authoritative.
+- Exposed watch `deadline_age_mixed` in human, CSV, JSON, and NDJSON detail/summary contexts; watch contracts advance to CSV schema `48` and JSON/NDJSON schema `51`.
+- Added signed effective-deadline age bounds (`p_dagef`/`p_daget`) and an optional reference date (`p_daged`) to the canonical audit read API and `ZSTOCK_ALLOC_HISTORY`; history contracts advance to detail schema `22` and summary schema `35`, with filter provenance in human, CSV, JSON, metadata, and NDJSON output.
+
+## 2026-08-03
+
+- Extended history detail rows with signed `deadline_age_days` and page summaries with oldest/newest deadline-age bounds using the selected overdue as-of date or system date; no-deadline values remain `n/a`/`null`. History contracts advance to detail schema `20` and summary schema `33`.
+- Extended comparison context and row exports with old/new signed deadline ages and a `deadline_age_delta_days` (new minus old), using the selected overdue as-of date or system date; comparison schemas advance to `38`.
+- Extended result audit context with signed `audit_deadline_age_days` relative to the selected overdue as-of date or system date, across human, CSV, JSON, metadata, and NDJSON output; result schemas advance to detail `23` and summary `25`.
+- Added signed deadline-age telemetry to stale-run watch alerts: positive `deadline_age_days` means overdue days, zero means due on the selected reference date, and negative values mean days remaining; watch summaries expose oldest and newest deadline-age bounds, with `n/a`/`null` when no alert has a deadline. Watch contracts advance to CSV schema `46` and JSON/NDJSON schema `49`, with ABAP Unit coverage for signed aggregation.
+
 ## 2026-08-02
 
 - Added service-level preview-flag validation so only initial or `X` values are accepted; malformed values now produce a durable rejection before execution-side dependencies or writes.
@@ -611,3 +635,47 @@
 - Added exact-running-audit `audit_running_age_seconds` to result detail CSV, typed/metadata JSON, and human context; result detail schemas advance to `12`, while finalized or non-exact rows remain non-applicable.
 - Added typed/metadata history JSON `filter_values` objects with numeric quantity, count, duration, age, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. History detail/summary contracts advance to schema versions `10`/`21`.
 - Added typed/metadata result JSON `filter_values` objects with numeric priority, reservation-age, quantity, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. Result detail/summary contracts advance to schema versions `13`/`14`.
+- Added requested-delivery horizon filters (`p_reqf`/`p_until`) to `ZSTOCK_ALLOC_WATCH`, carrying the persisted `requested_on_from`/`requested_on_to` dates through human, CSV, JSON, typed JSON, and NDJSON alert output; watch contracts advance to CSV schema `37` and JSON/NDJSON schema `39`.
+- Added `p_due` requested-delivery urgency ordering to `ZSTOCK_ALLOC_WATCH`; horizon-bearing alerts sort earliest-first with shortage/age/run-ID tie-breakers and horizon-less alerts last. Watch contracts advance to CSV schema `38` and JSON/NDJSON schema `40`.
+- Added matching `p_due` requested-delivery ordering to `ZSTOCK_ALLOC_HISTORY` and the audit read port, with horizon-less runs last and deterministic shortage/start/run-ID ties; history detail/summary contracts advance to schemas `13`/`25`. Added missing watch selection-screen text-pool entries for `p_reqf`, `p_until`, and `p_due`.
+- Corrected `p_due` ordering for one-sided requested-delivery horizons: watch and history now use the lower bound when present, otherwise the upper bound, so upper-bound-only runs join the same earliest-effective-date ordering.
+- Added overdue requested-horizon filtering (`p_ovrd`) to the audit read port, `ZSTOCK_ALLOC_WATCH`, and `ZSTOCK_ALLOC_HISTORY`. A run is overdue when its delivery deadline (`requested_on_to`, otherwise `requested_on_from`) is before the SAP system date; today, future, and horizon-less runs are excluded. Watch schemas advance to CSV `39` and JSON/NDJSON `41`; history schemas advance to detail `14` and summary `26`.
+- Added `p_ovrd` to `ZSTOCK_ALLOC_COMPARE`, filtering both old and new snapshot populations to requested dates before today. The filtered comparison exposes `overdue_only` in human, CSV, JSON, and NDJSON context; comparison schemas advance to `31`, and `p_guard` is rejected because a partial population cannot provide exact reconciliation.
+- Compare `p_ovrd` keeps filtered snapshot metrics while reporting both reconciliation statuses as `FILTERED` with `filtered` fields; the reconciliation transition is consequently `unavailable` instead of a misleading full-run mismatch.
+- Comparison typed JSON `filter_values` now includes the boolean `overdue_only` value; comparison CSV/contextual JSON contracts advance to schema `32`.
+- `ZSTOCK_ALLOC_RESULT` now exposes `p_ovrd` explicitly as `overdue_only` in human, CSV, JSON, NDJSON, and typed `filter_values` provenance; result detail/summary schemas advance to `17`/`19`.
+- Watch and history typed/metadata `filter_values` now expose boolean `requested_overdue_only`; watch JSON/NDJSON advances to schema `42`, and history detail/summary advance to `15`/`27`.
+- Overdue read APIs now accept optional `iv_overdue_date` as an as-of boundary for deterministic replay; omitted values retain the SAP system date, and both snapshot and audit tests cover boundary expansion.
+- `ZSTOCK_ALLOC_WATCH` and `ZSTOCK_ALLOC_HISTORY` now expose `p_odate` to evaluate overdue horizons as of an operator-supplied date; the value is propagated through filtering, human/CSV/JSON/NDJSON provenance, and typed `filter_values`, advancing watch to schemas `40`/`43` and history to `16`/`28`.
+- `ZSTOCK_ALLOC_RESULT` and `ZSTOCK_ALLOC_COMPARE` now expose the same optional `p_odate` boundary for overdue snapshot lines; result detail/summary schemas advance to `18`/`20`, and comparison CSV/contextual JSON schemas advance to `33` with typed and contextual as-of provenance.
+- Result `p_latest` selection now applies the overdue predicate and its `p_odate` boundary while resolving the newest matching audit run, so the selected run and filtered snapshot population use the same overdue policy.
+- Added `requested_deadline` to the audit run read model, using `requested_on_to` with a fallback to `requested_on_from`; watch/history detail outputs now expose the exact effective deadline in human, CSV, JSON, and NDJSON, advancing watch to CSV/JSON `41`/`44` and history detail to `17`.
+- Added `last_requested_deadline` to the audit summary and allocation summary outputs. It records the effective requested horizon deadline for the selected/latest run, is present in human/CSV/JSON output, and advances the allocation schemas to `25`.
+- Added earliest/latest effective requested deadlines to the audit summary and page-scoped history summaries. History human, CSV, and JSON summary outputs now expose the represented deadline range; history summary schemas advance to `29`.
+- Propagated the effective requested-deadline range into allocation human, CSV, and JSON summaries. Allocation schemas advance to `26`, and the CSV field order now matches its declared deadline columns.
+- Added effective `audit_requested_deadline` to result detail rows, exact-run metadata, summaries, CSV, JSON, and human context; result detail/summary schemas advance to `19`/`21`.
+- Added old/new effective requested deadlines to comparison CSV, contextual JSON, NDJSON, and human output; comparison contracts advance to schema `34`.
+- Added earliest/latest effective requested deadlines to page-scoped watch summaries; watch contracts advance to CSV/JSON/NDJSON schemas `42`/`45`.
+- Repeated the watch page deadline range in NDJSON aggregate context and refreshed the primary watch contract documentation to the current schemas.
+- Centralized watch deadline-range aggregation in the watch summary API and covered earliest/latest values with unit tests.
+- Extended the watch summary API to own page quantity totals and oldest/newest alert ages; the report now consumes one canonical aggregate model with regression coverage.
+- Made watch summary quantity totals unit-safe at the API boundary by clearing non-comparable totals for mixed-unit pages; added regression assertions.
+- Corrected the current result-contract documentation to match the verified detail/summary schemas `19`/`21`.
+- Added page `deadline_count` to watch human, CSV, JSON, and NDJSON aggregate contexts; watch contracts advance to CSV/JSON/NDJSON schemas `43`/`46`.
+- Added `deadline_count` to the audit summary API and propagated it to allocation and history summaries; allocation schemas advance to `27`, and history summary schemas advance to `30` while detail remains `17`.
+- Added the canonical requested-deadline-only audit filter and exposed it as watch parameter `p_dead`; watch CSV advances to schema `44` and JSON/NDJSON to `47`.
+- Carried `p_dead` into `ZSTOCK_ALLOC_HISTORY`; history detail/summary schemas advance to `18`/`31`, including CSV, JSON, metadata, NDJSON, and typed filter provenance.
+- Carried `p_dead` into `ZSTOCK_ALLOC_RESULT` latest/exact audit selection and all result export provenance; result detail/summary schemas advance to `20`/`22`.
+- Carried `p_dead` into `ZSTOCK_ALLOC_COMPARE` snapshot and audit reads, including typed/contextual filter provenance; comparison CSV/contextual JSON schemas advance to `35`.
+- Added deadline-bearing selection to `ZSTOCK_ALLOC_PURGE`; purge preview/execution schemas advance to CSV `9`/`10` and typed JSON `10`/`11`.
+- Added overdue-only purge selection with an optional as-of date; purge schemas advance to CSV `10`/`11` and typed JSON `11`/`12`.
+- Added exact requested-horizon selection to `ZSTOCK_ALLOC_PURGE`; purge schemas advance to CSV `11`/`12` and typed JSON `12`/`13`.
+- Added exact persisted requested-horizon guards (`p_reqf`/`p_until`) to `ZSTOCK_ALLOC_COMPARE`; comparison contracts advance to schema `36` with horizon provenance.
+- Added exact persisted requested-horizon filters (`p_reqf`/`p_until`) to the result sink and `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; result schemas advance to detail `21` and summary `23`.
+- Added effective requested-deadline range filters (`p_deadf`/`p_deadt`) to the audit API and `ZSTOCK_ALLOC_HISTORY`; one-sided runs use `requested_on_from`, reversed bounds are rejected, and history detail/summary contracts advance to schemas `19`/`32`.
+- Extended `ZSTOCK_ALLOC_WATCH` with the same effective requested-deadline range filters (`p_deadf`/`p_deadt`) as history; watch contracts advance to CSV schema `45` and JSON/NDJSON schema `48`.
+- Added effective requested-deadline range filters (`p_deadf`/`p_deadt`) to audit purge preview/execution, with validation, provenance, and schema updates to CSV `12`/`13` and typed JSON `13`/`14`.
+- Extended `ZSTOCK_ALLOC_COMPARE` with effective deadline-range guards (`p_deadf`/`p_deadt`) for both audit-run selections and all comparison provenance; contextual schemas advance to `37`.
+- Extended the result sink and `ZSTOCK_ALLOC_RESULT` with effective originating-run deadline-range filters (`p_deadf`/`p_deadt`), including validation, row selection, provenance, and schema updates to detail `22`/summary `24`.
+- Added signed originating-run deadline-age filters (`p_dagef`/`p_daget`/`p_daged`) to the allocation result sink and report. Age filtering uses the persisted effective deadline, excludes rows without one, validates reversed/date-only input, and advances result contracts to detail `25`/summary `27` with CSV and typed JSON provenance.
+- Added signed effective-deadline age filters (`p_dagef`/`p_daget`/`p_daged`) to purge preview and execution. Retention now applies the same inclusive signed-age predicate before selecting runs and linked snapshots, with validation and provenance; purge contracts advance to typed JSON schemas `14`/`15` and matching CSV filter columns.

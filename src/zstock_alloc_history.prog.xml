@@ -65,6 +65,54 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OVRD</KEY>
+     <ENTRY>Overdue requested horizon only</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ODATE</KEY>
+     <ENTRY>Overdue as-of date</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEAD</KEY>
+     <ENTRY>Requested deadline only</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEADF</KEY>
+     <ENTRY>Requested deadline from</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEADT</KEY>
+     <ENTRY>Requested deadline to</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGEF</KEY>
+     <ENTRY>Deadline age from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGET</KEY>
+     <ENTRY>Deadline age to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGED</KEY>
+     <ENTRY>Deadline age as-of date</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
     <KEY>P_RUNID</KEY>
     <ENTRY>Run ID</ENTRY>
     <LENGTH>38</LENGTH>
@@ -248,6 +296,12 @@
      <KEY>P_SPCT</KEY>
      <ENTRY>Shortage percentage first</ENTRY>
      <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Requested date first</ENTRY>
+     <LENGTH>26</LENGTH>
     </item>
     <item>
      <ID>S</ID>

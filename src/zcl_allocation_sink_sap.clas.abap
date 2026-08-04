@@ -68,10 +68,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       END OF ty_coverage_line.
     TYPES:
       BEGIN OF ty_strategy_run,
-        run_id         TYPE zif_stock_allocation=>ty_run_id,
-        strategy       TYPE c LENGTH 1,
-        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
-        min_shelf_life TYPE i,
+        run_id            TYPE zif_stock_allocation=>ty_run_id,
+        strategy          TYPE c LENGTH 1,
+        movement_type     TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life    TYPE i,
+        requested_on_from TYPE d,
+        requested_on_to   TYPE d,
       END OF ty_strategy_run.
     TYPES:
       BEGIN OF ty_run_validation,
@@ -89,6 +91,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_reservation_cutoff TYPE d.
+    DATA lv_overdue_date TYPE d.
+    DATA lv_run_deadline TYPE d.
+    DATA lv_run_deadline_age_date TYPE d.
+    DATA lv_run_deadline_age_days TYPE i.
     DATA lv_status_rank TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lv_status TYPE zif_stock_allocation=>ty_allocation_status.
@@ -116,6 +122,14 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error( iv_message = 'Allocation snapshot scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_overdue_date = sy-datum.
+    IF iv_overdue_date IS NOT INITIAL.
+      lv_overdue_date = iv_overdue_date.
+    ENDIF.
+    lv_run_deadline_age_date = sy-datum.
+    IF iv_run_deadline_age_date IS NOT INITIAL.
+      lv_run_deadline_age_date = iv_run_deadline_age_date.
+    ENDIF.
     lv_strategy = to_upper( iv_strategy ).
     lv_unit_filter = to_upper( iv_unit ).
     lv_order_unit_filter = to_upper( iv_order_unit ).
@@ -135,6 +149,30 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND iv_requested_on_to IS NOT INITIAL
         AND iv_requested_on_from > iv_requested_on_to.
       raise_error( iv_message = 'Allocation result date range is invalid' ).
+    ENDIF.
+    IF iv_run_requested_on_from IS NOT INITIAL
+        AND iv_run_requested_on_to IS NOT INITIAL
+        AND iv_run_requested_on_from > iv_run_requested_on_to.
+      raise_error(
+        iv_message = 'Allocation result requested horizon range is invalid' ).
+    ENDIF.
+    IF iv_run_deadline_from IS NOT INITIAL
+        AND iv_run_deadline_to IS NOT INITIAL
+        AND iv_run_deadline_from > iv_run_deadline_to.
+      raise_error(
+        iv_message = 'Allocation result requested deadline range is invalid' ).
+    ENDIF.
+    IF iv_run_deadline_age_from IS NOT INITIAL
+        AND iv_run_deadline_age_to IS NOT INITIAL
+        AND iv_run_deadline_age_from > iv_run_deadline_age_to.
+      raise_error(
+        iv_message = 'Allocation result deadline age range is invalid' ).
+    ENDIF.
+    IF iv_run_deadline_age_date IS NOT INITIAL
+        AND iv_run_deadline_age_from IS INITIAL
+        AND iv_run_deadline_age_to IS INITIAL.
+      raise_error(
+        iv_message = 'Allocation result deadline age date requires an age range' ).
     ENDIF.
     IF iv_reservation_date_from IS NOT INITIAL
         AND iv_reservation_date_to IS NOT INITIAL
@@ -314,7 +352,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF lines( rt_demands ) > 0.
       IF lv_strategy IS NOT INITIAL.
-        SELECT run_id, strategy, movement_type, min_shelf_life
+        SELECT run_id, strategy, movement_type, min_shelf_life,
+               requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -322,7 +361,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch.
       ELSEIF iv_legacy_strategy = abap_true.
-        SELECT run_id, strategy, movement_type, min_shelf_life
+        SELECT run_id, strategy, movement_type, min_shelf_life,
+               requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -331,7 +371,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND strategy = @space.
       ELSE.
-        SELECT run_id, strategy, movement_type, min_shelf_life
+        SELECT run_id, strategy, movement_type, min_shelf_life,
+               requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
           WHERE matnr = @iv_material
@@ -346,7 +387,15 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
            IF lv_strategy IS NOT INITIAL
               OR iv_legacy_strategy = abap_true
               OR iv_allocation_movement_type IS NOT INITIAL
-              OR iv_min_shelf_life IS NOT INITIAL.
+              OR iv_min_shelf_life IS NOT INITIAL
+              OR iv_deadline_only = abap_true
+              OR iv_run_requested_on_from IS NOT INITIAL
+              OR iv_run_requested_on_to IS NOT INITIAL
+              OR iv_run_deadline_from IS NOT INITIAL
+              OR iv_run_deadline_to IS NOT INITIAL
+              OR iv_run_deadline_age_from IS NOT INITIAL
+              OR iv_run_deadline_age_to IS NOT INITIAL
+              OR iv_run_deadline_age_date IS NOT INITIAL.
             DELETE rt_demands.
           ENDIF.
         ELSE.
@@ -366,8 +415,51 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
           ELSEIF iv_min_shelf_life IS NOT INITIAL
               AND <ls_strategy_run>-min_shelf_life <> iv_min_shelf_life.
             DELETE rt_demands.
+          ELSEIF iv_deadline_only = abap_true
+              AND <ls_strategy_run>-requested_on_from IS INITIAL
+              AND <ls_strategy_run>-requested_on_to IS INITIAL.
+            DELETE rt_demands.
+          ELSEIF ( iv_run_requested_on_from IS NOT INITIAL
+                AND <ls_strategy_run>-requested_on_from
+                  <> iv_run_requested_on_from )
+              OR ( iv_run_requested_on_to IS NOT INITIAL
+                AND <ls_strategy_run>-requested_on_to
+                  <> iv_run_requested_on_to ).
+            DELETE rt_demands.
           ELSE.
-            <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+            IF <ls_strategy_run>-requested_on_to IS INITIAL.
+              lv_run_deadline = <ls_strategy_run>-requested_on_from.
+            ELSE.
+              lv_run_deadline = <ls_strategy_run>-requested_on_to.
+            ENDIF.
+            IF ( iv_run_deadline_from IS NOT INITIAL
+                  AND ( lv_run_deadline IS INITIAL
+                    OR lv_run_deadline < iv_run_deadline_from ) )
+                OR ( iv_run_deadline_to IS NOT INITIAL
+                  AND ( lv_run_deadline IS INITIAL
+                    OR lv_run_deadline > iv_run_deadline_to ) ).
+              DELETE rt_demands.
+            ELSEIF iv_run_deadline_age_from IS NOT INITIAL
+                OR iv_run_deadline_age_to IS NOT INITIAL.
+              IF lv_run_deadline IS INITIAL.
+                DELETE rt_demands.
+              ELSE.
+                lv_run_deadline_age_days = lv_run_deadline_age_date
+                  - lv_run_deadline.
+                IF ( iv_run_deadline_age_from IS NOT INITIAL
+                      AND lv_run_deadline_age_days
+                        < iv_run_deadline_age_from )
+                    OR ( iv_run_deadline_age_to IS NOT INITIAL
+                      AND lv_run_deadline_age_days
+                        > iv_run_deadline_age_to ).
+                  DELETE rt_demands.
+                ELSE.
+                  <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+                ENDIF.
+              ENDIF.
+            ELSE.
+              <ls_demand>-allocation_strategy = <ls_strategy_run>-strategy.
+            ENDIF.
           ENDIF.
         ENDIF.
       ENDLOOP.
@@ -424,7 +516,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF iv_overdue_only = abap_true.
       DELETE rt_demands WHERE requested_on IS INITIAL.
-      DELETE rt_demands WHERE requested_on >= sy-datum.
+      DELETE rt_demands WHERE requested_on >= lv_overdue_date.
     ENDIF.
     IF iv_reservation_date_from IS NOT INITIAL.
       DELETE rt_demands

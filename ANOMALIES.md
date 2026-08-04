@@ -1,5 +1,26 @@
 # Anomalies and known issues
 
+- Resolved: result typed/metadata JSON initially serialized audit deadline age as text; the field now follows the numeric-or-null contract used by other typed metrics.
+- Resolved: allocation summary consumers had to recompute deadline urgency from aggregate effective deadlines; allocation success output now exposes signed last/oldest/newest deadline ages with numeric/null typed JSON semantics.
+- Resolved: allocation summary age fields were calculated independently from the audit aggregation; the audit summary now owns the same signed last/oldest/newest values consumed by the allocation report.
+- Resolved: signed allocation deadline ages lacked explicit reference-date provenance; allocation summaries now expose the SAP system date used for their calculation.
+- Resolved: watch consumers could not distinguish the selected overdue as-of date from the report generation date; watch detail and summaries now expose the exact deadline-age reference date in every export mode.
+- Resolved: history consumers could not distinguish the selected overdue as-of date from the report generation date; history detail and summaries now expose the exact deadline-age reference date in every export mode.
+- Resolved: result consumers could not distinguish the selected overdue as-of date from the report generation date; result detail, summary, and exact-run contexts now expose the exact deadline-age reference date in every export mode.
+- Resolved: comparison consumers could not distinguish the selected overdue as-of date from the report generation date; comparison exports now expose the exact reference date used for both old and new signed ages.
+- Resolved: result CSV rows without an exact audit context omitted one audit column and shifted the remaining fields; summary and detail rows now preserve the declared column alignment with explicit non-applicable values.
+- Resolved: an audit summary crossing midnight during calculation could theoretically report a reference date different from the date used for its signed ages; the reference is now captured atomically at summary start.
+- Resolved: stale-watch summary consumers previously had to infer the deadline-age reference date from report-local state; alerts and unit summaries now carry the selected reference date explicitly.
+- Resolved: a stale-watch summary could silently retain the first alert's deadline-age date when later alerts used another or no reference date; the domain now detects mixed provenance through `deadline_age_mixed` and clears the ambiguous date.
+- Resolved: watch machine-readable consumers could not tell whether the exported deadline-age reference date was internally consistent; detail and summary exports now include `deadline_age_mixed`.
+- Resolved: history consumers could only express deadline selection as calendar dates; canonical signed deadline-age bounds and an explicit age reference date are now available, including no-deadline exclusion and range validation.
+- Resolved: history detail consumers had to recompute deadline urgency from persisted dates; history now exposes signed `deadline_age_days` and aggregate oldest/newest bounds using the same selected reference date semantics as stale-run watch.
+- Resolved: comparison consumers had to recompute old/new deadline urgency and deltas; comparison exports now provide signed old/new ages and the new-minus-old age delta with null-safe no-deadline values.
+- Resolved: result consumers had to recompute audit deadline urgency independently of snapshot requested dates; result exports now provide signed `audit_deadline_age_days` in the persisted audit context.
+- Resolved: stale-run consumers had to recompute deadline urgency from dates; watch alerts now expose signed `deadline_age_days` relative to the selected overdue as-of date (or system date), and aggregate oldest/newest bounds preserve both overdue and future-deadline signals.
+- Resolved: result consumers could constrain originating runs by effective deadline date but not signed deadline age; the result sink and report now support inclusive age bounds with an optional reference date and explicit machine-readable provenance.
+- Resolved: retention could constrain effective deadlines by calendar date but not signed deadline age; purge preview and execution now share the canonical age predicate and preserve its bounds/reference-date provenance.
+
 - Resolved: malformed preview flags were treated as execute mode by the allocation service; only initial or `X` is now accepted, with invalid values rejected and audited before side effects.
 - Resolved: malformed movement types could pass the allocation service's blank-only input check and reach SAP boundaries; the service now rejects non-numeric movement types and records the rejection before side effects.
 - Resolved: direct goods-movement and reservation adapter callers could bypass orchestration validation with malformed movement types; all public movement/reservation BAPI paths now reject non-numeric values before SAP calls.
@@ -326,3 +347,17 @@
 - Resolved: legacy lowercase audit status or strategy codes could fail history validation or be missed by strategy-scoped reads; audit history now canonicalizes valid codes before validation and in-memory filters.
 - Resolved: lowercase legacy run metadata could still make result reads fail scope/lifecycle validation or miss strategy-scoped rows; result reads now canonicalize run references and filter strategy after normalization.
 - Resolved: purge preview and execution could skip lowercase legacy finalized statuses or unit-scoped runs and leave case-variant snapshots behind; retention now normalizes candidate metadata and deletes selected run-linked snapshots by run ID.
+- Resolved: watch consumers could count deadline-bearing alerts but could not restrict the stale feed to them; the audit read API now supports a canonical requested-deadline-only filter exposed by `ZSTOCK_ALLOC_WATCH` as `p_dead`.
+- Resolved: history and watch could expose different deadline populations; `ZSTOCK_ALLOC_HISTORY` now exposes the same `p_dead` deadline-bearing-run filter and schema provenance.
+- Resolved: result latest/exact-run reads could bypass the deadline-bearing population used by operational history; `ZSTOCK_ALLOC_RESULT` now applies `p_dead` before selecting or contextualizing the audit run.
+- Resolved: comparison could apply overdue filtering without a matching deadline-bearing population filter; `ZSTOCK_ALLOC_COMPARE` now applies `p_dead` to both audit and snapshot reads and rejects its incompatible reconciliation-guard combination.
+- Resolved: retention could not target legacy runs by effective requested deadline; purge preview and execution now filter both requested horizon columns through `p_dead`.
+- Resolved: retention could select deadline-bearing runs but not distinguish overdue deadlines; purge now applies the canonical effective-deadline predicate with `p_ovrd` and `p_odate`.
+- Resolved: retention could select deadline-bearing and overdue runs without narrowing to the persisted requested horizon; purge now accepts exact `p_reqf`/`p_until` bounds with validation and provenance.
+- Resolved: comparison could guard policy by movement type, shelf life, deadline presence, and overdue status but not by the persisted requested horizon; `p_reqf`/`p_until` now constrain both audit-run selections with explicit provenance.
+- Resolved: result row date filters and persisted audit horizons shared one ambiguous selection path; result now separates snapshot `p_from`/`p_to` from exact run-horizon `p_reqf`/`p_until` throughout sink filtering and audit-run selection.
+- Resolved: history could require a deadline or select overdue deadlines but could not narrow the effective deadline to an inclusive range; the audit read port and history report now apply `p_deadf`/`p_deadt` after deriving the persisted deadline, including one-sided horizons.
+- Resolved: stale-run watch could not narrow deadline-bearing candidates to an effective deadline range; `p_deadf`/`p_deadt` now use the audit read port with explicit validation and export provenance.
+- Resolved: retention could select exact requested horizons or deadline-bearing runs but could not bound the effective deadline; purge preview and execution now apply inclusive `p_deadf`/`p_deadt` filters consistently.
+- Resolved: comparison could require a deadline or select overdue runs but could not bound the effective deadline; both old/new audit selections now apply inclusive `p_deadf`/`p_deadt` guards with explicit diagnostics.
+- Resolved: result selection could filter originating runs only by deadline presence; the sink and report now apply inclusive effective deadline bounds and reject reversed ranges.

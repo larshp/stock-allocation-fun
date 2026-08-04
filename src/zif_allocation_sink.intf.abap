@@ -26,6 +26,15 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_unreserved_only            TYPE abap_bool OPTIONAL
       iv_shortage_only              TYPE abap_bool OPTIONAL
       iv_overdue_only               TYPE abap_bool OPTIONAL
+      iv_overdue_date               TYPE d OPTIONAL
+      iv_deadline_only              TYPE abap_bool OPTIONAL
+      iv_run_requested_on_from      TYPE d OPTIONAL
+      iv_run_requested_on_to        TYPE d OPTIONAL
+      iv_run_deadline_from          TYPE d OPTIONAL
+      iv_run_deadline_to            TYPE d OPTIONAL
+      iv_run_deadline_age_from      TYPE i OPTIONAL
+      iv_run_deadline_age_to        TYPE i OPTIONAL
+      iv_run_deadline_age_date      TYPE d OPTIONAL
       iv_reservation_date_from      TYPE d OPTIONAL
       iv_reservation_date_to        TYPE d OPTIONAL
       iv_reservation_age_from       TYPE i OPTIONAL

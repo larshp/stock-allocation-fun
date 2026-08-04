@@ -215,6 +215,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-status = 'S'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
+    ls_run-requested_on_from = lv_overdue_date.
     ls_run-available = 0.
     ls_run-demand_count = 1.
     ls_run-shortage = 5.
@@ -401,6 +402,116 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-order_id
       exp = 'FILTER-UNALLOCATED' ).
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-FILTER-HORIZON'.
+    ls_run-matnr = 'MATERIAL-FILTER'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
+    ls_run-status = 'S'.
+    ls_run-requested_on_from = lv_overdue_date.
+    ls_run-requested_on_to = lv_future_date.
+    INSERT zstockalloc_run FROM @ls_run.
+    CLEAR ls_allocation.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-FILTER'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-FILTER-HORIZON'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'FILTER-HORIZON'.
+    ls_allocation-requested_on = lv_future_date.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'FILTER-HORIZON-RES'.
+    ls_allocation-reservation_date = sy-datum.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'EA'.
+    INSERT zstockalloc FROM @ls_allocation.
+    lt_demands = lo_cut->get_allocations(
+      iv_material              = 'MATERIAL-FILTER'
+      iv_plant                 = '1000'
+      iv_storage_location      = '0001'
+      iv_run_requested_on_from = lv_overdue_date
+      iv_run_requested_on_to   = lv_future_date ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-HORIZON' ).
+    DELETE FROM zstockalloc
+      WHERE run_id = 'RUN-FILTER-HORIZON'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-FILTER-HORIZON'.
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material              = 'MATERIAL-FILTER'
+      iv_plant                 = '1000'
+      iv_storage_location      = '0001'
+      iv_run_requested_on_from = lv_overdue_date ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material              = 'MATERIAL-FILTER'
+      iv_plant                 = '1000'
+      iv_storage_location      = '0001'
+      iv_run_deadline_age_from = 3
+      iv_run_deadline_age_to   = 4
+      iv_run_deadline_age_date = lv_future_window ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material          = 'MATERIAL-FILTER'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_run_deadline_from = lv_overdue_date
+      iv_run_deadline_to   = lv_overdue_date ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_only    = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-UNALLOCATED' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_overdue_only     = abap_true
+      iv_overdue_date     = lv_future_window ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 2 ).
 
     lv_run_fragment = 'run-filter-u'.
     lt_demands = lo_cut->get_allocations(
@@ -941,6 +1052,69 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     CLEAR lv_raised.
     TRY.
         lt_demands = lo_cut->get_allocations(
+          iv_material              = 'MATERIAL-FILTER'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_run_deadline_age_from = 4
+          iv_run_deadline_age_to   = 3 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_error->message
+          exp = 'Allocation result deadline age range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material              = 'MATERIAL-FILTER'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_run_deadline_age_date = lv_future_window ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_date_error->message
+          exp = 'Allocation result deadline age date requires an age range' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material          = 'MATERIAL-FILTER'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_run_deadline_from = lv_future_date
+          iv_run_deadline_to   = lv_overdue_date ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_error->message
+          exp = 'Allocation result requested deadline range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material              = 'MATERIAL-FILTER'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_run_requested_on_from = lv_future_date
+          iv_run_requested_on_to   = lv_overdue_date ).
+      CATCH zcx_stock_allocation INTO DATA(lo_run_horizon_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_run_horizon_error->message
+          exp = 'Allocation result requested horizon range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
           iv_material         = 'MATERIAL-FILTER'
           iv_plant            = '1000'
           iv_storage_location = '0001'
@@ -1197,6 +1371,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           exp = 'Allocation snapshot provenance is inconsistent' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+
     DELETE FROM zstockalloc
       WHERE matnr = 'MATERIAL-MIXED-RUN'
         AND werks = '1000'

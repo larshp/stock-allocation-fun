@@ -5,6 +5,7 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_shortage_pct FOR TESTING.
+    METHODS sorts_by_requested_date FOR TESTING.
     METHODS summarizes_units FOR TESTING.
     METHODS sorts_by_newest FOR TESTING.
     METHODS sorts_by_age_by_default FOR TESTING.
@@ -17,10 +18,26 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
     DATA ls_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
 
-    APPEND VALUE #( unit         = 'EA'
-                    demand_count = 2 ) TO lt_alerts.
-    APPEND VALUE #( unit         = 'ea'
-                    demand_count = 3 ) TO lt_alerts.
+    APPEND VALUE #( unit               = 'EA'
+                    demand_count       = 2
+                    available          = '10'
+                    requested          = '8'
+                    allocated          = '5'
+                    shortage           = '3'
+                    age_seconds        = 100
+                    requested_deadline = '20260820'
+                    deadline_age_days  = -2
+                    deadline_age_ref   = sy-datum ) TO lt_alerts.
+    APPEND VALUE #( unit               = 'ea'
+                    demand_count       = 3
+                    available          = '20'
+                    requested          = '18'
+                    allocated          = '12'
+                    shortage           = '6'
+                    age_seconds        = 500
+                    requested_deadline = '20260815'
+                    deadline_age_days  = 3
+                    deadline_age_ref   = sy-datum ) TO lt_alerts.
     ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -32,6 +49,45 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-demand_count
       exp = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_available
+      exp = '30' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_requested
+      exp = '26' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_allocated
+      exp = '17' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_shortage
+      exp = '9' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_age_seconds
+      exp = 500 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_age_seconds
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-earliest_requested_deadline
+      exp = '20260815' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-latest_requested_deadline
+      exp = '20260820' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_age_days
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_age_days
+      exp = -2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_age_reference_date
+      exp = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_age_mixed
+      exp = abap_false ).
 
     APPEND VALUE #( unit         = 'BOX'
                     demand_count = 4 ) TO lt_alerts.
@@ -43,6 +99,18 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-mixed_units
       exp = abap_true ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_available ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_requested ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_allocated ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_shortage ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_age_mixed
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-deadline_age_reference_date ).
 
     CLEAR lt_alerts.
     ls_summary = zcl_stock_allocation_watch=>summarize_units( lt_alerts ).
@@ -56,6 +124,21 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-demand_count
       exp = 0 ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_available ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_requested ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_allocated ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-total_shortage ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-oldest_age_seconds ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-newest_age_seconds ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-deadline_count ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-oldest_deadline_age_days ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-newest_deadline_age_days ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-deadline_age_reference_date ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-deadline_age_mixed ).
   ENDMETHOD.
 
   METHOD sorts_by_shortage.
@@ -154,6 +237,51 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_alerts[ 3 ]-run_id
       exp = 'NA' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_requested_date.
+    DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
+
+    APPEND VALUE #( run_id            = 'LATE'
+                    requested_on_from = '20260820'
+                    requested_on_to   = '20260822'
+                    horizon_available = abap_true
+                    shortage          = '9'
+                    age_seconds       = 900 ) TO lt_alerts.
+    APPEND VALUE #( run_id            = 'EARLY'
+                    requested_on_from = '20260815'
+                    requested_on_to   = '20260816'
+                    horizon_available = abap_true
+                    shortage          = '1'
+                    age_seconds       = 3600 ) TO lt_alerts.
+    APPEND VALUE #( run_id          = 'ONLY_TO'
+                    requested_on_to = '20260818'
+                    shortage        = '99'
+                    age_seconds     = 7200 ) TO lt_alerts.
+    APPEND VALUE #( run_id      = 'NO_HORIZON'
+                    shortage    = '99'
+                    age_seconds = 7200 ) TO lt_alerts.
+
+    zcl_stock_allocation_watch=>sort_and_limit(
+      EXPORTING
+        iv_sort_by_shortage = abap_false
+        iv_sort_by_due      = abap_true
+        iv_max              = 0
+      CHANGING
+        ct_alerts           = lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 1 ]-run_id
+      exp = 'EARLY' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 2 ]-run_id
+      exp = 'ONLY_TO' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 3 ]-run_id
+      exp = 'LATE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 4 ]-run_id
+      exp = 'NO_HORIZON' ).
   ENDMETHOD.
 
   METHOD sorts_by_newest.

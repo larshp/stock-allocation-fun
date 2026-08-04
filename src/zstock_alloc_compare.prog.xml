@@ -51,7 +51,49 @@
      <ENTRY>Minimum shelf-life days</ENTRY>
      <LENGTH>28</LENGTH>
     </item>
-    <item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OVRD</KEY>
+    <ENTRY>Overdue requested dates only</ENTRY>
+    <LENGTH>31</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_ODATE</KEY>
+     <ENTRY>Overdue as-of date</ENTRY>
+     <LENGTH>20</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_REQF</KEY>
+     <ENTRY>Requested horizon from</ENTRY>
+     <LENGTH>23</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_UNTIL</KEY>
+     <ENTRY>Requested horizon to</ENTRY>
+     <LENGTH>21</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_DEAD</KEY>
+     <ENTRY>Requested deadline only</ENTRY>
+     <LENGTH>26</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_DEADF</KEY>
+     <ENTRY>Requested deadline from</ENTRY>
+     <LENGTH>25</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_DEADT</KEY>
+     <ENTRY>Requested deadline to</ENTRY>
+     <LENGTH>23</LENGTH>
+   </item>
+   <item>
      <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Allocation unit</ENTRY>

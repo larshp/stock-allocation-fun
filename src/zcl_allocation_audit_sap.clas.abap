@@ -91,14 +91,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~purge_runs_before.
     TYPES:
       BEGIN OF ty_purge_candidate,
-        run_id         TYPE zif_allocation_audit=>ty_run_id,
-        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
-        min_shelf_life TYPE i,
-        unit           TYPE zif_stock_allocation=>ty_unit,
-        status         TYPE zif_allocation_audit=>ty_run_status,
+        run_id            TYPE zif_allocation_audit=>ty_run_id,
+        movement_type     TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life    TYPE i,
+        unit              TYPE zif_stock_allocation=>ty_unit,
+        requested_on_from TYPE d,
+        requested_on_to   TYPE d,
+        status            TYPE zif_allocation_audit=>ty_run_status,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_overdue_date TYPE d.
+    DATA lv_requested_deadline TYPE d.
+    DATA lv_deadline_age_date TYPE d.
+    DATA lv_deadline_age_days TYPE i.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
@@ -106,6 +112,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     lv_status = to_upper( iv_status ).
     lv_unit = to_upper( iv_unit ).
+    lv_overdue_date = sy-datum.
+    IF iv_overdue_date IS NOT INITIAL.
+      lv_overdue_date = iv_overdue_date.
+    ENDIF.
+    lv_deadline_age_date = sy-datum.
+    IF iv_deadline_age_date IS NOT INITIAL.
+      lv_deadline_age_date = iv_deadline_age_date.
+    ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND iv_movement_type CN '0123456789'.
       raise_error( iv_message = 'Audit movement type is invalid' ).
@@ -118,6 +132,32 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
+    ENDIF.
+    IF iv_overdue_date IS NOT INITIAL
+        AND iv_overdue_only = abap_false.
+      raise_error(
+        iv_message = 'Audit overdue as-of date requires overdue-only filtering' ).
+    ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Audit requested date range is invalid' ).
+    ENDIF.
+    IF iv_deadline_from IS NOT INITIAL
+        AND iv_deadline_to IS NOT INITIAL
+        AND iv_deadline_from > iv_deadline_to.
+      raise_error( iv_message = 'Audit requested deadline range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_from IS NOT INITIAL
+        AND iv_deadline_age_to IS NOT INITIAL
+        AND iv_deadline_age_from > iv_deadline_age_to.
+      raise_error( iv_message = 'Audit deadline age range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_date IS NOT INITIAL
+        AND iv_deadline_age_from IS INITIAL
+        AND iv_deadline_age_to IS INITIAL.
+      raise_error(
+        iv_message = 'Audit deadline age date requires an age range' ).
     ENDIF.
     IF lv_status IS NOT INITIAL
         AND lv_status <> 'S'
@@ -150,6 +190,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
            movement_type,
            min_shelf_life,
            unit,
+           requested_on_from,
+           requested_on_to,
            status
       FROM zstockalloc_run
       INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
@@ -157,17 +199,56 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
         AND batch = @iv_batch
-        AND start_date < @iv_before_date.
+        AND start_date < @iv_before_date
+        AND ( @iv_deadline_only = @abap_false
+          OR requested_on_from <> '00000000'
+          OR requested_on_to <> '00000000' ).
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
+      IF ls_candidate-requested_on_to IS INITIAL.
+        lv_requested_deadline = ls_candidate-requested_on_from.
+      ELSE.
+        lv_requested_deadline = ls_candidate-requested_on_to.
+      ENDIF.
+      IF iv_overdue_only = abap_true
+          AND ( lv_requested_deadline IS INITIAL
+            OR lv_requested_deadline >= lv_overdue_date ).
+        CONTINUE.
+      ENDIF.
+      IF ( iv_deadline_from IS NOT INITIAL
+            AND ( lv_requested_deadline IS INITIAL
+              OR lv_requested_deadline < iv_deadline_from ) )
+          OR ( iv_deadline_to IS NOT INITIAL
+            AND ( lv_requested_deadline IS INITIAL
+              OR lv_requested_deadline > iv_deadline_to ) ).
+        CONTINUE.
+      ENDIF.
+      IF iv_deadline_age_from IS NOT INITIAL
+          OR iv_deadline_age_to IS NOT INITIAL.
+        IF lv_requested_deadline IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        lv_deadline_age_days = lv_deadline_age_date
+          - lv_requested_deadline.
+        IF ( iv_deadline_age_from IS NOT INITIAL
+              AND lv_deadline_age_days < iv_deadline_age_from )
+            OR ( iv_deadline_age_to IS NOT INITIAL
+              AND lv_deadline_age_days > iv_deadline_age_to ).
+          CONTINUE.
+        ENDIF.
+      ENDIF.
       IF ( iv_unit IS INITIAL OR ls_candidate-unit = lv_unit )
           AND ( iv_movement_type IS INITIAL
             OR ls_candidate-movement_type = iv_movement_type )
           AND ( iv_run_id IS INITIAL OR ls_candidate-run_id = iv_run_id )
           AND ( iv_min_shelf_life IS INITIAL
             OR ls_candidate-min_shelf_life = iv_min_shelf_life )
-          AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status ).
+          AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status )
+          AND ( iv_requested_on_from IS INITIAL
+            OR ls_candidate-requested_on_from = iv_requested_on_from )
+          AND ( iv_requested_on_to IS INITIAL
+            OR ls_candidate-requested_on_to = iv_requested_on_to ).
         CASE ls_candidate-status.
           WHEN 'S'.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
@@ -221,14 +302,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~get_purge_preview.
     TYPES:
       BEGIN OF ty_purge_candidate,
-        run_id         TYPE zif_allocation_audit=>ty_run_id,
-        movement_type  TYPE zif_stock_allocation=>ty_movement_type,
-        min_shelf_life TYPE i,
-        unit           TYPE zif_stock_allocation=>ty_unit,
-        status         TYPE zif_allocation_audit=>ty_run_status,
+        run_id            TYPE zif_allocation_audit=>ty_run_id,
+        movement_type     TYPE zif_stock_allocation=>ty_movement_type,
+        min_shelf_life    TYPE i,
+        unit              TYPE zif_stock_allocation=>ty_unit,
+        requested_on_from TYPE d,
+        requested_on_to   TYPE d,
+        status            TYPE zif_allocation_audit=>ty_run_status,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_overdue_date TYPE d.
+    DATA lv_requested_deadline TYPE d.
+    DATA lv_deadline_age_date TYPE d.
+    DATA lv_deadline_age_days TYPE i.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
       WITH UNIQUE KEY table_line.
@@ -243,6 +330,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     lv_status = to_upper( iv_status ).
     lv_unit = to_upper( iv_unit ).
+    lv_overdue_date = sy-datum.
+    IF iv_overdue_date IS NOT INITIAL.
+      lv_overdue_date = iv_overdue_date.
+    ENDIF.
+    lv_deadline_age_date = sy-datum.
+    IF iv_deadline_age_date IS NOT INITIAL.
+      lv_deadline_age_date = iv_deadline_age_date.
+    ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND iv_movement_type CN '0123456789'.
       raise_error( iv_message = 'Audit movement type is invalid' ).
@@ -255,6 +350,32 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
+    ENDIF.
+    IF iv_overdue_date IS NOT INITIAL
+        AND iv_overdue_only = abap_false.
+      raise_error(
+        iv_message = 'Audit overdue as-of date requires overdue-only filtering' ).
+    ENDIF.
+    IF iv_requested_on_from IS NOT INITIAL
+        AND iv_requested_on_to IS NOT INITIAL
+        AND iv_requested_on_from > iv_requested_on_to.
+      raise_error( iv_message = 'Audit requested date range is invalid' ).
+    ENDIF.
+    IF iv_deadline_from IS NOT INITIAL
+        AND iv_deadline_to IS NOT INITIAL
+        AND iv_deadline_from > iv_deadline_to.
+      raise_error( iv_message = 'Audit requested deadline range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_from IS NOT INITIAL
+        AND iv_deadline_age_to IS NOT INITIAL
+        AND iv_deadline_age_from > iv_deadline_age_to.
+      raise_error( iv_message = 'Audit deadline age range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_date IS NOT INITIAL
+        AND iv_deadline_age_from IS INITIAL
+        AND iv_deadline_age_to IS INITIAL.
+      raise_error(
+        iv_message = 'Audit deadline age date requires an age range' ).
     ENDIF.
     IF lv_status IS NOT INITIAL
         AND lv_status <> 'S'
@@ -276,6 +397,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
            movement_type,
            min_shelf_life,
            unit,
+           requested_on_from,
+           requested_on_to,
            status
       FROM zstockalloc_run
       INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
@@ -283,17 +406,56 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND werks = @iv_plant
         AND lgort = @iv_storage_location
         AND batch = @iv_batch
-        AND start_date < @iv_before_date.
+        AND start_date < @iv_before_date
+        AND ( @iv_deadline_only = @abap_false
+          OR requested_on_from <> '00000000'
+          OR requested_on_to <> '00000000' ).
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
+      IF ls_candidate-requested_on_to IS INITIAL.
+        lv_requested_deadline = ls_candidate-requested_on_from.
+      ELSE.
+        lv_requested_deadline = ls_candidate-requested_on_to.
+      ENDIF.
+      IF iv_overdue_only = abap_true
+          AND ( lv_requested_deadline IS INITIAL
+            OR lv_requested_deadline >= lv_overdue_date ).
+        CONTINUE.
+      ENDIF.
+      IF ( iv_deadline_from IS NOT INITIAL
+            AND ( lv_requested_deadline IS INITIAL
+              OR lv_requested_deadline < iv_deadline_from ) )
+          OR ( iv_deadline_to IS NOT INITIAL
+            AND ( lv_requested_deadline IS INITIAL
+              OR lv_requested_deadline > iv_deadline_to ) ).
+        CONTINUE.
+      ENDIF.
+      IF iv_deadline_age_from IS NOT INITIAL
+          OR iv_deadline_age_to IS NOT INITIAL.
+        IF lv_requested_deadline IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        lv_deadline_age_days = lv_deadline_age_date
+          - lv_requested_deadline.
+        IF ( iv_deadline_age_from IS NOT INITIAL
+              AND lv_deadline_age_days < iv_deadline_age_from )
+            OR ( iv_deadline_age_to IS NOT INITIAL
+              AND lv_deadline_age_days > iv_deadline_age_to ).
+          CONTINUE.
+        ENDIF.
+      ENDIF.
       IF ( iv_unit IS INITIAL OR ls_candidate-unit = lv_unit )
           AND ( iv_movement_type IS INITIAL
             OR ls_candidate-movement_type = iv_movement_type )
           AND ( iv_run_id IS INITIAL OR ls_candidate-run_id = iv_run_id )
           AND ( iv_min_shelf_life IS INITIAL
             OR ls_candidate-min_shelf_life = iv_min_shelf_life )
-          AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status ).
+          AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status )
+          AND ( iv_requested_on_from IS INITIAL
+            OR ls_candidate-requested_on_from = iv_requested_on_from )
+          AND ( iv_requested_on_to IS INITIAL
+            OR ls_candidate-requested_on_to = iv_requested_on_to ).
         CASE ls_candidate-status.
           WHEN 'S'.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
@@ -339,8 +501,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_policy_mixed TYPE abap_bool.
     DATA lv_policy_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA lv_policy_min_shelf_life TYPE i.
+    DATA lv_deadline_age_reference_date TYPE d.
     DATA ls_running_age TYPE zif_allocation_audit=>ty_running_age.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
+
+    lv_deadline_age_reference_date = sy-datum.
+    IF iv_deadline_age_date IS NOT INITIAL.
+      lv_deadline_age_reference_date = iv_deadline_age_date.
+    ENDIF.
+    rs_summary-deadline_age_reference_date =
+      lv_deadline_age_reference_date.
 
     lt_runs = zif_allocation_audit~get_runs(
       iv_material          = iv_material
@@ -353,6 +523,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_min_shelf_life    = iv_min_shelf_life
       iv_requested_on_from = iv_requested_on_from
       iv_requested_on_to   = iv_requested_on_to
+      iv_requested_overdue = iv_requested_overdue
+      iv_overdue_date      = iv_overdue_date
+      iv_deadline_only     = iv_deadline_only
+      iv_deadline_from     = iv_deadline_from
+      iv_deadline_to       = iv_deadline_to
+      iv_deadline_age_from = iv_deadline_age_from
+      iv_deadline_age_to   = iv_deadline_age_to
+      iv_deadline_age_date = iv_deadline_age_date
       iv_start_date_from   = iv_start_date_from
       iv_start_date_to     = iv_start_date_to
       iv_finish_date_from  = iv_finish_date_from
@@ -388,6 +566,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       rs_summary-total_runs = rs_summary-total_runs + 1.
       rs_summary-demand_count = rs_summary-demand_count
         + <ls_run>-demand_count.
+      IF <ls_run>-requested_deadline IS NOT INITIAL.
+        rs_summary-deadline_count = rs_summary-deadline_count + 1.
+      ENDIF.
       CASE <ls_run>-strategy.
         WHEN 'P'.
           rs_summary-priority_runs = rs_summary-priority_runs + 1.
@@ -417,6 +598,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSEIF lv_policy_movement_type <> <ls_run>-movement_type
           OR lv_policy_min_shelf_life <> <ls_run>-min_shelf_life.
         lv_policy_mixed = abap_true.
+      ENDIF.
+      IF <ls_run>-requested_deadline IS NOT INITIAL.
+        IF rs_summary-earliest_requested_deadline IS INITIAL
+            OR <ls_run>-requested_deadline
+               < rs_summary-earliest_requested_deadline.
+          rs_summary-earliest_requested_deadline =
+            <ls_run>-requested_deadline.
+        ENDIF.
+        IF rs_summary-latest_requested_deadline IS INITIAL
+            OR <ls_run>-requested_deadline
+               > rs_summary-latest_requested_deadline.
+          rs_summary-latest_requested_deadline =
+            <ls_run>-requested_deadline.
+        ENDIF.
       ENDIF.
       IF rs_summary-mixed_units <> abap_true.
         rs_summary-allocated = rs_summary-allocated + <ls_run>-allocated.
@@ -547,6 +742,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         rs_summary-last_start_time = <ls_run>-start_time.
         rs_summary-last_requested_on_from = <ls_run>-requested_on_from.
         rs_summary-last_requested_on_to = <ls_run>-requested_on_to.
+        rs_summary-last_requested_deadline = <ls_run>-requested_deadline.
         rs_summary-last_strategy = <ls_run>-strategy.
         rs_summary-last_finish_date = <ls_run>-finish_date.
         rs_summary-last_finish_time = <ls_run>-finish_time.
@@ -688,6 +884,18 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       rs_summary-policy_context_available = abap_true.
       rs_summary-mixed_policies = abap_false.
     ENDIF.
+    IF rs_summary-last_requested_deadline IS NOT INITIAL.
+      rs_summary-last_deadline_age_days = lv_deadline_age_reference_date
+        - rs_summary-last_requested_deadline.
+    ENDIF.
+    IF rs_summary-earliest_requested_deadline IS NOT INITIAL.
+      rs_summary-oldest_deadline_age_days = lv_deadline_age_reference_date
+        - rs_summary-earliest_requested_deadline.
+    ENDIF.
+    IF rs_summary-latest_requested_deadline IS NOT INITIAL.
+      rs_summary-newest_deadline_age_days = lv_deadline_age_reference_date
+        - rs_summary-latest_requested_deadline.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_allocation_audit~record_rejection.
@@ -760,6 +968,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         coverage         TYPE zif_allocation_audit=>ty_coverage,
         shortage_pct     TYPE zif_allocation_audit=>ty_coverage,
         shortage         TYPE zif_stock_allocation=>ty_quantity,
+        horizon          TYPE abap_bool,
+        requested_from   TYPE d,
+        requested_to     TYPE d,
+        sort_date        TYPE d,
         start_date       TYPE d,
         start_time       TYPE t,
         run_id           TYPE zif_allocation_audit=>ty_run_id,
@@ -770,6 +982,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_filtered TYPE zif_allocation_audit=>tt_runs.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_requested_deadline TYPE d.
+    DATA lv_overdue_date TYPE d.
+    DATA lv_deadline_age_date TYPE d.
+    DATA lv_deadline_age_days TYPE i.
+    DATA lv_sort_date TYPE d.
     DATA lv_status_rank TYPE i.
     DATA lv_duration_seconds TYPE i.
     DATA lv_running_age_seconds TYPE i.
@@ -782,6 +999,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_duration_sorted TYPE STANDARD TABLE OF ty_coverage_run
       WITH EMPTY KEY.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
+
+    lv_overdue_date = sy-datum.
+    IF iv_overdue_date IS NOT INITIAL.
+      lv_overdue_date = iv_overdue_date.
+    ENDIF.
+    lv_deadline_age_date = sy-datum.
+    IF iv_deadline_age_date IS NOT INITIAL.
+      lv_deadline_age_date = iv_deadline_age_date.
+    ENDIF.
 
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -903,6 +1129,22 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_requested_on_from > iv_requested_on_to.
       raise_error( iv_message = 'Audit requested date range is invalid' ).
     ENDIF.
+    IF iv_deadline_from IS NOT INITIAL
+        AND iv_deadline_to IS NOT INITIAL
+        AND iv_deadline_from > iv_deadline_to.
+      raise_error( iv_message = 'Audit requested deadline range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_from IS NOT INITIAL
+        AND iv_deadline_age_to IS NOT INITIAL
+        AND iv_deadline_age_from > iv_deadline_age_to.
+      raise_error( iv_message = 'Audit deadline age range is invalid' ).
+    ENDIF.
+    IF iv_deadline_age_date IS NOT INITIAL
+        AND iv_deadline_age_from IS INITIAL
+        AND iv_deadline_age_to IS INITIAL.
+      raise_error(
+        iv_message = 'Audit deadline age date requires an age range' ).
+    ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf-life filter is invalid' ).
     ENDIF.
@@ -1010,6 +1252,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       <ls_run>-strategy = to_upper( <ls_run>-strategy ).
       validate_run( is_run = <ls_run> ).
       <ls_run>-requested = <ls_run>-allocated + <ls_run>-shortage.
+      IF <ls_run>-requested_on_to IS INITIAL.
+        <ls_run>-requested_deadline = <ls_run>-requested_on_from.
+      ELSE.
+        <ls_run>-requested_deadline = <ls_run>-requested_on_to.
+      ENDIF.
     ENDLOOP.
     IF iv_run_id_contains IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
@@ -1029,6 +1276,50 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       LOOP AT rt_runs ASSIGNING <ls_run>.
         IF <ls_run>-strategy IS NOT INITIAL.
           DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_requested_overdue = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-requested_on_to IS INITIAL.
+          lv_requested_deadline = <ls_run>-requested_on_from.
+        ELSE.
+          lv_requested_deadline = <ls_run>-requested_on_to.
+        ENDIF.
+        IF lv_requested_deadline IS INITIAL
+            OR lv_requested_deadline >= lv_overdue_date.
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_deadline_only = abap_true.
+      DELETE rt_runs WHERE requested_deadline IS INITIAL.
+    ENDIF.
+    IF iv_deadline_from IS NOT INITIAL OR iv_deadline_to IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-requested_deadline IS INITIAL
+            OR ( iv_deadline_from IS NOT INITIAL
+              AND <ls_run>-requested_deadline < iv_deadline_from )
+            OR ( iv_deadline_to IS NOT INITIAL
+              AND <ls_run>-requested_deadline > iv_deadline_to ).
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_deadline_age_from IS NOT INITIAL
+        OR iv_deadline_age_to IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-requested_deadline IS INITIAL.
+          DELETE rt_runs.
+        ELSE.
+          lv_deadline_age_days = lv_deadline_age_date
+            - <ls_run>-requested_deadline.
+          IF ( iv_deadline_age_from IS NOT INITIAL
+                AND lv_deadline_age_days < iv_deadline_age_from )
+              OR ( iv_deadline_age_to IS NOT INITIAL
+                AND lv_deadline_age_days > iv_deadline_age_to ).
+            DELETE rt_runs.
+          ENDIF.
         ENDIF.
       ENDLOOP.
     ENDIF.
@@ -1259,6 +1550,33 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       CLEAR rt_runs.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_run>).
         APPEND <ls_shortage_pct_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_due = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-requested_on_from IS INITIAL.
+          lv_sort_date = <ls_run>-requested_on_to.
+        ELSE.
+          lv_sort_date = <ls_run>-requested_on_from.
+        ENDIF.
+        APPEND VALUE #(
+          horizon        = xsdbool( lv_sort_date IS NOT INITIAL )
+          requested_from = <ls_run>-requested_on_from
+          requested_to   = <ls_run>-requested_on_to
+          sort_date      = lv_sort_date
+          shortage       = <ls_run>-shortage
+          start_date     = <ls_run>-start_date
+          start_time     = <ls_run>-start_time
+          run_id         = <ls_run>-run_id
+          run            = <ls_run> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY horizon DESCENDING
+                                 sort_date ASCENDING
+                                 requested_to ASCENDING shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_requested_run>).
+        APPEND <ls_requested_run>-run TO rt_runs.
       ENDLOOP.
     ELSEIF iv_sort_by_status = abap_true.
       LOOP AT rt_runs ASSIGNING <ls_run>.

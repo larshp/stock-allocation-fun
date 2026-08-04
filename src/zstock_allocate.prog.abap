@@ -36,6 +36,12 @@ START-OF-SELECTION.
   DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
   DATA ls_run_context TYPE zif_allocation_audit=>ty_run.
   DATA lt_run_context TYPE zif_allocation_audit=>tt_runs.
+  DATA lv_last_deadline_age_days TYPE i.
+  DATA lv_oldest_deadline_age_days TYPE i.
+  DATA lv_newest_deadline_age_days TYPE i.
+  DATA lv_last_deadline_age_text TYPE string.
+  DATA lv_oldest_deadline_age_text TYPE string.
+  DATA lv_newest_deadline_age_text TYPE string.
   DATA lv_last_duration_seconds TYPE i.
   DATA lv_json_line TYPE string.
   DATA lv_error_message TYPE string.
@@ -402,6 +408,7 @@ START-OF-SELECTION.
       IF sy-subrc = 0.
         ls_summary-last_requested_on_from = ls_run_context-requested_on_from.
         ls_summary-last_requested_on_to = ls_run_context-requested_on_to.
+        ls_summary-last_requested_deadline = ls_run_context-requested_deadline.
         ls_summary-last_start_date = ls_run_context-start_date.
         ls_summary-last_start_time = ls_run_context-start_time.
         ls_summary-last_finish_date = ls_run_context-finish_date.
@@ -424,6 +431,27 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation.
       CLEAR ls_run_context.
   ENDTRY.
+  lv_last_deadline_age_days = ls_summary-last_deadline_age_days.
+  lv_oldest_deadline_age_days = ls_summary-oldest_deadline_age_days.
+  lv_newest_deadline_age_days = ls_summary-newest_deadline_age_days.
+  IF ls_summary-last_requested_deadline IS INITIAL.
+    lv_last_deadline_age_text = 'n/a'.
+  ELSE.
+    lv_last_deadline_age_text = zcl_stock_csv=>number(
+      lv_last_deadline_age_days ).
+  ENDIF.
+  IF ls_summary-earliest_requested_deadline IS INITIAL.
+    lv_oldest_deadline_age_text = 'n/a'.
+  ELSE.
+    lv_oldest_deadline_age_text = zcl_stock_csv=>number(
+      lv_oldest_deadline_age_days ).
+  ENDIF.
+  IF ls_summary-latest_requested_deadline IS INITIAL.
+    lv_newest_deadline_age_text = 'n/a'.
+  ELSE.
+    lv_newest_deadline_age_text = zcl_stock_csv=>number(
+      lv_newest_deadline_age_days ).
+  ENDIF.
   lv_requested = ls_summary-requested.
   IF p_csv = abap_true.
     CLEAR lt_csv_fields.
@@ -435,7 +463,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 24 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 29 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -498,8 +526,19 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_summary-partial_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-unallocated_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-demand_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-deadline_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_to ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_summary-last_requested_deadline ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      ls_summary-earliest_requested_deadline ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      ls_summary-latest_requested_deadline ) TO lt_csv_fields.
+    APPEND lv_last_deadline_age_text TO lt_csv_fields.
+    APPEND lv_oldest_deadline_age_text TO lt_csv_fields.
+    APPEND lv_newest_deadline_age_text TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      ls_summary-deadline_age_reference_date ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_run_id ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_run_id ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_strategy ) TO lt_csv_fields.
@@ -529,7 +568,10 @@ START-OF-SELECTION.
       && 'smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;'
       && 'largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;'
       && 'legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;'
-      && 'full_count;partial_count;unallocated_count;demand_count;requested_on_from;requested_on_to;run_id;last_run_id;'
+      && 'full_count;partial_count;unallocated_count;demand_count;deadline_count;requested_on_from;requested_on_to;'
+      && 'requested_deadline;earliest_requested_deadline;latest_requested_deadline;'
+      && 'last_deadline_age_days;oldest_deadline_age_days;newest_deadline_age_days;'
+      && 'deadline_age_reference_date;run_id;last_run_id;'
       && 'last_strategy;last_start_date;last_start_time;last_finish_date;last_finish_time;last_duration_seconds;'
       && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
       && 'oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id;'
@@ -553,7 +595,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 24 ) TO lt_json_fields.
+        iv_value = 29 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -765,6 +807,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'demand_count'
         iv_value = ls_summary-demand_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'deadline_count'
+        iv_value = ls_summary-deadline_count ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>property(
         iv_name  = 'remaining'
@@ -925,6 +970,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'demand_count'
         iv_value = ls_summary-demand_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_count'
+        iv_value = ls_summary-deadline_count ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_from'
@@ -932,6 +980,36 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_to'
       iv_value = ls_summary-last_requested_on_to ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'requested_deadline'
+      iv_value = ls_summary-last_requested_deadline ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'earliest_requested_deadline'
+      iv_value = ls_summary-earliest_requested_deadline ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'latest_requested_deadline'
+      iv_value = ls_summary-latest_requested_deadline ) TO lt_json_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'last_deadline_age_days'
+      iv_value   = lv_last_deadline_age_days
+      iv_text    = lv_last_deadline_age_text
+      iv_present = xsdbool( ls_summary-last_requested_deadline IS NOT INITIAL )
+      iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'oldest_deadline_age_days'
+      iv_value   = lv_oldest_deadline_age_days
+      iv_text    = lv_oldest_deadline_age_text
+      iv_present = xsdbool( ls_summary-earliest_requested_deadline IS NOT INITIAL )
+      iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'newest_deadline_age_days'
+      iv_value   = lv_newest_deadline_age_days
+      iv_text    = lv_newest_deadline_age_text
+      iv_present = xsdbool( ls_summary-latest_requested_deadline IS NOT INITIAL )
+      iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'deadline_age_reference_date'
+      iv_value = ls_summary-deadline_age_reference_date ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'run_id'
       iv_value = lv_run_id ) TO lt_json_fields.
@@ -1082,12 +1160,23 @@ START-OF-SELECTION.
          / 'Partially allocated lines:', ls_summary-partial_count,
          / 'Unallocated lines:', ls_summary-unallocated_count,
          / 'Demand lines:', ls_summary-demand_count,
+         / 'Alerts with requested deadline:', ls_summary-deadline_count,
          / 'Completion:', ls_summary-completion_pct, '%',
          / 'Success rate:', ls_summary-success_rate_pct, '%',
          / 'Partial rate:', ls_summary-partial_rate_pct, '%',
          / 'Error rate:', ls_summary-error_rate_pct, '%',
          / 'Requested from:', ls_summary-last_requested_on_from,
          / 'Requested through:', ls_summary-last_requested_on_to,
+         / 'Requested deadline:', ls_summary-last_requested_deadline,
+         / 'Earliest requested deadline:',
+           ls_summary-earliest_requested_deadline,
+         / 'Latest requested deadline:',
+           ls_summary-latest_requested_deadline,
+         / 'Last deadline age days:', lv_last_deadline_age_text,
+         / 'Oldest deadline age days:', lv_oldest_deadline_age_text,
+         / 'Newest deadline age days:', lv_newest_deadline_age_text,
+         / 'Deadline age reference date:',
+           ls_summary-deadline_age_reference_date,
          / 'Run ID:', lv_run_id,
          / 'Last run:', ls_summary-last_run_id,
          / 'Last strategy:', ls_summary-last_strategy,

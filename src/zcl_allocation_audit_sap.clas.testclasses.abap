@@ -128,6 +128,7 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_finish_commit_failure FOR TESTING.
     METHODS rejects_rejection_commit FOR TESTING.
     METHODS fallback_authority_messages FOR TESTING.
+    METHODS filters_overdue_horizon FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
@@ -521,6 +522,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_oldest_deadline TYPE d.
+    DATA lv_newest_deadline TYPE d.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_run_id = lo_cut->start_run(
@@ -577,6 +580,17 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       ls_summary-mixed_policies ).
     cl_abap_unit_assert=>assert_initial(
       ls_summary-min_shelf_life_context ).
+    lv_oldest_deadline = '20260807'.
+    lv_newest_deadline = '20260907'.
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_age_days
+      exp = sy-datum - lv_oldest_deadline ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_age_days
+      exp = sy-datum - lv_newest_deadline ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_age_reference_date
+      exp = sy-datum ).
     lt_runs = lo_cut->get_runs(
       iv_material         = 'MATERIAL-AUDIT-POLICY'
       iv_plant            = '1000'
@@ -1426,6 +1440,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deleted TYPE i.
     DATA lv_deleted_snapshots TYPE i.
     DATA lv_count TYPE i.
+    DATA lv_raised TYPE abap_bool.
 
     ls_run-mandt = sy-mandt.
     ls_run-matnr = 'MATERIAL-PURGE-POLICY'.
@@ -1444,10 +1459,12 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-run_id = 'RUN-PURGE-POLICY-MATCH'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
+    ls_run-requested_on_from = sy-datum - 1.
     INSERT zstockalloc_run FROM @ls_run.
     ls_run-run_id = 'RUN-PURGE-POLICY-OTHER'.
     ls_run-movement_type = '202'.
     ls_run-min_shelf_life = 7.
+    CLEAR: ls_run-requested_on_from, ls_run-requested_on_to.
     INSERT zstockalloc_run FROM @ls_run.
 
     ls_allocation-mandt = sy-mandt.
@@ -1482,13 +1499,17 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     ls_preview = lo_cut->get_purge_preview(
-      iv_material         = 'MATERIAL-PURGE-POLICY'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_unit             = 'ea'
-      iv_movement_type    = '201'
-      iv_min_shelf_life   = 5
-      iv_before_date      = sy-datum ).
+      iv_material          = 'MATERIAL-PURGE-POLICY'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_unit              = 'ea'
+      iv_movement_type     = '201'
+      iv_min_shelf_life    = 5
+      iv_deadline_only     = abap_true
+      iv_overdue_only      = abap_true
+      iv_overdue_date      = sy-datum
+      iv_requested_on_from = sy-datum - 1
+      iv_before_date       = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
       exp = 1 ).
@@ -1497,6 +1518,29 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-running_count
+      exp = 0 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_from    = sy-datum - 1
+      iv_deadline_to      = sy-datum - 1
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material          = 'MATERIAL-PURGE-POLICY'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_deadline_age_from = 2
+      iv_deadline_age_to   = 2
+      iv_deadline_age_date = sy-datum + 1
+      iv_before_date       = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
       exp = 1 ).
 
     lv_deleted = lo_cut->purge_runs_before(
@@ -1507,6 +1551,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         iv_unit              = 'ea'
         iv_movement_type     = '201'
         iv_min_shelf_life    = 5
+        iv_deadline_only     = abap_true
+        iv_overdue_only      = abap_true
+        iv_overdue_date      = sy-datum
+        iv_requested_on_from = sy-datum - 1
         iv_before_date       = sy-datum
       IMPORTING
         ev_deleted_snapshots = lv_deleted_snapshots ).
@@ -1516,6 +1564,83 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_deleted_snapshots
       exp = 1 ).
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_overdue_date     = sy-datum
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_overdue_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_overdue_date_error->message
+          exp = 'Audit overdue as-of date requires overdue-only filtering' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material          = 'MATERIAL-PURGE-POLICY'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_deadline_age_from = 3
+          iv_deadline_age_to   = 2
+          iv_before_date       = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_range_error->message
+          exp = 'Audit deadline age range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material          = 'MATERIAL-PURGE-POLICY'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_deadline_age_date = sy-datum + 1
+          iv_before_date       = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_date_error->message
+          exp = 'Audit deadline age date requires an age range' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_deadline_from    = sy-datum
+          iv_deadline_to      = sy-datum - 1
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_range_error->message
+          exp = 'Audit requested deadline range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material          = 'MATERIAL-PURGE-POLICY'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_requested_on_from = sy-datum
+          iv_requested_on_to   = sy-datum - 1
+          iv_before_date       = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_requested_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_requested_range_error->message
+          exp = 'Audit requested date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc_run
       INTO @lv_count
@@ -3161,6 +3286,23 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = lt_ordered_runs[ 2 ]-run_id
       exp = lv_old_run_id ).
     UPDATE zstockalloc_run
+      SET requested_on_from = '00000000', requested_on_to = '20260822'
+      WHERE run_id = @lv_old_run_id.
+    UPDATE zstockalloc_run
+      SET requested_on_from = '20260815', requested_on_to = '20260816'
+      WHERE run_id = @lv_new_run_id.
+    lt_ordered_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-ORDER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sort_by_due      = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 1 ]-run_id
+      exp = lv_new_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 2 ]-run_id
+      exp = lv_old_run_id ).
+    UPDATE zstockalloc_run
       SET start_date = '20260702', start_time = '010000'
       WHERE run_id = @lv_old_run_id.
     UPDATE zstockalloc_run
@@ -3298,5 +3440,269 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit history row offset is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD filters_overdue_horizon.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_yesterday TYPE d.
+    DATA lv_today TYPE d.
+    DATA lv_tomorrow TYPE d.
+    DATA lv_day_after_tomorrow TYPE d.
+
+    lv_today = sy-datum.
+    lv_yesterday = sy-datum - 1.
+    lv_tomorrow = sy-datum + 1.
+    lv_day_after_tomorrow = sy-datum + 2.
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+
+    lv_run_id = lo_cut->start_run(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_on_from = lv_yesterday
+      iv_requested_on_to   = lv_yesterday
+      iv_unit              = 'EA'
+      iv_available         = 1
+      iv_demand_count      = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 1
+      iv_allocated = 1
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_on_from = lv_yesterday
+      iv_unit              = 'EA'
+      iv_available         = 1
+      iv_demand_count      = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 1
+      iv_allocated = 1
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_on_from = lv_today
+      iv_requested_on_to   = lv_today
+      iv_unit              = 'EA'
+      iv_available         = 1
+      iv_demand_count      = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 1
+      iv_allocated = 1
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_on_from = lv_tomorrow
+      iv_requested_on_to   = lv_tomorrow
+      iv_unit              = 'EA'
+      iv_available         = 1
+      iv_demand_count      = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 1
+      iv_allocated = 1
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 1
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 1
+      iv_allocated = 1
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_overdue = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-requested_deadline
+      exp = lv_yesterday ).
+    ls_summary = lo_cut->get_summary(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_overdue = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 2 ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_overdue = abap_true
+      iv_overdue_date      = lv_day_after_tomorrow ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 4 ).
+    ls_summary = lo_cut->get_summary(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_requested_overdue = abap_true
+      iv_overdue_date      = lv_day_after_tomorrow ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_count
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_requested_deadline
+      exp = lt_runs[ 1 ]-requested_deadline ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-earliest_requested_deadline
+      exp = lv_yesterday ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-latest_requested_deadline
+      exp = lv_tomorrow ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_only    = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 4 ).
+    LOOP AT lt_runs ASSIGNING FIELD-SYMBOL(<ls_deadline_run>).
+      cl_abap_unit_assert=>assert_not_initial(
+        <ls_deadline_run>-requested_deadline ).
+    ENDLOOP.
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_only    = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 4 ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_from    = lv_yesterday
+      iv_deadline_to      = lv_today ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 3 ).
+    LOOP AT lt_runs ASSIGNING FIELD-SYMBOL(<ls_deadline_range_run>).
+      cl_abap_unit_assert=>assert_true(
+        xsdbool( <ls_deadline_range_run>-requested_deadline >= lv_yesterday
+          AND <ls_deadline_range_run>-requested_deadline <= lv_today ) ).
+    ENDLOOP.
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_deadline_from    = lv_today
+          iv_deadline_to      = lv_yesterday ).
+        cl_abap_unit_assert=>fail(
+          msg = 'Expected invalid requested deadline range' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_range_error).
+    cl_abap_unit_assert=>assert_equals(
+        act = lo_deadline_range_error->message
+        exp = 'Audit requested deadline range is invalid' ).
+    ENDTRY.
+
+    lt_runs = lo_cut->get_runs(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_deadline_age_from = 2
+      iv_deadline_age_to   = 3
+      iv_deadline_age_date = lv_day_after_tomorrow ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 3 ).
+    LOOP AT lt_runs ASSIGNING FIELD-SYMBOL(<ls_deadline_age_run>).
+      cl_abap_unit_assert=>assert_true(
+        xsdbool( lv_day_after_tomorrow
+          - <ls_deadline_age_run>-requested_deadline >= 2
+          AND lv_day_after_tomorrow
+          - <ls_deadline_age_run>-requested_deadline <= 3 ) ).
+    ENDLOOP.
+    ls_summary = lo_cut->get_summary(
+      iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_deadline_age_from = 2
+      iv_deadline_age_to   = 3
+      iv_deadline_age_date = lv_day_after_tomorrow ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_age_reference_date
+      exp = lv_day_after_tomorrow ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_age_days
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_age_days
+      exp = 2 ).
+    TRY.
+        lo_cut->get_runs(
+          iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_deadline_age_from = 3
+          iv_deadline_age_to   = 2 ).
+        cl_abap_unit_assert=>fail(
+          msg = 'Expected invalid deadline age range' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_range_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_range_error->message
+          exp = 'Audit deadline age range is invalid' ).
+    ENDTRY.
+    TRY.
+        lo_cut->get_runs(
+          iv_material          = 'MATERIAL-AUDIT-OVERDUE'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_deadline_age_date = lv_today ).
+        cl_abap_unit_assert=>fail(
+          msg = 'Expected deadline age date dependency validation' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_date_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_age_date_error->message
+          exp = 'Audit deadline age date requires an age range' ).
+    ENDTRY.
   ENDMETHOD.
 ENDCLASS.

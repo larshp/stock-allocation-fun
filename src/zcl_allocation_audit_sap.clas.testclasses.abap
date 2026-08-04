@@ -100,35 +100,64 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS records_completed_run FOR TESTING.
-    METHODS rejects_bad_rejection_metric FOR TESTING.
-    METHODS rejects_invalid_movement_type FOR TESTING.
-    METHODS rejects_corrupt_read FOR TESTING.
-    METHODS rejects_inverted_timestamp FOR TESTING.
-    METHODS filters_duration_bounds FOR TESTING.
-    METHODS accepts_lowercase_unit FOR TESTING.
-    METHODS accepts_lowercase_codes FOR TESTING.
-    METHODS filters_max_running_age FOR TESTING.
-    METHODS filters_shortage_percentage FOR TESTING.
-    METHODS accepts_largest_strategy FOR TESTING.
-    METHODS accepts_best_strategy FOR TESTING.
-    METHODS latest_summary_tie_breaker FOR TESTING.
-    METHODS reports_completion_running FOR TESTING.
-    METHODS reports_running_age FOR TESTING.
-    METHODS summarizes_legacy_strategy FOR TESTING.
-    METHODS summarizes_policy_context FOR TESTING.
-    METHODS summarizes_filtered_runs FOR TESTING.
-    METHODS purges_linked_snapshots FOR TESTING.
-    METHODS purges_by_policy FOR TESTING.
-    METHODS purges_by_status FOR TESTING.
-    METHODS purges_by_run_id FOR TESTING.
-    METHODS rejects_invalid_purge_status FOR TESTING.
-    METHODS rejects_bad_mvt_filter FOR TESTING.
-    METHODS rejects_purge_commit_failure FOR TESTING.
-    METHODS rejects_finish_commit_failure FOR TESTING.
-    METHODS rejects_rejection_commit FOR TESTING.
-    METHODS fallback_authority_messages FOR TESTING.
-    METHODS filters_overdue_horizon FOR TESTING.
+    METHODS records_completed_run FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_rejection_metric FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_movement_type FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_corrupt_read FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_inverted_timestamp FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_duration_bounds FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_lowercase_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_lowercase_codes FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_max_running_age FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_shortage_percentage FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_largest_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_best_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS latest_summary_tie_breaker FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS reports_completion_running FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS reports_running_age FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS summarizes_legacy_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS summarizes_policy_context FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS summarizes_filtered_runs FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS purges_linked_snapshots FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS purges_by_policy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS purges_by_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS purges_by_run_id FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_purge_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_mvt_filter FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_purge_commit_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_finish_commit_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_rejection_commit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS fallback_authority_messages FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_overdue_horizon FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_allocation_audit_sap IMPLEMENTATION.

@@ -2,14 +2,22 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS changes_schedule_quantity FOR TESTING.
-    METHODS rejects_invalid_input FOR TESTING.
-    METHODS rejects_non_numeric_keys FOR TESTING.
-    METHODS rejects_bapi_error FOR TESTING.
-    METHODS rejects_bapi_rollback_failure FOR TESTING.
-    METHODS rejects_commit_failure FOR TESTING.
-    METHODS rejects_rollback_failure FOR TESTING.
-    METHODS rejects_unauthorized FOR TESTING.
+    METHODS changes_schedule_quantity FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_input FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_non_numeric_keys FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bapi_error FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bapi_rollback_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_commit_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_rollback_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unauthorized FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS lcl_fail_order_sink_auth DEFINITION FINAL.

@@ -2,10 +2,14 @@ CLASS ltcl_stock_allocator_best DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS maximizes_full_lines FOR TESTING.
-    METHODS uses_priority_for_ties FOR TESTING.
-    METHODS falls_back_to_smallest FOR TESTING.
-    METHODS rejects_duplicate_keys FOR TESTING.
+    METHODS maximizes_full_lines FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS uses_priority_for_ties FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS falls_back_to_smallest FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_duplicate_keys FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocator_best IMPLEMENTATION.

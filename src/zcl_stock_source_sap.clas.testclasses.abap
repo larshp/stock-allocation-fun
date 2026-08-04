@@ -2,10 +2,14 @@ CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS reads_current_client_stock FOR TESTING.
-    METHODS rejects_incomplete_scope FOR TESTING.
-    METHODS rejects_invalid_output FOR TESTING.
-    METHODS rejects_deletion_marked_data FOR TESTING.
+    METHODS reads_current_client_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_incomplete_scope FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_output FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_deletion_marked_data FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_source_sap IMPLEMENTATION.

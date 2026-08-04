@@ -1,5 +1,7 @@
 # Anomalies and known issues
 
+- Resolved: stricter uncaught-exception linting reported intentional exceptions in ABAP Unit methods; affected test methods now declare `RAISING zcx_stock_allocation` in code.
+
 - Resolved: result typed/metadata JSON initially serialized audit deadline age as text; the field now follows the numeric-or-null contract used by other typed metrics.
 - Resolved: allocation summary consumers had to recompute deadline urgency from aggregate effective deadlines; allocation success output now exposes signed last/oldest/newest deadline ages with numeric/null typed JSON semantics.
 - Resolved: allocation summary age fields were calculated independently from the audit aggregation; the audit summary now owns the same signed last/oldest/newest values consumed by the allocation report.

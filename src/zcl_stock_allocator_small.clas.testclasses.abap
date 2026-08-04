@@ -2,8 +2,10 @@ CLASS ltcl_stock_allocator_small DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS allocates_smallest_first FOR TESTING.
-    METHODS same_quantity_uses_priority FOR TESTING.
+    METHODS allocates_smallest_first FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS same_quantity_uses_priority FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocator_small IMPLEMENTATION.

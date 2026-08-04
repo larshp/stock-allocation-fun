@@ -2,8 +2,10 @@ CLASS ltcl_stock_allocator_full DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS skips_partial_lines FOR TESTING.
-    METHODS fills_later_line_when_it_fits FOR TESTING.
+    METHODS skips_partial_lines FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS fills_later_line_when_it_fits FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocator_full IMPLEMENTATION.

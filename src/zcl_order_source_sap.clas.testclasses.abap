@@ -2,14 +2,22 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS maps_delivery_priority FOR TESTING.
-    METHODS filters_requested_horizon FOR TESTING.
-    METHODS rejects_reversed_horizon FOR TESTING.
-    METHODS rejects_missing_order_unit FOR TESTING.
-    METHODS rejects_missing_requested_date FOR TESTING.
-    METHODS rejects_missing_doc_type FOR TESTING.
-    METHODS rejects_invalid_identity FOR TESTING.
-    METHODS filters_delivery_blocks FOR TESTING.
+    METHODS maps_delivery_priority FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_requested_horizon FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_reversed_horizon FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_order_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_requested_date FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_doc_type FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_identity FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_delivery_blocks FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_order_source_sap IMPLEMENTATION.

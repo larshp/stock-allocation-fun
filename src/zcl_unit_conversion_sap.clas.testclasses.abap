@@ -2,12 +2,18 @@ CLASS ltcl_unit_conversion_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS converts_material_unit FOR TESTING.
-    METHODS normalizes_lowercase_units FOR TESTING.
-    METHODS rejects_unknown_conversion FOR TESTING.
-    METHODS rejects_invalid_output FOR TESTING.
-    METHODS rejects_negative_output FOR TESTING.
-    METHODS rejects_nonzero_zero_output FOR TESTING.
+    METHODS converts_material_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS normalizes_lowercase_units FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_conversion FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_output FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_negative_output FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_nonzero_zero_output FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_unit_conversion_sap IMPLEMENTATION.

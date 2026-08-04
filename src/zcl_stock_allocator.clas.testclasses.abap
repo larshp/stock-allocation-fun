@@ -2,10 +2,14 @@ CLASS ltcl_stock_allocator DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS allocates_priority_first FOR TESTING.
-    METHODS keeps_deterministic_order FOR TESTING.
-    METHODS rejects_negative_stock FOR TESTING.
-    METHODS rejects_invalid_demand FOR TESTING.
+    METHODS allocates_priority_first FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS keeps_deterministic_order FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_negative_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_demand FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocator IMPLEMENTATION.
@@ -725,43 +729,80 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS allocates_and_persists FOR TESTING.
-    METHODS previews_without_side_effects FOR TESTING.
-    METHODS locks_allocation FOR TESTING.
-    METHODS audits_lock_release_failure FOR TESTING.
-    METHODS rejects_missing_runtime_input FOR TESTING.
-    METHODS rejects_missing_dependency FOR TESTING.
-    METHODS rejects_invalid_demand FOR TESTING.
-    METHODS rejects_duplicate_demand_key FOR TESTING.
-    METHODS converts_mismatched_unit FOR TESTING.
-    METHODS rejects_invalid_conversion FOR TESTING.
-    METHODS rejects_bad_stock_conversion FOR TESTING.
-    METHODS accounts_cross_unit_stock FOR TESTING.
-    METHODS rejects_bad_snapshot FOR TESTING.
-    METHODS rejects_duplicate_snapshot_key FOR TESTING.
-    METHODS converts_stock_unit FOR TESTING.
-    METHODS cancels_on_reservation_failure FOR TESTING.
-    METHODS cancels_on_sink_failure FOR TESTING.
-    METHODS preserves_old_on_sink_failure FOR TESTING.
-    METHODS keeps_reservation_audit_error FOR TESTING.
-    METHODS keeps_persistence_audit_error FOR TESTING.
-    METHODS keeps_cleanup_diagnostics FOR TESTING.
-    METHODS records_partial_cleanup FOR TESTING.
-    METHODS reports_old_cleanup_partial FOR TESTING.
-    METHODS rejects_blank_reservation_id FOR TESTING.
-    METHODS rejects_unauthorized FOR TESTING.
-    METHODS rejects_cancel_unauthorized FOR TESTING.
-    METHODS rejects_legacy_cancel_auth FOR TESTING.
-    METHODS audits_allocator_failure FOR TESTING.
-    METHODS rejects_invalid_result FOR TESTING.
-    METHODS rejects_mutated_result_key FOR TESTING.
-    METHODS rejects_mutated_demand FOR TESTING.
-    METHODS audits_lock_failure FOR TESTING.
-    METHODS audits_run_start_failure FOR TESTING.
-    METHODS rejects_blank_run_id FOR TESTING.
-    METHODS surfaces_audit_failure FOR TESTING.
-    METHODS audits_stock_read_failure FOR TESTING.
-    METHODS rejects_negative_stock_result FOR TESTING.
+    METHODS allocates_and_persists FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS previews_without_side_effects FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS locks_allocation FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS audits_lock_release_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_runtime_input FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_dependency FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_demand FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_duplicate_demand_key FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS converts_mismatched_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_conversion FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_stock_conversion FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accounts_cross_unit_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_snapshot FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_duplicate_snapshot_key FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS converts_stock_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS cancels_on_reservation_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS cancels_on_sink_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS preserves_old_on_sink_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS keeps_reservation_audit_error FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS keeps_persistence_audit_error FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS keeps_cleanup_diagnostics FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS records_partial_cleanup FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS reports_old_cleanup_partial FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_blank_reservation_id FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unauthorized FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_cancel_unauthorized FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_legacy_cancel_auth FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS audits_allocator_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_result FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_mutated_result_key FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_mutated_demand FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS audits_lock_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS audits_run_start_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_blank_run_id FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS surfaces_audit_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS audits_stock_read_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_negative_stock_result FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.

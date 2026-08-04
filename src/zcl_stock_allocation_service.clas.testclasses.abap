@@ -2,28 +2,50 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS allocates_sap_vertical_slice FOR TESTING.
-    METHODS allocates_batch_slice FOR TESTING.
-    METHODS previews_without_writes FOR TESTING.
-    METHODS rejects_bad_date_window FOR TESTING.
-    METHODS rejects_invalid_strategy FOR TESTING.
-    METHODS rejects_invalid_preview FOR TESTING.
-    METHODS rejects_invalid_movement_type FOR TESTING.
-    METHODS rejects_missing_material FOR TESTING.
-    METHODS rejects_order_source FOR TESTING.
-    METHODS rejects_stock_conversion FOR TESTING.
-    METHODS rejects_demand_conversion FOR TESTING.
-    METHODS rejects_reservation_failure FOR TESTING.
-    METHODS rejects_missing_base_unit FOR TESTING.
-    METHODS rejects_missing_batch FOR TESTING.
-    METHODS rejects_unknown_batch FOR TESTING.
-    METHODS rejects_non_batch_material FOR TESTING.
-    METHODS rejects_expired_batch FOR TESTING.
-    METHODS rejects_delivery_expiry FOR TESTING.
-    METHODS rejects_restricted_batch FOR TESTING.
-    METHODS rejects_short_shelf_life FOR TESTING.
-    METHODS rejects_transaction_failure FOR TESTING.
-    METHODS rejects_result_delete_auth FOR TESTING.
+    METHODS allocates_sap_vertical_slice FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS allocates_batch_slice FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS previews_without_writes FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_date_window FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_preview FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_movement_type FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_material FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_order_source FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_stock_conversion FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_demand_conversion FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_reservation_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_base_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_batch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_batch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_non_batch_material FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_expired_batch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_delivery_expiry FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_restricted_batch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_shelf_life FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_transaction_failure FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_result_delete_auth FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS lcl_fail_alloc_transaction DEFINITION FINAL.

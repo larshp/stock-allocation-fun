@@ -59,27 +59,48 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS persists_allocation FOR TESTING.
-    METHODS rejects_invalid_movement_type FOR TESTING.
-    METHODS fallback_authority_messages FOR TESTING.
-    METHODS rejects_missing_reservation FOR TESTING.
-    METHODS rejects_corrupt_read FOR TESTING.
-    METHODS rejects_mixed_run_read FOR TESTING.
-    METHODS rejects_orphan_read FOR TESTING.
-    METHODS rejects_invalid_run_status FOR TESTING.
-    METHODS rejects_invalid_run_strategy FOR TESTING.
-    METHODS rejects_alloc_unit_mismatch FOR TESTING.
-    METHODS rejects_alloc_run_mismatch FOR TESTING.
-    METHODS rejects_strategy_mismatch FOR TESTING.
-    METHODS rejects_date_mismatch FOR TESTING.
-    METHODS rejects_unknown_run FOR TESTING.
-    METHODS rejects_inconsistent_run FOR TESTING.
-    METHODS rejects_finalized_run FOR TESTING.
-    METHODS filters_by_run_and_status FOR TESTING.
-    METHODS accepts_lowercase_units FOR TESTING.
-    METHODS accepts_lowercase_status FOR TESTING.
-    METHODS rejects_bad_mvt_filter FOR TESTING.
-    METHODS filters_by_shortage_percentage FOR TESTING.
+    METHODS persists_allocation FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_movement_type FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS fallback_authority_messages FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_reservation FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_corrupt_read FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_mixed_run_read FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_orphan_read FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_run_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_run_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_alloc_unit_mismatch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_alloc_run_mismatch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_strategy_mismatch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_date_mismatch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_run FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_inconsistent_run FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_finalized_run FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_by_run_and_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_lowercase_units FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_lowercase_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_mvt_filter FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_by_shortage_percentage FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_allocation_sink_sap IMPLEMENTATION.

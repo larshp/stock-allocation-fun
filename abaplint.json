@@ -4,7 +4,6 @@
       "/src/**/*.*",
       "/sap_stubs/**/*.*"
     ],
-    "skipGenerated": true,
     "useApackDependencies": false
   },
   "dependencies": [
@@ -23,6 +22,7 @@
     "align_parameters": true,
     "easy_to_find_messages": true,
     "local_testclass_consistency": true,
+    "uncaught_exception": true,
     "no_mandt_in_database_operations": true,
     "line_length": true,
     "allowed_object_naming": true,

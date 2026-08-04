@@ -1,5 +1,7 @@
 # Progress notes
 
+- Declared `RAISING zcx_stock_allocation` on ABAP Unit test methods that intentionally invoke raising production APIs, allowing the stricter `uncaught_exception` lint rule to remain enabled without configuration exclusions.
+
 ## 2026-08-04
 
 - Refined result `audit_deadline_age_days` JSON serialization so typed and metadata contexts emit a numeric value or `null`, while regular JSON retains the readable signed text and no-deadline `n/a` behavior.

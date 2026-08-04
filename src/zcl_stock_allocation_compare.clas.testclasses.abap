@@ -2,16 +2,26 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
-    METHODS classifies_snapshot_changes FOR TESTING.
-    METHODS ignores_unit_case FOR TESTING.
-    METHODS detects_metadata_changes FOR TESTING.
-    METHODS suppresses_mixed_unit_totals FOR TESTING.
-    METHODS reconciles_snapshot_metrics FOR TESTING.
-    METHODS classifies_recon_transitions FOR TESTING.
-    METHODS calculates_running_age FOR TESTING.
-    METHODS classifies_running_age_trend FOR TESTING.
-    METHODS classifies_audit_metadata FOR TESTING.
-    METHODS rejects_duplicate_keys FOR TESTING.
+    METHODS classifies_snapshot_changes FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS ignores_unit_case FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS detects_metadata_changes FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS suppresses_mixed_unit_totals FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS reconciles_snapshot_metrics FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS classifies_recon_transitions FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS calculates_running_age FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS classifies_running_age_trend FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS classifies_audit_metadata FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_duplicate_keys FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_compare IMPLEMENTATION.

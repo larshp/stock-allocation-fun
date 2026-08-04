@@ -17,9 +17,12 @@ CLASS ltcl_alloc_transaction_sap DEFINITION FINAL FOR TESTING
         message TYPE c LENGTH 220,
     END OF ty_return.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
-    METHODS commits_transaction FOR TESTING.
-    METHODS rejects_commit FOR TESTING.
-    METHODS reports_rollback_failure FOR TESTING.
+    METHODS commits_transaction FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_commit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS reports_rollback_failure FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_alloc_transaction_sap IMPLEMENTATION.

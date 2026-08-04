@@ -215,6 +215,12 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 4 ).
+    READ TABLE lt_demands
+      WITH KEY sales_document = 'DELITEM001'
+      TRANSPORTING NO FIELDS.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 4 ).
   ENDMETHOD.
 
   METHOD rejects_invalid_identity.

@@ -1,6 +1,34 @@
 # Progress notes
 
-- Added automatic SAP table-stub discovery for the production stock and order SQL sources; every `FROM`/`JOIN` dependency must now have a matching table descriptor and identity in `sap_stubs`.
+- Added the zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_RESULT` (`p_safon`, `p_saf`, `p_safto`) through the allocation-sink run-selection boundary, including latest and exact-run reads. Result schemas advance to detail/summary `37`/`39`; CSV and typed filter provenance carry the selected bounds.
+
+- Added the same zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_WATCH` (`p_safon`, `p_saf`, `p_safto`) through canonical audit selection. Watch export schemas advance to CSV `53` and JSON/NDJSON `56`, with bounds present in CSV, JSON, NDJSON, and typed filter provenance.
+
+- Added an explicit zero-safe persisted safety-stock range filter to `ZSTOCK_ALLOC_HISTORY` (`p_safon`, `p_saf`, `p_safto`). The validated closed range is propagated through canonical audit `get_runs`/`get_summary` reads and exported in CSV/JSON filter provenance; history schemas advance to detail/summary `26`/`39`.
+
+- Extended stale-run watch machine-readable contracts to CSV `52` and JSON/NDJSON `55`. Alert rows now expose persisted safety stock, while summary contexts report one value, `mixed`, or `n/a`; human, CSV, typed JSON, and NDJSON paths are aligned.
+
+- Extended history machine-readable contracts to detail/summary schemas `25`/`38`. CSV, typed JSON, metadata JSON, and NDJSON now expose persisted safety-stock policy per run and `safety_stock_context` for summaries, including numeric/null behavior for mixed policies.
+
+- Extended result machine-readable detail/summary contracts to schemas `36`/`38`. CSV, typed JSON, metadata JSON, and NDJSON now carry exact originating-run `audit_safety_stock` alongside movement type and minimum shelf-life policy; documentation and report contracts cover every export branch.
+
+- Added an optional `ZSTOCK_ALLOCATE-p_safstk` safety-stock floor. The service validates nonnegative input, subtracts the floor after existing allocation reservations and unit conversion, persists the policy on `ZSTOCKALLOC_RUN`, includes it in summary policy context, and exports it in allocation CSV/JSON/human output with schema `30`; ABAP Unit and repository-contract coverage are included.
+
+- Invalid negative safety-stock requests remain auditable: the service rejects them before stock reads, while the audit rejection path retains the attempted value and diagnostic message instead of discarding the error row.
+
+- Extended human-readable history summaries/details and exact-run result context with persisted safety-stock values while keeping existing machine-readable history/result schemas stable.
+
+- Extended comparison schema `95` with old/new persisted safety-stock values and a deterministic `safety_stock` audit-metadata change reason across CSV, JSON, NDJSON, human output, and ABAP Unit coverage.
+
+- Added `VBAP-LOEKZ` deletion filtering to the SAP order reader, its local DDIC stub, and fixtures, preventing deleted sales-order items from becoming open demand.
+
+- Corrected SAP batch-source semantics: `MCHA` now establishes batch existence, so a valid batch with no `MCHB` storage-stock row returns zero available quantity instead of a false missing-batch error; regression fixture and ABAP Unit coverage added.
+
+- Defaulted the allocation-service result sink to `ZCL_ALLOCATION_SINK_SAP` for production callers that omit it; preview mode remains side-effect free and injected sinks remain supported.
+
+- Updated the allocation-service constructor so omitted reservation and unit-conversion ports resolve to SAP adapters in production, while injected doubles remain supported; repository-contract coverage protects both defaults.
+
+- Added automatic SAP table-stub discovery across all production SQL sources; every non-Z `FROM`/`JOIN` dependency must now have a matching table descriptor and identity in `sap_stubs`.
 
 - Extended the repository contract to discover every production `CALL FUNCTION` dependency and require a matching installed function-module implementation in the SAP stub harness.
 

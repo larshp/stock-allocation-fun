@@ -53,6 +53,24 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_SAFON</KEY>
+     <ENTRY>Enable safety-stock range</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAF</KEY>
+     <ENTRY>Minimum safety stock</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAFTO</KEY>
+     <ENTRY>Maximum safety stock</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_REQF</KEY>
      <ENTRY>Requested from</ENTRY>
      <LENGTH>21</LENGTH>

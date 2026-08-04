@@ -9,6 +9,7 @@ CLASS zcl_stock_allocation_watch DEFINITION
         strategy               TYPE zif_allocation_audit=>ty_strategy,
         movement_type          TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life         TYPE i,
+        safety_stock           TYPE zif_stock_allocation=>ty_quantity,
         requested_on_from      TYPE d,
         requested_on_to        TYPE d,
         requested_deadline     TYPE d,

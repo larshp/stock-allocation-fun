@@ -65,6 +65,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_SAFSTK</KEY>
+     <ENTRY>Safety stock floor</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_FROM</KEY>
      <ENTRY>Requested from</ENTRY>
      <LENGTH>22</LENGTH>

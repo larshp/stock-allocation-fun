@@ -78,6 +78,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         strategy          TYPE c LENGTH 1,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
+        safety_stock      TYPE zif_stock_allocation=>ty_quantity,
         demand_count      TYPE i,
         available         TYPE zif_stock_allocation=>ty_quantity,
         status            TYPE zif_allocation_audit=>ty_run_status,
@@ -354,6 +355,18 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation result minimum shelf-life is invalid' ).
     ENDIF.
+    IF iv_safety_filter = abap_true
+        AND ( iv_safety_from < 0 OR iv_safety_to < 0
+          OR iv_safety_from > iv_safety_to ).
+      raise_error(
+        iv_message = 'Allocation result safety-stock range is invalid' ).
+    ENDIF.
+    IF iv_safety_filter = abap_false
+        AND ( iv_safety_from IS NOT INITIAL
+          OR iv_safety_to IS NOT INITIAL ).
+      raise_error(
+        iv_message = 'Allocation result safety-stock filter switch is required' ).
+    ENDIF.
     IF mo_read_authority IS BOUND.
       TRY.
           mo_read_authority->check_results( ).
@@ -426,7 +439,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF lines( rt_demands ) > 0.
       IF lv_strategy IS NOT INITIAL.
-           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+           SELECT run_id, strategy, movement_type, min_shelf_life, safety_stock,
+               demand_count,
                available,
                status, message,
                start_date, start_time, finish_date, finish_time,
@@ -438,7 +452,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch.
       ELSEIF iv_legacy_strategy = abap_true.
-           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+           SELECT run_id, strategy, movement_type, min_shelf_life, safety_stock,
+               demand_count,
                available,
                status, message,
                start_date, start_time, finish_date, finish_time,
@@ -451,7 +466,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND strategy = @space.
       ELSE.
-           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+           SELECT run_id, strategy, movement_type, min_shelf_life, safety_stock,
+               demand_count,
                available,
                status, message,
                start_date, start_time, finish_date, finish_time,
@@ -474,6 +490,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
               OR iv_run_message_only = abap_true
               OR iv_allocation_movement_type IS NOT INITIAL
               OR iv_min_shelf_life IS NOT INITIAL
+              OR iv_safety_filter = abap_true
               OR iv_run_demand_from IS NOT INITIAL
               OR iv_run_demand_to IS NOT INITIAL
               OR iv_run_available_from IS NOT INITIAL
@@ -553,6 +570,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             DELETE rt_demands.
           ELSEIF iv_min_shelf_life IS NOT INITIAL
               AND <ls_strategy_run>-min_shelf_life <> iv_min_shelf_life.
+            DELETE rt_demands.
+          ELSEIF iv_safety_filter = abap_true
+              AND ( <ls_strategy_run>-safety_stock < iv_safety_from
+                OR <ls_strategy_run>-safety_stock > iv_safety_to ).
             DELETE rt_demands.
           ELSEIF iv_deadline_only = abap_true
               AND <ls_strategy_run>-requested_on_from IS INITIAL

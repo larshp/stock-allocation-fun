@@ -1039,26 +1039,20 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD rejects_missing_dependency.
     DATA lo_stock_source TYPE REF TO lcl_stock_source_stub.
     DATA lo_order_source TYPE REF TO lcl_order_source_stub.
-    DATA lo_sink TYPE REF TO lcl_allocation_sink_stub.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
-    DATA lo_reservation TYPE REF TO lcl_stock_reservation_stub.
     DATA lo_audit TYPE REF TO lcl_allocation_audit_stub.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
 
-    CREATE OBJECT lo_stock_source.
     CREATE OBJECT lo_order_source.
-    CREATE OBJECT lo_sink.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_audit.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source = lo_stock_source
         io_order_source = lo_order_source
-        io_sink         = lo_sink
         io_allocator    = lo_allocator
-        io_reservation  = lo_reservation
         io_audit        = lo_audit.
 
     TRY.

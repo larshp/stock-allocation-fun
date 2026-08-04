@@ -8,6 +8,7 @@ PARAMETERS p_bwart TYPE zif_stock_allocation=>ty_movement_type DEFAULT '201'.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit DEFAULT 'EA'.
 PARAMETERS p_strat TYPE c LENGTH 1 DEFAULT 'P'.
 PARAMETERS p_shelf TYPE i DEFAULT 0.
+PARAMETERS p_safstk TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_from TYPE d.
 PARAMETERS p_until TYPE d.
 PARAMETERS p_test AS CHECKBOX.
@@ -241,6 +242,7 @@ START-OF-SELECTION.
           iv_requested_on_from = p_from
           iv_requested_on_to   = p_until
           iv_min_shelf_life    = p_shelf
+          iv_safety_stock      = p_safstk
           iv_strategy          = p_strat
           iv_preview           = p_test
         IMPORTING
@@ -469,7 +471,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 29 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -477,6 +479,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_bwart ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_shelf ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_safstk ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_until ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_remaining ) TO lt_csv_fields.
@@ -565,7 +568,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_summary-last_message ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
     WRITE: / 'mode;strategy;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
-      && 'movement_type;minimum_shelf_life_days;requested_on_filter_from;requested_on_filter_to;'
+      && 'movement_type;minimum_shelf_life_days;safety_stock;requested_on_filter_from;requested_on_filter_to;'
       && 'remaining;requested;runs;successful_runs;partial_runs;error_runs;priority_runs;fifo_runs;full_only_runs;'
       && 'smallest_runs;largest_runs;best_runs;legacy_strategy_runs;completion_pct;success_rate_pct;'
       && 'partial_rate_pct;error_rate_pct;priority_requested;priority_allocated;priority_shortage;'
@@ -601,7 +604,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 29 ) TO lt_json_fields.
+        iv_value = 30 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -646,6 +649,15 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'minimum_shelf_life_days'
         iv_value = p_shelf ) TO lt_json_fields.
+    ENDIF.
+    IF p_typed = abap_true.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'safety_stock'
+        iv_value = p_safstk ) TO lt_json_fields.
+    ELSE.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'safety_stock'
+        iv_value = p_safstk ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_filter_from'
@@ -1108,6 +1120,7 @@ START-OF-SELECTION.
   WRITE: / 'Strategy:', lv_strategy,
          / 'Movement type:', p_bwart,
          / 'Minimum shelf-life days:', p_shelf,
+         / 'Safety stock:', p_safstk, p_meins,
          / 'Requested filter from:', p_from,
          / 'Requested filter through:', p_until,
          / 'Remaining:', lv_remaining, p_meins,

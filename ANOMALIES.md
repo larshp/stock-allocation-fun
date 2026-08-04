@@ -1,6 +1,34 @@
 # Anomalies and known issues
 
-- Resolved: stock/order SAP SQL could acquire a new standard-table dependency without a corresponding local Open ABAP table stub. The repository contract now discovers production `FROM`/`JOIN` table names and validates their descriptors and identities.
+- Resolved: result reads could filter by movement, shelf-life, and other originating policies but not persisted safety stock. The sink boundary now applies the zero-safe `p_safon`/`p_saf`/`p_safto` range consistently to latest, exact-run, and paginated result reads; schemas advance to detail/summary `37`/`39`.
+
+- Resolved: stale-run watch could show persisted safety-stock policy but could not isolate stale runs by that policy. `p_safon` now enables a validated inclusive `p_saf`/`p_safto` range, including explicit zero, and watch schemas advance to CSV `53` and JSON/NDJSON `56`.
+
+- Resolved: history operators could see persisted safety-stock policy but could not isolate runs by that policy. `p_safon` now enables a validated inclusive `p_saf`/`p_safto` range, including explicit zero, across canonical audit reads and history export provenance; schemas advance to detail/summary `26`/`39`.
+
+- Resolved: stale-run watch showed movement and shelf-life policy but omitted the persisted safety-stock policy needed to explain a running allocation. Watch CSV schema `52` and JSON/NDJSON schema `55` now include per-alert safety stock and summary safety-stock context.
+
+- Resolved: history machine-readable exports computed persisted safety-stock policy context but did not publish it. History detail/summary schemas `25`/`38` now include per-run `safety_stock` and summary `safety_stock_context` across CSV, typed JSON, metadata JSON, and NDJSON.
+
+- Resolved: result machine-readable exports exposed the persisted movement and shelf-life policy but omitted the safety-stock policy, making exact-run provenance incomplete. Detail/summary schemas `36`/`38` now include `audit_safety_stock` in CSV, typed JSON, metadata JSON, and NDJSON branches.
+
+- Resolved: allocation callers had no explicit way to protect a minimum quantity of physical stock from demand allocation. `p_safstk` now validates a nonnegative floor, applies it after prior allocation commitments, persists the policy for audit/history consumers, and exposes it in allocation output; schema `30` and regression coverage protect the contract.
+
+- Resolved: adding audit-side safety-stock validation initially caused invalid negative requests to lose their rejection row. The validator now applies to successful run creation while rejection persistence preserves invalid attempted policy values for diagnosis.
+
+- Resolved: persisted safety-stock policy was initially visible only in allocation execution output. Human history and exact-run result context now display the policy without changing their established machine-readable schemas.
+
+- Resolved: comparisons could show changed quantities without identifying a changed safety-stock policy. Comparison schema `95` now carries old/new safety-stock values and classifies policy changes explicitly.
+
+- Resolved: deleted sales-order items were filtered only by rejection reason and delivery blocks, so `VBAP-LOEKZ = X` items could enter allocation demand. The SAP order reader now excludes deleted items before mapping schedule lines.
+
+- Resolved: the stock adapter inferred batch existence from an `MCHB` row, although `MCHB` only represents storage-location stock. A valid `MCHA` batch with zero stock was incorrectly rejected; batch existence now comes from `MCHA`, while missing batch master data remains an error.
+
+- Resolved: a production caller could omit the allocation-service result sink and reach a late dependency error despite the SAP sink being the standard implementation. The constructor now supplies the SAP sink by default while preserving preview safety and injected sinks.
+
+- Resolved: callers that omitted the allocation service's optional reservation or unit-conversion ports received unbound dependencies instead of the production SAP adapters. The constructor now supplies both SAP defaults while preserving dependency injection for tests and alternate implementations.
+
+- Resolved: production SAP SQL could acquire a new standard-table dependency without a corresponding local Open ABAP table stub. The repository contract now discovers non-Z production `FROM`/`JOIN` table names and validates their descriptors and identities.
 
 - Resolved: the local SAP harness could silently omit a newly introduced function-module dependency because the contract checked only a hand-maintained stub list. Production `CALL FUNCTION` usage is now discovered automatically and checked against the registered SAP stubs.
 

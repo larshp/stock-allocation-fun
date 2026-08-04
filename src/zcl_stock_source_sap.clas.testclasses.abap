@@ -118,6 +118,20 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( ls_available-batch_found ).
 
     ls_available = lo_cut->get_available(
+      iv_material         = 'MATERIAL-BATCH'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-ZERO' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-quantity
+      exp = '0' ).
+    cl_abap_unit_assert=>assert_true( ls_available-batch_found ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-batch_expiration_date
+      exp = '20261231' ).
+
+    ls_available = lo_cut->get_available(
       iv_material         = 'MATERIAL-MISSING'
       iv_plant            = '1000'
       iv_storage_location = '0001' ).

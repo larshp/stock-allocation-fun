@@ -6,6 +6,9 @@ PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_location OBLIGATORY.
 PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
 PARAMETERS p_mvt TYPE zif_stock_allocation=>ty_movement_type.
 PARAMETERS p_shelf TYPE i.
+PARAMETERS p_safon AS CHECKBOX.
+PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity.
+PARAMETERS p_safto TYPE zif_stock_allocation=>ty_quantity.
 PARAMETERS p_reqf TYPE d.
 PARAMETERS p_until TYPE d.
 PARAMETERS p_ovrd AS CHECKBOX.
@@ -171,6 +174,8 @@ START-OF-SELECTION.
   DATA lv_summary_movement_type TYPE string.
   DATA lv_summary_min_shelf_life TYPE i.
   DATA lv_summary_min_shelf_life_text TYPE string.
+  DATA lv_summary_safety_stock TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_summary_safety_stock_text TYPE string.
   DATA lv_earliest_requested_deadline TYPE d.
   DATA lv_latest_requested_deadline TYPE d.
   DATA lv_earliest_deadline_text TYPE string.
@@ -198,6 +203,9 @@ START-OF-SELECTION.
   DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
   DATA lv_movement_filter TYPE string.
   DATA lv_min_shelf_filter TYPE string.
+  DATA lv_safety_stock_filter_text TYPE string.
+  DATA lv_safety_stock_from_text TYPE string.
+  DATA lv_safety_stock_to_text TYPE string.
   DATA lv_has_more TYPE abap_bool.
   DATA lv_query_max TYPE i.
   DATA lv_page_end TYPE i.
@@ -257,6 +265,28 @@ START-OF-SELECTION.
     lv_min_shelf_filter = 'n/a'.
   ELSE.
     lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
+  ENDIF.
+  IF p_safon = abap_true.
+    lv_safety_stock_filter_text = 'true'.
+    lv_safety_stock_from_text = zcl_stock_csv=>number( p_saf ).
+    lv_safety_stock_to_text = zcl_stock_csv=>number( p_safto ).
+  ELSE.
+    lv_safety_stock_filter_text = 'false'.
+    lv_safety_stock_from_text = 'n/a'.
+    lv_safety_stock_to_text = 'n/a'.
+  ENDIF.
+
+  IF ( p_safon = abap_true
+        AND ( p_saf < 0 OR p_safto < 0 OR p_saf > p_safto ) )
+      OR ( p_safon = abap_false
+        AND ( p_saf IS NOT INITIAL OR p_safto IS NOT INITIAL ) ).
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error(
+        'Safety-stock bounds require the filter switch and a valid nonnegative range' ).
+    ELSE.
+      WRITE: / 'Safety-stock bounds require the filter switch and a valid nonnegative range.'.
+    ENDIF.
+    RETURN.
   ENDIF.
 
   IF p_csv = abap_true AND p_json = abap_true.
@@ -803,6 +833,9 @@ START-OF-SELECTION.
         iv_batch                = p_charg
         iv_movement_type        = p_mvt
         iv_min_shelf_life       = p_shelf
+        iv_safety_filter        = p_safon
+        iv_safety_from          = p_saf
+        iv_safety_to            = p_safto
         iv_requested_on_from    = p_reqf
         iv_requested_on_to      = p_until
         iv_requested_overdue    = p_ovrd
@@ -917,6 +950,8 @@ START-OF-SELECTION.
   CLEAR: lv_summary_movement_type,
          lv_summary_min_shelf_life,
          lv_summary_min_shelf_life_text,
+         lv_summary_safety_stock,
+         lv_summary_safety_stock_text,
          lv_summary_policy_available,
          lv_summary_policy_mixed.
   LOOP AT lt_runs ASSIGNING <ls_run>.
@@ -945,20 +980,26 @@ START-OF-SELECTION.
       lv_summary_policy_available = abap_true.
       lv_summary_movement_type = <ls_run>-movement_type.
       lv_summary_min_shelf_life = <ls_run>-min_shelf_life.
+      lv_summary_safety_stock = <ls_run>-safety_stock.
     ELSEIF lv_summary_movement_type <> <ls_run>-movement_type
-        OR lv_summary_min_shelf_life <> <ls_run>-min_shelf_life.
+        OR lv_summary_min_shelf_life <> <ls_run>-min_shelf_life
+        OR lv_summary_safety_stock <> <ls_run>-safety_stock.
       lv_summary_policy_mixed = abap_true.
     ENDIF.
   ENDLOOP.
   IF lv_summary_policy_available = abap_false.
     lv_summary_movement_type = 'n/a'.
     lv_summary_min_shelf_life_text = 'n/a'.
+    lv_summary_safety_stock_text = 'n/a'.
   ELSEIF lv_summary_policy_mixed = abap_true.
     lv_summary_movement_type = 'mixed'.
     lv_summary_min_shelf_life_text = 'mixed'.
+    lv_summary_safety_stock_text = 'mixed'.
   ELSE.
     lv_summary_min_shelf_life_text = zcl_stock_csv=>number(
       lv_summary_min_shelf_life ).
+    lv_summary_safety_stock_text = zcl_stock_csv=>number(
+      lv_summary_safety_stock ).
   ENDIF.
   IF lv_earliest_requested_deadline IS INITIAL.
     lv_earliest_deadline_text = 'n/a'.
@@ -1001,6 +1042,7 @@ START-OF-SELECTION.
   IF p_charg IS NOT INITIAL
       OR p_mvt IS NOT INITIAL
       OR p_shelf IS NOT INITIAL
+      OR p_safon = abap_true
       OR p_reqf IS NOT INITIAL
       OR p_until IS NOT INITIAL
       OR p_ovrd = abap_true
@@ -1053,6 +1095,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_shelf IS NOT INITIAL.
     APPEND 'minimum_shelf_life' TO lt_filter_names.
+  ENDIF.
+  IF p_safon = abap_true.
+    APPEND 'safety_stock' TO lt_filter_names.
   ENDIF.
   IF p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
     APPEND 'requested_date' TO lt_filter_names.
@@ -1258,6 +1303,21 @@ START-OF-SELECTION.
     iv_present = xsdbool( p_shelf IS NOT INITIAL )
     iv_typed   = abap_true ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'safety_stock_filter'
+    iv_value = p_safon ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_safety_stock'
+    iv_value   = p_saf
+    iv_text    = lv_safety_stock_from_text
+    iv_present = p_safon
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_safety_stock'
+    iv_value   = p_safto
+    iv_text    = lv_safety_stock_to_text
+    iv_present = p_safon
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
     iv_name  = 'requested_overdue_only'
     iv_value = p_ovrd ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
@@ -1299,11 +1359,13 @@ START-OF-SELECTION.
       IF p_sum = abap_true.
         WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
           && 'movement_type_filter;minimum_shelf_life_filter;'
+          && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
           && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
           && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
           && 'deadline_age_to;deadline_age_date;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
           && 'plant;storage_location;batch;unit;strategy;movement_type_context;min_shelf_life_context;'
+          && 'safety_stock_context;'
           && 'mixed_units;run_count;priority_run_count;fifo_run_count;'
           && 'full_only_run_count;smallest_run_count;largest_run_count;best_run_count;legacy_strategy_run_count;'
           && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
@@ -1319,11 +1381,12 @@ START-OF-SELECTION.
       ELSE.
         WRITE: / 'run_id;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
           && 'movement_type_filter;minimum_shelf_life_filter;'
+          && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
           && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
           && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
           && 'deadline_age_to;deadline_age_date;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-          && 'plant;storage_location;batch;movement_type;min_shelf_life;unit;strategy;'
+          && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;'
           && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;available;allocated;'
           && 'shortage;coverage_pct;shortage_pct;status;message;demand_count;full_count;partial_count;'
           && 'unallocated_count;start_date;start_time;finish_date;finish_time;duration_seconds;running_age_seconds'.
@@ -1724,11 +1787,13 @@ START-OF-SELECTION.
       ENDIF.
       WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
         && 'movement_type_filter;minimum_shelf_life_filter;'
+        && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
         && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
         && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
         && 'deadline_age_to;deadline_age_date;offset;max_rows;'
         && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
         && 'plant;storage_location;batch;unit;strategy;movement_type_context;min_shelf_life_context;'
+        && 'safety_stock_context;'
         && 'earliest_requested_deadline;latest_requested_deadline;'
         && 'oldest_deadline_age_days;newest_deadline_age_days;'
         && 'deadline_age_reference_date;'
@@ -1748,7 +1813,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 36 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 39 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1758,6 +1823,9 @@ START-OF-SELECTION.
       APPEND lv_filter_names_text TO lt_csv_fields.
       APPEND lv_movement_filter TO lt_csv_fields.
       APPEND lv_min_shelf_filter TO lt_csv_fields.
+      APPEND lv_safety_stock_filter_text TO lt_csv_fields.
+      APPEND lv_safety_stock_from_text TO lt_csv_fields.
+      APPEND lv_safety_stock_to_text TO lt_csv_fields.
       APPEND lv_overdue_only_text TO lt_csv_fields.
       APPEND lv_overdue_as_of_filter TO lt_csv_fields.
       APPEND lv_deadline_only_text TO lt_csv_fields.
@@ -1812,6 +1880,7 @@ START-OF-SELECTION.
       APPEND lv_summary_strategy TO lt_csv_fields.
       APPEND lv_summary_movement_type TO lt_csv_fields.
       APPEND lv_summary_min_shelf_life_text TO lt_csv_fields.
+      APPEND lv_summary_safety_stock_text TO lt_csv_fields.
       APPEND lv_earliest_deadline_text TO lt_csv_fields.
       APPEND lv_latest_deadline_text TO lt_csv_fields.
       APPEND lv_oldest_deadline_age_text TO lt_csv_fields.
@@ -1954,11 +2023,12 @@ START-OF-SELECTION.
     ENDIF.
     lv_csv_line = 'run_id;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
       && 'movement_type_filter;minimum_shelf_life_filter;'
+      && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
       && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
       && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
       && 'deadline_age_to;deadline_age_date;offset;max_rows;'
       && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-        && 'plant;storage_location;batch;movement_type;min_shelf_life;unit;strategy;'
+        && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;'
         && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;'
       && 'deadline_age_reference_date;available;allocated;'
       && 'shortage;coverage_pct;shortage_pct;status;message;demand_count;full_count;partial_count;'
@@ -1992,7 +2062,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 23 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 26 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -2002,6 +2072,9 @@ START-OF-SELECTION.
       APPEND lv_filter_names_text TO lt_csv_fields.
       APPEND lv_movement_filter TO lt_csv_fields.
       APPEND lv_min_shelf_filter TO lt_csv_fields.
+      APPEND lv_safety_stock_filter_text TO lt_csv_fields.
+      APPEND lv_safety_stock_from_text TO lt_csv_fields.
+      APPEND lv_safety_stock_to_text TO lt_csv_fields.
       APPEND lv_overdue_only_text TO lt_csv_fields.
       APPEND lv_overdue_as_of_filter TO lt_csv_fields.
       APPEND lv_deadline_only_text TO lt_csv_fields.
@@ -2055,6 +2128,7 @@ START-OF-SELECTION.
       WRITE <ls_run>-movement_type TO lv_csv_field.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_run>-min_shelf_life ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_run>-safety_stock ) TO lt_csv_fields.
       WRITE <ls_run>-unit TO lv_csv_field.
       APPEND lv_csv_field TO lt_csv_fields.
       WRITE <ls_run>-strategy TO lv_csv_field.
@@ -2189,7 +2263,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 37 ) TO lt_json_fields.
+          iv_value = 39 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2234,6 +2308,30 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'minimum_shelf_life_filter'
           iv_value = lv_min_shelf_filter ) TO lt_json_fields.
+      ENDIF.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'safety_stock_filter'
+        iv_value = p_safon ) TO lt_json_fields.
+      IF p_typed = abap_true OR p_meta = abap_true.
+        APPEND zcl_stock_json=>filter_number_property(
+          iv_name    = 'minimum_safety_stock_filter'
+          iv_value   = p_saf
+          iv_text    = lv_safety_stock_from_text
+          iv_present = p_safon
+          iv_typed   = abap_true ) TO lt_json_fields.
+        APPEND zcl_stock_json=>filter_number_property(
+          iv_name    = 'maximum_safety_stock_filter'
+          iv_value   = p_safto
+          iv_text    = lv_safety_stock_to_text
+          iv_present = p_safon
+          iv_typed   = abap_true ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'minimum_safety_stock_filter'
+          iv_value = lv_safety_stock_from_text ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'maximum_safety_stock_filter'
+          iv_value = lv_safety_stock_to_text ) TO lt_json_fields.
       ENDIF.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'requested_overdue_only'
@@ -2578,6 +2676,20 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'min_shelf_life_context'
           iv_value = lv_summary_min_shelf_life_text ) TO lt_json_fields.
+      ENDIF.
+      IF ( p_meta = abap_true OR p_typed = abap_true )
+          AND lv_summary_policy_available = abap_true
+          AND lv_summary_policy_mixed = abap_false.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'safety_stock_context'
+          iv_value = lv_summary_safety_stock ) TO lt_json_fields.
+      ELSEIF p_meta = abap_true OR p_typed = abap_true.
+        APPEND zcl_stock_json=>null_property(
+          iv_name = 'safety_stock_context' ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'safety_stock_context'
+          iv_value = lv_summary_safety_stock_text ) TO lt_json_fields.
       ENDIF.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'mixed_units'
@@ -3127,7 +3239,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 37 ) TO lt_json_fields.
+        iv_value = 39 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3221,7 +3333,10 @@ START-OF-SELECTION.
                 iv_plant            = p_werks
                 iv_storage_location = p_lgort
                 iv_batch            = p_charg
-                iv_run_id           = p_runid ).
+                iv_run_id           = p_runid
+                iv_safety_filter    = p_safon
+                iv_safety_from      = p_saf
+                iv_safety_to        = p_safto ).
             CATCH zcx_stock_allocation.
               CLEAR lt_context_runs.
           ENDTRY.
@@ -3342,7 +3457,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 24 ) TO lt_json_fields.
+        iv_value = 26 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3556,7 +3671,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 24 ) TO lt_json_fields.
+          iv_value = 26 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -3746,10 +3861,16 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'min_shelf_life'
           iv_value = <ls_run>-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'safety_stock'
+          iv_value = <ls_run>-safety_stock ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>property(
           iv_name  = 'min_shelf_life'
           iv_value = <ls_run>-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'safety_stock'
+          iv_value = <ls_run>-safety_stock ) TO lt_json_fields.
       ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'unit'
@@ -3970,6 +4091,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'min_shelf_life'
           iv_value = <ls_run>-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'safety_stock'
+          iv_value = <ls_run>-safety_stock ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'unit'
           iv_value = <ls_run>-unit ) TO lt_json_fields.
@@ -4283,6 +4407,10 @@ START-OF-SELECTION.
   WRITE: / 'Strategy context:', lv_summary_strategy,
            'Movement type context:', lv_summary_movement_type,
            'Minimum shelf-life context:', lv_summary_min_shelf_life_text,
+           'Safety-stock filter:', lv_safety_stock_filter_text,
+           'Minimum safety stock:', lv_safety_stock_from_text,
+           'Maximum safety stock:', lv_safety_stock_to_text,
+           'Safety stock context:', lv_summary_safety_stock_text,
            'Earliest requested deadline:',
            lv_earliest_deadline_text,
            'Latest requested deadline:',
@@ -4468,5 +4596,6 @@ START-OF-SELECTION.
              'to:', lv_deadline_age_to_filter,
              'as-of:', lv_deadline_age_date_filter.
     WRITE: / 'Movement type:', <ls_run>-movement_type,
-             'Minimum shelf-life days:', <ls_run>-min_shelf_life.
+             'Minimum shelf-life days:', <ls_run>-min_shelf_life,
+             'Safety stock:', <ls_run>-safety_stock, <ls_run>-unit.
   ENDLOOP.

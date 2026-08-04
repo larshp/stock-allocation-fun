@@ -562,6 +562,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lv_oldest_deadline TYPE d.
     DATA lv_newest_deadline TYPE d.
+    DATA lv_raised TYPE abap_bool.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_run_id = lo_cut->start_run(
@@ -589,6 +590,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location  = '0001'
       iv_movement_type     = '202'
       iv_min_shelf_life    = 7
+      iv_safety_stock      = '3'
       iv_unit              = 'EA'
       iv_available         = '10'
       iv_demand_count      = 1
@@ -645,6 +647,55 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_runs )
       exp = 1 ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_safety_filter    = abap_true
+      iv_safety_from      = '3'
+      iv_safety_to        = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-safety_stock
+      exp = '3' ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_safety_filter    = abap_true
+      iv_safety_from      = '0'
+      iv_safety_to        = '0' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_safety_from      = '1' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_filter_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_filter_error->message
+          exp = 'Audit safety-stock filter switch is required' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_safety_filter    = abap_true
+      iv_safety_from      = '3'
+      iv_safety_to        = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-safety_stock_context
+      exp = '3' ).
   ENDMETHOD.
 
   METHOD summarizes_filtered_runs.

@@ -237,6 +237,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-message = 'Unallocated diagnostic message'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
+    ls_run-safety_stock = 0.
     ls_run-requested_on_from = lv_overdue_date.
     ls_run-available = 0.
     ls_run-demand_count = 1.
@@ -253,6 +254,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-strategy = 'F'.
     ls_run-movement_type = '202'.
     ls_run-min_shelf_life = 7.
+    ls_run-safety_stock = 3.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-finish_date = sy-datum.
@@ -362,6 +364,50 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-allocation_run_id
       exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_safety_filter    = abap_true
+      iv_safety_from      = 3
+      iv_safety_to        = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_safety_filter    = abap_true
+      iv_safety_from      = 0
+      iv_safety_to        = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_safety_from      = 1
+          iv_safety_to        = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_safety_switch_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_safety_switch_error->message
+          exp = 'Allocation result safety-stock filter switch is required' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
 
     CLEAR lv_raised.
     TRY.

@@ -69,8 +69,6 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
       CLEAR rs_available-quantity.
     ELSEIF lv_stock_deleted = 'X'.
       raise_error( iv_message = 'Stock record is marked for deletion' ).
-    ELSEIF iv_batch IS NOT INITIAL.
-      rs_available-batch_found = abap_true.
     ENDIF.
     IF rs_available-quantity < 0.
       raise_error( iv_message = 'Stock quantity is invalid' ).
@@ -113,6 +111,8 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
         ENDIF.
       ELSEIF lv_batch_deleted = 'X'.
         raise_error( iv_message = 'Batch master data is marked for deletion' ).
+      ELSE.
+        rs_available-batch_found = abap_true.
       ENDIF.
     ENDIF.
   ENDMETHOD.

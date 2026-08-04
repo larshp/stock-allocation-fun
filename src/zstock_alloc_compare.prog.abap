@@ -5279,7 +5279,7 @@ START-OF-SELECTION.
         && 'new_message_filter;old_message_only;new_message_only;'
         && 'include_unchanged;'
         && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
-        && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_start_date;'
+        && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_safety_stock;new_safety_stock;old_start_date;'
         && 'new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_finish_time;'
         && 'new_finish_time;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;'
         && 'old_requested_deadline;new_requested_deadline;'
@@ -5309,7 +5309,7 @@ START-OF-SELECTION.
         && 'shortage_pct_delta;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 94 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 95 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -5516,6 +5516,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_new_run-min_shelf_life ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_old_run-safety_stock ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_new_run-safety_stock ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_time ) TO lt_csv_fields.
@@ -5847,7 +5849,7 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 94 ) TO lt_json_fields.
+        iv_value = 95 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -6547,6 +6549,12 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'new_min_shelf_life'
           iv_value = ls_new_run-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'old_safety_stock'
+          iv_value = ls_old_run-safety_stock ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'new_safety_stock'
+          iv_value = ls_new_run-safety_stock ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>property(
           iv_name  = 'old_min_shelf_life'
@@ -6554,6 +6562,12 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'new_min_shelf_life'
           iv_value = ls_new_run-min_shelf_life ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'old_safety_stock'
+          iv_value = ls_old_run-safety_stock ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'new_safety_stock'
+          iv_value = ls_new_run-safety_stock ) TO lt_json_fields.
       ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'old_start_date'
@@ -7085,7 +7099,8 @@ START-OF-SELECTION.
       && 'new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;'
       && 'new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;'
       && 'old_run_strategy;new_run_strategy;old_movement_type;new_movement_type;old_min_shelf_life;'
-      && 'new_min_shelf_life;old_start_date;new_start_date;old_start_time;new_start_time;'
+      && 'new_min_shelf_life;old_safety_stock;new_safety_stock;old_start_date;'
+      && 'new_start_date;old_start_time;new_start_time;'
       && 'old_finish_date;new_finish_date;old_requested_on_from;new_requested_on_from;old_requested_on_to;'
       && 'new_requested_on_to;old_requested_deadline;new_requested_deadline;'
       && 'old_deadline_age_days;new_deadline_age_days;deadline_age_delta_days;'
@@ -7186,7 +7201,7 @@ START-OF-SELECTION.
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 94 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 95 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -7292,6 +7307,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_new_run-min_shelf_life ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_old_run-safety_stock ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_new_run-safety_stock ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-start_time ) TO lt_csv_fields.
@@ -7608,7 +7625,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 94 ) NO-GAP.
+        iv_value = 95 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -8559,6 +8576,14 @@ START-OF-SELECTION.
         WRITE: / zcl_stock_json=>number_property(
           iv_name  = 'new_min_shelf_life'
           iv_value = ls_new_run-min_shelf_life ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'old_safety_stock'
+          iv_value = ls_old_run-safety_stock ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>number_property(
+          iv_name  = 'new_safety_stock'
+          iv_value = ls_new_run-safety_stock ) NO-GAP.
       ELSE.
         WRITE: / zcl_stock_json=>property(
           iv_name  = 'old_min_shelf_life'
@@ -8567,6 +8592,14 @@ START-OF-SELECTION.
         WRITE: / zcl_stock_json=>property(
           iv_name  = 'new_min_shelf_life'
           iv_value = ls_new_run-min_shelf_life ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'old_safety_stock'
+          iv_value = ls_old_run-safety_stock ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'new_safety_stock'
+          iv_value = ls_new_run-safety_stock ) NO-GAP.
       ENDIF.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
@@ -9519,8 +9552,10 @@ START-OF-SELECTION.
     WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
       'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
     WRITE: / 'Old movement type/shelf life:', ls_old_run-movement_type,
-      ls_old_run-min_shelf_life, 'New movement type/shelf life:',
-      ls_new_run-movement_type, ls_new_run-min_shelf_life.
+      ls_old_run-min_shelf_life, 'Old safety stock:', ls_old_run-safety_stock,
+      'New movement type/shelf life:',
+      ls_new_run-movement_type, ls_new_run-min_shelf_life,
+      'New safety stock:', ls_new_run-safety_stock.
     WRITE: / 'Old start/finish:', ls_old_run-start_date,
       ls_old_run-start_time, ls_old_run-finish_date,
       ls_old_run-finish_time,
@@ -9811,8 +9846,10 @@ START-OF-SELECTION.
   WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
     'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
   WRITE: / 'Old movement type/shelf life:', ls_old_run-movement_type,
-    ls_old_run-min_shelf_life, 'New movement type/shelf life:',
-    ls_new_run-movement_type, ls_new_run-min_shelf_life.
+    ls_old_run-min_shelf_life, 'Old safety stock:', ls_old_run-safety_stock,
+    'New movement type/shelf life:',
+    ls_new_run-movement_type, ls_new_run-min_shelf_life,
+    'New safety stock:', ls_new_run-safety_stock.
   WRITE: / 'Old start/finish:', ls_old_run-start_date,
     ls_old_run-start_time, ls_old_run-finish_date,
     ls_old_run-finish_time,

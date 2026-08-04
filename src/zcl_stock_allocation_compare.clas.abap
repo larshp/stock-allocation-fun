@@ -1396,6 +1396,10 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
       append_reason( EXPORTING iv_reason = 'shelf_life'
                    CHANGING cv_reasons   = rv_reasons ).
     ENDIF.
+    IF iv_old_run-safety_stock <> iv_new_run-safety_stock.
+      append_reason( EXPORTING iv_reason = 'safety_stock'
+                   CHANGING cv_reasons   = rv_reasons ).
+    ENDIF.
     IF iv_old_run-requested_on_from <> iv_new_run-requested_on_from
         OR iv_old_run-requested_on_to <> iv_new_run-requested_on_to.
       append_reason( EXPORTING iv_reason = 'horizon'

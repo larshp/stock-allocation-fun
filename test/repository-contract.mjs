@@ -152,7 +152,10 @@ for (const fileName of fs.readdirSync(sourceDirectory).filter(
 )) {
   const sourceText = fs.readFileSync(path.join(sourceDirectory, fileName), "utf8");
   for (const match of sourceText.matchAll(/^\s*(?:FROM|(?:INNER|LEFT|RIGHT)?\s*JOIN)\s+([A-Z0-9_]+)/gim)) {
-    productionSourceTableNames.add(match[1].toUpperCase());
+    const tableName = match[1].toUpperCase();
+    if (!tableName.startsWith("Z")) {
+      productionSourceTableNames.add(tableName);
+    }
   }
 }
 for (const tableName of productionSourceTableNames) {
@@ -240,6 +243,11 @@ assert.match(
   /mo_authority->check_orders\(\s*\)/,
   "order source must check read authority before selecting SAP demand",
 );
+assert.match(
+  orderSourceSource,
+  /item~loekz\s*=\s*''\s*OR\s*item~loekz\s+IS\s+NULL/i,
+  "order source must exclude deleted sales-order items",
+);
 for (const tableName of ["MARA", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
   assert.match(
     sourceAuthoritySource,
@@ -267,6 +275,16 @@ assert.match(
   /CREATE OBJECT lo_source_read_authority TYPE zcl_source_read_auth_sap/,
   "allocation report must construct the SAP source-read authority",
 );
+assert.match(
+  allocationReportSource,
+  /p_safstk/,
+  "allocation report must expose the safety-stock selection",
+);
+assert.match(
+  allocationReportSource,
+  /iv_safety_stock\s*=\s*p_safstk/,
+  "allocation report must pass the safety-stock selection to the service",
+);
 assert.equal(
   (allocationReportSource.match(/io_authority\s*=\s*lo_source_read_authority/g) ?? []).length,
   2,
@@ -287,6 +305,208 @@ assert.match(
   /mo_transaction->rollback\(\s*\)/,
   "allocation service must rollback failed persistence before finalization",
 );
+assert.match(
+  allocationServiceSource,
+  /IF io_reservation IS BOUND[\s\S]*CREATE OBJECT mo_reservation TYPE zcl_stock_reservation_sap/,
+  "allocation service must default the reservation port to the SAP adapter",
+);
+assert.match(
+  allocationServiceSource,
+  /IF io_sink IS BOUND[\s\S]*CREATE OBJECT mo_sink TYPE zcl_allocation_sink_sap/,
+  "allocation service must default the sink port to the SAP adapter",
+);
+assert.match(
+  allocationServiceSource,
+  /IF io_unit_converter IS BOUND[\s\S]*CREATE OBJECT mo_unit_converter TYPE zcl_unit_conversion_sap/,
+  "allocation service must default the unit-conversion port to the SAP adapter",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_safety_stock\s+TYPE zif_stock_allocation=>ty_quantity OPTIONAL/,
+  "allocation service must expose an optional safety-stock input",
+);
+assert.match(
+  allocationServiceSource,
+  /lv_available = lv_available - iv_safety_stock/,
+  "allocation service must protect the configured safety-stock floor",
+);
+assert.match(
+  auditSource,
+  /ls_run-safety_stock = iv_safety_stock/,
+  "audit persistence must retain the safety-stock policy",
+);
+const historySource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_history.prog.abap"),
+  "utf8",
+);
+const watchSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_watch.prog.abap"),
+  "utf8",
+);
+const resultSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_result.prog.abap"),
+  "utf8",
+);
+const compareReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"),
+  "utf8",
+);
+const compareClassSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocation_compare.clas.abap"),
+  "utf8",
+);
+assert.match(
+  historySource,
+  /Safety stock context:/,
+  "history human summary must expose safety-stock context",
+);
+assert.match(
+  historySource,
+  /<ls_run>-safety_stock/,
+  "history human detail must expose persisted safety stock",
+);
+assert.match(
+  historySource,
+  /safety_stock_context/,
+  "history machine-readable summaries must expose safety-stock context",
+);
+assert.match(
+  historySource,
+  /PARAMETERS p_safon AS CHECKBOX\./,
+  "history must expose an explicit safety-stock filter switch",
+);
+assert.match(
+  historySource,
+  /PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity\./,
+  "history must expose a minimum safety-stock filter bound",
+);
+assert.match(
+  historySource,
+  /PARAMETERS p_safto TYPE zif_stock_allocation=>ty_quantity\./,
+  "history must expose a maximum safety-stock filter bound",
+);
+assert.match(
+  historySource,
+  /iv_safety_filter\s+= p_safon/,
+  "history must propagate the safety-stock filter switch to audit reads",
+);
+assert.match(
+  historySource,
+  /minimum_safety_stock_filter/,
+  "history machine-readable filters must expose the minimum safety-stock bound",
+);
+assert.match(
+  historySource,
+  /maximum_safety_stock_filter/,
+  "history machine-readable filters must expose the maximum safety-stock bound",
+);
+assert.match(
+  historySource,
+  /APPEND zcl_stock_csv=>number\( <ls_run>-safety_stock \)/,
+  "history machine-readable detail must expose persisted safety stock",
+);
+assert.match(
+  historySource,
+  /iv_value = 39 \) TO lt_json_fields/,
+  "history summary JSON schema must include the safety-stock contract version",
+);
+assert.match(
+  historySource,
+  /iv_value = 26 \) TO lt_json_fields/,
+  "history detail JSON schema must include the safety-stock contract version",
+);
+assert.match(
+  watchSource,
+  /safety_stock\s*=\s*<ls_run>-safety_stock/,
+  "watch alerts must retain persisted safety stock",
+);
+assert.match(
+  watchSource,
+  /safety_stock_context/,
+  "watch summaries must expose safety-stock context",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_safon AS CHECKBOX\./,
+  "watch must expose an explicit safety-stock filter switch",
+);
+assert.match(
+  watchSource,
+  /iv_safety_filter\s+= p_safon/,
+  "watch must propagate the safety-stock filter switch to audit reads",
+);
+assert.match(
+  watchSource,
+  /minimum_safety_stock_filter/,
+  "watch machine-readable filters must expose the minimum safety-stock bound",
+);
+assert.match(
+  watchSource,
+  /maximum_safety_stock_filter/,
+  "watch machine-readable filters must expose the maximum safety-stock bound",
+);
+assert.match(
+  watchSource,
+  /number\( 53 \)/,
+  "watch CSV schema must include the safety-stock contract version",
+);
+assert.match(
+  watchSource,
+  /iv_value = 56 \)/,
+  "watch JSON schema must include the safety-stock contract version",
+);
+assert.match(
+  resultSource,
+  /'Safety stock:', <ls_run>-safety_stock/,
+  "result exact-run human context must expose persisted safety stock",
+);
+assert.match(
+  resultSource,
+  /audit_safety_stock/,
+  "result machine-readable output must expose persisted safety stock",
+);
+assert.match(
+  resultSource,
+  /PARAMETERS p_safon AS CHECKBOX\./,
+  "result must expose an explicit safety-stock filter switch",
+);
+assert.match(
+  resultSource,
+  /iv_safety_filter\s+= p_safon/,
+  "result must propagate the safety-stock filter to audit and sink reads",
+);
+assert.match(
+  resultSource,
+  /minimum_safety_stock/,
+  "result machine-readable filters must expose the minimum safety-stock bound",
+);
+assert.match(
+  resultSource,
+  /maximum_safety_stock/,
+  "result machine-readable filters must expose the maximum safety-stock bound",
+);
+assert.match(
+  resultSource,
+  /APPEND zcl_stock_csv=>number\( 39 \)/,
+  "result summary CSV schema must include the safety-stock contract version",
+);
+assert.match(
+  resultSource,
+  /APPEND zcl_stock_csv=>number\( 37 \)/,
+  "result detail CSV schema must include the safety-stock contract version",
+);
+assert.match(
+  compareClassSource,
+  /iv_old_run-safety_stock\s*<>\s*iv_new_run-safety_stock[\s\S]*iv_reason = 'safety_stock'/,
+  "comparison metadata must detect safety-stock policy changes",
+);
+for (const compareField of ["old_safety_stock", "new_safety_stock"]) {
+  assert.match(
+    compareReportSource,
+    new RegExp(compareField),
+    `comparison report must expose ${compareField}`,
+  );
+}
 assert.match(
   auditSource,
   /rollback_and_raise\(/,

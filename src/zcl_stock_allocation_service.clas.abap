@@ -28,6 +28,7 @@ CLASS zcl_stock_allocation_service DEFINITION
         iv_requested_on_to   TYPE d OPTIONAL
         iv_preview           TYPE abap_bool OPTIONAL
         iv_min_shelf_life    TYPE i OPTIONAL
+        iv_safety_stock      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
         iv_strategy          TYPE zif_allocation_audit=>ty_strategy OPTIONAL
       EXPORTING
         ev_run_id            TYPE zif_allocation_audit=>ty_run_id
@@ -51,6 +52,7 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mv_requested_on_to TYPE d.
     DATA mv_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA mv_min_shelf_life TYPE i.
+    DATA mv_safety_stock TYPE zif_stock_allocation=>ty_quantity.
     METHODS finish_audit
       IMPORTING
         iv_run_id            TYPE zif_allocation_audit=>ty_run_id
@@ -84,10 +86,22 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   METHOD constructor.
     mo_stock_source = io_stock_source.
     mo_order_source = io_order_source.
-    mo_sink = io_sink.
+    IF io_sink IS BOUND.
+      mo_sink = io_sink.
+    ELSE.
+      CREATE OBJECT mo_sink TYPE zcl_allocation_sink_sap.
+    ENDIF.
     mo_allocator = io_allocator.
-    mo_reservation = io_reservation.
-    mo_unit_converter = io_unit_converter.
+    IF io_reservation IS BOUND.
+      mo_reservation = io_reservation.
+    ELSE.
+      CREATE OBJECT mo_reservation TYPE zcl_stock_reservation_sap.
+    ENDIF.
+    IF io_unit_converter IS BOUND.
+      mo_unit_converter = io_unit_converter.
+    ELSE.
+      CREATE OBJECT mo_unit_converter TYPE zcl_unit_conversion_sap.
+    ENDIF.
     IF io_lock IS BOUND.
       mo_lock = io_lock.
     ELSE.
@@ -171,6 +185,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     mv_requested_on_to = iv_requested_on_to.
     mv_movement_type = iv_movement_type.
     mv_min_shelf_life = iv_min_shelf_life.
+    mv_safety_stock = iv_safety_stock.
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
 
@@ -268,6 +283,19 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_message          = 'Invalid minimum shelf life' ).
       ENDIF.
       raise_error( iv_message = 'Invalid minimum shelf life' ).
+    ENDIF.
+    IF iv_safety_stock < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid safety stock' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid safety stock' ).
     ENDIF.
     IF mo_stock_source IS NOT BOUND
         OR mo_order_source IS NOT BOUND
@@ -994,6 +1022,13 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDIF.
+    IF iv_safety_stock > 0.
+      IF lv_available <= iv_safety_stock.
+        CLEAR lv_available.
+      ELSE.
+        lv_available = lv_available - iv_safety_stock.
+      ENDIF.
+    ENDIF.
     lt_original_demands = lt_demands.
     TRY.
         rv_remaining = mo_allocator->allocate(
@@ -1182,6 +1217,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_batch             = iv_batch
           iv_movement_type     = iv_movement_type
           iv_min_shelf_life    = iv_min_shelf_life
+          iv_safety_stock      = iv_safety_stock
           iv_requested_on_from = iv_requested_on_from
           iv_requested_on_to   = iv_requested_on_to
           iv_unit              = lv_unit
@@ -1674,6 +1710,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_batch             = iv_batch
           iv_movement_type     = lv_movement_type
           iv_min_shelf_life    = mv_min_shelf_life
+          iv_safety_stock      = mv_safety_stock
           iv_unit              = iv_unit
           iv_requested_on_from = mv_requested_on_from
           iv_requested_on_to   = mv_requested_on_to

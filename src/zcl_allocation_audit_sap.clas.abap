@@ -988,6 +988,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_policy_mixed TYPE abap_bool.
     DATA lv_policy_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA lv_policy_min_shelf_life TYPE i.
+    DATA lv_policy_safety_stock TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_deadline_age_reference_date TYPE d.
     DATA ls_running_age TYPE zif_allocation_audit=>ty_running_age.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
@@ -1008,6 +1009,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_run_id_contains   = iv_run_id_contains
       iv_movement_type     = iv_movement_type
       iv_min_shelf_life    = iv_min_shelf_life
+      iv_safety_filter     = iv_safety_filter
+      iv_safety_from       = iv_safety_from
+      iv_safety_to         = iv_safety_to
       iv_requested_on_from = iv_requested_on_from
       iv_requested_on_to   = iv_requested_on_to
       iv_requested_overdue = iv_requested_overdue
@@ -1082,8 +1086,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         lv_policy_initialized = abap_true.
         lv_policy_movement_type = <ls_run>-movement_type.
         lv_policy_min_shelf_life = <ls_run>-min_shelf_life.
+        lv_policy_safety_stock = <ls_run>-safety_stock.
       ELSEIF lv_policy_movement_type <> <ls_run>-movement_type
-          OR lv_policy_min_shelf_life <> <ls_run>-min_shelf_life.
+          OR lv_policy_min_shelf_life <> <ls_run>-min_shelf_life
+          OR lv_policy_safety_stock <> <ls_run>-safety_stock.
         lv_policy_mixed = abap_true.
       ENDIF.
       IF <ls_run>-requested_deadline IS NOT INITIAL.
@@ -1358,16 +1364,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF lv_policy_initialized = abap_false.
       rs_summary-movement_type_context = 'n/a'.
       CLEAR rs_summary-min_shelf_life_context.
+      CLEAR rs_summary-safety_stock_context.
       rs_summary-policy_context_available = abap_false.
       rs_summary-mixed_policies = abap_false.
     ELSEIF lv_policy_mixed = abap_true.
       rs_summary-movement_type_context = 'mixed'.
       CLEAR rs_summary-min_shelf_life_context.
+      CLEAR rs_summary-safety_stock_context.
       rs_summary-policy_context_available = abap_true.
       rs_summary-mixed_policies = abap_true.
     ELSE.
       rs_summary-movement_type_context = lv_policy_movement_type.
       rs_summary-min_shelf_life_context = lv_policy_min_shelf_life.
+      rs_summary-safety_stock_context = lv_policy_safety_stock.
       rs_summary-policy_context_available = abap_true.
       rs_summary-mixed_policies = abap_false.
     ENDIF.
@@ -1423,6 +1432,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-batch = iv_batch.
     ls_run-movement_type = iv_movement_type.
     ls_run-min_shelf_life = iv_min_shelf_life.
+    ls_run-safety_stock = iv_safety_stock.
     ls_run-requested_on_from = iv_requested_on_from.
     ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = lv_unit.
@@ -1639,6 +1649,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf-life filter is invalid' ).
     ENDIF.
+    IF iv_safety_filter = abap_true
+        AND ( iv_safety_from < 0 OR iv_safety_to < 0 ).
+      raise_error( iv_message = 'Audit safety-stock range is invalid' ).
+    ENDIF.
+    IF iv_safety_filter = abap_true
+        AND iv_safety_from > iv_safety_to.
+      raise_error( iv_message = 'Audit safety-stock range is invalid' ).
+    ENDIF.
+    IF iv_safety_filter = abap_false
+        AND ( iv_safety_from IS NOT INITIAL
+          OR iv_safety_to IS NOT INITIAL ).
+      raise_error(
+        iv_message = 'Audit safety-stock filter switch is required' ).
+    ENDIF.
     IF lv_status IS NOT INITIAL
         AND lv_status <> 'R'
         AND lv_status <> 'S'
@@ -1678,6 +1702,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              batch,
              movement_type,
              min_shelf_life,
+             safety_stock,
              unit,
              strategy,
              start_date,
@@ -1709,6 +1734,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              batch,
              movement_type,
              min_shelf_life,
+             safety_stock,
              unit,
              strategy,
              start_date,
@@ -1820,6 +1846,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               AND <ls_run>-movement_type <> iv_movement_type )
             OR ( iv_min_shelf_life IS NOT INITIAL
               AND <ls_run>-min_shelf_life <> iv_min_shelf_life ).
+          DELETE rt_runs.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF iv_safety_filter = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-safety_stock < iv_safety_from
+            OR <ls_run>-safety_stock > iv_safety_to.
           DELETE rt_runs.
         ENDIF.
       ENDLOOP.
@@ -2213,6 +2247,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf life is invalid' ).
     ENDIF.
+    IF iv_safety_stock < 0.
+      raise_error( iv_message = 'Audit safety stock is invalid' ).
+    ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND iv_movement_type CN '0123456789'.
       raise_error( iv_message = 'Audit movement type is invalid' ).
@@ -2258,6 +2295,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-batch = iv_batch.
     ls_run-movement_type = iv_movement_type.
     ls_run-min_shelf_life = iv_min_shelf_life.
+    ls_run-safety_stock = iv_safety_stock.
     ls_run-requested_on_from = iv_requested_on_from.
     ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = lv_unit.

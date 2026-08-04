@@ -30,6 +30,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       batch              TYPE zif_stock_allocation=>ty_batch,
       movement_type      TYPE zif_stock_allocation=>ty_movement_type,
       min_shelf_life     TYPE i,
+      safety_stock       TYPE zif_stock_allocation=>ty_quantity,
       requested_on_from  TYPE d,
       requested_on_to    TYPE d,
       requested_deadline TYPE d,
@@ -135,6 +136,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       mixed_units                 TYPE abap_bool,
       movement_type_context       TYPE string,
       min_shelf_life_context      TYPE i,
+      safety_stock_context        TYPE zif_stock_allocation=>ty_quantity,
       policy_context_available    TYPE abap_bool,
       mixed_policies              TYPE abap_bool,
       last_status                 TYPE ty_run_status,
@@ -149,6 +151,9 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_batch                TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_movement_type        TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life       TYPE i OPTIONAL
+      iv_safety_filter        TYPE abap_bool OPTIONAL
+      iv_safety_from          TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_safety_to            TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_requested_on_from    TYPE d OPTIONAL
       iv_requested_on_to      TYPE d OPTIONAL
       iv_requested_overdue    TYPE abap_bool OPTIONAL
@@ -216,6 +221,9 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life    TYPE i OPTIONAL
+      iv_safety_filter     TYPE abap_bool OPTIONAL
+      iv_safety_from       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_safety_to         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
       iv_requested_overdue TYPE abap_bool OPTIONAL
@@ -355,6 +363,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life    TYPE i OPTIONAL
+      iv_safety_stock      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
@@ -373,6 +382,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life    TYPE i OPTIONAL
+      iv_safety_stock      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL

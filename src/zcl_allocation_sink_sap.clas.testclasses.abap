@@ -826,6 +826,18 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       exp = 'U' ).
 
     lt_demands = lo_cut->get_allocations(
+      iv_material             = 'MATERIAL-FILTER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_sort_by_deadline_age = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 2 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
       iv_material               = 'MATERIAL-FILTER'
       iv_plant                  = '1000'
       iv_storage_location       = '0001'

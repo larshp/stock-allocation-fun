@@ -56,15 +56,19 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   METHOD zif_allocation_sink~get_allocations.
     TYPES:
       BEGIN OF ty_coverage_line,
-        status_rank     TYPE i,
-        coverage        TYPE zif_allocation_audit=>ty_coverage,
-        shortage_pct    TYPE zif_allocation_audit=>ty_coverage,
-        shortage        TYPE zif_stock_allocation=>ty_quantity,
-        requested_on    TYPE d,
-        allocation_unit TYPE zif_stock_allocation=>ty_unit,
-        priority        TYPE zif_stock_allocation=>ty_priority,
-        order_id        TYPE zif_stock_allocation=>ty_order_id,
-        demand          TYPE zif_stock_allocation=>ty_demand,
+        status_rank            TYPE i,
+        coverage               TYPE zif_allocation_audit=>ty_coverage,
+        shortage_pct           TYPE zif_allocation_audit=>ty_coverage,
+        shortage               TYPE zif_stock_allocation=>ty_quantity,
+        deadline_age_available TYPE abap_bool,
+        deadline_age_days      TYPE i,
+        deadline_date          TYPE d,
+        allocation_run_id      TYPE zif_stock_allocation=>ty_run_id,
+        requested_on           TYPE d,
+        allocation_unit        TYPE zif_stock_allocation=>ty_unit,
+        priority               TYPE zif_stock_allocation=>ty_priority,
+        order_id               TYPE zif_stock_allocation=>ty_order_id,
+        demand                 TYPE zif_stock_allocation=>ty_demand,
       END OF ty_coverage_line.
     TYPES:
       BEGIN OF ty_strategy_run,
@@ -664,6 +668,44 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       CLEAR rt_demands.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_line>).
         APPEND <ls_shortage_pct_line>-demand TO rt_demands.
+      ENDLOOP.
+    ELSEIF iv_sort_by_deadline_age = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CLEAR: lv_run_deadline, lv_run_deadline_age_days.
+        READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+          WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+        IF sy-subrc = 0.
+          IF <ls_strategy_run>-requested_on_to IS INITIAL.
+            lv_run_deadline = <ls_strategy_run>-requested_on_from.
+          ELSE.
+            lv_run_deadline = <ls_strategy_run>-requested_on_to.
+          ENDIF.
+          IF lv_run_deadline IS NOT INITIAL.
+            lv_run_deadline_age_days = lv_run_deadline_age_date
+              - lv_run_deadline.
+          ENDIF.
+        ENDIF.
+        APPEND VALUE #(
+          deadline_age_available = xsdbool( lv_run_deadline IS NOT INITIAL )
+          deadline_age_days      = lv_run_deadline_age_days
+          deadline_date          = lv_run_deadline
+          allocation_run_id      = <ls_demand>-allocation_run_id
+          shortage               = <ls_demand>-shortage
+          requested_on           = <ls_demand>-requested_on
+          allocation_unit        = <ls_demand>-allocation_unit
+          priority               = <ls_demand>-priority
+          order_id               = <ls_demand>-order_id
+          demand                 = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY deadline_age_available DESCENDING
+                                 deadline_age_days DESCENDING
+                                 deadline_date ASCENDING
+                                 shortage DESCENDING
+                                 requested_on ASCENDING allocation_unit
+                                 priority allocation_run_id order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_deadline_age_line>).
+        APPEND <ls_deadline_age_line>-demand TO rt_demands.
       ENDLOOP.
     ELSEIF iv_sort_by_requested_quantity = abap_true.
       SORT rt_demands BY requested DESCENDING shortage DESCENDING requested_on

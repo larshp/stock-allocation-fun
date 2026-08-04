@@ -60,6 +60,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_sort_by_shortage           TYPE abap_bool OPTIONAL
       iv_sort_by_coverage           TYPE abap_bool OPTIONAL
       iv_sort_by_shrt_pct           TYPE abap_bool OPTIONAL
+      iv_sort_by_deadline_age       TYPE abap_bool OPTIONAL
       iv_sort_by_requested_quantity TYPE abap_bool OPTIONAL
       iv_sort_by_allocated_quantity TYPE abap_bool OPTIONAL
       iv_offset                     TYPE i OPTIONAL

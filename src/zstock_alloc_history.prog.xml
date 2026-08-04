@@ -299,6 +299,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DAGE</KEY>
+     <ENTRY>Deadline age first</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_DUE</KEY>
      <ENTRY>Requested date first</ENTRY>
      <LENGTH>26</LENGTH>

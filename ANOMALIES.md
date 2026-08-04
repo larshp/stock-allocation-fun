@@ -1,7 +1,26 @@
 # Anomalies and known issues
 
+- Resolved: comparison triage could not prioritize demand-scope expansion or contraction; `p_qd` now sorts by descending new-minus-old requested quantity, including positive additions and negative removals with deterministic tie handling.
+- Resolved: comparison triage could identify coverage deterioration but not rising relative shortage; `p_spw` now sorts by descending new-minus-old shortage percentage with safe non-comparable-row handling.
+- Resolved: comparison triage could rank low-coverage rows but could not identify coverage deterioration between snapshots; `p_cw` now sorts by descending old-minus-new coverage percentage with safe non-comparable-row handling.
+- Resolved: `p_sum` with JSON metadata could emit an empty nested `summary` object because the summary field table was never concatenated; nested and flat summary JSON now serialize the same fields.
+- Resolved: comparison summary consumers had to recompute aggregate coverage and shortage percentages from raw totals; schema `50` now exposes zero-safe old/new values and new-minus-old deltas over the pre-pagination matching population, with mixed-unit suppression.
+- Resolved: comparison detail consumers had to subtract old/new row percentages themselves; schema `49` now exposes new-minus-old coverage and shortage-percentage deltas, with unavailable values preserved for added/removed or zero-request sides.
+- Resolved: comparison detail consumers had to recompute row-level coverage and shortage percentages from quantities; schema `48` now exposes both old/new ratios with explicit unavailable handling for zero-request snapshot sides across all detail formats.
+- Resolved: comparison triage lacked relative-shortage ordering; `p_spct` now sorts applicable changes by descending shortage percentage, keeps zero-request rows last, and paginates after sorting.
+- Resolved: comparison reason filtering could not isolate shortage-rate changes; the compare domain now emits a zero-safe `shortage_pct` reason and accepts `p_reason=shortage_pct`.
+- Resolved: comparison reason filtering could not isolate allocation-coverage changes; the compare domain now emits a zero-safe `coverage` reason and accepts `p_reason=coverage`.
+- Resolved: comparison output could not highlight shortage deterioration between runs; `p_wors` now sorts by descending shortage delta, keeps deterministic current-shortage/date/key ties, and applies pagination after sorting.
+- Resolved: comparison output could not prioritize changed demands by allocation coverage; `p_cov` now sorts by lowest applicable current coverage, keeps zero-request rows last, and applies pagination after stable coverage/shortage/date/key ordering.
+- Resolved: comparison output could not prioritize changed demands by requested delivery date; `p_due` now sorts by the applicable new/old requested date, keeps undated rows last, and applies pagination after stable date/shortage/key ordering.
+- Resolved: comparison output could not prioritize changed demands by current shortage; `p_shrt` now sorts added/changed rows by new shortage, removed rows by old shortage, and applies pagination after stable shortage/date/key ordering.
+
 - Resolved: stricter uncaught-exception linting reported intentional exceptions in ABAP Unit methods; affected test methods now declare `RAISING zcx_stock_allocation` in code.
 
+- Resolved: stale-run watch could filter by signed deadline age but could not prioritize the most overdue deadlines; `p_dage` now sorts applicable deadlines by descending signed age and keeps no-deadline alerts last, with deterministic ties.
+- Resolved: history could filter runs by signed deadline age but could not prioritize urgent runs; `p_dage` now sorts effective deadlines by descending signed age and keeps runs without deadlines last, with deterministic ties.
+- Resolved: result rows could filter by originating-run signed deadline age but could not prioritize urgent rows; `p_dage` now sorts by the persisted run deadline age and keeps rows without deadlines last, with deterministic ties.
+- Resolved: comparison could report signed old/new deadline ages but could not select both runs by an age window; `ZSTOCK_ALLOC_COMPARE` now applies inclusive signed age bounds and an explicit as-of date to both run and snapshot reads, with filter provenance in contextual schema `40`.
 - Resolved: result typed/metadata JSON initially serialized audit deadline age as text; the field now follows the numeric-or-null contract used by other typed metrics.
 - Resolved: allocation summary consumers had to recompute deadline urgency from aggregate effective deadlines; allocation success output now exposes signed last/oldest/newest deadline ages with numeric/null typed JSON semantics.
 - Resolved: allocation summary age fields were calculated independently from the audit aggregation; the audit summary now owns the same signed last/oldest/newest values consumed by the allocation report.

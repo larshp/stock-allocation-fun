@@ -87,12 +87,30 @@
      <ENTRY>Requested deadline from</ENTRY>
      <LENGTH>25</LENGTH>
    </item>
-   <item>
+    <item>
      <ID>S</ID>
      <KEY>P_DEADT</KEY>
      <ENTRY>Requested deadline to</ENTRY>
      <LENGTH>23</LENGTH>
-   </item>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGEF</KEY>
+     <ENTRY>Deadline age from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGET</KEY>
+     <ENTRY>Deadline age to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGED</KEY>
+     <ENTRY>Deadline age as-of date</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
    <item>
      <ID>S</ID>
      <KEY>P_MEINS</KEY>
@@ -134,6 +152,54 @@
      <KEY>P_SUM</KEY>
      <ENTRY>Summary output</ENTRY>
      <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHRT</KEY>
+     <ENTRY>Sort by shortage</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_WORS</KEY>
+     <ENTRY>Sort by shortage worsening</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CW</KEY>
+     <ENTRY>Sort by coverage worsening</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPW</KEY>
+     <ENTRY>Sort by shortage percentage worsening</ENTRY>
+     <LENGTH>38</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QD</KEY>
+     <ENTRY>Sort by requested quantity delta</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Sort by requested date</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COV</KEY>
+     <ENTRY>Sort by coverage</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPCT</KEY>
+     <ENTRY>Sort by shortage percentage</ENTRY>
+     <LENGTH>27</LENGTH>
     </item>
     <item>
      <ID>S</ID>

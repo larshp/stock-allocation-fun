@@ -59,6 +59,7 @@ PARAMETERS p_rdate AS CHECKBOX.
 PARAMETERS p_shrt AS CHECKBOX.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
+PARAMETERS p_dage AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
 PARAMETERS p_max TYPE i.
 PARAMETERS p_skip TYPE i.
@@ -791,6 +792,7 @@ START-OF-SELECTION.
         iv_sort_by_shortage           = p_shrt
         iv_sort_by_coverage           = p_cov
         iv_sort_by_shrt_pct           = p_spct
+        iv_sort_by_deadline_age       = p_dage
         iv_sort_by_requested_quantity = p_big
         iv_sort_by_allocated_quantity = p_done
         iv_offset                     = p_skip
@@ -866,6 +868,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage'.
   ELSEIF p_spct = abap_true.
     lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_dage = abap_true.
+    lv_sort_mode = 'deadline_age'.
   ELSEIF p_big = abap_true.
     lv_sort_mode = 'requested_quantity'.
   ELSEIF p_done = abap_true.
@@ -1490,7 +1494,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 27 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1710,7 +1714,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 25 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 26 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1858,7 +1862,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 27 ) TO lt_json_fields.
+          iv_value = 28 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2729,7 +2733,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 27 ) TO lt_json_fields.
+          iv_value = 28 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3014,7 +3018,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 25 ) TO lt_json_fields.
+        iv_value = 26 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3427,7 +3431,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 25 ) TO lt_json_fields.
+          iv_value = 26 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.

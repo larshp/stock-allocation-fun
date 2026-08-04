@@ -142,64 +142,65 @@ INTERFACE zif_allocation_audit PUBLIC.
 
   METHODS get_runs
     IMPORTING
-      iv_material          TYPE zif_stock_allocation=>ty_material
-      iv_plant             TYPE zif_stock_allocation=>ty_plant
-      iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
-      iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
-      iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
-      iv_min_shelf_life    TYPE i OPTIONAL
-      iv_requested_on_from TYPE d OPTIONAL
-      iv_requested_on_to   TYPE d OPTIONAL
-      iv_requested_overdue TYPE abap_bool OPTIONAL
-      iv_overdue_date      TYPE d OPTIONAL
-      iv_deadline_only     TYPE abap_bool OPTIONAL
-      iv_deadline_from     TYPE d OPTIONAL
-      iv_deadline_to       TYPE d OPTIONAL
-      iv_deadline_age_from TYPE i OPTIONAL
-      iv_deadline_age_to   TYPE i OPTIONAL
-      iv_deadline_age_date TYPE d OPTIONAL
-      iv_run_id            TYPE ty_run_id OPTIONAL
-      iv_run_id_contains   TYPE ty_run_id OPTIONAL
-      iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
-      iv_start_date_from   TYPE d OPTIONAL
-      iv_start_date_to     TYPE d OPTIONAL
-      iv_finish_date_from  TYPE d OPTIONAL
-      iv_finish_date_to    TYPE d OPTIONAL
-      iv_shortage_from     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_shortage_to       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_allocated_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_allocated_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_available_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_available_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_requested_from    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_requested_to      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-      iv_demand_from       TYPE i OPTIONAL
-      iv_demand_to         TYPE i OPTIONAL
-      iv_duration_from     TYPE i OPTIONAL
-      iv_duration_to       TYPE i OPTIONAL
-      iv_stale_seconds     TYPE i OPTIONAL
-      iv_running_age_to    TYPE i OPTIONAL
-      iv_coverage_from     TYPE ty_coverage OPTIONAL
-      iv_coverage_to       TYPE ty_coverage OPTIONAL
-      iv_shortage_pct_from TYPE ty_coverage OPTIONAL
-      iv_shortage_pct_to   TYPE ty_coverage OPTIONAL
-      iv_sort_by_shortage  TYPE abap_bool OPTIONAL
-      iv_sort_by_coverage  TYPE abap_bool OPTIONAL
-      iv_sort_by_shrt_pct  TYPE abap_bool OPTIONAL
-      iv_sort_by_due       TYPE abap_bool OPTIONAL
-      iv_sort_by_status    TYPE abap_bool OPTIONAL
-      iv_sort_by_duration  TYPE abap_bool OPTIONAL
-      iv_max_rows          TYPE i OPTIONAL
-      iv_status            TYPE ty_run_status OPTIONAL
-      iv_strategy          TYPE ty_strategy OPTIONAL
-      iv_legacy_strategy   TYPE abap_bool OPTIONAL
-      iv_message_contains  TYPE ty_message OPTIONAL
-      iv_message_only      TYPE abap_bool OPTIONAL
-      iv_offset            TYPE i OPTIONAL
+      iv_material             TYPE zif_stock_allocation=>ty_material
+      iv_plant                TYPE zif_stock_allocation=>ty_plant
+      iv_storage_location     TYPE zif_stock_allocation=>ty_storage_location
+      iv_batch                TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_movement_type        TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
+      iv_min_shelf_life       TYPE i OPTIONAL
+      iv_requested_on_from    TYPE d OPTIONAL
+      iv_requested_on_to      TYPE d OPTIONAL
+      iv_requested_overdue    TYPE abap_bool OPTIONAL
+      iv_overdue_date         TYPE d OPTIONAL
+      iv_deadline_only        TYPE abap_bool OPTIONAL
+      iv_deadline_from        TYPE d OPTIONAL
+      iv_deadline_to          TYPE d OPTIONAL
+      iv_deadline_age_from    TYPE i OPTIONAL
+      iv_deadline_age_to      TYPE i OPTIONAL
+      iv_deadline_age_date    TYPE d OPTIONAL
+      iv_run_id               TYPE ty_run_id OPTIONAL
+      iv_run_id_contains      TYPE ty_run_id OPTIONAL
+      iv_unit                 TYPE zif_stock_allocation=>ty_unit OPTIONAL
+      iv_start_date_from      TYPE d OPTIONAL
+      iv_start_date_to        TYPE d OPTIONAL
+      iv_finish_date_from     TYPE d OPTIONAL
+      iv_finish_date_to       TYPE d OPTIONAL
+      iv_shortage_from        TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_shortage_to          TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_allocated_from       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_allocated_to         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_available_from       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_available_to         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_requested_from       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_requested_to         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+      iv_demand_from          TYPE i OPTIONAL
+      iv_demand_to            TYPE i OPTIONAL
+      iv_duration_from        TYPE i OPTIONAL
+      iv_duration_to          TYPE i OPTIONAL
+      iv_stale_seconds        TYPE i OPTIONAL
+      iv_running_age_to       TYPE i OPTIONAL
+      iv_coverage_from        TYPE ty_coverage OPTIONAL
+      iv_coverage_to          TYPE ty_coverage OPTIONAL
+      iv_shortage_pct_from    TYPE ty_coverage OPTIONAL
+      iv_shortage_pct_to      TYPE ty_coverage OPTIONAL
+      iv_sort_by_shortage     TYPE abap_bool OPTIONAL
+      iv_sort_by_coverage     TYPE abap_bool OPTIONAL
+      iv_sort_by_shrt_pct     TYPE abap_bool OPTIONAL
+      iv_sort_by_deadline_age TYPE abap_bool OPTIONAL
+      iv_sort_by_due          TYPE abap_bool OPTIONAL
+      iv_sort_by_status       TYPE abap_bool OPTIONAL
+      iv_sort_by_duration     TYPE abap_bool OPTIONAL
+      iv_max_rows             TYPE i OPTIONAL
+      iv_status               TYPE ty_run_status OPTIONAL
+      iv_strategy             TYPE ty_strategy OPTIONAL
+      iv_legacy_strategy      TYPE abap_bool OPTIONAL
+      iv_message_contains     TYPE ty_message OPTIONAL
+      iv_message_only         TYPE abap_bool OPTIONAL
+      iv_offset               TYPE i OPTIONAL
     EXPORTING
-      ev_total_rows        TYPE i
+      ev_total_rows           TYPE i
     RETURNING
-      VALUE(rt_runs)       TYPE tt_runs
+      VALUE(rt_runs)          TYPE tt_runs
     RAISING
       zcx_stock_allocation.
   METHODS get_summary

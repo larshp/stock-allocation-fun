@@ -3332,6 +3332,37 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = lt_ordered_runs[ 2 ]-run_id
       exp = lv_old_run_id ).
     UPDATE zstockalloc_run
+      SET requested_on_from = '20260730', requested_on_to = '00000000'
+      WHERE run_id = @lv_old_run_id.
+    UPDATE zstockalloc_run
+      SET requested_on_from = '20260802', requested_on_to = '00000000'
+      WHERE run_id = @lv_new_run_id.
+    lt_ordered_runs = lo_cut->get_runs(
+      iv_material             = 'MATERIAL-AUDIT-ORDER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_sort_by_deadline_age = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 1 ]-run_id
+      exp = lv_old_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 2 ]-run_id
+      exp = lv_new_run_id ).
+    UPDATE zstockalloc_run
+      SET requested_on_from = '00000000', requested_on_to = '00000000'
+      WHERE run_id = @lv_old_run_id.
+    lt_ordered_runs = lo_cut->get_runs(
+      iv_material             = 'MATERIAL-AUDIT-ORDER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_sort_by_deadline_age = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 1 ]-run_id
+      exp = lv_new_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_ordered_runs[ 2 ]-run_id
+      exp = lv_old_run_id ).
+    UPDATE zstockalloc_run
       SET start_date = '20260702', start_time = '010000'
       WHERE run_id = @lv_old_run_id.
     UPDATE zstockalloc_run

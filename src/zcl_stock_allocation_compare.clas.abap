@@ -42,6 +42,12 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     DATA ls_change TYPE zif_stock_allocation_compare=>ty_change.
     DATA lv_limit_start TYPE i.
     DATA ls_normalized TYPE zif_stock_allocation=>ty_demand.
+    DATA lv_old_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_new_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_old_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_new_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_old_coverage_available TYPE abap_bool.
+    DATA lv_new_coverage_available TYPE abap_bool.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_old> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_new> TYPE zif_stock_allocation=>ty_demand.
@@ -73,6 +79,8 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         AND iv_reason <> 'requested'
         AND iv_reason <> 'allocated'
         AND iv_reason <> 'shortage'
+        AND iv_reason <> 'coverage'
+        AND iv_reason <> 'shortage_pct'
         AND iv_reason <> 'reservation_id'
         AND iv_reason <> 'reservation_date'
         AND iv_reason <> 'reservation_movement_type'
@@ -124,6 +132,9 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         WITH TABLE KEY allocation_unit = <ls_key>-allocation_unit
                        order_id        = <ls_key>-order_id.
       CLEAR ls_change.
+      CLEAR: lv_old_coverage, lv_new_coverage,
+             lv_old_shortage_pct, lv_new_shortage_pct,
+             lv_old_coverage_available, lv_new_coverage_available.
       ls_change-allocation_unit = <ls_key>-allocation_unit.
       ls_change-order_id = <ls_key>-order_id.
 
@@ -176,6 +187,32 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         ENDIF.
         IF <ls_old>-allocated <> <ls_new>-allocated.
           append_reason( EXPORTING iv_reason = 'allocated'
+                       CHANGING cv_reasons   = ls_change-change_reasons ).
+        ENDIF.
+        IF <ls_old>-requested > 0.
+          lv_old_coverage_available = abap_true.
+          lv_old_coverage = <ls_old>-allocated * 100 / <ls_old>-requested.
+          lv_old_shortage_pct = <ls_old>-shortage * 100 /
+            <ls_old>-requested.
+        ENDIF.
+        IF <ls_new>-requested > 0.
+          lv_new_coverage_available = abap_true.
+          lv_new_coverage = <ls_new>-allocated * 100 / <ls_new>-requested.
+          lv_new_shortage_pct = <ls_new>-shortage * 100 /
+            <ls_new>-requested.
+        ENDIF.
+        IF lv_old_coverage_available <> lv_new_coverage_available
+            OR ( lv_old_coverage_available = abap_true
+            AND lv_new_coverage_available = abap_true
+            AND lv_old_coverage <> lv_new_coverage ).
+          append_reason( EXPORTING iv_reason = 'coverage'
+                       CHANGING cv_reasons   = ls_change-change_reasons ).
+        ENDIF.
+        IF lv_old_coverage_available <> lv_new_coverage_available
+            OR ( lv_old_coverage_available = abap_true
+            AND lv_new_coverage_available = abap_true
+            AND lv_old_shortage_pct <> lv_new_shortage_pct ).
+          append_reason( EXPORTING iv_reason = 'shortage_pct'
                        CHANGING cv_reasons   = ls_change-change_reasons ).
         ENDIF.
         IF <ls_old>-shortage <> <ls_new>-shortage.
@@ -252,6 +289,34 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         - ls_change-old_allocated.
       ls_change-delta_shortage = ls_change-new_shortage
         - ls_change-old_shortage.
+      IF ls_change-old_requested > 0.
+        ls_change-old_coverage_available = abap_true.
+        ls_change-old_coverage = ls_change-old_allocated * 100 /
+          ls_change-old_requested.
+        ls_change-old_shortage_pct_available = abap_true.
+        ls_change-old_shortage_pct = ls_change-old_shortage * 100 /
+          ls_change-old_requested.
+      ENDIF.
+      IF ls_change-new_requested > 0.
+        ls_change-new_coverage_available = abap_true.
+        ls_change-new_coverage = ls_change-new_allocated * 100 /
+          ls_change-new_requested.
+        ls_change-new_shortage_pct_available = abap_true.
+        ls_change-new_shortage_pct = ls_change-new_shortage * 100 /
+          ls_change-new_requested.
+      ENDIF.
+      IF ls_change-old_coverage_available = abap_true
+          AND ls_change-new_coverage_available = abap_true.
+        ls_change-coverage_delta_available = abap_true.
+        ls_change-coverage_delta = ls_change-new_coverage
+          - ls_change-old_coverage.
+      ENDIF.
+      IF ls_change-old_shortage_pct_available = abap_true
+          AND ls_change-new_shortage_pct_available = abap_true.
+        ls_change-shortage_pct_delta_available = abap_true.
+        ls_change-shortage_pct_delta = ls_change-new_shortage_pct
+          - ls_change-old_shortage_pct.
+      ENDIF.
       IF ( iv_change_type IS INITIAL
           OR ls_change-change_type = iv_change_type )
           AND ( iv_reason IS INITIAL
@@ -307,6 +372,36 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    IF es_summary-mixed_units = abap_false.
+      IF es_summary-old_requested > 0.
+        es_summary-old_coverage_available = abap_true.
+        es_summary-old_coverage = es_summary-old_allocated * 100 /
+          es_summary-old_requested.
+        es_summary-old_shortage_pct_available = abap_true.
+        es_summary-old_shortage_pct = es_summary-old_shortage * 100 /
+          es_summary-old_requested.
+      ENDIF.
+      IF es_summary-new_requested > 0.
+        es_summary-new_coverage_available = abap_true.
+        es_summary-new_coverage = es_summary-new_allocated * 100 /
+          es_summary-new_requested.
+        es_summary-new_shortage_pct_available = abap_true.
+        es_summary-new_shortage_pct = es_summary-new_shortage * 100 /
+          es_summary-new_requested.
+      ENDIF.
+      IF es_summary-old_coverage_available = abap_true
+          AND es_summary-new_coverage_available = abap_true.
+        es_summary-coverage_delta_available = abap_true.
+        es_summary-coverage_delta = es_summary-new_coverage
+          - es_summary-old_coverage.
+      ENDIF.
+      IF es_summary-old_shortage_pct_available = abap_true
+          AND es_summary-new_shortage_pct_available = abap_true.
+        es_summary-shortage_pct_delta_available = abap_true.
+        es_summary-shortage_pct_delta = es_summary-new_shortage_pct
+          - es_summary-old_shortage_pct.
+      ENDIF.
+    ENDIF.
     ev_total_rows = es_summary-total_rows.
     rt_changes = lt_all_changes.
     IF iv_offset > 0.
@@ -320,6 +415,532 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
       lv_limit_start = iv_max_rows + 1.
       DELETE rt_changes FROM lv_limit_start.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_shortage.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        shortage        TYPE zif_stock_allocation=>ty_quantity,
+        requested_on    TYPE d,
+        change_rank     TYPE i,
+        allocation_unit TYPE zif_stock_allocation=>ty_unit,
+        order_id        TYPE zif_stock_allocation=>ty_order_id,
+        change          TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          shortage        = <ls_change>-new_shortage
+          requested_on    = <ls_change>-new_requested_on
+          change_rank     = COND #( WHEN <ls_change>-change_type = 'C'
+                                    THEN 1
+                                    WHEN <ls_change>-change_type = 'A'
+                                    THEN 2
+                                    WHEN <ls_change>-change_type = 'U'
+                                    THEN 3
+                                    ELSE 4 )
+          allocation_unit = <ls_change>-allocation_unit
+          order_id        = <ls_change>-order_id
+          change          = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          shortage        = <ls_change>-old_shortage
+          requested_on    = <ls_change>-old_requested_on
+          change_rank     = COND #( WHEN <ls_change>-change_type = 'R'
+                                    THEN 1 ELSE 2 )
+          allocation_unit = <ls_change>-allocation_unit
+          order_id        = <ls_change>-order_id
+          change          = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY shortage DESCENDING requested_on change_rank
+                          allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_shortage_worsening.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        shortage_delta           TYPE zif_stock_allocation=>ty_quantity,
+        shortage                 TYPE zif_stock_allocation=>ty_quantity,
+        requested_date_available TYPE abap_bool,
+        requested_on             TYPE d,
+        change_rank              TYPE i,
+        allocation_unit          TYPE zif_stock_allocation=>ty_unit,
+        order_id                 TYPE zif_stock_allocation=>ty_order_id,
+        change                   TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          shortage_delta           = <ls_change>-delta_shortage
+          shortage                 = <ls_change>-new_shortage
+          requested_date_available = xsdbool(
+            <ls_change>-new_requested_on IS NOT INITIAL )
+          requested_on             = <ls_change>-new_requested_on
+          change_rank              = COND #( WHEN <ls_change>-change_type = 'C'
+                                             THEN 1
+                                             WHEN <ls_change>-change_type = 'A'
+                                             THEN 2
+                                             WHEN <ls_change>-change_type = 'U'
+                                             THEN 3
+                                             ELSE 4 )
+          allocation_unit          = <ls_change>-allocation_unit
+          order_id                 = <ls_change>-order_id
+          change                   = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          shortage_delta           = <ls_change>-delta_shortage
+          shortage                 = <ls_change>-old_shortage
+          requested_date_available = xsdbool(
+            <ls_change>-old_requested_on IS NOT INITIAL )
+          requested_on             = <ls_change>-old_requested_on
+          change_rank              = 1
+          allocation_unit          = <ls_change>-allocation_unit
+          order_id                 = <ls_change>-order_id
+          change                   = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY shortage_delta DESCENDING shortage DESCENDING
+                          requested_date_available DESCENDING requested_on
+                          change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_requested_delta.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        requested_delta          TYPE zif_stock_allocation=>ty_quantity,
+        requested                TYPE zif_stock_allocation=>ty_quantity,
+        shortage                 TYPE zif_stock_allocation=>ty_quantity,
+        requested_date_available TYPE abap_bool,
+        requested_on             TYPE d,
+        change_rank              TYPE i,
+        allocation_unit          TYPE zif_stock_allocation=>ty_unit,
+        order_id                 TYPE zif_stock_allocation=>ty_order_id,
+        change                   TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    DATA lv_requested TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_requested_on TYPE d.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type = 'R'.
+        lv_requested = <ls_change>-old_requested.
+        lv_shortage = <ls_change>-old_shortage.
+        lv_requested_on = <ls_change>-old_requested_on.
+      ELSE.
+        lv_requested = <ls_change>-new_requested.
+        lv_shortage = <ls_change>-new_shortage.
+        lv_requested_on = <ls_change>-new_requested_on.
+      ENDIF.
+      APPEND VALUE #(
+        requested_delta          = <ls_change>-delta_requested
+        requested                = lv_requested
+        shortage                 = lv_shortage
+        requested_date_available = xsdbool(
+          lv_requested_on IS NOT INITIAL )
+        requested_on             = lv_requested_on
+        change_rank              = COND #( WHEN <ls_change>-change_type = 'C'
+                                             THEN 1
+                                             WHEN <ls_change>-change_type = 'A'
+                                             THEN 2
+                                             WHEN <ls_change>-change_type = 'R'
+                                             THEN 3
+                                             ELSE 4 )
+        allocation_unit          = <ls_change>-allocation_unit
+        order_id                 = <ls_change>-order_id
+        change                   = <ls_change> ) TO lt_sort_lines.
+    ENDLOOP.
+    SORT lt_sort_lines BY requested_delta DESCENDING requested DESCENDING
+                          shortage DESCENDING
+                          requested_date_available DESCENDING requested_on
+                          change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_requested_date.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        requested_date_available TYPE abap_bool,
+        requested_on             TYPE d,
+        shortage                 TYPE zif_stock_allocation=>ty_quantity,
+        change_rank              TYPE i,
+        allocation_unit          TYPE zif_stock_allocation=>ty_unit,
+        order_id                 TYPE zif_stock_allocation=>ty_order_id,
+        change                   TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          requested_date_available = xsdbool(
+            <ls_change>-new_requested_on IS NOT INITIAL )
+          requested_on             = <ls_change>-new_requested_on
+          shortage                 = <ls_change>-new_shortage
+          change_rank              = COND #( WHEN <ls_change>-change_type = 'C'
+                                             THEN 1
+                                             WHEN <ls_change>-change_type = 'A'
+                                             THEN 2
+                                             WHEN <ls_change>-change_type = 'U'
+                                             THEN 3
+                                             ELSE 4 )
+          allocation_unit          = <ls_change>-allocation_unit
+          order_id                 = <ls_change>-order_id
+          change                   = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          requested_date_available = xsdbool(
+            <ls_change>-old_requested_on IS NOT INITIAL )
+          requested_on             = <ls_change>-old_requested_on
+          shortage                 = <ls_change>-old_shortage
+          change_rank              = 1
+          allocation_unit          = <ls_change>-allocation_unit
+          order_id                 = <ls_change>-order_id
+          change                   = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY requested_date_available DESCENDING
+                          requested_on shortage DESCENDING change_rank
+                          allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_coverage.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        coverage_available TYPE abap_bool,
+        coverage           TYPE zif_allocation_audit=>ty_coverage,
+        shortage           TYPE zif_stock_allocation=>ty_quantity,
+        requested_on       TYPE d,
+        change_rank        TYPE i,
+        allocation_unit    TYPE zif_stock_allocation=>ty_unit,
+        order_id           TYPE zif_stock_allocation=>ty_order_id,
+        change             TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    DATA lv_requested TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_allocated TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_requested_on TYPE d.
+    DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_coverage_available TYPE abap_bool.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      CLEAR: lv_requested, lv_allocated, lv_shortage, lv_requested_on,
+             lv_coverage, lv_coverage_available.
+      IF <ls_change>-change_type <> 'R'.
+        lv_requested = <ls_change>-new_requested.
+        lv_allocated = <ls_change>-new_allocated.
+        lv_shortage = <ls_change>-new_shortage.
+        lv_requested_on = <ls_change>-new_requested_on.
+      ELSE.
+        lv_requested = <ls_change>-old_requested.
+        lv_allocated = <ls_change>-old_allocated.
+        lv_shortage = <ls_change>-old_shortage.
+        lv_requested_on = <ls_change>-old_requested_on.
+      ENDIF.
+      IF lv_requested > 0.
+        lv_coverage_available = abap_true.
+        lv_coverage = lv_allocated * 100 / lv_requested.
+      ENDIF.
+      APPEND VALUE #(
+        coverage_available = lv_coverage_available
+        coverage           = lv_coverage
+        shortage           = lv_shortage
+        requested_on       = lv_requested_on
+        change_rank        = COND #( WHEN <ls_change>-change_type = 'C'
+                                     THEN 1
+                                     WHEN <ls_change>-change_type = 'A'
+                                     THEN 2
+                                     WHEN <ls_change>-change_type = 'R'
+                                     THEN 3
+                                     ELSE 4 )
+        allocation_unit    = <ls_change>-allocation_unit
+        order_id           = <ls_change>-order_id
+        change             = <ls_change> ) TO lt_sort_lines.
+    ENDLOOP.
+    SORT lt_sort_lines BY coverage_available DESCENDING coverage
+                          shortage DESCENDING requested_on change_rank
+                          allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_shortage_percentage.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        shortage_pct_available TYPE abap_bool,
+        shortage_pct           TYPE zif_allocation_audit=>ty_coverage,
+        shortage               TYPE zif_stock_allocation=>ty_quantity,
+        requested_on           TYPE d,
+        change_rank            TYPE i,
+        allocation_unit        TYPE zif_stock_allocation=>ty_unit,
+        order_id               TYPE zif_stock_allocation=>ty_order_id,
+        change                 TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    DATA lv_requested TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_requested_on TYPE d.
+    DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct_available TYPE abap_bool.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      CLEAR: lv_requested, lv_shortage, lv_requested_on,
+             lv_shortage_pct, lv_shortage_pct_available.
+      IF <ls_change>-change_type <> 'R'.
+        lv_requested = <ls_change>-new_requested.
+        lv_shortage = <ls_change>-new_shortage.
+        lv_requested_on = <ls_change>-new_requested_on.
+      ELSE.
+        lv_requested = <ls_change>-old_requested.
+        lv_shortage = <ls_change>-old_shortage.
+        lv_requested_on = <ls_change>-old_requested_on.
+      ENDIF.
+      IF lv_requested > 0.
+        lv_shortage_pct_available = abap_true.
+        lv_shortage_pct = lv_shortage * 100 / lv_requested.
+      ENDIF.
+      APPEND VALUE #(
+        shortage_pct_available = lv_shortage_pct_available
+        shortage_pct           = lv_shortage_pct
+        shortage               = lv_shortage
+        requested_on           = lv_requested_on
+        change_rank            = COND #( WHEN <ls_change>-change_type = 'C'
+                                         THEN 1
+                                         WHEN <ls_change>-change_type = 'A'
+                                         THEN 2
+                                         WHEN <ls_change>-change_type = 'R'
+                                         THEN 3
+                                         ELSE 4 )
+        allocation_unit        = <ls_change>-allocation_unit
+        order_id               = <ls_change>-order_id
+        change                 = <ls_change> ) TO lt_sort_lines.
+    ENDLOOP.
+    SORT lt_sort_lines BY shortage_pct_available DESCENDING shortage_pct DESCENDING
+                          shortage DESCENDING requested_on change_rank
+                          allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_coverage_worsening.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        coverage_delta_available TYPE abap_bool,
+        coverage_deterioration   TYPE zif_allocation_audit=>ty_coverage,
+        coverage_available       TYPE abap_bool,
+        coverage                 TYPE zif_allocation_audit=>ty_coverage,
+        shortage                 TYPE zif_stock_allocation=>ty_quantity,
+        requested_date_available TYPE abap_bool,
+        requested_on             TYPE d,
+        change_rank              TYPE i,
+        allocation_unit          TYPE zif_stock_allocation=>ty_unit,
+        order_id                 TYPE zif_stock_allocation=>ty_order_id,
+        change                   TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    DATA lv_old_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_new_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_coverage_deterioration TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_coverage_delta_available TYPE abap_bool.
+    DATA lv_coverage_available TYPE abap_bool.
+    DATA lv_requested_on TYPE d.
+    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      CLEAR: lv_old_coverage, lv_new_coverage, lv_coverage,
+             lv_coverage_deterioration, lv_coverage_delta_available,
+             lv_coverage_available, lv_requested_on, lv_shortage.
+      IF <ls_change>-old_coverage_available = abap_true.
+        lv_old_coverage = <ls_change>-old_coverage.
+      ELSEIF <ls_change>-old_requested > 0.
+        lv_old_coverage = <ls_change>-old_allocated * 100 /
+          <ls_change>-old_requested.
+      ENDIF.
+      IF <ls_change>-new_coverage_available = abap_true.
+        lv_new_coverage = <ls_change>-new_coverage.
+      ELSEIF <ls_change>-new_requested > 0.
+        lv_new_coverage = <ls_change>-new_allocated * 100 /
+          <ls_change>-new_requested.
+      ENDIF.
+      IF <ls_change>-coverage_delta_available = abap_true.
+        lv_coverage_delta_available = abap_true.
+        lv_coverage_deterioration = 0 - <ls_change>-coverage_delta.
+      ELSEIF <ls_change>-old_requested > 0
+          AND <ls_change>-new_requested > 0.
+        lv_coverage_delta_available = abap_true.
+        lv_coverage_deterioration = lv_old_coverage - lv_new_coverage.
+      ENDIF.
+      IF <ls_change>-change_type = 'R'.
+        lv_coverage = lv_old_coverage.
+        lv_coverage_available = xsdbool(
+          <ls_change>-old_requested > 0 ).
+        lv_shortage = <ls_change>-old_shortage.
+        lv_requested_on = <ls_change>-old_requested_on.
+      ELSE.
+        lv_coverage = lv_new_coverage.
+        lv_coverage_available = xsdbool(
+          <ls_change>-new_requested > 0 ).
+        lv_shortage = <ls_change>-new_shortage.
+        lv_requested_on = <ls_change>-new_requested_on.
+      ENDIF.
+      APPEND VALUE #(
+        coverage_delta_available = lv_coverage_delta_available
+        coverage_deterioration   = lv_coverage_deterioration
+        coverage_available       = lv_coverage_available
+        coverage                 = lv_coverage
+        shortage                 = lv_shortage
+        requested_date_available = xsdbool(
+          lv_requested_on IS NOT INITIAL )
+        requested_on             = lv_requested_on
+        change_rank              = COND #( WHEN <ls_change>-change_type = 'C'
+                                           THEN 1
+                                           WHEN <ls_change>-change_type = 'A'
+                                           THEN 2
+                                           WHEN <ls_change>-change_type = 'R'
+                                           THEN 3
+                                           ELSE 4 )
+        allocation_unit          = <ls_change>-allocation_unit
+        order_id                 = <ls_change>-order_id
+        change                   = <ls_change> ) TO lt_sort_lines.
+    ENDLOOP.
+    SORT lt_sort_lines BY coverage_delta_available DESCENDING
+                          coverage_deterioration DESCENDING
+                          coverage_available DESCENDING coverage ASCENDING
+                          shortage DESCENDING requested_date_available DESCENDING
+                          requested_on change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_spct_worsening.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        shortage_pct_delta_available TYPE abap_bool,
+        shortage_pct_deterioration   TYPE zif_allocation_audit=>ty_coverage,
+        shortage_pct_available       TYPE abap_bool,
+        shortage_pct                 TYPE zif_allocation_audit=>ty_coverage,
+        shortage                     TYPE zif_stock_allocation=>ty_quantity,
+        requested_date_available     TYPE abap_bool,
+        requested_on                 TYPE d,
+        change_rank                  TYPE i,
+        allocation_unit              TYPE zif_stock_allocation=>ty_unit,
+        order_id                     TYPE zif_stock_allocation=>ty_order_id,
+        change                       TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    DATA lv_old_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_new_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct_deterioration TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_spct_delta_available TYPE abap_bool.
+    DATA lv_shortage_pct_available TYPE abap_bool.
+    DATA lv_requested_on TYPE d.
+    DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      CLEAR: lv_old_shortage_pct, lv_new_shortage_pct, lv_shortage_pct,
+             lv_shortage_pct_deterioration,
+             lv_spct_delta_available, lv_shortage_pct_available,
+             lv_requested_on, lv_shortage.
+      IF <ls_change>-old_shortage_pct_available = abap_true.
+        lv_old_shortage_pct = <ls_change>-old_shortage_pct.
+      ELSEIF <ls_change>-old_requested > 0.
+        lv_old_shortage_pct = <ls_change>-old_shortage * 100 /
+          <ls_change>-old_requested.
+      ENDIF.
+      IF <ls_change>-new_shortage_pct_available = abap_true.
+        lv_new_shortage_pct = <ls_change>-new_shortage_pct.
+      ELSEIF <ls_change>-new_requested > 0.
+        lv_new_shortage_pct = <ls_change>-new_shortage * 100 /
+          <ls_change>-new_requested.
+      ENDIF.
+      IF <ls_change>-shortage_pct_delta_available = abap_true.
+        lv_spct_delta_available = abap_true.
+        lv_shortage_pct_deterioration = <ls_change>-shortage_pct_delta.
+      ELSEIF <ls_change>-old_requested > 0
+          AND <ls_change>-new_requested > 0.
+        lv_spct_delta_available = abap_true.
+        lv_shortage_pct_deterioration = lv_new_shortage_pct
+          - lv_old_shortage_pct.
+      ENDIF.
+      IF <ls_change>-change_type = 'R'.
+        lv_shortage_pct = lv_old_shortage_pct.
+        lv_shortage_pct_available = xsdbool(
+          <ls_change>-old_requested > 0 ).
+        lv_shortage = <ls_change>-old_shortage.
+        lv_requested_on = <ls_change>-old_requested_on.
+      ELSE.
+        lv_shortage_pct = lv_new_shortage_pct.
+        lv_shortage_pct_available = xsdbool(
+          <ls_change>-new_requested > 0 ).
+        lv_shortage = <ls_change>-new_shortage.
+        lv_requested_on = <ls_change>-new_requested_on.
+      ENDIF.
+      APPEND VALUE #(
+        shortage_pct_delta_available = lv_spct_delta_available
+        shortage_pct_deterioration   = lv_shortage_pct_deterioration
+        shortage_pct_available       = lv_shortage_pct_available
+        shortage_pct                 = lv_shortage_pct
+        shortage                     = lv_shortage
+        requested_date_available     = xsdbool(
+          lv_requested_on IS NOT INITIAL )
+        requested_on                 = lv_requested_on
+        change_rank                  = COND #( WHEN <ls_change>-change_type = 'C'
+                                               THEN 1
+                                               WHEN <ls_change>-change_type = 'A'
+                                               THEN 2
+                                               WHEN <ls_change>-change_type = 'R'
+                                               THEN 3
+                                               ELSE 4 )
+        allocation_unit              = <ls_change>-allocation_unit
+        order_id                     = <ls_change>-order_id
+        change                       = <ls_change> ) TO lt_sort_lines.
+    ENDLOOP.
+    SORT lt_sort_lines BY shortage_pct_delta_available DESCENDING
+                          shortage_pct_deterioration DESCENDING
+                          shortage_pct_available DESCENDING shortage_pct DESCENDING
+                          shortage DESCENDING requested_date_available DESCENDING
+                          requested_on change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_allocation_compare~reconcile.

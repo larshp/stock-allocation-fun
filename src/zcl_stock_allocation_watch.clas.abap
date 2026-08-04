@@ -13,6 +13,7 @@ CLASS zcl_stock_allocation_watch DEFINITION
         requested_on_to        TYPE d,
         requested_deadline     TYPE d,
         deadline_age_days      TYPE i,
+        deadline_age_available TYPE abap_bool,
         deadline_age_ref       TYPE d,
         requested_sort_date    TYPE d,
         horizon_available      TYPE abap_bool,
@@ -60,15 +61,16 @@ CLASS zcl_stock_allocation_watch DEFINITION
 
     CLASS-METHODS sort_and_limit
       IMPORTING
-        iv_sort_by_shortage TYPE abap_bool
-        iv_sort_by_coverage TYPE abap_bool OPTIONAL
-        iv_sort_by_shrt_pct TYPE abap_bool OPTIONAL
-        iv_sort_by_due      TYPE abap_bool OPTIONAL
-        iv_sort_by_newest   TYPE abap_bool OPTIONAL
-        iv_max              TYPE i
-        iv_offset           TYPE i OPTIONAL
+        iv_sort_by_shortage     TYPE abap_bool
+        iv_sort_by_coverage     TYPE abap_bool OPTIONAL
+        iv_sort_by_shrt_pct     TYPE abap_bool OPTIONAL
+        iv_sort_by_deadline_age TYPE abap_bool OPTIONAL
+        iv_sort_by_due          TYPE abap_bool OPTIONAL
+        iv_sort_by_newest       TYPE abap_bool OPTIONAL
+        iv_max                  TYPE i
+        iv_offset               TYPE i OPTIONAL
       CHANGING
-        ct_alerts           TYPE tt_alerts.
+        ct_alerts               TYPE tt_alerts.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_watch IMPLEMENTATION.
@@ -173,6 +175,12 @@ CLASS zcl_stock_allocation_watch IMPLEMENTATION.
                         start_time ASCENDING run_id ASCENDING.
     ELSEIF iv_sort_by_shrt_pct = abap_true.
       SORT ct_alerts BY shortage_pct_available DESCENDING shortage_pct DESCENDING
+                        shortage DESCENDING age_seconds DESCENDING
+                        start_date ASCENDING start_time ASCENDING
+                        run_id ASCENDING.
+    ELSEIF iv_sort_by_deadline_age = abap_true.
+      SORT ct_alerts BY deadline_age_available DESCENDING
+                        deadline_age_days DESCENDING requested_deadline ASCENDING
                         shortage DESCENDING age_seconds DESCENDING
                         start_date ASCENDING start_time ASCENDING
                         run_id ASCENDING.

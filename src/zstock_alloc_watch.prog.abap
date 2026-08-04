@@ -44,6 +44,7 @@ PARAMETERS p_skip TYPE i.
 PARAMETERS p_shrt AS CHECKBOX.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
+PARAMETERS p_dage AS CHECKBOX.
 PARAMETERS p_due AS CHECKBOX.
 PARAMETERS p_new AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
@@ -336,6 +337,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage'.
   ELSEIF p_spct = abap_true.
     lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_dage = abap_true.
+    lv_sort_mode = 'deadline_age'.
   ELSEIF p_due = abap_true.
     lv_sort_mode = 'requested_date'.
   ELSEIF p_shrt = abap_true.
@@ -840,6 +843,8 @@ START-OF-SELECTION.
         requested_on_to        = <ls_run>-requested_on_to
         requested_deadline     = <ls_run>-requested_deadline
         deadline_age_days      = lv_deadline_age_days
+        deadline_age_available = xsdbool(
+          <ls_run>-requested_deadline IS NOT INITIAL )
         deadline_age_ref       = lv_deadline_reference_date
         horizon_available      = xsdbool(
           <ls_run>-requested_on_from IS NOT INITIAL
@@ -865,15 +870,16 @@ START-OF-SELECTION.
 
   zcl_stock_allocation_watch=>sort_and_limit(
     EXPORTING
-      iv_sort_by_shortage = p_shrt
-      iv_sort_by_coverage = p_cov
-      iv_sort_by_shrt_pct = p_spct
-      iv_sort_by_due      = p_due
-      iv_sort_by_newest   = p_new
-      iv_max              = p_max
-      iv_offset           = p_skip
+      iv_sort_by_shortage     = p_shrt
+      iv_sort_by_coverage     = p_cov
+      iv_sort_by_shrt_pct     = p_spct
+      iv_sort_by_deadline_age = p_dage
+      iv_sort_by_due          = p_due
+      iv_sort_by_newest       = p_new
+      iv_max                  = p_max
+      iv_offset               = p_skip
     CHANGING
-      ct_alerts           = lt_alerts ).
+      ct_alerts               = lt_alerts ).
 
   IF lv_candidate_count > p_skip + lines( lt_alerts ).
     lv_has_more = abap_true.
@@ -1041,7 +1047,7 @@ START-OF-SELECTION.
         && 'newest_deadline_age_days;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 49 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 50 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1156,7 +1162,7 @@ START-OF-SELECTION.
       && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 49 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 50 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1383,7 +1389,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 52 ).
+          iv_value = 53 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1887,7 +1893,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 52 ).
+      iv_value = 53 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'

@@ -13,6 +13,9 @@ PARAMETERS p_until TYPE d.
 PARAMETERS p_dead AS CHECKBOX.
 PARAMETERS p_deadf TYPE d.
 PARAMETERS p_deadt TYPE d.
+PARAMETERS p_dagef TYPE i.
+PARAMETERS p_daget TYPE i.
+PARAMETERS p_daged TYPE d.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_old TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_new TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
@@ -20,6 +23,14 @@ PARAMETERS p_chg TYPE zif_stock_allocation_compare=>ty_change_type.
 PARAMETERS p_reason TYPE zif_stock_allocation_compare=>ty_change_reason.
 PARAMETERS p_all AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
+PARAMETERS p_shrt AS CHECKBOX.
+PARAMETERS p_wors AS CHECKBOX.
+PARAMETERS p_due AS CHECKBOX.
+PARAMETERS p_cov AS CHECKBOX.
+PARAMETERS p_cw AS CHECKBOX.
+PARAMETERS p_spw AS CHECKBOX.
+PARAMETERS p_qd AS CHECKBOX.
+PARAMETERS p_spct AS CHECKBOX.
 PARAMETERS p_skip TYPE i.
 PARAMETERS p_max TYPE i.
 PARAMETERS p_guard AS CHECKBOX.
@@ -65,6 +76,18 @@ START-OF-SELECTION.
   DATA lv_new_audit_coverage_text TYPE string.
   DATA lv_old_audit_shortage_pct_text TYPE string.
   DATA lv_new_audit_shortage_pct_text TYPE string.
+  DATA lv_old_snapshot_coverage_text TYPE string.
+  DATA lv_new_snapshot_coverage_text TYPE string.
+  DATA lv_old_snap_shrt_pct_text TYPE string.
+  DATA lv_new_snap_shrt_pct_text TYPE string.
+  DATA lv_snap_cov_delta_text TYPE string.
+  DATA lv_snap_shrt_delta_text TYPE string.
+  DATA lv_sum_old_cov_text TYPE string.
+  DATA lv_sum_new_cov_text TYPE string.
+  DATA lv_sum_cov_delta_text TYPE string.
+  DATA lv_sum_old_shrt_text TYPE string.
+  DATA lv_sum_new_shrt_text TYPE string.
+  DATA lv_sum_shrt_delta_text TYPE string.
   DATA lv_deadline_reference_date TYPE d.
   DATA lv_old_deadline_age_days TYPE i.
   DATA lv_new_deadline_age_days TYPE i.
@@ -136,9 +159,13 @@ START-OF-SELECTION.
   DATA lv_page_count_text TYPE string.
   DATA lv_last_offset TYPE i.
   DATA lv_last_offset_text TYPE string.
+  DATA lv_compare_offset TYPE i.
+  DATA lv_compare_max_rows TYPE i.
+  DATA lv_sort_start TYPE i.
   DATA lv_filters_applied TYPE abap_bool.
   DATA lt_filter_names TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_filter_names_text TYPE string.
+  DATA lv_sort_mode TYPE string.
   DATA lv_movement_filter TYPE string.
   DATA lv_min_shelf_filter TYPE string.
   DATA lv_overdue_as_of_filter TYPE c LENGTH 10.
@@ -146,6 +173,9 @@ START-OF-SELECTION.
   DATA lv_requested_to_filter TYPE c LENGTH 10.
   DATA lv_deadline_from_filter TYPE c LENGTH 10.
   DATA lv_deadline_to_filter TYPE c LENGTH 10.
+  DATA lv_deadline_age_from_filter TYPE string.
+  DATA lv_deadline_age_to_filter TYPE string.
+  DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
   TRANSLATE p_mvt TO UPPER CASE.
@@ -185,6 +215,22 @@ START-OF-SELECTION.
     lv_deadline_to_filter = 'n/a'.
   ELSE.
     lv_deadline_to_filter = p_deadt.
+  ENDIF.
+  IF p_dagef IS INITIAL.
+    lv_deadline_age_from_filter = 'n/a'.
+  ELSE.
+    lv_deadline_age_from_filter = zcl_stock_csv=>number( p_dagef ).
+  ENDIF.
+  IF p_daget IS INITIAL.
+    lv_deadline_age_to_filter = 'n/a'.
+  ELSE.
+    lv_deadline_age_to_filter = zcl_stock_csv=>number( p_daget ).
+  ENDIF.
+  IF p_daged IS INITIAL.
+    lv_deadline_age_date_filter = 'n/a'.
+  ELSE.
+    lv_deadline_age_date_filter = p_daged.
+    lv_deadline_reference_date = p_daged.
   ENDIF.
   IF p_old = p_new.
     lv_error_message = 'Old and new allocation run IDs must be different'.
@@ -340,6 +386,37 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_dagef IS NOT INITIAL AND p_daget IS NOT INITIAL
+      AND p_dagef > p_daget.
+    lv_error_message =
+      'The deadline age start must not be after the end value'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_daged IS NOT INITIAL
+      AND p_dagef IS INITIAL AND p_daget IS INITIAL.
+    lv_error_message = 'Deadline age date requires an age range'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
   IF p_ovrd = abap_true AND p_guard = abap_true.
     lv_error_message =
       'Overdue-only comparison cannot be combined with reconciliation guard'.
@@ -402,6 +479,10 @@ START-OF-SELECTION.
   IF p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL.
     APPEND 'requested_deadline_range' TO lt_filter_names.
   ENDIF.
+  IF p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
+      OR p_daged IS NOT INITIAL.
+    APPEND 'deadline_age_range' TO lt_filter_names.
+  ENDIF.
   IF p_chg IS NOT INITIAL.
     APPEND 'change_type' TO lt_filter_names.
   ENDIF.
@@ -428,6 +509,34 @@ START-OF-SELECTION.
     lv_filters_applied = abap_false.
     lv_filter_names_text = 'n/a'.
   ENDIF.
+  IF p_wors = abap_true.
+    lv_sort_mode = 'shortage_worsening'.
+  ELSEIF p_cw = abap_true.
+    lv_sort_mode = 'coverage_worsening'.
+  ELSEIF p_spw = abap_true.
+    lv_sort_mode = 'shortage_percentage_worsening'.
+  ELSEIF p_qd = abap_true.
+    lv_sort_mode = 'requested_delta'.
+  ELSEIF p_cov = abap_true.
+    lv_sort_mode = 'coverage'.
+  ELSEIF p_spct = abap_true.
+    lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_due = abap_true.
+    lv_sort_mode = 'requested_date'.
+  ELSEIF p_shrt = abap_true.
+    lv_sort_mode = 'shortage'.
+  ELSE.
+    lv_sort_mode = 'key'.
+  ENDIF.
+  lv_compare_offset = p_skip.
+  lv_compare_max_rows = p_max.
+  IF p_wors = abap_true OR p_cw = abap_true OR p_spw = abap_true
+      OR p_qd = abap_true
+      OR p_cov = abap_true
+      OR p_spct = abap_true
+      OR p_due = abap_true OR p_shrt = abap_true.
+    CLEAR: lv_compare_offset, lv_compare_max_rows.
+  ENDIF.
 
   CLEAR lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
@@ -451,6 +560,21 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'requested_deadline_to'
     iv_value = lv_deadline_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_deadline_age_days'
+    iv_value   = p_dagef
+    iv_text    = lv_deadline_age_from_filter
+    iv_present = xsdbool( p_dagef IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_deadline_age_days'
+    iv_value   = p_daget
+    iv_text    = lv_deadline_age_to_filter
+    iv_present = xsdbool( p_daget IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'deadline_age_as_of'
+    iv_value = lv_deadline_age_date_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
     iv_name  = 'requested_overdue_as_of'
     iv_value = lv_overdue_as_of_filter ) TO lt_filter_value_fields.
@@ -482,25 +606,35 @@ START-OF-SELECTION.
       io_read_authority = lo_authority.
   TRY.
       lt_old = lo_sink->get_allocations(
-        iv_material         = p_matnr
-        iv_plant            = p_werks
-        iv_storage_location = p_lgort
-        iv_batch            = p_charg
-        iv_unit             = p_meins
-        iv_overdue_only     = p_ovrd
-        iv_overdue_date     = p_odate
-        iv_deadline_only    = p_dead
-        iv_run_id           = p_old ).
+        iv_material              = p_matnr
+        iv_plant                 = p_werks
+        iv_storage_location      = p_lgort
+        iv_batch                 = p_charg
+        iv_unit                  = p_meins
+        iv_overdue_only          = p_ovrd
+        iv_overdue_date          = p_odate
+        iv_deadline_only         = p_dead
+        iv_run_deadline_from     = p_deadf
+        iv_run_deadline_to       = p_deadt
+        iv_run_deadline_age_from = p_dagef
+        iv_run_deadline_age_to   = p_daget
+        iv_run_deadline_age_date = p_daged
+        iv_run_id                = p_old ).
       lt_new = lo_sink->get_allocations(
-        iv_material         = p_matnr
-        iv_plant            = p_werks
-        iv_storage_location = p_lgort
-        iv_batch            = p_charg
-        iv_unit             = p_meins
-        iv_overdue_only     = p_ovrd
-        iv_overdue_date     = p_odate
-        iv_deadline_only    = p_dead
-        iv_run_id           = p_new ).
+        iv_material              = p_matnr
+        iv_plant                 = p_werks
+        iv_storage_location      = p_lgort
+        iv_batch                 = p_charg
+        iv_unit                  = p_meins
+        iv_overdue_only          = p_ovrd
+        iv_overdue_date          = p_odate
+        iv_deadline_only         = p_dead
+        iv_run_deadline_from     = p_deadf
+        iv_run_deadline_to       = p_deadt
+        iv_run_deadline_age_from = p_dagef
+        iv_run_deadline_age_to   = p_daget
+        iv_run_deadline_age_date = p_daged
+        iv_run_id                = p_new ).
       lt_old_runs = lo_audit->get_runs(
         iv_material          = p_matnr
         iv_plant             = p_werks
@@ -512,6 +646,9 @@ START-OF-SELECTION.
         iv_deadline_only     = p_dead
         iv_deadline_from     = p_deadf
         iv_deadline_to       = p_deadt
+        iv_deadline_age_from = p_dagef
+        iv_deadline_age_to   = p_daget
+        iv_deadline_age_date = p_daged
         iv_requested_on_from = p_reqf
         iv_requested_on_to   = p_until
         iv_run_id            = p_old ).
@@ -526,6 +663,9 @@ START-OF-SELECTION.
         iv_deadline_only     = p_dead
         iv_deadline_from     = p_deadf
         iv_deadline_to       = p_deadt
+        iv_deadline_age_from = p_dagef
+        iv_deadline_age_to   = p_daget
+        iv_deadline_age_date = p_daged
         iv_requested_on_from = p_reqf
         iv_requested_on_to   = p_until
         iv_run_id            = p_new ).
@@ -535,6 +675,8 @@ START-OF-SELECTION.
         IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
             OR p_ovrd = abap_true OR p_dead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
+            OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
+            OR p_daged IS NOT INITIAL
             OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
           lo_missing_run_error->message =
             'Old allocation run does not match the policy filters'.
@@ -549,6 +691,8 @@ START-OF-SELECTION.
         IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
             OR p_ovrd = abap_true OR p_dead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
+            OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
+            OR p_daged IS NOT INITIAL
             OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
           lo_missing_run_error->message =
             'New allocation run does not match the policy filters'.
@@ -611,8 +755,8 @@ START-OF-SELECTION.
           iv_change_type       = p_chg
           iv_reason            = p_reason
           iv_include_unchanged = p_all
-          iv_offset            = p_skip
-          iv_max_rows          = p_max
+          iv_offset            = lv_compare_offset
+          iv_max_rows          = lv_compare_max_rows
         IMPORTING
           es_summary           = ls_summary
           ev_total_rows        = lv_total_rows ).
@@ -634,6 +778,121 @@ START-OF-SELECTION.
       ENDIF.
       RETURN.
   ENDTRY.
+
+  IF p_wors = abap_true.
+    lt_changes = lo_compare->sort_by_shortage_worsening( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_cw = abap_true.
+    lt_changes = lo_compare->sort_by_coverage_worsening( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_spw = abap_true.
+    lt_changes = lo_compare->sort_by_spct_worsening(
+      lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_qd = abap_true.
+    lt_changes = lo_compare->sort_by_requested_delta( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_cov = abap_true.
+    lt_changes = lo_compare->sort_by_coverage( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_spct = abap_true.
+    lt_changes = lo_compare->sort_by_shortage_percentage( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_due = abap_true.
+    lt_changes = lo_compare->sort_by_requested_date( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_shrt = abap_true.
+    lt_changes = lo_compare->sort_by_shortage( lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ENDIF.
 
   IF p_max > 0 AND p_skip + lines( lt_changes ) < lv_total_rows.
     lv_has_more = abap_true.
@@ -942,13 +1201,44 @@ START-OF-SELECTION.
   ENDIF.
 
   IF p_sum = abap_true.
+    lv_sum_old_cov_text = 'n/a'.
+    lv_sum_new_cov_text = 'n/a'.
+    lv_sum_cov_delta_text = 'n/a'.
+    lv_sum_old_shrt_text = 'n/a'.
+    lv_sum_new_shrt_text = 'n/a'.
+    lv_sum_shrt_delta_text = 'n/a'.
+    IF ls_summary-old_coverage_available = abap_true.
+      lv_sum_old_cov_text = zcl_stock_csv=>number(
+        ls_summary-old_coverage ).
+    ENDIF.
+    IF ls_summary-new_coverage_available = abap_true.
+      lv_sum_new_cov_text = zcl_stock_csv=>number(
+        ls_summary-new_coverage ).
+    ENDIF.
+    IF ls_summary-coverage_delta_available = abap_true.
+      lv_sum_cov_delta_text = zcl_stock_csv=>number(
+        ls_summary-coverage_delta ).
+    ENDIF.
+    IF ls_summary-old_shortage_pct_available = abap_true.
+      lv_sum_old_shrt_text = zcl_stock_csv=>number(
+        ls_summary-old_shortage_pct ).
+    ENDIF.
+    IF ls_summary-new_shortage_pct_available = abap_true.
+      lv_sum_new_shrt_text = zcl_stock_csv=>number(
+        ls_summary-new_shortage_pct ).
+    ENDIF.
+    IF ls_summary-shortage_pct_delta_available = abap_true.
+      lv_sum_shrt_delta_text = zcl_stock_csv=>number(
+        ls_summary-shortage_pct_delta ).
+    ENDIF.
     IF p_csv = abap_true.
       WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;'
-        && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+        && 'material;plant;storage_location;batch;unit;filters_applied;filters;sort_mode;'
         && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
         && 'requested_overdue_as_of_filter;requested_on_from_filter;'
         && 'requested_on_to_filter;requested_deadline_only;requested_deadline_from_filter;'
-        && 'requested_deadline_to_filter;'
+        && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
+        && 'deadline_age_date_filter;'
         && 'change_type;reason_filter;'
         && 'include_unchanged;'
         && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
@@ -977,10 +1267,12 @@ START-OF-SELECTION.
         && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
         && 'new_snapshot_shortage;unit;mixed_units;total_rows;returned_rows;offset;max_rows;added_rows;removed_rows;'
         && 'changed_rows;unchanged_rows;old_requested;new_requested;delta_requested;old_allocated;new_allocated;'
-        && 'delta_allocated;old_shortage;new_shortage;delta_shortage;filter_values;has_more;next_offset;'
+        && 'delta_allocated;old_shortage;new_shortage;delta_shortage;old_coverage_pct;'
+        && 'new_coverage_pct;coverage_delta_pct;old_shortage_pct;new_shortage_pct;'
+        && 'shortage_pct_delta;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 39 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -996,6 +1288,7 @@ START-OF-SELECTION.
         APPEND 'false' TO lt_csv_fields.
       ENDIF.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
@@ -1005,6 +1298,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_chg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_all ) TO lt_csv_fields.
@@ -1162,6 +1458,12 @@ START-OF-SELECTION.
         APPEND zcl_stock_csv=>number( ls_summary-new_shortage ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>number( ls_summary-delta_shortage ) TO lt_csv_fields.
       ENDIF.
+      APPEND lv_sum_old_cov_text TO lt_csv_fields.
+      APPEND lv_sum_new_cov_text TO lt_csv_fields.
+      APPEND lv_sum_cov_delta_text TO lt_csv_fields.
+      APPEND lv_sum_old_shrt_text TO lt_csv_fields.
+      APPEND lv_sum_new_shrt_text TO lt_csv_fields.
+      APPEND lv_sum_shrt_delta_text TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
       WRITE: / lv_csv_line.
       RETURN.
@@ -1302,11 +1604,47 @@ START-OF-SELECTION.
           iv_name  = 'delta_shortage'
           iv_value = ls_summary-delta_shortage ) TO lt_summary_json_fields.
       ENDIF.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_coverage_pct'
+        iv_value   = ls_summary-old_coverage
+        iv_text    = lv_sum_old_cov_text
+        iv_present = ls_summary-old_coverage_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_coverage_pct'
+        iv_value   = ls_summary-new_coverage
+        iv_text    = lv_sum_new_cov_text
+        iv_present = ls_summary-new_coverage_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'coverage_delta_pct'
+        iv_value   = ls_summary-coverage_delta
+        iv_text    = lv_sum_cov_delta_text
+        iv_present = ls_summary-coverage_delta_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_shortage_pct'
+        iv_value   = ls_summary-old_shortage_pct
+        iv_text    = lv_sum_old_shrt_text
+        iv_present = ls_summary-old_shortage_pct_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_shortage_pct'
+        iv_value   = ls_summary-new_shortage_pct
+        iv_text    = lv_sum_new_shrt_text
+        iv_present = ls_summary-new_shortage_pct_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'shortage_pct_delta'
+        iv_value   = ls_summary-shortage_pct_delta
+        iv_text    = lv_sum_shrt_delta_text
+        iv_present = ls_summary-shortage_pct_delta_available
+        iv_typed   = p_typed ) TO lt_summary_json_fields.
 
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 39 ) TO lt_json_fields.
+        iv_value = 53 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -1349,6 +1687,9 @@ START-OF-SELECTION.
         iv_name   = 'filters'
         it_values = lt_filter_names ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'sort_mode'
+        iv_value = lv_sort_mode ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
         iv_name  = 'movement_type_filter'
         iv_value = lv_movement_filter ) TO lt_json_fields.
       IF p_typed = abap_true.
@@ -1384,6 +1725,15 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'requested_deadline_to_filter'
         iv_value = lv_deadline_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_age_from_filter'
+        iv_value = lv_deadline_age_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_age_to_filter'
+        iv_value = lv_deadline_age_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_age_date_filter'
+        iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'change_type'
         iv_value = p_chg ) TO lt_json_fields.
@@ -1928,6 +2278,8 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>null_property(
           iv_name = 'last_offset' ) TO lt_json_fields.
       ENDIF.
+      CONCATENATE LINES OF lt_summary_json_fields INTO lv_summary_json_fields
+        SEPARATED BY ','.
       IF p_meta = abap_true.
         CONCATENATE '"summary":{' lv_summary_json_fields '}'
           INTO lv_json_line.
@@ -1950,7 +2302,10 @@ START-OF-SELECTION.
       && 'old_sales_document_type;new_sales_document_type;old_sales_item;new_sales_item;old_schedule_line;'
       && 'new_schedule_line;old_order_unit;new_order_unit;old_requested_on;new_requested_on;old_priority;'
       && 'new_priority;old_status;new_status;old_requested;new_requested;delta_requested;old_allocated;'
-      && 'new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage;old_reservation_id;'
+      && 'new_allocated;delta_allocated;old_shortage;new_shortage;delta_shortage;'
+      && 'old_snapshot_coverage_pct;new_snapshot_coverage_pct;'
+      && 'old_snapshot_shortage_pct;new_snapshot_shortage_pct;'
+      && 'snapshot_coverage_delta_pct;snapshot_shortage_pct_delta;old_reservation_id;'
       && 'new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;'
       && 'new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;'
       && 'old_run_strategy;new_run_strategy;old_movement_type;new_movement_type;old_min_shelf_life;'
@@ -1977,16 +2332,17 @@ START-OF-SELECTION.
       && 'new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;'
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
       && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
-      && 'material;plant;storage_location;batch;unit;filters_applied;filters;'
+      && 'material;plant;storage_location;batch;unit;filters_applied;filters;sort_mode;'
       && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
       && 'requested_overdue_as_of_filter;requested_on_from_filter;'
       && 'requested_on_to_filter;requested_deadline_only;requested_deadline_from_filter;'
-      && 'requested_deadline_to_filter;'
+      && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
+      && 'deadline_age_date_filter;'
       && 'total_rows;offset;max_rows;filter_values;has_more;next_offset;'
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 39 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -2032,6 +2388,44 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( <ls_change>-old_shortage ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_change>-new_shortage ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_change>-delta_shortage ) TO lt_csv_fields.
+      lv_old_snapshot_coverage_text = 'n/a'.
+      lv_new_snapshot_coverage_text = 'n/a'.
+      lv_old_snap_shrt_pct_text = 'n/a'.
+      lv_new_snap_shrt_pct_text = 'n/a'.
+      IF <ls_change>-old_coverage_available = abap_true.
+        lv_old_snapshot_coverage_text = zcl_stock_csv=>number(
+          <ls_change>-old_coverage ).
+      ENDIF.
+      IF <ls_change>-new_coverage_available = abap_true.
+        lv_new_snapshot_coverage_text = zcl_stock_csv=>number(
+          <ls_change>-new_coverage ).
+      ENDIF.
+      IF <ls_change>-old_shortage_pct_available = abap_true.
+        lv_old_snap_shrt_pct_text = zcl_stock_csv=>number(
+          <ls_change>-old_shortage_pct ).
+      ENDIF.
+      IF <ls_change>-new_shortage_pct_available = abap_true.
+        lv_new_snap_shrt_pct_text = zcl_stock_csv=>number(
+          <ls_change>-new_shortage_pct ).
+      ENDIF.
+      APPEND lv_old_snapshot_coverage_text TO lt_csv_fields.
+      APPEND lv_new_snapshot_coverage_text TO lt_csv_fields.
+      APPEND lv_old_snap_shrt_pct_text TO lt_csv_fields.
+      APPEND lv_new_snap_shrt_pct_text TO lt_csv_fields.
+      IF <ls_change>-coverage_delta_available = abap_true.
+        lv_snap_cov_delta_text = zcl_stock_csv=>number(
+          <ls_change>-coverage_delta ).
+      ELSE.
+        lv_snap_cov_delta_text = 'n/a'.
+      ENDIF.
+      IF <ls_change>-shortage_pct_delta_available = abap_true.
+        lv_snap_shrt_delta_text = zcl_stock_csv=>number(
+          <ls_change>-shortage_pct_delta ).
+      ELSE.
+        lv_snap_shrt_delta_text = 'n/a'.
+      ENDIF.
+      APPEND lv_snap_cov_delta_text TO lt_csv_fields.
+      APPEND lv_snap_shrt_delta_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-old_reservation_id ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-new_reservation_id ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote(
@@ -2169,6 +2563,7 @@ START-OF-SELECTION.
         APPEND 'false' TO lt_csv_fields.
       ENDIF.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
@@ -2176,6 +2571,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
@@ -2198,7 +2596,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 39 ) NO-GAP.
+        iv_value = 53 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -2240,6 +2638,10 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>string_array_property(
         iv_name   = 'filters'
         it_values = lt_filter_names ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'sort_mode'
+        iv_value = lv_sort_mode ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'movement_type_filter'
@@ -2285,6 +2687,18 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'requested_deadline_to_filter'
         iv_value = lv_deadline_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'deadline_age_from_filter'
+        iv_value = lv_deadline_age_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'deadline_age_to_filter'
+        iv_value = lv_deadline_age_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'deadline_age_date_filter'
+        iv_value = lv_deadline_age_date_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'has_more'
@@ -3102,6 +3516,74 @@ START-OF-SELECTION.
           iv_name  = 'delta_shortage'
           iv_value = <ls_change>-delta_shortage ) TO lt_json_fields.
       ENDIF.
+      lv_old_snapshot_coverage_text = 'n/a'.
+      lv_new_snapshot_coverage_text = 'n/a'.
+      lv_old_snap_shrt_pct_text = 'n/a'.
+      lv_new_snap_shrt_pct_text = 'n/a'.
+      IF <ls_change>-old_coverage_available = abap_true.
+        lv_old_snapshot_coverage_text = zcl_stock_csv=>number(
+          <ls_change>-old_coverage ).
+      ENDIF.
+      IF <ls_change>-new_coverage_available = abap_true.
+        lv_new_snapshot_coverage_text = zcl_stock_csv=>number(
+          <ls_change>-new_coverage ).
+      ENDIF.
+      IF <ls_change>-old_shortage_pct_available = abap_true.
+        lv_old_snap_shrt_pct_text = zcl_stock_csv=>number(
+          <ls_change>-old_shortage_pct ).
+      ENDIF.
+      IF <ls_change>-new_shortage_pct_available = abap_true.
+        lv_new_snap_shrt_pct_text = zcl_stock_csv=>number(
+          <ls_change>-new_shortage_pct ).
+      ENDIF.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_snapshot_coverage_pct'
+        iv_value   = <ls_change>-old_coverage
+        iv_text    = lv_old_snapshot_coverage_text
+        iv_present = <ls_change>-old_coverage_available
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_snapshot_coverage_pct'
+        iv_value   = <ls_change>-new_coverage
+        iv_text    = lv_new_snapshot_coverage_text
+        iv_present = <ls_change>-new_coverage_available
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_snapshot_shortage_pct'
+        iv_value   = <ls_change>-old_shortage_pct
+        iv_text    = lv_old_snap_shrt_pct_text
+        iv_present = <ls_change>-old_shortage_pct_available
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_snapshot_shortage_pct'
+        iv_value   = <ls_change>-new_shortage_pct
+        iv_text    = lv_new_snap_shrt_pct_text
+        iv_present = <ls_change>-new_shortage_pct_available
+        iv_typed   = p_typed ) TO lt_json_fields.
+      IF <ls_change>-coverage_delta_available = abap_true.
+        lv_snap_cov_delta_text = zcl_stock_csv=>number(
+          <ls_change>-coverage_delta ).
+      ELSE.
+        lv_snap_cov_delta_text = 'n/a'.
+      ENDIF.
+      IF <ls_change>-shortage_pct_delta_available = abap_true.
+        lv_snap_shrt_delta_text = zcl_stock_csv=>number(
+          <ls_change>-shortage_pct_delta ).
+      ELSE.
+        lv_snap_shrt_delta_text = 'n/a'.
+      ENDIF.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'snapshot_coverage_delta_pct'
+        iv_value   = <ls_change>-coverage_delta
+        iv_text    = lv_snap_cov_delta_text
+        iv_present = <ls_change>-coverage_delta_available
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'snapshot_shortage_pct_delta'
+        iv_value   = <ls_change>-shortage_pct_delta
+        iv_text    = lv_snap_shrt_delta_text
+        iv_present = <ls_change>-shortage_pct_delta_available
+        iv_typed   = p_typed ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'old_status'
         iv_value = <ls_change>-old_status ) TO lt_json_fields.
@@ -3166,6 +3648,7 @@ START-OF-SELECTION.
     WRITE: / 'Reason filter:', p_reason.
     WRITE: / 'Filters applied:', lv_filters_applied.
     WRITE: / 'Filters:', lv_filter_names_text.
+    WRITE: / 'Sort mode:', lv_sort_mode.
     WRITE: / 'Movement type filter:', lv_movement_filter.
     WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
     WRITE: / 'Overdue-only filter:', p_ovrd.
@@ -3282,6 +3765,7 @@ START-OF-SELECTION.
       WRITE: / 'Unit: mixed',
         'Mixed units:', ls_summary-mixed_units.
       WRITE: / 'Quantity totals: n/a (mixed allocation units).' .
+      WRITE: / 'Percentage totals: n/a (mixed allocation units).' .
     ELSE.
       WRITE: / 'Unit:', ls_summary-unit,
         'Mixed units:', ls_summary-mixed_units.
@@ -3291,6 +3775,10 @@ START-OF-SELECTION.
         ls_summary-new_allocated, ls_summary-delta_allocated.
       WRITE: / 'Shortage old/new/delta:', ls_summary-old_shortage,
         ls_summary-new_shortage, ls_summary-delta_shortage.
+      WRITE: / 'Coverage pct old/new/delta:', lv_sum_old_cov_text,
+        lv_sum_new_cov_text, lv_sum_cov_delta_text.
+      WRITE: / 'Shortage pct old/new/delta:', lv_sum_old_shrt_text,
+        lv_sum_new_shrt_text, lv_sum_shrt_delta_text.
     ENDIF.
     WRITE: / 'Offset:', p_skip, 'Max rows:', p_max.
     WRITE: / 'Has more:', lv_has_more, 'Next offset:', lv_next_offset_text.
@@ -3311,6 +3799,7 @@ START-OF-SELECTION.
   WRITE: / 'Reason filter:', p_reason.
   WRITE: / 'Filters applied:', lv_filters_applied.
   WRITE: / 'Filters:', lv_filter_names_text.
+  WRITE: / 'Sort mode:', lv_sort_mode.
   WRITE: / 'Movement type filter:', lv_movement_filter.
   WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
   WRITE: / 'Overdue-only filter:', p_ovrd.
@@ -3434,8 +3923,43 @@ START-OF-SELECTION.
   ENDIF.
   WRITE: / 'Type', 8 'Unit', 15 'Order', 38 'Reasons', 80 'Old status',
     92 'New status', 104 'Old alloc', 118 'New alloc', 132 'Delta alloc',
-    148 'Old shortage', 164 'New shortage', 180 'Delta shortage'.
+    148 'Old shortage', 164 'New shortage', 180 'Delta shortage',
+    196 'Old coverage %', 214 'New coverage %',
+    232 'Old shortage %', 252 'New shortage %',
+    272 'Coverage delta %', 292 'Shortage delta %'.
   LOOP AT lt_changes ASSIGNING <ls_change>.
+    lv_old_snapshot_coverage_text = 'n/a'.
+    lv_new_snapshot_coverage_text = 'n/a'.
+    lv_old_snap_shrt_pct_text = 'n/a'.
+    lv_new_snap_shrt_pct_text = 'n/a'.
+    IF <ls_change>-old_coverage_available = abap_true.
+      lv_old_snapshot_coverage_text = zcl_stock_csv=>number(
+        <ls_change>-old_coverage ).
+    ENDIF.
+    IF <ls_change>-new_coverage_available = abap_true.
+      lv_new_snapshot_coverage_text = zcl_stock_csv=>number(
+        <ls_change>-new_coverage ).
+    ENDIF.
+    IF <ls_change>-old_shortage_pct_available = abap_true.
+      lv_old_snap_shrt_pct_text = zcl_stock_csv=>number(
+        <ls_change>-old_shortage_pct ).
+    ENDIF.
+    IF <ls_change>-new_shortage_pct_available = abap_true.
+      lv_new_snap_shrt_pct_text = zcl_stock_csv=>number(
+        <ls_change>-new_shortage_pct ).
+    ENDIF.
+    IF <ls_change>-coverage_delta_available = abap_true.
+      lv_snap_cov_delta_text = zcl_stock_csv=>number(
+        <ls_change>-coverage_delta ).
+    ELSE.
+      lv_snap_cov_delta_text = 'n/a'.
+    ENDIF.
+    IF <ls_change>-shortage_pct_delta_available = abap_true.
+      lv_snap_shrt_delta_text = zcl_stock_csv=>number(
+        <ls_change>-shortage_pct_delta ).
+    ELSE.
+      lv_snap_shrt_delta_text = 'n/a'.
+    ENDIF.
     WRITE: / <ls_change>-change_type,
       8 <ls_change>-allocation_unit,
       15 <ls_change>-order_id,
@@ -3447,5 +3971,11 @@ START-OF-SELECTION.
       132 <ls_change>-delta_allocated,
       148 <ls_change>-old_shortage,
       164 <ls_change>-new_shortage,
-      180 <ls_change>-delta_shortage.
+      180 <ls_change>-delta_shortage,
+      196 lv_old_snapshot_coverage_text,
+      214 lv_new_snapshot_coverage_text,
+      232 lv_old_snap_shrt_pct_text,
+      252 lv_new_snap_shrt_pct_text,
+      272 lv_snap_cov_delta_text,
+      292 lv_snap_shrt_delta_text.
   ENDLOOP.

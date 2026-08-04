@@ -5,6 +5,7 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_shortage_pct FOR TESTING.
+    METHODS sorts_by_deadline_age FOR TESTING.
     METHODS sorts_by_requested_date FOR TESTING.
     METHODS summarizes_units FOR TESTING.
     METHODS sorts_by_newest FOR TESTING.
@@ -237,6 +238,53 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_alerts[ 3 ]-run_id
       exp = 'NA' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_deadline_age.
+    DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
+
+    APPEND VALUE #( run_id                 = 'FUTURE'
+                    requested_deadline     = '20260820'
+                    deadline_age_days      = -5
+                    deadline_age_available = abap_true
+                    shortage               = '9'
+                    age_seconds            = 900 ) TO lt_alerts.
+    APPEND VALUE #( run_id                 = 'OVERDUE'
+                    requested_deadline     = '20260810'
+                    deadline_age_days      = 5
+                    deadline_age_available = abap_true
+                    shortage               = '1'
+                    age_seconds            = 3600 ) TO lt_alerts.
+    APPEND VALUE #( run_id                 = 'DUE'
+                    requested_deadline     = '20260815'
+                    deadline_age_days      = 0
+                    deadline_age_available = abap_true
+                    shortage               = '3'
+                    age_seconds            = 1800 ) TO lt_alerts.
+    APPEND VALUE #( run_id      = 'NO_DEADLINE'
+                    shortage    = '99'
+                    age_seconds = 7200 ) TO lt_alerts.
+
+    zcl_stock_allocation_watch=>sort_and_limit(
+      EXPORTING
+        iv_sort_by_shortage     = abap_false
+        iv_sort_by_deadline_age = abap_true
+        iv_max                  = 0
+      CHANGING
+      ct_alerts                 = lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 1 ]-run_id
+      exp = 'OVERDUE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 2 ]-run_id
+      exp = 'DUE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 3 ]-run_id
+      exp = 'FUTURE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 4 ]-run_id
+      exp = 'NO_DEADLINE' ).
   ENDMETHOD.
 
   METHOD sorts_by_requested_date.

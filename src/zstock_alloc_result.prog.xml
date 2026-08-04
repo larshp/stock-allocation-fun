@@ -383,6 +383,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DAGE</KEY>
+     <ENTRY>Sort by deadline age</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SUM</KEY>
      <ENTRY>Summary only</ENTRY>
      <LENGTH>18</LENGTH>

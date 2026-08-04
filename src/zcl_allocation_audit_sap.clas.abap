@@ -965,19 +965,22 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~get_runs.
     TYPES:
       BEGIN OF ty_coverage_run,
-        coverage         TYPE zif_allocation_audit=>ty_coverage,
-        shortage_pct     TYPE zif_allocation_audit=>ty_coverage,
-        shortage         TYPE zif_stock_allocation=>ty_quantity,
-        horizon          TYPE abap_bool,
-        requested_from   TYPE d,
-        requested_to     TYPE d,
-        sort_date        TYPE d,
-        start_date       TYPE d,
-        start_time       TYPE t,
-        run_id           TYPE zif_allocation_audit=>ty_run_id,
-        status_rank      TYPE i,
-        duration_seconds TYPE i,
-        run              TYPE zif_allocation_audit=>ty_run,
+        coverage               TYPE zif_allocation_audit=>ty_coverage,
+        shortage_pct           TYPE zif_allocation_audit=>ty_coverage,
+        shortage               TYPE zif_stock_allocation=>ty_quantity,
+        deadline_age_available TYPE abap_bool,
+        deadline_age_days      TYPE i,
+        deadline_date          TYPE d,
+        horizon                TYPE abap_bool,
+        requested_from         TYPE d,
+        requested_to           TYPE d,
+        sort_date              TYPE d,
+        start_date             TYPE d,
+        start_time             TYPE t,
+        run_id                 TYPE zif_allocation_audit=>ty_run_id,
+        status_rank            TYPE i,
+        duration_seconds       TYPE i,
+        run                    TYPE zif_allocation_audit=>ty_run,
       END OF ty_coverage_run.
     DATA lt_filtered TYPE zif_allocation_audit=>tt_runs.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
@@ -1550,6 +1553,34 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       CLEAR rt_runs.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_run>).
         APPEND <ls_shortage_pct_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_deadline_age = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        CLEAR lv_deadline_age_days.
+        IF <ls_run>-requested_deadline IS NOT INITIAL.
+          lv_deadline_age_days = lv_deadline_age_date
+            - <ls_run>-requested_deadline.
+        ENDIF.
+        APPEND VALUE #(
+          deadline_age_available = xsdbool(
+            <ls_run>-requested_deadline IS NOT INITIAL )
+          deadline_age_days      = lv_deadline_age_days
+          deadline_date          = <ls_run>-requested_deadline
+          shortage               = <ls_run>-shortage
+          start_date             = <ls_run>-start_date
+          start_time             = <ls_run>-start_time
+          run_id                 = <ls_run>-run_id
+          run                    = <ls_run> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY deadline_age_available DESCENDING
+                                 deadline_age_days DESCENDING
+                                 deadline_date ASCENDING
+                                 shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_deadline_age_run>).
+        APPEND <ls_deadline_age_run>-run TO rt_runs.
       ENDLOOP.
     ELSEIF iv_sort_by_due = abap_true.
       LOOP AT rt_runs ASSIGNING <ls_run>.

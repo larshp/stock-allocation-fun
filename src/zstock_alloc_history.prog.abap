@@ -47,6 +47,7 @@ PARAMETERS p_spf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_spt TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
+PARAMETERS p_dage AS CHECKBOX.
 PARAMETERS p_due AS CHECKBOX.
 PARAMETERS p_sstat AS CHECKBOX.
 PARAMETERS p_tdur AS CHECKBOX.
@@ -795,62 +796,63 @@ START-OF-SELECTION.
   TRY.
       lt_runs = lo_audit->get_runs(
         EXPORTING
-        iv_material          = p_matnr
-        iv_plant             = p_werks
-        iv_storage_location  = p_lgort
-        iv_batch             = p_charg
-        iv_movement_type     = p_mvt
-        iv_min_shelf_life    = p_shelf
-        iv_requested_on_from = p_reqf
-        iv_requested_on_to   = p_until
-        iv_requested_overdue = p_ovrd
-        iv_overdue_date      = p_odate
-        iv_deadline_only     = p_dead
-        iv_deadline_from     = p_deadf
-        iv_deadline_to       = p_deadt
-        iv_deadline_age_from = p_dagef
-        iv_deadline_age_to   = p_daget
-        iv_deadline_age_date = p_daged
-        iv_run_id            = p_runid
-        iv_run_id_contains   = p_rid
-        iv_unit              = p_meins
-        iv_start_date_from   = p_from
-        iv_start_date_to     = p_to
-        iv_finish_date_from  = p_ffrom
-        iv_finish_date_to    = p_fto
-        iv_shortage_from     = p_shf
-        iv_shortage_to       = p_sht
-        iv_allocated_from    = p_af
-        iv_allocated_to      = p_at
-        iv_available_from    = p_avf
-        iv_available_to      = p_avt
-        iv_requested_from    = p_qf
-        iv_requested_to      = p_qt
-        iv_demand_from       = p_dfrom
-        iv_demand_to         = p_dto
-        iv_duration_from     = p_tfrom
-        iv_duration_to       = p_tto
-        iv_stale_seconds     = p_stale
-        iv_running_age_to    = p_age_to
-        iv_sort_by_shortage  = p_shrt
-        iv_coverage_from     = p_covf
-        iv_coverage_to       = p_covt
-        iv_shortage_pct_from = p_spf
-        iv_shortage_pct_to   = p_spt
-        iv_sort_by_coverage  = p_cov
-        iv_sort_by_shrt_pct  = p_spct
-        iv_sort_by_due       = p_due
-        iv_sort_by_status    = p_sstat
-        iv_sort_by_duration  = p_tdur
-        iv_max_rows          = lv_query_max
-        iv_status            = p_stat
-        iv_strategy          = p_strat
-        iv_legacy_strategy   = p_legacy
-        iv_message_contains  = p_msg
-        iv_message_only      = p_monly
-        iv_offset            = p_skip
+        iv_material             = p_matnr
+        iv_plant                = p_werks
+        iv_storage_location     = p_lgort
+        iv_batch                = p_charg
+        iv_movement_type        = p_mvt
+        iv_min_shelf_life       = p_shelf
+        iv_requested_on_from    = p_reqf
+        iv_requested_on_to      = p_until
+        iv_requested_overdue    = p_ovrd
+        iv_overdue_date         = p_odate
+        iv_deadline_only        = p_dead
+        iv_deadline_from        = p_deadf
+        iv_deadline_to          = p_deadt
+        iv_deadline_age_from    = p_dagef
+        iv_deadline_age_to      = p_daget
+        iv_deadline_age_date    = p_daged
+        iv_run_id               = p_runid
+        iv_run_id_contains      = p_rid
+        iv_unit                 = p_meins
+        iv_start_date_from      = p_from
+        iv_start_date_to        = p_to
+        iv_finish_date_from     = p_ffrom
+        iv_finish_date_to       = p_fto
+        iv_shortage_from        = p_shf
+        iv_shortage_to          = p_sht
+        iv_allocated_from       = p_af
+        iv_allocated_to         = p_at
+        iv_available_from       = p_avf
+        iv_available_to         = p_avt
+        iv_requested_from       = p_qf
+        iv_requested_to         = p_qt
+        iv_demand_from          = p_dfrom
+        iv_demand_to            = p_dto
+        iv_duration_from        = p_tfrom
+        iv_duration_to          = p_tto
+        iv_stale_seconds        = p_stale
+        iv_running_age_to       = p_age_to
+        iv_sort_by_shortage     = p_shrt
+        iv_coverage_from        = p_covf
+        iv_coverage_to          = p_covt
+        iv_shortage_pct_from    = p_spf
+        iv_shortage_pct_to      = p_spt
+        iv_sort_by_coverage     = p_cov
+        iv_sort_by_shrt_pct     = p_spct
+        iv_sort_by_deadline_age = p_dage
+        iv_sort_by_due          = p_due
+        iv_sort_by_status       = p_sstat
+        iv_sort_by_duration     = p_tdur
+        iv_max_rows             = lv_query_max
+        iv_status               = p_stat
+        iv_strategy             = p_strat
+        iv_legacy_strategy      = p_legacy
+        iv_message_contains     = p_msg
+        iv_message_only         = p_monly
+        iv_offset               = p_skip
         IMPORTING
-          ev_total_rows      = lv_total_rows ).
+          ev_total_rows         = lv_total_rows ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF p_json = abap_true.
         IF lo_error->message IS INITIAL.
@@ -980,6 +982,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage'.
   ELSEIF p_spct = abap_true.
     lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_dage = abap_true.
+    lv_sort_mode = 'deadline_age'.
   ELSEIF p_due = abap_true.
     lv_sort_mode = 'requested_date'.
   ELSEIF p_sstat = abap_true.
@@ -1740,7 +1744,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 35 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 36 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1984,7 +1988,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 22 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 23 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -2181,7 +2185,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 35 ) TO lt_json_fields.
+          iv_value = 36 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -3119,7 +3123,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 35 ) TO lt_json_fields.
+        iv_value = 36 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3334,7 +3338,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 22 ) TO lt_json_fields.
+        iv_value = 23 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3548,7 +3552,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 22 ) TO lt_json_fields.
+          iv_value = 23 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.

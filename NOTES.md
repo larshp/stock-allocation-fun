@@ -1,5 +1,80 @@
 # Progress notes
 
+- Added automatic SAP table-stub discovery for the production stock and order SQL sources; every `FROM`/`JOIN` dependency must now have a matching table descriptor and identity in `sap_stubs`.
+
+- Extended the repository contract to discover every production `CALL FUNCTION` dependency and require a matching installed function-module implementation in the SAP stub harness.
+
+- Added abapGit metadata for the four SAP authorization boundary classes/interfaces and strengthened the repository contract to require matching metadata, serializer type, and object identity for every global class, interface, and executable program.
+
+- Strengthened the executable-report contract: every report now has XML program identity matching its ABAP name and nonempty SAP selection text for every declared parameter, in addition to ordered parameter/XML parity.
+
+- Extended comparison schema `94` with common `p_rageto` and side-specific `p_oragto`/`p_nragto` maximum reservation-age bounds. The effective inclusive age windows now reach both old/new snapshot reads, with validation and human/CSV/typed JSON provenance covered by the report contract.
+
+- Added a maximum reservation-age bound `ZSTOCK_ALLOC_RESULT-p_rageto`. The sink now applies inclusive minimum/maximum reservation-age windows before pagination, validates negative/reversed bounds, and exports the maximum bound; result detail/summary schemas advance to `35`/`37` with ABAP Unit and contract coverage.
+
+- Hardened allocation transaction boundaries. The service now commits the running audit record before reservation/snapshot side effects, exposes an injectable rollback operation backed by `BAPI_TRANSACTION_ROLLBACK`, and rolls back failed snapshot persistence before finalizing the error row; regression and repository-contract tests cover the orchestration and SAP adapter.
+
+- Hardened audit retention persistence. Purge now treats unexpected snapshot-delete return codes as failures, verifies each selected run header is absent after deletion, rolls back multi-row purge work before raising, and preserves rollback diagnostics; the normal purge suite and repository contract cover the boundary.
+
+- Added an injectable/default unit-conversion read-authority port. `ZCL_UNIT_CONVERSION_SAP` now checks activity `03` for `MARA` and `MARM` before calling `MD_CONVERT_MATERIAL_UNIT`; the `MARM` SAP stub, authorization regression, and repository contract are included.
+
+- Added injectable `S_TABU_NAM` activity-03 authorization to the direct SAP stock and sales-order readers. Default source authorization now covers `MARA`/`MARD` and, only for batch reads, `MCHB`/`MCHA`, plus `VBAK`/`VBAP`/`VBEP`; the allocation report shares one source-read port across both readers, and regression/repository-contract tests prevent callers from bypassing the boundary.
+
+- Added run-level reservation protection to purge preview and execution. Any finalized audit run with a nonblank snapshot `reservation_id` is retained so the SAP reservation cannot be orphaned; protected counts and CSV/JSON schemas now use `20`/`21` and `22`/`23`, with ABAP Unit and contract coverage.
+
+- Added `records_incomplete_cleanup` to the allocation-service ABAP Unit suite. A deterministic reservation double now proves that a failed cleanup persists partial audit status and preserves the cleanup diagnostic; the transaction-failure fixture also cleans its temporary snapshot rows and now includes the missing `VBAK` header.
+
+- Added `test/repository-contract.mjs` to continuously verify the SAP standard stub inventory, exact `sap_stubs` inclusion in abaplint/transpiler, installed `open-abap-core` source paths, Z-prefixed custom-object boundaries, required lint rules, BAPI-stub installation, and default test-pipeline wiring.
+
+- Added common `p_avf`/`p_avt` and independent old/new `p_oavf`/`p_oavt`/`p_navf`/`p_navt` available-stock ranges to `ZSTOCK_ALLOC_COMPARE`. Effective bounds now constrain both sink snapshots and audit-run resolution, with validation, typed/filter provenance, XML contract coverage, and comparison schema `93`.
+
+- Added purge audit-duration bounds `p_tfrom`/`p_tto` to preview and execution. Completed-run duration filtering now reaches both retention API paths with validation, typed/filter provenance, XML contract coverage, and schemas `19`/`20` for CSV plus `21`/`22` for JSON.
+
+- Added common and old/new audit-duration bounds to `ZSTOCK_ALLOC_COMPARE`; completed-run ranges now constrain both sink snapshots and audit resolution with typed provenance, and comparison contracts advance to schema `92`.
+
+- Added result-report originating audit-duration bounds `p_tfrom`/`p_tto`; only completed runs in the inclusive seconds range are selected, with sink validation, all export provenance, and result contracts advanced to detail/summary schemas `34`/`36`.
+
+- Added result-report available-stock bounds `p_avf`/`p_avt` and propagated them through originating-run selection, snapshot reads, and every export provenance path; result contracts advance to detail/summary schemas `33`/`35`.
+
+- Added result-report demand-count bounds `p_dfrom`/`p_dto` and propagated them through audit latest/exact-run resolution and snapshot reads. The sink validates nonnegative ordered ranges, all output modes expose numeric filter provenance, and result contracts advance to detail/summary schemas `32`/`34`.
+
+- Generalized the metadata contract guard to all eight executable reports. It now enforces matching, unique, declaration-ordered parameters and XML keys across the entire report surface; this corrected `ZSTOCK_ALLOC_RESULT` metadata ordering and removed duplicate deadline keys.
+
+- Tightened independent batch scope validation so `ZSTOCK_ALLOC_COMPARE` requires either common `p_charg` or both `p_obatch` and `p_nbatch`; a one-sided batch filter can no longer produce an asymmetric, implicit unfiltered read.
+
+- Corrected plant scope selection so `ZSTOCK_ALLOC_COMPARE` can actually run with only `p_owerks` and `p_nwerks`; common `p_werks` is now optional and the existing common-or-complete-pair validation remains authoritative.
+
+- Added `test/compare-contract.mjs` to the default `npm test` pipeline. It verifies the comparison selection-screen/XML parameter contract in declaration order, rejects duplicate keys, checks all four schema markers against the documented schema `91`, and protects the new independent plant/material/storage-location/batch parameters from metadata drift. Corrected the two existing XML ordering mismatches exposed by the guard.
+
+- Added independent old/new plant filters to `ZSTOCK_ALLOC_COMPARE`: `p_owerks` and `p_nwerks`, alongside common `p_werks`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective plants reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `91`.
+
+- Added independent old/new material filters to `ZSTOCK_ALLOC_COMPARE`: `p_omatnr` and `p_nmatnr`, alongside common `p_matnr`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective materials reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `90`.
+
+- Added independent old/new storage-location filters to `ZSTOCK_ALLOC_COMPARE`: `p_olgort` and `p_nlgort`, alongside common `p_lgort`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective locations reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `89`.
+
+- Added independent old/new batch filters to `ZSTOCK_ALLOC_COMPARE`: `p_obatch` and `p_nbatch`, alongside common `p_charg`. Common-plus-side combinations are rejected, effective batches reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `88`.
+
+- Added common and independent old/new reservation-ID filters to `ZSTOCK_ALLOC_COMPARE`: `p_resid`, `p_oresid`, and `p_nresid`. Common-plus-side combinations are rejected, effective reservation IDs reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `87`.
+
+- Added common and independent old/new order-ID filters to `ZSTOCK_ALLOC_COMPARE`: `p_order`, `p_oorder`, and `p_norder`. Common-plus-side combinations are rejected, effective order IDs reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `86`.
+
+- Added common and independent old/new order-unit filters to `ZSTOCK_ALLOC_COMPARE`: `p_ordun`, `p_oordun`, and `p_nordun`. Common-plus-side combinations are rejected, effective order units reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `85`.
+
+- Added common and independent old/new schedule-line filters to `ZSTOCK_ALLOC_COMPARE`: `p_etenr`, `p_oetenr`, and `p_netenr`. Common-plus-side combinations are rejected, effective schedule lines reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `84`.
+
+- Added common and independent old/new sales-item filters to `ZSTOCK_ALLOC_COMPARE`: `p_posnr`, `p_oposnr`, and `p_nposnr`. Common-plus-side combinations are rejected, effective items reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `83`.
+
+- Added common and independent old/new sales-document-type filters to `ZSTOCK_ALLOC_COMPARE`: `p_auart`, `p_oauart`, and `p_nauart`. Common-plus-side combinations are rejected, effective types reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `82`.
+
+- Added common and independent old/new shortage-only comparison filters: `p_bklg`, `p_obklg`, and `p_nbklg`. Effective flags now reach both snapshot reads, common-plus-side combinations are rejected, provenance covers every output shape, and comparison contracts advance to schema `75`.
+- Added common and independent old/new shortage quantity ranges to `ZSTOCK_ALLOC_COMPARE`: `p_shf`/`p_sht`, `p_oshf`/`p_osht`, and `p_nshf`/`p_nsht`. Negative or reversed bounds and common-plus-side combinations are rejected, effective ranges reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `76`.
+- Added common and independent old/new coverage and shortage-percentage ranges to `ZSTOCK_ALLOC_COMPARE`: `p_covf`/`p_covt`, `p_ocovf`/`p_ocovt`, `p_ncovf`/`p_ncovt`, `p_spf`/`p_spt`, `p_ospf`/`p_ospt`, and `p_nspf`/`p_nspt`. Bounds are constrained to 0..100, common-plus-side combinations are rejected, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `77`.
+- Added common and independent old/new requested- and allocated-quantity ranges to `ZSTOCK_ALLOC_COMPARE`: `p_qf`/`p_qt`, `p_oqf`/`p_oqt`, `p_nqf`/`p_nqt`, `p_af`/`p_at`, `p_oaf`/`p_oat`, and `p_naf`/`p_nat`. Nonnegative ordered bounds and common-plus-side conflicts are validated, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `78`.
+- Added common and independent old/new priority ranges to `ZSTOCK_ALLOC_COMPARE`: `p_priof`/`p_priot`, `p_opf`/`p_opt`, and `p_npf`/`p_npt`. Nonnegative ordered bounds and common-plus-side conflicts are validated, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `79`.
+- Added common and independent old/new snapshot requested-date ranges to `ZSTOCK_ALLOC_COMPARE`: `p_sdf`/`p_sdt`, `p_osdf`/`p_osdt`, and `p_nsdf`/`p_nsdt`. Reversed and common-plus-side ranges are rejected, effective dates reach both snapshot reads independently of audit requested-horizon filters, provenance covers every output shape, and comparison contracts advance to schema `80`.
+- Added common and independent old/new sales-document filters to `ZSTOCK_ALLOC_COMPARE`: `p_vbeln`, `p_ovbeln`, and `p_nvbeln`. Common-plus-side combinations are rejected, effective document identities reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `81`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_big` and `p_done` quantity ordering. Requested and allocated quantities use the effective new snapshot for added/changed rows and the old snapshot for removals, with deterministic shortage/date/key ties; comparison contracts advance to schema `74`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_rdate` reservation-date ordering. Added/changed rows use the new reservation date, removals use the old date, undated rows sort last, pagination remains post-sort, and comparison contracts advance to schema `73`.
 - Added common and independent old/new reservation-age filters to `ZSTOCK_ALLOC_COMPARE`: `p_rage`, `p_orage`, and `p_nrage`. Nonnegative ages now reach both snapshot reads, negative and common-plus-side values are rejected, provenance is typed numerically across output shapes, and contracts advance to schema `72`.
 - Added common and independent old/new reservation-date windows to `ZSTOCK_ALLOC_COMPARE`: `p_rfrom`/`p_rto`, `p_orfrom`/`p_orto`, and `p_nrfrom`/`p_nrto`. Inclusive posting-date filters now reach both snapshot reads, reversed and common-plus-side ranges are rejected, provenance covers all output shapes, and contracts advance to schema `71`.
 - Added common and independent old/new reservation-state switches to `ZSTOCK_ALLOC_COMPARE`: `p_rsv`/`p_unrsv`, `p_orsv`/`p_nrsv`, and `p_oursv`/`p_nursv`. Conflicting states and common-plus-side combinations are rejected, effective filters reach both snapshot reads, provenance covers all output shapes, and contracts advance to schema `70`.

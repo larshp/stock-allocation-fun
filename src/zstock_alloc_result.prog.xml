@@ -29,13 +29,19 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_LGORT</KEY>
-     <ENTRY>Storage location</ENTRY>
-     <LENGTH>24</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_MEINS</KEY>
+    <KEY>P_LGORT</KEY>
+    <ENTRY>Storage location</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LATEST</KEY>
+    <ENTRY>Latest matching run only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MEINS</KEY>
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>
     </item>
@@ -53,12 +59,6 @@
    </item>
    <item>
     <ID>S</ID>
-    <KEY>P_RID</KEY>
-    <ENTRY>Run ID contains</ENTRY>
-    <LENGTH>22</LENGTH>
-   </item>
-   <item>
-    <ID>S</ID>
     <KEY>P_MVT</KEY>
     <ENTRY>Allocation movement type</ENTRY>
     <LENGTH>29</LENGTH>
@@ -68,6 +68,12 @@
     <KEY>P_SHELF</KEY>
     <ENTRY>Minimum shelf-life days</ENTRY>
     <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>22</LENGTH>
    </item>
    <item>
     <ID>S</ID>
@@ -81,12 +87,6 @@
     <ENTRY>Legacy strategy runs only</ENTRY>
     <LENGTH>29</LENGTH>
    </item>
-   <item>
-    <ID>S</ID>
-    <KEY>P_LATEST</KEY>
-     <ENTRY>Latest matching run only</ENTRY>
-     <LENGTH>29</LENGTH>
-    </item>
     <item>
      <ID>S</ID>
      <KEY>P_STAT</KEY>
@@ -233,18 +233,6 @@
    </item>
    <item>
     <ID>S</ID>
-    <KEY>P_DEADF</KEY>
-    <ENTRY>Requested deadline from</ENTRY>
-    <LENGTH>25</LENGTH>
-   </item>
-   <item>
-    <ID>S</ID>
-    <KEY>P_DEADT</KEY>
-    <ENTRY>Requested deadline to</ENTRY>
-    <LENGTH>23</LENGTH>
-   </item>
-   <item>
-    <ID>S</ID>
     <KEY>P_REQF</KEY>
     <ENTRY>Requested horizon from</ENTRY>
     <LENGTH>23</LENGTH>
@@ -272,6 +260,12 @@
      <KEY>P_RAGE</KEY>
      <ENTRY>Reservation age days</ENTRY>
      <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RAGETO</KEY>
+     <ENTRY>Maximum reservation age days</ENTRY>
+     <LENGTH>31</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -359,7 +353,43 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_PRI</KEY>
+     <KEY>P_DFROM</KEY>
+     <ENTRY>Demand count from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_DTO</KEY>
+    <ENTRY>Demand count to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVF</KEY>
+    <ENTRY>Available stock from</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVT</KEY>
+    <ENTRY>Available stock to</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TFROM</KEY>
+    <ENTRY>Audit duration from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TTO</KEY>
+    <ENTRY>Audit duration to</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PRI</KEY>
      <ENTRY>Sort by priority</ENTRY>
      <LENGTH>22</LENGTH>
     </item>

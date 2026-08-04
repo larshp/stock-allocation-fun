@@ -29,6 +29,13 @@ CLASS zcl_allocation_transaction_sap IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_allocation_transaction~rollback.
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+    IF sy-subrc <> 0.
+      raise_error( iv_message = 'Allocation transaction rollback failed' ).
+    ENDIF.
+  ENDMETHOD.
+
   METHOD raise_error.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     CREATE OBJECT lo_error.

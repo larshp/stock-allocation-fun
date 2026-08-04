@@ -145,7 +145,25 @@ INTERFACE zif_stock_allocation_compare PUBLIC.
     RETURNING
       VALUE(rt_changes) TYPE tt_changes.
 
+  METHODS sort_by_requested_quantity
+    IMPORTING
+      it_changes        TYPE tt_changes
+    RETURNING
+      VALUE(rt_changes) TYPE tt_changes.
+
+  METHODS sort_by_allocated_quantity
+    IMPORTING
+      it_changes        TYPE tt_changes
+    RETURNING
+      VALUE(rt_changes) TYPE tt_changes.
+
   METHODS sort_by_requested_date
+    IMPORTING
+      it_changes        TYPE tt_changes
+    RETURNING
+      VALUE(rt_changes) TYPE tt_changes.
+
+  METHODS sort_by_reservation_date
     IMPORTING
       it_changes        TYPE tt_changes
     RETURNING

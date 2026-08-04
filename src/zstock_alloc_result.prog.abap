@@ -41,6 +41,7 @@ PARAMETERS p_until TYPE d.
 PARAMETERS p_rfrom TYPE d.
 PARAMETERS p_rto TYPE d.
 PARAMETERS p_rage TYPE i.
+PARAMETERS p_rageto TYPE i.
 PARAMETERS p_from TYPE d.
 PARAMETERS p_to TYPE d.
 PARAMETERS p_priof TYPE zif_stock_allocation=>ty_priority.
@@ -55,6 +56,12 @@ PARAMETERS p_covf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_covt TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_spf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_spt TYPE zif_allocation_audit=>ty_coverage.
+PARAMETERS p_dfrom TYPE i.
+PARAMETERS p_dto TYPE i.
+PARAMETERS p_avf TYPE zif_stock_allocation=>ty_quantity.
+PARAMETERS p_avt TYPE zif_stock_allocation=>ty_quantity.
+PARAMETERS p_tfrom TYPE i.
+PARAMETERS p_tto TYPE i.
 PARAMETERS p_pri AS CHECKBOX.
 PARAMETERS p_sstat AS CHECKBOX.
 PARAMETERS p_date AS CHECKBOX.
@@ -177,6 +184,12 @@ START-OF-SELECTION.
   DATA lv_message_filter TYPE string.
   DATA lv_message_only_text TYPE string.
   DATA lv_min_shelf_filter TYPE string.
+  DATA lv_demand_from_filter TYPE string.
+  DATA lv_demand_to_filter TYPE string.
+  DATA lv_available_from_filter TYPE string.
+  DATA lv_available_to_filter TYPE string.
+  DATA lv_duration_from_filter TYPE string.
+  DATA lv_duration_to_filter TYPE string.
   DATA lv_overdue_as_of_filter TYPE c LENGTH 10.
   DATA lv_requested_from_filter TYPE c LENGTH 10.
   DATA lv_requested_to_filter TYPE c LENGTH 10.
@@ -230,6 +243,36 @@ START-OF-SELECTION.
     lv_min_shelf_filter = 'n/a'.
   ELSE.
     lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
+  ENDIF.
+  IF p_dfrom IS INITIAL.
+    lv_demand_from_filter = 'n/a'.
+  ELSE.
+    lv_demand_from_filter = zcl_stock_csv=>number( p_dfrom ).
+  ENDIF.
+  IF p_dto IS INITIAL.
+    lv_demand_to_filter = 'n/a'.
+  ELSE.
+    lv_demand_to_filter = zcl_stock_csv=>number( p_dto ).
+  ENDIF.
+  IF p_avf IS INITIAL.
+    lv_available_from_filter = 'n/a'.
+  ELSE.
+    lv_available_from_filter = zcl_stock_csv=>number( p_avf ).
+  ENDIF.
+  IF p_avt IS INITIAL.
+    lv_available_to_filter = 'n/a'.
+  ELSE.
+    lv_available_to_filter = zcl_stock_csv=>number( p_avt ).
+  ENDIF.
+  IF p_tfrom IS INITIAL.
+    lv_duration_from_filter = 'n/a'.
+  ELSE.
+    lv_duration_from_filter = zcl_stock_csv=>number( p_tfrom ).
+  ENDIF.
+  IF p_tto IS INITIAL.
+    lv_duration_to_filter = 'n/a'.
+  ELSE.
+    lv_duration_to_filter = zcl_stock_csv=>number( p_tto ).
   ENDIF.
   IF p_odate IS INITIAL.
     lv_overdue_as_of_filter = 'n/a'.
@@ -313,8 +356,33 @@ START-OF-SELECTION.
       lv_csv_error_message = 'Row limit must not be negative'.
     ELSEIF p_rage < 0.
       lv_csv_error_message = 'Reservation age must not be negative'.
+    ELSEIF p_rageto < 0.
+      lv_csv_error_message = 'Reservation age must not be negative'.
+    ELSEIF p_rage IS NOT INITIAL AND p_rageto IS NOT INITIAL
+        AND p_rage > p_rageto.
+      lv_csv_error_message =
+        'Reservation age start must not be after the end value'.
     ELSEIF p_shelf < 0.
       lv_csv_error_message = 'Minimum shelf-life filter must not be negative'.
+    ELSEIF p_dfrom < 0 OR p_dto < 0.
+      lv_csv_error_message = 'Demand-count bounds must not be negative'.
+    ELSEIF p_dfrom IS NOT INITIAL AND p_dto IS NOT INITIAL
+        AND p_dfrom > p_dto.
+      lv_csv_error_message =
+        'Demand-count start must not be after the end value'.
+    ELSEIF p_avf < 0 OR p_avt < 0.
+      lv_csv_error_message = 'Available-stock bounds must not be negative'.
+    ELSEIF p_avf IS NOT INITIAL AND p_avt IS NOT INITIAL
+        AND p_avf > p_avt.
+      lv_csv_error_message =
+        'Available-stock start must not be after the end value'.
+    ELSEIF p_tfrom < 0 OR p_tto < 0.
+      lv_csv_error_message =
+        'Audit-duration bounds must not be negative'.
+    ELSEIF p_tfrom IS NOT INITIAL AND p_tto IS NOT INITIAL
+        AND p_tfrom > p_tto.
+      lv_csv_error_message =
+        'Audit-duration start must not be after the end value'.
     ELSEIF ( p_covf IS NOT INITIAL AND ( p_covf < 0 OR p_covf > 100 ) )
         OR ( p_covt IS NOT INITIAL AND ( p_covt < 0 OR p_covt > 100 ) ).
       lv_csv_error_message =
@@ -409,6 +477,27 @@ START-OF-SELECTION.
     WRITE: / 'Reservation age must not be negative.'.
     RETURN.
   ENDIF.
+  IF p_rageto < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Reservation age must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Reservation age must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_rage IS NOT INITIAL AND p_rageto IS NOT INITIAL
+      AND p_rage > p_rageto.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Reservation age start must not be after the end value' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Reservation age start must not be after the end value.'.
+    RETURN.
+  ENDIF.
   IF ( p_covf IS NOT INITIAL AND ( p_covf < 0 OR p_covf > 100 ) )
       OR ( p_covt IS NOT INITIAL AND ( p_covt < 0 OR p_covt > 100 ) ).
     IF p_json = abap_true.
@@ -459,6 +548,66 @@ START-OF-SELECTION.
       RETURN.
     ENDIF.
     WRITE: / 'Minimum shelf-life filter must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_dfrom < 0 OR p_dto < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Demand-count bounds must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Demand-count bounds must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_dfrom IS NOT INITIAL AND p_dto IS NOT INITIAL AND p_dfrom > p_dto.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Demand-count start must not be after the end value' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Demand-count start must not be after the end value.'.
+    RETURN.
+  ENDIF.
+  IF p_avf < 0 OR p_avt < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Available-stock bounds must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Available-stock bounds must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_avf IS NOT INITIAL AND p_avt IS NOT INITIAL AND p_avf > p_avt.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Available-stock start must not be after the end value' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Available-stock start must not be after the end value.'.
+    RETURN.
+  ENDIF.
+  IF p_tfrom < 0 OR p_tto < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Audit-duration bounds must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Audit-duration bounds must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_tfrom IS NOT INITIAL AND p_tto IS NOT INITIAL AND p_tfrom > p_tto.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Audit-duration start must not be after the end value' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    WRITE: / 'Audit-duration start must not be after the end value.'.
     RETURN.
   ENDIF.
   IF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
@@ -639,6 +788,12 @@ START-OF-SELECTION.
            iv_strategy          = p_strat
            iv_legacy_strategy   = p_legacy
            iv_status            = p_astat
+           iv_demand_from       = p_dfrom
+           iv_demand_to         = p_dto
+           iv_available_from    = p_avf
+           iv_available_to      = p_avt
+           iv_duration_from     = p_tfrom
+           iv_duration_to       = p_tto
            iv_message_contains  = p_msg
            iv_message_only      = p_monly
            iv_movement_type     = p_mvt
@@ -699,7 +854,10 @@ START-OF-SELECTION.
       OR p_daged IS NOT INITIAL
       OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL
       OR p_astat IS NOT INITIAL
-      OR p_msg IS NOT INITIAL OR p_monly = abap_true )
+      OR p_msg IS NOT INITIAL OR p_monly = abap_true
+      OR p_dfrom IS NOT INITIAL OR p_dto IS NOT INITIAL
+      OR p_avf IS NOT INITIAL OR p_avt IS NOT INITIAL
+      OR p_tfrom IS NOT INITIAL OR p_tto IS NOT INITIAL )
       AND p_runid IS NOT INITIAL.
     CLEAR lt_runs.
     CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap
@@ -713,6 +871,12 @@ START-OF-SELECTION.
           iv_batch             = p_charg
           iv_run_id            = p_runid
           iv_status            = p_astat
+          iv_demand_from       = p_dfrom
+          iv_demand_to         = p_dto
+          iv_available_from    = p_avf
+          iv_available_to      = p_avt
+          iv_duration_from     = p_tfrom
+          iv_duration_to       = p_tto
           iv_message_contains  = p_msg
           iv_message_only      = p_monly
           iv_deadline_only     = p_dead
@@ -748,7 +912,10 @@ START-OF-SELECTION.
       ENDIF.
     ELSEIF p_dead = abap_true OR p_deadf IS NOT INITIAL
         OR p_deadt IS NOT INITIAL OR p_dagef IS NOT INITIAL
-        OR p_daget IS NOT INITIAL OR p_daged IS NOT INITIAL.
+        OR p_daget IS NOT INITIAL OR p_daged IS NOT INITIAL
+        OR p_dfrom IS NOT INITIAL OR p_dto IS NOT INITIAL
+        OR p_avf IS NOT INITIAL OR p_avt IS NOT INITIAL
+        OR p_tfrom IS NOT INITIAL OR p_tto IS NOT INITIAL.
       lv_latest_empty = abap_true.
     ENDIF.
   ENDIF.
@@ -777,6 +944,12 @@ START-OF-SELECTION.
         iv_min_shelf_life             = p_shelf
         iv_status                     = p_stat
         iv_run_status                 = p_astat
+        iv_run_demand_from            = p_dfrom
+        iv_run_demand_to              = p_dto
+        iv_run_available_from         = p_avf
+        iv_run_available_to           = p_avt
+        iv_run_duration_from          = p_tfrom
+        iv_run_duration_to            = p_tto
         iv_run_message_contains       = p_msg
         iv_run_message_only           = p_monly
         iv_sales_document             = p_vbeln
@@ -804,6 +977,7 @@ START-OF-SELECTION.
         iv_reservation_date_from      = p_rfrom
         iv_reservation_date_to        = p_rto
         iv_reservation_age_from       = p_rage
+        iv_reservation_age_to         = p_rageto
         iv_requested_on_from          = p_from
         iv_requested_on_to            = p_to
         iv_priority_from              = p_priof
@@ -962,6 +1136,7 @@ START-OF-SELECTION.
       OR p_rfrom IS NOT INITIAL
       OR p_rto IS NOT INITIAL
       OR p_rage IS NOT INITIAL
+      OR p_rageto IS NOT INITIAL
       OR p_from IS NOT INITIAL
       OR p_to IS NOT INITIAL
       OR p_priof IS NOT INITIAL
@@ -976,6 +1151,12 @@ START-OF-SELECTION.
       OR p_covt IS NOT INITIAL
       OR p_spf IS NOT INITIAL
       OR p_spt IS NOT INITIAL
+      OR p_dfrom IS NOT INITIAL
+      OR p_dto IS NOT INITIAL
+      OR p_avf IS NOT INITIAL
+      OR p_avt IS NOT INITIAL
+      OR p_tfrom IS NOT INITIAL
+      OR p_tto IS NOT INITIAL
       OR p_latest = abap_true.
       lv_filters_applied = abap_true.
   ENDIF.
@@ -1073,7 +1254,7 @@ START-OF-SELECTION.
   IF p_rfrom IS NOT INITIAL OR p_rto IS NOT INITIAL.
     APPEND 'reservation_date' TO lt_filter_names.
   ENDIF.
-  IF p_rage IS NOT INITIAL.
+  IF p_rage IS NOT INITIAL OR p_rageto IS NOT INITIAL.
     APPEND 'reservation_age' TO lt_filter_names.
   ENDIF.
   IF p_from IS NOT INITIAL OR p_to IS NOT INITIAL.
@@ -1096,6 +1277,15 @@ START-OF-SELECTION.
   ENDIF.
   IF p_spf IS NOT INITIAL OR p_spt IS NOT INITIAL.
     APPEND 'shortage_percentage' TO lt_filter_names.
+  ENDIF.
+  IF p_dfrom IS NOT INITIAL OR p_dto IS NOT INITIAL.
+    APPEND 'demand_count' TO lt_filter_names.
+  ENDIF.
+  IF p_avf IS NOT INITIAL OR p_avt IS NOT INITIAL.
+    APPEND 'available_stock' TO lt_filter_names.
+  ENDIF.
+  IF p_tfrom IS NOT INITIAL OR p_tto IS NOT INITIAL.
+    APPEND 'audit_duration' TO lt_filter_names.
   ENDIF.
   IF p_latest = abap_true.
     APPEND 'latest' TO lt_filter_names.
@@ -1163,6 +1353,12 @@ START-OF-SELECTION.
     iv_value   = p_rage
     iv_text    = 'n/a'
     iv_present = xsdbool( p_rage IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_reservation_age_days'
+    iv_value   = p_rageto
+    iv_text    = 'n/a'
+    iv_present = xsdbool( p_rageto IS NOT INITIAL )
     iv_typed   = abap_true ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>filter_number_property(
     iv_name    = 'minimum_priority'
@@ -1236,6 +1432,42 @@ START-OF-SELECTION.
     iv_text    = 'n/a'
     iv_present = xsdbool( p_spt IS NOT INITIAL )
     iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_demand_count'
+    iv_value   = p_dfrom
+    iv_text    = lv_demand_from_filter
+    iv_present = xsdbool( p_dfrom IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_demand_count'
+    iv_value   = p_dto
+    iv_text    = lv_demand_to_filter
+    iv_present = xsdbool( p_dto IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_available_stock'
+    iv_value   = p_avf
+    iv_text    = lv_available_from_filter
+    iv_present = xsdbool( p_avf IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_available_stock'
+    iv_value   = p_avt
+    iv_text    = lv_available_to_filter
+    iv_present = xsdbool( p_avt IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'minimum_audit_duration_seconds'
+    iv_value   = p_tfrom
+    iv_text    = lv_duration_from_filter
+    iv_present = xsdbool( p_tfrom IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'maximum_audit_duration_seconds'
+    iv_value   = p_tto
+    iv_text    = lv_duration_to_filter
+    iv_present = xsdbool( p_tto IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
 
   IF lines( lt_demands ) = 0 AND p_sum = abap_false
       AND p_runid IS INITIAL
@@ -1249,7 +1481,10 @@ START-OF-SELECTION.
       IF p_sum = abap_true.
         WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
           && 'audit_status_filter;message_filter;message_only;'
-          && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+          && 'movement_type_filter;minimum_shelf_life_filter;'
+          && 'minimum_demand_count_filter;maximum_demand_count_filter;'
+          && 'minimum_available_stock_filter;maximum_available_stock_filter;'
+          && 'minimum_audit_duration_seconds_filter;maximum_audit_duration_seconds_filter;overdue_only;'
           && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
           && 'requested_deadline_only;requested_deadline_from_filter;'
           && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1270,7 +1505,10 @@ START-OF-SELECTION.
       ELSE.
         WRITE: / 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
           && 'audit_status_filter;message_filter;message_only;'
-          && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+          && 'movement_type_filter;minimum_shelf_life_filter;'
+          && 'minimum_demand_count_filter;maximum_demand_count_filter;'
+          && 'minimum_available_stock_filter;maximum_available_stock_filter;'
+          && 'minimum_audit_duration_seconds_filter;maximum_audit_duration_seconds_filter;overdue_only;'
           && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
           && 'requested_deadline_only;requested_deadline_from_filter;'
           && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1540,7 +1778,10 @@ START-OF-SELECTION.
       ENDIF.
        WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
          && 'audit_status_filter;message_filter;message_only;'
-         && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+         && 'movement_type_filter;minimum_shelf_life_filter;'
+         && 'minimum_demand_count_filter;maximum_demand_count_filter;'
+         && 'minimum_available_stock_filter;maximum_available_stock_filter;'
+         && 'minimum_audit_duration_seconds_filter;maximum_audit_duration_seconds_filter;overdue_only;'
          && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
          && 'requested_deadline_only;requested_deadline_from_filter;'
          && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1561,7 +1802,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 33 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 37 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1574,6 +1815,12 @@ START-OF-SELECTION.
        APPEND zcl_stock_csv=>quote( lv_message_only_text ) TO lt_csv_fields.
        APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_demand_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_demand_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_available_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_available_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_to_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
@@ -1746,7 +1993,10 @@ START-OF-SELECTION.
     ENDIF.
     lv_csv_line = 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;'
       && 'filters;audit_status_filter;message_filter;message_only;'
-      && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+      && 'movement_type_filter;minimum_shelf_life_filter;'
+      && 'minimum_demand_count_filter;maximum_demand_count_filter;'
+      && 'minimum_available_stock_filter;maximum_available_stock_filter;'
+      && 'minimum_audit_duration_seconds_filter;maximum_audit_duration_seconds_filter;overdue_only;'
       && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
       && 'requested_deadline_only;requested_deadline_from_filter;'
       && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1785,7 +2035,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 31 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 35 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1798,6 +2048,12 @@ START-OF-SELECTION.
        APPEND zcl_stock_csv=>quote( lv_message_only_text ) TO lt_csv_fields.
        APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_demand_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_demand_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_available_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_available_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_to_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
@@ -1936,7 +2192,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 33 ) TO lt_json_fields.
+          iv_value = 37 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2816,7 +3072,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 33 ) TO lt_json_fields.
+          iv_value = 37 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -2934,6 +3190,12 @@ START-OF-SELECTION.
                 iv_storage_location  = p_lgort
                 iv_batch             = p_charg
                 iv_run_id            = p_runid
+                iv_demand_from       = p_dfrom
+                iv_demand_to         = p_dto
+                iv_available_from    = p_avf
+                iv_available_to      = p_avt
+                iv_duration_from     = p_tfrom
+                iv_duration_to       = p_tto
                 iv_deadline_only     = p_dead
                 iv_requested_on_from = p_reqf
                 iv_requested_on_to   = p_until ).
@@ -3110,7 +3372,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 31 ) TO lt_json_fields.
+        iv_value = 35 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3228,6 +3490,12 @@ START-OF-SELECTION.
               iv_storage_location  = p_lgort
               iv_batch             = p_charg
               iv_run_id            = p_runid
+              iv_demand_from       = p_dfrom
+              iv_demand_to         = p_dto
+              iv_available_from    = p_avf
+              iv_available_to      = p_avt
+              iv_duration_from     = p_tfrom
+              iv_duration_to       = p_tto
               iv_deadline_only     = p_dead
               iv_requested_on_from = p_reqf
               iv_requested_on_to   = p_until ).
@@ -3360,6 +3628,7 @@ START-OF-SELECTION.
           AND p_rfrom IS INITIAL
           AND p_rto IS INITIAL
           AND p_rage IS INITIAL
+          AND p_rageto IS INITIAL
           AND p_from IS INITIAL
           AND p_to IS INITIAL
           AND p_priof IS INITIAL
@@ -3532,7 +3801,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 31 ) TO lt_json_fields.
+          iv_value = 35 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -4253,6 +4522,12 @@ START-OF-SELECTION.
          / 'Message filter:', lv_message_filter,
          / 'Message-only filter:', p_monly,
          / 'Minimum shelf-life filter:', lv_min_shelf_filter,
+         / 'Minimum demand-count filter:', lv_demand_from_filter,
+         / 'Maximum demand-count filter:', lv_demand_to_filter,
+         / 'Minimum available-stock filter:', lv_available_from_filter,
+         / 'Maximum available-stock filter:', lv_available_to_filter,
+         / 'Minimum audit-duration filter:', lv_duration_from_filter,
+         / 'Maximum audit-duration filter:', lv_duration_to_filter,
          / 'Overdue-only filter:', p_ovrd,
          / 'Overdue as-of date:', lv_overdue_as_of_filter,
          / 'Deadline age reference date:', lv_deadline_reference_date,
@@ -4355,6 +4630,7 @@ START-OF-SELECTION.
       AND p_rfrom IS INITIAL
       AND p_rto IS INITIAL
       AND p_rage IS INITIAL
+      AND p_rageto IS INITIAL
       AND p_from IS INITIAL
       AND p_to IS INITIAL
       AND p_priof IS INITIAL
@@ -4369,6 +4645,10 @@ START-OF-SELECTION.
       AND p_covt IS INITIAL
       AND p_spf IS INITIAL
       AND p_spt IS INITIAL
+      AND p_dfrom IS INITIAL
+      AND p_dto IS INITIAL
+      AND p_avf IS INITIAL
+      AND p_avt IS INITIAL
       AND p_max IS INITIAL
       AND p_skip IS INITIAL.
     lv_reconcile_possible = abap_true.
@@ -4385,6 +4665,12 @@ START-OF-SELECTION.
           iv_storage_location  = p_lgort
           iv_batch             = p_charg
           iv_run_id            = p_runid
+          iv_demand_from       = p_dfrom
+          iv_demand_to         = p_dto
+          iv_available_from    = p_avf
+          iv_available_to      = p_avt
+          iv_duration_from     = p_tfrom
+          iv_duration_to       = p_tto
           iv_deadline_only     = p_dead
           iv_requested_on_from = p_reqf
           iv_requested_on_to   = p_until ).

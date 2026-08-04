@@ -3,8 +3,12 @@ CLASS zcl_order_source_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_source_read_authority OPTIONAL.
     INTERFACES zif_order_source.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_source_read_authority.
     TYPES:
       BEGIN OF ty_schedule,
         order_id            TYPE c LENGTH 10,
@@ -26,6 +30,14 @@ CLASS zcl_order_source_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_order_source_sap IMPLEMENTATION.
+  METHOD constructor.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_source_read_auth_sap.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_order_source~get_open_demands.
     DATA lt_schedule TYPE tt_schedule.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
@@ -36,6 +48,16 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
 
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
       raise_error( iv_message = 'Order demand scope is incomplete' ).
+    ENDIF.
+    IF mo_authority IS BOUND.
+      TRY.
+          mo_authority->check_orders( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_authority_error).
+          IF lo_authority_error->message IS INITIAL.
+            lo_authority_error->message = 'Order read authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_authority_error.
+      ENDTRY.
     ENDIF.
     IF iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL

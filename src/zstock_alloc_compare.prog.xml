@@ -23,24 +23,72 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OMATNR</KEY>
+     <ENTRY>Old material</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NMATNR</KEY>
+     <ENTRY>New material</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
      <LENGTH>13</LENGTH>
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OWERKS</KEY>
+     <ENTRY>Old plant</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NWERKS</KEY>
+     <ENTRY>New plant</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+     <item>
+      <ID>S</ID>
      <KEY>P_LGORT</KEY>
      <ENTRY>Storage location</ENTRY>
      <LENGTH>24</LENGTH>
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OLGORT</KEY>
+     <ENTRY>Old storage location</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NLGORT</KEY>
+     <ENTRY>New storage location</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+     <item>
+      <ID>S</ID>
      <KEY>P_CHARG</KEY>
      <ENTRY>Batch</ENTRY>
      <LENGTH>13</LENGTH>
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OBATCH</KEY>
+     <ENTRY>Old batch</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NBATCH</KEY>
+     <ENTRY>New batch</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+     <item>
+      <ID>S</ID>
      <KEY>P_MVT</KEY>
      <ENTRY>Allocation movement type</ENTRY>
      <LENGTH>29</LENGTH>
@@ -137,6 +185,12 @@
    </item>
    <item>
     <ID>S</ID>
+    <KEY>P_DEAD</KEY>
+    <ENTRY>Requested deadline only</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_ODEAD</KEY>
     <ENTRY>Old requested deadline only</ENTRY>
     <LENGTH>29</LENGTH>
@@ -170,12 +224,6 @@
     <KEY>P_NDEADT</KEY>
     <ENTRY>New requested deadline to</ENTRY>
     <LENGTH>28</LENGTH>
-   </item>
-   <item>
-     <ID>S</ID>
-     <KEY>P_DEAD</KEY>
-     <ENTRY>Requested deadline only</ENTRY>
-     <LENGTH>26</LENGTH>
    </item>
    <item>
      <ID>S</ID>
@@ -230,6 +278,78 @@
     <KEY>P_NAGET</KEY>
     <ENTRY>New deadline age to</ENTRY>
     <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TFROM</KEY>
+    <ENTRY>Audit duration from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TTO</KEY>
+    <ENTRY>Audit duration to</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OTFROM</KEY>
+    <ENTRY>Old audit duration from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OTTO</KEY>
+    <ENTRY>Old audit duration to</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NTFROM</KEY>
+    <ENTRY>New audit duration from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NTTO</KEY>
+    <ENTRY>New audit duration to</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVF</KEY>
+    <ENTRY>Available stock from</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVT</KEY>
+    <ENTRY>Available stock to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OAVF</KEY>
+    <ENTRY>Old available stock from</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OAVT</KEY>
+    <ENTRY>Old available stock to</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAVF</KEY>
+    <ENTRY>New available stock from</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAVT</KEY>
+    <ENTRY>New available stock to</ENTRY>
+    <LENGTH>25</LENGTH>
    </item>
     <item>
      <ID>S</ID>
@@ -365,15 +485,33 @@
    </item>
    <item>
     <ID>S</ID>
+    <KEY>P_RAGETO</KEY>
+    <ENTRY>Maximum reservation age in days</ENTRY>
+    <LENGTH>35</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_ORAGE</KEY>
     <ENTRY>Old reservation age in days</ENTRY>
     <LENGTH>29</LENGTH>
    </item>
    <item>
     <ID>S</ID>
+    <KEY>P_ORAGTO</KEY>
+    <ENTRY>Old maximum reservation age in days</ENTRY>
+    <LENGTH>39</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_NRAGE</KEY>
     <ENTRY>New reservation age in days</ENTRY>
     <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NRAGTO</KEY>
+    <ENTRY>New maximum reservation age in days</ENTRY>
+    <LENGTH>39</LENGTH>
    </item>
     <item>
      <ID>S</ID>
@@ -411,8 +549,404 @@
      <ENTRY>New allocation status (F/P/U)</ENTRY>
      <LENGTH>32</LENGTH>
     </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_BKLG</KEY>
+    <ENTRY>Shortage allocation rows</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OBKLG</KEY>
+    <ENTRY>Old shortage allocation rows</ENTRY>
+    <LENGTH>31</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NBKLG</KEY>
+   <ENTRY>New shortage allocation rows</ENTRY>
+   <LENGTH>31</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SHF</KEY>
+    <ENTRY>Shortage from</ENTRY>
+    <LENGTH>14</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SHT</KEY>
+    <ENTRY>Shortage to</ENTRY>
+    <LENGTH>12</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSHF</KEY>
+    <ENTRY>Old shortage from</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSHT</KEY>
+    <ENTRY>Old shortage to</ENTRY>
+    <LENGTH>18</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NSHF</KEY>
+    <ENTRY>New shortage from</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NSHT</KEY>
+   <ENTRY>New shortage to</ENTRY>
+   <LENGTH>18</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_COVF</KEY>
+    <ENTRY>Coverage from</ENTRY>
+    <LENGTH>16</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_COVT</KEY>
+    <ENTRY>Coverage to</ENTRY>
+    <LENGTH>14</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OCOVF</KEY>
+    <ENTRY>Old coverage from</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OCOVT</KEY>
+    <ENTRY>Old coverage to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NCOVF</KEY>
+    <ENTRY>New coverage from</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NCOVT</KEY>
+    <ENTRY>New coverage to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SPF</KEY>
+    <ENTRY>Shortage percent from</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SPT</KEY>
+    <ENTRY>Shortage percent to</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSPF</KEY>
+    <ENTRY>Old shortage percent from</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSPT</KEY>
+    <ENTRY>Old shortage percent to</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NSPF</KEY>
+    <ENTRY>New shortage percent from</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NSPT</KEY>
+   <ENTRY>New shortage percent to</ENTRY>
+   <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_QF</KEY>
+    <ENTRY>Requested quantity from</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_QT</KEY>
+    <ENTRY>Requested quantity to</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OQF</KEY>
+    <ENTRY>Old requested quantity from</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OQT</KEY>
+    <ENTRY>Old requested quantity to</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NQF</KEY>
+    <ENTRY>New requested quantity from</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NQT</KEY>
+    <ENTRY>New requested quantity to</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AF</KEY>
+    <ENTRY>Allocated quantity from</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AT</KEY>
+    <ENTRY>Allocated quantity to</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OAF</KEY>
+    <ENTRY>Old allocated quantity from</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OAT</KEY>
+    <ENTRY>Old allocated quantity to</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAF</KEY>
+    <ENTRY>New allocated quantity from</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NAT</KEY>
+   <ENTRY>New allocated quantity to</ENTRY>
+   <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PRIOF</KEY>
+    <ENTRY>Priority from</ENTRY>
+    <LENGTH>15</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PRIOT</KEY>
+    <ENTRY>Priority to</ENTRY>
+    <LENGTH>13</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OPF</KEY>
+    <ENTRY>Old priority from</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OPT</KEY>
+    <ENTRY>Old priority to</ENTRY>
+    <LENGTH>19</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NPF</KEY>
+    <ENTRY>New priority from</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NPT</KEY>
+   <ENTRY>New priority to</ENTRY>
+   <LENGTH>19</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SDF</KEY>
+    <ENTRY>Snapshot requested date from</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SDT</KEY>
+    <ENTRY>Snapshot requested date to</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSDF</KEY>
+    <ENTRY>Old snapshot requested date from</ENTRY>
+    <LENGTH>38</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSDT</KEY>
+    <ENTRY>Old snapshot requested date to</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NSDF</KEY>
+    <ENTRY>New snapshot requested date from</ENTRY>
+    <LENGTH>38</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NSDT</KEY>
+   <ENTRY>New snapshot requested date to</ENTRY>
+   <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_VBELN</KEY>
+    <ENTRY>Sales document</ENTRY>
+    <LENGTH>16</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OVBELN</KEY>
+    <ENTRY>Old sales document</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
+     <KEY>P_NVBELN</KEY>
+     <ENTRY>New sales document</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AUART</KEY>
+     <ENTRY>Sales document type</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OAUART</KEY>
+     <ENTRY>Old sales document type</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NAUART</KEY>
+     <ENTRY>New sales document type</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_POSNR</KEY>
+     <ENTRY>Sales item</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OPOSNR</KEY>
+     <ENTRY>Old sales item</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NPOSNR</KEY>
+     <ENTRY>New sales item</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ETENR</KEY>
+     <ENTRY>Schedule line</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OETENR</KEY>
+     <ENTRY>Old schedule line</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NETENR</KEY>
+     <ENTRY>New schedule line</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORDUN</KEY>
+     <ENTRY>Order unit</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OORDUN</KEY>
+     <ENTRY>Old order unit</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NORDUN</KEY>
+     <ENTRY>New order unit</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORDER</KEY>
+     <ENTRY>Order ID</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OORDER</KEY>
+     <ENTRY>Old order ID</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NORDER</KEY>
+     <ENTRY>New order ID</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RESID</KEY>
+     <ENTRY>Reservation ID</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORESID</KEY>
+     <ENTRY>Old reservation ID</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NRESID</KEY>
+     <ENTRY>New reservation ID</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+     <item>
+      <ID>S</ID>
      <KEY>P_OAST</KEY>
      <ENTRY>Old audit status (R/S/P/E)</ENTRY>
      <LENGTH>28</LENGTH>
@@ -491,11 +1025,29 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_WORS</KEY>
-     <ENTRY>Sort by shortage worsening</ENTRY>
-     <LENGTH>26</LENGTH>
+    <KEY>P_WORS</KEY>
+    <ENTRY>Sort by shortage worsening</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Sort by requested date</ENTRY>
+     <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RDATE</KEY>
+    <ENTRY>Sort by reservation date</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_COV</KEY>
+     <ENTRY>Sort by coverage</ENTRY>
+     <LENGTH>17</LENGTH>
     </item>
-    <item>
+   <item>
      <ID>S</ID>
      <KEY>P_CW</KEY>
      <ENTRY>Sort by coverage worsening</ENTRY>
@@ -519,24 +1071,24 @@
      <ENTRY>Sort by requested quantity delta</ENTRY>
      <LENGTH>34</LENGTH>
     </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_DUE</KEY>
-     <ENTRY>Sort by requested date</ENTRY>
-     <LENGTH>24</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_COV</KEY>
-     <ENTRY>Sort by coverage</ENTRY>
-     <LENGTH>17</LENGTH>
-    </item>
-    <item>
+   <item>
      <ID>S</ID>
      <KEY>P_SPCT</KEY>
      <ENTRY>Sort by shortage percentage</ENTRY>
      <LENGTH>27</LENGTH>
-    </item>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_BIG</KEY>
+    <ENTRY>Sort by requested quantity</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DONE</KEY>
+    <ENTRY>Sort by allocated quantity</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_SKIP</KEY>

@@ -11,7 +11,10 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_shortage_worsening FOR TESTING.
     METHODS sorts_by_requested_delta FOR TESTING.
+    METHODS sorts_by_requested_quantity FOR TESTING.
+    METHODS sorts_by_allocated_quantity FOR TESTING.
     METHODS sorts_by_requested_date FOR TESTING.
+    METHODS sorts_by_reservation_date FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_coverage_worsening FOR TESTING.
     METHODS sorts_by_spct_worsening FOR TESTING.
@@ -191,6 +194,98 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 'REMOVED' ).
   ENDMETHOD.
 
+  METHOD sorts_by_requested_quantity.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+    DATA lt_sorted TYPE zif_stock_allocation_compare=>tt_changes.
+
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'LARGE'
+      new_requested   = 80
+      new_shortage    = 2 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'R'
+      allocation_unit = 'EA'
+      order_id        = 'REMOVED'
+      old_requested   = 90
+      old_shortage    = 1 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'ADDED'
+      new_requested   = 70
+      new_shortage    = 8 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'SMALL'
+      new_requested   = 10
+      new_shortage    = 4 ) TO lt_changes.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_sorted = lo_cut->sort_by_requested_quantity( lt_changes ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 1 ]-order_id
+      exp = 'REMOVED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 2 ]-order_id
+      exp = 'LARGE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 3 ]-order_id
+      exp = 'ADDED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 4 ]-order_id
+      exp = 'SMALL' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_allocated_quantity.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+    DATA lt_sorted TYPE zif_stock_allocation_compare=>tt_changes.
+
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'LARGE'
+      new_allocated   = 80
+      new_shortage    = 2 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'R'
+      allocation_unit = 'EA'
+      order_id        = 'REMOVED'
+      old_allocated   = 95
+      old_shortage    = 1 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'ADDED'
+      new_allocated   = 60
+      new_shortage    = 8 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'SMALL'
+      new_allocated   = 10
+      new_shortage    = 4 ) TO lt_changes.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_sorted = lo_cut->sort_by_allocated_quantity( lt_changes ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 1 ]-order_id
+      exp = 'REMOVED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 2 ]-order_id
+      exp = 'LARGE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 3 ]-order_id
+      exp = 'ADDED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 4 ]-order_id
+      exp = 'SMALL' ).
+  ENDMETHOD.
+
   METHOD sorts_by_requested_date.
     DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
     DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
@@ -222,6 +317,51 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
     lt_sorted = lo_cut->sort_by_requested_date( lt_changes ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 1 ]-order_id
+      exp = 'EARLY' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 2 ]-order_id
+      exp = 'REMOVED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 3 ]-order_id
+      exp = 'LATE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 4 ]-order_id
+      exp = 'NO-DATE' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_reservation_date.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+    DATA lt_sorted TYPE zif_stock_allocation_compare=>tt_changes.
+
+    APPEND VALUE #(
+      change_type          = 'C'
+      allocation_unit      = 'EA'
+      order_id             = 'LATE'
+      new_reservation_date = '20260105'
+      new_shortage         = 9 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type          = 'A'
+      allocation_unit      = 'EA'
+      order_id             = 'EARLY'
+      new_reservation_date = '20260101'
+      new_shortage         = 2 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type          = 'R'
+      allocation_unit      = 'EA'
+      order_id             = 'REMOVED'
+      old_reservation_date = '20260103'
+      old_shortage         = 20 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'NO-DATE'
+      new_shortage    = 100 ) TO lt_changes.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_sorted = lo_cut->sort_by_reservation_date( lt_changes ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_sorted[ 1 ]-order_id
       exp = 'EARLY' ).

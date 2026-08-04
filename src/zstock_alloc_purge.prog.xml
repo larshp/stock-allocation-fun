@@ -129,6 +129,18 @@
     <ENTRY>Deadline age as-of date</ENTRY>
     <LENGTH>26</LENGTH>
    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TFROM</KEY>
+    <ENTRY>Audit duration from</ENTRY>
+    <LENGTH>19</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TTO</KEY>
+    <ENTRY>Audit duration to</ENTRY>
+    <LENGTH>17</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_OVRD</KEY>

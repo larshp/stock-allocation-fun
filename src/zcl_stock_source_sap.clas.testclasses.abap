@@ -1,3 +1,17 @@
+CLASS lcl_stock_read_auth_fail DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_source_read_authority.
+ENDCLASS.
+
+CLASS lcl_stock_read_auth_fail IMPLEMENTATION.
+  METHOD zif_source_read_authority~check_stock.
+    RAISE EXCEPTION TYPE zcx_stock_allocation.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_orders.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -10,9 +24,37 @@ CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_deletion_marked_data FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_unauthorized_read FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_stock_source_sap IMPLEMENTATION.
+  METHOD rejects_unauthorized_read.
+    DATA lo_authority TYPE REF TO zif_source_read_authority.
+    DATA lo_cut TYPE REF TO zif_stock_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_authority TYPE lcl_stock_read_auth_fail.
+    CREATE OBJECT lo_cut TYPE zcl_stock_source_sap
+      EXPORTING
+        io_authority = lo_authority.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-STOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Stock read authorization failed' ).
+  ENDMETHOD.
+
   METHOD rejects_incomplete_scope.
     DATA lo_cut TYPE REF TO zif_stock_source.
     DATA lv_raised TYPE abap_bool.

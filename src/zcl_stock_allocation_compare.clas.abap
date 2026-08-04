@@ -596,6 +596,104 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD zif_stock_allocation_compare~sort_by_requested_quantity.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        requested_quantity TYPE zif_stock_allocation=>ty_quantity,
+        shortage           TYPE zif_stock_allocation=>ty_quantity,
+        requested_on       TYPE d,
+        change_rank        TYPE i,
+        allocation_unit    TYPE zif_stock_allocation=>ty_unit,
+        order_id           TYPE zif_stock_allocation=>ty_order_id,
+        change             TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          requested_quantity = <ls_change>-new_requested
+          shortage           = <ls_change>-new_shortage
+          requested_on       = <ls_change>-new_requested_on
+          change_rank        = COND #( WHEN <ls_change>-change_type = 'C'
+                                       THEN 1
+                                       WHEN <ls_change>-change_type = 'A'
+                                       THEN 2
+                                       WHEN <ls_change>-change_type = 'U'
+                                       THEN 3
+                                       ELSE 4 )
+          allocation_unit    = <ls_change>-allocation_unit
+          order_id           = <ls_change>-order_id
+          change             = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          requested_quantity = <ls_change>-old_requested
+          shortage           = <ls_change>-old_shortage
+          requested_on       = <ls_change>-old_requested_on
+          change_rank        = 1
+          allocation_unit    = <ls_change>-allocation_unit
+          order_id           = <ls_change>-order_id
+          change             = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY requested_quantity DESCENDING shortage DESCENDING
+                          requested_on change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_allocated_quantity.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        allocated_quantity TYPE zif_stock_allocation=>ty_quantity,
+        shortage           TYPE zif_stock_allocation=>ty_quantity,
+        requested_on       TYPE d,
+        change_rank        TYPE i,
+        allocation_unit    TYPE zif_stock_allocation=>ty_unit,
+        order_id           TYPE zif_stock_allocation=>ty_order_id,
+        change             TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          allocated_quantity = <ls_change>-new_allocated
+          shortage           = <ls_change>-new_shortage
+          requested_on       = <ls_change>-new_requested_on
+          change_rank        = COND #( WHEN <ls_change>-change_type = 'C'
+                                       THEN 1
+                                       WHEN <ls_change>-change_type = 'A'
+                                       THEN 2
+                                       WHEN <ls_change>-change_type = 'U'
+                                       THEN 3
+                                       ELSE 4 )
+          allocation_unit    = <ls_change>-allocation_unit
+          order_id           = <ls_change>-order_id
+          change             = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          allocated_quantity = <ls_change>-old_allocated
+          shortage           = <ls_change>-old_shortage
+          requested_on       = <ls_change>-old_requested_on
+          change_rank        = 1
+          allocation_unit    = <ls_change>-allocation_unit
+          order_id           = <ls_change>-order_id
+          change             = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY allocated_quantity DESCENDING shortage DESCENDING
+                          requested_on change_rank allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_allocation_compare~sort_by_requested_date.
     TYPES:
       BEGIN OF ty_sort_line,
@@ -642,6 +740,58 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     ENDLOOP.
     SORT lt_sort_lines BY requested_date_available DESCENDING
                           requested_on shortage DESCENDING change_rank
+                          allocation_unit order_id.
+    LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
+      APPEND <ls_sort_line>-change TO rt_changes.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_allocation_compare~sort_by_reservation_date.
+    TYPES:
+      BEGIN OF ty_sort_line,
+        reservation_date_available TYPE abap_bool,
+        reservation_date           TYPE d,
+        shortage                   TYPE zif_stock_allocation=>ty_quantity,
+        change_rank                TYPE i,
+        allocation_unit            TYPE zif_stock_allocation=>ty_unit,
+        order_id                   TYPE zif_stock_allocation=>ty_order_id,
+        change                     TYPE zif_stock_allocation_compare=>ty_change,
+      END OF ty_sort_line.
+    DATA lt_sort_lines TYPE STANDARD TABLE OF ty_sort_line WITH EMPTY KEY.
+    FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
+    FIELD-SYMBOLS <ls_sort_line> TYPE ty_sort_line.
+
+    LOOP AT it_changes ASSIGNING <ls_change>.
+      IF <ls_change>-change_type <> 'R'.
+        APPEND VALUE #(
+          reservation_date_available = xsdbool(
+            <ls_change>-new_reservation_date IS NOT INITIAL )
+          reservation_date           = <ls_change>-new_reservation_date
+          shortage                   = <ls_change>-new_shortage
+          change_rank                = COND #( WHEN <ls_change>-change_type = 'C'
+                                                 THEN 1
+                                                 WHEN <ls_change>-change_type = 'A'
+                                                 THEN 2
+                                                 WHEN <ls_change>-change_type = 'U'
+                                                 THEN 3
+                                                 ELSE 4 )
+          allocation_unit            = <ls_change>-allocation_unit
+          order_id                   = <ls_change>-order_id
+          change                     = <ls_change> ) TO lt_sort_lines.
+      ELSE.
+        APPEND VALUE #(
+          reservation_date_available = xsdbool(
+            <ls_change>-old_reservation_date IS NOT INITIAL )
+          reservation_date           = <ls_change>-old_reservation_date
+          shortage                   = <ls_change>-old_shortage
+          change_rank                = 1
+          allocation_unit            = <ls_change>-allocation_unit
+          order_id                   = <ls_change>-order_id
+          change                     = <ls_change> ) TO lt_sort_lines.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sort_lines BY reservation_date_available DESCENDING
+                          reservation_date shortage DESCENDING change_rank
                           allocation_unit order_id.
     LOOP AT lt_sort_lines ASSIGNING <ls_sort_line>.
       APPEND <ls_sort_line>-change TO rt_changes.

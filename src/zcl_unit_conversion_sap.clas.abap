@@ -3,8 +3,12 @@ CLASS zcl_unit_conversion_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_unit_conversion_authority OPTIONAL.
     INTERFACES zif_unit_conversion.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_unit_conversion_authority.
     TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
     METHODS raise_error
       IMPORTING
@@ -14,6 +18,14 @@ CLASS zcl_unit_conversion_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_unit_conversion_sap IMPLEMENTATION.
+  METHOD constructor.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_unit_conversion_auth_sap.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_unit_conversion~convert.
     DATA lv_input TYPE ty_quantity.
     DATA lv_output TYPE ty_quantity.
@@ -34,6 +46,17 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
     IF lv_unit_from = lv_unit_to.
       rv_quantity = iv_quantity.
       RETURN.
+    ENDIF.
+
+    IF mo_authority IS BOUND.
+      TRY.
+          mo_authority->check( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_authority_error).
+          IF lo_authority_error->message IS INITIAL.
+            lo_authority_error->message = 'Unit conversion read authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_authority_error.
+      ENDTRY.
     ENDIF.
 
     lv_input = iv_quantity.

@@ -44,6 +44,8 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_transaction_failure FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS records_incomplete_cleanup FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_result_delete_auth FOR TESTING
       RAISING zcx_stock_allocation.
 ENDCLASS.
@@ -51,13 +53,60 @@ ENDCLASS.
 CLASS lcl_fail_alloc_transaction DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_transaction.
+    METHODS get_rollback_calls
+      RETURNING VALUE(rv_calls) TYPE i.
+  PRIVATE SECTION.
+    DATA mv_commit_calls TYPE i.
+    DATA mv_rollback_calls TYPE i.
 ENDCLASS.
 
 CLASS lcl_fail_alloc_transaction IMPLEMENTATION.
   METHOD zif_allocation_transaction~commit.
+    mv_commit_calls = mv_commit_calls + 1.
+    IF mv_commit_calls <> 2.
+      RETURN.
+    ENDIF.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     CREATE OBJECT lo_error.
     lo_error->message = 'Allocation transaction test failure'.
+    RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+
+  METHOD zif_allocation_transaction~rollback.
+    mv_rollback_calls = mv_rollback_calls + 1.
+  ENDMETHOD.
+
+  METHOD get_rollback_calls.
+    rv_calls = mv_rollback_calls.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_cleanup_fail_reservation DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_reservation.
+  PRIVATE SECTION.
+    DATA mv_reserve_calls TYPE i.
+ENDCLASS.
+
+CLASS lcl_cleanup_fail_reservation IMPLEMENTATION.
+  METHOD zif_stock_reservation~reserve.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+
+    mv_reserve_calls = mv_reserve_calls + 1.
+    IF mv_reserve_calls = 1.
+      rv_document = 'RES-CLEANUP-FAIL'.
+      RETURN.
+    ENDIF.
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Reservation test failure after first document'.
+    RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+
+  METHOD zif_stock_reservation~cancel.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Reservation cleanup test failure'.
     RAISE EXCEPTION lo_error.
   ENDMETHOD.
 ENDCLASS.
@@ -1264,12 +1313,13 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_reservation TYPE REF TO zif_stock_reservation.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
-    DATA lo_transaction TYPE REF TO zif_allocation_transaction.
+    DATA lo_transaction TYPE REF TO lcl_fail_alloc_transaction.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_rollback_calls TYPE i.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
@@ -1308,6 +1358,10 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Allocation result was not persisted: Allocation transaction test failure' ).
+    lv_rollback_calls = lo_transaction->get_rollback_calls( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_rollback_calls
+      exp = 1 ).
     SELECT SINGLE status
       FROM zstockalloc_run
       INTO @lv_status
@@ -1315,6 +1369,81 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
+    DELETE FROM zstockalloc
+      WHERE allocation_run_id = @lv_run_id.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
+  METHOD records_incomplete_cleanup.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_cleanup_message_seen TYPE abap_bool.
+
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'.
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_reservation TYPE lcl_cleanup_fail_reservation.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_reservation  = lo_reservation
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          EXPORTING
+            iv_material         = 'MATERIAL-PRIO'
+            iv_plant            = '1000'
+            iv_storage_location = '0001'
+            iv_movement_type    = '201'
+            iv_unit             = 'EA'
+          IMPORTING
+            ev_run_id           = lv_run_id ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
+    IF lv_message CS 'Reservation cleanup incomplete'.
+      lv_cleanup_message_seen = abap_true.
+    ENDIF.
+    cl_abap_unit_assert=>assert_true( lv_cleanup_message_seen ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      INTO (@lv_status, @lv_message)
+      WHERE run_id = @lv_run_id.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'P' ).
+    IF lv_message CS 'Reservation cleanup incomplete'.
+      lv_cleanup_message_seen = abap_true.
+    ENDIF.
+    cl_abap_unit_assert=>assert_true( lv_cleanup_message_seen ).
+    DELETE FROM zstockalloc
+      WHERE allocation_run_id = @lv_run_id.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
   ENDMETHOD.
 
   METHOD rejects_result_delete_auth.

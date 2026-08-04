@@ -19,6 +19,8 @@ CLASS ltcl_alloc_transaction_sap DEFINITION FINAL FOR TESTING
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS commits_transaction FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rolls_back_transaction FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_commit FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS reports_rollback_failure FOR TESTING
@@ -31,6 +33,13 @@ CLASS ltcl_alloc_transaction_sap IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_transaction_sap.
     lo_cut->commit( ).
+  ENDMETHOD.
+
+  METHOD rolls_back_transaction.
+    DATA lo_cut TYPE REF TO zif_allocation_transaction.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_transaction_sap.
+    lo_cut->rollback( ).
   ENDMETHOD.
 
   METHOD rejects_commit.

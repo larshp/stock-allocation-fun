@@ -1,5 +1,80 @@
 # Anomalies and known issues
 
+- Resolved: stock/order SAP SQL could acquire a new standard-table dependency without a corresponding local Open ABAP table stub. The repository contract now discovers production `FROM`/`JOIN` table names and validates their descriptors and identities.
+
+- Resolved: the local SAP harness could silently omit a newly introduced function-module dependency because the contract checked only a hand-maintained stub list. Production `CALL FUNCTION` usage is now discovered automatically and checked against the registered SAP stubs.
+
+- Resolved: newly added SAP authorization ports were lintable and transpileable but lacked importable abapGit descriptors, and the repository contract did not guard global-object metadata completeness. Four descriptors are now present, with serializer and identity checks covering every global class/interface/program.
+
+- Resolved: report metadata checks previously proved parameter/XML key parity but could still miss a wrong program identity or blank SAP selection text. The executable-report contract now validates both across all eight reports.
+
+- Resolved: comparison could filter reservations only by a minimum age, leaving no bounded way to compare a specific reservation-age window independently on both sides. Common and old/new maximum-age parameters (`p_rageto`, `p_oragto`, `p_nragto`) now propagate to snapshot reads, reject negative/reversed ranges, and are exposed in schema `94` provenance.
+
+- Resolved: result consumers could select reservations only by a minimum age, making bounded follow-up windows impossible. `p_rageto` now provides a validated inclusive maximum-age bound through the sink and every result export; result schemas advance to detail `35` and summary `37`.
+
+- Resolved: a failed snapshot persistence could leave partial database changes in the same LUW that later finalized the audit error, because the transaction port only supported commit. The allocation service now commits the running audit row before side effects, exposes SAP rollback through the transaction port, rolls back failed persistence before finalization, and preserves rollback diagnostics when recovery itself fails.
+
+- Resolved: retention treated database delete statements as successful without checking return status or confirming that each selected audit header disappeared, allowing a partial purge to be committed. Purge now validates delete outcomes, rolls back on persistence errors, and preserves rollback diagnostics.
+
+- Resolved: direct unit-conversion callers could invoke `MD_CONVERT_MATERIAL_UNIT` without a material/unit-table authorization boundary. The SAP adapter now defaults to activity-03 checks for `MARA` and `MARM` while retaining an injectable port for tests and alternate policies.
+
+- Resolved: direct stock and sales-order source adapters queried SAP standard tables without an explicit read-authorization seam, so callers could bypass source-data authorization by constructing them directly. Injectable/default source-read authority now checks activity `03` for `MARA`/`MARD`, conditionally `MCHB`/`MCHA` for batch reads, and `VBAK`/`VBAP`/`VBEP`, with regression and repository-contract coverage.
+
+- Resolved: purge could delete audit/snapshot tracking rows while a persisted `reservation_id` still pointed to an SAP reservation, creating an orphaned business document. Finalized runs with any linked reservation are now protected and reported separately in preview/execution output; the purge contracts advance to CSV `20`/`21` and typed JSON `22`/`23`.
+
+- Resolved: the allocation service's partial reservation-cleanup outcome had no direct regression coverage, and the transaction-failure fixture lacked a sales-order header. The suite now verifies persisted partial status plus cleanup diagnostics and supplies the complete `VBAK`/`VBAP`/`VBEP` fixture.
+
+- Resolved: the SAP-stub, namespace, and tool-configuration requirements were documented but not guarded by an executable repository contract. The default test pipeline now verifies the required tables/API stub, exact `sap_stubs` and `open-abap-core` source paths, Z-prefixed production objects, required lint rules, BAPI-stub installation, and test wiring.
+
+- Resolved: comparison exposed old/new available-stock baselines but could not select runs by them. Common and independent available-stock ranges now reach audit and snapshot reads with validation/provenance in schema `93`.
+
+- Resolved: purge could constrain audit dates but not completed audit duration. `p_tfrom`/`p_tto` now filter both preview and execution, exclude unfinished or invalid-duration rows when active, and expose duration provenance with schemas `19`/`20` for CSV and `21`/`22` for JSON.
+
+- Resolved: comparison could display old/new audit durations but could not select runs by them. Common and side-specific inclusive completed-duration bounds now reach both run and snapshot reads with validation and schema `92` provenance.
+
+- Resolved: result consumers could sort by audit duration but could not constrain slow or fast originating runs. `p_tfrom`/`p_tto` now select completed runs by inclusive duration in seconds, with validation and provenance; result schemas are `34`/`36`.
+
+- Resolved: result consumers could inspect the originating available-stock baseline but could not constrain it. `p_avf`/`p_avt` now apply consistently to audit and snapshot selection with validation and provenance; result schemas are `33`/`35`.
+
+- Resolved: result consumers could sort by originating demand count but could not constrain it. `p_dfrom`/`p_dto` now apply consistently to the audit and snapshot paths with validation and provenance; result schemas are `32`/`34`.
+
+- Resolved: report metadata parity was only audited for comparison, while result XML had an out-of-order `p_latest`/`p_rid` and duplicate `p_deadf`/`p_deadt` entries. The default contract test now covers all executable reports and the result metadata is corrected.
+
+- Resolved: a one-sided batch filter could silently leave the opposite comparison read unfiltered. Batch selection now follows the common-or-complete-pair contract used by the other stock-scope fields.
+
+- Resolved: `p_werks` was still marked `OBLIGATORY`, so the documented old/new-only plant scope could never reach validation. The common plant parameter is optional now, and the contract test prevents this regression.
+
+- Resolved: comparison parameter/XML metadata could drift in order while count-only audits still passed. The default test suite now enforces ordered parity, uniqueness, required independent-scope keys, and current schema markers; the existing deadline and sort-order mismatches were corrected.
+
+- Resolved: comparison required one plant for both snapshots; common `p_werks` or a complete old/new pair (`p_owerks`/`p_nwerks`) now scopes audit and snapshot reads with schema `91` provenance.
+
+- Resolved: comparison required one material for both snapshots; common `p_matnr` or a complete old/new pair (`p_omatnr`/`p_nmatnr`) now scopes audit and snapshot reads with schema `90` provenance.
+
+- Resolved: comparison required one storage location for both snapshots; common `p_lgort` or a complete old/new pair (`p_olgort`/`p_nlgort`) now scopes audit and snapshot reads with schema `89` provenance.
+
+- Resolved: comparison had only one batch scope for both snapshots; independent old/new batch filters now constrain audit and snapshot reads with schema `88` provenance.
+
+- Resolved: comparison exposed reservation IDs only as row data; common and independent old/new reservation-ID filters now constrain both reads with schema `87` provenance.
+
+- Resolved: comparison exposed order IDs only as row data; common and independent old/new order-ID filters now constrain both reads with schema `86` provenance.
+
+- Resolved: comparison exposed order units only as row data; common and independent old/new order-unit filters now constrain both reads with schema `85` provenance.
+
+- Resolved: comparison exposed schedule lines only as row data; common and independent old/new schedule-line filters now constrain both reads with schema `84` provenance.
+
+- Resolved: comparison exposed sales items only as row data; common and independent old/new sales-item filters now constrain both reads with schema `83` provenance.
+
+- Resolved: comparison exposed sales-document type only as row data; common and independent old/new sales-document-type filters now constrain both reads with schema `82` provenance.
+
+- Resolved: comparison could filter allocation status but could not isolate shortage-bearing snapshots; `p_bklg` plus `p_obklg`/`p_nbklg` now reuse the sink's shortage predicate with explicit common/side conflict validation and schema `75` provenance.
+- Resolved: comparison could isolate shortage rows but could not bound their quantity; common `p_shf`/`p_sht` and independent old/new ranges now reach both snapshot reads with nonnegative, ordered-bound validation and schema `76` numeric provenance.
+- Resolved: comparison exposed coverage and shortage percentages but could not filter by them; common and old/new side-specific ranges now apply through the sink with 0..100 and ordering safeguards and schema `77` numeric provenance.
+- Resolved: comparison could rank requested and allocated quantities but could not constrain them; common and old/new quantity ranges now reach both snapshot reads with nonnegative, ordered-bound validation and schema `78` provenance.
+- Resolved: comparison could order by quantities but could not constrain allocation priority; common and old/new priority ranges now reach both snapshot reads with nonnegative, ordered-bound validation and schema `79` provenance.
+- Resolved: comparison could filter persisted requested horizons but not snapshot-line requested dates; common and old/new snapshot-date windows now reach both reads with reversed-range safeguards and schema `80` provenance.
+- Resolved: comparison exposed sales-document identities only as row data; common and independent old/new sales-document filters now constrain both reads with schema `81` provenance.
+- Resolved: comparison could rank requested-quantity changes but not the largest current demand or allocated quantities; `p_big` and `p_done` now order effective new/old values with deterministic ties and schema `74` provenance.
+- Resolved: comparison exposed reservation dates but could not order changes by reservation urgency; `p_rdate` now sorts by the effective old/new reservation date with deterministic shortage and key ties, and schema `73` records the sort contract.
 - Resolved: comparison could constrain reservation posting dates but not reservation age; `p_rage` plus `p_orage`/`p_nrage` now apply nonnegative minimum ages to old/new snapshot reads, reject ambiguous combinations, and expose schema `72` provenance.
 - Resolved: comparison could filter reservation state, movement type, and unit but not reservation posting dates; common and old/new reservation-date windows now constrain snapshot reads with reversed-range safeguards and schema `71` provenance.
 - Resolved: comparison could select reservation metadata but not reserved versus unreserved populations independently; common and old/new reservation-state switches now propagate to snapshot reads with conflict safeguards and schema `70` provenance.

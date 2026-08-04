@@ -18,6 +18,7 @@ PARAMETERS p_typed AS CHECKBOX.
 START-OF-SELECTION.
   DATA lo_stock_source TYPE REF TO zif_stock_source.
   DATA lo_order_source TYPE REF TO zif_order_source.
+  DATA lo_source_read_authority TYPE REF TO zif_source_read_authority.
   DATA lo_sink TYPE REF TO zif_allocation_sink.
   DATA lo_allocator TYPE REF TO zif_stock_allocation.
   DATA lo_reservation TYPE REF TO zif_stock_reservation.
@@ -104,8 +105,13 @@ START-OF-SELECTION.
     lv_strategy = 'priority'.
   ENDIF.
 
-  CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
-  CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+  CREATE OBJECT lo_source_read_authority TYPE zcl_source_read_auth_sap.
+  CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap
+    EXPORTING
+      io_authority = lo_source_read_authority.
+  CREATE OBJECT lo_order_source TYPE zcl_order_source_sap
+    EXPORTING
+      io_authority = lo_source_read_authority.
   IF p_strat = 'F'.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_fifo.
   ELSEIF p_strat = 'N'.

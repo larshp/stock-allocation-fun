@@ -79,6 +79,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
         demand_count      TYPE i,
+        available         TYPE zif_stock_allocation=>ty_quantity,
         status            TYPE zif_allocation_audit=>ty_run_status,
         message           TYPE zif_allocation_audit=>ty_message,
         start_date        TYPE d,
@@ -104,6 +105,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_reservation_cutoff TYPE d.
+    DATA lv_reservation_age_to_cutoff TYPE d.
     DATA lv_overdue_date TYPE d.
     DATA lv_run_deadline TYPE d.
     DATA lv_run_deadline_age_date TYPE d.
@@ -172,6 +174,45 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation result requested horizon range is invalid' ).
     ENDIF.
+    IF iv_run_demand_from IS NOT INITIAL
+        AND iv_run_demand_from < 0
+        OR iv_run_demand_to IS NOT INITIAL
+        AND iv_run_demand_to < 0.
+      raise_error(
+        iv_message = 'Allocation result demand-count range is invalid' ).
+    ENDIF.
+    IF iv_run_demand_from IS NOT INITIAL
+        AND iv_run_demand_to IS NOT INITIAL
+        AND iv_run_demand_from > iv_run_demand_to.
+      raise_error(
+        iv_message = 'Allocation result demand-count range is invalid' ).
+    ENDIF.
+    IF ( iv_run_available_from IS NOT INITIAL
+          AND iv_run_available_from < 0 )
+        OR ( iv_run_available_to IS NOT INITIAL
+          AND iv_run_available_to < 0 ).
+      raise_error(
+        iv_message = 'Allocation result available-stock range is invalid' ).
+    ENDIF.
+    IF iv_run_available_from IS NOT INITIAL
+        AND iv_run_available_to IS NOT INITIAL
+        AND iv_run_available_from > iv_run_available_to.
+      raise_error(
+        iv_message = 'Allocation result available-stock range is invalid' ).
+    ENDIF.
+    IF ( iv_run_duration_from IS NOT INITIAL
+          AND iv_run_duration_from < 0 )
+        OR ( iv_run_duration_to IS NOT INITIAL
+          AND iv_run_duration_to < 0 ).
+      raise_error(
+        iv_message = 'Allocation result audit-duration range is invalid' ).
+    ENDIF.
+    IF iv_run_duration_from IS NOT INITIAL
+        AND iv_run_duration_to IS NOT INITIAL
+        AND iv_run_duration_from > iv_run_duration_to.
+      raise_error(
+        iv_message = 'Allocation result audit-duration range is invalid' ).
+    ENDIF.
     IF iv_run_deadline_from IS NOT INITIAL
         AND iv_run_deadline_to IS NOT INITIAL
         AND iv_run_deadline_from > iv_run_deadline_to.
@@ -199,6 +240,16 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_reservation_age_from < 0.
       raise_error(
         iv_message = 'Allocation result reservation age is invalid' ).
+    ENDIF.
+    IF iv_reservation_age_to < 0.
+      raise_error(
+        iv_message = 'Allocation result reservation age is invalid' ).
+    ENDIF.
+    IF iv_reservation_age_from IS NOT INITIAL
+        AND iv_reservation_age_to IS NOT INITIAL
+        AND iv_reservation_age_from > iv_reservation_age_to.
+      raise_error(
+        iv_message = 'Allocation result reservation age range is invalid' ).
     ENDIF.
     IF iv_priority_from IS NOT INITIAL
         AND iv_priority_to IS NOT INITIAL
@@ -376,6 +427,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF lines( rt_demands ) > 0.
       IF lv_strategy IS NOT INITIAL.
            SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               available,
                status, message,
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
@@ -387,6 +439,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch.
       ELSEIF iv_legacy_strategy = abap_true.
            SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               available,
                status, message,
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
@@ -399,6 +452,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND strategy = @space.
       ELSE.
            SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               available,
                status, message,
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
@@ -420,6 +474,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
               OR iv_run_message_only = abap_true
               OR iv_allocation_movement_type IS NOT INITIAL
               OR iv_min_shelf_life IS NOT INITIAL
+              OR iv_run_demand_from IS NOT INITIAL
+              OR iv_run_demand_to IS NOT INITIAL
+              OR iv_run_available_from IS NOT INITIAL
+              OR iv_run_available_to IS NOT INITIAL
+              OR iv_run_duration_from IS NOT INITIAL
+              OR iv_run_duration_to IS NOT INITIAL
               OR iv_deadline_only = abap_true
               OR iv_run_requested_on_from IS NOT INITIAL
               OR iv_run_requested_on_to IS NOT INITIAL
@@ -456,6 +516,37 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
            IF lv_run_status IS NOT INITIAL
                AND <ls_strategy_run>-status <> lv_run_status.
              DELETE rt_demands.
+           ELSEIF ( iv_run_demand_from IS NOT INITIAL
+                 AND <ls_strategy_run>-demand_count < iv_run_demand_from )
+               OR ( iv_run_demand_to IS NOT INITIAL
+                 AND <ls_strategy_run>-demand_count > iv_run_demand_to ).
+             DELETE rt_demands.
+           ELSEIF ( iv_run_available_from IS NOT INITIAL
+                 AND <ls_strategy_run>-available < iv_run_available_from )
+               OR ( iv_run_available_to IS NOT INITIAL
+                 AND <ls_strategy_run>-available > iv_run_available_to ).
+             DELETE rt_demands.
+           ELSEIF iv_run_duration_from IS NOT INITIAL
+               OR iv_run_duration_to IS NOT INITIAL.
+             CLEAR lv_duration_seconds.
+             IF <ls_strategy_run>-finish_date IS INITIAL.
+               DELETE rt_demands.
+             ELSE.
+               cl_abap_tstmp=>td_subtract(
+                 EXPORTING
+                   date1    = <ls_strategy_run>-finish_date
+                   time1    = <ls_strategy_run>-finish_time
+                   date2    = <ls_strategy_run>-start_date
+                   time2    = <ls_strategy_run>-start_time
+                 IMPORTING
+                   res_secs = lv_duration_seconds ).
+               IF ( iv_run_duration_from IS NOT INITIAL
+                     AND lv_duration_seconds < iv_run_duration_from )
+                   OR ( iv_run_duration_to IS NOT INITIAL
+                     AND lv_duration_seconds > iv_run_duration_to ).
+                 DELETE rt_demands.
+               ENDIF.
+             ENDIF.
            ELSEIF iv_allocation_movement_type IS NOT INITIAL
               AND <ls_strategy_run>-movement_type
                 <> iv_allocation_movement_type.
@@ -578,6 +669,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       lv_reservation_cutoff = sy-datum - iv_reservation_age_from.
       DELETE rt_demands WHERE reservation_date IS INITIAL.
       DELETE rt_demands WHERE reservation_date > lv_reservation_cutoff.
+    ENDIF.
+    IF iv_reservation_age_to IS NOT INITIAL.
+      lv_reservation_age_to_cutoff = sy-datum - iv_reservation_age_to.
+      DELETE rt_demands WHERE reservation_date IS INITIAL.
+      DELETE rt_demands WHERE reservation_date < lv_reservation_age_to_cutoff.
     ENDIF.
     IF iv_requested_on_from IS NOT INITIAL.
       DELETE rt_demands WHERE requested_on < iv_requested_on_from.

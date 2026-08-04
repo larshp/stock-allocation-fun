@@ -19,6 +19,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       partial_count  TYPE i,
       error_count    TYPE i,
       unknown_count  TYPE i,
+      reserved_count TYPE i,
     END OF ty_purge_preview.
   TYPES:
     BEGIN OF ty_run,
@@ -294,6 +295,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_start_date_from   TYPE d OPTIONAL
       iv_finish_date_from  TYPE d OPTIONAL
       iv_finish_date_to    TYPE d OPTIONAL
+      iv_duration_from     TYPE i OPTIONAL
+      iv_duration_to       TYPE i OPTIONAL
       iv_before_date       TYPE d
     EXPORTING
       ev_deleted_snapshots TYPE i
@@ -302,6 +305,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       ev_deleted_error     TYPE i
       ev_protected_running TYPE i
       ev_protected_unknown TYPE i
+      ev_reserved_runs     TYPE i
     RETURNING
       VALUE(rv_deleted)    TYPE i
       RAISING
@@ -335,6 +339,8 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_start_date_from   TYPE d OPTIONAL
       iv_finish_date_from  TYPE d OPTIONAL
       iv_finish_date_to    TYPE d OPTIONAL
+      iv_duration_from     TYPE i OPTIONAL
+      iv_duration_to       TYPE i OPTIONAL
       iv_before_date       TYPE d
     RETURNING
       VALUE(rs_preview)    TYPE ty_purge_preview

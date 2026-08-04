@@ -3,8 +3,12 @@ CLASS zcl_stock_source_sap DEFINITION
   FINAL
   CREATE PUBLIC.
   PUBLIC SECTION.
+    METHODS constructor
+      IMPORTING
+        io_authority TYPE REF TO zif_source_read_authority OPTIONAL.
     INTERFACES zif_stock_source.
   PRIVATE SECTION.
+    DATA mo_authority TYPE REF TO zif_source_read_authority.
     METHODS raise_error
       IMPORTING
         iv_message TYPE zif_allocation_audit=>ty_message
@@ -13,6 +17,14 @@ CLASS zcl_stock_source_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_source_sap IMPLEMENTATION.
+  METHOD constructor.
+    IF io_authority IS BOUND.
+      mo_authority = io_authority.
+    ELSE.
+      CREATE OBJECT mo_authority TYPE zcl_source_read_auth_sap.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_stock_source~get_available.
     DATA lv_stock_deleted TYPE c LENGTH 1.
     DATA lv_material_deleted TYPE c LENGTH 1.
@@ -22,6 +34,16 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Stock read scope is incomplete' ).
+    ENDIF.
+    IF mo_authority IS BOUND.
+      TRY.
+          mo_authority->check_stock( iv_batch = iv_batch ).
+        CATCH zcx_stock_allocation INTO DATA(lo_authority_error).
+          IF lo_authority_error->message IS INITIAL.
+            lo_authority_error->message = 'Stock read authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_authority_error.
+      ENDTRY.
     ENDIF.
     IF iv_batch IS INITIAL.
       CLEAR lv_stock_deleted.

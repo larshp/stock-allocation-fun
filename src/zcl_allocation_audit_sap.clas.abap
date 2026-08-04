@@ -20,6 +20,11 @@ CLASS zcl_allocation_audit_sap DEFINITION
         iv_message TYPE zif_allocation_audit=>ty_message
       RAISING
         zcx_stock_allocation.
+    METHODS rollback_and_raise
+      IMPORTING
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
     METHODS validate_run
       IMPORTING
         is_run TYPE zif_allocation_audit=>ty_run
@@ -93,7 +98,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       BEGIN OF ty_purge_candidate,
         run_id            TYPE zif_allocation_audit=>ty_run_id,
         start_date        TYPE d,
+        start_time        TYPE t,
         finish_date       TYPE d,
+        finish_time       TYPE t,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
         unit              TYPE zif_stock_allocation=>ty_unit,
@@ -110,6 +117,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_requested_deadline TYPE d.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
+    DATA lv_duration_seconds TYPE i.
+    DATA lv_remaining_run_id TYPE zif_allocation_audit=>ty_run_id.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL.
@@ -145,6 +154,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_finish_date_to IS NOT INITIAL
         AND iv_finish_date_from > iv_finish_date_to.
       raise_error( iv_message = 'Audit purge finish date range is invalid' ).
+    ENDIF.
+    IF ( iv_duration_from IS NOT INITIAL AND iv_duration_from < 0 )
+        OR ( iv_duration_to IS NOT INITIAL AND iv_duration_to < 0 ).
+      raise_error( iv_message = 'Audit purge duration range is invalid' ).
+    ENDIF.
+    IF iv_duration_from IS NOT INITIAL
+        AND iv_duration_to IS NOT INITIAL
+        AND iv_duration_from > iv_duration_to.
+      raise_error( iv_message = 'Audit purge duration range is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -213,13 +231,17 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deleted_error TYPE i.
     DATA lv_protected_running TYPE i.
     DATA lv_protected_unknown TYPE i.
+    DATA lv_protected_reservation TYPE i.
+    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA ls_candidate TYPE ty_purge_candidate.
     IF iv_run_id IS INITIAL.
       IF iv_start_date_from IS INITIAL.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -241,7 +263,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSE.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -266,7 +290,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       IF iv_start_date_from IS INITIAL.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -289,7 +315,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSE.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -333,6 +361,29 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ( ls_candidate-finish_date IS INITIAL
             OR ls_candidate-finish_date > iv_finish_date_to ).
         CONTINUE.
+      ENDIF.
+      IF iv_duration_from IS NOT INITIAL OR iv_duration_to IS NOT INITIAL.
+        IF ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-start_date IS INITIAL
+            OR ls_candidate-start_time IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        CLEAR lv_duration_seconds.
+        cl_abap_tstmp=>td_subtract(
+          EXPORTING
+            date1    = ls_candidate-finish_date
+            time1    = ls_candidate-finish_time
+            date2    = ls_candidate-start_date
+            time2    = ls_candidate-start_time
+          IMPORTING
+            res_secs = lv_duration_seconds ).
+        IF lv_duration_seconds < 0
+            OR ( iv_duration_from IS NOT INITIAL
+              AND lv_duration_seconds < iv_duration_from )
+            OR ( iv_duration_to IS NOT INITIAL
+              AND lv_duration_seconds > iv_duration_to ).
+          CONTINUE.
+        ENDIF.
       ENDIF.
       IF iv_message_contains IS NOT INITIAL
           AND to_upper( ls_candidate-message )
@@ -395,12 +446,54 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR ls_candidate-requested_on_to = iv_requested_on_to ).
         CASE ls_candidate-status.
           WHEN 'S'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              lv_protected_reservation = lv_protected_reservation + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             lv_deleted_success = lv_deleted_success + 1.
           WHEN 'P'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              lv_protected_reservation = lv_protected_reservation + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             lv_deleted_partial = lv_deleted_partial + 1.
           WHEN 'E'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              lv_protected_reservation = lv_protected_reservation + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             lv_deleted_error = lv_deleted_error + 1.
           WHEN 'R'.
@@ -417,13 +510,29 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
           AND run_id = @lv_run_id.
+      IF sy-subrc <> 0 AND sy-subrc <> 4.
+        rollback_and_raise(
+          iv_message = 'Audit snapshot purge persistence failed' ).
+      ENDIF.
       lv_deleted_snapshots = lv_deleted_snapshots + sy-dbcnt.
     ENDLOOP.
     CLEAR rv_deleted.
     LOOP AT lt_run_ids INTO lv_run_id.
       DELETE FROM zstockalloc_run
         WHERE run_id = @lv_run_id.
-      rv_deleted = rv_deleted + sy-dbcnt.
+      IF sy-subrc <> 0.
+        rollback_and_raise(
+          iv_message = 'Audit run purge persistence failed' ).
+      ENDIF.
+      SELECT SINGLE run_id
+        FROM zstockalloc_run
+        INTO @lv_remaining_run_id
+        WHERE run_id = @lv_run_id.
+      IF sy-subrc = 0.
+        rollback_and_raise(
+          iv_message = 'Audit run purge persistence failed' ).
+      ENDIF.
+      rv_deleted = rv_deleted + 1.
     ENDLOOP.
     ev_deleted_snapshots = lv_deleted_snapshots.
     ev_deleted_success = lv_deleted_success.
@@ -431,6 +540,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ev_deleted_error = lv_deleted_error.
     ev_protected_running = lv_protected_running.
     ev_protected_unknown = lv_protected_unknown.
+    ev_reserved_runs = lv_protected_reservation.
     IF mo_transaction IS BOUND.
       TRY.
           mo_transaction->commit( ).
@@ -448,7 +558,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       BEGIN OF ty_purge_candidate,
         run_id            TYPE zif_allocation_audit=>ty_run_id,
         start_date        TYPE d,
+        start_time        TYPE t,
         finish_date       TYPE d,
+        finish_time       TYPE t,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
         unit              TYPE zif_stock_allocation=>ty_unit,
@@ -465,12 +577,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_requested_deadline TYPE d.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
+    DATA lv_duration_seconds TYPE i.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
       WITH UNIQUE KEY table_line.
     DATA ls_candidate TYPE ty_purge_candidate.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_snapshot_count TYPE i.
+    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
 
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -507,6 +621,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_finish_date_to IS NOT INITIAL
         AND iv_finish_date_from > iv_finish_date_to.
       raise_error( iv_message = 'Audit purge finish date range is invalid' ).
+    ENDIF.
+    IF ( iv_duration_from IS NOT INITIAL AND iv_duration_from < 0 )
+        OR ( iv_duration_to IS NOT INITIAL AND iv_duration_to < 0 ).
+      raise_error( iv_message = 'Audit purge duration range is invalid' ).
+    ENDIF.
+    IF iv_duration_from IS NOT INITIAL
+        AND iv_duration_to IS NOT INITIAL
+        AND iv_duration_from > iv_duration_to.
+      raise_error( iv_message = 'Audit purge duration range is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -570,7 +693,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       IF iv_start_date_from IS INITIAL.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -592,7 +717,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSE.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -617,7 +744,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       IF iv_start_date_from IS INITIAL.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -640,7 +769,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSE.
         SELECT run_id,
                start_date,
+               start_time,
                finish_date,
+               finish_time,
                movement_type,
                min_shelf_life,
                unit,
@@ -684,6 +815,29 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ( ls_candidate-finish_date IS INITIAL
             OR ls_candidate-finish_date > iv_finish_date_to ).
         CONTINUE.
+      ENDIF.
+      IF iv_duration_from IS NOT INITIAL OR iv_duration_to IS NOT INITIAL.
+        IF ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-start_date IS INITIAL
+            OR ls_candidate-start_time IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        CLEAR lv_duration_seconds.
+        cl_abap_tstmp=>td_subtract(
+          EXPORTING
+            date1    = ls_candidate-finish_date
+            time1    = ls_candidate-finish_time
+            date2    = ls_candidate-start_date
+            time2    = ls_candidate-start_time
+          IMPORTING
+            res_secs = lv_duration_seconds ).
+        IF lv_duration_seconds < 0
+            OR ( iv_duration_from IS NOT INITIAL
+              AND lv_duration_seconds < iv_duration_from )
+            OR ( iv_duration_to IS NOT INITIAL
+              AND lv_duration_seconds > iv_duration_to ).
+          CONTINUE.
+        ENDIF.
       ENDIF.
       IF iv_message_contains IS NOT INITIAL
           AND to_upper( ls_candidate-message )
@@ -746,12 +900,57 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR ls_candidate-requested_on_to = iv_requested_on_to ).
         CASE ls_candidate-status.
           WHEN 'S'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              rs_preview-reserved_count =
+                rs_preview-reserved_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             rs_preview-success_count = rs_preview-success_count + 1.
           WHEN 'P'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              rs_preview-reserved_count =
+                rs_preview-reserved_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             rs_preview-partial_count = rs_preview-partial_count + 1.
           WHEN 'E'.
+            CLEAR lv_reservation_id.
+            SELECT SINGLE reservation_id
+              FROM zstockalloc
+              INTO @lv_reservation_id
+              WHERE matnr = @iv_material
+                AND werks = @iv_plant
+                AND lgort = @iv_storage_location
+                AND batch = @iv_batch
+                AND run_id = @ls_candidate-run_id
+                AND reservation_id <> @space.
+            IF lv_reservation_id IS NOT INITIAL.
+              rs_preview-reserved_count =
+                rs_preview-reserved_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
             rs_preview-error_count = rs_preview-error_count + 1.
           WHEN 'R'.
@@ -2160,6 +2359,27 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     CREATE OBJECT lo_error.
     lo_error->message = iv_message.
     RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+
+  METHOD rollback_and_raise.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    lv_message = iv_message.
+    IF mo_transaction IS BOUND.
+      TRY.
+          mo_transaction->rollback( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_rollback_error).
+          IF lo_rollback_error->message IS INITIAL.
+            CONCATENATE lv_message 'Transaction rollback failed'
+              INTO lv_message SEPARATED BY '; ' .
+          ELSE.
+            CONCATENATE lv_message 'Transaction rollback failed:'
+              lo_rollback_error->message
+              INTO lv_message SEPARATED BY '; ' .
+          ENDIF.
+      ENDTRY.
+    ENDIF.
+    raise_error( iv_message = lv_message ).
   ENDMETHOD.
 
   METHOD validate_run.

@@ -350,6 +350,93 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       act = lt_demands[ 1 ]-allocation_run_id
       exp = 'RUN-FILTER-U' ).
 
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_demand_from  = 2
+      iv_run_demand_to    = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_demand_from  = 4
+          iv_run_demand_to    = 2 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_demand_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_demand_range_error->message
+          exp = 'Allocation result demand-count range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material           = 'MATERIAL-FILTER'
+      iv_plant              = '1000'
+      iv_storage_location   = '0001'
+      iv_run_available_from = 1
+      iv_run_available_to   = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material           = 'MATERIAL-FILTER'
+          iv_plant              = '1000'
+          iv_storage_location   = '0001'
+          iv_run_available_from = 2
+          iv_run_available_to   = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_available_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_available_range_error->message
+          exp = 'Allocation result available-stock range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material          = 'MATERIAL-FILTER'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_run_duration_from = 1
+      iv_run_duration_to   = 200000 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material          = 'MATERIAL-FILTER'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_run_duration_from = 2
+          iv_run_duration_to   = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_duration_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_duration_range_error->message
+          exp = 'Allocation result audit-duration range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
     CLEAR lv_raised.
     TRY.
         lo_cut->get_allocations(
@@ -992,6 +1079,18 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_reservation_age_from = 1 ).
     cl_abap_unit_assert=>assert_initial( lt_demands ).
 
+    lt_demands = lo_cut->get_allocations(
+      iv_material           = 'MATERIAL-FILTER'
+      iv_plant              = '1000'
+      iv_storage_location   = '0001'
+      iv_reservation_age_to = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-order_id
+      exp = 'FILTER-FULL' ).
+
     TRY.
         lt_demands = lo_cut->get_allocations(
           iv_material         = 'MATERIAL-FILTER'
@@ -1175,6 +1274,22 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lo_date_error->message
           exp = 'Allocation result date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material             = 'MATERIAL-FILTER'
+          iv_plant                = '1000'
+          iv_storage_location     = '0001'
+          iv_reservation_age_from = 2
+          iv_reservation_age_to   = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_reservation_age_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_reservation_age_range_error->message
+          exp = 'Allocation result reservation age range is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
 

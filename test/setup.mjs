@@ -56,6 +56,7 @@ export async function initializeDatabase(abap, schemas, insert) {
     "INSERT INTO mcha (mandt, matnr, werks, charg, vfdat) VALUES ('000', 'MATERIAL-EXPIRING', '1000', 'EXPIRE-01', '20260810');",
     "INSERT INTO mard (mandt, matnr, werks, lgort, labst) VALUES ('001', 'MATERIAL-STOCK', '1000', '0001', 99);",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', 'PRIO000001', 'C', 'OR', '');",
+    "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', 'TXNFAIL0001', 'C', 'OR', '');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('001', 'OTHERCL001', 'C', 'OR', '');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', 'QUOT000001', 'B', 'QT', '');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', 'EXPIR00001', 'C', 'OR', '');",

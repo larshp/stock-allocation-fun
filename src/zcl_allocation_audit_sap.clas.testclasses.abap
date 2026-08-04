@@ -94,6 +94,9 @@ CLASS lcl_failing_audit_transaction IMPLEMENTATION.
     lo_error->message = 'Audit transaction test failure'.
     RAISE EXCEPTION lo_error.
   ENDMETHOD.
+
+  METHOD zif_allocation_transaction~rollback.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
@@ -138,9 +141,13 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS purges_linked_snapshots FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS protects_reserved_snapshots FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS purges_by_policy FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS purges_by_status FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_purge_duration FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS purges_by_run_id FOR TESTING
       RAISING zcx_stock_allocation.
@@ -1463,6 +1470,95 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       WHERE run_id = 'RUN-PURGE-RUNNING'.
   ENDMETHOD.
 
+  METHOD protects_reserved_snapshots.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
+    DATA lv_deleted TYPE i.
+    DATA lv_deleted_snapshots TYPE i.
+    DATA lv_protected_reservation TYPE i.
+    DATA lv_count TYPE i.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-PURGE-RESERVED'.
+    ls_run-matnr = 'MATERIAL-PURGE-RESERVED'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = '20260101'.
+    ls_run-start_time = '010000'.
+    ls_run-finish_date = '20260101'.
+    ls_run-finish_time = '010001'.
+    ls_run-status = 'S'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-allocated = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-PURGE-RESERVED'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-PURGE-RESERVED'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'PURGE-RESERVED-001'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = 'RES-PURGE-001'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-RESERVED'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-audit_count ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-snapshot_count ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-success_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-reserved_count
+      exp = 1 ).
+
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+        iv_material          = 'MATERIAL-PURGE-RESERVED'
+        iv_plant             = '1000'
+        iv_storage_location  = '0001'
+        iv_unit              = 'EA'
+        iv_before_date       = sy-datum
+      IMPORTING
+        ev_deleted_snapshots = lv_deleted_snapshots
+        ev_reserved_runs     = lv_protected_reservation ).
+    cl_abap_unit_assert=>assert_initial( lv_deleted ).
+    cl_abap_unit_assert=>assert_initial( lv_deleted_snapshots ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_protected_reservation
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_count
+      WHERE run_id = 'RUN-PURGE-RESERVED'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      INTO @lv_count
+      WHERE run_id = 'RUN-PURGE-RESERVED'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+
+    DELETE FROM zstockalloc
+      WHERE run_id = 'RUN-PURGE-RESERVED'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-PURGE-RESERVED'.
+  ENDMETHOD.
+
   METHOD purges_by_policy.
     DATA lo_cut TYPE REF TO zif_allocation_audit.
     DATA ls_run TYPE zstockalloc_run.
@@ -2027,6 +2123,104 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       WHERE matnr = 'MATERIAL-PURGE-STATUS'.
     DELETE FROM zstockalloc_run
       WHERE matnr = 'MATERIAL-PURGE-STATUS'.
+  ENDMETHOD.
+
+  METHOD filters_purge_duration.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
+    DATA lv_deleted TYPE i.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_count TYPE i.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-matnr = 'MATERIAL-PURGE-DURATION'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = '20260101'.
+    ls_run-start_time = '010000'.
+    ls_run-finish_date = '20260101'.
+    ls_run-finish_time = '010001'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-status = 'S'.
+    ls_run-run_id = 'RUN-PURGE-DURATION-SHORT'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-start_time = '020000'.
+    ls_run-finish_time = '020200'.
+    ls_run-run_id = 'RUN-PURGE-DURATION-LONG'.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-DURATION'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_duration_from    = 50
+      iv_duration_to      = 150
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    lv_deleted = lo_cut->purge_runs_before(
+      iv_material         = 'MATERIAL-PURGE-DURATION'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_duration_from    = 50
+      iv_duration_to      = 150
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_count
+      WHERE run_id = 'RUN-PURGE-DURATION-SHORT'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      INTO @lv_count
+      WHERE run_id = 'RUN-PURGE-DURATION-LONG'.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 0 ).
+
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-DURATION'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_duration_from    = 200
+          iv_duration_to      = 100
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_range_error->message
+          exp = 'Audit purge duration range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->purge_runs_before(
+          iv_material         = 'MATERIAL-PURGE-DURATION'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_duration_from    = -1
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_negative_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_negative_error->message
+          exp = 'Audit purge duration range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-DURATION'.
   ENDMETHOD.
 
   METHOD rejects_invalid_purge_status.

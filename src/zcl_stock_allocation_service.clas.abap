@@ -130,6 +130,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lv_failure_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_cleanup_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_persistence_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_rollback_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_release_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_audit_failure_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
@@ -1195,6 +1196,16 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       raise_error( iv_message = 'Audit run ID was not returned' ).
     ENDIF.
     ev_run_id = lv_run_id.
+    IF mo_transaction IS BOUND.
+      TRY.
+          mo_transaction->commit( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_start_transaction_error).
+          IF lo_start_transaction_error->message IS INITIAL.
+            lo_start_transaction_error->message = 'Audit run start commit failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_start_transaction_error.
+      ENDTRY.
+    ENDIF.
     IF iv_preview = abap_true.
       IF lv_shortage > 0.
         lv_status = 'P'.
@@ -1370,6 +1381,25 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDIF.
       CATCH zcx_stock_allocation INTO lo_persistence_error.
         lv_persistence_message = lo_persistence_error->message.
+        IF mo_transaction IS BOUND.
+          TRY.
+              mo_transaction->rollback( ).
+            CATCH zcx_stock_allocation INTO DATA(lo_rollback_error).
+              IF lo_rollback_error->message IS INITIAL.
+                lv_rollback_message = 'Allocation transaction rollback failed'.
+              ELSE.
+                CONCATENATE 'Allocation transaction rollback failed:'
+                  lo_rollback_error->message
+                  INTO lv_rollback_message SEPARATED BY space.
+              ENDIF.
+              IF lv_persistence_message IS INITIAL.
+                lv_persistence_message = lv_rollback_message.
+              ELSE.
+                CONCATENATE lv_persistence_message lv_rollback_message
+                  INTO lv_persistence_message SEPARATED BY '; ' .
+              ENDIF.
+          ENDTRY.
+        ENDIF.
         LOOP AT lt_reservations ASSIGNING <lv_reservation>.
           TRY.
               mo_reservation->cancel(

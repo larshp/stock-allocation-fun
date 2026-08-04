@@ -19,6 +19,8 @@ PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_tfrom TYPE i.
+PARAMETERS p_tto TYPE i.
 PARAMETERS p_ovrd AS CHECKBOX.
 PARAMETERS p_odate TYPE d.
 PARAMETERS p_reqf TYPE d.
@@ -46,6 +48,7 @@ START-OF-SELECTION.
   DATA lv_deleted_error TYPE i.
   DATA lv_protected_running TYPE i.
   DATA lv_protected_unknown TYPE i.
+  DATA lv_protected_reservation TYPE i.
   DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
   DATA lv_json_line TYPE string.
   DATA lv_error_message TYPE string.
@@ -73,6 +76,8 @@ START-OF-SELECTION.
   DATA lv_start_date_from_filter TYPE c LENGTH 10.
   DATA lv_finish_date_from_filter TYPE c LENGTH 10.
   DATA lv_finish_date_to_filter TYPE c LENGTH 10.
+  DATA lv_duration_from_filter TYPE string.
+  DATA lv_duration_to_filter TYPE string.
   DATA lv_filters_applied TYPE abap_bool.
   DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lv_filter_names_text TYPE string.
@@ -172,6 +177,16 @@ START-OF-SELECTION.
   ELSE.
     lv_finish_date_to_filter = p_fto.
   ENDIF.
+  IF p_tfrom IS INITIAL.
+    lv_duration_from_filter = 'n/a'.
+  ELSE.
+    lv_duration_from_filter = zcl_stock_csv=>number( p_tfrom ).
+  ENDIF.
+  IF p_tto IS INITIAL.
+    lv_duration_to_filter = 'n/a'.
+  ELSE.
+    lv_duration_to_filter = zcl_stock_csv=>number( p_tto ).
+  ENDIF.
 
   lv_filters_applied = abap_false.
   CLEAR lt_filter_names.
@@ -255,6 +270,10 @@ START-OF-SELECTION.
     lv_filters_applied = abap_true.
     APPEND 'finish_date_range' TO lt_filter_names.
   ENDIF.
+  IF p_tfrom IS NOT INITIAL OR p_tto IS NOT INITIAL.
+    lv_filters_applied = abap_true.
+    APPEND 'audit_duration_range' TO lt_filter_names.
+  ENDIF.
   CONCATENATE LINES OF lt_filter_names INTO lv_filter_names_text
     SEPARATED BY '|'.
   CLEAR lt_filter_value_fields.
@@ -333,6 +352,18 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'finish_date_to'
     iv_value = lv_finish_date_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'audit_duration_from'
+    iv_value   = p_tfrom
+    iv_text    = lv_duration_from_filter
+    iv_present = xsdbool( p_tfrom IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'audit_duration_to'
+    iv_value   = p_tto
+    iv_text    = lv_duration_to_filter
+    iv_present = xsdbool( p_tto IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
 
   IF p_csv = abap_true AND p_json = abap_true.
     lv_json_line = zcl_stock_json=>error(
@@ -554,6 +585,41 @@ START-OF-SELECTION.
       .
     RETURN.
   ENDIF.
+  IF p_tfrom < 0 OR p_tto < 0.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'Duration bounds must not be negative' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_purge'
+        iv_message = 'Duration bounds must not be negative' ).
+      RETURN.
+    ENDIF.
+    WRITE: / 'No rows deleted. Duration bounds must not be negative.'.
+    RETURN.
+  ENDIF.
+  IF p_tfrom IS NOT INITIAL AND p_tto IS NOT INITIAL
+      AND p_tfrom > p_tto.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error(
+        'The duration start must not be after the end value' ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_purge'
+        iv_message = 'The duration start must not be after the end value' ).
+      RETURN.
+    ENDIF.
+    WRITE: / 'No rows deleted. The duration start must not be after the end value.'.
+    RETURN.
+  ENDIF.
 
   CREATE OBJECT lo_authority TYPE zcl_alloc_retention_auth_sap.
   TRY.
@@ -626,6 +692,8 @@ START-OF-SELECTION.
           iv_start_date_from   = p_from
           iv_finish_date_from  = p_ffrom
           iv_finish_date_to    = p_fto
+          iv_duration_from     = p_tfrom
+          iv_duration_to       = p_tto
           iv_before_date       = p_date ).
       CATCH zcx_stock_allocation INTO DATA(lo_preview_error).
         IF p_json = abap_true.
@@ -666,7 +734,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 20 ) TO lt_json_fields.
+          iv_value = 22 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -792,6 +860,18 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'finish_date_to_filter'
         iv_value = lv_finish_date_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'audit_duration_from_filter'
+        iv_value   = p_tfrom
+        iv_text    = lv_duration_from_filter
+        iv_present = xsdbool( p_tfrom IS NOT INITIAL )
+        iv_typed   = xsdbool( p_typed = abap_true ) ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'audit_duration_to_filter'
+        iv_value   = p_tto
+        iv_text    = lv_duration_to_filter
+        iv_present = xsdbool( p_tto IS NOT INITIAL )
+        iv_typed   = xsdbool( p_typed = abap_true ) ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'unit'
         iv_value = p_meins ) TO lt_json_fields.
@@ -820,6 +900,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'protected_unknown_runs'
           iv_value = ls_preview-unknown_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'protected_reservation_runs'
+          iv_value = ls_preview-reserved_count ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>property(
           iv_name  = 'eligible_audit_runs'
@@ -842,6 +925,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'protected_unknown_runs'
           iv_value = ls_preview-unknown_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'protected_reservation_runs'
+          iv_value = ls_preview-reserved_count ) TO lt_json_fields.
       ENDIF.
       CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
       CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
@@ -853,7 +939,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( 'preview' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 18 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 20 ) TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
       ELSE.
@@ -887,6 +973,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_start_date_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_finish_date_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_finish_date_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_duration_to_filter ) TO lt_csv_fields.
       WRITE p_date TO lv_csv_field.
       APPEND zcl_stock_csv=>quote( lv_csv_field ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_preview-audit_count ) TO lt_csv_fields.
@@ -896,6 +984,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( ls_preview-snapshot_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_preview-running_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_preview-unknown_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview-reserved_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
       WRITE: / 'mode;generated_date;generated_time;schema_version;filters_applied;filters;'
@@ -906,10 +996,10 @@ START-OF-SELECTION.
         && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
         && 'overdue_only;requested_overdue_as_of;requested_on_from_filter;'
         && 'requested_on_to_filter;start_date_from_filter;finish_date_from_filter;'
-        && 'finish_date_to_filter;'
+        && 'finish_date_to_filter;audit_duration_from_filter;audit_duration_to_filter;'
         && 'before_date;eligible_audit_runs;eligible_success_runs;eligible_partial_runs;'
         && 'eligible_error_runs;linked_result_snapshots;protected_running_runs;'
-        && 'protected_unknown_runs;deleted_audit_runs'.
+        && 'protected_unknown_runs;protected_reservation_runs;deleted_audit_runs'.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
@@ -936,6 +1026,8 @@ START-OF-SELECTION.
            / 'Start date from:', lv_start_date_from_filter,
            / 'Finish date from:', lv_finish_date_from_filter,
            / 'Finish date to:', lv_finish_date_to_filter,
+           / 'Audit duration from:', lv_duration_from_filter,
+           / 'Audit duration to:', lv_duration_to_filter,
            / 'Preview only. No rows deleted.',
            / 'Eligible audit runs:', ls_preview-audit_count,
            / 'Eligible successful runs:', ls_preview-success_count,
@@ -944,6 +1036,7 @@ START-OF-SELECTION.
            / 'Linked result snapshots:', ls_preview-snapshot_count,
            / 'Protected running runs:', ls_preview-running_count,
            / 'Protected unknown-status runs:', ls_preview-unknown_count,
+           / 'Protected reservation runs:', ls_preview-reserved_count,
            / 'Select P_EXEC to execute retention.'.
     RETURN.
   ENDIF.
@@ -977,6 +1070,8 @@ START-OF-SELECTION.
           iv_start_date_from   = p_from
           iv_finish_date_from  = p_ffrom
           iv_finish_date_to    = p_fto
+          iv_duration_from     = p_tfrom
+          iv_duration_to       = p_tto
           iv_before_date       = p_date
         IMPORTING
           ev_deleted_snapshots = lv_deleted_snapshots
@@ -985,6 +1080,7 @@ START-OF-SELECTION.
           ev_deleted_error     = lv_deleted_error
           ev_protected_running = lv_protected_running
           ev_protected_unknown = lv_protected_unknown
+          ev_reserved_runs     = lv_protected_reservation
         ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF p_json = abap_true.
@@ -1024,7 +1120,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 21 ) TO lt_json_fields.
+        iv_value = 23 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -1150,6 +1246,18 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'finish_date_to_filter'
       iv_value = lv_finish_date_to_filter ) TO lt_json_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'audit_duration_from_filter'
+      iv_value   = p_tfrom
+      iv_text    = lv_duration_from_filter
+      iv_present = xsdbool( p_tfrom IS NOT INITIAL )
+      iv_typed   = xsdbool( p_typed = abap_true ) ) TO lt_json_fields.
+    APPEND zcl_stock_json=>filter_number_property(
+      iv_name    = 'audit_duration_to_filter'
+      iv_value   = p_tto
+      iv_text    = lv_duration_to_filter
+      iv_present = xsdbool( p_tto IS NOT INITIAL )
+      iv_typed   = xsdbool( p_typed = abap_true ) ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'unit'
       iv_value = p_meins ) TO lt_json_fields.
@@ -1178,6 +1286,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'protected_unknown_runs'
         iv_value = lv_protected_unknown ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'protected_reservation_runs'
+        iv_value = lv_protected_reservation ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deleted_audit_runs'
@@ -1200,6 +1311,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'protected_unknown_runs'
         iv_value = lv_protected_unknown ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'protected_reservation_runs'
+        iv_value = lv_protected_reservation ) TO lt_json_fields.
     ENDIF.
     CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
     CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
@@ -1212,7 +1326,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'execute' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 19 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 21 ) TO lt_csv_fields.
     IF lv_filters_applied = abap_true.
       APPEND 'true' TO lt_csv_fields.
     ELSE.
@@ -1246,6 +1360,8 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_start_date_from_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_finish_date_from_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_finish_date_to_filter ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_duration_from_filter ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_duration_to_filter ) TO lt_csv_fields.
     WRITE p_date TO lv_csv_field.
     APPEND zcl_stock_csv=>quote( lv_csv_field ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
@@ -1258,6 +1374,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( lv_deleted_snapshots ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_protected_running ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_protected_unknown ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( lv_protected_reservation ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
     WRITE: / 'mode;generated_date;generated_time;schema_version;filters_applied;filters;'
       && 'material;plant;storage_location;batch;run_id_filter;run_id_contains_filter;movement_type_filter;'
@@ -1267,9 +1384,10 @@ START-OF-SELECTION.
       && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
       && 'overdue_only;requested_overdue_as_of;requested_on_from_filter;'
       && 'requested_on_to_filter;start_date_from_filter;finish_date_from_filter;'
-      && 'finish_date_to_filter;'
+      && 'finish_date_to_filter;audit_duration_from_filter;audit_duration_to_filter;'
       && 'before_date;eligible_audit_runs;linked_result_snapshots;protected_running_runs;'
-      && 'protected_unknown_runs;deleted_audit_runs;deleted_success_runs;deleted_partial_runs;'
+      && 'protected_unknown_runs;protected_reservation_runs;deleted_audit_runs;'
+      && 'deleted_success_runs;deleted_partial_runs;'
       && 'deleted_error_runs;deleted_result_snapshots'.
     WRITE: / lv_csv_line.
     RETURN.
@@ -1298,6 +1416,8 @@ START-OF-SELECTION.
          / 'Start date from:', lv_start_date_from_filter,
          / 'Finish date from:', lv_finish_date_from_filter,
          / 'Finish date to:', lv_finish_date_to_filter,
+         / 'Audit duration from:', lv_duration_from_filter,
+         / 'Audit duration to:', lv_duration_to_filter,
          / 'Deleted audit runs:', lv_deleted,
          / 'Deleted successful runs:', lv_deleted_success,
          / 'Deleted partial runs:', lv_deleted_partial,
@@ -1305,3 +1425,4 @@ START-OF-SELECTION.
          / 'Deleted result snapshots:', lv_deleted_snapshots,
          / 'Protected running runs:', lv_protected_running,
          / 'Protected unknown-status runs:', lv_protected_unknown.
+  WRITE: / 'Protected reservation runs:', lv_protected_reservation.

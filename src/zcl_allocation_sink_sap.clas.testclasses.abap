@@ -229,7 +229,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-werks = '1000'.
     ls_run-lgort = '0001'.
     ls_run-unit = 'EA'.
-    ls_run-start_date = sy-datum.
+    ls_run-start_date = sy-datum - 2.
     ls_run-start_time = sy-uzeit.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
@@ -258,7 +258,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-finish_time = sy-uzeit.
     ls_run-status = 'P'.
     ls_run-available = 1.
-    ls_run-demand_count = 1.
+    ls_run-demand_count = 3.
     ls_run-allocated = 1.
     INSERT zstockalloc_run FROM @ls_run.
 
@@ -336,6 +336,33 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-allocation_strategy
       exp = 'F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_status       = 's' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_status       = 'X' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_audit_status_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_audit_status_error->message
+          exp = 'Allocation audit status is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material                 = 'MATERIAL-FILTER'
@@ -838,6 +865,18 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       exp = 'RUN-FILTER-F' ).
 
     lt_demands = lo_cut->get_allocations(
+      iv_material                   = 'MATERIAL-FILTER'
+      iv_plant                      = '1000'
+      iv_storage_location           = '0001'
+      iv_sort_by_requested_deadline = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 2 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
       iv_material               = 'MATERIAL-FILTER'
       iv_plant                  = '1000'
       iv_storage_location       = '0001'
@@ -863,6 +902,38 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-shortage
       exp = 5 ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material             = 'MATERIAL-FILTER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_sort_by_shortage     = abap_true
+      iv_sort_by_demand_count = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material               = 'MATERIAL-FILTER'
+      iv_plant                  = '1000'
+      iv_storage_location       = '0001'
+      iv_sort_by_audit_duration = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 2 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material               = 'MATERIAL-FILTER'
+      iv_plant                  = '1000'
+      iv_storage_location       = '0001'
+      iv_sort_by_demand_count   = abap_true
+      iv_sort_by_audit_duration = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material         = 'MATERIAL-FILTER'

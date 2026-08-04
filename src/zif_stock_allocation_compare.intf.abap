@@ -114,6 +114,8 @@ INTERFACE zif_stock_allocation_compare PUBLIC.
       it_new               TYPE zif_stock_allocation=>tt_demands
       iv_change_type       TYPE ty_change_type OPTIONAL
       iv_reason            TYPE ty_change_reason OPTIONAL
+      iv_old_status        TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
+      iv_new_status        TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
       iv_include_unchanged TYPE abap_bool OPTIONAL
       iv_offset            TYPE i OPTIONAL
       iv_max_rows          TYPE i OPTIONAL
@@ -162,6 +164,12 @@ INTERFACE zif_stock_allocation_compare PUBLIC.
       VALUE(rt_changes) TYPE tt_changes.
 
   METHODS sort_by_spct_worsening
+    IMPORTING
+      it_changes        TYPE tt_changes
+    RETURNING
+      VALUE(rt_changes) TYPE tt_changes.
+
+  METHODS sort_by_status_regression
     IMPORTING
       it_changes        TYPE tt_changes
     RETURNING

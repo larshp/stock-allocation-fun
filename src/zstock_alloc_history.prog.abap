@@ -47,6 +47,7 @@ PARAMETERS p_spf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_spt TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
+PARAMETERS p_dcnt AS CHECKBOX.
 PARAMETERS p_dage AS CHECKBOX.
 PARAMETERS p_due AS CHECKBOX.
 PARAMETERS p_sstat AS CHECKBOX.
@@ -840,6 +841,7 @@ START-OF-SELECTION.
         iv_shortage_pct_to      = p_spt
         iv_sort_by_coverage     = p_cov
         iv_sort_by_shrt_pct     = p_spct
+        iv_sort_by_demand_count = p_dcnt
         iv_sort_by_deadline_age = p_dage
         iv_sort_by_due          = p_due
         iv_sort_by_status       = p_sstat
@@ -982,6 +984,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage'.
   ELSEIF p_spct = abap_true.
     lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_dcnt = abap_true.
+    lv_sort_mode = 'demand_count'.
   ELSEIF p_dage = abap_true.
     lv_sort_mode = 'deadline_age'.
   ELSEIF p_due = abap_true.
@@ -2185,7 +2189,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 36 ) TO lt_json_fields.
+          iv_value = 37 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -3123,7 +3127,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 36 ) TO lt_json_fields.
+        iv_value = 37 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3338,7 +3342,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 23 ) TO lt_json_fields.
+        iv_value = 24 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3552,7 +3556,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 23 ) TO lt_json_fields.
+          iv_value = 24 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.

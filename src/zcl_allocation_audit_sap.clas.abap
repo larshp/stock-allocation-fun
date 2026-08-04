@@ -967,6 +967,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       BEGIN OF ty_coverage_run,
         coverage               TYPE zif_allocation_audit=>ty_coverage,
         shortage_pct           TYPE zif_allocation_audit=>ty_coverage,
+        demand_count           TYPE i,
         shortage               TYPE zif_stock_allocation=>ty_quantity,
         deadline_age_available TYPE abap_bool,
         deadline_age_days      TYPE i,
@@ -1553,6 +1554,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       CLEAR rt_runs.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_run>).
         APPEND <ls_shortage_pct_run>-run TO rt_runs.
+      ENDLOOP.
+    ELSEIF iv_sort_by_demand_count = abap_true.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        APPEND VALUE #(
+          demand_count = <ls_run>-demand_count
+          shortage     = <ls_run>-shortage
+          start_date   = <ls_run>-start_date
+          start_time   = <ls_run>-start_time
+          run_id       = <ls_run>-run_id
+          run          = <ls_run> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY demand_count DESCENDING
+                                 shortage DESCENDING
+                                 start_date DESCENDING start_time DESCENDING
+                                 run_id DESCENDING.
+      CLEAR rt_runs.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_demand_count_run>).
+        APPEND <ls_demand_count_run>-run TO rt_runs.
       ENDLOOP.
     ELSEIF iv_sort_by_deadline_age = abap_true.
       LOOP AT rt_runs ASSIGNING <ls_run>.

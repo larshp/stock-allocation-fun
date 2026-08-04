@@ -186,6 +186,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_sort_by_shortage     TYPE abap_bool OPTIONAL
       iv_sort_by_coverage     TYPE abap_bool OPTIONAL
       iv_sort_by_shrt_pct     TYPE abap_bool OPTIONAL
+      iv_sort_by_demand_count TYPE abap_bool OPTIONAL
       iv_sort_by_deadline_age TYPE abap_bool OPTIONAL
       iv_sort_by_due          TYPE abap_bool OPTIONAL
       iv_sort_by_status       TYPE abap_bool OPTIONAL

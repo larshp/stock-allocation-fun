@@ -55,6 +55,7 @@
     <item><ID>S</ID><KEY>P_SHRT</KEY><ENTRY>Sort by shortage</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Sort by coverage</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_SPCT</KEY><ENTRY>Sort by shortage percentage</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DCNT</KEY><ENTRY>Sort by demand count</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_DAGE</KEY><ENTRY>Sort by deadline age</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_DUE</KEY><ENTRY>Sort by requested date</ENTRY><LENGTH>26</LENGTH></item>
     <item><ID>S</ID><KEY>P_NEW</KEY><ENTRY>Sort by newest</ENTRY><LENGTH>20</LENGTH></item>

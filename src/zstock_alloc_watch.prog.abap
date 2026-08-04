@@ -44,6 +44,7 @@ PARAMETERS p_skip TYPE i.
 PARAMETERS p_shrt AS CHECKBOX.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
+PARAMETERS p_dcnt AS CHECKBOX.
 PARAMETERS p_dage AS CHECKBOX.
 PARAMETERS p_due AS CHECKBOX.
 PARAMETERS p_new AS CHECKBOX.
@@ -337,6 +338,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage'.
   ELSEIF p_spct = abap_true.
     lv_sort_mode = 'shortage_percentage'.
+  ELSEIF p_dcnt = abap_true.
+    lv_sort_mode = 'demand_count'.
   ELSEIF p_dage = abap_true.
     lv_sort_mode = 'deadline_age'.
   ELSEIF p_due = abap_true.
@@ -873,6 +876,7 @@ START-OF-SELECTION.
       iv_sort_by_shortage     = p_shrt
       iv_sort_by_coverage     = p_cov
       iv_sort_by_shrt_pct     = p_spct
+      iv_sort_by_demand_count = p_dcnt
       iv_sort_by_deadline_age = p_dage
       iv_sort_by_due          = p_due
       iv_sort_by_newest       = p_new
@@ -1047,7 +1051,7 @@ START-OF-SELECTION.
         && 'newest_deadline_age_days;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 50 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 51 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1162,7 +1166,7 @@ START-OF-SELECTION.
       && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 50 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 51 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1389,7 +1393,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 53 ).
+          iv_value = 54 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1893,7 +1897,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 53 ).
+      iv_value = 54 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'

@@ -59,6 +59,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         status_rank            TYPE i,
         coverage               TYPE zif_allocation_audit=>ty_coverage,
         shortage_pct           TYPE zif_allocation_audit=>ty_coverage,
+        demand_count           TYPE i,
+        duration_seconds       TYPE i,
         shortage               TYPE zif_stock_allocation=>ty_quantity,
         deadline_age_available TYPE abap_bool,
         deadline_age_days      TYPE i,
@@ -76,6 +78,13 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         strategy          TYPE c LENGTH 1,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
+        demand_count      TYPE i,
+        status            TYPE zif_allocation_audit=>ty_run_status,
+        message           TYPE zif_allocation_audit=>ty_message,
+        start_date        TYPE d,
+        start_time        TYPE t,
+        finish_date       TYPE d,
+        finish_time       TYPE t,
         requested_on_from TYPE d,
         requested_on_to   TYPE d,
       END OF ty_strategy_run.
@@ -99,9 +108,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_run_deadline TYPE d.
     DATA lv_run_deadline_age_date TYPE d.
     DATA lv_run_deadline_age_days TYPE i.
+    DATA lv_duration_seconds TYPE i.
     DATA lv_status_rank TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lv_status TYPE zif_stock_allocation=>ty_allocation_status.
+    DATA lv_run_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit_filter TYPE zif_stock_allocation=>ty_unit.
     DATA lv_order_unit_filter TYPE zif_stock_allocation=>ty_unit.
@@ -126,6 +137,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error( iv_message = 'Allocation snapshot scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_run_status = to_upper( iv_run_status ).
     lv_overdue_date = sy-datum.
     IF iv_overdue_date IS NOT INITIAL.
       lv_overdue_date = iv_overdue_date.
@@ -260,6 +272,13 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND lv_status <> 'U'.
       raise_error( iv_message = 'Allocation snapshot status is invalid' ).
     ENDIF.
+    IF lv_run_status IS NOT INITIAL
+        AND lv_run_status <> 'R'
+        AND lv_run_status <> 'S'
+        AND lv_run_status <> 'P'
+        AND lv_run_status <> 'E'.
+      raise_error( iv_message = 'Allocation audit status is invalid' ).
+    ENDIF.
     IF lv_strategy IS NOT INITIAL
         AND lv_strategy <> 'P'
         AND lv_strategy <> 'F'
@@ -356,7 +375,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF lines( rt_demands ) > 0.
       IF lv_strategy IS NOT INITIAL.
-        SELECT run_id, strategy, movement_type, min_shelf_life,
+           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               status, message,
+               start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
@@ -365,7 +386,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch.
       ELSEIF iv_legacy_strategy = abap_true.
-        SELECT run_id, strategy, movement_type, min_shelf_life,
+           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               status, message,
+               start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
@@ -375,7 +398,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND strategy = @space.
       ELSE.
-        SELECT run_id, strategy, movement_type, min_shelf_life,
+           SELECT run_id, strategy, movement_type, min_shelf_life, demand_count,
+               status, message,
+               start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
           INTO TABLE @lt_strategy_runs
@@ -390,6 +415,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         IF sy-subrc <> 0.
            IF lv_strategy IS NOT INITIAL
               OR iv_legacy_strategy = abap_true
+              OR iv_run_status IS NOT INITIAL
+              OR iv_run_message_contains IS NOT INITIAL
+              OR iv_run_message_only = abap_true
               OR iv_allocation_movement_type IS NOT INITIAL
               OR iv_min_shelf_life IS NOT INITIAL
               OR iv_deadline_only = abap_true
@@ -403,16 +431,32 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             DELETE rt_demands.
           ENDIF.
         ELSE.
-          <ls_strategy_run>-strategy =
-            to_upper( <ls_strategy_run>-strategy ).
-          IF ( lv_strategy IS NOT INITIAL
+           <ls_strategy_run>-strategy =
+             to_upper( <ls_strategy_run>-strategy ).
+           <ls_strategy_run>-status =
+             to_upper( <ls_strategy_run>-status ).
+           IF iv_run_message_contains IS NOT INITIAL
+               AND to_upper( <ls_strategy_run>-message )
+                 NS to_upper( iv_run_message_contains ).
+             DELETE rt_demands.
+             CONTINUE.
+           ENDIF.
+           IF iv_run_message_only = abap_true
+               AND <ls_strategy_run>-message IS INITIAL.
+             DELETE rt_demands.
+             CONTINUE.
+           ENDIF.
+           IF ( lv_strategy IS NOT INITIAL
                 AND <ls_strategy_run>-strategy <> lv_strategy )
               OR ( iv_legacy_strategy = abap_true
                 AND <ls_strategy_run>-strategy IS NOT INITIAL ).
-            DELETE rt_demands.
-            CONTINUE.
-          ENDIF.
-          IF iv_allocation_movement_type IS NOT INITIAL
+             DELETE rt_demands.
+             CONTINUE.
+           ENDIF.
+           IF lv_run_status IS NOT INITIAL
+               AND <ls_strategy_run>-status <> lv_run_status.
+             DELETE rt_demands.
+           ELSEIF iv_allocation_movement_type IS NOT INITIAL
               AND <ls_strategy_run>-movement_type
                 <> iv_allocation_movement_type.
             DELETE rt_demands.
@@ -669,6 +713,30 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_shortage_pct_line>).
         APPEND <ls_shortage_pct_line>-demand TO rt_demands.
       ENDLOOP.
+    ELSEIF iv_sort_by_demand_count = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+          WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+        APPEND VALUE #(
+          demand_count      = COND i(
+            WHEN sy-subrc = 0 THEN <ls_strategy_run>-demand_count
+            ELSE 0 )
+          shortage          = <ls_demand>-shortage
+          requested_on      = <ls_demand>-requested_on
+          allocation_unit   = <ls_demand>-allocation_unit
+          priority          = <ls_demand>-priority
+          allocation_run_id = <ls_demand>-allocation_run_id
+          order_id          = <ls_demand>-order_id
+          demand            = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY demand_count DESCENDING
+                                 shortage DESCENDING requested_on
+                                 allocation_unit priority allocation_run_id
+                                 order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_demand_count_line>).
+        APPEND <ls_demand_count_line>-demand TO rt_demands.
+      ENDLOOP.
     ELSEIF iv_sort_by_deadline_age = abap_true.
       LOOP AT rt_demands ASSIGNING <ls_demand>.
         CLEAR: lv_run_deadline, lv_run_deadline_age_days.
@@ -706,6 +774,73 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       CLEAR rt_demands.
       LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_deadline_age_line>).
         APPEND <ls_deadline_age_line>-demand TO rt_demands.
+      ENDLOOP.
+    ELSEIF iv_sort_by_requested_deadline = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CLEAR lv_run_deadline.
+        READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+          WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+        IF sy-subrc = 0.
+          IF <ls_strategy_run>-requested_on_to IS INITIAL.
+            lv_run_deadline = <ls_strategy_run>-requested_on_from.
+          ELSE.
+            lv_run_deadline = <ls_strategy_run>-requested_on_to.
+          ENDIF.
+        ENDIF.
+        APPEND VALUE #(
+          deadline_age_available = xsdbool( lv_run_deadline IS NOT INITIAL )
+          deadline_date          = lv_run_deadline
+          shortage               = <ls_demand>-shortage
+          requested_on           = <ls_demand>-requested_on
+          allocation_unit        = <ls_demand>-allocation_unit
+          priority               = <ls_demand>-priority
+          allocation_run_id      = <ls_demand>-allocation_run_id
+          order_id               = <ls_demand>-order_id
+          demand                 = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY deadline_age_available DESCENDING
+                                 deadline_date ASCENDING
+                                 shortage DESCENDING requested_on ASCENDING
+                                 allocation_unit priority allocation_run_id
+                                 order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_deadline_line>).
+        APPEND <ls_deadline_line>-demand TO rt_demands.
+      ENDLOOP.
+    ELSEIF iv_sort_by_audit_duration = abap_true.
+      LOOP AT rt_demands ASSIGNING <ls_demand>.
+        CLEAR lv_duration_seconds.
+        READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+          WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+        IF sy-subrc <> 0 OR <ls_strategy_run>-finish_date IS INITIAL.
+          lv_duration_seconds = -1.
+        ELSE.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = <ls_strategy_run>-finish_date
+              time1    = <ls_strategy_run>-finish_time
+              date2    = <ls_strategy_run>-start_date
+              time2    = <ls_strategy_run>-start_time
+            IMPORTING
+              res_secs = lv_duration_seconds ).
+        ENDIF.
+        APPEND VALUE #(
+          duration_seconds  = lv_duration_seconds
+          shortage          = <ls_demand>-shortage
+          requested_on      = <ls_demand>-requested_on
+          allocation_unit   = <ls_demand>-allocation_unit
+          priority          = <ls_demand>-priority
+          allocation_run_id = <ls_demand>-allocation_run_id
+          order_id          = <ls_demand>-order_id
+          demand            = <ls_demand> ) TO lt_coverage_sorted.
+      ENDLOOP.
+      SORT lt_coverage_sorted BY duration_seconds DESCENDING
+                                 shortage DESCENDING requested_on
+                                 allocation_unit priority allocation_run_id
+                                 order_id.
+      CLEAR rt_demands.
+      LOOP AT lt_coverage_sorted ASSIGNING FIELD-SYMBOL(<ls_duration_line>).
+        APPEND <ls_duration_line>-demand TO rt_demands.
       ENDLOOP.
     ELSEIF iv_sort_by_requested_quantity = abap_true.
       SORT rt_demands BY requested DESCENDING shortage DESCENDING requested_on

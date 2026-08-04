@@ -299,6 +299,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DCNT</KEY>
+     <ENTRY>Demand count first</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_DAGE</KEY>
      <ENTRY>Deadline age first</ENTRY>
      <LENGTH>23</LENGTH>

@@ -158,6 +158,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS filters_overdue_horizon FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS sorts_by_demand_count FOR TESTING
+      RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
@@ -3500,6 +3502,61 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           exp = 'Audit history row offset is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD sorts_by_demand_count.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-DEMAND-SORT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 20
+      iv_demand_count     = 2 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'P'
+      iv_available = 20
+      iv_allocated = 0
+      iv_shortage  = 10
+      iv_message   = 'Shortage' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-DEMAND-SORT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 20
+      iv_demand_count     = 8 ).
+    lo_cut->finish_run(
+      iv_run_id    = lv_run_id
+      iv_status    = 'S'
+      iv_available = 20
+      iv_allocated = 10
+      iv_shortage  = 0
+      iv_message   = '' ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material             = 'MATERIAL-AUDIT-DEMAND-SORT'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_sort_by_shortage     = abap_true
+      iv_sort_by_demand_count = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-demand_count
+      exp = 8 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 2 ]-demand_count
+      exp = 2 ).
   ENDMETHOD.
 
   METHOD filters_overdue_horizon.

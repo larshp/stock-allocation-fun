@@ -5,6 +5,7 @@ CLASS ltcl_stock_allocation_watch DEFINITION FINAL FOR TESTING
     METHODS sorts_by_shortage FOR TESTING.
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_shortage_pct FOR TESTING.
+    METHODS sorts_by_demand_count FOR TESTING.
     METHODS sorts_by_deadline_age FOR TESTING.
     METHODS sorts_by_requested_date FOR TESTING.
     METHODS summarizes_units FOR TESTING.
@@ -238,6 +239,48 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_alerts[ 3 ]-run_id
       exp = 'NA' ).
+  ENDMETHOD.
+
+  METHOD sorts_by_demand_count.
+    DATA lt_alerts TYPE zcl_stock_allocation_watch=>tt_alerts.
+
+    APPEND VALUE #( run_id       = 'FEW'
+                    demand_count = 2
+                    shortage     = '9'
+                    age_seconds  = 900 ) TO lt_alerts.
+    APPEND VALUE #( run_id       = 'MANY'
+                    demand_count = 7
+                    shortage     = '1'
+                    age_seconds  = 100 ) TO lt_alerts.
+    APPEND VALUE #( run_id       = 'TIE_OLD'
+                    demand_count = 7
+                    shortage     = '3'
+                    age_seconds  = 1200 ) TO lt_alerts.
+    APPEND VALUE #( run_id       = 'TIE_YOUNG'
+                    demand_count = 7
+                    shortage     = '3'
+                    age_seconds  = 300 ) TO lt_alerts.
+
+    zcl_stock_allocation_watch=>sort_and_limit(
+      EXPORTING
+        iv_sort_by_shortage     = abap_true
+        iv_sort_by_demand_count = abap_true
+        iv_max                  = 0
+      CHANGING
+        ct_alerts               = lt_alerts ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 1 ]-run_id
+      exp = 'TIE_OLD' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 2 ]-run_id
+      exp = 'TIE_YOUNG' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 3 ]-run_id
+      exp = 'MANY' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_alerts[ 4 ]-run_id
+      exp = 'FEW' ).
   ENDMETHOD.
 
   METHOD sorts_by_deadline_age.

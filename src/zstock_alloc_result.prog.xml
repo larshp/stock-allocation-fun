@@ -95,6 +95,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_ASTAT</KEY>
+     <ENTRY>Audit status (R/S/P/E)</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_VBELN</KEY>
      <ENTRY>Sales document</ENTRY>
      <LENGTH>22</LENGTH>
@@ -383,9 +389,27 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DCNT</KEY>
+     <ENTRY>Sort by demand count</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_DAGE</KEY>
      <ENTRY>Sort by deadline age</ENTRY>
      <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Sort by requested deadline</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TDUR</KEY>
+     <ENTRY>Slowest audit duration first</ENTRY>
+     <LENGTH>32</LENGTH>
     </item>
     <item>
      <ID>S</ID>

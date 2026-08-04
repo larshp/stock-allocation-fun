@@ -21,6 +21,10 @@ PARAMETERS p_old TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_new TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_chg TYPE zif_stock_allocation_compare=>ty_change_type.
 PARAMETERS p_reason TYPE zif_stock_allocation_compare=>ty_change_reason.
+PARAMETERS p_ost TYPE zif_stock_allocation=>ty_allocation_status.
+PARAMETERS p_nst TYPE zif_stock_allocation=>ty_allocation_status.
+PARAMETERS p_oast TYPE zif_allocation_audit=>ty_run_status.
+PARAMETERS p_nast TYPE zif_allocation_audit=>ty_run_status.
 PARAMETERS p_all AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
 PARAMETERS p_shrt AS CHECKBOX.
@@ -29,6 +33,7 @@ PARAMETERS p_due AS CHECKBOX.
 PARAMETERS p_cov AS CHECKBOX.
 PARAMETERS p_cw AS CHECKBOX.
 PARAMETERS p_spw AS CHECKBOX.
+PARAMETERS p_sreg AS CHECKBOX.
 PARAMETERS p_qd AS CHECKBOX.
 PARAMETERS p_spct AS CHECKBOX.
 PARAMETERS p_skip TYPE i.
@@ -168,6 +173,8 @@ START-OF-SELECTION.
   DATA lv_sort_mode TYPE string.
   DATA lv_movement_filter TYPE string.
   DATA lv_min_shelf_filter TYPE string.
+  DATA lv_old_audit_status_filter TYPE string.
+  DATA lv_new_audit_status_filter TYPE string.
   DATA lv_overdue_as_of_filter TYPE c LENGTH 10.
   DATA lv_requested_from_filter TYPE c LENGTH 10.
   DATA lv_requested_to_filter TYPE c LENGTH 10.
@@ -180,6 +187,10 @@ START-OF-SELECTION.
 
   TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_reason TO LOWER CASE.
+  TRANSLATE p_ost TO UPPER CASE.
+  TRANSLATE p_nst TO UPPER CASE.
+  TRANSLATE p_oast TO UPPER CASE.
+  TRANSLATE p_nast TO UPPER CASE.
   lv_movement_filter = p_mvt.
   IF lv_movement_filter IS INITIAL.
     lv_movement_filter = 'n/a'.
@@ -188,6 +199,14 @@ START-OF-SELECTION.
     lv_min_shelf_filter = 'n/a'.
   ELSE.
     lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
+  ENDIF.
+  lv_old_audit_status_filter = p_oast.
+  IF lv_old_audit_status_filter IS INITIAL.
+    lv_old_audit_status_filter = 'n/a'.
+  ENDIF.
+  lv_new_audit_status_filter = p_nast.
+  IF lv_new_audit_status_filter IS INITIAL.
+    lv_new_audit_status_filter = 'n/a'.
   ENDIF.
   IF p_odate IS INITIAL.
     lv_overdue_as_of_filter = 'n/a'.
@@ -489,6 +508,18 @@ START-OF-SELECTION.
   IF p_reason IS NOT INITIAL.
     APPEND 'reason' TO lt_filter_names.
   ENDIF.
+  IF p_ost IS NOT INITIAL.
+    APPEND 'old_allocation_status' TO lt_filter_names.
+  ENDIF.
+  IF p_nst IS NOT INITIAL.
+    APPEND 'new_allocation_status' TO lt_filter_names.
+  ENDIF.
+  IF p_oast IS NOT INITIAL.
+    APPEND 'old_audit_status' TO lt_filter_names.
+  ENDIF.
+  IF p_nast IS NOT INITIAL.
+    APPEND 'new_audit_status' TO lt_filter_names.
+  ENDIF.
   IF p_all = abap_true.
     APPEND 'include_unchanged' TO lt_filter_names.
   ENDIF.
@@ -515,6 +546,8 @@ START-OF-SELECTION.
     lv_sort_mode = 'coverage_worsening'.
   ELSEIF p_spw = abap_true.
     lv_sort_mode = 'shortage_percentage_worsening'.
+  ELSEIF p_sreg = abap_true.
+    lv_sort_mode = 'status_regression'.
   ELSEIF p_qd = abap_true.
     lv_sort_mode = 'requested_delta'.
   ELSEIF p_cov = abap_true.
@@ -531,6 +564,7 @@ START-OF-SELECTION.
   lv_compare_offset = p_skip.
   lv_compare_max_rows = p_max.
   IF p_wors = abap_true OR p_cw = abap_true OR p_spw = abap_true
+      OR p_sreg = abap_true
       OR p_qd = abap_true
       OR p_cov = abap_true
       OR p_spct = abap_true
@@ -542,6 +576,18 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'movement_type'
     iv_value = p_mvt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_allocation_status'
+    iv_value = p_ost ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_allocation_status'
+    iv_value = p_nst ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_audit_status'
+    iv_value = p_oast ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_audit_status'
+    iv_value = p_nast ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>filter_number_property(
     iv_name    = 'minimum_shelf_life'
     iv_value   = p_shelf
@@ -619,6 +665,7 @@ START-OF-SELECTION.
         iv_run_deadline_age_from = p_dagef
         iv_run_deadline_age_to   = p_daget
         iv_run_deadline_age_date = p_daged
+        iv_run_status            = p_oast
         iv_run_id                = p_old ).
       lt_new = lo_sink->get_allocations(
         iv_material              = p_matnr
@@ -634,6 +681,7 @@ START-OF-SELECTION.
         iv_run_deadline_age_from = p_dagef
         iv_run_deadline_age_to   = p_daget
         iv_run_deadline_age_date = p_daged
+        iv_run_status            = p_nast
         iv_run_id                = p_new ).
       lt_old_runs = lo_audit->get_runs(
         iv_material          = p_matnr
@@ -643,6 +691,7 @@ START-OF-SELECTION.
         iv_unit              = p_meins
         iv_movement_type     = p_mvt
         iv_min_shelf_life    = p_shelf
+        iv_status            = p_oast
         iv_deadline_only     = p_dead
         iv_deadline_from     = p_deadf
         iv_deadline_to       = p_deadt
@@ -660,6 +709,7 @@ START-OF-SELECTION.
         iv_unit              = p_meins
         iv_movement_type     = p_mvt
         iv_min_shelf_life    = p_shelf
+        iv_status            = p_nast
         iv_deadline_only     = p_dead
         iv_deadline_from     = p_deadf
         iv_deadline_to       = p_deadt
@@ -673,6 +723,7 @@ START-OF-SELECTION.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
         IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
+            OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
             OR p_ovrd = abap_true OR p_dead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
             OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
@@ -689,6 +740,7 @@ START-OF-SELECTION.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
         IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
+            OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
             OR p_ovrd = abap_true OR p_dead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
             OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
@@ -754,6 +806,8 @@ START-OF-SELECTION.
           it_new               = lt_new
           iv_change_type       = p_chg
           iv_reason            = p_reason
+          iv_old_status        = p_ost
+          iv_new_status        = p_nst
           iv_include_unchanged = p_all
           iv_offset            = lv_compare_offset
           iv_max_rows          = lv_compare_max_rows
@@ -810,6 +864,20 @@ START-OF-SELECTION.
   ELSEIF p_spw = abap_true.
     lt_changes = lo_compare->sort_by_spct_worsening(
       lt_changes ).
+    lv_sort_start = 0.
+    IF p_skip > 0.
+      IF p_skip >= lines( lt_changes ).
+        CLEAR lt_changes.
+      ELSE.
+        DELETE lt_changes FROM 1 TO p_skip.
+      ENDIF.
+    ENDIF.
+    IF p_max > 0 AND lines( lt_changes ) > p_max.
+      lv_sort_start = p_max + 1.
+      DELETE lt_changes FROM lv_sort_start.
+    ENDIF.
+  ELSEIF p_sreg = abap_true.
+    lt_changes = lo_compare->sort_by_status_regression( lt_changes ).
     lv_sort_start = 0.
     IF p_skip > 0.
       IF p_skip >= lines( lt_changes ).
@@ -1239,7 +1307,8 @@ START-OF-SELECTION.
         && 'requested_on_to_filter;requested_deadline_only;requested_deadline_from_filter;'
         && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
         && 'deadline_age_date_filter;'
-        && 'change_type;reason_filter;'
+        && 'change_type;reason_filter;old_status_filter;new_status_filter;'
+        && 'old_audit_status_filter;new_audit_status_filter;'
         && 'include_unchanged;'
         && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
         && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_start_date;'
@@ -1272,7 +1341,7 @@ START-OF-SELECTION.
         && 'shortage_pct_delta;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -1303,6 +1372,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_chg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_ost ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_nst ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_status_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_all ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_guard ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-status ) TO lt_csv_fields.
@@ -1644,7 +1719,7 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 53 ) TO lt_json_fields.
+        iv_value = 56 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -1740,6 +1815,18 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'reason_filter'
         iv_value = p_reason ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_status_filter'
+        iv_value = p_ost ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_status_filter'
+        iv_value = p_nst ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_audit_status_filter'
+        iv_value = lv_old_audit_status_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_audit_status_filter'
+        iv_value = lv_new_audit_status_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'include_unchanged'
         iv_value = p_all ) TO lt_json_fields.
@@ -2332,6 +2419,8 @@ START-OF-SELECTION.
       && 'new_snapshot_full_rows;old_snapshot_partial_rows;new_snapshot_partial_rows;old_snapshot_unallocated_rows;'
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
       && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
+      && 'old_status_filter;new_status_filter;'
+      && 'old_audit_status_filter;new_audit_status_filter;'
       && 'material;plant;storage_location;batch;unit;filters_applied;filters;sort_mode;'
       && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
       && 'requested_overdue_as_of_filter;requested_on_from_filter;'
@@ -2342,7 +2431,7 @@ START-OF-SELECTION.
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -2552,6 +2641,12 @@ START-OF-SELECTION.
         ls_new_reconciliation-snapshot_shortage ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_guard ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_ost ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_nst ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_status_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -2596,7 +2691,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 53 ) NO-GAP.
+        iv_value = 56 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -2788,6 +2883,22 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'reason_filter'
         iv_value = p_reason ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_status_filter'
+        iv_value = p_ost ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_status_filter'
+        iv_value = p_nst ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_audit_status_filter'
+        iv_value = lv_old_audit_status_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_audit_status_filter'
+        iv_value = lv_new_audit_status_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'include_unchanged'
@@ -3651,6 +3762,8 @@ START-OF-SELECTION.
     WRITE: / 'Sort mode:', lv_sort_mode.
     WRITE: / 'Movement type filter:', lv_movement_filter.
     WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
+    WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
+    WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
     WRITE: / 'Overdue-only filter:', p_ovrd.
     WRITE: / 'Overdue as-of date:', lv_overdue_as_of_filter.
     WRITE: / 'Requested-deadline-only filter:', p_dead.
@@ -3802,6 +3915,8 @@ START-OF-SELECTION.
   WRITE: / 'Sort mode:', lv_sort_mode.
   WRITE: / 'Movement type filter:', lv_movement_filter.
   WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
+  WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
+  WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
   WRITE: / 'Overdue-only filter:', p_ovrd.
   WRITE: / 'Overdue as-of date:', lv_overdue_as_of_filter.
   WRITE: / 'Requested horizon from:', lv_requested_from_filter.

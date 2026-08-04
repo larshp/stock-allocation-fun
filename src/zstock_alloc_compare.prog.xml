@@ -143,6 +143,30 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_OST</KEY>
+     <ENTRY>Old allocation status (F/P/U)</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NST</KEY>
+     <ENTRY>New allocation status (F/P/U)</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OAST</KEY>
+     <ENTRY>Old audit status (R/S/P/E)</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NAST</KEY>
+     <ENTRY>New audit status (R/S/P/E)</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_ALL</KEY>
      <ENTRY>Include unchanged lines</ENTRY>
      <LENGTH>28</LENGTH>
@@ -176,6 +200,12 @@
      <KEY>P_SPW</KEY>
      <ENTRY>Sort by shortage percentage worsening</ENTRY>
      <LENGTH>38</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SREG</KEY>
+     <ENTRY>Sort by allocation status regression</ENTRY>
+     <LENGTH>36</LENGTH>
     </item>
     <item>
      <ID>S</ID>

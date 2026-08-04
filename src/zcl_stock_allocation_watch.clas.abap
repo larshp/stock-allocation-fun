@@ -64,6 +64,7 @@ CLASS zcl_stock_allocation_watch DEFINITION
         iv_sort_by_shortage     TYPE abap_bool
         iv_sort_by_coverage     TYPE abap_bool OPTIONAL
         iv_sort_by_shrt_pct     TYPE abap_bool OPTIONAL
+        iv_sort_by_demand_count TYPE abap_bool OPTIONAL
         iv_sort_by_deadline_age TYPE abap_bool OPTIONAL
         iv_sort_by_due          TYPE abap_bool OPTIONAL
         iv_sort_by_newest       TYPE abap_bool OPTIONAL
@@ -178,6 +179,10 @@ CLASS zcl_stock_allocation_watch IMPLEMENTATION.
                         shortage DESCENDING age_seconds DESCENDING
                         start_date ASCENDING start_time ASCENDING
                         run_id ASCENDING.
+    ELSEIF iv_sort_by_demand_count = abap_true.
+      SORT ct_alerts BY demand_count DESCENDING shortage DESCENDING
+                        age_seconds DESCENDING start_date ASCENDING
+                        start_time ASCENDING run_id ASCENDING.
     ELSEIF iv_sort_by_deadline_age = abap_true.
       SORT ct_alerts BY deadline_age_available DESCENDING
                         deadline_age_days DESCENDING requested_deadline ASCENDING

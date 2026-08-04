@@ -4,6 +4,8 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS classifies_snapshot_changes FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS filters_by_allocation_status FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_coverage_reason_safely FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS sorts_by_shortage FOR TESTING.
@@ -13,6 +15,7 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
     METHODS sorts_by_coverage FOR TESTING.
     METHODS sorts_by_coverage_worsening FOR TESTING.
     METHODS sorts_by_spct_worsening FOR TESTING.
+    METHODS sorts_by_status_regression FOR TESTING.
     METHODS sorts_by_shortage_percentage FOR TESTING.
     METHODS ignores_unit_case FOR TESTING
       RAISING zcx_stock_allocation.
@@ -433,6 +436,65 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 'ADDED' ).
   ENDMETHOD.
 
+  METHOD sorts_by_status_regression.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+    DATA lt_sorted TYPE zif_stock_allocation_compare=>tt_changes.
+
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'REGRESSED-TWICE'
+      old_status      = 'F'
+      new_status      = 'U'
+      new_shortage    = 10 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'REGRESSED-ONCE'
+      old_status      = 'F'
+      new_status      = 'P'
+      new_shortage    = 5 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'STABLE'
+      old_status      = 'P'
+      new_status      = 'P'
+      new_shortage    = 4 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'C'
+      allocation_unit = 'EA'
+      order_id        = 'IMPROVED'
+      old_status      = 'U'
+      new_status      = 'F'
+      new_shortage    = 0 ) TO lt_changes.
+    APPEND VALUE #(
+      change_type     = 'A'
+      allocation_unit = 'EA'
+      order_id        = 'ADDED'
+      new_status      = 'U'
+      new_shortage    = 20 ) TO lt_changes.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_sorted = lo_cut->sort_by_status_regression( lt_changes ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 1 ]-order_id
+      exp = 'REGRESSED-TWICE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 2 ]-order_id
+      exp = 'REGRESSED-ONCE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 3 ]-order_id
+      exp = 'STABLE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 4 ]-order_id
+      exp = 'IMPROVED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_sorted[ 5 ]-order_id
+      exp = 'ADDED' ).
+  ENDMETHOD.
+
   METHOD classifies_recon_transitions.
     DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
 
@@ -569,6 +631,65 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
         is_old_age = ls_old_age
         is_new_age = ls_new_age )
       exp = 'unchanged' ).
+  ENDMETHOD.
+
+  METHOD filters_by_allocation_status.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_old TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_new TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_changes TYPE zif_stock_allocation_compare=>tt_changes.
+
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'REGRESSED'
+      requested         = 10
+      allocated         = 10
+      allocation_status = 'F' ) TO lt_old.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'RECOVERED'
+      requested         = 10
+      allocated         = 0
+      shortage          = 10
+      allocation_status = 'U' ) TO lt_old.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'REGRESSED'
+      requested         = 10
+      allocated         = 5
+      shortage          = 5
+      allocation_status = 'P' ) TO lt_new.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'RECOVERED'
+      requested         = 10
+      allocated         = 10
+      allocation_status = 'F' ) TO lt_new.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lt_changes = lo_cut->compare(
+      EXPORTING
+        it_old        = lt_old
+        it_new        = lt_new
+        iv_old_status = 'f'
+        iv_new_status = 'p' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_changes )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_changes[ 1 ]-order_id
+      exp = 'REGRESSED' ).
+
+    TRY.
+        lo_cut->compare(
+          EXPORTING
+            it_old        = lt_old
+            it_new        = lt_new
+            iv_old_status = 'X' ).
+        cl_abap_unit_assert=>fail(
+          'Invalid comparison allocation status was accepted' ).
+      CATCH zcx_stock_allocation.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD classifies_snapshot_changes.

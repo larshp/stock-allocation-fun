@@ -234,6 +234,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
     ls_run-status = 'S'.
+    ls_run-message = 'Unallocated diagnostic message'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
     ls_run-requested_on_from = lv_overdue_date.
@@ -363,6 +364,30 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           exp = 'Allocation audit status is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material             = 'MATERIAL-FILTER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_run_message_contains = 'DIAGNOSTIC' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_message_only = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material                 = 'MATERIAL-FILTER'

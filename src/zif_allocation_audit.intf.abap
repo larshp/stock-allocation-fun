@@ -272,10 +272,15 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_run_id            TYPE ty_run_id OPTIONAL
+      iv_run_id_contains   TYPE ty_run_id OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life    TYPE i OPTIONAL
       iv_status            TYPE ty_run_status OPTIONAL
+      iv_strategy          TYPE ty_strategy OPTIONAL
+      iv_legacy_strategy   TYPE abap_bool OPTIONAL
+      iv_message_contains  TYPE ty_message OPTIONAL
+      iv_message_only      TYPE abap_bool OPTIONAL
       iv_deadline_only     TYPE abap_bool OPTIONAL
       iv_deadline_from     TYPE d OPTIONAL
       iv_deadline_to       TYPE d OPTIONAL
@@ -286,6 +291,9 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_overdue_date      TYPE d OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
+      iv_start_date_from   TYPE d OPTIONAL
+      iv_finish_date_from  TYPE d OPTIONAL
+      iv_finish_date_to    TYPE d OPTIONAL
       iv_before_date       TYPE d
     EXPORTING
       ev_deleted_snapshots TYPE i
@@ -305,10 +313,15 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
       iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
       iv_run_id            TYPE ty_run_id OPTIONAL
+      iv_run_id_contains   TYPE ty_run_id OPTIONAL
       iv_unit              TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_min_shelf_life    TYPE i OPTIONAL
       iv_status            TYPE ty_run_status OPTIONAL
+      iv_strategy          TYPE ty_strategy OPTIONAL
+      iv_legacy_strategy   TYPE abap_bool OPTIONAL
+      iv_message_contains  TYPE ty_message OPTIONAL
+      iv_message_only      TYPE abap_bool OPTIONAL
       iv_deadline_only     TYPE abap_bool OPTIONAL
       iv_deadline_from     TYPE d OPTIONAL
       iv_deadline_to       TYPE d OPTIONAL
@@ -319,6 +332,9 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_overdue_date      TYPE d OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL
       iv_requested_on_to   TYPE d OPTIONAL
+      iv_start_date_from   TYPE d OPTIONAL
+      iv_finish_date_from  TYPE d OPTIONAL
+      iv_finish_date_to    TYPE d OPTIONAL
       iv_before_date       TYPE d
     RETURNING
       VALUE(rs_preview)    TYPE ty_purge_preview

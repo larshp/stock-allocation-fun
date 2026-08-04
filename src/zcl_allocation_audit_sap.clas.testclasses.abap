@@ -1483,19 +1483,28 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-finish_date = '20260101'.
     ls_run-finish_time = '010001'.
     ls_run-status = 'S'.
+    ls_run-message = 'Policy cleanup diagnostic'.
     ls_run-available = 1.
     ls_run-demand_count = 1.
     ls_run-allocated = 1.
     ls_run-shortage = 0.
     ls_run-run_id = 'RUN-PURGE-POLICY-MATCH'.
+    ls_run-strategy = 'P'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
     ls_run-requested_on_from = sy-datum - 1.
     INSERT zstockalloc_run FROM @ls_run.
     ls_run-run_id = 'RUN-PURGE-POLICY-OTHER'.
+    ls_run-strategy = 'F'.
     ls_run-movement_type = '202'.
     ls_run-min_shelf_life = 7.
-    CLEAR: ls_run-requested_on_from, ls_run-requested_on_to.
+    CLEAR: ls_run-message,
+           ls_run-requested_on_from, ls_run-requested_on_to.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-run_id = 'RUN-PURGE-POLICY-LEGACY'.
+    CLEAR ls_run-strategy.
+    ls_run-movement_type = '201'.
+    ls_run-min_shelf_life = 5.
     INSERT zstockalloc_run FROM @ls_run.
 
     ls_allocation-mandt = sy-mandt.
@@ -1511,6 +1520,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_allocation-run_id = 'RUN-PURGE-POLICY-MATCH'.
     INSERT zstockalloc FROM @ls_allocation.
     ls_allocation-run_id = 'RUN-PURGE-POLICY-OTHER'.
+    INSERT zstockalloc FROM @ls_allocation.
+    ls_allocation-order_id = 'PURGE-POLICY-LEGACY'.
+    ls_allocation-run_id = 'RUN-PURGE-POLICY-LEGACY'.
     INSERT zstockalloc FROM @ls_allocation.
 
     CLEAR ls_run.
@@ -1555,6 +1567,61 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_material         = 'MATERIAL-PURGE-POLICY'
       iv_plant            = '1000'
       iv_storage_location = '0001'
+      iv_start_date_from  = '20260102'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 0 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_message_contains = 'CLEANUP'
+      iv_strategy         = 'P'
+      iv_start_date_from  = '20260101'
+      iv_finish_date_from = '20260101'
+      iv_finish_date_to   = '20260101'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_status           = 'S'
+      iv_legacy_strategy  = abap_true
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id_contains  = 'policy-match'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_message_only     = abap_true
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
       iv_deadline_from    = sy-datum - 1
       iv_deadline_to      = sy-datum - 1
       iv_before_date      = sy-datum ).
@@ -1580,13 +1647,35 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         iv_plant             = '1000'
         iv_storage_location  = '0001'
         iv_unit              = 'ea'
+        iv_run_id_contains   = 'policy-match'
         iv_movement_type     = '201'
         iv_min_shelf_life    = 5
+        iv_message_contains  = 'CLEANUP'
+        iv_strategy          = 'P'
+        iv_start_date_from   = '20260101'
+        iv_finish_date_from  = '20260101'
+        iv_finish_date_to    = '20260101'
         iv_deadline_only     = abap_true
         iv_overdue_only      = abap_true
         iv_overdue_date      = sy-datum
         iv_requested_on_from = sy-datum - 1
         iv_before_date       = sy-datum
+      IMPORTING
+        ev_deleted_snapshots = lv_deleted_snapshots ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted_snapshots
+      exp = 1 ).
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+         iv_material         = 'MATERIAL-PURGE-POLICY'
+         iv_plant            = '1000'
+         iv_storage_location = '0001'
+         iv_status           = 'S'
+         iv_legacy_strategy  = abap_true
+         iv_before_date      = sy-datum
       IMPORTING
         ev_deleted_snapshots = lv_deleted_snapshots ).
     cl_abap_unit_assert=>assert_equals(
@@ -1607,6 +1696,68 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lo_overdue_date_error->message
           exp = 'Audit overdue as-of date requires overdue-only filtering' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_strategy         = 'P'
+          iv_legacy_strategy  = abap_true
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_strategy_conflict_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_strategy_conflict_error->message
+          exp = 'Audit strategy filters conflict' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_strategy         = 'X'
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_strategy_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_strategy_error->message
+          exp = 'Audit strategy is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_finish_date_from = sy-datum
+          iv_finish_date_to   = sy-datum - 1
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_finish_date_range_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_finish_date_range_error->message
+          exp = 'Audit purge finish date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-POLICY'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_start_date_from  = sy-datum
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_start_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_start_date_error->message
+          exp = 'Audit purge start date must be before the cutoff date' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -2007,6 +2158,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_unit             = 'EA'
       iv_run_id           = 'RUN-PURGE-RUN-ID-TARGET'
+      iv_start_date_from  = '20260101'
       iv_before_date      = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
@@ -2039,6 +2191,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         iv_storage_location  = '0001'
         iv_unit              = 'EA'
         iv_run_id            = 'RUN-PURGE-RUN-ID-TARGET'
+        iv_start_date_from   = '20260101'
         iv_before_date       = sy-datum
       IMPORTING
         ev_deleted_snapshots = lv_deleted_snapshots

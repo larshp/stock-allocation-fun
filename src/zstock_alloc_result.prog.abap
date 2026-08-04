@@ -777,8 +777,8 @@ START-OF-SELECTION.
         iv_min_shelf_life             = p_shelf
         iv_status                     = p_stat
         iv_run_status                 = p_astat
-        iv_run_message_contains      = p_msg
-        iv_run_message_only          = p_monly
+        iv_run_message_contains       = p_msg
+        iv_run_message_only           = p_monly
         iv_sales_document             = p_vbeln
         iv_sales_document_type        = p_auart
         iv_sales_item                 = p_posnr
@@ -1248,7 +1248,8 @@ START-OF-SELECTION.
     IF p_csv = abap_true.
       IF p_sum = abap_true.
         WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
-          && 'audit_status_filter;message_filter;message_only;movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+          && 'audit_status_filter;message_filter;message_only;'
+          && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
           && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
           && 'requested_deadline_only;requested_deadline_from_filter;'
           && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1268,7 +1269,8 @@ START-OF-SELECTION.
           && 'audit_deadline_age_days;deadline_age_reference_date'.
       ELSE.
         WRITE: / 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
-          && 'audit_status_filter;message_filter;message_only;movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+          && 'audit_status_filter;message_filter;message_only;'
+          && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
           && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
           && 'requested_deadline_only;requested_deadline_from_filter;'
           && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1537,7 +1539,8 @@ START-OF-SELECTION.
         lv_line_shortage_text = 'n/a'.
       ENDIF.
        WRITE: / 'mode;generated_date;generated_time;schema_version;sort;filters_applied;filters;'
-         && 'audit_status_filter;message_filter;message_only;movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+         && 'audit_status_filter;message_filter;message_only;'
+         && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
          && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
          && 'requested_deadline_only;requested_deadline_from_filter;'
          && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1558,7 +1561,7 @@ START-OF-SELECTION.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 32 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 33 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1742,7 +1745,8 @@ START-OF-SELECTION.
       RETURN.
     ENDIF.
     lv_csv_line = 'allocation_run_id;strategy;generated_date;generated_time;schema_version;sort;filters_applied;'
-      && 'filters;audit_status_filter;message_filter;message_only;movement_type_filter;minimum_shelf_life_filter;overdue_only;'
+      && 'filters;audit_status_filter;message_filter;message_only;'
+      && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
       && 'requested_overdue_as_of_filter;requested_on_from_filter;requested_on_to_filter;'
       && 'requested_deadline_only;requested_deadline_from_filter;'
       && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
@@ -1781,7 +1785,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 31 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1932,7 +1936,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 32 ) TO lt_json_fields.
+          iv_value = 33 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2745,6 +2749,12 @@ START-OF-SELECTION.
         iv_name  = 'audit_status_filter'
         iv_value = lv_audit_status_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'message_filter'
+        iv_value = lv_message_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'message_only'
+        iv_value = p_monly ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
         iv_name  = 'movement_type_filter'
         iv_value = lv_movement_filter ) TO lt_json_fields.
       IF p_typed = abap_true OR p_meta = abap_true.
@@ -2806,7 +2816,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 32 ) TO lt_json_fields.
+          iv_value = 33 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -2828,6 +2838,12 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'audit_status_filter'
           iv_value = lv_audit_status_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'message_filter'
+          iv_value = lv_message_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'message_only'
+          iv_value = p_monly ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'movement_type_filter'
           iv_value = lv_movement_filter ) TO lt_json_fields.
@@ -3094,7 +3110,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 30 ) TO lt_json_fields.
+        iv_value = 31 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3116,6 +3132,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'audit_status_filter'
         iv_value = lv_audit_status_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'message_filter'
+        iv_value = lv_message_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'message_only'
+        iv_value = p_monly ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'movement_type_filter'
         iv_value = lv_movement_filter ) TO lt_json_fields.
@@ -3510,7 +3532,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 30 ) TO lt_json_fields.
+          iv_value = 31 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -3586,12 +3608,18 @@ START-OF-SELECTION.
           iv_name  = 'total_rows'
           iv_value = lv_total_rows ) TO lt_json_fields.
       ENDIF.
-      APPEND zcl_stock_json=>property(
-        iv_name  = 'audit_status_filter'
-        iv_value = lv_audit_status_filter ) TO lt_json_fields.
-      APPEND zcl_stock_json=>property(
-        iv_name  = 'movement_type_filter'
-        iv_value = lv_movement_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'audit_status_filter'
+          iv_value = lv_audit_status_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'message_filter'
+          iv_value = lv_message_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'message_only'
+          iv_value = p_monly ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'movement_type_filter'
+          iv_value = lv_movement_filter ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>filter_number_property(
           iv_name    = 'minimum_shelf_life_filter'
@@ -4222,6 +4250,8 @@ START-OF-SELECTION.
   ENDIF.
   WRITE: / 'Allocation movement type filter:', lv_movement_filter,
          / 'Audit status filter:', lv_audit_status_filter,
+         / 'Message filter:', lv_message_filter,
+         / 'Message-only filter:', p_monly,
          / 'Minimum shelf-life filter:', lv_min_shelf_filter,
          / 'Overdue-only filter:', p_ovrd,
          / 'Overdue as-of date:', lv_overdue_as_of_filter,

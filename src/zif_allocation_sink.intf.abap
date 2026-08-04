@@ -14,8 +14,8 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_min_shelf_life             TYPE i OPTIONAL
       iv_status                     TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
       iv_run_status                 TYPE zif_allocation_audit=>ty_run_status OPTIONAL
-      iv_run_message_contains      TYPE zif_allocation_audit=>ty_message OPTIONAL
-      iv_run_message_only          TYPE abap_bool OPTIONAL
+      iv_run_message_contains       TYPE zif_allocation_audit=>ty_message OPTIONAL
+      iv_run_message_only           TYPE abap_bool OPTIONAL
       iv_sales_document             TYPE zif_stock_allocation=>ty_sales_document OPTIONAL
       iv_sales_document_type        TYPE zif_stock_allocation=>ty_sales_document_type OPTIONAL
       iv_sales_item                 TYPE zif_stock_allocation=>ty_sales_item OPTIONAL

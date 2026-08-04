@@ -41,10 +41,16 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_RUNID</KEY>
-     <ENTRY>Exact audit run ID</ENTRY>
-     <LENGTH>22</LENGTH>
-    </item>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Exact audit run ID</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>18</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_MVT</KEY>
@@ -57,11 +63,35 @@
      <ENTRY>Minimum shelf-life days</ENTRY>
      <LENGTH>28</LENGTH>
     </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STAT</KEY>
+    <ENTRY>Final run status</ENTRY>
+    <LENGTH>18</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_STRAT</KEY>
+   <ENTRY>Allocation strategy</ENTRY>
+   <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LEGACY</KEY>
+    <ENTRY>Legacy strategy only</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Audit message contains</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
     <item>
      <ID>S</ID>
-     <KEY>P_STAT</KEY>
-     <ENTRY>Final run status</ENTRY>
-     <LENGTH>18</LENGTH>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Message only</ENTRY>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
@@ -129,7 +159,25 @@
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>
     </item>
-    <item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_FROM</KEY>
+    <ENTRY>Audit start date from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_FFROM</KEY>
+    <ENTRY>Audit finish date from</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_FTO</KEY>
+    <ENTRY>Audit finish date to</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
      <ID>S</ID>
      <KEY>P_DATE</KEY>
      <ENTRY>Cutoff date</ENTRY>

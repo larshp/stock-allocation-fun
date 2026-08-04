@@ -101,6 +101,18 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Audit message contains</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Message only</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_VBELN</KEY>
      <ENTRY>Sales document</ENTRY>
      <LENGTH>22</LENGTH>

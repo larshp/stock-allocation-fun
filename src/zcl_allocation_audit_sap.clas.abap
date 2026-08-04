@@ -92,14 +92,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     TYPES:
       BEGIN OF ty_purge_candidate,
         run_id            TYPE zif_allocation_audit=>ty_run_id,
+        start_date        TYPE d,
+        finish_date       TYPE d,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
         unit              TYPE zif_stock_allocation=>ty_unit,
         requested_on_from TYPE d,
         requested_on_to   TYPE d,
         status            TYPE zif_allocation_audit=>ty_run_status,
+        strategy          TYPE zif_allocation_audit=>ty_strategy,
+        message           TYPE zif_allocation_audit=>ty_message,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_overdue_date TYPE d.
     DATA lv_requested_deadline TYPE d.
@@ -111,6 +116,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     lv_overdue_date = sy-datum.
     IF iv_overdue_date IS NOT INITIAL.
@@ -129,6 +135,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
+    ENDIF.
+    IF iv_start_date_from IS NOT INITIAL
+        AND iv_start_date_from >= iv_before_date.
+      raise_error(
+        iv_message = 'Audit purge start date must be before the cutoff date' ).
+    ENDIF.
+    IF iv_finish_date_from IS NOT INITIAL
+        AND iv_finish_date_to IS NOT INITIAL
+        AND iv_finish_date_from > iv_finish_date_to.
+      raise_error( iv_message = 'Audit purge finish date range is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -165,6 +181,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit purge status filter is invalid' ).
     ENDIF.
+    IF lv_strategy IS NOT INITIAL
+        AND lv_strategy <> 'P'
+        AND lv_strategy <> 'F'
+        AND lv_strategy <> 'N'
+        AND lv_strategy <> 'S'
+        AND lv_strategy <> 'L'
+        AND lv_strategy <> 'B'.
+      raise_error( iv_message = 'Audit strategy is invalid' ).
+    ENDIF.
+    IF iv_legacy_strategy = abap_true
+        AND lv_strategy IS NOT INITIAL.
+      raise_error( iv_message = 'Audit strategy filters conflict' ).
+    ENDIF.
     IF mo_retention_authority IS BOUND.
       TRY.
           mo_retention_authority->check( ).
@@ -186,26 +215,139 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_protected_unknown TYPE i.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA ls_candidate TYPE ty_purge_candidate.
-    SELECT run_id,
-           movement_type,
-           min_shelf_life,
-           unit,
-           requested_on_from,
-           requested_on_to,
-           status
-      FROM zstockalloc_run
-      INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-        AND batch = @iv_batch
-        AND start_date < @iv_before_date
-        AND ( @iv_deadline_only = @abap_false
-          OR requested_on_from <> '00000000'
-          OR requested_on_to <> '00000000' ).
+    IF iv_run_id IS INITIAL.
+      IF iv_start_date_from IS INITIAL.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ELSE.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND start_date >= @iv_start_date_from
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ENDIF.
+    ELSE.
+      IF iv_start_date_from IS INITIAL.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ELSE.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND start_date >= @iv_start_date_from
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ENDIF.
+    ENDIF.
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
+      ls_candidate-strategy = to_upper( ls_candidate-strategy ).
+      IF iv_legacy_strategy = abap_true
+          AND ls_candidate-strategy IS NOT INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF iv_start_date_from IS NOT INITIAL
+          AND ls_candidate-start_date < iv_start_date_from.
+        CONTINUE.
+      ENDIF.
+      IF iv_finish_date_from IS NOT INITIAL
+          AND ( ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-finish_date < iv_finish_date_from ).
+        CONTINUE.
+      ENDIF.
+      IF iv_finish_date_to IS NOT INITIAL
+          AND ( ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-finish_date > iv_finish_date_to ).
+        CONTINUE.
+      ENDIF.
+      IF iv_message_contains IS NOT INITIAL
+          AND to_upper( ls_candidate-message )
+            NS to_upper( iv_message_contains ).
+        CONTINUE.
+      ENDIF.
+      IF iv_message_only = abap_true
+          AND ls_candidate-message IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF iv_run_id_contains IS NOT INITIAL
+          AND to_upper( ls_candidate-run_id )
+            NS to_upper( iv_run_id_contains ).
+        CONTINUE.
+      ENDIF.
       IF ls_candidate-requested_on_to IS INITIAL.
         lv_requested_deadline = ls_candidate-requested_on_from.
       ELSE.
@@ -245,6 +387,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ( iv_min_shelf_life IS INITIAL
             OR ls_candidate-min_shelf_life = iv_min_shelf_life )
           AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status )
+          AND ( lv_strategy IS INITIAL
+            OR ls_candidate-strategy = lv_strategy )
           AND ( iv_requested_on_from IS INITIAL
             OR ls_candidate-requested_on_from = iv_requested_on_from )
           AND ( iv_requested_on_to IS INITIAL
@@ -303,14 +447,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     TYPES:
       BEGIN OF ty_purge_candidate,
         run_id            TYPE zif_allocation_audit=>ty_run_id,
+        start_date        TYPE d,
+        finish_date       TYPE d,
         movement_type     TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life    TYPE i,
         unit              TYPE zif_stock_allocation=>ty_unit,
         requested_on_from TYPE d,
         requested_on_to   TYPE d,
         status            TYPE zif_allocation_audit=>ty_run_status,
+        strategy          TYPE zif_allocation_audit=>ty_strategy,
+        message           TYPE zif_allocation_audit=>ty_message,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_overdue_date TYPE d.
     DATA lv_requested_deadline TYPE d.
@@ -329,6 +478,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     lv_overdue_date = sy-datum.
     IF iv_overdue_date IS NOT INITIAL.
@@ -347,6 +497,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
+    ENDIF.
+    IF iv_start_date_from IS NOT INITIAL
+        AND iv_start_date_from >= iv_before_date.
+      raise_error(
+        iv_message = 'Audit purge start date must be before the cutoff date' ).
+    ENDIF.
+    IF iv_finish_date_from IS NOT INITIAL
+        AND iv_finish_date_to IS NOT INITIAL
+        AND iv_finish_date_from > iv_finish_date_to.
+      raise_error( iv_message = 'Audit purge finish date range is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -383,6 +543,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit purge status filter is invalid' ).
     ENDIF.
+    IF lv_strategy IS NOT INITIAL
+        AND lv_strategy <> 'P'
+        AND lv_strategy <> 'F'
+        AND lv_strategy <> 'N'
+        AND lv_strategy <> 'S'
+        AND lv_strategy <> 'L'
+        AND lv_strategy <> 'B'.
+      raise_error( iv_message = 'Audit strategy is invalid' ).
+    ENDIF.
+    IF iv_legacy_strategy = abap_true
+        AND lv_strategy IS NOT INITIAL.
+      raise_error( iv_message = 'Audit strategy filters conflict' ).
+    ENDIF.
     IF mo_retention_authority IS BOUND.
       TRY.
           mo_retention_authority->check( ).
@@ -393,26 +566,139 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           RAISE EXCEPTION lo_retention_error.
       ENDTRY.
     ENDIF.
-    SELECT run_id,
-           movement_type,
-           min_shelf_life,
-           unit,
-           requested_on_from,
-           requested_on_to,
-           status
-      FROM zstockalloc_run
-      INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND lgort = @iv_storage_location
-        AND batch = @iv_batch
-        AND start_date < @iv_before_date
-        AND ( @iv_deadline_only = @abap_false
-          OR requested_on_from <> '00000000'
-          OR requested_on_to <> '00000000' ).
+    IF iv_run_id IS INITIAL.
+      IF iv_start_date_from IS INITIAL.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ELSE.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND start_date < @iv_before_date
+            AND start_date >= @iv_start_date_from
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ENDIF.
+    ELSE.
+      IF iv_start_date_from IS INITIAL.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ELSE.
+        SELECT run_id,
+               start_date,
+               finish_date,
+               movement_type,
+               min_shelf_life,
+               unit,
+               requested_on_from,
+               requested_on_to,
+               status,
+               strategy,
+               message
+          FROM zstockalloc_run
+          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+          WHERE matnr = @iv_material
+            AND werks = @iv_plant
+            AND lgort = @iv_storage_location
+            AND batch = @iv_batch
+            AND run_id = @iv_run_id
+            AND start_date < @iv_before_date
+            AND start_date >= @iv_start_date_from
+            AND ( @iv_deadline_only = @abap_false
+              OR requested_on_from <> '00000000'
+              OR requested_on_to <> '00000000' ).
+      ENDIF.
+    ENDIF.
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
+      ls_candidate-strategy = to_upper( ls_candidate-strategy ).
+      IF iv_legacy_strategy = abap_true
+          AND ls_candidate-strategy IS NOT INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF iv_start_date_from IS NOT INITIAL
+          AND ls_candidate-start_date < iv_start_date_from.
+        CONTINUE.
+      ENDIF.
+      IF iv_finish_date_from IS NOT INITIAL
+          AND ( ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-finish_date < iv_finish_date_from ).
+        CONTINUE.
+      ENDIF.
+      IF iv_finish_date_to IS NOT INITIAL
+          AND ( ls_candidate-finish_date IS INITIAL
+            OR ls_candidate-finish_date > iv_finish_date_to ).
+        CONTINUE.
+      ENDIF.
+      IF iv_message_contains IS NOT INITIAL
+          AND to_upper( ls_candidate-message )
+            NS to_upper( iv_message_contains ).
+        CONTINUE.
+      ENDIF.
+      IF iv_message_only = abap_true
+          AND ls_candidate-message IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF iv_run_id_contains IS NOT INITIAL
+          AND to_upper( ls_candidate-run_id )
+            NS to_upper( iv_run_id_contains ).
+        CONTINUE.
+      ENDIF.
       IF ls_candidate-requested_on_to IS INITIAL.
         lv_requested_deadline = ls_candidate-requested_on_from.
       ELSE.
@@ -452,6 +738,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ( iv_min_shelf_life IS INITIAL
             OR ls_candidate-min_shelf_life = iv_min_shelf_life )
           AND ( lv_status IS INITIAL OR ls_candidate-status = lv_status )
+          AND ( lv_strategy IS INITIAL
+            OR ls_candidate-strategy = lv_strategy )
           AND ( iv_requested_on_from IS INITIAL
             OR ls_candidate-requested_on_from = iv_requested_on_from )
           AND ( iv_requested_on_to IS INITIAL

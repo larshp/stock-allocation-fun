@@ -45,6 +45,18 @@
      <ENTRY>Allocation movement type</ENTRY>
      <LENGTH>29</LENGTH>
     </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OMVT</KEY>
+    <ENTRY>Old movement type</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NMVT</KEY>
+    <ENTRY>New movement type</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_SHELF</KEY>
@@ -53,9 +65,33 @@
     </item>
    <item>
     <ID>S</ID>
+    <KEY>P_OSHELF</KEY>
+    <ENTRY>Old minimum shelf-life days</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NSHELF</KEY>
+    <ENTRY>New minimum shelf-life days</ENTRY>
+    <LENGTH>32</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_OVRD</KEY>
     <ENTRY>Overdue requested dates only</ENTRY>
     <LENGTH>31</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OOVRD</KEY>
+    <ENTRY>Old overdue requested dates only</ENTRY>
+    <LENGTH>35</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NOVRD</KEY>
+    <ENTRY>New overdue requested dates only</ENTRY>
+    <LENGTH>35</LENGTH>
    </item>
    <item>
      <ID>S</ID>
@@ -74,6 +110,66 @@
      <KEY>P_UNTIL</KEY>
      <ENTRY>Requested horizon to</ENTRY>
      <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OREQF</KEY>
+    <ENTRY>Old requested horizon from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OREQT</KEY>
+    <ENTRY>Old requested horizon to</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NREQF</KEY>
+    <ENTRY>New requested horizon from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NREQT</KEY>
+    <ENTRY>New requested horizon to</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_ODEAD</KEY>
+    <ENTRY>Old requested deadline only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDEAD</KEY>
+    <ENTRY>New requested deadline only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_ODEADF</KEY>
+    <ENTRY>Old requested deadline from</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_ODEADT</KEY>
+    <ENTRY>Old requested deadline to</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDEADF</KEY>
+    <ENTRY>New requested deadline from</ENTRY>
+    <LENGTH>30</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDEADT</KEY>
+    <ENTRY>New requested deadline to</ENTRY>
+    <LENGTH>28</LENGTH>
    </item>
    <item>
      <ID>S</ID>
@@ -112,11 +208,173 @@
      <LENGTH>26</LENGTH>
     </item>
    <item>
+    <ID>S</ID>
+    <KEY>P_OAGEF</KEY>
+    <ENTRY>Old deadline age from</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OAGET</KEY>
+    <ENTRY>Old deadline age to</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAGEF</KEY>
+    <ENTRY>New deadline age from</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAGET</KEY>
+    <ENTRY>New deadline age to</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+    <item>
      <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Allocation unit</ENTRY>
      <LENGTH>24</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OUNIT</KEY>
+     <ENTRY>Old allocation unit</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NUNIT</KEY>
+     <ENTRY>New allocation unit</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RMOV</KEY>
+     <ENTRY>Reservation movement type</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORMOV</KEY>
+     <ENTRY>Old reservation movement type</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NRMOV</KEY>
+     <ENTRY>New reservation movement type</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RUNIT</KEY>
+     <ENTRY>Reservation unit</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORUNIT</KEY>
+     <ENTRY>Old reservation unit</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NRUNIT</KEY>
+     <ENTRY>New reservation unit</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RSV</KEY>
+     <ENTRY>Reserved allocation rows</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNRSV</KEY>
+     <ENTRY>Unreserved allocation rows</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORSV</KEY>
+     <ENTRY>Old reserved allocation rows</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NRSV</KEY>
+     <ENTRY>New reserved allocation rows</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OURSV</KEY>
+     <ENTRY>Old unreserved allocation rows</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NURSV</KEY>
+     <ENTRY>New unreserved allocation rows</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RFROM</KEY>
+     <ENTRY>Reservation date from</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RTO</KEY>
+     <ENTRY>Reservation date to</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORFROM</KEY>
+     <ENTRY>Old reservation date from</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORTO</KEY>
+     <ENTRY>Old reservation date to</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NRFROM</KEY>
+     <ENTRY>New reservation date from</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_NRTO</KEY>
+     <ENTRY>New reservation date to</ENTRY>
+     <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RAGE</KEY>
+    <ENTRY>Reservation age in days</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_ORAGE</KEY>
+    <ENTRY>Old reservation age in days</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NRAGE</KEY>
+    <ENTRY>New reservation age in days</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_OLD</KEY>
@@ -161,9 +419,57 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_NAST</KEY>
-     <ENTRY>New audit status (R/S/P/E)</ENTRY>
-     <LENGTH>28</LENGTH>
+    <KEY>P_NAST</KEY>
+    <ENTRY>New audit status (R/S/P/E)</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OSTR</KEY>
+    <ENTRY>Old strategy (P/F/N/S/L/B)</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NSTR</KEY>
+    <ENTRY>New strategy (P/F/N/S/L/B)</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OLEG</KEY>
+    <ENTRY>Old legacy strategy only</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NLEG</KEY>
+    <ENTRY>New legacy strategy only</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OMSG</KEY>
+     <ENTRY>Old audit message contains</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NMSG</KEY>
+     <ENTRY>New audit message contains</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OMONLY</KEY>
+     <ENTRY>Old message only</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NMONLY</KEY>
+     <ENTRY>New message only</ENTRY>
+     <LENGTH>20</LENGTH>
     </item>
     <item>
      <ID>S</ID>

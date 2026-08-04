@@ -5,18 +5,61 @@ PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_lgort TYPE zif_stock_allocation=>ty_storage_location OBLIGATORY.
 PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
 PARAMETERS p_mvt TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_omvt TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_nmvt TYPE zif_stock_allocation=>ty_movement_type.
 PARAMETERS p_shelf TYPE i.
+PARAMETERS p_oshelf TYPE i.
+PARAMETERS p_nshelf TYPE i.
 PARAMETERS p_ovrd AS CHECKBOX.
+PARAMETERS p_oovrd AS CHECKBOX.
+PARAMETERS p_novrd AS CHECKBOX.
 PARAMETERS p_odate TYPE d.
 PARAMETERS p_reqf TYPE d.
 PARAMETERS p_until TYPE d.
+PARAMETERS p_oreqf TYPE d.
+PARAMETERS p_oreqt TYPE d.
+PARAMETERS p_nreqf TYPE d.
+PARAMETERS p_nreqt TYPE d.
 PARAMETERS p_dead AS CHECKBOX.
+PARAMETERS p_odead AS CHECKBOX.
+PARAMETERS p_ndead AS CHECKBOX.
+PARAMETERS p_odeadf TYPE d.
+PARAMETERS p_odeadt TYPE d.
+PARAMETERS p_ndeadf TYPE d.
+PARAMETERS p_ndeadt TYPE d.
 PARAMETERS p_deadf TYPE d.
 PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_oagef TYPE i.
+PARAMETERS p_oaget TYPE i.
+PARAMETERS p_nagef TYPE i.
+PARAMETERS p_naget TYPE i.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_ounit TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_nunit TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_rmov TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_ormov TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_nrmov TYPE zif_stock_allocation=>ty_movement_type.
+PARAMETERS p_runit TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_orunit TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_nrunit TYPE zif_stock_allocation=>ty_unit.
+PARAMETERS p_rsv AS CHECKBOX.
+PARAMETERS p_unrsv AS CHECKBOX.
+PARAMETERS p_orsv AS CHECKBOX.
+PARAMETERS p_nrsv AS CHECKBOX.
+PARAMETERS p_oursv AS CHECKBOX.
+PARAMETERS p_nursv AS CHECKBOX.
+PARAMETERS p_rfrom TYPE d.
+PARAMETERS p_rto TYPE d.
+PARAMETERS p_orfrom TYPE d.
+PARAMETERS p_orto TYPE d.
+PARAMETERS p_nrfrom TYPE d.
+PARAMETERS p_nrto TYPE d.
+PARAMETERS p_rage TYPE i.
+PARAMETERS p_orage TYPE i.
+PARAMETERS p_nrage TYPE i.
 PARAMETERS p_old TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_new TYPE zif_stock_allocation=>ty_run_id OBLIGATORY.
 PARAMETERS p_chg TYPE zif_stock_allocation_compare=>ty_change_type.
@@ -25,6 +68,14 @@ PARAMETERS p_ost TYPE zif_stock_allocation=>ty_allocation_status.
 PARAMETERS p_nst TYPE zif_stock_allocation=>ty_allocation_status.
 PARAMETERS p_oast TYPE zif_allocation_audit=>ty_run_status.
 PARAMETERS p_nast TYPE zif_allocation_audit=>ty_run_status.
+PARAMETERS p_ostr TYPE zif_allocation_audit=>ty_strategy.
+PARAMETERS p_nstr TYPE zif_allocation_audit=>ty_strategy.
+PARAMETERS p_oleg AS CHECKBOX.
+PARAMETERS p_nleg AS CHECKBOX.
+PARAMETERS p_omsg TYPE zif_allocation_audit=>ty_message.
+PARAMETERS p_nmsg TYPE zif_allocation_audit=>ty_message.
+PARAMETERS p_omonly AS CHECKBOX.
+PARAMETERS p_nmonly AS CHECKBOX.
 PARAMETERS p_all AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
 PARAMETERS p_shrt AS CHECKBOX.
@@ -172,33 +223,282 @@ START-OF-SELECTION.
   DATA lv_filter_names_text TYPE string.
   DATA lv_sort_mode TYPE string.
   DATA lv_movement_filter TYPE string.
+  DATA lv_old_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+  DATA lv_new_movement_type TYPE zif_stock_allocation=>ty_movement_type.
+  DATA lv_old_movement_filter TYPE string.
+  DATA lv_new_movement_filter TYPE string.
   DATA lv_min_shelf_filter TYPE string.
+  DATA lv_old_shelf_life TYPE i.
+  DATA lv_new_shelf_life TYPE i.
+  DATA lv_old_shelf_filter TYPE string.
+  DATA lv_new_shelf_filter TYPE string.
+  DATA lv_old_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_new_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_old_unit_filter TYPE string.
+  DATA lv_new_unit_filter TYPE string.
+  DATA lv_reservation_movement_filter TYPE string.
+  DATA lv_old_reservation_movement TYPE zif_stock_allocation=>ty_movement_type.
+  DATA lv_new_reservation_movement TYPE zif_stock_allocation=>ty_movement_type.
+  DATA lv_old_rmov_filter TYPE string.
+  DATA lv_new_rmov_filter TYPE string.
+  DATA lv_reservation_unit_filter TYPE string.
+  DATA lv_old_reservation_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_new_reservation_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_old_runit_filter TYPE string.
+  DATA lv_new_runit_filter TYPE string.
+  DATA lv_old_reserved_only TYPE abap_bool.
+  DATA lv_new_reserved_only TYPE abap_bool.
+  DATA lv_old_unreserved_only TYPE abap_bool.
+  DATA lv_new_unreserved_only TYPE abap_bool.
+  DATA lv_rdate_from_filter TYPE c LENGTH 10.
+  DATA lv_rdate_to_filter TYPE c LENGTH 10.
+  DATA lv_old_rdate_from_filter TYPE c LENGTH 10.
+  DATA lv_old_rdate_to_filter TYPE c LENGTH 10.
+  DATA lv_new_rdate_from_filter TYPE c LENGTH 10.
+  DATA lv_new_rdate_to_filter TYPE c LENGTH 10.
+  DATA lv_old_rdate_from TYPE d.
+  DATA lv_old_rdate_to TYPE d.
+  DATA lv_new_rdate_from TYPE d.
+  DATA lv_new_rdate_to TYPE d.
+  DATA lv_rage_filter TYPE string.
+  DATA lv_old_rage TYPE i.
+  DATA lv_new_rage TYPE i.
+  DATA lv_old_rage_filter TYPE string.
+  DATA lv_new_rage_filter TYPE string.
   DATA lv_old_audit_status_filter TYPE string.
   DATA lv_new_audit_status_filter TYPE string.
+  DATA lv_old_strategy_filter TYPE string.
+  DATA lv_new_strategy_filter TYPE string.
+  DATA lv_old_legacy_strategy_filter TYPE string.
+  DATA lv_new_legacy_strategy_filter TYPE string.
+  DATA lv_old_message_filter TYPE string.
+  DATA lv_new_message_filter TYPE string.
+  DATA lv_old_message_only_text TYPE string.
+  DATA lv_new_message_only_text TYPE string.
   DATA lv_overdue_as_of_filter TYPE c LENGTH 10.
   DATA lv_requested_from_filter TYPE c LENGTH 10.
   DATA lv_requested_to_filter TYPE c LENGTH 10.
+  DATA lv_old_requested_from_filter TYPE c LENGTH 10.
+  DATA lv_old_requested_to_filter TYPE c LENGTH 10.
+  DATA lv_new_requested_from_filter TYPE c LENGTH 10.
+  DATA lv_new_requested_to_filter TYPE c LENGTH 10.
+  DATA lv_old_requested_from TYPE d.
+  DATA lv_old_requested_to TYPE d.
+  DATA lv_new_requested_from TYPE d.
+  DATA lv_new_requested_to TYPE d.
+  DATA lv_old_deadline_only TYPE abap_bool.
+  DATA lv_new_deadline_only TYPE abap_bool.
+  DATA lv_old_deadline_only_filter TYPE string.
+  DATA lv_new_deadline_only_filter TYPE string.
+  DATA lv_old_overdue_only TYPE abap_bool.
+  DATA lv_new_overdue_only TYPE abap_bool.
+  DATA lv_old_overdue_only_filter TYPE string.
+  DATA lv_new_overdue_only_filter TYPE string.
   DATA lv_deadline_from_filter TYPE c LENGTH 10.
   DATA lv_deadline_to_filter TYPE c LENGTH 10.
+  DATA lv_old_deadline_from TYPE d.
+  DATA lv_old_deadline_to TYPE d.
+  DATA lv_new_deadline_from TYPE d.
+  DATA lv_new_deadline_to TYPE d.
+  DATA lv_old_deadline_from_filter TYPE c LENGTH 10.
+  DATA lv_old_deadline_to_filter TYPE c LENGTH 10.
+  DATA lv_new_deadline_from_filter TYPE c LENGTH 10.
+  DATA lv_new_deadline_to_filter TYPE c LENGTH 10.
   DATA lv_deadline_age_from_filter TYPE string.
   DATA lv_deadline_age_to_filter TYPE string.
   DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
+  DATA lv_old_deadline_age_from TYPE i.
+  DATA lv_old_deadline_age_to TYPE i.
+  DATA lv_new_deadline_age_from TYPE i.
+  DATA lv_new_deadline_age_to TYPE i.
+  DATA lv_old_age_from_txt TYPE string.
+  DATA lv_old_age_to_txt TYPE string.
+  DATA lv_new_age_from_txt TYPE string.
+  DATA lv_new_age_to_txt TYPE string.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
   TRANSLATE p_mvt TO UPPER CASE.
+  TRANSLATE p_omvt TO UPPER CASE.
+  TRANSLATE p_nmvt TO UPPER CASE.
+  TRANSLATE p_meins TO UPPER CASE.
+  TRANSLATE p_ounit TO UPPER CASE.
+  TRANSLATE p_nunit TO UPPER CASE.
+  TRANSLATE p_rmov TO UPPER CASE.
+  TRANSLATE p_ormov TO UPPER CASE.
+  TRANSLATE p_nrmov TO UPPER CASE.
+  TRANSLATE p_runit TO UPPER CASE.
+  TRANSLATE p_orunit TO UPPER CASE.
+  TRANSLATE p_nrunit TO UPPER CASE.
   TRANSLATE p_reason TO LOWER CASE.
   TRANSLATE p_ost TO UPPER CASE.
   TRANSLATE p_nst TO UPPER CASE.
   TRANSLATE p_oast TO UPPER CASE.
   TRANSLATE p_nast TO UPPER CASE.
+  TRANSLATE p_ostr TO UPPER CASE.
+  TRANSLATE p_nstr TO UPPER CASE.
   lv_movement_filter = p_mvt.
   IF lv_movement_filter IS INITIAL.
     lv_movement_filter = 'n/a'.
+  ENDIF.
+  IF p_omvt IS INITIAL.
+    lv_old_movement_type = p_mvt.
+    lv_old_movement_filter = lv_movement_filter.
+  ELSE.
+    lv_old_movement_type = p_omvt.
+    lv_old_movement_filter = p_omvt.
+  ENDIF.
+  IF p_nmvt IS INITIAL.
+    lv_new_movement_type = p_mvt.
+    lv_new_movement_filter = lv_movement_filter.
+  ELSE.
+    lv_new_movement_type = p_nmvt.
+    lv_new_movement_filter = p_nmvt.
   ENDIF.
   IF p_shelf IS INITIAL.
     lv_min_shelf_filter = 'n/a'.
   ELSE.
     lv_min_shelf_filter = zcl_stock_csv=>number( p_shelf ).
+  ENDIF.
+  IF p_oshelf IS INITIAL.
+    lv_old_shelf_life = p_shelf.
+    lv_old_shelf_filter = lv_min_shelf_filter.
+  ELSE.
+    lv_old_shelf_life = p_oshelf.
+    lv_old_shelf_filter = zcl_stock_csv=>number( p_oshelf ).
+  ENDIF.
+  IF p_nshelf IS INITIAL.
+    lv_new_shelf_life = p_shelf.
+    lv_new_shelf_filter = lv_min_shelf_filter.
+  ELSE.
+    lv_new_shelf_life = p_nshelf.
+    lv_new_shelf_filter = zcl_stock_csv=>number( p_nshelf ).
+  ENDIF.
+  IF p_ounit IS INITIAL.
+    lv_old_unit = p_meins.
+  ELSE.
+    lv_old_unit = p_ounit.
+  ENDIF.
+  lv_old_unit_filter = lv_old_unit.
+  IF lv_old_unit_filter IS INITIAL.
+    lv_old_unit_filter = 'n/a'.
+  ENDIF.
+  IF p_nunit IS INITIAL.
+    lv_new_unit = p_meins.
+  ELSE.
+    lv_new_unit = p_nunit.
+  ENDIF.
+  lv_new_unit_filter = lv_new_unit.
+  IF lv_new_unit_filter IS INITIAL.
+    lv_new_unit_filter = 'n/a'.
+  ENDIF.
+  lv_reservation_movement_filter = p_rmov.
+  IF lv_reservation_movement_filter IS INITIAL.
+    lv_reservation_movement_filter = 'n/a'.
+  ENDIF.
+  IF p_ormov IS INITIAL.
+    lv_old_reservation_movement = p_rmov.
+    lv_old_rmov_filter = lv_reservation_movement_filter.
+  ELSE.
+    lv_old_reservation_movement = p_ormov.
+    lv_old_rmov_filter = p_ormov.
+  ENDIF.
+  IF p_nrmov IS INITIAL.
+    lv_new_reservation_movement = p_rmov.
+    lv_new_rmov_filter = lv_reservation_movement_filter.
+  ELSE.
+    lv_new_reservation_movement = p_nrmov.
+    lv_new_rmov_filter = p_nrmov.
+  ENDIF.
+  lv_reservation_unit_filter = p_runit.
+  IF lv_reservation_unit_filter IS INITIAL.
+    lv_reservation_unit_filter = 'n/a'.
+  ENDIF.
+  IF p_orunit IS INITIAL.
+    lv_old_reservation_unit = p_runit.
+    lv_old_runit_filter = lv_reservation_unit_filter.
+  ELSE.
+    lv_old_reservation_unit = p_orunit.
+    lv_old_runit_filter = p_orunit.
+  ENDIF.
+  IF p_nrunit IS INITIAL.
+    lv_new_reservation_unit = p_runit.
+    lv_new_runit_filter = lv_reservation_unit_filter.
+  ELSE.
+    lv_new_reservation_unit = p_nrunit.
+    lv_new_runit_filter = p_nrunit.
+  ENDIF.
+  lv_old_reserved_only = p_rsv.
+  IF p_orsv = abap_true.
+    lv_old_reserved_only = abap_true.
+  ENDIF.
+  lv_new_reserved_only = p_rsv.
+  IF p_nrsv = abap_true.
+    lv_new_reserved_only = abap_true.
+  ENDIF.
+  lv_old_unreserved_only = p_unrsv.
+  IF p_oursv = abap_true.
+    lv_old_unreserved_only = abap_true.
+  ENDIF.
+  lv_new_unreserved_only = p_unrsv.
+  IF p_nursv = abap_true.
+    lv_new_unreserved_only = abap_true.
+  ENDIF.
+  IF p_rfrom IS INITIAL.
+    lv_rdate_from_filter = 'n/a'.
+  ELSE.
+    lv_rdate_from_filter = p_rfrom.
+  ENDIF.
+  IF p_rto IS INITIAL.
+    lv_rdate_to_filter = 'n/a'.
+  ELSE.
+    lv_rdate_to_filter = p_rto.
+  ENDIF.
+  IF p_orfrom IS INITIAL.
+    lv_old_rdate_from = p_rfrom.
+    lv_old_rdate_from_filter = lv_rdate_from_filter.
+  ELSE.
+    lv_old_rdate_from = p_orfrom.
+    lv_old_rdate_from_filter = p_orfrom.
+  ENDIF.
+  IF p_orto IS INITIAL.
+    lv_old_rdate_to = p_rto.
+    lv_old_rdate_to_filter = lv_rdate_to_filter.
+  ELSE.
+    lv_old_rdate_to = p_orto.
+    lv_old_rdate_to_filter = p_orto.
+  ENDIF.
+  IF p_nrfrom IS INITIAL.
+    lv_new_rdate_from = p_rfrom.
+    lv_new_rdate_from_filter = lv_rdate_from_filter.
+  ELSE.
+    lv_new_rdate_from = p_nrfrom.
+    lv_new_rdate_from_filter = p_nrfrom.
+  ENDIF.
+  IF p_nrto IS INITIAL.
+    lv_new_rdate_to = p_rto.
+    lv_new_rdate_to_filter = lv_rdate_to_filter.
+  ELSE.
+    lv_new_rdate_to = p_nrto.
+    lv_new_rdate_to_filter = p_nrto.
+  ENDIF.
+  IF p_rage IS INITIAL.
+    lv_rage_filter = 'n/a'.
+  ELSE.
+    lv_rage_filter = zcl_stock_csv=>number( p_rage ).
+  ENDIF.
+  IF p_orage IS INITIAL.
+    lv_old_rage = p_rage.
+    lv_old_rage_filter = lv_rage_filter.
+  ELSE.
+    lv_old_rage = p_orage.
+    lv_old_rage_filter = zcl_stock_csv=>number( p_orage ).
+  ENDIF.
+  IF p_nrage IS INITIAL.
+    lv_new_rage = p_rage.
+    lv_new_rage_filter = lv_rage_filter.
+  ELSE.
+    lv_new_rage = p_nrage.
+    lv_new_rage_filter = zcl_stock_csv=>number( p_nrage ).
   ENDIF.
   lv_old_audit_status_filter = p_oast.
   IF lv_old_audit_status_filter IS INITIAL.
@@ -207,6 +507,42 @@ START-OF-SELECTION.
   lv_new_audit_status_filter = p_nast.
   IF lv_new_audit_status_filter IS INITIAL.
     lv_new_audit_status_filter = 'n/a'.
+  ENDIF.
+  lv_old_strategy_filter = p_ostr.
+  IF lv_old_strategy_filter IS INITIAL.
+    lv_old_strategy_filter = 'n/a'.
+  ENDIF.
+  lv_new_strategy_filter = p_nstr.
+  IF lv_new_strategy_filter IS INITIAL.
+    lv_new_strategy_filter = 'n/a'.
+  ENDIF.
+  IF p_oleg = abap_true.
+    lv_old_legacy_strategy_filter = 'true'.
+  ELSE.
+    lv_old_legacy_strategy_filter = 'false'.
+  ENDIF.
+  IF p_nleg = abap_true.
+    lv_new_legacy_strategy_filter = 'true'.
+  ELSE.
+    lv_new_legacy_strategy_filter = 'false'.
+  ENDIF.
+  lv_old_message_filter = p_omsg.
+  IF lv_old_message_filter IS INITIAL.
+    lv_old_message_filter = 'n/a'.
+  ENDIF.
+  lv_new_message_filter = p_nmsg.
+  IF lv_new_message_filter IS INITIAL.
+    lv_new_message_filter = 'n/a'.
+  ENDIF.
+  IF p_omonly = abap_true.
+    lv_old_message_only_text = 'true'.
+  ELSE.
+    lv_old_message_only_text = 'false'.
+  ENDIF.
+  IF p_nmonly = abap_true.
+    lv_new_message_only_text = 'true'.
+  ELSE.
+    lv_new_message_only_text = 'false'.
   ENDIF.
   IF p_odate IS INITIAL.
     lv_overdue_as_of_filter = 'n/a'.
@@ -225,6 +561,54 @@ START-OF-SELECTION.
   ELSE.
     lv_requested_to_filter = p_until.
   ENDIF.
+  IF p_oreqf IS INITIAL.
+    lv_old_requested_from = p_reqf.
+    lv_old_requested_from_filter = lv_requested_from_filter.
+  ELSE.
+    lv_old_requested_from = p_oreqf.
+    lv_old_requested_from_filter = p_oreqf.
+  ENDIF.
+  IF p_oreqt IS INITIAL.
+    lv_old_requested_to = p_until.
+    lv_old_requested_to_filter = lv_requested_to_filter.
+  ELSE.
+    lv_old_requested_to = p_oreqt.
+    lv_old_requested_to_filter = p_oreqt.
+  ENDIF.
+  IF p_nreqf IS INITIAL.
+    lv_new_requested_from = p_reqf.
+    lv_new_requested_from_filter = lv_requested_from_filter.
+  ELSE.
+    lv_new_requested_from = p_nreqf.
+    lv_new_requested_from_filter = p_nreqf.
+  ENDIF.
+  IF p_nreqt IS INITIAL.
+    lv_new_requested_to = p_until.
+    lv_new_requested_to_filter = lv_requested_to_filter.
+  ELSE.
+    lv_new_requested_to = p_nreqt.
+    lv_new_requested_to_filter = p_nreqt.
+  ENDIF.
+  IF p_odead = abap_true.
+    lv_old_deadline_only = abap_true.
+  ELSE.
+    lv_old_deadline_only = p_dead.
+  ENDIF.
+  IF p_ndead = abap_true.
+    lv_new_deadline_only = abap_true.
+  ELSE.
+    lv_new_deadline_only = p_dead.
+  ENDIF.
+  IF lv_old_deadline_only = abap_true.
+    lv_old_deadline_only_filter = 'true'.
+  ELSE.
+    lv_old_deadline_only_filter = 'false'.
+  ENDIF.
+  IF lv_new_deadline_only = abap_true.
+    lv_new_deadline_only_filter = 'true'.
+  ELSE.
+    lv_new_deadline_only_filter = 'false'.
+  ENDIF.
   IF p_deadf IS INITIAL.
     lv_deadline_from_filter = 'n/a'.
   ELSE.
@@ -234,6 +618,34 @@ START-OF-SELECTION.
     lv_deadline_to_filter = 'n/a'.
   ELSE.
     lv_deadline_to_filter = p_deadt.
+  ENDIF.
+  IF p_odeadf IS INITIAL.
+    lv_old_deadline_from = p_deadf.
+    lv_old_deadline_from_filter = lv_deadline_from_filter.
+  ELSE.
+    lv_old_deadline_from = p_odeadf.
+    lv_old_deadline_from_filter = p_odeadf.
+  ENDIF.
+  IF p_odeadt IS INITIAL.
+    lv_old_deadline_to = p_deadt.
+    lv_old_deadline_to_filter = lv_deadline_to_filter.
+  ELSE.
+    lv_old_deadline_to = p_odeadt.
+    lv_old_deadline_to_filter = p_odeadt.
+  ENDIF.
+  IF p_ndeadf IS INITIAL.
+    lv_new_deadline_from = p_deadf.
+    lv_new_deadline_from_filter = lv_deadline_from_filter.
+  ELSE.
+    lv_new_deadline_from = p_ndeadf.
+    lv_new_deadline_from_filter = p_ndeadf.
+  ENDIF.
+  IF p_ndeadt IS INITIAL.
+    lv_new_deadline_to = p_deadt.
+    lv_new_deadline_to_filter = lv_deadline_to_filter.
+  ELSE.
+    lv_new_deadline_to = p_ndeadt.
+    lv_new_deadline_to_filter = p_ndeadt.
   ENDIF.
   IF p_dagef IS INITIAL.
     lv_deadline_age_from_filter = 'n/a'.
@@ -250,6 +662,54 @@ START-OF-SELECTION.
   ELSE.
     lv_deadline_age_date_filter = p_daged.
     lv_deadline_reference_date = p_daged.
+  ENDIF.
+  IF p_oagef IS INITIAL.
+    lv_old_deadline_age_from = p_dagef.
+    lv_old_age_from_txt = lv_deadline_age_from_filter.
+  ELSE.
+    lv_old_deadline_age_from = p_oagef.
+    lv_old_age_from_txt = zcl_stock_csv=>number( p_oagef ).
+  ENDIF.
+  IF p_oaget IS INITIAL.
+    lv_old_deadline_age_to = p_daget.
+    lv_old_age_to_txt = lv_deadline_age_to_filter.
+  ELSE.
+    lv_old_deadline_age_to = p_oaget.
+    lv_old_age_to_txt = zcl_stock_csv=>number( p_oaget ).
+  ENDIF.
+  IF p_nagef IS INITIAL.
+    lv_new_deadline_age_from = p_dagef.
+    lv_new_age_from_txt = lv_deadline_age_from_filter.
+  ELSE.
+    lv_new_deadline_age_from = p_nagef.
+    lv_new_age_from_txt = zcl_stock_csv=>number( p_nagef ).
+  ENDIF.
+  IF p_naget IS INITIAL.
+    lv_new_deadline_age_to = p_daget.
+    lv_new_age_to_txt = lv_deadline_age_to_filter.
+  ELSE.
+    lv_new_deadline_age_to = p_naget.
+    lv_new_age_to_txt = zcl_stock_csv=>number( p_naget ).
+  ENDIF.
+  IF p_oovrd = abap_true.
+    lv_old_overdue_only = abap_true.
+  ELSE.
+    lv_old_overdue_only = p_ovrd.
+  ENDIF.
+  IF p_novrd = abap_true.
+    lv_new_overdue_only = abap_true.
+  ELSE.
+    lv_new_overdue_only = p_ovrd.
+  ENDIF.
+  IF lv_old_overdue_only = abap_true.
+    lv_old_overdue_only_filter = 'true'.
+  ELSE.
+    lv_old_overdue_only_filter = 'false'.
+  ENDIF.
+  IF lv_new_overdue_only = abap_true.
+    lv_new_overdue_only_filter = 'true'.
+  ELSE.
+    lv_new_overdue_only_filter = 'false'.
   ENDIF.
   IF p_old = p_new.
     lv_error_message = 'Old and new allocation run IDs must be different'.
@@ -359,7 +819,261 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_oshelf < 0 OR p_nshelf < 0.
+    lv_error_message = 'Side-specific shelf-life filters must not be negative'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_shelf IS NOT INITIAL
+      AND ( p_oshelf IS NOT INITIAL OR p_nshelf IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific shelf-life filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_meins IS NOT INITIAL
+      AND ( p_ounit IS NOT INITIAL OR p_nunit IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific unit filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF ( p_rmov IS NOT INITIAL AND p_rmov CN '0123456789' )
+      OR ( p_ormov IS NOT INITIAL AND p_ormov CN '0123456789' )
+      OR ( p_nrmov IS NOT INITIAL AND p_nrmov CN '0123456789' ).
+    lv_error_message = 'Reservation movement type filter is invalid'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_rmov IS NOT INITIAL
+      AND ( p_ormov IS NOT INITIAL OR p_nrmov IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific reservation movement filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_runit IS NOT INITIAL
+      AND ( p_orunit IS NOT INITIAL OR p_nrunit IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific reservation unit filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_rsv = abap_true AND p_unrsv = abap_true.
+    lv_error_message = 'Common reservation filters conflict'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_orsv = abap_true AND p_oursv = abap_true.
+    lv_error_message = 'Old reservation filters conflict'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nrsv = abap_true AND p_nursv = abap_true.
+    lv_error_message = 'New reservation filters conflict'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF ( p_rsv = abap_true OR p_unrsv = abap_true )
+      AND ( p_orsv = abap_true OR p_nrsv = abap_true
+        OR p_oursv = abap_true OR p_nursv = abap_true ).
+    lv_error_message =
+      'Common and side-specific reservation filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_ostr IS NOT INITIAL
+      AND p_ostr <> 'P'
+      AND p_ostr <> 'F'
+      AND p_ostr <> 'N'
+      AND p_ostr <> 'S'
+      AND p_ostr <> 'L'
+      AND p_ostr <> 'B'.
+    lv_error_message = 'Old strategy filter must be P, F, N, S, L, or B'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nstr IS NOT INITIAL
+      AND p_nstr <> 'P'
+      AND p_nstr <> 'F'
+      AND p_nstr <> 'N'
+      AND p_nstr <> 'S'
+      AND p_nstr <> 'L'
+      AND p_nstr <> 'B'.
+    lv_error_message = 'New strategy filter must be P, F, N, S, L, or B'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_oleg = abap_true AND p_ostr IS NOT INITIAL.
+    lv_error_message = 'Old strategy filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nleg = abap_true AND p_nstr IS NOT INITIAL.
+    lv_error_message = 'New strategy filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_mvt IS NOT INITIAL
+      AND ( p_omvt IS NOT INITIAL OR p_nmvt IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific movement filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_ovrd = abap_true
+      AND ( p_oovrd = abap_true OR p_novrd = abap_true ).
+    lv_error_message =
+      'Common and side-specific overdue filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
   IF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
+    IF p_oovrd = abap_false AND p_novrd = abap_false.
     lv_error_message =
       'Overdue as-of date requires overdue-only filtering'.
     IF p_json = abap_true.
@@ -373,10 +1087,189 @@ START-OF-SELECTION.
       WRITE: / lv_error_message.
     ENDIF.
     RETURN.
+    ENDIF.
   ENDIF.
   IF p_reqf IS NOT INITIAL AND p_until IS NOT INITIAL AND p_reqf > p_until.
     lv_error_message =
       'The requested horizon start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_oreqf IS NOT INITIAL AND p_oreqt IS NOT INITIAL
+      AND p_oreqf > p_oreqt.
+    lv_error_message =
+      'The old requested horizon start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nreqf IS NOT INITIAL AND p_nreqt IS NOT INITIAL
+      AND p_nreqf > p_nreqt.
+    lv_error_message =
+      'The new requested horizon start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
+    IF p_oreqf IS NOT INITIAL OR p_oreqt IS NOT INITIAL
+        OR p_nreqf IS NOT INITIAL OR p_nreqt IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific requested horizons cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error( lv_error_message ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;message'.
+        WRITE: / zcl_stock_csv=>error(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
+  IF p_rfrom IS NOT INITIAL AND p_rto IS NOT INITIAL
+      AND p_rfrom > p_rto.
+    lv_error_message =
+      'The reservation date start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_orfrom IS NOT INITIAL AND p_orto IS NOT INITIAL
+      AND p_orfrom > p_orto.
+    lv_error_message =
+      'The old reservation date start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nrfrom IS NOT INITIAL AND p_nrto IS NOT INITIAL
+      AND p_nrfrom > p_nrto.
+    lv_error_message =
+      'The new reservation date start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_rfrom IS NOT INITIAL OR p_rto IS NOT INITIAL.
+    IF p_orfrom IS NOT INITIAL OR p_orto IS NOT INITIAL
+        OR p_nrfrom IS NOT INITIAL OR p_nrto IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific reservation date ranges cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error( lv_error_message ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;message'.
+        WRITE: / zcl_stock_csv=>error(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
+  IF p_rage < 0.
+    lv_error_message = 'Reservation age filter must not be negative'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_orage < 0 OR p_nrage < 0.
+    lv_error_message =
+      'Side-specific reservation age filters must not be negative'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_rage IS NOT INITIAL.
+    IF p_orage IS NOT INITIAL OR p_nrage IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific reservation age filters cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error( lv_error_message ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;message'.
+        WRITE: / zcl_stock_csv=>error(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
+  IF p_dead = abap_true
+      AND ( p_odead = abap_true OR p_ndead = abap_true ).
+    lv_error_message =
+      'Common and side-specific deadline filters cannot be combined'.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error( lv_error_message ).
     ELSEIF p_csv = abap_true.
@@ -405,6 +1298,56 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_odeadf IS NOT INITIAL AND p_odeadt IS NOT INITIAL
+      AND p_odeadf > p_odeadt.
+    lv_error_message =
+      'The old requested deadline start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_ndeadf IS NOT INITIAL AND p_ndeadt IS NOT INITIAL
+      AND p_ndeadf > p_ndeadt.
+    lv_error_message =
+      'The new requested deadline start must not be after the end date'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL.
+    IF p_odeadf IS NOT INITIAL OR p_odeadt IS NOT INITIAL
+        OR p_ndeadf IS NOT INITIAL OR p_ndeadt IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific deadline ranges cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error( lv_error_message ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;message'.
+        WRITE: / zcl_stock_csv=>error(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
   IF p_dagef IS NOT INITIAL AND p_daget IS NOT INITIAL
       AND p_dagef > p_daget.
     lv_error_message =
@@ -421,8 +1364,60 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_oagef IS NOT INITIAL AND p_oaget IS NOT INITIAL
+      AND p_oagef > p_oaget.
+    lv_error_message =
+      'The old deadline age start must not be after the end value'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nagef IS NOT INITIAL AND p_naget IS NOT INITIAL
+      AND p_nagef > p_naget.
+    lv_error_message =
+      'The new deadline age start must not be after the end value'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error( lv_error_message ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;message'.
+      WRITE: / zcl_stock_csv=>error(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL.
+    IF p_oagef IS NOT INITIAL OR p_oaget IS NOT INITIAL
+        OR p_nagef IS NOT INITIAL OR p_naget IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific deadline ages cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error( lv_error_message ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;message'.
+        WRITE: / zcl_stock_csv=>error(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
   IF p_daged IS NOT INITIAL
-      AND p_dagef IS INITIAL AND p_daget IS INITIAL.
+      AND p_dagef IS INITIAL AND p_daget IS INITIAL
+      AND p_oagef IS INITIAL AND p_oaget IS INITIAL
+      AND p_nagef IS INITIAL AND p_naget IS INITIAL.
     lv_error_message = 'Deadline age date requires an age range'.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error( lv_error_message ).
@@ -436,7 +1431,8 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
-  IF p_ovrd = abap_true AND p_guard = abap_true.
+  IF ( p_ovrd = abap_true OR p_oovrd = abap_true OR p_novrd = abap_true )
+      AND p_guard = abap_true.
     lv_error_message =
       'Overdue-only comparison cannot be combined with reconciliation guard'.
     IF p_json = abap_true.
@@ -474,14 +1470,101 @@ START-OF-SELECTION.
   IF p_meins IS NOT INITIAL.
     APPEND 'unit' TO lt_filter_names.
   ENDIF.
+  IF p_ounit IS NOT INITIAL.
+    APPEND 'old_unit' TO lt_filter_names.
+  ENDIF.
+  IF p_nunit IS NOT INITIAL.
+    APPEND 'new_unit' TO lt_filter_names.
+  ENDIF.
+  IF p_rmov IS NOT INITIAL.
+    APPEND 'reservation_movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_ormov IS NOT INITIAL.
+    APPEND 'old_reservation_movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_nrmov IS NOT INITIAL.
+    APPEND 'new_reservation_movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_runit IS NOT INITIAL.
+    APPEND 'reservation_unit' TO lt_filter_names.
+  ENDIF.
+  IF p_orunit IS NOT INITIAL.
+    APPEND 'old_reservation_unit' TO lt_filter_names.
+  ENDIF.
+  IF p_nrunit IS NOT INITIAL.
+    APPEND 'new_reservation_unit' TO lt_filter_names.
+  ENDIF.
+  IF p_rsv = abap_true.
+    APPEND 'reserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_unrsv = abap_true.
+    APPEND 'unreserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_orsv = abap_true.
+    APPEND 'old_reserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_nrsv = abap_true.
+    APPEND 'new_reserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_oursv = abap_true.
+    APPEND 'old_unreserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_nursv = abap_true.
+    APPEND 'new_unreserved_only' TO lt_filter_names.
+  ENDIF.
+  IF p_rfrom IS NOT INITIAL.
+    APPEND 'reservation_date_from' TO lt_filter_names.
+  ENDIF.
+  IF p_rto IS NOT INITIAL.
+    APPEND 'reservation_date_to' TO lt_filter_names.
+  ENDIF.
+  IF p_orfrom IS NOT INITIAL.
+    APPEND 'old_reservation_date_from' TO lt_filter_names.
+  ENDIF.
+  IF p_orto IS NOT INITIAL.
+    APPEND 'old_reservation_date_to' TO lt_filter_names.
+  ENDIF.
+  IF p_nrfrom IS NOT INITIAL.
+    APPEND 'new_reservation_date_from' TO lt_filter_names.
+  ENDIF.
+  IF p_nrto IS NOT INITIAL.
+    APPEND 'new_reservation_date_to' TO lt_filter_names.
+  ENDIF.
+  IF p_rage IS NOT INITIAL.
+    APPEND 'reservation_age' TO lt_filter_names.
+  ENDIF.
+  IF p_orage IS NOT INITIAL.
+    APPEND 'old_reservation_age' TO lt_filter_names.
+  ENDIF.
+  IF p_nrage IS NOT INITIAL.
+    APPEND 'new_reservation_age' TO lt_filter_names.
+  ENDIF.
   IF p_mvt IS NOT INITIAL.
     APPEND 'movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_omvt IS NOT INITIAL.
+    APPEND 'old_movement_type' TO lt_filter_names.
+  ENDIF.
+  IF p_nmvt IS NOT INITIAL.
+    APPEND 'new_movement_type' TO lt_filter_names.
   ENDIF.
   IF p_shelf IS NOT INITIAL.
     APPEND 'minimum_shelf_life' TO lt_filter_names.
   ENDIF.
+  IF p_oshelf IS NOT INITIAL.
+    APPEND 'old_minimum_shelf_life' TO lt_filter_names.
+  ENDIF.
+  IF p_nshelf IS NOT INITIAL.
+    APPEND 'new_minimum_shelf_life' TO lt_filter_names.
+  ENDIF.
   IF p_ovrd = abap_true.
     APPEND 'overdue_only' TO lt_filter_names.
+  ENDIF.
+  IF p_oovrd = abap_true.
+    APPEND 'old_overdue_only' TO lt_filter_names.
+  ENDIF.
+  IF p_novrd = abap_true.
+    APPEND 'new_overdue_only' TO lt_filter_names.
   ENDIF.
   IF p_odate IS NOT INITIAL.
     APPEND 'requested_overdue_as_of' TO lt_filter_names.
@@ -492,15 +1575,57 @@ START-OF-SELECTION.
   IF p_until IS NOT INITIAL.
     APPEND 'requested_on_to' TO lt_filter_names.
   ENDIF.
+  IF p_oreqf IS NOT INITIAL.
+    APPEND 'old_requested_on_from' TO lt_filter_names.
+  ENDIF.
+  IF p_oreqt IS NOT INITIAL.
+    APPEND 'old_requested_on_to' TO lt_filter_names.
+  ENDIF.
+  IF p_nreqf IS NOT INITIAL.
+    APPEND 'new_requested_on_from' TO lt_filter_names.
+  ENDIF.
+  IF p_nreqt IS NOT INITIAL.
+    APPEND 'new_requested_on_to' TO lt_filter_names.
+  ENDIF.
   IF p_dead = abap_true.
     APPEND 'requested_deadline_only' TO lt_filter_names.
+  ENDIF.
+  IF p_odead = abap_true.
+    APPEND 'old_requested_deadline_only' TO lt_filter_names.
+  ENDIF.
+  IF p_ndead = abap_true.
+    APPEND 'new_requested_deadline_only' TO lt_filter_names.
   ENDIF.
   IF p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL.
     APPEND 'requested_deadline_range' TO lt_filter_names.
   ENDIF.
+  IF p_odeadf IS NOT INITIAL.
+    APPEND 'old_requested_deadline_from' TO lt_filter_names.
+  ENDIF.
+  IF p_odeadt IS NOT INITIAL.
+    APPEND 'old_requested_deadline_to' TO lt_filter_names.
+  ENDIF.
+  IF p_ndeadf IS NOT INITIAL.
+    APPEND 'new_requested_deadline_from' TO lt_filter_names.
+  ENDIF.
+  IF p_ndeadt IS NOT INITIAL.
+    APPEND 'new_requested_deadline_to' TO lt_filter_names.
+  ENDIF.
   IF p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
       OR p_daged IS NOT INITIAL.
     APPEND 'deadline_age_range' TO lt_filter_names.
+  ENDIF.
+  IF p_oagef IS NOT INITIAL.
+    APPEND 'old_deadline_age_from' TO lt_filter_names.
+  ENDIF.
+  IF p_oaget IS NOT INITIAL.
+    APPEND 'old_deadline_age_to' TO lt_filter_names.
+  ENDIF.
+  IF p_nagef IS NOT INITIAL.
+    APPEND 'new_deadline_age_from' TO lt_filter_names.
+  ENDIF.
+  IF p_naget IS NOT INITIAL.
+    APPEND 'new_deadline_age_to' TO lt_filter_names.
   ENDIF.
   IF p_chg IS NOT INITIAL.
     APPEND 'change_type' TO lt_filter_names.
@@ -519,6 +1644,30 @@ START-OF-SELECTION.
   ENDIF.
   IF p_nast IS NOT INITIAL.
     APPEND 'new_audit_status' TO lt_filter_names.
+  ENDIF.
+  IF p_ostr IS NOT INITIAL.
+    APPEND 'old_strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_nstr IS NOT INITIAL.
+    APPEND 'new_strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_oleg = abap_true.
+    APPEND 'old_legacy_strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_nleg = abap_true.
+    APPEND 'new_legacy_strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_omsg IS NOT INITIAL.
+    APPEND 'old_message' TO lt_filter_names.
+  ENDIF.
+  IF p_nmsg IS NOT INITIAL.
+    APPEND 'new_message' TO lt_filter_names.
+  ENDIF.
+  IF p_omonly = abap_true.
+    APPEND 'old_message_only' TO lt_filter_names.
+  ENDIF.
+  IF p_nmonly = abap_true.
+    APPEND 'new_message_only' TO lt_filter_names.
   ENDIF.
   IF p_all = abap_true.
     APPEND 'include_unchanged' TO lt_filter_names.
@@ -577,6 +1726,93 @@ START-OF-SELECTION.
     iv_name  = 'movement_type'
     iv_value = p_mvt ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
+    iv_name  = 'old_movement_type'
+    iv_value = lv_old_movement_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_movement_type'
+    iv_value = lv_new_movement_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'unit'
+    iv_value = p_meins ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_unit'
+    iv_value = lv_old_unit_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_unit'
+    iv_value = lv_new_unit_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'reservation_movement_type'
+    iv_value = p_rmov ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_reservation_movement_type'
+    iv_value = lv_old_rmov_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_reservation_movement_type'
+    iv_value = lv_new_rmov_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'reservation_unit'
+    iv_value = p_runit ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_reservation_unit'
+    iv_value = lv_old_runit_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_reservation_unit'
+    iv_value = lv_new_runit_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'reserved_only'
+    iv_value = p_rsv ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'unreserved_only'
+    iv_value = p_unrsv ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_reserved_only'
+    iv_value = lv_old_reserved_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_reserved_only'
+    iv_value = lv_new_reserved_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_unreserved_only'
+    iv_value = lv_old_unreserved_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_unreserved_only'
+    iv_value = lv_new_unreserved_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'reservation_date_from'
+    iv_value = lv_rdate_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'reservation_date_to'
+    iv_value = lv_rdate_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_reservation_date_from'
+    iv_value = lv_old_rdate_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_reservation_date_to'
+    iv_value = lv_old_rdate_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_reservation_date_from'
+    iv_value = lv_new_rdate_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_reservation_date_to'
+    iv_value = lv_new_rdate_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'reservation_age'
+    iv_value   = p_rage
+    iv_text    = lv_rage_filter
+    iv_present = xsdbool( p_rage IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'old_reservation_age'
+    iv_value   = lv_old_rage
+    iv_text    = lv_old_rage_filter
+    iv_present = xsdbool( p_orage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'new_reservation_age'
+    iv_value   = lv_new_rage
+    iv_text    = lv_new_rage_filter
+    iv_present = xsdbool( p_nrage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
     iv_name  = 'old_allocation_status'
     iv_value = p_ost ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
@@ -588,24 +1824,84 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'new_audit_status'
     iv_value = p_nast ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_strategy'
+    iv_value = p_ostr ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_strategy'
+    iv_value = p_nstr ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_legacy_strategy'
+    iv_value = p_oleg ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_legacy_strategy'
+    iv_value = p_nleg ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_message'
+    iv_value = lv_old_message_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_message'
+    iv_value = lv_new_message_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_message_only'
+    iv_value = p_omonly ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_message_only'
+    iv_value = p_nmonly ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>filter_number_property(
     iv_name    = 'minimum_shelf_life'
     iv_value   = p_shelf
     iv_text    = 'n/a'
     iv_present = xsdbool( p_shelf IS NOT INITIAL )
     iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'old_minimum_shelf_life'
+    iv_value   = lv_old_shelf_life
+    iv_text    = lv_old_shelf_filter
+    iv_present = xsdbool( p_oshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>filter_number_property(
+    iv_name    = 'new_minimum_shelf_life'
+    iv_value   = lv_new_shelf_life
+    iv_text    = lv_new_shelf_filter
+    iv_present = xsdbool( p_nshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+    iv_typed   = abap_true ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>boolean_property(
     iv_name  = 'overdue_only'
     iv_value = p_ovrd ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_overdue_only'
+    iv_value = lv_old_overdue_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_overdue_only'
+    iv_value = lv_new_overdue_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
     iv_name  = 'requested_deadline_only'
     iv_value = p_dead ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'old_requested_deadline_only'
+    iv_value = lv_old_deadline_only ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>boolean_property(
+    iv_name  = 'new_requested_deadline_only'
+    iv_value = lv_new_deadline_only ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
     iv_name  = 'requested_deadline_from'
     iv_value = lv_deadline_from_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
     iv_name  = 'requested_deadline_to'
     iv_value = lv_deadline_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_requested_deadline_from'
+    iv_value = lv_old_deadline_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_requested_deadline_to'
+    iv_value = lv_old_deadline_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_requested_deadline_from'
+    iv_value = lv_new_deadline_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_requested_deadline_to'
+    iv_value = lv_new_deadline_to_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>filter_number_property(
     iv_name    = 'minimum_deadline_age_days'
     iv_value   = p_dagef
@@ -622,6 +1918,18 @@ START-OF-SELECTION.
     iv_name  = 'deadline_age_as_of'
     iv_value = lv_deadline_age_date_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
+    iv_name  = 'old_deadline_age_from'
+    iv_value = lv_old_age_from_txt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_deadline_age_to'
+    iv_value = lv_old_age_to_txt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_deadline_age_from'
+    iv_value = lv_new_age_from_txt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_deadline_age_to'
+    iv_value = lv_new_age_to_txt ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
     iv_name  = 'requested_overdue_as_of'
     iv_value = lv_overdue_as_of_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
@@ -630,6 +1938,18 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'requested_on_to'
     iv_value = lv_requested_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_requested_on_from'
+    iv_value = lv_old_requested_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_requested_on_to'
+    iv_value = lv_old_requested_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_requested_on_from'
+    iv_value = lv_new_requested_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_requested_on_to'
+    iv_value = lv_new_requested_to_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>number_property(
     iv_name  = 'offset'
     iv_value = p_skip ) TO lt_filter_value_fields.
@@ -656,79 +1976,138 @@ START-OF-SELECTION.
         iv_plant                 = p_werks
         iv_storage_location      = p_lgort
         iv_batch                 = p_charg
-        iv_unit                  = p_meins
-        iv_overdue_only          = p_ovrd
+        iv_unit                  = lv_old_unit
+        iv_movement_type         = lv_old_reservation_movement
+        iv_reservation_unit      = lv_old_reservation_unit
+        iv_reserved_only         = lv_old_reserved_only
+        iv_unreserved_only       = lv_old_unreserved_only
+        iv_reservation_date_from = lv_old_rdate_from
+        iv_reservation_date_to   = lv_old_rdate_to
+        iv_reservation_age_from  = lv_old_rage
+        iv_overdue_only          = lv_old_overdue_only
         iv_overdue_date          = p_odate
-        iv_deadline_only         = p_dead
-        iv_run_deadline_from     = p_deadf
-        iv_run_deadline_to       = p_deadt
-        iv_run_deadline_age_from = p_dagef
-        iv_run_deadline_age_to   = p_daget
+        iv_deadline_only         = lv_old_deadline_only
+        iv_run_deadline_from     = lv_old_deadline_from
+        iv_run_deadline_to       = lv_old_deadline_to
+        iv_run_deadline_age_from = lv_old_deadline_age_from
+        iv_run_deadline_age_to   = lv_old_deadline_age_to
         iv_run_deadline_age_date = p_daged
         iv_run_status            = p_oast
+        iv_strategy              = p_ostr
+        iv_legacy_strategy       = p_oleg
+        iv_run_message_contains  = p_omsg
+        iv_run_message_only      = p_omonly
         iv_run_id                = p_old ).
       lt_new = lo_sink->get_allocations(
         iv_material              = p_matnr
         iv_plant                 = p_werks
         iv_storage_location      = p_lgort
         iv_batch                 = p_charg
-        iv_unit                  = p_meins
-        iv_overdue_only          = p_ovrd
+        iv_unit                  = lv_new_unit
+        iv_movement_type         = lv_new_reservation_movement
+        iv_reservation_unit      = lv_new_reservation_unit
+        iv_reserved_only         = lv_new_reserved_only
+        iv_unreserved_only       = lv_new_unreserved_only
+        iv_reservation_date_from = lv_new_rdate_from
+        iv_reservation_date_to   = lv_new_rdate_to
+        iv_reservation_age_from  = lv_new_rage
+        iv_overdue_only          = lv_new_overdue_only
         iv_overdue_date          = p_odate
-        iv_deadline_only         = p_dead
-        iv_run_deadline_from     = p_deadf
-        iv_run_deadline_to       = p_deadt
-        iv_run_deadline_age_from = p_dagef
-        iv_run_deadline_age_to   = p_daget
+        iv_deadline_only         = lv_new_deadline_only
+        iv_run_deadline_from     = lv_new_deadline_from
+        iv_run_deadline_to       = lv_new_deadline_to
+        iv_run_deadline_age_from = lv_new_deadline_age_from
+        iv_run_deadline_age_to   = lv_new_deadline_age_to
         iv_run_deadline_age_date = p_daged
         iv_run_status            = p_nast
+        iv_strategy              = p_nstr
+        iv_legacy_strategy       = p_nleg
+        iv_run_message_contains  = p_nmsg
+        iv_run_message_only      = p_nmonly
         iv_run_id                = p_new ).
       lt_old_runs = lo_audit->get_runs(
         iv_material          = p_matnr
         iv_plant             = p_werks
         iv_storage_location  = p_lgort
         iv_batch             = p_charg
-        iv_unit              = p_meins
-        iv_movement_type     = p_mvt
-        iv_min_shelf_life    = p_shelf
+        iv_unit              = lv_old_unit
+        iv_movement_type     = lv_old_movement_type
+        iv_min_shelf_life    = lv_old_shelf_life
         iv_status            = p_oast
-        iv_deadline_only     = p_dead
-        iv_deadline_from     = p_deadf
-        iv_deadline_to       = p_deadt
-        iv_deadline_age_from = p_dagef
-        iv_deadline_age_to   = p_daget
+        iv_strategy          = p_ostr
+        iv_legacy_strategy   = p_oleg
+        iv_message_contains  = p_omsg
+        iv_message_only      = p_omonly
+        iv_requested_overdue = lv_old_overdue_only
+        iv_overdue_date      = p_odate
+        iv_deadline_only     = lv_old_deadline_only
+        iv_deadline_from     = lv_old_deadline_from
+        iv_deadline_to       = lv_old_deadline_to
+        iv_deadline_age_from = lv_old_deadline_age_from
+        iv_deadline_age_to   = lv_old_deadline_age_to
         iv_deadline_age_date = p_daged
-        iv_requested_on_from = p_reqf
-        iv_requested_on_to   = p_until
+        iv_requested_on_from = lv_old_requested_from
+        iv_requested_on_to   = lv_old_requested_to
         iv_run_id            = p_old ).
       lt_new_runs = lo_audit->get_runs(
         iv_material          = p_matnr
         iv_plant             = p_werks
         iv_storage_location  = p_lgort
         iv_batch             = p_charg
-        iv_unit              = p_meins
-        iv_movement_type     = p_mvt
-        iv_min_shelf_life    = p_shelf
+        iv_unit              = lv_new_unit
+        iv_movement_type     = lv_new_movement_type
+        iv_min_shelf_life    = lv_new_shelf_life
         iv_status            = p_nast
-        iv_deadline_only     = p_dead
-        iv_deadline_from     = p_deadf
-        iv_deadline_to       = p_deadt
-        iv_deadline_age_from = p_dagef
-        iv_deadline_age_to   = p_daget
+        iv_strategy          = p_nstr
+        iv_legacy_strategy   = p_nleg
+        iv_message_contains  = p_nmsg
+        iv_message_only      = p_nmonly
+        iv_requested_overdue = lv_new_overdue_only
+        iv_overdue_date      = p_odate
+        iv_deadline_only     = lv_new_deadline_only
+        iv_deadline_from     = lv_new_deadline_from
+        iv_deadline_to       = lv_new_deadline_to
+        iv_deadline_age_from = lv_new_deadline_age_from
+        iv_deadline_age_to   = lv_new_deadline_age_to
         iv_deadline_age_date = p_daged
-        iv_requested_on_from = p_reqf
-        iv_requested_on_to   = p_until
+        iv_requested_on_from = lv_new_requested_from
+        iv_requested_on_to   = lv_new_requested_to
         iv_run_id            = p_new ).
       READ TABLE lt_old_runs INTO ls_old_run INDEX 1.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
-        IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
+        IF p_meins IS NOT INITIAL OR p_ounit IS NOT INITIAL OR p_nunit IS NOT INITIAL
+            OR p_rmov IS NOT INITIAL OR p_ormov IS NOT INITIAL OR p_nrmov IS NOT INITIAL
+            OR p_runit IS NOT INITIAL OR p_orunit IS NOT INITIAL OR p_nrunit IS NOT INITIAL
+            OR p_rsv = abap_true OR p_unrsv = abap_true
+            OR p_orsv = abap_true OR p_nrsv = abap_true
+            OR p_oursv = abap_true OR p_nursv = abap_true
+            OR p_rfrom IS NOT INITIAL OR p_rto IS NOT INITIAL
+            OR p_orfrom IS NOT INITIAL OR p_orto IS NOT INITIAL
+            OR p_nrfrom IS NOT INITIAL OR p_nrto IS NOT INITIAL
+            OR p_rage IS NOT INITIAL OR p_orage IS NOT INITIAL
+            OR p_nrage IS NOT INITIAL
+            OR p_mvt IS NOT INITIAL OR p_omvt IS NOT INITIAL OR p_nmvt IS NOT INITIAL
+            OR p_shelf IS NOT INITIAL OR p_oshelf IS NOT INITIAL
+            OR p_nshelf IS NOT INITIAL
             OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
-            OR p_ovrd = abap_true OR p_dead = abap_true
+            OR p_ostr IS NOT INITIAL OR p_nstr IS NOT INITIAL
+            OR p_oleg = abap_true OR p_nleg = abap_true
+            OR p_omsg IS NOT INITIAL OR p_nmsg IS NOT INITIAL
+            OR p_omonly = abap_true OR p_nmonly = abap_true
+            OR p_ovrd = abap_true OR p_oovrd = abap_true OR p_novrd = abap_true
+            OR p_dead = abap_true
+            OR p_odead = abap_true OR p_ndead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
+            OR p_odeadf IS NOT INITIAL OR p_odeadt IS NOT INITIAL
+            OR p_ndeadf IS NOT INITIAL OR p_ndeadt IS NOT INITIAL
             OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
             OR p_daged IS NOT INITIAL
-            OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
+            OR p_oagef IS NOT INITIAL OR p_oaget IS NOT INITIAL
+            OR p_nagef IS NOT INITIAL OR p_naget IS NOT INITIAL
+            OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL
+            OR p_oreqf IS NOT INITIAL OR p_oreqt IS NOT INITIAL
+            OR p_nreqf IS NOT INITIAL OR p_nreqt IS NOT INITIAL.
           lo_missing_run_error->message =
             'Old allocation run does not match the policy filters'.
         ELSE.
@@ -739,13 +2118,38 @@ START-OF-SELECTION.
       READ TABLE lt_new_runs INTO ls_new_run INDEX 1.
       IF sy-subrc <> 0.
         CREATE OBJECT lo_missing_run_error.
-        IF p_mvt IS NOT INITIAL OR p_shelf IS NOT INITIAL
+        IF p_meins IS NOT INITIAL OR p_ounit IS NOT INITIAL OR p_nunit IS NOT INITIAL
+            OR p_rmov IS NOT INITIAL OR p_ormov IS NOT INITIAL OR p_nrmov IS NOT INITIAL
+            OR p_runit IS NOT INITIAL OR p_orunit IS NOT INITIAL OR p_nrunit IS NOT INITIAL
+            OR p_rsv = abap_true OR p_unrsv = abap_true
+            OR p_orsv = abap_true OR p_nrsv = abap_true
+            OR p_oursv = abap_true OR p_nursv = abap_true
+            OR p_rfrom IS NOT INITIAL OR p_rto IS NOT INITIAL
+            OR p_orfrom IS NOT INITIAL OR p_orto IS NOT INITIAL
+            OR p_nrfrom IS NOT INITIAL OR p_nrto IS NOT INITIAL
+            OR p_rage IS NOT INITIAL OR p_orage IS NOT INITIAL
+            OR p_nrage IS NOT INITIAL
+            OR p_mvt IS NOT INITIAL OR p_omvt IS NOT INITIAL OR p_nmvt IS NOT INITIAL
+            OR p_shelf IS NOT INITIAL OR p_oshelf IS NOT INITIAL
+            OR p_nshelf IS NOT INITIAL
             OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
-            OR p_ovrd = abap_true OR p_dead = abap_true
+            OR p_ostr IS NOT INITIAL OR p_nstr IS NOT INITIAL
+            OR p_oleg = abap_true OR p_nleg = abap_true
+            OR p_omsg IS NOT INITIAL OR p_nmsg IS NOT INITIAL
+            OR p_omonly = abap_true OR p_nmonly = abap_true
+            OR p_ovrd = abap_true OR p_oovrd = abap_true OR p_novrd = abap_true
+            OR p_dead = abap_true
+            OR p_odead = abap_true OR p_ndead = abap_true
             OR p_deadf IS NOT INITIAL OR p_deadt IS NOT INITIAL
+            OR p_odeadf IS NOT INITIAL OR p_odeadt IS NOT INITIAL
+            OR p_ndeadf IS NOT INITIAL OR p_ndeadt IS NOT INITIAL
             OR p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
             OR p_daged IS NOT INITIAL
-            OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL.
+            OR p_oagef IS NOT INITIAL OR p_oaget IS NOT INITIAL
+            OR p_nagef IS NOT INITIAL OR p_naget IS NOT INITIAL
+            OR p_reqf IS NOT INITIAL OR p_until IS NOT INITIAL
+            OR p_oreqf IS NOT INITIAL OR p_oreqt IS NOT INITIAL
+            OR p_nreqf IS NOT INITIAL OR p_nreqt IS NOT INITIAL.
           lo_missing_run_error->message =
             'New allocation run does not match the policy filters'.
         ELSE.
@@ -1301,14 +2705,39 @@ START-OF-SELECTION.
     ENDIF.
     IF p_csv = abap_true.
       WRITE: / 'schema_version;generated_date;generated_time;old_run;new_run;'
-        && 'material;plant;storage_location;batch;unit;filters_applied;filters;sort_mode;'
-        && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
-        && 'requested_overdue_as_of_filter;requested_on_from_filter;'
-        && 'requested_on_to_filter;requested_deadline_only;requested_deadline_from_filter;'
-        && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
+        && 'material;plant;storage_location;batch;unit;old_unit_filter;new_unit_filter;'
+        && 'reservation_movement_type_filter;old_reservation_movement_type_filter;'
+        && 'new_reservation_movement_type_filter;'
+        && 'reservation_unit_filter;old_reservation_unit_filter;'
+        && 'new_reservation_unit_filter;'
+        && 'reserved_only;unreserved_only;old_reserved_only;new_reserved_only;'
+        && 'old_unreserved_only;new_unreserved_only;'
+        && 'reservation_date_from_filter;reservation_date_to_filter;'
+        && 'old_reservation_date_from_filter;old_reservation_date_to_filter;'
+        && 'new_reservation_date_from_filter;new_reservation_date_to_filter;'
+        && 'reservation_age_filter;old_reservation_age_filter;'
+        && 'new_reservation_age_filter;'
+        && 'filters_applied;filters;sort_mode;'
+        && 'movement_type_filter;old_movement_type_filter;new_movement_type_filter;'
+        && 'minimum_shelf_life_filter;old_minimum_shelf_life_filter;'
+        && 'new_minimum_shelf_life_filter;overdue_only;'
+        && 'old_overdue_only;new_overdue_only;requested_overdue_as_of_filter;'
+        && 'requested_on_from_filter;'
+        && 'requested_on_to_filter;old_requested_on_from_filter;old_requested_on_to_filter;'
+        && 'new_requested_on_from_filter;new_requested_on_to_filter;'
+        && 'requested_deadline_only;old_requested_deadline_only;new_requested_deadline_only;'
+        && 'requested_deadline_from_filter;requested_deadline_to_filter;'
+        && 'old_requested_deadline_from_filter;old_requested_deadline_to_filter;'
+        && 'new_requested_deadline_from_filter;new_requested_deadline_to_filter;'
+        && 'deadline_age_from_filter;deadline_age_to_filter;'
+        && 'old_deadline_age_from_filter;old_deadline_age_to_filter;'
+        && 'new_deadline_age_from_filter;new_deadline_age_to_filter;'
         && 'deadline_age_date_filter;'
         && 'change_type;reason_filter;old_status_filter;new_status_filter;'
-        && 'old_audit_status_filter;new_audit_status_filter;'
+        && 'old_audit_status_filter;new_audit_status_filter;old_strategy_filter;'
+        && 'new_strategy_filter;old_legacy_strategy_filter;new_legacy_strategy_filter;'
+        && 'old_message_filter;'
+        && 'new_message_filter;old_message_only;new_message_only;'
         && 'include_unchanged;'
         && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
         && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_start_date;'
@@ -1341,7 +2770,7 @@ START-OF-SELECTION.
         && 'shortage_pct_delta;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 72 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -1351,6 +2780,31 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_reservation_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rmov_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rmov_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_reservation_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_runit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_runit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_rsv ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_unrsv ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_reserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_reserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_unreserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_unreserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rage_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rage_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rage_filter ) TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
       ELSE.
@@ -1359,16 +2813,50 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_overdue_only_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_overdue_only_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_requested_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_requested_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_requested_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_requested_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_requested_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_only_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_only_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_age_from_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_age_to_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_age_from_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_age_to_txt )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_chg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
@@ -1378,6 +2866,18 @@ START-OF-SELECTION.
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
         TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_legacy_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_legacy_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_message_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_message_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_message_only_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_message_only_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_all ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_guard ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-status ) TO lt_csv_fields.
@@ -1719,7 +3219,7 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 56 ) TO lt_json_fields.
+        iv_value = 72 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -1755,6 +3255,84 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'unit'
         iv_value = p_meins ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_unit_filter'
+        iv_value = lv_old_unit_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_unit_filter'
+        iv_value = lv_new_unit_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'reservation_movement_type_filter'
+        iv_value = lv_reservation_movement_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_reservation_movement_type_filter'
+        iv_value = lv_old_rmov_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_reservation_movement_type_filter'
+        iv_value = lv_new_rmov_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'reservation_unit_filter'
+        iv_value = lv_reservation_unit_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_reservation_unit_filter'
+        iv_value = lv_old_runit_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_reservation_unit_filter'
+        iv_value = lv_new_runit_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'reserved_only'
+        iv_value = p_rsv ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'unreserved_only'
+        iv_value = p_unrsv ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_reserved_only'
+        iv_value = lv_old_reserved_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_reserved_only'
+        iv_value = lv_new_reserved_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_unreserved_only'
+        iv_value = lv_old_unreserved_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_unreserved_only'
+        iv_value = lv_new_unreserved_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'reservation_date_from_filter'
+        iv_value = lv_rdate_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'reservation_date_to_filter'
+        iv_value = lv_rdate_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_reservation_date_from_filter'
+        iv_value = lv_old_rdate_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_reservation_date_to_filter'
+        iv_value = lv_old_rdate_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_reservation_date_from_filter'
+        iv_value = lv_new_rdate_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_reservation_date_to_filter'
+        iv_value = lv_new_rdate_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'reservation_age_filter'
+        iv_value   = p_rage
+        iv_text    = lv_rage_filter
+        iv_present = xsdbool( p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_reservation_age_filter'
+        iv_value   = lv_old_rage
+        iv_text    = lv_old_rage_filter
+        iv_present = xsdbool( p_orage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) TO lt_json_fields.
+      APPEND zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_reservation_age_filter'
+        iv_value   = lv_new_rage
+        iv_text    = lv_new_rage_filter
+        iv_present = xsdbool( p_nrage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'filters_applied'
         iv_value = lv_filters_applied ) TO lt_json_fields.
@@ -1767,6 +3345,33 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'movement_type_filter'
         iv_value = lv_movement_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_movement_type_filter'
+        iv_value = lv_old_movement_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_movement_type_filter'
+        iv_value = lv_new_movement_filter ) TO lt_json_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>filter_number_property(
+          iv_name    = 'old_minimum_shelf_life_filter'
+          iv_value   = lv_old_shelf_life
+          iv_text    = lv_old_shelf_filter
+          iv_present = xsdbool( p_oshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) TO lt_json_fields.
+        APPEND zcl_stock_json=>filter_number_property(
+          iv_name    = 'new_minimum_shelf_life_filter'
+          iv_value   = lv_new_shelf_life
+          iv_text    = lv_new_shelf_filter
+          iv_present = xsdbool( p_nshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'old_minimum_shelf_life_filter'
+          iv_value = lv_old_shelf_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'new_minimum_shelf_life_filter'
+          iv_value = lv_new_shelf_filter ) TO lt_json_fields.
+      ENDIF.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>filter_number_property(
           iv_name    = 'minimum_shelf_life_filter'
@@ -1782,6 +3387,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'overdue_only'
         iv_value = p_ovrd ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_overdue_only'
+        iv_value = lv_old_overdue_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_overdue_only'
+        iv_value = lv_new_overdue_only ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'requested_overdue_as_of_filter'
         iv_value = lv_overdue_as_of_filter ) TO lt_json_fields.
@@ -1791,9 +3402,27 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'requested_on_to_filter'
         iv_value = lv_requested_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_requested_on_from_filter'
+        iv_value = lv_old_requested_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_requested_on_to_filter'
+        iv_value = lv_old_requested_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_requested_on_from_filter'
+        iv_value = lv_new_requested_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_requested_on_to_filter'
+        iv_value = lv_new_requested_to_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'requested_deadline_only'
         iv_value = p_dead ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_requested_deadline_only'
+        iv_value = lv_old_deadline_only ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_requested_deadline_only'
+        iv_value = lv_new_deadline_only ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'requested_deadline_from_filter'
         iv_value = lv_deadline_from_filter ) TO lt_json_fields.
@@ -1801,11 +3430,35 @@ START-OF-SELECTION.
         iv_name  = 'requested_deadline_to_filter'
         iv_value = lv_deadline_to_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'old_requested_deadline_from_filter'
+        iv_value = lv_old_deadline_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_requested_deadline_to_filter'
+        iv_value = lv_old_deadline_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_requested_deadline_from_filter'
+        iv_value = lv_new_deadline_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_requested_deadline_to_filter'
+        iv_value = lv_new_deadline_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_from_filter'
         iv_value = lv_deadline_age_from_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_to_filter'
         iv_value = lv_deadline_age_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_deadline_age_from_filter'
+        iv_value = lv_old_age_from_txt ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_deadline_age_to_filter'
+        iv_value = lv_old_age_to_txt ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_deadline_age_from_filter'
+        iv_value = lv_new_age_from_txt ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_deadline_age_to_filter'
+        iv_value = lv_new_age_to_txt ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_date_filter'
         iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
@@ -1827,6 +3480,30 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'new_audit_status_filter'
         iv_value = lv_new_audit_status_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_strategy_filter'
+        iv_value = lv_old_strategy_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_strategy_filter'
+        iv_value = lv_new_strategy_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_legacy_strategy_filter'
+        iv_value = p_oleg ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_legacy_strategy_filter'
+        iv_value = p_nleg ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_message_filter'
+        iv_value = lv_old_message_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_message_filter'
+        iv_value = lv_new_message_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_message_only'
+        iv_value = p_omonly ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_message_only'
+        iv_value = p_nmonly ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'include_unchanged'
         iv_value = p_all ) TO lt_json_fields.
@@ -2420,18 +4097,43 @@ START-OF-SELECTION.
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
       && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
       && 'old_status_filter;new_status_filter;'
-      && 'old_audit_status_filter;new_audit_status_filter;'
-      && 'material;plant;storage_location;batch;unit;filters_applied;filters;sort_mode;'
-      && 'movement_type_filter;minimum_shelf_life_filter;overdue_only;'
-      && 'requested_overdue_as_of_filter;requested_on_from_filter;'
-      && 'requested_on_to_filter;requested_deadline_only;requested_deadline_from_filter;'
-      && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
+      && 'old_audit_status_filter;new_audit_status_filter;old_strategy_filter;'
+      && 'new_strategy_filter;old_legacy_strategy_filter;new_legacy_strategy_filter;'
+      && 'old_message_filter;'
+      && 'new_message_filter;old_message_only;new_message_only;'
+      && 'material;plant;storage_location;batch;unit;old_unit_filter;new_unit_filter;'
+      && 'reservation_movement_type_filter;old_reservation_movement_type_filter;'
+      && 'new_reservation_movement_type_filter;'
+      && 'reservation_unit_filter;old_reservation_unit_filter;'
+      && 'new_reservation_unit_filter;'
+      && 'reserved_only;unreserved_only;old_reserved_only;new_reserved_only;'
+      && 'old_unreserved_only;new_unreserved_only;'
+      && 'reservation_date_from_filter;reservation_date_to_filter;'
+      && 'old_reservation_date_from_filter;old_reservation_date_to_filter;'
+      && 'new_reservation_date_from_filter;new_reservation_date_to_filter;'
+      && 'reservation_age_filter;old_reservation_age_filter;'
+      && 'new_reservation_age_filter;'
+      && 'filters_applied;filters;sort_mode;'
+      && 'movement_type_filter;old_movement_type_filter;new_movement_type_filter;'
+      && 'minimum_shelf_life_filter;old_minimum_shelf_life_filter;'
+      && 'new_minimum_shelf_life_filter;overdue_only;'
+      && 'old_overdue_only;new_overdue_only;requested_overdue_as_of_filter;'
+      && 'requested_on_from_filter;'
+      && 'requested_on_to_filter;old_requested_on_from_filter;old_requested_on_to_filter;'
+      && 'new_requested_on_from_filter;new_requested_on_to_filter;'
+      && 'requested_deadline_only;old_requested_deadline_only;new_requested_deadline_only;'
+      && 'requested_deadline_from_filter;requested_deadline_to_filter;'
+      && 'old_requested_deadline_from_filter;old_requested_deadline_to_filter;'
+      && 'new_requested_deadline_from_filter;new_requested_deadline_to_filter;'
+      && 'deadline_age_from_filter;deadline_age_to_filter;'
+      && 'old_deadline_age_from_filter;old_deadline_age_to_filter;'
+      && 'new_deadline_age_from_filter;new_deadline_age_to_filter;'
       && 'deadline_age_date_filter;'
       && 'total_rows;offset;max_rows;filter_values;has_more;next_offset;'
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 72 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -2647,11 +4349,48 @@ START-OF-SELECTION.
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
         TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_legacy_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_legacy_strategy_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_message_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_message_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_message_only_text ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_message_only_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_reservation_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rmov_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rmov_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_reservation_unit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_runit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_runit_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_rsv ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_unrsv ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_reserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_reserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_unreserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_unreserved_only ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rdate_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rdate_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_rage_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_rage_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_rage_filter ) TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
       ELSE.
@@ -2660,14 +4399,50 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_movement_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_movement_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_min_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_shelf_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_shelf_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_overdue_only_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_overdue_only_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_requested_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_requested_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_requested_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_requested_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_requested_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_only_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_only_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_deadline_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_deadline_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_age_from_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_age_to_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_age_from_txt )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_age_to_txt )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_rows ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
@@ -2691,7 +4466,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 56 ) NO-GAP.
+        iv_value = 72 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -2742,6 +4517,38 @@ START-OF-SELECTION.
         iv_name  = 'movement_type_filter'
         iv_value = lv_movement_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_movement_type_filter'
+        iv_value = lv_old_movement_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_movement_type_filter'
+        iv_value = lv_new_movement_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      IF p_typed = abap_true.
+        WRITE: / zcl_stock_json=>filter_number_property(
+          iv_name    = 'old_minimum_shelf_life_filter'
+          iv_value   = lv_old_shelf_life
+          iv_text    = lv_old_shelf_filter
+          iv_present = xsdbool( p_oshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>filter_number_property(
+          iv_name    = 'new_minimum_shelf_life_filter'
+          iv_value   = lv_new_shelf_life
+          iv_text    = lv_new_shelf_filter
+          iv_present = xsdbool( p_nshelf IS NOT INITIAL OR p_shelf IS NOT INITIAL )
+          iv_typed   = abap_true ) NO-GAP.
+      ELSE.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'old_minimum_shelf_life_filter'
+          iv_value = lv_old_shelf_filter ) NO-GAP.
+        WRITE: / ',' NO-GAP.
+        WRITE: / zcl_stock_json=>property(
+          iv_name  = 'new_minimum_shelf_life_filter'
+          iv_value = lv_new_shelf_filter ) NO-GAP.
+      ENDIF.
+      WRITE: / ',' NO-GAP.
       IF p_typed = abap_true.
         WRITE: / zcl_stock_json=>filter_number_property(
           iv_name    = 'minimum_shelf_life_filter'
@@ -2759,6 +4566,14 @@ START-OF-SELECTION.
         iv_name  = 'overdue_only'
         iv_value = p_ovrd ) NO-GAP.
       WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_overdue_only'
+        iv_value = lv_old_overdue_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_overdue_only'
+        iv_value = lv_new_overdue_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'requested_overdue_as_of_filter'
         iv_value = lv_overdue_as_of_filter ) NO-GAP.
@@ -2771,9 +4586,33 @@ START-OF-SELECTION.
         iv_name  = 'requested_on_to_filter'
         iv_value = lv_requested_to_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_requested_on_from_filter'
+        iv_value = lv_old_requested_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_requested_on_to_filter'
+        iv_value = lv_old_requested_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_requested_on_from_filter'
+        iv_value = lv_new_requested_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_requested_on_to_filter'
+        iv_value = lv_new_requested_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'requested_deadline_only'
         iv_value = p_dead ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_requested_deadline_only'
+        iv_value = lv_old_deadline_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_requested_deadline_only'
+        iv_value = lv_new_deadline_only ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'requested_deadline_from_filter'
@@ -2784,12 +4623,44 @@ START-OF-SELECTION.
         iv_value = lv_deadline_to_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_requested_deadline_from_filter'
+        iv_value = lv_old_deadline_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_requested_deadline_to_filter'
+        iv_value = lv_old_deadline_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_requested_deadline_from_filter'
+        iv_value = lv_new_deadline_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_requested_deadline_to_filter'
+        iv_value = lv_new_deadline_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
         iv_name  = 'deadline_age_from_filter'
         iv_value = lv_deadline_age_from_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'deadline_age_to_filter'
         iv_value = lv_deadline_age_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_deadline_age_from_filter'
+        iv_value = lv_old_age_from_txt ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_deadline_age_to_filter'
+        iv_value = lv_old_age_to_txt ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_deadline_age_from_filter'
+        iv_value = lv_new_age_from_txt ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_deadline_age_to_filter'
+        iv_value = lv_new_age_to_txt ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'deadline_age_date_filter'
@@ -2877,6 +4748,107 @@ START-OF-SELECTION.
         iv_value = p_meins ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_unit_filter'
+        iv_value = lv_old_unit_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_unit_filter'
+        iv_value = lv_new_unit_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'reservation_movement_type_filter'
+        iv_value = lv_reservation_movement_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_reservation_movement_type_filter'
+        iv_value = lv_old_rmov_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_reservation_movement_type_filter'
+        iv_value = lv_new_rmov_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'reservation_unit_filter'
+        iv_value = lv_reservation_unit_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_reservation_unit_filter'
+        iv_value = lv_old_runit_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_reservation_unit_filter'
+        iv_value = lv_new_runit_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'reserved_only'
+        iv_value = p_rsv ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'unreserved_only'
+        iv_value = p_unrsv ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_reserved_only'
+        iv_value = lv_old_reserved_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_reserved_only'
+        iv_value = lv_new_reserved_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_unreserved_only'
+        iv_value = lv_old_unreserved_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_unreserved_only'
+        iv_value = lv_new_unreserved_only ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'reservation_date_from_filter'
+        iv_value = lv_rdate_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'reservation_date_to_filter'
+        iv_value = lv_rdate_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_reservation_date_from_filter'
+        iv_value = lv_old_rdate_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_reservation_date_to_filter'
+        iv_value = lv_old_rdate_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_reservation_date_from_filter'
+        iv_value = lv_new_rdate_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_reservation_date_to_filter'
+        iv_value = lv_new_rdate_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>filter_number_property(
+        iv_name    = 'reservation_age_filter'
+        iv_value   = p_rage
+        iv_text    = lv_rage_filter
+        iv_present = xsdbool( p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>filter_number_property(
+        iv_name    = 'old_reservation_age_filter'
+        iv_value   = lv_old_rage
+        iv_text    = lv_old_rage_filter
+        iv_present = xsdbool( p_orage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>filter_number_property(
+        iv_name    = 'new_reservation_age_filter'
+        iv_value   = lv_new_rage
+        iv_text    = lv_new_rage_filter
+        iv_present = xsdbool( p_nrage IS NOT INITIAL OR p_rage IS NOT INITIAL )
+        iv_typed   = p_typed ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
         iv_name  = 'change_type'
         iv_value = p_chg ) NO-GAP.
       WRITE: / ',' NO-GAP.
@@ -2899,6 +4871,38 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'new_audit_status_filter'
         iv_value = lv_new_audit_status_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_strategy_filter'
+        iv_value = lv_old_strategy_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_strategy_filter'
+        iv_value = lv_new_strategy_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_legacy_strategy_filter'
+        iv_value = p_oleg ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_legacy_strategy_filter'
+        iv_value = p_nleg ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_message_filter'
+        iv_value = lv_old_message_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_message_filter'
+        iv_value = lv_new_message_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_message_only'
+        iv_value = p_omonly ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_message_only'
+        iv_value = p_nmonly ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'include_unchanged'
@@ -3756,19 +5760,68 @@ START-OF-SELECTION.
     WRITE: / 'Old run:', p_old.
     WRITE: / 'New run:', p_new.
     WRITE: / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
+    WRITE: / 'Old unit filter:', lv_old_unit_filter.
+    WRITE: / 'New unit filter:', lv_new_unit_filter.
+    WRITE: / 'Reservation movement type filter:',
+      lv_reservation_movement_filter.
+    WRITE: / 'Old reservation movement type filter:',
+      lv_old_rmov_filter.
+    WRITE: / 'New reservation movement type filter:',
+      lv_new_rmov_filter.
+    WRITE: / 'Reservation unit filter:', lv_reservation_unit_filter.
+    WRITE: / 'Old reservation unit filter:', lv_old_runit_filter.
+    WRITE: / 'New reservation unit filter:', lv_new_runit_filter.
+    WRITE: / 'Reserved-only filter:', p_rsv.
+    WRITE: / 'Unreserved-only filter:', p_unrsv.
+    WRITE: / 'Old reserved-only filter:', lv_old_reserved_only.
+    WRITE: / 'New reserved-only filter:', lv_new_reserved_only.
+    WRITE: / 'Old unreserved-only filter:', lv_old_unreserved_only.
+    WRITE: / 'New unreserved-only filter:', lv_new_unreserved_only.
+    WRITE: / 'Reservation date from:', lv_rdate_from_filter.
+    WRITE: / 'Reservation date to:', lv_rdate_to_filter.
+    WRITE: / 'Old reservation date from:', lv_old_rdate_from_filter.
+    WRITE: / 'Old reservation date to:', lv_old_rdate_to_filter.
+    WRITE: / 'New reservation date from:', lv_new_rdate_from_filter.
+    WRITE: / 'New reservation date to:', lv_new_rdate_to_filter.
     WRITE: / 'Reason filter:', p_reason.
     WRITE: / 'Filters applied:', lv_filters_applied.
     WRITE: / 'Filters:', lv_filter_names_text.
     WRITE: / 'Sort mode:', lv_sort_mode.
     WRITE: / 'Movement type filter:', lv_movement_filter.
+    WRITE: / 'Old movement type filter:', lv_old_movement_filter.
+    WRITE: / 'New movement type filter:', lv_new_movement_filter.
     WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
+    WRITE: / 'Old minimum shelf-life filter:', lv_old_shelf_filter.
+    WRITE: / 'New minimum shelf-life filter:', lv_new_shelf_filter.
     WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
     WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
+    WRITE: / 'Old strategy filter:', lv_old_strategy_filter.
+    WRITE: / 'New strategy filter:', lv_new_strategy_filter.
+    WRITE: / 'Old legacy strategy filter:', lv_old_legacy_strategy_filter.
+    WRITE: / 'New legacy strategy filter:', lv_new_legacy_strategy_filter.
+    WRITE: / 'Old message filter:', lv_old_message_filter.
+    WRITE: / 'New message filter:', lv_new_message_filter.
+    WRITE: / 'Old message only:', lv_old_message_only_text.
+    WRITE: / 'New message only:', lv_new_message_only_text.
     WRITE: / 'Overdue-only filter:', p_ovrd.
+    WRITE: / 'Old overdue-only filter:', lv_old_overdue_only_filter.
+    WRITE: / 'New overdue-only filter:', lv_new_overdue_only_filter.
     WRITE: / 'Overdue as-of date:', lv_overdue_as_of_filter.
     WRITE: / 'Requested-deadline-only filter:', p_dead.
+    WRITE: / 'Old requested-deadline-only filter:', lv_old_deadline_only_filter.
+    WRITE: / 'New requested-deadline-only filter:', lv_new_deadline_only_filter.
     WRITE: / 'Requested deadline from:', lv_deadline_from_filter,
              'to:', lv_deadline_to_filter.
+    WRITE: / 'Old requested deadline from:', lv_old_deadline_from_filter,
+             'to:', lv_old_deadline_to_filter.
+    WRITE: / 'New requested deadline from:', lv_new_deadline_from_filter,
+             'to:', lv_new_deadline_to_filter.
+    WRITE: / 'Requested deadline age from:', lv_deadline_age_from_filter,
+             'to:', lv_deadline_age_to_filter.
+    WRITE: / 'Old requested deadline age from:', lv_old_age_from_txt,
+             'to:', lv_old_age_to_txt.
+    WRITE: / 'New requested deadline age from:', lv_new_age_from_txt,
+             'to:', lv_new_age_to_txt.
     WRITE: / 'Reconciliation guard:', p_guard.
     WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
       'New status/strategy:', ls_new_run-status, ls_new_run-strategy.
@@ -3909,21 +5962,77 @@ START-OF-SELECTION.
   WRITE: / 'Old run:', p_old.
   WRITE: / 'New run:', p_new.
   WRITE: / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
+  WRITE: / 'Old unit filter:', lv_old_unit_filter.
+  WRITE: / 'New unit filter:', lv_new_unit_filter.
+  WRITE: / 'Reservation movement type filter:',
+    lv_reservation_movement_filter.
+  WRITE: / 'Old reservation movement type filter:',
+    lv_old_rmov_filter.
+  WRITE: / 'New reservation movement type filter:',
+    lv_new_rmov_filter.
+  WRITE: / 'Reservation unit filter:', lv_reservation_unit_filter.
+  WRITE: / 'Old reservation unit filter:', lv_old_runit_filter.
+  WRITE: / 'New reservation unit filter:', lv_new_runit_filter.
+  WRITE: / 'Reserved-only filter:', p_rsv.
+  WRITE: / 'Unreserved-only filter:', p_unrsv.
+  WRITE: / 'Old reserved-only filter:', lv_old_reserved_only.
+  WRITE: / 'New reserved-only filter:', lv_new_reserved_only.
+  WRITE: / 'Old unreserved-only filter:', lv_old_unreserved_only.
+  WRITE: / 'New unreserved-only filter:', lv_new_unreserved_only.
+  WRITE: / 'Reservation date from:', lv_rdate_from_filter.
+  WRITE: / 'Reservation date to:', lv_rdate_to_filter.
+  WRITE: / 'Old reservation date from:', lv_old_rdate_from_filter.
+  WRITE: / 'Old reservation date to:', lv_old_rdate_to_filter.
+  WRITE: / 'New reservation date from:', lv_new_rdate_from_filter.
+  WRITE: / 'New reservation date to:', lv_new_rdate_to_filter.
+  WRITE: / 'Reservation age filter:', lv_rage_filter.
+  WRITE: / 'Old reservation age filter:', lv_old_rage_filter.
+  WRITE: / 'New reservation age filter:', lv_new_rage_filter.
   WRITE: / 'Reason filter:', p_reason.
   WRITE: / 'Filters applied:', lv_filters_applied.
   WRITE: / 'Filters:', lv_filter_names_text.
   WRITE: / 'Sort mode:', lv_sort_mode.
   WRITE: / 'Movement type filter:', lv_movement_filter.
+  WRITE: / 'Old movement type filter:', lv_old_movement_filter.
+  WRITE: / 'New movement type filter:', lv_new_movement_filter.
   WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
+  WRITE: / 'Old minimum shelf-life filter:', lv_old_shelf_filter.
+  WRITE: / 'New minimum shelf-life filter:', lv_new_shelf_filter.
   WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
   WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
+  WRITE: / 'Old strategy filter:', lv_old_strategy_filter.
+  WRITE: / 'New strategy filter:', lv_new_strategy_filter.
+  WRITE: / 'Old legacy strategy filter:', lv_old_legacy_strategy_filter.
+  WRITE: / 'New legacy strategy filter:', lv_new_legacy_strategy_filter.
+  WRITE: / 'Old message filter:', lv_old_message_filter.
+  WRITE: / 'New message filter:', lv_new_message_filter.
+  WRITE: / 'Old message only:', lv_old_message_only_text.
+  WRITE: / 'New message only:', lv_new_message_only_text.
   WRITE: / 'Overdue-only filter:', p_ovrd.
+  WRITE: / 'Old overdue-only filter:', lv_old_overdue_only_filter.
+  WRITE: / 'New overdue-only filter:', lv_new_overdue_only_filter.
   WRITE: / 'Overdue as-of date:', lv_overdue_as_of_filter.
   WRITE: / 'Requested horizon from:', lv_requested_from_filter.
   WRITE: / 'Requested horizon to:', lv_requested_to_filter.
+  WRITE: / 'Old requested horizon from:', lv_old_requested_from_filter.
+  WRITE: / 'Old requested horizon to:', lv_old_requested_to_filter.
+  WRITE: / 'New requested horizon from:', lv_new_requested_from_filter.
+  WRITE: / 'New requested horizon to:', lv_new_requested_to_filter.
   WRITE: / 'Requested-deadline-only filter:', p_dead.
+  WRITE: / 'Old requested-deadline-only filter:', lv_old_deadline_only_filter.
+  WRITE: / 'New requested-deadline-only filter:', lv_new_deadline_only_filter.
   WRITE: / 'Requested deadline from:', lv_deadline_from_filter,
            'to:', lv_deadline_to_filter.
+  WRITE: / 'Old requested deadline from:', lv_old_deadline_from_filter,
+           'to:', lv_old_deadline_to_filter.
+  WRITE: / 'New requested deadline from:', lv_new_deadline_from_filter,
+           'to:', lv_new_deadline_to_filter.
+  WRITE: / 'Requested deadline age from:', lv_deadline_age_from_filter,
+           'to:', lv_deadline_age_to_filter.
+  WRITE: / 'Old requested deadline age from:', lv_old_age_from_txt,
+           'to:', lv_old_age_to_txt.
+  WRITE: / 'New requested deadline age from:', lv_new_age_from_txt,
+           'to:', lv_new_age_to_txt.
   WRITE: / 'Reconciliation guard:', p_guard.
   WRITE: / 'Old status/strategy:', ls_old_run-status, ls_old_run-strategy,
     'New status/strategy:', ls_new_run-status, ls_new_run-strategy.

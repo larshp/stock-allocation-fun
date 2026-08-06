@@ -127,6 +127,10 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS accepts_best_strategy FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS summarizes_adaptive_branch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS summarizes_weighted_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS latest_summary_tie_breaker FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS reports_completion_running FOR TESTING
@@ -259,6 +263,110 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-best_allocated
       exp = '10' ).
+  ENDMETHOD.
+
+  METHOD summarizes_adaptive_branch.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_full_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_scarce_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_full_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-AUTO'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '10'
+      iv_demand_count     = 1
+      iv_strategy         = 'A' ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_full_run_id
+      iv_status     = 'S'
+      iv_available  = '10'
+      iv_allocated  = '10'
+      iv_shortage   = '0'
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    lv_scarce_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-AUTO'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '5'
+      iv_demand_count     = 1
+      iv_strategy         = 'A' ).
+    lo_cut->finish_run(
+      iv_run_id        = lv_scarce_run_id
+      iv_status        = 'P'
+      iv_available     = '5'
+      iv_allocated     = '5'
+      iv_shortage      = '5'
+      iv_full_count    = 0
+      iv_partial_count = 1
+      iv_message       = 'Scarce stock' ).
+
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-AUTO'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-adaptive_runs
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-adaptive_priority_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-adaptive_fair_runs
+      exp = 1 ).
+  ENDMETHOD.
+
+  METHOD summarizes_weighted_strategy.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-WEIGHTED'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '5'
+      iv_demand_count     = 2
+      iv_strategy         = 'W' ).
+    lo_cut->finish_run(
+      iv_run_id        = lv_run_id
+      iv_status        = 'P'
+      iv_available     = '5'
+      iv_allocated     = '5'
+      iv_shortage      = '3'
+      iv_full_count    = 0
+      iv_partial_count = 2
+      iv_message       = 'Weighted shortage' ).
+
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-WEIGHTED'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_requested
+      exp = 8 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_allocated
+      exp = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_shortage
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_coverage
+      exp = '62.50' ).
   ENDMETHOD.
 
   METHOD latest_summary_tie_breaker.

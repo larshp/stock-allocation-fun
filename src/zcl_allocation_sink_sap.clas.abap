@@ -337,7 +337,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Allocation snapshot strategy is invalid' ).
     ENDIF.
     IF lv_strategy IS NOT INITIAL
@@ -1285,7 +1288,10 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND lv_run_strategy <> 'N'
         AND lv_run_strategy <> 'S'
         AND lv_run_strategy <> 'L'
-        AND lv_run_strategy <> 'B'.
+        AND lv_run_strategy <> 'B'
+        AND lv_run_strategy <> 'E'
+        AND lv_run_strategy <> 'A'
+        AND lv_run_strategy <> 'W'.
       raise_error( iv_message = 'Allocation snapshot run strategy is invalid' ).
     ENDIF.
     IF iv_strategy IS NOT INITIAL

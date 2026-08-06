@@ -960,14 +960,14 @@
    <item>
     <ID>S</ID>
     <KEY>P_OSTR</KEY>
-    <ENTRY>Old strategy (P/F/N/S/L/B)</ENTRY>
-    <LENGTH>29</LENGTH>
+    <ENTRY>Old strat (P/F/N/S/L/B/E/A/W)</ENTRY>
+    <LENGTH>31</LENGTH>
    </item>
    <item>
     <ID>S</ID>
     <KEY>P_NSTR</KEY>
-    <ENTRY>New strategy (P/F/N/S/L/B)</ENTRY>
-    <LENGTH>29</LENGTH>
+    <ENTRY>New strat (P/F/N/S/L/B/E/A/W)</ENTRY>
+    <LENGTH>31</LENGTH>
    </item>
    <item>
     <ID>S</ID>

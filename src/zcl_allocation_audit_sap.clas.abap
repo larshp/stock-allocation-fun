@@ -205,7 +205,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_legacy_strategy = abap_true
@@ -672,7 +675,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_legacy_strategy = abap_true
@@ -1073,7 +1079,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           rs_summary-largest_runs = rs_summary-largest_runs + 1.
         WHEN 'B'.
           rs_summary-best_runs = rs_summary-best_runs + 1.
-        WHEN OTHERS.
+          WHEN 'E'.
+            rs_summary-fair_runs = rs_summary-fair_runs + 1.
+          WHEN 'W'.
+            rs_summary-weighted_runs = rs_summary-weighted_runs + 1.
+          WHEN 'A'.
+            rs_summary-adaptive_runs = rs_summary-adaptive_runs + 1.
+            IF <ls_run>-available >= <ls_run>-requested.
+              rs_summary-adaptive_priority_runs =
+                rs_summary-adaptive_priority_runs + 1.
+            ELSE.
+              rs_summary-adaptive_fair_runs =
+                rs_summary-adaptive_fair_runs + 1.
+            ENDIF.
+          WHEN OTHERS.
           rs_summary-legacy_strategy_runs =
             rs_summary-legacy_strategy_runs + 1.
       ENDCASE.
@@ -1160,7 +1179,31 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             rs_summary-best_requested =
               rs_summary-best_requested + <ls_run>-allocated
               + <ls_run>-shortage.
-          WHEN OTHERS.
+            WHEN 'E'.
+              rs_summary-fair_allocated =
+                rs_summary-fair_allocated + <ls_run>-allocated.
+            rs_summary-fair_shortage =
+              rs_summary-fair_shortage + <ls_run>-shortage.
+                rs_summary-fair_requested =
+                  rs_summary-fair_requested + <ls_run>-allocated
+                  + <ls_run>-shortage.
+            WHEN 'W'.
+              rs_summary-weighted_allocated =
+                rs_summary-weighted_allocated + <ls_run>-allocated.
+              rs_summary-weighted_shortage =
+                rs_summary-weighted_shortage + <ls_run>-shortage.
+              rs_summary-weighted_requested =
+                rs_summary-weighted_requested + <ls_run>-allocated
+                + <ls_run>-shortage.
+            WHEN 'A'.
+              rs_summary-adaptive_allocated =
+                rs_summary-adaptive_allocated + <ls_run>-allocated.
+              rs_summary-adaptive_shortage =
+                rs_summary-adaptive_shortage + <ls_run>-shortage.
+              rs_summary-adaptive_requested =
+                rs_summary-adaptive_requested + <ls_run>-allocated
+                + <ls_run>-shortage.
+            WHEN OTHERS.
             rs_summary-legacy_allocated =
               rs_summary-legacy_allocated + <ls_run>-allocated.
             rs_summary-legacy_shortage =
@@ -1301,6 +1344,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              rs_summary-best_allocated,
              rs_summary-best_shortage,
              rs_summary-best_requested,
+             rs_summary-fair_allocated,
+             rs_summary-fair_shortage,
+             rs_summary-fair_requested,
+             rs_summary-adaptive_allocated,
+             rs_summary-adaptive_shortage,
+             rs_summary-adaptive_requested,
              rs_summary-legacy_allocated,
              rs_summary-legacy_shortage,
              rs_summary-legacy_requested,
@@ -1345,6 +1394,21 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           rs_summary-best_allocated * 100
           / rs_summary-best_requested.
       ENDIF.
+      IF rs_summary-fair_requested > 0.
+        rs_summary-fair_coverage =
+          rs_summary-fair_allocated * 100
+          / rs_summary-fair_requested.
+      ENDIF.
+      IF rs_summary-weighted_requested > 0.
+        rs_summary-weighted_coverage =
+          rs_summary-weighted_allocated * 100
+          / rs_summary-weighted_requested.
+      ENDIF.
+      IF rs_summary-adaptive_requested > 0.
+        rs_summary-adaptive_coverage =
+          rs_summary-adaptive_allocated * 100
+          / rs_summary-adaptive_requested.
+      ENDIF.
       IF rs_summary-legacy_requested > 0.
         rs_summary-legacy_coverage =
           rs_summary-legacy_allocated * 100
@@ -1359,6 +1423,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              rs_summary-smallest_coverage,
              rs_summary-largest_coverage,
              rs_summary-best_coverage,
+             rs_summary-fair_coverage,
+             rs_summary-weighted_coverage,
+             rs_summary-adaptive_coverage,
              rs_summary-legacy_coverage.
     ENDIF.
     IF lv_policy_initialized = abap_false.
@@ -1676,7 +1743,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_legacy_strategy = abap_true
@@ -2260,7 +2330,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
     IF iv_material IS INITIAL
@@ -2459,7 +2532,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND is_run-strategy <> 'N'
         AND is_run-strategy <> 'S'
         AND is_run-strategy <> 'L'
-        AND is_run-strategy <> 'B'.
+        AND is_run-strategy <> 'B'
+        AND is_run-strategy <> 'E'
+        AND is_run-strategy <> 'A'
+        AND is_run-strategy <> 'W'.
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF ( is_run-status = 'R'

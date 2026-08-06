@@ -156,8 +156,8 @@
     <item>
      <ID>S</ID>
      <KEY>P_STRAT</KEY>
-     <ENTRY>Alloc strategy (P/F/N/S/L/B)</ENTRY>
-     <LENGTH>32</LENGTH>
+     <ENTRY>Alloc strategy (P/F/N/S/L/B/E/A/W)</ENTRY>
+     <LENGTH>34</LENGTH>
     </item>
     <item>
      <ID>S</ID>

@@ -2449,8 +2449,11 @@ START-OF-SELECTION.
       AND p_ostr <> 'N'
       AND p_ostr <> 'S'
       AND p_ostr <> 'L'
-      AND p_ostr <> 'B'.
-    lv_error_message = 'Old strategy filter must be P, F, N, S, L, or B'.
+      AND p_ostr <> 'B'
+      AND p_ostr <> 'E'
+      AND p_ostr <> 'A'
+      AND p_ostr <> 'W'.
+    lv_error_message = 'Old strategy filter must be P, F, N, S, L, B, E, A, or W'.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error( lv_error_message ).
     ELSEIF p_csv = abap_true.
@@ -2469,8 +2472,11 @@ START-OF-SELECTION.
       AND p_nstr <> 'N'
       AND p_nstr <> 'S'
       AND p_nstr <> 'L'
-      AND p_nstr <> 'B'.
-    lv_error_message = 'New strategy filter must be P, F, N, S, L, or B'.
+      AND p_nstr <> 'B'
+      AND p_nstr <> 'E'
+      AND p_nstr <> 'A'
+      AND p_nstr <> 'W'.
+    lv_error_message = 'New strategy filter must be P, F, N, S, L, B, E, A, or W'.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error( lv_error_message ).
     ELSEIF p_csv = abap_true.

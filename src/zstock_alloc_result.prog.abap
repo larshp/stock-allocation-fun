@@ -113,6 +113,10 @@ START-OF-SELECTION.
   DATA lv_smallest_strategy_lines TYPE i.
   DATA lv_largest_strategy_lines TYPE i.
   DATA lv_best_strategy_lines TYPE i.
+  DATA lv_fair_strategy_lines TYPE i.
+  DATA lv_weighted_strategy_lines TYPE i.
+  DATA lv_adaptive_strategy_lines TYPE i.
+  DATA lv_adaptive_branch TYPE string.
   DATA lv_legacy_strategy_lines TYPE i.
   DATA lv_requested_total TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_allocated_total TYPE zif_stock_allocation=>ty_quantity.
@@ -135,6 +139,15 @@ START-OF-SELECTION.
   DATA lv_best_requested TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_best_allocated TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_best_shortage TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_fair_requested TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_fair_allocated TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_fair_shortage TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_requested TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_allocated TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_shortage TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_adaptive_requested TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_adaptive_allocated TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_adaptive_shortage TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_legacy_requested TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_legacy_allocated TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_legacy_shortage TYPE zif_stock_allocation=>ty_quantity.
@@ -144,6 +157,9 @@ START-OF-SELECTION.
   DATA lv_smallest_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_largest_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_best_coverage TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_fair_coverage TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_weighted_coverage TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_adaptive_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_legacy_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_coverage TYPE p LENGTH 8 DECIMALS 2.
   DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
@@ -431,8 +447,11 @@ START-OF-SELECTION.
         AND p_strat <> 'N'
         AND p_strat <> 'S'
         AND p_strat <> 'L'
-        AND p_strat <> 'B'.
-      lv_csv_error_message = 'Strategy must be P, F, N, S, L, or B'.
+        AND p_strat <> 'B'
+        AND p_strat <> 'E'
+        AND p_strat <> 'A'
+        AND p_strat <> 'W'.
+      lv_csv_error_message = 'Strategy must be P, F, N, S, L, B, E, A, or W'.
     ELSEIF p_strat IS NOT INITIAL AND p_legacy = abap_true.
       lv_csv_error_message = 'Strategy filters cannot be combined'.
     ENDIF.
@@ -757,14 +776,17 @@ START-OF-SELECTION.
       AND p_strat <> 'N'
       AND p_strat <> 'S'
       AND p_strat <> 'L'
-      AND p_strat <> 'B'.
+      AND p_strat <> 'B'
+      AND p_strat <> 'E'
+      AND p_strat <> 'A'
+      AND p_strat <> 'W'.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error(
-        'Strategy must be P, F, N, S, L, or B' ).
+        'Strategy must be P, F, N, S, L, B, E, A, or W' ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
-    WRITE: / 'Strategy must be P, F, N, S, L, or B.'.
+    WRITE: / 'Strategy must be P, F, N, S, L, B, E, A, or W.'.
     RETURN.
   ENDIF.
   IF p_strat IS NOT INITIAL AND p_legacy = abap_true.
@@ -892,6 +914,7 @@ START-OF-SELECTION.
 
   lv_audit_running_age_text = 'n/a'.
   lv_exact_audit_available = abap_false.
+  lv_adaptive_branch = 'n/a'.
   CLEAR: lv_audit_movement_type,
          lv_audit_min_shelf_life,
          lv_audit_safety_stock,
@@ -945,6 +968,13 @@ START-OF-SELECTION.
     READ TABLE lt_runs ASSIGNING <ls_run> INDEX 1.
     IF sy-subrc = 0.
       lv_exact_audit_available = abap_true.
+      IF <ls_run>-strategy = 'A'.
+        IF <ls_run>-available >= <ls_run>-requested.
+          lv_adaptive_branch = 'priority'.
+        ELSE.
+          lv_adaptive_branch = 'fair-share'.
+        ENDIF.
+      ENDIF.
       lv_audit_movement_type = <ls_run>-movement_type.
       lv_audit_min_shelf_life = <ls_run>-min_shelf_life.
       lv_audit_safety_stock = <ls_run>-safety_stock.
@@ -1566,15 +1596,21 @@ START-OF-SELECTION.
           && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
           && 'deadline_age_date_filter;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-          && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;'
+          && 'plant;storage_location;batch;unit;mixed_units;strategy_context;adaptive_branch;result_lines;'
           && 'demand_count;full_count;partial_count;'
           && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
-          && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
+          && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;fair_strategy_lines;'
+          && 'weighted_strategy_lines;'
+          && 'adaptive_strategy_lines;'
+          && 'legacy_strategy_lines;'
           && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
           && 'fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;'
           && 'full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;'
           && 'smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;'
-          && 'best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;'
+          && 'best_requested;best_allocated;best_shortage;best_coverage_pct;fair_requested;fair_allocated;'
+          && 'fair_shortage;fair_coverage_pct;weighted_requested;weighted_allocated;weighted_shortage;'
+          && 'weighted_coverage_pct;adaptive_requested;adaptive_allocated;adaptive_shortage;'
+          && 'adaptive_coverage_pct;legacy_requested;legacy_allocated;'
           && 'legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct;'
           && 'audit_movement_type;audit_min_shelf_life;audit_safety_stock;audit_requested_deadline;'
           && 'audit_deadline_age_days;deadline_age_reference_date'.
@@ -1614,8 +1650,11 @@ START-OF-SELECTION.
               lv_full_only_strategy_lines,
                lv_smallest_strategy_lines,
                lv_largest_strategy_lines,
-               lv_best_strategy_lines,
-               lv_legacy_strategy_lines,
+              lv_best_strategy_lines,
+              lv_fair_strategy_lines,
+              lv_weighted_strategy_lines,
+              lv_adaptive_strategy_lines,
+              lv_legacy_strategy_lines,
               lv_requested_total,
              lv_allocated_total,
              lv_shortage_total,
@@ -1658,6 +1697,12 @@ START-OF-SELECTION.
              lv_largest_strategy_lines = lv_largest_strategy_lines + 1.
           WHEN 'B'.
           lv_best_strategy_lines = lv_best_strategy_lines + 1.
+          WHEN 'E'.
+            lv_fair_strategy_lines = lv_fair_strategy_lines + 1.
+          WHEN 'W'.
+            lv_weighted_strategy_lines = lv_weighted_strategy_lines + 1.
+          WHEN 'A'.
+            lv_adaptive_strategy_lines = lv_adaptive_strategy_lines + 1.
           WHEN space.
             lv_legacy_strategy_lines = lv_legacy_strategy_lines + 1.
         ENDCASE.
@@ -1721,6 +1766,41 @@ START-OF-SELECTION.
             lv_summary_strategy = 'mixed'.
           ENDIF.
         ENDIF.
+ IF lv_fair_strategy_lines > 0.
+   IF lv_summary_strategy IS INITIAL.
+     lv_summary_strategy = 'E'.
+   ELSE.
+     lv_summary_strategy = 'mixed'.
+   ENDIF.
+ ENDIF.
+ IF lv_weighted_strategy_lines > 0.
+   IF lv_summary_strategy IS INITIAL.
+     lv_summary_strategy = 'W'.
+   ELSE.
+     lv_summary_strategy = 'mixed'.
+   ENDIF.
+ ENDIF.
+ IF lv_adaptive_strategy_lines > 0.
+   IF lv_summary_strategy IS INITIAL.
+     lv_summary_strategy = 'A'.
+   ELSE.
+     lv_summary_strategy = 'mixed'.
+   ENDIF.
+ ENDIF.
+       IF lv_adaptive_strategy_lines > 0.
+         IF lv_summary_strategy IS INITIAL.
+           lv_summary_strategy = 'A'.
+         ELSE.
+           lv_summary_strategy = 'mixed'.
+         ENDIF.
+       ENDIF.
+        IF lv_adaptive_strategy_lines > 0.
+          IF lv_summary_strategy IS INITIAL.
+            lv_summary_strategy = 'A'.
+          ELSE.
+            lv_summary_strategy = 'mixed'.
+          ENDIF.
+        ENDIF.
         IF lv_legacy_strategy_lines > 0.
          IF lv_summary_strategy IS INITIAL.
            lv_summary_strategy = 'legacy'.
@@ -1746,9 +1826,18 @@ START-OF-SELECTION.
                lv_largest_requested,
                lv_largest_allocated,
               lv_largest_shortage,
-              lv_best_requested,
-              lv_best_allocated,
-              lv_best_shortage,
+               lv_best_requested,
+               lv_best_allocated,
+               lv_best_shortage,
+              lv_fair_requested,
+              lv_fair_allocated,
+              lv_fair_shortage,
+              lv_weighted_requested,
+              lv_weighted_allocated,
+              lv_weighted_shortage,
+              lv_adaptive_requested,
+              lv_adaptive_allocated,
+              lv_adaptive_shortage,
               lv_legacy_requested,
               lv_legacy_allocated,
               lv_legacy_shortage,
@@ -1757,8 +1846,10 @@ START-OF-SELECTION.
               lv_full_only_coverage,
               lv_smallest_coverage,
               lv_largest_coverage,
-              lv_best_coverage,
-              lv_legacy_coverage.
+               lv_best_coverage,
+               lv_fair_coverage,
+               lv_adaptive_coverage,
+               lv_legacy_coverage.
        READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
          WITH TABLE KEY strategy = 'P'.
        IF sy-subrc = 0.
@@ -1797,12 +1888,33 @@ START-OF-SELECTION.
 
         READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
           WITH TABLE KEY strategy = 'B'.
-        IF sy-subrc = 0.
-          lv_best_requested = <ls_strategy_total>-requested.
-          lv_best_allocated = <ls_strategy_total>-allocated.
-          lv_best_shortage = <ls_strategy_total>-shortage.
-        ENDIF.
-        READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+          IF sy-subrc = 0.
+            lv_best_requested = <ls_strategy_total>-requested.
+            lv_best_allocated = <ls_strategy_total>-allocated.
+            lv_best_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'E'.
+          IF sy-subrc = 0.
+            lv_fair_requested = <ls_strategy_total>-requested.
+            lv_fair_allocated = <ls_strategy_total>-allocated.
+            lv_fair_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'W'.
+          IF sy-subrc = 0.
+            lv_weighted_requested = <ls_strategy_total>-requested.
+            lv_weighted_allocated = <ls_strategy_total>-allocated.
+            lv_weighted_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'A'.
+          IF sy-subrc = 0.
+            lv_adaptive_requested = <ls_strategy_total>-requested.
+            lv_adaptive_allocated = <ls_strategy_total>-allocated.
+            lv_adaptive_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
          WITH TABLE KEY strategy = space.
        IF sy-subrc = 0.
          lv_legacy_requested = <ls_strategy_total>-requested.
@@ -1833,6 +1945,18 @@ START-OF-SELECTION.
          IF lv_best_requested > 0.
            lv_best_coverage = lv_best_allocated * 100
              / lv_best_requested.
+         ENDIF.
+         IF lv_fair_requested > 0.
+           lv_fair_coverage = lv_fair_allocated * 100
+             / lv_fair_requested.
+         ENDIF.
+         IF lv_weighted_requested > 0.
+           lv_weighted_coverage = lv_weighted_allocated * 100
+             / lv_weighted_requested.
+         ENDIF.
+         IF lv_adaptive_requested > 0.
+           lv_adaptive_coverage = lv_adaptive_allocated * 100
+             / lv_adaptive_requested.
          ENDIF.
          IF lv_legacy_requested > 0.
            lv_legacy_coverage = lv_legacy_allocated * 100
@@ -1865,22 +1989,28 @@ START-OF-SELECTION.
          && 'requested_deadline_to_filter;deadline_age_from_filter;deadline_age_to_filter;'
          && 'deadline_age_date_filter;offset;max_rows;'
          && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-         && 'plant;storage_location;batch;unit;mixed_units;strategy_context;result_lines;'
+         && 'plant;storage_location;batch;unit;mixed_units;strategy_context;adaptive_branch;result_lines;'
          && 'demand_count;full_count;partial_count;'
          && 'unallocated_count;priority_strategy_lines;fifo_strategy_lines;full_only_strategy_lines;'
-         && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;legacy_strategy_lines;'
+         && 'smallest_strategy_lines;largest_strategy_lines;best_strategy_lines;fair_strategy_lines;'
+         && 'weighted_strategy_lines;'
+         && 'adaptive_strategy_lines;'
+         && 'legacy_strategy_lines;'
          && 'priority_requested;priority_allocated;priority_shortage;priority_coverage_pct;fifo_requested;'
          && 'fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;full_only_allocated;'
          && 'full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;smallest_shortage;'
          && 'smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;largest_coverage_pct;'
-         && 'best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;legacy_allocated;'
+         && 'best_requested;best_allocated;best_shortage;best_coverage_pct;fair_requested;fair_allocated;'
+         && 'fair_shortage;fair_coverage_pct;weighted_requested;weighted_allocated;weighted_shortage;'
+         && 'weighted_coverage_pct;adaptive_requested;adaptive_allocated;adaptive_shortage;'
+         && 'adaptive_coverage_pct;legacy_requested;legacy_allocated;'
          && 'legacy_shortage;legacy_coverage_pct;requested;allocated;shortage;coverage_pct;shortage_pct;'
          && 'audit_movement_type;audit_min_shelf_life;audit_safety_stock;audit_requested_deadline;'
          && 'audit_deadline_age_days;deadline_age_reference_date'.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 39 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 43 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -1963,7 +2093,8 @@ START-OF-SELECTION.
        ELSE.
          APPEND 'false' TO lt_csv_fields.
        ENDIF.
-       APPEND lv_summary_strategy TO lt_csv_fields.
+      APPEND lv_summary_strategy TO lt_csv_fields.
+      APPEND lv_adaptive_branch TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lines( lt_demands ) ).
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND lv_csv_field TO lt_csv_fields.
@@ -1985,9 +2116,27 @@ START-OF-SELECTION.
          APPEND lv_csv_field TO lt_csv_fields.
          lv_csv_field = zcl_stock_csv=>number( lv_best_strategy_lines ).
          APPEND lv_csv_field TO lt_csv_fields.
+         lv_csv_field = zcl_stock_csv=>number( lv_fair_strategy_lines ).
+         APPEND lv_csv_field TO lt_csv_fields.
+         lv_csv_field = zcl_stock_csv=>number( lv_weighted_strategy_lines ).
+         APPEND lv_csv_field TO lt_csv_fields.
+          lv_csv_field = zcl_stock_csv=>number( lv_adaptive_strategy_lines ).
+          APPEND lv_csv_field TO lt_csv_fields.
           lv_csv_field = zcl_stock_csv=>number( lv_legacy_strategy_lines ).
         APPEND lv_csv_field TO lt_csv_fields.
         IF lv_mixed_units = abap_true.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
+         APPEND 'n/a' TO lt_csv_fields.
          APPEND 'n/a' TO lt_csv_fields.
          APPEND 'n/a' TO lt_csv_fields.
          APPEND 'n/a' TO lt_csv_fields.
@@ -2041,6 +2190,18 @@ START-OF-SELECTION.
           APPEND zcl_stock_csv=>number( lv_best_allocated ) TO lt_csv_fields.
           APPEND zcl_stock_csv=>number( lv_best_shortage ) TO lt_csv_fields.
           APPEND zcl_stock_csv=>number( lv_best_coverage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_fair_requested ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_fair_allocated ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_fair_shortage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_fair_coverage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_weighted_requested ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_weighted_allocated ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_weighted_shortage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_weighted_coverage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_adaptive_requested ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_adaptive_allocated ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_adaptive_shortage ) TO lt_csv_fields.
+          APPEND zcl_stock_csv=>number( lv_adaptive_coverage ) TO lt_csv_fields.
           APPEND zcl_stock_csv=>number( lv_legacy_requested ) TO lt_csv_fields.
          APPEND zcl_stock_csv=>number( lv_legacy_allocated ) TO lt_csv_fields.
          APPEND zcl_stock_csv=>number( lv_legacy_shortage ) TO lt_csv_fields.
@@ -2266,6 +2427,9 @@ START-OF-SELECTION.
              lv_smallest_strategy_lines,
              lv_largest_strategy_lines,
              lv_best_strategy_lines,
+             lv_fair_strategy_lines,
+             lv_weighted_strategy_lines,
+             lv_adaptive_strategy_lines,
              lv_legacy_strategy_lines,
              lv_requested_total,
              lv_allocated_total,
@@ -2281,7 +2445,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 39 ) TO lt_json_fields.
+          iv_value = 43 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2399,6 +2563,12 @@ START-OF-SELECTION.
              lv_largest_strategy_lines = lv_largest_strategy_lines + 1.
            WHEN 'B'.
            lv_best_strategy_lines = lv_best_strategy_lines + 1.
+           WHEN 'E'.
+             lv_fair_strategy_lines = lv_fair_strategy_lines + 1.
+           WHEN 'W'.
+             lv_weighted_strategy_lines = lv_weighted_strategy_lines + 1.
+           WHEN 'A'.
+             lv_adaptive_strategy_lines = lv_adaptive_strategy_lines + 1.
            WHEN space.
             lv_legacy_strategy_lines = lv_legacy_strategy_lines + 1.
         ENDCASE.
@@ -2462,6 +2632,20 @@ START-OF-SELECTION.
            lv_summary_strategy = 'mixed'.
          ENDIF.
        ENDIF.
+       IF lv_fair_strategy_lines > 0.
+         IF lv_summary_strategy IS INITIAL.
+           lv_summary_strategy = 'E'.
+         ELSE.
+           lv_summary_strategy = 'mixed'.
+         ENDIF.
+       ENDIF.
+       IF lv_weighted_strategy_lines > 0.
+         IF lv_summary_strategy IS INITIAL.
+           lv_summary_strategy = 'W'.
+         ELSE.
+           lv_summary_strategy = 'mixed'.
+         ENDIF.
+       ENDIF.
        IF lv_legacy_strategy_lines > 0.
          IF lv_summary_strategy IS INITIAL.
            lv_summary_strategy = 'legacy'.
@@ -2487,9 +2671,18 @@ START-OF-SELECTION.
                lv_largest_requested,
                lv_largest_allocated,
               lv_largest_shortage,
-              lv_best_requested,
-              lv_best_allocated,
-              lv_best_shortage,
+                lv_best_requested,
+                lv_best_allocated,
+                lv_best_shortage,
+         lv_fair_requested,
+         lv_fair_allocated,
+         lv_fair_shortage,
+         lv_weighted_requested,
+         lv_weighted_allocated,
+         lv_weighted_shortage,
+              lv_adaptive_requested,
+              lv_adaptive_allocated,
+              lv_adaptive_shortage,
               lv_legacy_requested,
               lv_legacy_allocated,
               lv_legacy_shortage,
@@ -2498,8 +2691,10 @@ START-OF-SELECTION.
               lv_full_only_coverage,
               lv_smallest_coverage,
               lv_largest_coverage,
-              lv_best_coverage,
-              lv_legacy_coverage.
+               lv_best_coverage,
+               lv_fair_coverage,
+                lv_adaptive_coverage,
+               lv_legacy_coverage.
        READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
          WITH TABLE KEY strategy = 'P'.
        IF sy-subrc = 0.
@@ -2538,12 +2733,33 @@ START-OF-SELECTION.
 
         READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
           WITH TABLE KEY strategy = 'B'.
-        IF sy-subrc = 0.
-          lv_best_requested = <ls_strategy_total>-requested.
-          lv_best_allocated = <ls_strategy_total>-allocated.
-          lv_best_shortage = <ls_strategy_total>-shortage.
-        ENDIF.
-        READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+          IF sy-subrc = 0.
+            lv_best_requested = <ls_strategy_total>-requested.
+            lv_best_allocated = <ls_strategy_total>-allocated.
+            lv_best_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'E'.
+          IF sy-subrc = 0.
+            lv_fair_requested = <ls_strategy_total>-requested.
+            lv_fair_allocated = <ls_strategy_total>-allocated.
+            lv_fair_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'W'.
+          IF sy-subrc = 0.
+            lv_weighted_requested = <ls_strategy_total>-requested.
+            lv_weighted_allocated = <ls_strategy_total>-allocated.
+            lv_weighted_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+            WITH TABLE KEY strategy = 'A'.
+          IF sy-subrc = 0.
+            lv_adaptive_requested = <ls_strategy_total>-requested.
+            lv_adaptive_allocated = <ls_strategy_total>-allocated.
+            lv_adaptive_shortage = <ls_strategy_total>-shortage.
+          ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
          WITH TABLE KEY strategy = space.
        IF sy-subrc = 0.
          lv_legacy_requested = <ls_strategy_total>-requested.
@@ -2575,6 +2791,18 @@ START-OF-SELECTION.
            lv_best_coverage = lv_best_allocated * 100
              / lv_best_requested.
          ENDIF.
+         IF lv_fair_requested > 0.
+           lv_fair_coverage = lv_fair_allocated * 100
+             / lv_fair_requested.
+         ENDIF.
+         IF lv_weighted_requested > 0.
+           lv_weighted_coverage = lv_weighted_allocated * 100
+             / lv_weighted_requested.
+         ENDIF.
+         IF lv_adaptive_requested > 0.
+           lv_adaptive_coverage = lv_adaptive_allocated * 100
+             / lv_adaptive_requested.
+         ENDIF.
          IF lv_legacy_requested > 0.
            lv_legacy_coverage = lv_legacy_allocated * 100
              / lv_legacy_requested.
@@ -2589,6 +2817,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'strategy_context'
         iv_value = lv_summary_strategy ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'adaptive_branch'
+        iv_value = lv_adaptive_branch ) TO lt_json_fields.
       IF p_meta = abap_true OR p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'result_lines'
@@ -2623,6 +2854,15 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'best_strategy_lines'
           iv_value = lv_best_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_strategy_lines'
+          iv_value = lv_fair_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_strategy_lines'
+          iv_value = lv_weighted_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_strategy_lines'
+          iv_value = lv_adaptive_strategy_lines ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'legacy_strategy_lines'
           iv_value = lv_legacy_strategy_lines ) TO lt_json_fields.
@@ -2683,6 +2923,42 @@ START-OF-SELECTION.
             iv_value = 'n/a' ) TO lt_json_fields.
           APPEND zcl_stock_json=>property(
             iv_name  = 'best_coverage_pct'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_requested'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_allocated'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_shortage'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_coverage_pct'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_requested'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_allocated'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_shortage'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_coverage_pct'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'adaptive_requested'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'adaptive_allocated'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'adaptive_shortage'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'adaptive_coverage_pct'
             iv_value = 'n/a' ) TO lt_json_fields.
           APPEND zcl_stock_json=>property(
             iv_name  = 'legacy_requested'
@@ -2766,7 +3042,43 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'best_coverage_pct'
           iv_value = lv_best_coverage ) TO lt_json_fields.
-          APPEND zcl_stock_json=>number_property(
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_requested'
+          iv_value = lv_fair_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_allocated'
+          iv_value = lv_fair_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_shortage'
+          iv_value = lv_fair_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_coverage_pct'
+          iv_value = lv_fair_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_requested'
+          iv_value = lv_weighted_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_allocated'
+          iv_value = lv_weighted_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_shortage'
+          iv_value = lv_weighted_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_coverage_pct'
+          iv_value = lv_weighted_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_requested'
+          iv_value = lv_adaptive_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_allocated'
+          iv_value = lv_adaptive_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_shortage'
+          iv_value = lv_adaptive_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_coverage_pct'
+          iv_value = lv_adaptive_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
             iv_name  = 'legacy_requested'
             iv_value = lv_legacy_requested ) TO lt_json_fields.
           APPEND zcl_stock_json=>number_property(
@@ -2813,6 +3125,15 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'best_strategy_lines'
           iv_value = lv_best_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_strategy_lines'
+          iv_value = lv_fair_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_strategy_lines'
+          iv_value = lv_weighted_strategy_lines ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_strategy_lines'
+          iv_value = lv_adaptive_strategy_lines ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'legacy_strategy_lines'
           iv_value = lv_legacy_strategy_lines ) TO lt_json_fields.
@@ -2873,6 +3194,30 @@ START-OF-SELECTION.
             iv_value = 'n/a' ) TO lt_json_fields.
           APPEND zcl_stock_json=>property(
             iv_name  = 'best_coverage_pct'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_requested'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_allocated'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_shortage'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'fair_coverage_pct'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_requested'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_allocated'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_shortage'
+            iv_value = 'n/a' ) TO lt_json_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'weighted_coverage_pct'
             iv_value = 'n/a' ) TO lt_json_fields.
           APPEND zcl_stock_json=>property(
             iv_name  = 'legacy_requested'
@@ -2956,6 +3301,42 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'best_coverage_pct'
           iv_value = lv_best_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_requested'
+          iv_value = lv_fair_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_allocated'
+          iv_value = lv_fair_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_shortage'
+          iv_value = lv_fair_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_coverage_pct'
+          iv_value = lv_fair_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_requested'
+          iv_value = lv_weighted_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_allocated'
+          iv_value = lv_weighted_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_shortage'
+          iv_value = lv_weighted_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_coverage_pct'
+          iv_value = lv_weighted_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_requested'
+          iv_value = lv_adaptive_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_allocated'
+          iv_value = lv_adaptive_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_shortage'
+          iv_value = lv_adaptive_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_coverage_pct'
+          iv_value = lv_adaptive_coverage ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
             iv_name  = 'legacy_requested'
             iv_value = lv_legacy_requested ) TO lt_json_fields.
@@ -3172,7 +3553,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 39 ) TO lt_json_fields.
+          iv_value = 43 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -4431,9 +4812,12 @@ START-OF-SELECTION.
          lv_fifo_strategy_lines,
          lv_full_only_strategy_lines,
          lv_smallest_strategy_lines,
-         lv_largest_strategy_lines,
+        lv_largest_strategy_lines,
          lv_best_strategy_lines,
-         lv_legacy_strategy_lines,
+         lv_fair_strategy_lines,
+         lv_weighted_strategy_lines,
+         lv_adaptive_strategy_lines,
+        lv_legacy_strategy_lines,
          lv_requested_total,
          lv_allocated_total,
          lv_shortage_total,
@@ -4470,6 +4854,12 @@ START-OF-SELECTION.
         lv_largest_strategy_lines = lv_largest_strategy_lines + 1.
       WHEN 'B'.
       lv_best_strategy_lines = lv_best_strategy_lines + 1.
+      WHEN 'E'.
+        lv_fair_strategy_lines = lv_fair_strategy_lines + 1.
+      WHEN 'W'.
+        lv_weighted_strategy_lines = lv_weighted_strategy_lines + 1.
+      WHEN 'A'.
+        lv_adaptive_strategy_lines = lv_adaptive_strategy_lines + 1.
       WHEN space.
         lv_legacy_strategy_lines = lv_legacy_strategy_lines + 1.
     ENDCASE.
@@ -4533,6 +4923,20 @@ START-OF-SELECTION.
       lv_summary_strategy = 'mixed'.
     ENDIF.
   ENDIF.
+  IF lv_fair_strategy_lines > 0.
+    IF lv_summary_strategy IS INITIAL.
+      lv_summary_strategy = 'E'.
+    ELSE.
+      lv_summary_strategy = 'mixed'.
+    ENDIF.
+  ENDIF.
+  IF lv_weighted_strategy_lines > 0.
+    IF lv_summary_strategy IS INITIAL.
+      lv_summary_strategy = 'W'.
+    ELSE.
+      lv_summary_strategy = 'mixed'.
+    ENDIF.
+  ENDIF.
   IF lv_legacy_strategy_lines > 0.
     IF lv_summary_strategy IS INITIAL.
       lv_summary_strategy = 'legacy'.
@@ -4558,10 +4962,19 @@ START-OF-SELECTION.
          lv_largest_requested,
          lv_largest_allocated,
               lv_largest_shortage,
-              lv_best_requested,
-              lv_best_allocated,
-              lv_best_shortage,
-              lv_legacy_requested,
+               lv_best_requested,
+               lv_best_allocated,
+               lv_best_shortage,
+               lv_fair_requested,
+               lv_fair_allocated,
+               lv_fair_shortage,
+               lv_weighted_requested,
+               lv_weighted_allocated,
+               lv_weighted_shortage,
+               lv_adaptive_requested,
+               lv_adaptive_allocated,
+               lv_adaptive_shortage,
+               lv_legacy_requested,
               lv_legacy_allocated,
               lv_legacy_shortage,
               lv_priority_coverage,
@@ -4570,6 +4983,8 @@ START-OF-SELECTION.
               lv_smallest_coverage,
               lv_largest_coverage,
               lv_best_coverage,
+              lv_fair_coverage,
+              lv_adaptive_coverage,
               lv_legacy_coverage.
   READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
     WITH TABLE KEY strategy = 'P'.
@@ -4609,12 +5024,33 @@ START-OF-SELECTION.
 
    READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
      WITH TABLE KEY strategy = 'B'.
-   IF sy-subrc = 0.
-     lv_best_requested = <ls_strategy_total>-requested.
-     lv_best_allocated = <ls_strategy_total>-allocated.
-     lv_best_shortage = <ls_strategy_total>-shortage.
-   ENDIF.
-        READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+    IF sy-subrc = 0.
+      lv_best_requested = <ls_strategy_total>-requested.
+      lv_best_allocated = <ls_strategy_total>-allocated.
+      lv_best_shortage = <ls_strategy_total>-shortage.
+    ENDIF.
+  READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+    WITH TABLE KEY strategy = 'E'.
+  IF sy-subrc = 0.
+    lv_fair_requested = <ls_strategy_total>-requested.
+    lv_fair_allocated = <ls_strategy_total>-allocated.
+    lv_fair_shortage = <ls_strategy_total>-shortage.
+  ENDIF.
+  READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+    WITH TABLE KEY strategy = 'W'.
+  IF sy-subrc = 0.
+    lv_weighted_requested = <ls_strategy_total>-requested.
+    lv_weighted_allocated = <ls_strategy_total>-allocated.
+    lv_weighted_shortage = <ls_strategy_total>-shortage.
+  ENDIF.
+  READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
+    WITH TABLE KEY strategy = 'A'.
+  IF sy-subrc = 0.
+    lv_adaptive_requested = <ls_strategy_total>-requested.
+    lv_adaptive_allocated = <ls_strategy_total>-allocated.
+    lv_adaptive_shortage = <ls_strategy_total>-shortage.
+  ENDIF.
+          READ TABLE lt_strategy_totals ASSIGNING <ls_strategy_total>
     WITH TABLE KEY strategy = space.
   IF sy-subrc = 0.
     lv_legacy_requested = <ls_strategy_total>-requested.
@@ -4645,6 +5081,18 @@ START-OF-SELECTION.
     IF lv_best_requested > 0.
       lv_best_coverage = lv_best_allocated * 100
         / lv_best_requested.
+    ENDIF.
+    IF lv_fair_requested > 0.
+      lv_fair_coverage = lv_fair_allocated * 100
+        / lv_fair_requested.
+    ENDIF.
+    IF lv_weighted_requested > 0.
+      lv_weighted_coverage = lv_weighted_allocated * 100
+        / lv_weighted_requested.
+    ENDIF.
+    IF lv_adaptive_requested > 0.
+      lv_adaptive_coverage = lv_adaptive_allocated * 100
+        / lv_adaptive_requested.
     ENDIF.
     IF lv_legacy_requested > 0.
       lv_legacy_coverage = lv_legacy_allocated * 100
@@ -4685,6 +5133,10 @@ START-OF-SELECTION.
             / 'Smallest strategy lines:', lv_smallest_strategy_lines,
             / 'Largest strategy lines:', lv_largest_strategy_lines,
             / 'Best-fit strategy lines:', lv_best_strategy_lines,
+            / 'Fair-share strategy lines:', lv_fair_strategy_lines,
+            / 'Weighted strategy lines:', lv_weighted_strategy_lines,
+            / 'Adaptive strategy lines:', lv_adaptive_strategy_lines,
+            / 'Adaptive branch:', lv_adaptive_branch,
             / 'Legacy strategy lines:', lv_legacy_strategy_lines,
            / 'Strategy context:', lv_summary_strategy.
   IF lv_mixed_units = abap_true.
@@ -4714,6 +5166,18 @@ START-OF-SELECTION.
              lv_best_requested, 'allocated', lv_best_allocated,
              'shortage', lv_best_shortage, 'coverage',
              lv_best_coverage, '%',
+           / 'Fair-share totals (', lv_summary_unit, '): requested',
+             lv_fair_requested, 'allocated', lv_fair_allocated,
+             'shortage', lv_fair_shortage, 'coverage',
+             lv_fair_coverage, '%',
+           / 'Weighted totals (', lv_summary_unit, '): requested',
+             lv_weighted_requested, 'allocated', lv_weighted_allocated,
+             'shortage', lv_weighted_shortage, 'coverage',
+             lv_weighted_coverage, '%',
+           / 'Adaptive totals (', lv_summary_unit, '): requested',
+             lv_adaptive_requested, 'allocated', lv_adaptive_allocated,
+             'shortage', lv_adaptive_shortage, 'coverage',
+             lv_adaptive_coverage, '%',
            / 'Legacy totals (', lv_summary_unit, '): requested',
              lv_legacy_requested, 'allocated', lv_legacy_allocated,
              'shortage', lv_legacy_shortage, 'coverage',

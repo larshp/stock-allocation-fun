@@ -211,7 +211,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         AND lv_strategy <> 'N'
         AND lv_strategy <> 'S'
         AND lv_strategy <> 'L'
-        AND lv_strategy <> 'B'.
+        AND lv_strategy <> 'B'
+        AND lv_strategy <> 'E'
+        AND lv_strategy <> 'A'
+        AND lv_strategy <> 'W'.
       IF mo_audit IS BOUND.
         record_rejection(
           iv_material         = iv_material

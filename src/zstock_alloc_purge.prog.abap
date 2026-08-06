@@ -429,10 +429,13 @@ START-OF-SELECTION.
       AND p_strat <> 'N'
       AND p_strat <> 'S'
       AND p_strat <> 'L'
-      AND p_strat <> 'B'.
+      AND p_strat <> 'B'
+      AND p_strat <> 'E'
+      AND p_strat <> 'A'
+      AND p_strat <> 'W'.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error(
-        'Strategy filter must be P, F, N, S, L, or B' ).
+        'Strategy filter must be P, F, N, S, L, B, E, A, or W' ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -440,10 +443,10 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;message'.
       WRITE: / zcl_stock_csv=>error(
         iv_mode    = 'zstock_alloc_purge'
-        iv_message = 'Strategy filter must be P, F, N, S, L, or B' ).
+        iv_message = 'Strategy filter must be P, F, N, S, L, B, E, A, or W' ).
       RETURN.
     ENDIF.
-    WRITE: / 'No rows deleted. Strategy filter must be P, F, N, S, L, or B.'.
+    WRITE: / 'No rows deleted. Strategy filter must be P, F, N, S, L, B, E, A, or W.'.
     RETURN.
   ENDIF.
   IF p_legacy = abap_true AND p_strat IS NOT INITIAL.

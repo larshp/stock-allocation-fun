@@ -122,6 +122,10 @@ START-OF-SELECTION.
   DATA lv_total_shortage TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_total_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_total_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_weighted_requested TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_allocated TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_shortage TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_weighted_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_summary_unit TYPE string.
   DATA lv_safety_stock TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_safety_stock_text TYPE string.
@@ -146,6 +150,10 @@ START-OF-SELECTION.
   DATA lv_total_requested_text TYPE string.
   DATA lv_total_allocated_text TYPE string.
   DATA lv_total_shortage_text TYPE string.
+  DATA lv_weighted_requested_text TYPE string.
+  DATA lv_weighted_allocated_text TYPE string.
+  DATA lv_weighted_shortage_text TYPE string.
+  DATA lv_weighted_coverage_text TYPE string.
   DATA ls_unit_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
   DATA lv_oldest_age_text TYPE string.
   DATA lv_newest_age_text TYPE string.
@@ -173,6 +181,10 @@ START-OF-SELECTION.
   DATA lv_alert_coverage TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_alert_coverage_text TYPE string.
   DATA lv_alert_shortage_pct_text TYPE string.
+  DATA lv_adaptive_branch TYPE c LENGTH 10.
+  DATA lv_adaptive_priority_runs TYPE i.
+  DATA lv_adaptive_fair_runs TYPE i.
+  DATA lv_weighted_strategy_runs TYPE i.
   DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
   FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
@@ -503,7 +515,10 @@ START-OF-SELECTION.
       AND p_strat <> 'N'
       AND p_strat <> 'S'
       AND p_strat <> 'L'
-      AND p_strat <> 'B'.
+      AND p_strat <> 'B'
+      AND p_strat <> 'E'
+      AND p_strat <> 'A'
+      AND p_strat <> 'W'.
     lv_error_message = 'Watch strategy is invalid'.
   ENDIF.
   IF lv_error_message IS NOT INITIAL.
@@ -885,9 +900,18 @@ START-OF-SELECTION.
         lv_deadline_age_days = lv_deadline_reference_date
           - <ls_run>-requested_deadline.
       ENDIF.
+      lv_adaptive_branch = 'n/a'.
+      IF <ls_run>-strategy = 'A'.
+        IF <ls_run>-available >= <ls_run>-requested.
+          lv_adaptive_branch = 'priority'.
+        ELSE.
+          lv_adaptive_branch = 'fair-share'.
+        ENDIF.
+      ENDIF.
       APPEND VALUE #(
         run_id                 = <ls_run>-run_id
         strategy               = <ls_run>-strategy
+        adaptive_branch        = lv_adaptive_branch
         movement_type          = <ls_run>-movement_type
         min_shelf_life         = <ls_run>-min_shelf_life
         safety_stock           = <ls_run>-safety_stock
@@ -1010,6 +1034,17 @@ START-OF-SELECTION.
     lv_last_offset = 0.
     lv_last_offset_text = 'n/a'.
   ENDIF.
+
+  CLEAR: lv_adaptive_priority_runs,
+         lv_adaptive_fair_runs.
+  LOOP AT lt_alerts ASSIGNING <ls_alert>.
+    CASE <ls_alert>-adaptive_branch.
+      WHEN 'priority'.
+        lv_adaptive_priority_runs = lv_adaptive_priority_runs + 1.
+      WHEN 'fair-share'.
+        lv_adaptive_fair_runs = lv_adaptive_fair_runs + 1.
+    ENDCASE.
+  ENDLOOP.
   IF p_skip > 0 OR lv_has_more = abap_true.
     lv_limited = abap_true.
     lv_limited_text = 'true'.
@@ -1031,6 +1066,10 @@ START-OF-SELECTION.
   lv_newest_age = ls_unit_summary-newest_age_seconds.
   lv_deadline_count = ls_unit_summary-deadline_count.
   lv_deadline_age_mixed = ls_unit_summary-deadline_age_mixed.
+  lv_weighted_strategy_runs = ls_unit_summary-weighted_strategy_runs.
+  lv_weighted_requested = ls_unit_summary-weighted_requested.
+  lv_weighted_allocated = ls_unit_summary-weighted_allocated.
+  lv_weighted_shortage = ls_unit_summary-weighted_shortage.
   IF lv_deadline_age_mixed = abap_true.
     lv_deadline_age_mixed_text = 'true'.
   ELSE.
@@ -1087,6 +1126,27 @@ START-OF-SELECTION.
     lv_total_allocated_text = zcl_stock_csv=>number( lv_total_allocated ).
     lv_total_shortage_text = zcl_stock_csv=>number( lv_total_shortage ).
   ENDIF.
+  IF lv_mixed_units = abap_true.
+    lv_weighted_requested_text = 'n/a'.
+    lv_weighted_allocated_text = 'n/a'.
+    lv_weighted_shortage_text = 'n/a'.
+    lv_weighted_coverage_text = 'n/a'.
+  ELSE.
+    lv_weighted_requested_text = zcl_stock_csv=>number(
+      lv_weighted_requested ).
+    lv_weighted_allocated_text = zcl_stock_csv=>number(
+      lv_weighted_allocated ).
+    lv_weighted_shortage_text = zcl_stock_csv=>number(
+      lv_weighted_shortage ).
+    IF lv_weighted_requested > 0.
+      lv_weighted_coverage = lv_weighted_allocated * 100
+        / lv_weighted_requested.
+      lv_weighted_coverage_text = zcl_stock_csv=>number(
+        lv_weighted_coverage ).
+    ELSE.
+      lv_weighted_coverage_text = 'n/a'.
+    ENDIF.
+  ENDIF.
   IF lines( lt_alerts ) > 0.
     lv_oldest_age_text = zcl_stock_csv=>number( lv_oldest_age ).
     lv_newest_age_text = zcl_stock_csv=>number( lv_newest_age ).
@@ -1114,7 +1174,11 @@ START-OF-SELECTION.
         && 'maximum_coverage;minimum_requested_quantity;maximum_requested_quantity;'
         && 'minimum_allocated_quantity;maximum_allocated_quantity;'
         && 'stale_threshold_seconds;maximum_age_seconds;'
-        && 'candidate_count;limited;alert_count;demand_count;deadline_count;unit;'
+        && 'candidate_count;limited;alert_count;adaptive_priority_runs;'
+        && 'adaptive_fair_runs;weighted_strategy_runs;weighted_requested;'
+        && 'weighted_allocated;weighted_shortage;weighted_coverage_pct;'
+        && 'demand_count;'
+        && 'deadline_count;unit;'
         && 'safety_stock_context;mixed_units;available;requested;'
         && 'allocated;shortage;coverage_pct;shortage_pct;'
         && 'oldest_age_seconds;newest_age_seconds;earliest_requested_deadline;'
@@ -1122,7 +1186,7 @@ START-OF-SELECTION.
         && 'newest_deadline_age_days;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1183,6 +1247,13 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_candidate_count ) TO lt_csv_fields.
       APPEND lv_limited_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lines( lt_alerts ) ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_adaptive_priority_runs ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_adaptive_fair_runs ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_weighted_strategy_runs ) TO lt_csv_fields.
+      APPEND lv_weighted_requested_text TO lt_csv_fields.
+      APPEND lv_weighted_allocated_text TO lt_csv_fields.
+      APPEND lv_weighted_shortage_text TO lt_csv_fields.
+      APPEND lv_weighted_coverage_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_demand_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_deadline_count ) TO lt_csv_fields.
       APPEND lv_summary_unit TO lt_csv_fields.
@@ -1235,14 +1306,15 @@ START-OF-SELECTION.
       && 'minimum_shortage;maximum_shortage;minimum_shortage_pct;'
       && 'maximum_shortage_pct;minimum_coverage;maximum_coverage;'
       && 'candidate_count;limited;rank;'
-       && 'run_id;strategy;movement_type;min_shelf_life;safety_stock;requested_on_from;requested_on_to;'
+       && 'run_id;strategy;weighted_strategy;adaptive_branch;movement_type;'
+       && 'min_shelf_life;safety_stock;requested_on_from;requested_on_to;'
        && 'requested_deadline;deadline_age_days;'
        && 'deadline_age_reference_date;deadline_age_mixed;'
       && 'unit;start_date;start_time;age_seconds;'
       && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 53 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1305,6 +1377,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_rank ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-run_id ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-strategy ) TO lt_csv_fields.
+      APPEND xsdbool( <ls_alert>-strategy = 'W' ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( <ls_alert>-adaptive_branch ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_alert>-min_shelf_life ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_alert>-safety_stock ) TO lt_csv_fields.
@@ -1364,6 +1438,14 @@ START-OF-SELECTION.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'strategy'
         iv_value = <ls_alert>-strategy ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>boolean_property(
+        iv_name  = 'weighted_strategy'
+        iv_value = xsdbool( <ls_alert>-strategy = 'W' ) ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>property(
+        iv_name  = 'adaptive_branch'
+        iv_value = <ls_alert>-adaptive_branch ).
       CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'movement_type'
@@ -1483,7 +1565,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 56 ).
+          iv_value = 59 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1851,6 +1933,51 @@ START-OF-SELECTION.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'weighted_strategy_runs'
+          iv_value = lv_weighted_strategy_runs ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'weighted_requested' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'weighted_requested'
+            iv_value = lv_weighted_requested ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'weighted_allocated' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'weighted_allocated'
+            iv_value = lv_weighted_allocated ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_true.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'weighted_shortage' ).
+        ELSE.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'weighted_shortage'
+            iv_value = lv_weighted_shortage ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        IF lv_mixed_units = abap_false AND lv_weighted_requested > 0.
+          lv_field = zcl_stock_json=>number_property(
+            iv_name  = 'weighted_coverage_pct'
+            iv_value = lv_weighted_coverage ).
+        ELSE.
+          lv_field = zcl_stock_json=>null_property(
+            iv_name = 'weighted_coverage_pct' ).
+        ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
           iv_name  = 'demand_count'
           iv_value = lv_total_demand_count ).
         CONCATENATE lv_json_ndjson_prefix lv_field
@@ -2035,7 +2162,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 56 ).
+      iv_value = 59 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -2339,6 +2466,54 @@ START-OF-SELECTION.
       iv_name  = 'alert_count'
       iv_value = lines( lt_alerts ) ).
     lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'adaptive_priority_runs'
+      iv_value = lv_adaptive_priority_runs ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'adaptive_fair_runs'
+      iv_value = lv_adaptive_fair_runs ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'weighted_strategy_runs'
+      iv_value = lv_weighted_strategy_runs ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'weighted_requested' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'weighted_requested'
+        iv_value = lv_weighted_requested ).
+    ENDIF.
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'weighted_allocated' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'weighted_allocated'
+        iv_value = lv_weighted_allocated ).
+    ENDIF.
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    IF lv_mixed_units = abap_true.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'weighted_shortage' ).
+    ELSE.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'weighted_shortage'
+        iv_value = lv_weighted_shortage ).
+    ENDIF.
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    IF lv_mixed_units = abap_false AND lv_weighted_requested > 0.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'weighted_coverage_pct'
+        iv_value = lv_weighted_coverage ).
+    ELSE.
+      lv_field = zcl_stock_json=>null_property(
+        iv_name = 'weighted_coverage_pct' ).
+    ENDIF.
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
       iv_name  = 'demand_count'
       iv_value = lv_total_demand_count ).
     CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
@@ -2571,6 +2746,11 @@ START-OF-SELECTION.
          / 'Shortage:', lv_total_shortage_text,
          / 'Coverage:', lv_total_coverage_text,
          / 'Shortage percentage:', lv_total_shortage_pct_text,
+         / 'Weighted strategy runs:', lv_weighted_strategy_runs,
+         / 'Weighted requested:', lv_weighted_requested_text,
+         / 'Weighted allocated:', lv_weighted_allocated_text,
+         / 'Weighted shortage:', lv_weighted_shortage_text,
+         / 'Weighted coverage:', lv_weighted_coverage_text,
          / 'Earliest requested deadline:', lv_earliest_deadline_text,
          / 'Latest requested deadline:', lv_latest_deadline_text,
          / 'Oldest deadline age (days):', lv_oldest_deadline_age_text,
@@ -2600,6 +2780,8 @@ START-OF-SELECTION.
              <ls_alert>-run_id,
              'age', <ls_alert>-age_seconds,
              'strategy', <ls_alert>-strategy,
+             'weighted strategy', xsdbool( <ls_alert>-strategy = 'W' ),
+             'adaptive branch', <ls_alert>-adaptive_branch,
              'movement type', <ls_alert>-movement_type,
              'minimum shelf-life days', <ls_alert>-min_shelf_life,
              'safety stock', <ls_alert>-safety_stock,

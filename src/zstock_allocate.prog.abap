@@ -72,11 +72,12 @@ START-OF-SELECTION.
   ENDIF.
   TRANSLATE p_strat TO UPPER CASE.
   IF p_strat <> 'P' AND p_strat <> 'F' AND p_strat <> 'N'
-      AND p_strat <> 'S' AND p_strat <> 'L' AND p_strat <> 'B'.
+      AND p_strat <> 'S' AND p_strat <> 'L' AND p_strat <> 'B'
+      AND p_strat <> 'E' AND p_strat <> 'A' AND p_strat <> 'W'.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error(
         'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
-          && ' or B (best-fit).' ).
+          && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -85,11 +86,11 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_csv=>error(
         iv_mode    = 'zstock_allocate'
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
-          && ' or B (best-fit).' ).
+          && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
       RETURN.
     ENDIF.
     WRITE: / 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
-      && ' or B (best-fit).'.
+      && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).'.
     RETURN.
   ENDIF.
   IF p_strat = 'F'.
@@ -102,6 +103,12 @@ START-OF-SELECTION.
     lv_strategy = 'largest'.
   ELSEIF p_strat = 'B'.
     lv_strategy = 'best_fit'.
+  ELSEIF p_strat = 'E'.
+    lv_strategy = 'fair_share'.
+  ELSEIF p_strat = 'A'.
+    lv_strategy = 'adaptive'.
+  ELSEIF p_strat = 'W'.
+    lv_strategy = 'weighted'.
   ELSE.
     lv_strategy = 'priority'.
   ENDIF.
@@ -123,6 +130,12 @@ START-OF-SELECTION.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_large.
   ELSEIF p_strat = 'B'.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_best.
+  ELSEIF p_strat = 'E'.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_fair.
+  ELSEIF p_strat = 'A'.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_auto.
+  ELSEIF p_strat = 'W'.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator_weighted.
   ELSE.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
   ENDIF.
@@ -471,7 +484,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 34 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -494,6 +507,11 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_summary-smallest_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-largest_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-best_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-fair_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-weighted_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_priority_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_fair_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-legacy_strategy_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-completion_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-success_rate_pct ) TO lt_csv_fields.
@@ -523,6 +541,18 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_summary-best_allocated ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-best_shortage ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-best_coverage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-fair_requested ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-fair_allocated ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-fair_shortage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-fair_coverage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-weighted_requested ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-weighted_allocated ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-weighted_shortage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-weighted_coverage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_requested ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_allocated ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_shortage ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-adaptive_coverage ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-legacy_requested ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-legacy_allocated ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-legacy_shortage ) TO lt_csv_fields.
@@ -570,12 +600,17 @@ START-OF-SELECTION.
     WRITE: / 'mode;strategy;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
       && 'movement_type;minimum_shelf_life_days;safety_stock;requested_on_filter_from;requested_on_filter_to;'
       && 'remaining;requested;runs;successful_runs;partial_runs;error_runs;priority_runs;fifo_runs;full_only_runs;'
-      && 'smallest_runs;largest_runs;best_runs;legacy_strategy_runs;completion_pct;success_rate_pct;'
+      && 'smallest_runs;largest_runs;best_runs;fair_runs;weighted_runs;adaptive_runs;adaptive_priority_runs;'
+      && 'adaptive_fair_runs;'
+      && 'legacy_strategy_runs;completion_pct;success_rate_pct;'
       && 'partial_rate_pct;error_rate_pct;priority_requested;priority_allocated;priority_shortage;'
       && 'priority_coverage_pct;fifo_requested;fifo_allocated;fifo_shortage;fifo_coverage_pct;full_only_requested;'
       && 'full_only_allocated;full_only_shortage;full_only_coverage_pct;smallest_requested;smallest_allocated;'
       && 'smallest_shortage;smallest_coverage_pct;largest_requested;largest_allocated;largest_shortage;'
-      && 'largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;legacy_requested;'
+      && 'largest_coverage_pct;best_requested;best_allocated;best_shortage;best_coverage_pct;fair_requested;'
+      && 'fair_allocated;fair_shortage;fair_coverage_pct;weighted_requested;weighted_allocated;'
+      && 'weighted_shortage;weighted_coverage_pct;adaptive_requested;adaptive_allocated;'
+      && 'adaptive_shortage;adaptive_coverage_pct;legacy_requested;'
       && 'legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;'
       && 'full_count;partial_count;unallocated_count;demand_count;deadline_count;requested_on_from;requested_on_to;'
       && 'requested_deadline;earliest_requested_deadline;latest_requested_deadline;'
@@ -604,7 +639,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 30 ) TO lt_json_fields.
+        iv_value = 34 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -702,7 +737,22 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'best_runs'
         iv_value = ls_summary-best_runs ) TO lt_json_fields.
-      APPEND zcl_stock_json=>number_property(
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_runs'
+          iv_value = ls_summary-fair_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_runs'
+          iv_value = ls_summary-weighted_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_runs'
+          iv_value = ls_summary-adaptive_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_priority_runs'
+          iv_value = ls_summary-adaptive_priority_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_fair_runs'
+          iv_value = ls_summary-adaptive_fair_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
         iv_name  = 'legacy_strategy_runs'
         iv_value = ls_summary-legacy_strategy_runs ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
@@ -790,6 +840,42 @@ START-OF-SELECTION.
         iv_name  = 'best_coverage_pct'
         iv_value = ls_summary-best_coverage ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
+        iv_name  = 'fair_requested'
+        iv_value = ls_summary-fair_requested ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'fair_allocated'
+        iv_value = ls_summary-fair_allocated ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'fair_shortage'
+        iv_value = ls_summary-fair_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'fair_coverage_pct'
+          iv_value = ls_summary-fair_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_requested'
+          iv_value = ls_summary-weighted_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_allocated'
+          iv_value = ls_summary-weighted_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_shortage'
+          iv_value = ls_summary-weighted_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'weighted_coverage_pct'
+          iv_value = ls_summary-weighted_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_requested'
+          iv_value = ls_summary-adaptive_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_allocated'
+          iv_value = ls_summary-adaptive_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_shortage'
+          iv_value = ls_summary-adaptive_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'adaptive_coverage_pct'
+          iv_value = ls_summary-adaptive_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
         iv_name  = 'legacy_requested'
         iv_value = ls_summary-legacy_requested ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
@@ -865,7 +951,22 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'best_runs'
         iv_value = ls_summary-best_runs ) TO lt_json_fields.
-      APPEND zcl_stock_json=>property(
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_runs'
+          iv_value = ls_summary-fair_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_runs'
+          iv_value = ls_summary-weighted_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_runs'
+          iv_value = ls_summary-adaptive_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_priority_runs'
+          iv_value = ls_summary-adaptive_priority_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_fair_runs'
+          iv_value = ls_summary-adaptive_fair_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
         iv_name  = 'legacy_strategy_runs'
         iv_value = ls_summary-legacy_strategy_runs ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
@@ -953,6 +1054,42 @@ START-OF-SELECTION.
         iv_name  = 'best_coverage_pct'
         iv_value = ls_summary-best_coverage ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'fair_requested'
+        iv_value = ls_summary-fair_requested ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'fair_allocated'
+        iv_value = ls_summary-fair_allocated ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'fair_shortage'
+        iv_value = ls_summary-fair_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'fair_coverage_pct'
+          iv_value = ls_summary-fair_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_requested'
+          iv_value = ls_summary-weighted_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_allocated'
+          iv_value = ls_summary-weighted_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_shortage'
+          iv_value = ls_summary-weighted_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'weighted_coverage_pct'
+          iv_value = ls_summary-weighted_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_requested'
+          iv_value = ls_summary-adaptive_requested ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_allocated'
+          iv_value = ls_summary-adaptive_allocated ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_shortage'
+          iv_value = ls_summary-adaptive_shortage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'adaptive_coverage_pct'
+          iv_value = ls_summary-adaptive_coverage ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
         iv_name  = 'legacy_requested'
         iv_value = ls_summary-legacy_requested ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
@@ -1135,6 +1272,11 @@ START-OF-SELECTION.
           / 'Smallest runs:', ls_summary-smallest_runs,
           / 'Largest runs:', ls_summary-largest_runs,
           / 'Best-fit runs:', ls_summary-best_runs,
+          / 'Fair-share runs:', ls_summary-fair_runs,
+          / 'Weighted fair-share runs:', ls_summary-weighted_runs,
+          / 'Adaptive runs:', ls_summary-adaptive_runs,
+          / 'Adaptive priority branch runs:', ls_summary-adaptive_priority_runs,
+          / 'Adaptive fair-share branch runs:', ls_summary-adaptive_fair_runs,
           / 'Legacy strategy runs:', ls_summary-legacy_strategy_runs,
          / 'Priority totals (', ls_summary-unit, '): requested',
            ls_summary-priority_requested, 'allocated',
@@ -1166,6 +1308,21 @@ START-OF-SELECTION.
            ls_summary-best_allocated, 'shortage',
            ls_summary-best_shortage, 'coverage',
            ls_summary-best_coverage, '%',
+         / 'Fair-share totals (', ls_summary-unit, '): requested',
+           ls_summary-fair_requested, 'allocated',
+           ls_summary-fair_allocated, 'shortage',
+           ls_summary-fair_shortage, 'coverage',
+           ls_summary-fair_coverage, '%',
+         / 'Weighted totals (', ls_summary-unit, '): requested',
+           ls_summary-weighted_requested, 'allocated',
+           ls_summary-weighted_allocated, 'shortage',
+           ls_summary-weighted_shortage, 'coverage',
+           ls_summary-weighted_coverage, '%',
+         / 'Adaptive totals (', ls_summary-unit, '): requested',
+           ls_summary-adaptive_requested, 'allocated',
+           ls_summary-adaptive_allocated, 'shortage',
+           ls_summary-adaptive_shortage, 'coverage',
+           ls_summary-adaptive_coverage, '%',
          / 'Legacy totals (', ls_summary-unit, '): requested',
            ls_summary-legacy_requested, 'allocated',
            ls_summary-legacy_allocated, 'shortage',

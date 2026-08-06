@@ -215,6 +215,10 @@ const auditSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.abap"),
   "utf8",
 );
+const healthReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_health.prog.abap"),
+  "utf8",
+);
 const unitConversionSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.abap"),
   "utf8",
@@ -335,6 +339,21 @@ assert.match(
   /ls_run-safety_stock = iv_safety_stock/,
   "audit persistence must retain the safety-stock policy",
 );
+assert.match(
+  auditSource,
+  /weighted_runs|weighted_requested|weighted_coverage/,
+  "audit summaries must expose weighted strategy analytics",
+);
+assert.match(
+  allocationReportSource,
+  /weighted_runs|weighted_requested|weighted_coverage/,
+  "allocation summaries must expose weighted strategy analytics",
+);
+assert.match(
+  healthReportSource,
+  /weighted_runs|weighted_requested|weighted_coverage/,
+  "health output must expose weighted strategy analytics",
+);
 const historySource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_history.prog.abap"),
   "utf8",
@@ -407,7 +426,7 @@ assert.match(
 );
 assert.match(
   historySource,
-  /iv_value = 39 \) TO lt_json_fields/,
+  /iv_value = 43 \) TO lt_json_fields/,
   "history summary JSON schema must include the safety-stock contract version",
 );
 assert.match(
@@ -447,12 +466,42 @@ assert.match(
 );
 assert.match(
   watchSource,
-  /number\( 53 \)/,
+  /adaptive_branch/,
+  "watch alerts must expose adaptive branch provenance",
+);
+assert.match(
+  watchSource,
+  /adaptive_priority_runs/,
+  "watch summaries must expose adaptive priority branch counts",
+);
+assert.match(
+  watchSource,
+  /adaptive_fair_runs/,
+  "watch summaries must expose adaptive fair-share branch counts",
+);
+assert.match(
+  watchSource,
+  /weighted_strategy_runs/,
+  "watch summaries must expose weighted strategy run counts",
+);
+assert.match(
+  watchSource,
+  /weighted_requested|weighted_allocated|weighted_coverage_pct/,
+  "watch summaries must expose weighted quantity analytics",
+);
+assert.match(
+  watchSource,
+  /weighted_strategy/,
+  "watch alerts must expose weighted strategy provenance",
+);
+assert.match(
+  watchSource,
+  /number\( 56 \)/,
   "watch CSV schema must include the safety-stock contract version",
 );
 assert.match(
   watchSource,
-  /iv_value = 56 \)/,
+  /iv_value = 59 \)/,
   "watch JSON schema must include the safety-stock contract version",
 );
 assert.match(
@@ -487,7 +536,7 @@ assert.match(
 );
 assert.match(
   resultSource,
-  /APPEND zcl_stock_csv=>number\( 39 \)/,
+  /APPEND zcl_stock_csv=>number\( 43 \)/,
   "result summary CSV schema must include the safety-stock contract version",
 );
 assert.match(

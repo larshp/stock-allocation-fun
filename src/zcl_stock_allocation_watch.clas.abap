@@ -7,6 +7,7 @@ CLASS zcl_stock_allocation_watch DEFINITION
       BEGIN OF ty_alert,
         run_id                 TYPE zif_allocation_audit=>ty_run_id,
         strategy               TYPE zif_allocation_audit=>ty_strategy,
+        adaptive_branch        TYPE c LENGTH 10,
         movement_type          TYPE zif_stock_allocation=>ty_movement_type,
         min_shelf_life         TYPE i,
         safety_stock           TYPE zif_stock_allocation=>ty_quantity,
@@ -40,6 +41,10 @@ CLASS zcl_stock_allocation_watch DEFINITION
         mixed_units                 TYPE abap_bool,
         demand_count                TYPE i,
         deadline_count              TYPE i,
+        weighted_strategy_runs      TYPE i,
+        weighted_requested          TYPE zif_stock_allocation=>ty_quantity,
+        weighted_allocated          TYPE zif_stock_allocation=>ty_quantity,
+        weighted_shortage           TYPE zif_stock_allocation=>ty_quantity,
         total_available             TYPE zif_stock_allocation=>ty_quantity,
         total_requested             TYPE zif_stock_allocation=>ty_quantity,
         total_allocated             TYPE zif_stock_allocation=>ty_quantity,
@@ -94,6 +99,16 @@ CLASS zcl_stock_allocation_watch IMPLEMENTATION.
       lv_unit = to_upper( <ls_alert>-unit ).
       rs_summary-demand_count = rs_summary-demand_count
         + <ls_alert>-demand_count.
+      IF <ls_alert>-strategy = 'W'.
+        rs_summary-weighted_strategy_runs =
+          rs_summary-weighted_strategy_runs + 1.
+        rs_summary-weighted_requested = rs_summary-weighted_requested
+          + <ls_alert>-requested.
+        rs_summary-weighted_allocated = rs_summary-weighted_allocated
+          + <ls_alert>-allocated.
+        rs_summary-weighted_shortage = rs_summary-weighted_shortage
+          + <ls_alert>-shortage.
+      ENDIF.
       rs_summary-total_available = rs_summary-total_available
         + <ls_alert>-available.
       rs_summary-total_requested = rs_summary-total_requested
@@ -152,7 +167,10 @@ CLASS zcl_stock_allocation_watch IMPLEMENTATION.
       CLEAR: rs_summary-total_available,
              rs_summary-total_requested,
              rs_summary-total_allocated,
-             rs_summary-total_shortage.
+             rs_summary-total_shortage,
+             rs_summary-weighted_requested,
+             rs_summary-weighted_allocated,
+             rs_summary-weighted_shortage.
     ENDIF.
   ENDMETHOD.
 

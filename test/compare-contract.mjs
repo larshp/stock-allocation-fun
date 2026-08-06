@@ -357,9 +357,9 @@ assert.match(
   "result report must reject reversed reservation-age bounds",
 );
 assert.equal(
-  (resultSource.match(/APPEND zcl_stock_csv=>number\( 39 \)/g) ?? []).length,
+  (resultSource.match(/APPEND zcl_stock_csv=>number\( 43 \)/g) ?? []).length,
   1,
-  "result summary CSV schema must be 39",
+  "result summary CSV schema must be 43",
 );
 assert.equal(
   (resultSource.match(/APPEND zcl_stock_csv=>number\( 37 \)/g) ?? []).length,
@@ -367,9 +367,9 @@ assert.equal(
   "result detail CSV schema must be 37",
 );
 assert.equal(
-  (resultSource.match(/iv_value = 39 \) TO lt_json_fields/g) ?? []).length,
+  (resultSource.match(/iv_value = 43 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "result summary JSON schemas must be 39",
+  "result summary JSON schemas must be 43",
 );
 assert.equal(
   (resultSource.match(/iv_value = 37 \) TO lt_json_fields/g) ?? []).length,

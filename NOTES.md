@@ -1,5 +1,36 @@
 # Progress notes
 
+- Split weighted strategy `W` from ordinary fair-share in history and result summaries. History/result summary exports now expose weighted run/line counts plus weighted requested, allocated, shortage, and coverage fields; both summary schemas advance to `43`.
+
+- Added distinct weighted fair-share run counts and unit-safe requested/allocated/shortage/coverage analytics to the audit summary and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schemas advance to `9`.
+
+- Added exact-run adaptive branch provenance to result summaries: `adaptive_branch` reports `priority`, `fair-share`, or `n/a` across human, CSV, JSON, and metadata output; result summary schemas advance to `42`.
+- Added weighted fair-share strategy `W`, distributing scarce stock by normalized priority weight while preserving demand caps and fractional residual safety; `W` has dedicated audit/allocation/health run and quantity/coverage analytics.
+- Extended `ZSTOCK_ALLOC_HEALTH` with `adaptive_priority_runs` and `adaptive_fair_runs` so operational health output shows the adaptive branch mix; health JSON/CSV schemas advance to `8`.
+- Extended `ZSTOCK_ALLOC_WATCH` alerts and summaries with adaptive branch provenance and page-scoped priority/fair-share branch counts; watch schemas advance to CSV `54` and JSON/NDJSON `57`.
+
+- Added adaptive strategy `A` through the allocator, service, audit, sink, allocation, history, result, watch, purge, and compare paths. It selects priority allocation when the pool covers all demand and deterministic fair-share allocation when stock is scarce; history/result summary schemas advance to `41` with adaptive counts and quantity/coverage analytics.
+
+- Extended fair-share analytics through `ZSTOCK_ALLOC_HISTORY` and `ZSTOCK_ALLOC_RESULT`: human, CSV, typed JSON, and untyped JSON summaries now expose fair-share run/line counts plus requested, allocated, shortage, and coverage totals. History and result summary schemas advance to `41`; mixed allocation units remain explicitly non-additive.
+
+- Added the `E` fair-share allocation strategy to the service, allocation report, audit summary, sink validation, history/result/watch/purge/compare report paths, and machine-readable strategy context. The deterministic water-filling allocator caps each demand, preserves fractional residual stock, and has ABAP Unit coverage for fairness, caps, residual safety, and duplicate keys.
+
+- Added `ZSTOCK_ALLOC_HEALTH`, a read-only operational health report with healthy/warning/critical scope status, stale-run detection, shortage and safety-stock checks, requested-horizon filtering, material/plant/batch/unit scope, and human/CSV/JSON output. Mixed-unit totals are suppressed rather than summed.
+
+- Extended `ZSTOCK_ALLOC_HEALTH` with fair-share run counts and unit-safe fair-share requested/allocated/shortage/coverage metrics. Health JSON/CSV schemas advance to `2`; mixed-unit scopes return unavailable/null fair-share quantities instead of cross-unit totals.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_strat` strategy scoping. Health checks can now target priority, FIFO, full-only, smallest, largest, best-fit, fair-share, or adaptive runs, with the selected strategy preserved in human, CSV, and JSON output; health schemas advance to `3`.
+
+- Added configurable `ZSTOCK_ALLOC_HEALTH-p_cov` minimum-coverage alerting. A positive threshold marks unit-safe scopes below the requested coverage as `WARNING` and exposes `coverage_threshold_active`/`coverage_below_threshold`; health JSON/CSV schemas advance to `4`, while mixed-unit scopes never trigger quantity-based threshold checks.
+
+- Added configurable `ZSTOCK_ALLOC_HEALTH-p_spct` maximum-shortage-percentage alerting. A positive threshold marks unit-safe scopes above the permitted shortage as `WARNING` and exposes `shortage_threshold_active`/`shortage_above_threshold`; health JSON/CSV schemas advance to `5`.
+
+- Extended `ZSTOCK_ALLOC_HEALTH` with adaptive run counts and unit-safe adaptive requested/allocated/shortage/coverage metrics. Health JSON/CSV schemas advance to `6`; mixed-unit scopes expose adaptive quantities as unavailable rather than summing across units.
+
+- Added stable `ZSTOCK_ALLOC_HEALTH` reason codes for no runs, errors/stale work, threshold breaches, backlog, and healthy scopes; health JSON/CSV schemas advance to `7`.
+
+- Added adaptive branch explainability to audit summaries, allocation output, and history summaries: `adaptive_priority_runs` counts fully covered adaptive runs and `adaptive_fair_runs` counts scarce-stock fair-share runs; allocation schemas advance to `33` and history summary schemas to `42`.
+
 - Added the zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_RESULT` (`p_safon`, `p_saf`, `p_safto`) through the allocation-sink run-selection boundary, including latest and exact-run reads. Result schemas advance to detail/summary `37`/`39`; CSV and typed filter provenance carry the selected bounds.
 
 - Added the same zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_WATCH` (`p_safon`, `p_saf`, `p_safto`) through canonical audit selection. Watch export schemas advance to CSV `53` and JSON/NDJSON `56`, with bounds present in CSV, JSON, NDJSON, and typed filter provenance.
@@ -750,7 +781,7 @@
 - Added optional reference date/time inputs to the audit running-age API, preserving system-clock defaults while enabling deterministic replay and exact elapsed-time regression tests.
 - Added newest active-run age and run ID beside the oldest active-run telemetry in the audit summary, allocation summary, and history summary; allocation schemas advance to `22` and history summary schemas to `20`.
 - Added `ZSTOCK_ALLOC_WATCH`, an oldest-first stale-running allocation monitor with a configurable age threshold, alert limit, canonical running-age calculation, and human/CSV/JSON output.
-- Extended `ZSTOCK_ALLOC_WATCH` with optional normalized strategy filtering (`p_strat = P/F/N/S/L/B`) so operators can isolate stale runs by allocator behavior without post-filtering the alert feed.
+- Extended `ZSTOCK_ALLOC_WATCH` with optional normalized strategy filtering (`p_strat = P/F/N/S/L/B/E/A/W`) so operators can isolate stale runs by allocator behavior without post-filtering the alert feed.
 - Added the applied watch strategy filter to human, CSV, and JSON output; the watch machine-readable contract advances to schema version `2` so empty alert feeds remain self-describing.
 - Added an optional minimum-shortage filter (`p_shf`) to `ZSTOCK_ALLOC_WATCH`; filter provenance is exported in all modes and the machine-readable contract advances to schema version `3`.
 - Added an optional maximum-coverage filter (`p_covt`) to `ZSTOCK_ALLOC_WATCH`; zero-request runs are excluded for non-applicable coverage and the machine-readable contract advances to schema version `4`.
@@ -836,3 +867,12 @@
 - Added independent comparison overdue switches `p_oovrd`/`p_novrd`. They select old/new overdue audit and snapshot populations separately using the shared `p_odate` reference date, reject mixing with common `p_ovrd`, and are emitted in all comparison provenance paths; comparison schemas advance to `64`.
 - Added independent comparison movement filters `p_omvt`/`p_nmvt`. They constrain old/new originating audit policy movement types separately, reject mixing with common `p_mvt`, and are emitted in all comparison provenance paths; comparison schemas advance to `65`.
 - Added independent comparison shelf-life filters `p_oshelf`/`p_nshelf`. They constrain old/new nonnegative minimum-shelf-life policies separately, reject mixing with common `p_shelf`, and are emitted in all comparison provenance paths; comparison schemas advance to `66`.
+- Added `ZCL_STOCK_ALLOCATION_HEALTH`, a reusable operational health evaluator that classifies empty scopes, backlog/partial outcomes, stale running work, and audit errors while suppressing mixed-unit quantity comparisons.
+- Added `ZSTOCK_ALLOC_HEALTH` with SAP audit read authorization, stale-threshold monitoring, and human/CSV/JSON output for operational dashboards and job monitoring.
+- Extended `ZSTOCK_ALLOC_HEALTH` with safety-stock range and requested-delivery horizon filters so health checks can target the same policy slices as allocation and history reads.
+- Added unit coverage for healthy, backlog warning, stale critical, and mixed-unit safety behavior; lint, transpilation, ABAP unit tests, report-contract, comparison-contract, and repository-contract checks pass.
+- Added `ZCL_STOCK_ALLOCATOR_FAIR` and selectable `p_strat = E` fair-share allocation. It uses deterministic priority/date/order ordering plus capped water-filling rounds so small demands finish without allowing one large demand to consume the whole pool; audit and result/history strategy validation now accepts `E`.
+- Added fair-share allocator unit coverage for equal distribution, capped small demands, and duplicate demand keys. Lint, transpilation, ABAP unit tests, comparison-contract, and repository-contract checks pass.
+- Hardened fair-share residual handling so three-decimal rounding cannot over-allocate the final stock remainder; added a fractional-residual regression test.
+- Added fair-share run counters, unit-safe quantities, and coverage to the audit summary API and allocation report exports; allocation CSV/JSON schema version is now `31`.
+- Added weighted-strategy telemetry to `ZSTOCK_ALLOC_WATCH`: summary outputs now report page-scoped `weighted_strategy_runs` plus weighted requested/allocated/shortage/coverage aggregates, while each alert exposes boolean `weighted_strategy`; watch schemas advance to CSV `56` and JSON/NDJSON `59`.

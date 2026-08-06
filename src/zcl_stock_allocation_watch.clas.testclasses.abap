@@ -21,6 +21,7 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     DATA ls_summary TYPE zcl_stock_allocation_watch=>ty_unit_summary.
 
     APPEND VALUE #( unit               = 'EA'
+                    strategy           = 'W'
                     demand_count       = 2
                     available          = '10'
                     requested          = '8'
@@ -54,6 +55,18 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-deadline_count
       exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_strategy_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_requested
+      exp = '8' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_allocated
+      exp = '5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_shortage
+      exp = '3' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-total_available
       exp = '30' ).
@@ -126,6 +139,12 @@ CLASS ltcl_stock_allocation_watch IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-demand_count
       exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-weighted_strategy_runs
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_requested ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_allocated ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_shortage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-total_available ).
     cl_abap_unit_assert=>assert_initial( ls_summary-total_requested ).
     cl_abap_unit_assert=>assert_initial( ls_summary-total_allocated ).

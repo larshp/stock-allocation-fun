@@ -1,0 +1,19 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "0.1.0",
+  "description": "Stock allocation solution in ABAP with abaplint and transpiler testing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "abaplint",
+    "transpile": "abap_transpile transpile.json",
+    "test": "cd output && node index.mjs",
+    "build": "npm run lint && npm run transpile && npm run test"
+  },
+  "dependencies": {
+    "@abaplint/core": "^2.0.0",
+    "@abaplint/runtime": "^2.13.50",
+    "@abaplint/transpiler": "^1.0.0",
+    "@abaplint/transpiler-cli": "^2.13.50"
+  }
+}

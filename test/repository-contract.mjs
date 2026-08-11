@@ -219,6 +219,10 @@ const healthReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_health.prog.abap"),
   "utf8",
 );
+const healthSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocation_health.clas.abap"),
+  "utf8",
+);
 const unitConversionSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.abap"),
   "utf8",
@@ -353,6 +357,336 @@ assert.match(
   healthReportSource,
   /weighted_runs|weighted_requested|weighted_coverage/,
   "health output must expose weighted strategy analytics",
+);
+assert.match(
+  healthReportSource,
+  /iv_stale_scope_evaluated\s*=\s*xsdbool\(\s*p_stale\s*>\s*0\s*\)/,
+  "health report must identify when its stale-run scope was evaluated",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_legacy AS CHECKBOX\./,
+  "health must expose an explicit legacy-strategy filter",
+);
+assert.match(
+  healthReportSource,
+  /iv_legacy_strategy\s+= p_legacy/,
+  "health must propagate the legacy-strategy filter to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_stat TYPE zif_allocation_audit=>ty_run_status\./,
+  "health must expose an audit status filter",
+);
+assert.match(
+  healthReportSource,
+  /iv_status\s+= p_stat/,
+  "health must propagate the audit status filter to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /status_filter/,
+  "health machine-readable output must expose audit status provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_msg TYPE zif_allocation_audit=>ty_message\./,
+  "health must expose a diagnostic message filter",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_monly AS CHECKBOX\./,
+  "health must expose a message-only filter",
+);
+assert.match(
+  healthReportSource,
+  /iv_message_contains\s+= p_msg/,
+  "health must propagate the diagnostic message filter to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_message_only\s+= p_monly/,
+  "health must propagate the message-only filter to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /message_filter|message_only/,
+  "health machine-readable output must expose message provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dfrom TYPE i\./,
+  "health must expose a minimum demand-count bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dto TYPE i\./,
+  "health must expose a maximum demand-count bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_demand_from\s+= p_dfrom/,
+  "health must propagate the minimum demand-count bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_demand_to\s+= p_dto/,
+  "health must propagate the maximum demand-count bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_demand_count|maximum_demand_count/,
+  "health machine-readable output must expose demand-count provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_avf TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a minimum available-stock bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_avt TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a maximum available-stock bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_available_from\s+= p_avf/,
+  "health must propagate the minimum available-stock bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_available_to\s+= p_avt/,
+  "health must propagate the maximum available-stock bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_available_stock|maximum_available_stock/,
+  "health machine-readable output must expose available-stock provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_qf TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a minimum requested-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_qt TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a maximum requested-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_requested_from\s+= p_qf/,
+  "health must propagate the minimum requested-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_requested_to\s+= p_qt/,
+  "health must propagate the maximum requested-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_requested_quantity|maximum_requested_quantity/,
+  "health machine-readable output must expose requested-quantity provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_af TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a minimum allocated-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_at TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a maximum allocated-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_allocated_from\s+= p_af/,
+  "health must propagate the minimum allocated-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_allocated_to\s+= p_at/,
+  "health must propagate the maximum allocated-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_allocated_quantity|maximum_allocated_quantity/,
+  "health machine-readable output must expose allocated-quantity provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_shf TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a minimum shortage-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_sht TYPE zif_stock_allocation=>ty_quantity\./,
+  "health must expose a maximum shortage-quantity bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_shortage_from\s+= p_shf/,
+  "health must propagate the minimum shortage-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_shortage_to\s+= p_sht/,
+  "health must propagate the maximum shortage-quantity bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_shortage_quantity|maximum_shortage_quantity/,
+  "health machine-readable output must expose shortage-quantity provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_spf TYPE zif_allocation_audit=>ty_coverage\./,
+  "health must expose a minimum shortage-percentage bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_spt TYPE zif_allocation_audit=>ty_coverage\./,
+  "health must expose a maximum shortage-percentage bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_shortage_pct_from\s+= p_spf/,
+  "health must propagate the minimum shortage-percentage bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_shortage_pct_to\s+= p_spt/,
+  "health must propagate the maximum shortage-percentage bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_shortage_pct|maximum_shortage_pct/,
+  "health machine-readable output must expose shortage-percentage provenance",
+);
+assert.match(
+  healthReportSource,
+  /legacy_strategy_filter/,
+  "health machine-readable output must expose legacy-strategy provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_ovrd AS CHECKBOX\./,
+  "health must expose overdue requested-horizon filtering",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_odate TYPE d\./,
+  "health must expose an overdue as-of date",
+);
+assert.match(
+  healthReportSource,
+  /iv_requested_overdue\s+= p_ovrd/,
+  "health must propagate overdue filtering to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_overdue_date\s+= lv_overdue_date/,
+  "health must propagate the overdue as-of date to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /overdue_only|requested_overdue_as_of/,
+  "health machine-readable output must expose overdue provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dead AS CHECKBOX\./,
+  "health must expose requested-deadline filtering",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_only\s+= p_dead/,
+  "health must propagate requested-deadline filtering to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /requested_deadline_only/,
+  "health machine-readable output must expose requested-deadline provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_deadf TYPE d\./,
+  "health must expose a requested-deadline lower bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_deadt TYPE d\./,
+  "health must expose a requested-deadline upper bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_from\s+= p_deadf/,
+  "health must propagate the requested-deadline lower bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_to\s+= p_deadt/,
+  "health must propagate the requested-deadline upper bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /requested_deadline_from|requested_deadline_to/,
+  "health machine-readable output must expose requested-deadline range provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dagef TYPE i\./,
+  "health must expose a minimum deadline-age bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_daget TYPE i\./,
+  "health must expose a maximum deadline-age bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_daged TYPE d\./,
+  "health must expose a deadline-age as-of date",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_age_from\s+= p_dagef/,
+  "health must propagate the minimum deadline age to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_age_to\s+= p_daget/,
+  "health must propagate the maximum deadline age to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_deadline_age_date\s+= lv_deadline_age_date/,
+  "health must propagate the deadline-age as-of date to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_deadline_age_days|maximum_deadline_age_days|deadline_age_as_of/,
+  "health machine-readable output must expose deadline-age provenance",
+);
+assert.match(
+  healthReportSource,
+  /deadline_count|earliest_requested_deadline|deadline_age_reference_date/,
+  "health machine-readable output must expose selected deadline telemetry",
+);
+assert.match(
+  healthSource,
+  /rs_health-deadline_count\s*=\s*is_summary-deadline_count/,
+  "health evaluator must propagate deadline counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-deadline_age_reference_date\s*=\s*is_summary-deadline_age_reference_date/,
+  "health evaluator must propagate deadline-age provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_value = 23 \) TO lt_json_fields/,
+  "health JSON schema must include the shortage-percentage contract version",
 );
 const historySource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_history.prog.abap"),

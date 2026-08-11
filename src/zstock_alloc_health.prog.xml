@@ -17,6 +17,22 @@
     <item><ID>S</ID><KEY>P_CHARG</KEY><ENTRY>Batch</ENTRY><LENGTH>13</LENGTH></item>
     <item><ID>S</ID><KEY>P_MVT</KEY><ENTRY>Movement type</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_STAT</KEY><ENTRY>Audit status</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MSG</KEY><ENTRY>Diagnostic message contains</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MONLY</KEY><ENTRY>Message only</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DFROM</KEY><ENTRY>Minimum demand count</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DTO</KEY><ENTRY>Maximum demand count</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVF</KEY><ENTRY>Minimum available stock</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVT</KEY><ENTRY>Maximum available stock</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QF</KEY><ENTRY>Minimum requested quantity</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QT</KEY><ENTRY>Maximum requested quantity</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AF</KEY><ENTRY>Minimum allocated quantity</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AT</KEY><ENTRY>Maximum allocated quantity</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHF</KEY><ENTRY>Minimum shortage quantity</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHT</KEY><ENTRY>Maximum shortage quantity</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPF</KEY><ENTRY>Minimum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>21</LENGTH></item>
     <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_SPCT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>31</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHELF</KEY><ENTRY>Minimum shelf-life days</ENTRY><LENGTH>28</LENGTH></item>
@@ -25,6 +41,14 @@
     <item><ID>S</ID><KEY>P_SAFTO</KEY><ENTRY>Maximum safety stock</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_REQF</KEY><ENTRY>Requested horizon from</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_UNTIL</KEY><ENTRY>Requested horizon to</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_OVRD</KEY><ENTRY>Overdue requested horizon only</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ODATE</KEY><ENTRY>Overdue as-of date</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEAD</KEY><ENTRY>Requested deadline only</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEADF</KEY><ENTRY>Requested deadline from</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEADT</KEY><ENTRY>Requested deadline to</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGEF</KEY><ENTRY>Minimum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGET</KEY><ENTRY>Maximum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>25</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>

@@ -6,9 +6,11 @@ CLASS ltcl_stock_allocation_health DEFINITION FINAL FOR TESTING
     METHODS reports_no_runs FOR TESTING.
     METHODS reports_backlog_warning FOR TESTING.
     METHODS reports_stale_work_as_critical FOR TESTING.
+    METHODS honors_zero_stale_scope FOR TESTING.
     METHODS reports_fair_share_metrics FOR TESTING.
     METHODS reports_weighted_metrics FOR TESTING.
     METHODS reports_adaptive_metrics FOR TESTING.
+    METHODS reports_deadline_telemetry FOR TESTING.
     METHODS reports_low_coverage_warning FOR TESTING.
     METHODS reports_high_shortage_warning FOR TESTING.
     METHODS suppress_mixed_units FOR TESTING.
@@ -106,6 +108,26 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       exp = 'ERROR_OR_STALE' ).
   ENDMETHOD.
 
+  METHOD honors_zero_stale_scope.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 1.
+    ls_summary-running_runs = 1.
+    ls_summary-oldest_running_age_seconds = 7200.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary               = ls_summary
+      iv_stale_running_runs    = 0
+      iv_stale_scope_evaluated = abap_true
+      iv_stale_threshold       = 3600 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-status
+      exp = 'HEALTHY' ).
+    cl_abap_unit_assert=>assert_initial( ls_health-stale_running_runs ).
+  ENDMETHOD.
+
   METHOD reports_fair_share_metrics.
     DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
     DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
@@ -199,6 +221,45 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-weighted_coverage
       exp = 75 ).
+  ENDMETHOD.
+
+  METHOD reports_deadline_telemetry.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 2.
+    ls_summary-deadline_count = 2.
+    ls_summary-earliest_requested_deadline = '20260801'.
+    ls_summary-latest_requested_deadline = '20260811'.
+    ls_summary-last_deadline_age_days = 3.
+    ls_summary-oldest_deadline_age_days = 7.
+    ls_summary-newest_deadline_age_days = -2.
+    ls_summary-deadline_age_reference_date = '20260811'.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary = ls_summary ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-earliest_requested_deadline
+      exp = '20260801' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-latest_requested_deadline
+      exp = '20260811' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_deadline_age_days
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-oldest_deadline_age_days
+      exp = 7 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-newest_deadline_age_days
+      exp = -2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_age_reference_date
+      exp = '20260811' ).
   ENDMETHOD.
 
   METHOD reports_low_coverage_warning.

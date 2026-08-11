@@ -6,7 +6,7 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_input FOR TESTING
       RAISING zcx_stock_allocation.
-    METHODS rejects_non_numeric_keys FOR TESTING
+    METHODS rejects_zero_keys FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_error FOR TESTING
       RAISING zcx_stock_allocation.
@@ -68,7 +68,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
       iv_quantity            = '4' ).
   ENDMETHOD.
 
-  METHOD rejects_non_numeric_keys.
+  METHOD rejects_zero_keys.
     DATA lo_cut TYPE REF TO zif_order_sink.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
@@ -78,8 +78,8 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
         lo_cut->change_schedule_quantity(
           iv_sales_document      = '0000000001'
           iv_sales_document_type = 'OR'
-          iv_sales_item          = '-1'
-          iv_schedule_line       = '0001'
+          iv_sales_item          = '000000'
+          iv_schedule_line       = '0000'
           iv_quantity            = '4' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.

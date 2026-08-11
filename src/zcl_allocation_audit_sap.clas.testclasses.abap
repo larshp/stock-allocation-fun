@@ -3606,11 +3606,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( ls_summary-largest_allocated ).
     cl_abap_unit_assert=>assert_initial( ls_summary-largest_shortage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-largest_requested ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_allocated ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_shortage ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_requested ).
     cl_abap_unit_assert=>assert_initial( ls_summary-priority_coverage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-fifo_coverage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-full_only_coverage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-smallest_coverage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-largest_coverage ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-weighted_coverage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-legacy_allocated ).
     cl_abap_unit_assert=>assert_initial( ls_summary-legacy_shortage ).
     cl_abap_unit_assert=>assert_initial( ls_summary-legacy_requested ).

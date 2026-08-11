@@ -6,61 +6,69 @@ CLASS zcl_stock_allocation_health DEFINITION
     TYPES ty_status TYPE c LENGTH 8.
     TYPES:
       BEGIN OF ty_health,
-        status                    TYPE ty_status,
-        message                   TYPE zif_allocation_audit=>ty_message,
-        reason_code               TYPE c LENGTH 16,
-        total_runs                TYPE i,
-        running_runs              TYPE i,
-        stale_running_runs        TYPE i,
-        error_runs                TYPE i,
-        partial_runs              TYPE i,
-        fair_runs                 TYPE i,
-        weighted_runs             TYPE i,
-        adaptive_runs             TYPE i,
-        adaptive_priority_runs    TYPE i,
-        adaptive_fair_runs        TYPE i,
-        unit                      TYPE string,
-        shortage_available        TYPE abap_bool,
-        requested                 TYPE zif_stock_allocation=>ty_quantity,
-        allocated                 TYPE zif_stock_allocation=>ty_quantity,
-        shortage                  TYPE zif_stock_allocation=>ty_quantity,
-        coverage_available        TYPE abap_bool,
-        coverage                  TYPE zif_allocation_audit=>ty_coverage,
-        coverage_threshold_active TYPE abap_bool,
-        coverage_threshold        TYPE zif_allocation_audit=>ty_coverage,
-        coverage_below_threshold  TYPE abap_bool,
-        shortage_threshold_active TYPE abap_bool,
-        shortage_threshold        TYPE zif_allocation_audit=>ty_coverage,
-        shortage_above_threshold  TYPE abap_bool,
-        fair_share_available      TYPE abap_bool,
-        fair_requested            TYPE zif_stock_allocation=>ty_quantity,
-        fair_allocated            TYPE zif_stock_allocation=>ty_quantity,
-        fair_shortage             TYPE zif_stock_allocation=>ty_quantity,
-        fair_coverage_available   TYPE abap_bool,
-        fair_coverage             TYPE zif_allocation_audit=>ty_coverage,
-        weighted_share_available  TYPE abap_bool,
-        weighted_requested        TYPE zif_stock_allocation=>ty_quantity,
-        weighted_allocated        TYPE zif_stock_allocation=>ty_quantity,
-        weighted_shortage         TYPE zif_stock_allocation=>ty_quantity,
-        weighted_coverage_ok      TYPE abap_bool,
-        weighted_coverage         TYPE zif_allocation_audit=>ty_coverage,
-        adaptive_share_available  TYPE abap_bool,
-        adaptive_requested        TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_allocated        TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_shortage         TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_coverage_ok      TYPE abap_bool,
-        adaptive_coverage         TYPE zif_allocation_audit=>ty_coverage,
+        status                      TYPE ty_status,
+        message                     TYPE zif_allocation_audit=>ty_message,
+        reason_code                 TYPE c LENGTH 16,
+        total_runs                  TYPE i,
+        running_runs                TYPE i,
+        stale_running_runs          TYPE i,
+        error_runs                  TYPE i,
+        partial_runs                TYPE i,
+        fair_runs                   TYPE i,
+        weighted_runs               TYPE i,
+        adaptive_runs               TYPE i,
+        adaptive_priority_runs      TYPE i,
+        adaptive_fair_runs          TYPE i,
+        unit                        TYPE string,
+        shortage_available          TYPE abap_bool,
+        requested                   TYPE zif_stock_allocation=>ty_quantity,
+        allocated                   TYPE zif_stock_allocation=>ty_quantity,
+        shortage                    TYPE zif_stock_allocation=>ty_quantity,
+        coverage_available          TYPE abap_bool,
+        coverage                    TYPE zif_allocation_audit=>ty_coverage,
+        coverage_threshold_active   TYPE abap_bool,
+        coverage_threshold          TYPE zif_allocation_audit=>ty_coverage,
+        coverage_below_threshold    TYPE abap_bool,
+        shortage_threshold_active   TYPE abap_bool,
+        shortage_threshold          TYPE zif_allocation_audit=>ty_coverage,
+        shortage_above_threshold    TYPE abap_bool,
+        fair_share_available        TYPE abap_bool,
+        fair_requested              TYPE zif_stock_allocation=>ty_quantity,
+        fair_allocated              TYPE zif_stock_allocation=>ty_quantity,
+        fair_shortage               TYPE zif_stock_allocation=>ty_quantity,
+        fair_coverage_available     TYPE abap_bool,
+        fair_coverage               TYPE zif_allocation_audit=>ty_coverage,
+        weighted_share_available    TYPE abap_bool,
+        weighted_requested          TYPE zif_stock_allocation=>ty_quantity,
+        weighted_allocated          TYPE zif_stock_allocation=>ty_quantity,
+        weighted_shortage           TYPE zif_stock_allocation=>ty_quantity,
+        weighted_coverage_ok        TYPE abap_bool,
+        weighted_coverage           TYPE zif_allocation_audit=>ty_coverage,
+        adaptive_share_available    TYPE abap_bool,
+        adaptive_requested          TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_allocated          TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_shortage           TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_coverage_ok        TYPE abap_bool,
+        adaptive_coverage           TYPE zif_allocation_audit=>ty_coverage,
+        deadline_count              TYPE i,
+        earliest_requested_deadline TYPE d,
+        latest_requested_deadline   TYPE d,
+        last_deadline_age_days      TYPE i,
+        oldest_deadline_age_days    TYPE i,
+        newest_deadline_age_days    TYPE i,
+        deadline_age_reference_date TYPE d,
       END OF ty_health.
 
     CLASS-METHODS evaluate
       IMPORTING
-        is_summary            TYPE zif_allocation_audit=>ty_summary
-        iv_stale_running_runs TYPE i OPTIONAL
-        iv_stale_threshold    TYPE i DEFAULT 3600
-        iv_min_coverage       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_shortage_pct   TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        is_summary               TYPE zif_allocation_audit=>ty_summary
+        iv_stale_running_runs    TYPE i OPTIONAL
+        iv_stale_scope_evaluated TYPE abap_bool OPTIONAL
+        iv_stale_threshold       TYPE i DEFAULT 3600
+        iv_min_coverage          TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_shortage_pct      TYPE zif_allocation_audit=>ty_coverage OPTIONAL
       RETURNING
-      VALUE(rs_health)        TYPE ty_health.
+      VALUE(rs_health)           TYPE ty_health.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_health IMPLEMENTATION.
@@ -76,6 +84,16 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-adaptive_runs = is_summary-adaptive_runs.
     rs_health-adaptive_priority_runs = is_summary-adaptive_priority_runs.
     rs_health-adaptive_fair_runs = is_summary-adaptive_fair_runs.
+    rs_health-deadline_count = is_summary-deadline_count.
+    rs_health-earliest_requested_deadline =
+      is_summary-earliest_requested_deadline.
+    rs_health-latest_requested_deadline =
+      is_summary-latest_requested_deadline.
+    rs_health-last_deadline_age_days = is_summary-last_deadline_age_days.
+    rs_health-oldest_deadline_age_days = is_summary-oldest_deadline_age_days.
+    rs_health-newest_deadline_age_days = is_summary-newest_deadline_age_days.
+    rs_health-deadline_age_reference_date =
+      is_summary-deadline_age_reference_date.
     rs_health-unit = is_summary-unit.
     rs_health-shortage_available = xsdbool(
       is_summary-mixed_units = abap_false ).
@@ -142,7 +160,10 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       AND rs_health-shortage_available = abap_true
       AND is_summary-shortage_pct > iv_max_shortage_pct ).
 
-    IF iv_stale_running_runs IS NOT INITIAL.
+    IF iv_stale_scope_evaluated = abap_true.
+      rs_health-stale_running_runs = iv_stale_running_runs.
+      lv_stale = xsdbool( iv_stale_running_runs > 0 ).
+    ELSEIF iv_stale_running_runs IS NOT INITIAL.
       rs_health-stale_running_runs = iv_stale_running_runs.
       lv_stale = xsdbool( iv_stale_running_runs > 0 ).
     ELSEIF iv_stale_threshold > 0

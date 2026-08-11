@@ -16,6 +16,7 @@ CLASS zcl_order_source_sap DEFINITION
         item_id             TYPE n LENGTH 6,
         schedule_line       TYPE n LENGTH 4,
         order_unit          TYPE c LENGTH 3,
+        item_deleted        TYPE c LENGTH 1,
         delivery_priority   TYPE n LENGTH 2,
         requested_on        TYPE d,
         requested           TYPE p LENGTH 8 DECIMALS 3,
@@ -79,6 +80,7 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
            item~posnr AS item_id,
            schedule~etenr AS schedule_line,
            item~vrkme AS order_unit,
+           item~loekz AS item_deleted,
            item~lprio AS delivery_priority,
            schedule~edatu AS requested_on,
            schedule~wmeng AS requested,
@@ -93,7 +95,6 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       WHERE item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
-        AND ( item~loekz = '' OR item~loekz IS NULL )
         AND schedule~lifsp = ''
         AND header~vbtyp = 'C'
         AND header~lifsk = ''
@@ -106,6 +107,13 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
     ENDIF.
 
     LOOP AT lt_schedule ASSIGNING <ls_schedule>.
+      IF <ls_schedule>-item_deleted <> abap_true
+          AND <ls_schedule>-item_deleted <> abap_false.
+        raise_error( iv_message = 'Order item deletion flag is invalid' ).
+      ENDIF.
+      IF <ls_schedule>-item_deleted = abap_true.
+        CONTINUE.
+      ENDIF.
       IF iv_requested_on_from IS NOT INITIAL
           AND <ls_schedule>-requested_on < iv_requested_on_from.
         CONTINUE.
@@ -114,12 +122,17 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
           AND <ls_schedule>-requested_on > iv_requested_on_to.
         CONTINUE.
       ENDIF.
+      IF <ls_schedule>-requested < 0
+          OR <ls_schedule>-confirmed < 0.
+        raise_error( iv_message = 'Open demand quantity is invalid' ).
+      ENDIF.
       IF <ls_schedule>-requested_on IS INITIAL.
         raise_error( iv_message = 'Open demand requested date is missing' ).
       ENDIF.
       CLEAR ls_demand.
       ls_demand-sales_document = <ls_schedule>-order_id.
-      ls_demand-sales_document_type = <ls_schedule>-sales_document_type.
+      ls_demand-sales_document_type =
+        to_upper( <ls_schedule>-sales_document_type ).
       ls_demand-sales_item = <ls_schedule>-item_id.
       ls_demand-schedule_line = <ls_schedule>-schedule_line.
       ls_demand-order_unit = to_upper( <ls_schedule>-order_unit ).
@@ -141,6 +154,8 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         raise_error( iv_message = 'Sales document type is missing' ).
       ENDIF.
       IF ls_demand-sales_document IS INITIAL
+          OR strlen( ls_demand-sales_document ) <> zif_stock_allocation=>c_sap_document_length
+          OR ls_demand-sales_document = '0000000000'
           OR ls_demand-sales_item IS INITIAL
           OR ls_demand-schedule_line IS INITIAL
           OR ls_demand-requested <= 0.

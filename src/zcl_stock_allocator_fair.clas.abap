@@ -20,6 +20,8 @@ CLASS zcl_stock_allocator_fair IMPLEMENTATION.
     DATA lv_outstanding TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_share TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_grant TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_minimum_quantity TYPE zif_stock_allocation=>ty_quantity
+      VALUE '0.001'.
     DATA lv_progress TYPE abap_bool.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
 
@@ -28,7 +30,10 @@ CLASS zcl_stock_allocator_fair IMPLEMENTATION.
     ENDIF.
 
     LOOP AT ct_demands ASSIGNING <ls_demand>.
-      IF <ls_demand>-order_id IS INITIAL OR <ls_demand>-requested <= 0.
+      IF <ls_demand>-order_id IS INITIAL
+          OR <ls_demand>-requested <= 0
+          OR <ls_demand>-priority < 0
+          OR <ls_demand>-priority > zif_stock_allocation=>c_max_priority.
         raise_error( iv_message = 'Allocation demand is invalid' ).
       ENDIF.
       INSERT <ls_demand>-order_id INTO TABLE lt_order_ids.
@@ -83,6 +88,28 @@ CLASS zcl_stock_allocator_fair IMPLEMENTATION.
         ENDIF.
         <ls_demand>-allocated = <ls_demand>-allocated + lv_grant.
         rv_remaining = rv_remaining - lv_grant.
+        lv_progress = abap_true.
+      ENDLOOP.
+      IF lv_progress = abap_false.
+        EXIT.
+      ENDIF.
+    ENDWHILE.
+
+    " The proportional share can round down while a representable quantity
+    " remains. Consume those residual units deterministically, one at a time.
+    WHILE rv_remaining >= lv_minimum_quantity.
+      CLEAR lv_progress.
+      LOOP AT ct_demands ASSIGNING <ls_demand>.
+        IF rv_remaining < lv_minimum_quantity.
+          EXIT.
+        ENDIF.
+        lv_outstanding = <ls_demand>-requested - <ls_demand>-allocated.
+        IF lv_outstanding < lv_minimum_quantity.
+          CONTINUE.
+        ENDIF.
+        <ls_demand>-allocated = <ls_demand>-allocated
+          + lv_minimum_quantity.
+        rv_remaining = rv_remaining - lv_minimum_quantity.
         lv_progress = abap_true.
       ENDLOOP.
       IF lv_progress = abap_false.

@@ -65,6 +65,9 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rs_available-quantity.
+    ELSEIF lv_stock_deleted <> abap_true
+        AND lv_stock_deleted <> abap_false.
+      raise_error( iv_message = 'Stock deletion flag is invalid' ).
     ELSEIF lv_stock_deleted = 'X'.
       raise_error( iv_message = 'Stock record is marked for deletion' ).
     ENDIF.
@@ -80,8 +83,16 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
              rs_available-material_found,
              rs_available-batch_managed.
     ELSE.
+      IF lv_material_deleted <> abap_true
+          AND lv_material_deleted <> abap_false.
+        raise_error( iv_message = 'Material deletion flag is invalid' ).
+      ENDIF.
       IF lv_material_deleted = 'X'.
         raise_error( iv_message = 'Material is marked for deletion' ).
+      ENDIF.
+      IF rs_available-batch_managed <> abap_true
+          AND rs_available-batch_managed <> abap_false.
+        raise_error( iv_message = 'Material batch-management flag is invalid' ).
       ENDIF.
       rs_available-unit = to_upper( rs_available-unit ).
       rs_available-material_found = abap_true.
@@ -108,6 +119,14 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
       ELSEIF lv_batch_deleted = 'X'.
         raise_error( iv_message = 'Batch master data is marked for deletion' ).
       ELSE.
+        IF lv_batch_deleted <> abap_true
+            AND lv_batch_deleted <> abap_false.
+          raise_error( iv_message = 'Batch deletion flag is invalid' ).
+        ENDIF.
+        IF rs_available-batch_restricted <> abap_true
+            AND rs_available-batch_restricted <> abap_false.
+          raise_error( iv_message = 'Batch restriction flag is invalid' ).
+        ENDIF.
         rs_available-batch_found = abap_true.
       ENDIF.
     ENDIF.

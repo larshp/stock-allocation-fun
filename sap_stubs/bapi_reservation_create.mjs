@@ -64,8 +64,22 @@ export function installBapiStockStub(abap) {
       returnRow.setField("message", "Reservation rejected by test double");
       input.tables.return.append(returnRow);
     }
-    reservationCounter += 1;
-    input.importing.reservation.set(String(reservationCounter).padStart(10, "0"));
+    if (material === "MATERIAL-BAD-RETURN-TYPE") {
+      const returnRow = input.tables.return.getRowType().clone();
+      returnRow.setField("type", "?");
+      returnRow.setField("message", "Invalid reservation return status");
+      input.tables.return.append(returnRow);
+    }
+    if (material === "MATERIAL-BAD-RESERVATION") {
+      input.importing.reservation.set("BAD-RES");
+    } else if (material === "MATERIAL-SHORT-RESERVATION") {
+      input.importing.reservation.set("123");
+    } else if (material === "MATERIAL-BAD-ZERO-RESERVATION") {
+      input.importing.reservation.set("0000000000");
+    } else {
+      reservationCounter += 1;
+      input.importing.reservation.set(String(reservationCounter).padStart(10, "0"));
+    }
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_GOODSMVT_CREATE"] = async (input) => {
@@ -91,13 +105,30 @@ export function installBapiStockStub(abap) {
         : "Goods movement item is incomplete");
       input.tables.return.append(returnRow);
     }
+    if (material === "MATERIAL-GI-BAD-RETURN-TYPE") {
+      const returnRow = input.tables.return.getRowType().clone();
+      returnRow.setField("type", "?");
+      returnRow.setField("message", "Invalid goods movement return status");
+      input.tables.return.append(returnRow);
+    }
     movementCounter += 1;
     input.importing.goodsmvt_headret.setField(
       "mat_doc",
-      String(movementCounter).padStart(10, "0")
+      material === "MATERIAL-GI-BAD-DOCUMENT"
+        ? "BAD-DOC"
+        : material === "MATERIAL-GI-SHORT-DOCUMENT"
+          ? "123"
+        : material === "MATERIAL-GI-ZERO-DOCUMENT"
+          ? "0000000000"
+        : String(movementCounter).padStart(10, "0")
     );
     if (material !== "MATERIAL-GI-NO-YEAR") {
-      input.importing.goodsmvt_headret.setField("doc_year", "2026");
+      input.importing.goodsmvt_headret.setField(
+        "doc_year",
+        material === "MATERIAL-GI-ZERO-YEAR"
+          ? "0000"
+          : "2026"
+      );
     }
     abap.builtin.sy.get().subrc.set(0);
   };
@@ -107,12 +138,12 @@ export function installBapiStockStub(abap) {
     const schedule = schedules[0]?.get();
     const scheduleXs = input.tables.schedule_linesx.array();
     const scheduleX = scheduleXs[0]?.get();
-    commitFails = salesDocument === "ORDCOMMIT1"
-      || salesDocument === "ORDROLLBK";
-    rollbackFails = salesDocument === "ORDROLLBK"
-      || salesDocument === "ORDERERBKC";
-    if (salesDocument === "ORDERERR01"
-        || salesDocument === "ORDERERBKC"
+    commitFails = salesDocument === "9999999903"
+      || salesDocument === "9999999904";
+    rollbackFails = salesDocument === "9999999904"
+      || salesDocument === "9999999902";
+    if (salesDocument === "9999999901"
+        || salesDocument === "9999999902"
         || !schedule?.itm_number?.get()?.trim()
         || !schedule?.sched_line?.get()?.trim()
         || !scheduleX?.itm_number?.get()?.trim()
@@ -121,23 +152,35 @@ export function installBapiStockStub(abap) {
         || scheduleX?.req_qty?.get()?.trim() !== "X") {
       const returnRow = input.tables.return.getRowType().clone();
       returnRow.setField("type", "E");
-      returnRow.setField("message", salesDocument === "ORDERERR01"
-        || salesDocument === "ORDERERBKC"
+      returnRow.setField("message", salesDocument === "9999999901"
+        || salesDocument === "9999999902"
         ? "Sales-order change rejected by test double"
         : "Sales-order schedule change is incomplete");
+      input.tables.return.append(returnRow);
+    }
+    if (salesDocument === "9999999900") {
+      const returnRow = input.tables.return.getRowType().clone();
+      returnRow.setField("type", "?");
+      returnRow.setField("message", "Invalid sales-order return status");
       input.tables.return.append(returnRow);
     }
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_RESERVATION_DELETE"] = async (input) => {
     const reservation = input.exporting.reservation.get()?.trim();
-    commitFails = reservation === "RESROLLBK1";
-    rollbackFails = reservation === "RESROLLBK1"
-      || reservation === "RESERRRBK1";
-    if (reservation === "RESERRRBK1") {
+    commitFails = reservation === "9999999999";
+    rollbackFails = reservation === "9999999999"
+      || reservation === "9999999998";
+    if (reservation === "9999999998") {
       const returnRow = input.tables.return.getRowType().clone();
       returnRow.setField("type", "E");
       returnRow.setField("message", "Reservation deletion rejected by test double");
+      input.tables.return.append(returnRow);
+    }
+    if (reservation === "9999999997") {
+      const returnRow = input.tables.return.getRowType().clone();
+      returnRow.setField("type", "?");
+      returnRow.setField("message", "Invalid reservation deletion return status");
       input.tables.return.append(returnRow);
     }
     abap.builtin.sy.get().subrc.set(0);

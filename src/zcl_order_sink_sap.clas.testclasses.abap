@@ -6,9 +6,17 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_input FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_bad_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_zero_document FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_zero_keys FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_error FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_return_type FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_rollback_failure FOR TESTING
       RAISING zcx_stock_allocation.
@@ -68,6 +76,78 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
       iv_quantity            = '4' ).
   ENDMETHOD.
 
+  METHOD rejects_bad_document.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = 'BAD-DOC01'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change input is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_short_document.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '123'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change input is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_document.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '0000000000'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change input is invalid' ).
+  ENDMETHOD.
+
   METHOD rejects_zero_keys.
     DATA lo_cut TYPE REF TO zif_order_sink.
     DATA lv_raised TYPE abap_bool.
@@ -100,7 +180,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
         lo_cut->change_schedule_quantity(
-          iv_sales_document      = 'ORDERERR01'
+          iv_sales_document      = '9999999901'
           iv_sales_document_type = 'OR'
           iv_sales_item          = '000010'
           iv_schedule_line       = '0001'
@@ -116,6 +196,30 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
       exp = 'Sales-order change rejected by test double' ).
   ENDMETHOD.
 
+  METHOD rejects_bad_return_type.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '9999999900'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change BAPI returned invalid status' ).
+  ENDMETHOD.
+
   METHOD rejects_bapi_rollback_failure.
     DATA lo_cut TYPE REF TO zif_order_sink.
     DATA lv_raised TYPE abap_bool.
@@ -124,7 +228,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
         lo_cut->change_schedule_quantity(
-          iv_sales_document      = 'ORDERERBKC'
+          iv_sales_document      = '9999999902'
           iv_sales_document_type = 'OR'
           iv_sales_item          = '000010'
           iv_schedule_line       = '0001'
@@ -148,7 +252,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
         lo_cut->change_schedule_quantity(
-          iv_sales_document      = 'ORDCOMMIT1'
+          iv_sales_document      = '9999999903'
           iv_sales_document_type = 'OR'
           iv_sales_item          = '000010'
           iv_schedule_line       = '0001'
@@ -172,7 +276,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
         lo_cut->change_schedule_quantity(
-          iv_sales_document      = 'ORDROLLBK'
+          iv_sales_document      = '9999999904'
           iv_sales_document_type = 'OR'
           iv_sales_item          = '000010'
           iv_schedule_line       = '0001'

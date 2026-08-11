@@ -173,6 +173,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_existing_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_existing_run_id TYPE zif_stock_allocation=>ty_run_id.
+    DATA lv_reservation_document TYPE string.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
@@ -243,7 +244,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
 
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       IF mo_audit IS BOUND.
         record_rejection(
           iv_material         = iv_material
@@ -455,6 +457,25 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ENDIF.
           RAISE EXCEPTION lo_error.
       ENDTRY.
+    ls_available-unit = to_upper( ls_available-unit ).
+    IF ( ls_available-material_found <> abap_true
+          AND ls_available-material_found <> abap_false )
+        OR ( ls_available-batch_managed <> abap_true
+          AND ls_available-batch_managed <> abap_false )
+        OR ( ls_available-batch_found <> abap_true
+          AND ls_available-batch_found <> abap_false )
+        OR ( ls_available-batch_restricted <> abap_true
+          AND ls_available-batch_restricted <> abap_false ).
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = 0
+        iv_message          = 'Available stock result is invalid' ).
+      raise_error( iv_message = 'Available stock result is invalid' ).
+    ENDIF.
     IF ls_available-material_found <> abap_true.
       record_rejection(
         iv_material         = iv_material
@@ -675,7 +696,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         RAISE EXCEPTION lo_error.
     ENDTRY.
     LOOP AT lt_demands ASSIGNING <ls_demand>.
+      <ls_demand>-order_unit = to_upper( <ls_demand>-order_unit ).
+      <ls_demand>-sales_document_type =
+        to_upper( <ls_demand>-sales_document_type ).
       IF <ls_demand>-order_id IS INITIAL
+          OR ( <ls_demand>-sales_document IS NOT INITIAL
+            AND strlen( <ls_demand>-sales_document )
+                <> zif_stock_allocation=>c_sap_document_length )
+          OR <ls_demand>-sales_document = '0000000000'
           OR <ls_demand>-requested <= 0.
         record_rejection(
           iv_material         = iv_material
@@ -686,6 +714,60 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_available        = lv_available
           iv_message          = 'Open demand quantity or key is invalid' ).
         raise_error( iv_message = 'Open demand quantity or key is invalid' ).
+    ENDIF.
+    IF <ls_demand>-requested > 0
+        AND <ls_demand>-order_unit IS INITIAL.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Open demand unit is missing' ).
+      raise_error( iv_message = 'Open demand unit is missing' ).
+    ENDIF.
+    IF <ls_demand>-requested > 0
+        AND <ls_demand>-requested_on IS INITIAL.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Open demand requested date is missing' ).
+      raise_error( iv_message = 'Open demand requested date is missing' ).
+    ENDIF.
+    IF <ls_demand>-requested > 0
+        AND ( <ls_demand>-sales_document IS NOT INITIAL
+          OR <ls_demand>-sales_document_type IS NOT INITIAL
+          OR <ls_demand>-sales_item IS NOT INITIAL
+          OR <ls_demand>-schedule_line IS NOT INITIAL )
+        AND ( <ls_demand>-sales_document_type IS INITIAL
+          OR <ls_demand>-sales_item IS INITIAL
+          OR <ls_demand>-schedule_line IS INITIAL ).
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Open demand source identity is incomplete' ).
+      raise_error( iv_message = 'Open demand source identity is incomplete' ).
+    ENDIF.
+    IF <ls_demand>-priority < 0
+          OR <ls_demand>-priority > zif_stock_allocation=>c_max_priority.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Open demand priority is invalid' ).
+        raise_error( iv_message = 'Open demand priority is invalid' ).
       ENDIF.
       INSERT <ls_demand>-order_id INTO TABLE lt_demand_order_ids.
       IF sy-subrc <> 0.
@@ -808,11 +890,65 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ENDIF.
           RAISE EXCEPTION lo_error.
       ENDTRY.
+      LOOP AT lt_existing ASSIGNING <ls_existing>.
+        <ls_existing>-allocation_unit =
+          to_upper( <ls_existing>-allocation_unit ).
+        <ls_existing>-allocation_strategy =
+          to_upper( <ls_existing>-allocation_strategy ).
+        <ls_existing>-allocation_status =
+          to_upper( <ls_existing>-allocation_status ).
+        <ls_existing>-sales_document_type =
+          to_upper( <ls_existing>-sales_document_type ).
+        <ls_existing>-order_unit = to_upper( <ls_existing>-order_unit ).
+        <ls_existing>-reservation_unit =
+          to_upper( <ls_existing>-reservation_unit ).
+      ENDLOOP.
       SORT lt_existing BY allocation_unit order_id.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
         IF <ls_existing>-allocation_run_id IS INITIAL
             OR <ls_existing>-order_id IS INITIAL
             OR <ls_existing>-allocation_unit IS INITIAL
+            OR ( ( <ls_existing>-sales_document IS NOT INITIAL
+                OR <ls_existing>-sales_document_type IS NOT INITIAL
+                OR <ls_existing>-sales_item IS NOT INITIAL
+                OR <ls_existing>-schedule_line IS NOT INITIAL )
+              AND ( <ls_existing>-sales_document IS INITIAL
+                OR <ls_existing>-sales_document_type IS INITIAL
+                OR <ls_existing>-sales_item IS INITIAL
+                OR <ls_existing>-schedule_line IS INITIAL ) )
+            OR ( <ls_existing>-sales_document IS NOT INITIAL
+              AND strlen( <ls_existing>-sales_document )
+                  <> zif_stock_allocation=>c_sap_document_length )
+            OR <ls_existing>-sales_document = '0000000000'
+            OR ( <ls_existing>-reservation_id IS NOT INITIAL
+              AND <ls_existing>-reservation_id CO '0123456789 '
+              AND strlen( <ls_existing>-reservation_id )
+                  <> zif_stock_allocation=>c_sap_document_length )
+            OR <ls_existing>-priority < 0
+            OR <ls_existing>-priority > zif_stock_allocation=>c_max_priority
+            OR ( <ls_existing>-allocation_strategy IS NOT INITIAL
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'P'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'F'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'N'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'S'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'L'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'B'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'E'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'A'
+              AND to_upper( <ls_existing>-allocation_strategy ) <> 'W' )
+            OR ( <ls_existing>-reservation_movement_type IS NOT INITIAL
+              AND ( strlen( <ls_existing>-reservation_movement_type )
+                    <> zif_stock_allocation=>c_movement_type_length
+                OR <ls_existing>-reservation_movement_type CN '0123456789' ) )
+            OR ( <ls_existing>-allocated > 0
+              AND ( <ls_existing>-reservation_id IS INITIAL
+                OR <ls_existing>-reservation_id = '0000000000'
+                OR <ls_existing>-reservation_date IS INITIAL
+                OR <ls_existing>-reservation_movement_type IS INITIAL
+                OR <ls_existing>-reservation_unit IS INITIAL
+                OR ( <ls_existing>-allocation_unit IS NOT INITIAL
+                  AND <ls_existing>-reservation_unit
+                    <> <ls_existing>-allocation_unit ) ) )
             OR <ls_existing>-requested <= 0
             OR <ls_existing>-allocated < 0
             OR <ls_existing>-shortage < 0
@@ -1015,7 +1151,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             iv_message          = 'Existing allocation unit conversion produced invalid quantity' ).
           raise_error( iv_message = 'Existing allocation unit conversion produced invalid quantity' ).
         ENDIF.
-        lv_reserved_quantity = lv_reserved_quantity + lv_converted_quantity.
+        IF lv_reserved_quantity >= lv_available
+            OR lv_converted_quantity >= lv_available - lv_reserved_quantity.
+          " Once reservations cover available stock, larger totals are not
+          " needed and could overflow the packed quantity accumulator.
+          lv_reserved_quantity = lv_available.
+        ELSE.
+          lv_reserved_quantity = lv_reserved_quantity + lv_converted_quantity.
+        ENDIF.
       ENDLOOP.
       IF lv_available > 0.
         IF lv_reserved_quantity >= lv_available.
@@ -1119,6 +1262,19 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           OR <ls_demand>-priority <> <ls_original>-priority
           OR <ls_demand>-requested_on <> <ls_original>-requested_on
           OR <ls_demand>-requested <> <ls_original>-requested.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Allocation result is invalid' ).
+        raise_error( iv_message = 'Allocation result is invalid' ).
+      ENDIF.
+      IF <ls_demand>-allocation_run_id IS NOT INITIAL
+          OR <ls_demand>-allocation_strategy IS NOT INITIAL
+          OR <ls_demand>-allocation_unit IS NOT INITIAL.
         record_rejection(
           iv_material         = iv_material
           iv_plant            = iv_plant
@@ -1297,6 +1453,15 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             IF <ls_demand>-reservation_id IS INITIAL.
               lv_reservation_failed = abap_true.
               lv_failure_message = 'Reservation document was not returned'.
+              RAISE EXCEPTION TYPE zcx_stock_allocation.
+            ENDIF.
+            lv_reservation_document = <ls_demand>-reservation_id.
+            IF strlen( <ls_demand>-reservation_id )
+                  <> zif_stock_allocation=>c_sap_document_length
+                OR lv_reservation_document CN '0123456789'
+                OR lv_reservation_document = '0000000000'.
+              lv_reservation_failed = abap_true.
+              lv_failure_message = 'Reservation document is invalid'.
               RAISE EXCEPTION TYPE zcx_stock_allocation.
             ENDIF.
             <ls_demand>-reservation_date = lv_required_date.
@@ -1678,6 +1843,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD finish_audit.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    lv_message = iv_message.
+    IF to_upper( iv_status ) = 'S'.
+      CLEAR lv_message.
+    ENDIF.
     TRY.
         mo_audit->finish_run(
           iv_run_id            = iv_run_id
@@ -1688,7 +1859,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_full_count        = iv_full_count
           iv_partial_count     = iv_partial_count
           iv_unallocated_count = iv_unallocated_count
-          iv_message           = iv_message ).
+          iv_message           = lv_message ).
       CATCH zcx_stock_allocation INTO lo_error.
         IF lo_error->message IS INITIAL.
           lo_error->message = 'Audit finalization failed'.
@@ -1702,7 +1873,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
     lv_movement_type = mv_movement_type.
     IF lv_movement_type IS NOT INITIAL
-        AND lv_movement_type CN '0123456789'.
+        AND ( strlen( lv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR lv_movement_type CN '0123456789' ).
       CLEAR lv_movement_type.
     ENDIF.
     TRY.

@@ -15,6 +15,7 @@ function readJson(fileName) {
 const abaplint = readJson("abaplint.json");
 const transpiler = readJson("transpiler.json");
 const packageJson = readJson("package.json");
+const readmeSource = fs.readFileSync(path.join(repositoryDirectory, "README.md"), "utf8");
 
 for (const fileName of fs.readdirSync(sourceDirectory).filter((name) => name.endsWith(".abap"))) {
   if (fileName.endsWith(".testclasses.abap")) {
@@ -211,6 +212,10 @@ const allocationServiceSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_service.clas.abap"),
   "utf8",
 );
+const stockAllocationInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_stock_allocation.intf.abap"),
+  "utf8",
+);
 const auditSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.abap"),
   "utf8",
@@ -227,9 +232,116 @@ const unitConversionSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.abap"),
   "utf8",
 );
+const reservationSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_reservation_sap.clas.abap"),
+  "utf8",
+);
+const movementSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_movement_sap.clas.abap"),
+  "utf8",
+);
+const orderSinkSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_order_sink_sap.clas.abap"),
+  "utf8",
+);
 const unitConversionAuthoritySource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_auth_sap.clas.abap"),
   "utf8",
+);
+for (const allocatorFile of [
+  "zcl_stock_allocator.clas.abap",
+  "zcl_stock_allocator_auto.clas.abap",
+  "zcl_stock_allocator_best.clas.abap",
+  "zcl_stock_allocator_fair.clas.abap",
+  "zcl_stock_allocator_fifo.clas.abap",
+  "zcl_stock_allocator_full.clas.abap",
+  "zcl_stock_allocator_large.clas.abap",
+  "zcl_stock_allocator_small.clas.abap",
+  "zcl_stock_allocator_weighted.clas.abap",
+]) {
+  const allocatorSource = fs.readFileSync(
+    path.join(sourceDirectory, allocatorFile),
+    "utf8",
+  );
+  assert.match(
+    allocatorSource,
+    /priority\s*<\s*0/,
+    `${allocatorFile} must reject negative priorities`,
+  );
+  assert.match(
+    allocatorSource,
+    /priority\s*>\s*zif_stock_allocation=>c_max_priority/,
+    `${allocatorFile} must reject priorities above the SAP range`,
+  );
+}
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-priority\s*<\s*0/,
+  "allocation service snapshot reconciliation must reject negative priorities",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-priority\s*>\s*zif_stock_allocation=>c_max_priority/,
+  "allocation service snapshot reconciliation must reject high priorities",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-allocation_strategy\s+IS\s+NOT\s+INITIAL[\s\S]*to_upper\(\s*<ls_existing>-allocation_strategy\s*\)\s*<>\s*'P'[\s\S]*to_upper\(\s*<ls_existing>-allocation_strategy\s*\)\s*<>\s*'W'/,
+  "allocation service snapshot reconciliation must reject unknown strategies",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-reservation_movement_type\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-reservation_movement_type\s+CN\s+'0123456789'/,
+  "allocation service snapshot reconciliation must reject malformed reservation movement types",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-priority\s*>\s*zif_stock_allocation=>c_max_priority/,
+  "allocation service must reject high open-demand priorities",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-allocation_run_id\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_demand>-allocation_strategy\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_demand>-allocation_unit\s+IS\s+NOT\s+INITIAL/,
+  "allocation service must reject allocator-owned allocation metadata mutation",
+);
+assert.match(
+  allocationServiceSource,
+  /LOOP AT lt_existing ASSIGNING <ls_existing>[\s\S]*<ls_existing>-allocation_unit\s*=\s*[\s\S]*to_upper[\s\S]*<ls_existing>-allocation_status\s*=\s*[\s\S]*to_upper/,
+  "allocation service must canonicalize injected snapshot metadata",
+);
+assert.match(
+  allocationServiceSource,
+  /lv_reserved_quantity\s+>=\s+lv_available[\s\S]*lv_converted_quantity\s+>=\s+lv_available\s*-\s*lv_reserved_quantity[\s\S]*lv_reserved_quantity\s*=\s+lv_available/,
+  "allocation service must cap cross-unit reservation accumulation at available stock",
+);
+const allocationSinkSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_allocation_sink_sap.clas.abap"),
+  "utf8",
+);
+assert.match(
+  allocationSinkSource,
+  /iv_priority_from\s+IS\s+NOT\s+INITIAL[\s\S]*iv_priority_from\s*<\s*0[\s\S]*iv_priority_from\s*>\s*zif_stock_allocation=>c_max_priority[\s\S]*iv_priority_to\s*>\s*zif_stock_allocation=>c_max_priority/,
+  "allocation result reads must reject priority filters outside the SAP range",
+);
+assert.match(
+  allocationSinkSource,
+  /iv_sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*iv_sales_document\s*=\s*'0000000000'/,
+  "allocation result reads must reject malformed sales-document filters",
+);
+assert.match(
+  allocationSinkSource,
+  /iv_reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*iv_reservation_id\s*=\s*'0000000000'[\s\S]*iv_reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*iv_reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation result reads must reject malformed numeric reservation filters",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-reservation_id\s*=\s*'0000000000'/,
+  "allocation snapshots must reject the all-zero reservation sentinel",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-reservation_id\s*=\s*'0000000000'/,
+  "allocation reconciliation must reject the all-zero reservation sentinel",
 );
 assert.match(
   stockSourceSource,
@@ -240,6 +352,31 @@ assert.match(
   stockSourceSource,
   /mo_authority->check_stock\(\s*iv_batch\s*=\s*iv_batch\s*\)/,
   "stock source must check read authority before selecting SAP stock",
+);
+assert.match(
+  stockSourceSource,
+  /batch_managed\s*<>\s*abap_true[\s\S]*batch_managed\s*<>\s*abap_false/,
+  "stock source must reject noncanonical material batch-management flags",
+);
+assert.match(
+  stockSourceSource,
+  /batch_restricted\s*<>\s*abap_true[\s\S]*batch_restricted\s*<>\s*abap_false/,
+  "stock source must reject noncanonical batch restriction flags",
+);
+assert.match(
+  stockSourceSource,
+  /lv_stock_deleted\s*<>\s*abap_true[\s\S]*lv_stock_deleted\s*<>\s*abap_false/,
+  "stock source must reject noncanonical stock deletion flags",
+);
+assert.match(
+  stockSourceSource,
+  /lv_material_deleted\s*<>\s*abap_true[\s\S]*lv_material_deleted\s*<>\s*abap_false/,
+  "stock source must reject noncanonical material deletion flags",
+);
+assert.match(
+  stockSourceSource,
+  /lv_batch_deleted\s*<>\s*abap_true[\s\S]*lv_batch_deleted\s*<>\s*abap_false/,
+  "stock source must reject noncanonical batch deletion flags",
 );
 assert.match(
   orderSourceSource,
@@ -253,8 +390,48 @@ assert.match(
 );
 assert.match(
   orderSourceSource,
-  /item~loekz\s*=\s*''\s*OR\s*item~loekz\s+IS\s+NULL/i,
-  "order source must exclude deleted sales-order items",
+  /item_deleted\s+TYPE\s+c\s+LENGTH\s+1[\s\S]*item~loekz\s+AS\s+item_deleted[\s\S]*<ls_schedule>-item_deleted\s*<>\s*abap_true[\s\S]*<ls_schedule>-item_deleted\s*<>\s*abap_false[\s\S]*<ls_schedule>-item_deleted\s*=\s*abap_true/,
+  "order source must validate and exclude deleted sales-order items",
+);
+assert.match(
+  orderSourceSource,
+  /ls_demand-sales_document\s*=\s*'0000000000'/,
+  "order source must reject the all-zero sales-document sentinel",
+);
+assert.match(
+  orderSourceSource,
+  /requested\s*<\s*0[\s\S]*confirmed\s*<\s*0/,
+  "order source must reject negative schedule quantities",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-sales_document\s*=\s*'0000000000'/,
+  "allocation service must reject the all-zero sales-document sentinel",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-sales_document\s*=\s*'0000000000'/,
+  "allocation snapshots must reject the all-zero sales-document sentinel",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-allocation_unit\s+IS\s+INITIAL/,
+  "allocation snapshots must reject blank allocation units",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_movement_type\s+CN\s+'0123456789'/,
+  "allocation snapshots must reject corrupt run movement metadata",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_min_shelf_life\s*<\s*0[\s\S]*lv_run_safety_stock\s*<\s*0/,
+  "allocation snapshots must reject corrupt run policy metadata",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_requested_on_from\s+IS\s+NOT\s+INITIAL[\s\S]*lv_run_requested_on_to\s+IS\s+NOT\s+INITIAL[\s\S]*lv_run_requested_on_from\s*>\s*lv_run_requested_on_to/,
+  "allocation snapshot run references must reject inverted requested horizons",
 );
 for (const tableName of ["MARA", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
   assert.match(
@@ -309,6 +486,241 @@ assert.match(
   "SAP transaction adapter must implement rollback",
 );
 assert.match(
+  reservationSource,
+  /strlen\(\s*iv_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "SAP reservation cancellation must use the shared document-length contract",
+);
+assert.match(
+  reservationSource,
+  /lv_document\s+CN\s+'0123456789'[\s\S]*lv_document\s*=\s*'0000000000'/,
+  "SAP reservation cancellation must validate nonzero numeric reservation documents",
+);
+assert.match(
+  reservationSource,
+  /lv_reservation\s+CN\s+'0123456789'[\s\S]*lv_reservation\s*=\s*'0000000000'/,
+  "SAP reservation creation must validate a nonzero returned reservation document",
+);
+assert.match(
+  reservationSource,
+  /strlen\(\s*lv_reservation\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "SAP reservation creation must enforce the exact ten-character document length",
+);
+assert.equal(
+  (reservationSource.match(/<ls_return>-type\s+IS\s+NOT\s+INITIAL/g) ?? []).length,
+  2,
+  "SAP reservation create and cancel must validate nonblank BAPI return statuses",
+);
+assert.match(
+  reservationSource,
+  /<ls_return>-type\s+<>\s+'S'[\s\S]*<ls_return>-type\s+<>\s+'I'[\s\S]*<ls_return>-type\s+<>\s+'W'[\s\S]*<ls_return>-type\s+<>\s+'E'[\s\S]*<ls_return>-type\s+<>\s+'A'[\s\S]*<ls_return>-type\s+<>\s+'X'/,
+  "SAP reservation adapters must allow only canonical BAPI return statuses",
+);
+assert.match(
+  auditSource,
+  /is_run-min_shelf_life\s*<\s*0[\s\S]*is_run-safety_stock\s*<\s*0/,
+  "audit run reads must reject negative policy values",
+);
+assert.match(
+  auditSource,
+  /is_run-status\s*<>\s*'R'[\s\S]*is_run-full_count\s*\+\s*is_run-partial_count[\s\S]*is_run-unallocated_count\s*<>\s*is_run-demand_count/,
+  "finalized audit run reads must require exact outcome counts",
+);
+assert.match(
+  auditSource,
+  /iv_full_count\s*\+\s*iv_partial_count[\s\S]*iv_unallocated_count\s*<>\s*lv_current_demand_count/,
+  "audit finalization must require exact outcome counts",
+);
+assert.match(
+  auditSource,
+  /lv_status\s*=\s*'S'[\s\S]*iv_message\s+IS\s+NOT\s+INITIAL[\s\S]*Audit final message is invalid/,
+  "audit finalization must reject diagnostics on successful runs",
+);
+assert.match(
+  allocationServiceSource,
+  /to_upper\(\s*iv_status\s*\)\s*=\s*'S'[\s\S]*CLEAR\s+lv_message/,
+  "allocation service must not persist diagnostics on successful runs",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-allocated\s*>\s*0[\s\S]*<ls_existing>-reservation_id\s+IS\s+INITIAL[\s\S]*<ls_existing>-reservation_date\s+IS\s+INITIAL[\s\S]*<ls_existing>-reservation_movement_type\s+IS\s+INITIAL[\s\S]*<ls_existing>-reservation_unit\s+IS\s+INITIAL/,
+  "allocation service must reject allocated snapshots without reservation provenance",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation service must reject short existing sales documents",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*<ls_existing>-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation service must reject short numeric existing reservation documents",
+);
+assert.match(
+  allocationServiceSource,
+  /ls_available-batch_restricted\s+<>\s+abap_true[\s\S]*ls_available-batch_restricted\s+<>\s+abap_false[\s\S]*Available stock result is invalid/,
+  "allocation service must reject noncanonical stock flags",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-requested\s*>\s*0[\s\S]*<ls_demand>-order_unit\s+IS\s+INITIAL[\s\S]*Open demand unit is missing/,
+  "allocation service must reject positive demand without an order unit",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-requested\s*>\s*0[\s\S]*<ls_demand>-requested_on\s+IS\s+INITIAL[\s\S]*Open demand requested date is missing/,
+  "allocation service must reject positive demand without a requested date",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_demand>-sales_document_type\s+IS\s+INITIAL[\s\S]*Open demand source identity is incomplete/,
+  "allocation service must reject incomplete injected sales-order identity",
+);
+assert.match(
+  allocationServiceSource,
+  /LOOP AT lt_demands ASSIGNING <ls_demand>[\s\S]*<ls_demand>-order_unit\s*=\s*to_upper\(\s*<ls_demand>-order_unit\s*\)/,
+  "allocation service must canonicalize injected order units",
+);
+assert.match(
+  allocationServiceSource,
+  /ls_available-unit\s*=\s*to_upper\(\s*ls_available-unit\s*\)/,
+  "allocation service must canonicalize injected stock units",
+);
+assert.match(
+  orderSourceSource,
+  /ls_demand-sales_document_type\s*=\s*[\s\S]*to_upper\(\s*<ls_schedule>-sales_document_type\s*\)/,
+  "order source must canonicalize sales-document types",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-sales_document_type\s*=\s*[\s\S]*to_upper\(\s*<ls_demand>-sales_document_type\s*\)/,
+  "allocation service must canonicalize injected sales-document types",
+);
+assert.match(
+  allocationSinkSource,
+  /<ls_demand>-sales_document_type\s*=\s*[\s\S]*to_upper\(\s*<ls_demand>-sales_document_type\s*\)/,
+  "allocation snapshots must canonicalize sales-document types",
+);
+assert.match(
+  orderSinkSource,
+  /lv_sales_document_type\s*=\s*to_upper\(\s*iv_sales_document_type\s*\)/,
+  "sales-order writes must canonicalize sales-document types",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-sales_document_type\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-sales_item\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-schedule_line\s+IS\s+NOT\s+INITIAL/,
+  "allocation service snapshot reconciliation must inspect complete sales-order identity",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*is_demand-sales_document_type\s+IS\s+INITIAL[\s\S]*is_demand-sales_item\s+IS\s+INITIAL[\s\S]*is_demand-schedule_line\s+IS\s+INITIAL/,
+  "allocation snapshots must reject incomplete sales-order identity",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*is_demand-reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*is_demand-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation snapshots must reject short numeric reservation documents",
+);
+assert.match(
+  allocationServiceSource,
+  /strlen\(\s*<ls_demand>-reservation_id\s*\)[\s\S]*lv_reservation_document\s+CN\s+'0123456789'[\s\S]*lv_reservation_document\s*=\s*'0000000000'[\s\S]*Reservation document is invalid/,
+  "allocation service must reject invalid reservation documents from providers",
+);
+assert.match(
+  movementSource,
+  /ls_headret-mat_doc\s+CN\s+'0123456789'[\s\S]*ls_headret-mat_doc\s*=\s*'0000000000'/,
+  "SAP goods movement must validate a nonzero returned material document",
+);
+assert.match(
+  movementSource,
+  /strlen\(\s*ls_headret-mat_doc\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "SAP goods movement must enforce the exact ten-character document length",
+);
+assert.match(
+  movementSource,
+  /ls_headret-doc_year\s+CN\s+'0123456789'[\s\S]*ls_headret-doc_year\s*=\s*'0000'/,
+  "SAP goods movement must validate a nonzero returned document year",
+);
+assert.match(
+  movementSource,
+  /strlen\(\s*ls_headret-doc_year\s*\)\s*<>\s*zif_stock_allocation=>c_fiscal_year_length/,
+  "SAP goods movement must enforce the exact four-character fiscal-year length",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /c_fiscal_year_length\s+TYPE\s+i\s+VALUE\s+4/,
+  "the shared fiscal-year contract must define a four-character length",
+);
+assert.match(
+  movementSource,
+  /<ls_return>-type\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_return>-type\s+<>\s+'S'[\s\S]*<ls_return>-type\s+<>\s+'I'[\s\S]*<ls_return>-type\s+<>\s+'W'[\s\S]*<ls_return>-type\s+<>\s+'E'[\s\S]*<ls_return>-type\s+<>\s+'A'[\s\S]*<ls_return>-type\s+<>\s+'X'/,
+  "SAP goods movement must allow only canonical BAPI return statuses",
+);
+assert.match(
+  orderSinkSource,
+  /iv_sales_document\s+CN\s+'0123456789'[\s\S]*iv_sales_document\s*=\s*'0000000000'/,
+  "SAP sales-order change must validate a nonzero sales document",
+);
+assert.match(
+  orderSinkSource,
+  /strlen\(\s*iv_sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "SAP sales-order change must enforce the exact ten-character document length",
+);
+assert.match(
+  orderSourceSource,
+  /strlen\(\s*ls_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "SAP order reads must enforce the exact ten-character document length",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_demand>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_demand>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation service must reject short nonblank sales documents",
+);
+assert.match(
+  allocationSinkSource,
+  /is_demand-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  "allocation snapshots must reject short nonblank sales documents",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /ty_sales_document\s+TYPE\s+c\s+LENGTH\s+10[\s\S]*c_sap_document_length\s+TYPE\s+i\s+VALUE\s+10/,
+  "the shared SAP document contract must define a ten-character length",
+);
+assert.match(
+  orderSinkSource,
+  /<ls_return>-type\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_return>-type\s+<>\s+'S'[\s\S]*<ls_return>-type\s+<>\s+'I'[\s\S]*<ls_return>-type\s+<>\s+'W'[\s\S]*<ls_return>-type\s+<>\s+'E'[\s\S]*<ls_return>-type\s+<>\s+'A'[\s\S]*<ls_return>-type\s+<>\s+'X'/,
+  "SAP sales-order change must allow only canonical BAPI return statuses",
+);
+assert.match(
+  allocationServiceSource,
+  /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
+  "allocation service must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  reservationSource,
+  /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
+  "reservation BAPI adapter must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  movementSource,
+  /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
+  "goods-movement BAPI adapter must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  auditSource,
+  /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
+  "audit APIs must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  allocationSinkSource,
+  /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
+  "allocation result reads must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /ty_movement_type\s+TYPE\s+c\s+LENGTH\s+3[\s\S]*c_movement_type_length\s+TYPE\s+i\s+VALUE\s+3/,
+  "the shared movement-type contract must define a three-character length",
+);
+assert.match(
   allocationServiceSource,
   /mo_transaction->rollback\(\s*\)/,
   "allocation service must rollback failed persistence before finalization",
@@ -357,6 +769,11 @@ assert.match(
   healthReportSource,
   /weighted_runs|weighted_requested|weighted_coverage/,
   "health output must expose weighted strategy analytics",
+);
+assert.match(
+  readmeSource,
+  /Current strategy contract:.*`P`.*`F`.*`N`.*`S`.*`L`.*`B`.*`E`.*`A`.*`W`/s,
+  "README must document the complete current strategy contract",
 );
 assert.match(
   healthReportSource,
@@ -1005,6 +1422,11 @@ for (const compareField of ["old_safety_stock", "new_safety_stock"]) {
     `comparison report must expose ${compareField}`,
   );
 }
+assert.match(
+  compareReportSource,
+  /p_rmov\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*p_rmov\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*p_ormov\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*p_ormov\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*p_nrmov\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*p_nrmov\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length/,
+  "comparison report reservation movement filters must enforce the shared length contract",
+);
 assert.match(
   auditSource,
   /rollback_and_raise\(/,

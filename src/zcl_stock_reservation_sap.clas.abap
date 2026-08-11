@@ -85,7 +85,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA ls_item TYPE ty_item.
     DATA lt_items TYPE tt_items.
     DATA lt_return TYPE tt_return.
-    DATA lv_reservation TYPE zif_stock_allocation=>ty_order_id.
+    DATA lv_reservation TYPE c LENGTH 10.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
@@ -99,6 +99,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
         OR iv_movement_type IS INITIAL
+        OR strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
         OR iv_movement_type CN '0123456789'
         OR lv_unit IS INITIAL
         OR iv_required_date IS INITIAL
@@ -141,7 +142,18 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         return            = lt_return.
     lv_bapi_subrc = sy-subrc.
     LOOP AT lt_return ASSIGNING <ls_return>.
-      IF <ls_return>-type = 'A'
+      IF <ls_return>-type IS NOT INITIAL
+          AND <ls_return>-type <> 'S'
+          AND <ls_return>-type <> 'I'
+          AND <ls_return>-type <> 'W'
+          AND <ls_return>-type <> 'E'
+          AND <ls_return>-type <> 'A'
+          AND <ls_return>-type <> 'X'.
+        lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = 'Reservation BAPI returned invalid status'.
+        ENDIF.
+      ELSEIF <ls_return>-type = 'A'
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.
@@ -150,9 +162,19 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    IF lv_reservation IS NOT INITIAL
+        AND ( strlen( lv_reservation ) <> zif_stock_allocation=>c_sap_document_length
+          OR lv_reservation CN '0123456789'
+          OR lv_reservation = '0000000000' )
+        AND lv_bapi_message IS INITIAL.
+      lv_bapi_message = 'Reservation document returned by SAP is invalid'.
+    ENDIF.
     IF lv_bapi_error = abap_true
         OR lv_bapi_subrc <> 0
-        OR lv_reservation IS INITIAL.
+        OR lv_reservation IS INITIAL
+        OR strlen( lv_reservation ) <> zif_stock_allocation=>c_sap_document_length
+        OR lv_reservation CN '0123456789'
+        OR lv_reservation = '0000000000'.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
       lv_rollback_subrc = sy-subrc.
       IF lv_bapi_message IS INITIAL.
@@ -199,8 +221,18 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     IF iv_document IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_movement_type IS INITIAL
+        OR strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
         OR iv_movement_type CN '0123456789'.
       raise_error( iv_message = 'Reservation document is required' ).
+    ENDIF.
+    IF strlen( iv_document )
+          <> zif_stock_allocation=>c_sap_document_length.
+      raise_error( iv_message = 'Reservation document is invalid' ).
+    ENDIF.
+    lv_document = iv_document.
+    IF lv_document CN '0123456789'
+        OR lv_document = '0000000000'.
+      raise_error( iv_message = 'Reservation document is invalid' ).
     ENDIF.
 
     IF mo_authority IS BOUND.
@@ -216,7 +248,6 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
       ENDTRY.
     ENDIF.
 
-    lv_document = iv_document.
     CALL FUNCTION 'BAPI_RESERVATION_DELETE'
       EXPORTING
         reservation = lv_document
@@ -224,7 +255,18 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         return      = lt_return.
     lv_bapi_subrc = sy-subrc.
     LOOP AT lt_return ASSIGNING <ls_return>.
-      IF <ls_return>-type = 'A'
+      IF <ls_return>-type IS NOT INITIAL
+          AND <ls_return>-type <> 'S'
+          AND <ls_return>-type <> 'I'
+          AND <ls_return>-type <> 'W'
+          AND <ls_return>-type <> 'E'
+          AND <ls_return>-type <> 'A'
+          AND <ls_return>-type <> 'X'.
+        lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = 'Reservation BAPI returned invalid status'.
+        ENDIF.
+      ELSEIF <ls_return>-type = 'A'
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.

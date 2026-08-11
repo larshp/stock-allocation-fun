@@ -136,7 +136,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       lv_deadline_age_date = iv_deadline_age_date.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_before_date IS INITIAL.
@@ -606,7 +607,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       lv_deadline_age_date = iv_deadline_age_date.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_before_date IS INITIAL.
@@ -1473,7 +1475,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit rejection message is required' ).
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_available < 0.
@@ -1589,7 +1592,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_max_rows < 0.
@@ -2324,7 +2328,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit safety stock is invalid' ).
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
-        AND iv_movement_type CN '0123456789'.
+        AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
+          OR iv_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF lv_strategy IS NOT INITIAL
@@ -2390,6 +2395,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   METHOD zif_allocation_audit~finish_run.
     DATA lv_current_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_current_available TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_current_demand_count TYPE i.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
 
     lv_status = to_upper( iv_status ).
@@ -2405,6 +2411,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF ( lv_status = 'P' OR lv_status = 'E' )
         AND iv_message IS INITIAL.
       raise_error( iv_message = 'Audit final message is required' ).
+    ENDIF.
+    IF lv_status = 'S'
+        AND iv_message IS NOT INITIAL.
+      raise_error( iv_message = 'Audit final message is invalid' ).
     ENDIF.
     IF iv_available < 0
         OR iv_allocated < 0
@@ -2424,10 +2434,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           RAISE EXCEPTION lo_write_error.
       ENDTRY.
     ENDIF.
-    SELECT SINGLE status, available
+    SELECT SINGLE status, available, demand_count
       FROM zstockalloc_run
 
-      WHERE run_id = @iv_run_id INTO (@lv_current_status, @lv_current_available).
+      WHERE run_id = @iv_run_id
+        INTO ( @lv_current_status, @lv_current_available,
+               @lv_current_demand_count ).
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Audit run was not found' ).
     ENDIF.
@@ -2436,6 +2448,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_available <> lv_current_available
         OR iv_allocated > lv_current_available
+        OR ( iv_full_count + iv_partial_count
+          + iv_unallocated_count <> lv_current_demand_count )
         OR ( lv_status = 'S' AND iv_shortage <> 0 )
         OR ( lv_status = 'P' AND iv_shortage <= 0 ).
       raise_error( iv_message = 'Audit final metrics are invalid' ).
@@ -2509,18 +2523,25 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR is_run-unit IS INITIAL
         OR is_run-start_date IS INITIAL
         OR is_run-start_time IS INITIAL
+        OR is_run-min_shelf_life < 0
+        OR is_run-safety_stock < 0
         OR is_run-available < 0
         OR is_run-demand_count < 0
         OR is_run-full_count < 0
         OR is_run-partial_count < 0
         OR is_run-unallocated_count < 0
+        OR ( is_run-status <> 'R'
+          AND is_run-full_count + is_run-partial_count
+            + is_run-unallocated_count <> is_run-demand_count )
         OR is_run-allocated < 0
         OR is_run-shortage < 0
         OR is_run-allocated > is_run-available.
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF is_run-movement_type IS NOT INITIAL
-        AND is_run-movement_type CN '0123456789'.
+        AND ( strlen( is_run-movement_type )
+              <> zif_stock_allocation=>c_movement_type_length
+          OR is_run-movement_type CN '0123456789' ).
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF is_run-status <> 'R'

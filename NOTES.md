@@ -1,5 +1,62 @@
 # Progress notes
 
+- Documentation follow-up: reconciled remaining current-report schema references in `README.md` with executable contracts: allocation `34`, history `26`/`43`, result `37`/`43`, and watch `56`/`59`; historical release-note text remains unchanged.
+- Tightened audit count reconciliation so finalized runs cannot persist or expose fewer full/partial/unallocated outcomes than their persisted demand count; added finalization and read-validation regression coverage.
+
+- Aligned the service reservation-provider postcondition with the SAP BAPI adapter: returned reservation documents must be exact ten-character numeric, nonzero SAP keys. Added invalid-ID regression coverage before snapshot persistence and cleanup.
+
+- Hardened service-side existing-snapshot reconciliation to require complete reservation provenance for allocated rows, matching the SAP sink contract; a malformed injected snapshot is rejection-audited before side effects.
+
+- Extended service-side existing-snapshot validation to reject short or all-zero sales documents before reconciliation, with a focused injected-provider regression.
+
+- Hardened the service stock-provider postcondition: material, batch-management, batch-existence, and restriction flags must be canonical booleans; malformed flags are rejection-audited before demand reads.
+
+- Added service-side positive-demand order-unit validation so injected demand cannot bypass unit conversion or persist quantities without source-unit provenance.
+
+- Added service-side positive-demand requested-date validation so injected demand cannot bypass the SAP order-source date contract and silently receive a today-based reservation date.
+
+- Added conditional sales-order identity validation: when a demand carries a sales document, its document type, item, and schedule-line keys must also be present at both service and snapshot-write boundaries; generic order IDs remain supported.
+
+- Canonicalized injected existing-snapshot allocation, status, order, and reservation-unit metadata before reconciliation, matching SAP result-read behavior and preserving reservation reuse.
+
+- Canonicalized injected stock-provider units before comparing them with the requested allocation unit, preventing avoidable conversion calls for lowercase SAP-style unit keys.
+
+- Canonicalized sales-document types across SAP order reads, injected service demands/snapshots, comparison normalization, snapshot filters/persistence, and direct sales-order writes; added lowercase source and persisted-row regressions.
+
+- Replaced the reservation-cancel adapter's literal ten-character check with the shared SAP document-length constant and guarded that dependency in the repository contract.
+
+- Tightened `ZSTOCK_ALLOC_COMPARE` common/old/new reservation-movement filter validation to require exactly three numeric characters, matching the shared SAP movement-type contract.
+
+- Canonicalized injected demand `order_unit` values at the service boundary, matching SAP source and snapshot behavior and preventing lowercase units from triggering avoidable conversions.
+
+- Hardened audit finalization so successful runs cannot persist diagnostic messages that would fail the read-side run contract; a regression verifies the running row remains unchanged after rejection.
+
+- Aligned the allocation service with the audit lifecycle contract by clearing informational messages for successful and successful-preview runs; partial and error diagnostics remain persisted.
+
+- Tightened goods-movement fiscal-year validation to require exact logical length four plus numeric and nonzero content, with stub-backed rollback regression coverage.
+
+- Hardened SAP document identity validation to require exact logical length ten in addition to numeric and nonzero checks, covering order reads/updates, reservation creation, goods-movement output, service demand validation, and snapshot persistence.
+
+- Tightened the shared SAP movement-type contract to exact logical length three plus numeric content, with short-key regressions across service, BAPI, audit, snapshot, and read-filter paths.
+
+- Hardened snapshot provenance validation against inverted persisted requested-delivery horizons. The SAP allocation sink now rejects reversed run bounds before snapshot writes or reads can use the run.
+
+- Hardened the SAP order source's `VBAP-LOEKZ` boundary. It now validates canonical blank/`X` deletion flags before skipping deleted items, with a malformed-flag fixture and ABAP Unit regression.
+
+- Hardened all direct BAPI write adapters against unknown nonblank return statuses. Reservation create/cancel, goods movement, and sales-order schedule updates now reject noncanonical `RETURN-TYPE` values before commit, with stub-driven regression coverage for each path.
+
+- Hardened the allocator postcondition boundary: injected allocators may not populate service-owned run ID, strategy, or allocation-unit metadata before reservation or snapshot persistence; a focused regression test confirms rejection before side effects.
+
+- Reconciled the public strategy documentation with the nine-strategy implementation (`P`, `F`, `N`, `S`, `L`, `B`, `E`, `A`, `W`) across allocation, result, history, watch, and purge guidance; added the fair-share, adaptive, and weighted behavior to the allocation contract text.
+
+- Closed the remaining service-side snapshot reconciliation gap: injected persisted demand rows with negative priorities are now rejected before reservation reuse, matching the allocator and SAP snapshot-sink boundary checks; regression coverage protects the rejection path.
+
+- Hardened demand validation for SAP delivery priority. All allocators, the service boundary, and allocation-snapshot persistence now reject negative priorities; end-to-end tests verify rejection auditing before side effects.
+
+- Made the nine-strategy contract authoritative in the README (`P`, `F`, `N`, `S`, `L`, `B`, `E`, `A`, `W`) and added a repository-contract assertion so future strategy changes cannot silently leave the documented surface behind.
+
+- Improved fair-share and weighted fair-share precision handling. After proportional grants are rounded to the persisted `0.001` quantity precision, deterministic residual-unit redistribution now consumes any remaining representable stock without exceeding demand; ABAP Unit coverage protects exact residual consumption for both strategies.
+
 - Split weighted strategy `W` from ordinary fair-share in history and result summaries. History/result summary exports now expose weighted run/line counts plus weighted requested, allocated, shortage, and coverage fields; both summary schemas advance to `43`.
 
 - Added distinct weighted fair-share run counts and unit-safe requested/allocated/shortage/coverage analytics to the audit summary and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schemas advance to `9`.
@@ -358,6 +415,12 @@
 - Added `MARA-XCHPF` propagation and a fail-fast guard: batch-managed materials cannot fall back to aggregate MARD stock or empty-batch reservations.
 - Added selected-batch shelf-life validation from `MCHA-VFDAT`; expired batches are rejected before demand reads, reservations, or persistence.
 - Added `MCHA-ZUSTD` propagation and restricted-batch rejection so quality-blocked batches cannot be allocated or reserved.
+- Added canonical boolean validation for `MARA-XCHPF` and `MCHA-ZUSTD`; malformed batch-management or restriction indicators now fail at the stock-source boundary.
+- Added persisted audit count reconciliation: read validation rejects outcome-count totals above the recorded demand count.
+- Added finalization-time audit count reconciliation so invalid outcome totals cannot be persisted in the first place.
+- Added mandatory allocation-unit validation for persisted snapshot reads, closing the matching-blank-unit provenance path.
+- Added canonical deletion-flag validation for stock, material, and batch-master reads; malformed `LVORM` values now fail before allocation.
+- Added open-demand quantity validation for `VBEP-WMENG` and `VBEP-BMENG`; negative schedule quantities now fail before demand mapping.
 - Added delivery-date shelf-life validation: a batch must remain valid through every open demand’s requested date, not merely on the allocation run date.
 - Persisted the configured allocation/reservation unit with each `ZSTOCKALLOC_RUN` record so audit quantities remain interpretable after conversion.
 - Added explicit batch existence and batch-management validation: unknown batches and batch inputs for non-batch-managed materials now fail before allocation side effects.
@@ -898,3 +961,21 @@
 - Added an inclusive persisted audit start-date window (`p_from`/`p_to`) to `ZSTOCK_ALLOC_HEALTH`; canonical audit validation rejects reversed ranges, both reads receive the bounds, start-date provenance is exported in every mode, and health JSON/CSV schema advances to `26`.
 - Added an inclusive persisted audit finish-date window (`p_ffrom`/`p_fto`) to `ZSTOCK_ALLOC_HEALTH`; canonical audit validation rejects reversed ranges and excludes unfinished audits when active, both reads receive the bounds, finish-date provenance is exported in every mode, and health JSON/CSV schema advances to `27`.
 - Added maximum running-audit age filtering (`p_age_to`) to `ZSTOCK_ALLOC_HEALTH`; the bound is propagated to both reads alongside `p_stale`, canonical validation rejects negative or too-low upper ages, running-age provenance is exported, and health JSON/CSV schema advances to `28`.
+- Hardened the SAP delivery-priority contract to the source field's representable internal range 0 through 99. All allocators, the service boundary, and allocation-snapshot persistence now reject out-of-range priorities before weighted arithmetic or snapshot mutation; direct weighted and service-level regressions cover the upper bound.
+- Hardened service-side persisted-snapshot reconciliation: unknown nonblank allocation strategies from an injected snapshot provider are now rejected before reservation reuse, cancellation, or replacement writes; regression coverage confirms the side-effect boundary.
+- Hardened service-side snapshot reconciliation to reject nonnumeric persisted reservation movement types before cancellation authorization or reservation reuse; malformed injected snapshot coverage protects the side-effect boundary.
+- Hardened the SAP reservation adapter to require 10-digit numeric reservation documents on cancellation and from BAPI creation responses; stub-backed regressions prevent malformed IDs from reaching authorization, deletion, or persistence.
+- Hardened SAP goods-issue posting to reject nonnumeric material documents returned by `BAPI_GOODSMVT_CREATE` before commit; the SAP stub and ABAP Unit regression verify rollback and diagnostic preservation.
+- Hardened the direct sales-order schedule-line adapter to reject nonnumeric sales-document keys before authorization or `BAPI_SALESORDER_CHANGE`; numeric stub fixtures preserve coverage for BAPI and transaction failures.
+- Hardened SAP document identity validation to reject the all-zero `0000000000` sentinel for sales-order changes, reservation creation/cancellation, and goods-issue posting; each adapter has a focused regression.
+- Capped cross-unit historical-reservation reconciliation at available stock, preventing packed-decimal overflow from unrelated reservations after the stock is already fully reserved; added a two-large-snapshot service regression.
+- Extended the shared 0–99 delivery-priority contract to allocation-result read filters; negative and above-range filter endpoints now fail before authorization or database reads.
+- Extended reservation identity validation through snapshot persistence and reconciliation; the all-zero `0000000000` sentinel is rejected before database writes, cancellation authorization, or reservation reuse.
+- Hardened goods-movement output identity to reject zero fiscal years alongside material-document validation; the SAP stub covers the zero-year response and verifies rollback before commit.
+- Extended document-sentinel validation to sales-order reads, service demand validation, and allocation-snapshot persistence; all-zero sales documents now fail before allocation or snapshot side effects.
+- Prevented reservation-cancellation ID truncation by validating the 10-character logical length before copying the public 20-character ID into SAP's reservation field; added an overlength regression.
+- Hardened audit-run read validation to reject negative minimum shelf-life and safety-stock policy values, preventing corrupt persisted policy metadata from reaching reports and health views.
+- Extended the same run-metadata guard to allocation-snapshot persistence; corrupt movement or policy fields can no longer authorize new snapshots under an active run.
+- Hardened numeric reservation identity shape at the snapshot and reconciliation boundaries; numeric-only IDs must use the shared ten-character SAP document length, while synthetic alphanumeric fixture IDs remain compatible. Added sink and service regressions plus repository-contract coverage.
+- Hardened result-read identity filters: sales-document filters require a nonzero ten-character key, and numeric reservation filters require the same shape. Added focused sink regressions and repository-contract coverage so malformed filters fail before the result query.
+- Reconciled stale current-schema references in `README.md` with the executable contracts: result `37`/`43`, history `26`/`43`, and watch `56`/`59`; historical release notes remain unchanged.

@@ -117,6 +117,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_status TYPE zif_stock_allocation=>ty_allocation_status.
     DATA lv_run_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
+    DATA lv_sales_document_type_filter
+      TYPE zif_stock_allocation=>ty_sales_document_type.
     DATA lv_unit_filter TYPE zif_stock_allocation=>ty_unit.
     DATA lv_order_unit_filter TYPE zif_stock_allocation=>ty_unit.
     DATA lv_reservation_unit_filter TYPE zif_stock_allocation=>ty_unit.
@@ -150,9 +152,24 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       lv_run_deadline_age_date = iv_run_deadline_age_date.
     ENDIF.
     lv_strategy = to_upper( iv_strategy ).
+    lv_sales_document_type_filter = to_upper( iv_sales_document_type ).
     lv_unit_filter = to_upper( iv_unit ).
     lv_order_unit_filter = to_upper( iv_order_unit ).
     lv_reservation_unit_filter = to_upper( iv_reservation_unit ).
+    IF iv_sales_document IS NOT INITIAL
+        AND ( strlen( iv_sales_document )
+              <> zif_stock_allocation=>c_sap_document_length
+          OR iv_sales_document = '0000000000' ).
+      raise_error( iv_message = 'Allocation result sales document filter is invalid' ).
+    ENDIF.
+    IF iv_reservation_id IS NOT INITIAL
+        AND ( iv_reservation_id = '0000000000'
+          OR ( iv_reservation_id CO '0123456789 '
+            AND strlen( iv_reservation_id )
+                <> zif_stock_allocation=>c_sap_document_length ) ).
+      raise_error(
+        iv_message = 'Allocation result reservation document filter is invalid' ).
+    ENDIF.
     IF iv_max_rows < 0.
       raise_error( iv_message = 'Allocation result row limit is invalid' ).
     ENDIF.
@@ -252,6 +269,14 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation result reservation age range is invalid' ).
     ENDIF.
+    IF ( iv_priority_from IS NOT INITIAL
+          AND ( iv_priority_from < 0
+            OR iv_priority_from > zif_stock_allocation=>c_max_priority ) )
+        OR ( iv_priority_to IS NOT INITIAL
+          AND ( iv_priority_to < 0
+            OR iv_priority_to > zif_stock_allocation=>c_max_priority ) ).
+      raise_error( iv_message = 'Allocation result priority range is invalid' ).
+    ENDIF.
     IF iv_priority_from IS NOT INITIAL
         AND iv_priority_to IS NOT INITIAL
         AND iv_priority_from > iv_priority_to.
@@ -349,9 +374,13 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         iv_message = 'Allocation result strategy filters conflict' ).
     ENDIF.
     IF ( iv_allocation_movement_type IS NOT INITIAL
-          AND iv_allocation_movement_type CN '0123456789' )
+          AND ( strlen( iv_allocation_movement_type )
+                <> zif_stock_allocation=>c_movement_type_length
+            OR iv_allocation_movement_type CN '0123456789' ) )
         OR ( iv_movement_type IS NOT INITIAL
-          AND iv_movement_type CN '0123456789' ).
+          AND ( strlen( iv_movement_type )
+                <> zif_stock_allocation=>c_movement_type_length
+            OR iv_movement_type CN '0123456789' ) ).
       raise_error( iv_message = 'Allocation result movement type is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
@@ -416,6 +445,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     LOOP AT rt_demands ASSIGNING <ls_demand>.
       <ls_demand>-allocation_status =
         to_upper( <ls_demand>-allocation_status ).
+      <ls_demand>-sales_document_type =
+        to_upper( <ls_demand>-sales_document_type ).
       <ls_demand>-allocation_unit =
         to_upper( <ls_demand>-allocation_unit ).
       <ls_demand>-order_unit = to_upper( <ls_demand>-order_unit ).
@@ -633,9 +664,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_sales_document IS NOT INITIAL.
       DELETE rt_demands WHERE sales_document <> iv_sales_document.
     ENDIF.
-    IF iv_sales_document_type IS NOT INITIAL.
+    IF lv_sales_document_type_filter IS NOT INITIAL.
       DELETE rt_demands
-        WHERE sales_document_type <> iv_sales_document_type.
+        WHERE sales_document_type <> lv_sales_document_type_filter.
     ENDIF.
     IF iv_sales_item IS NOT INITIAL.
       DELETE rt_demands WHERE sales_item <> iv_sales_item.
@@ -1080,6 +1111,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ls_demand = <ls_demand>.
       ls_demand-allocation_strategy = to_upper( ls_demand-allocation_strategy ).
       ls_demand-allocation_status = to_upper( ls_demand-allocation_status ).
+      ls_demand-sales_document_type =
+        to_upper( ls_demand-sales_document_type ).
       ls_demand-allocation_unit = to_upper( ls_demand-allocation_unit ).
       ls_demand-order_unit = to_upper( ls_demand-order_unit ).
       ls_demand-reservation_unit = to_upper( ls_demand-reservation_unit ).
@@ -1198,9 +1231,28 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_demand.
-    IF is_demand-order_id IS INITIAL
+    IF is_demand-allocation_unit IS INITIAL
+        OR is_demand-order_id IS INITIAL
+        OR ( is_demand-sales_document IS NOT INITIAL
+          AND strlen( is_demand-sales_document )
+              <> zif_stock_allocation=>c_sap_document_length )
+        OR is_demand-sales_document = '0000000000'
+        OR ( is_demand-reservation_id IS NOT INITIAL
+          AND is_demand-reservation_id CO '0123456789 '
+          AND strlen( is_demand-reservation_id )
+              <> zif_stock_allocation=>c_sap_document_length )
+        OR ( ( is_demand-sales_document IS NOT INITIAL
+            OR is_demand-sales_document_type IS NOT INITIAL
+            OR is_demand-sales_item IS NOT INITIAL
+            OR is_demand-schedule_line IS NOT INITIAL )
+          AND ( is_demand-sales_document IS INITIAL
+            OR is_demand-sales_document_type IS INITIAL
+            OR is_demand-sales_item IS INITIAL
+            OR is_demand-schedule_line IS INITIAL ) )
         OR ( iv_require_run_id = abap_true
           AND is_demand-allocation_run_id IS INITIAL )
+        OR is_demand-priority < 0
+        OR is_demand-priority > zif_stock_allocation=>c_max_priority
         OR is_demand-requested <= 0
         OR is_demand-allocated < 0
         OR is_demand-shortage < 0
@@ -1215,7 +1267,9 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
     ENDIF.
     IF is_demand-reservation_movement_type IS NOT INITIAL
-        AND is_demand-reservation_movement_type CN '0123456789'.
+        AND ( strlen( is_demand-reservation_movement_type )
+              <> zif_stock_allocation=>c_movement_type_length
+          OR is_demand-reservation_movement_type CN '0123456789' ).
       raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
     ENDIF.
     IF ( is_demand-allocation_status = 'F'
@@ -1230,6 +1284,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             OR is_demand-shortage <> is_demand-requested ) )
         OR ( is_demand-allocated > 0
           AND ( is_demand-reservation_id IS INITIAL
+            OR is_demand-reservation_id = '0000000000'
             OR is_demand-reservation_date IS INITIAL
             OR is_demand-reservation_movement_type IS INITIAL
             OR is_demand-reservation_unit IS INITIAL
@@ -1251,16 +1306,22 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_run_batch TYPE zstockalloc_run-batch.
     DATA lv_run_unit TYPE zstockalloc_run-unit.
     DATA lv_run_strategy TYPE zstockalloc_run-strategy.
+    DATA lv_run_movement_type TYPE zstockalloc_run-movement_type.
+    DATA lv_run_min_shelf_life TYPE zstockalloc_run-min_shelf_life.
+    DATA lv_run_safety_stock TYPE zstockalloc_run-safety_stock.
     DATA lv_run_requested_on_from TYPE zstockalloc_run-requested_on_from.
     DATA lv_run_requested_on_to TYPE zstockalloc_run-requested_on_to.
     DATA lv_run_status TYPE zstockalloc_run-status.
 
     SELECT SINGLE matnr, werks, lgort, batch, unit, strategy,
+                  movement_type, min_shelf_life, safety_stock,
                   requested_on_from, requested_on_to, status
       FROM zstockalloc_run
       WHERE run_id = @iv_run_id
         INTO ( @lv_run_material, @lv_run_plant, @lv_run_storage_location,
                @lv_run_batch, @lv_run_unit, @lv_run_strategy,
+               @lv_run_movement_type, @lv_run_min_shelf_life,
+               @lv_run_safety_stock,
                @lv_run_requested_on_from, @lv_run_requested_on_to,
                @lv_run_status ).
     IF sy-subrc <> 0.
@@ -1293,6 +1354,23 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         AND lv_run_strategy <> 'A'
         AND lv_run_strategy <> 'W'.
       raise_error( iv_message = 'Allocation snapshot run strategy is invalid' ).
+    ENDIF.
+    IF lv_run_movement_type IS NOT INITIAL
+        AND ( strlen( lv_run_movement_type )
+              <> zif_stock_allocation=>c_movement_type_length
+          OR lv_run_movement_type CN '0123456789' ).
+      raise_error(
+        iv_message = 'Allocation snapshot run movement type is invalid' ).
+    ENDIF.
+    IF lv_run_min_shelf_life < 0 OR lv_run_safety_stock < 0.
+      raise_error(
+        iv_message = 'Allocation snapshot run policy is invalid' ).
+    ENDIF.
+    IF lv_run_requested_on_from IS NOT INITIAL
+        AND lv_run_requested_on_to IS NOT INITIAL
+        AND lv_run_requested_on_from > lv_run_requested_on_to.
+      raise_error(
+        iv_message = 'Allocation snapshot run requested horizon is invalid' ).
     ENDIF.
     IF iv_strategy IS NOT INITIAL
         AND lv_run_strategy <> iv_strategy.

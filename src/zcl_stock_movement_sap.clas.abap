@@ -90,6 +90,7 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
         OR iv_movement_type IS INITIAL
+        OR strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
         OR iv_movement_type CN '0123456789'
         OR lv_unit IS INITIAL
         OR iv_quantity <= 0.
@@ -133,7 +134,18 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         return           = lt_return.
     lv_bapi_subrc = sy-subrc.
     LOOP AT lt_return ASSIGNING <ls_return>.
-      IF <ls_return>-type = 'A'
+      IF <ls_return>-type IS NOT INITIAL
+          AND <ls_return>-type <> 'S'
+          AND <ls_return>-type <> 'I'
+          AND <ls_return>-type <> 'W'
+          AND <ls_return>-type <> 'E'
+          AND <ls_return>-type <> 'A'
+          AND <ls_return>-type <> 'X'.
+        lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = 'Goods movement BAPI returned invalid status'.
+        ENDIF.
+      ELSEIF <ls_return>-type = 'A'
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.
@@ -142,10 +154,31 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    IF ls_headret-mat_doc IS NOT INITIAL
+        AND ( strlen( ls_headret-mat_doc )
+              <> zif_stock_allocation=>c_sap_document_length
+          OR ls_headret-mat_doc CN '0123456789'
+          OR ls_headret-mat_doc = '0000000000' )
+        AND lv_bapi_message IS INITIAL.
+      lv_bapi_message = 'Goods movement document returned by SAP is invalid'.
+    ENDIF.
+    IF ls_headret-doc_year IS NOT INITIAL
+        AND ( strlen( ls_headret-doc_year )
+              <> zif_stock_allocation=>c_fiscal_year_length
+          OR ls_headret-doc_year CN '0123456789' )
+        AND lv_bapi_message IS INITIAL.
+      lv_bapi_message = 'Goods movement document year returned by SAP is invalid'.
+    ENDIF.
     IF lv_bapi_error = abap_true
         OR lv_bapi_subrc <> 0
         OR ls_headret-mat_doc IS INITIAL
-        OR ls_headret-doc_year IS INITIAL.
+        OR strlen( ls_headret-mat_doc ) <> zif_stock_allocation=>c_sap_document_length
+        OR ls_headret-mat_doc CN '0123456789'
+        OR ls_headret-mat_doc = '0000000000'
+        OR ls_headret-doc_year IS INITIAL
+        OR strlen( ls_headret-doc_year ) <> zif_stock_allocation=>c_fiscal_year_length
+        OR ls_headret-doc_year CN '0123456789'
+        OR ls_headret-doc_year = '0000'.
       CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
       lv_rollback_subrc = sy-subrc.
       IF lv_bapi_message IS INITIAL.

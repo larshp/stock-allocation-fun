@@ -110,6 +110,8 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         to_upper( ls_normalized-allocation_strategy ).
       ls_normalized-allocation_status =
         to_upper( ls_normalized-allocation_status ).
+      ls_normalized-sales_document_type =
+        to_upper( ls_normalized-sales_document_type ).
       ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
       ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
       ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).
@@ -127,6 +129,8 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         to_upper( ls_normalized-allocation_strategy ).
       ls_normalized-allocation_status =
         to_upper( ls_normalized-allocation_status ).
+      ls_normalized-sales_document_type =
+        to_upper( ls_normalized-sales_document_type ).
       ls_normalized-allocation_unit = to_upper( ls_normalized-allocation_unit ).
       ls_normalized-order_unit = to_upper( ls_normalized-order_unit ).
       ls_normalized-reservation_unit = to_upper( ls_normalized-reservation_unit ).

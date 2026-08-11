@@ -10,7 +10,17 @@ CLASS ltcl_stock_movement_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_error FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_bad_return_type FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_zero_document FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_missing_document_year FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_zero_document_year FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_rollback_failure FOR TESTING
       RAISING zcx_stock_allocation.
@@ -70,7 +80,7 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
           iv_material         = 'MATERIAL-GI'
           iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_movement_type    = '2A1'
+          iv_movement_type    = '20'
           iv_quantity         = '2'
           iv_unit             = 'EA' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -129,6 +139,106 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       exp = 'Goods movement rejected by test double' ).
   ENDMETHOD.
 
+  METHOD rejects_bad_return_type.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-BAD-RETURN-TYPE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement BAPI returned invalid status' ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_document.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-BAD-DOCUMENT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement document returned by SAP is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_short_document.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-SHORT-DOCUMENT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement document returned by SAP is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_document.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-ZERO-DOCUMENT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement document returned by SAP is invalid' ).
+  ENDMETHOD.
+
   METHOD rejects_missing_document_year.
     DATA lo_cut TYPE REF TO zif_stock_movement.
     DATA lv_raised TYPE abap_bool.
@@ -138,6 +248,31 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
     TRY.
         lo_cut->post_goods_issue(
           iv_material         = 'MATERIAL-GI-NO-YEAR'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_document_year.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-ZERO-YEAR'
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_movement_type    = '201'

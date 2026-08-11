@@ -1,5 +1,59 @@
 # Anomalies and known issues
 
+- Resolved: the SAP reservation adapter rejected short, nonnumeric, or all-zero reservation documents, but the allocation service accepted those values from an injected reservation provider. The service now enforces the same ten-character numeric, nonzero reservation-document contract before persistence or cleanup.
+
+- Resolved: injected existing allocation snapshots could mark a demand allocated while omitting reservation ID, date, movement type, or unit; the service now rejects incomplete reservation provenance before reservation or snapshot side effects.
+
+- Resolved: injected existing allocation snapshots could carry a short or all-zero sales-document identity even though the SAP snapshot sink rejects it. The service now applies the same document-key guard before reconciliation.
+
+- Resolved: injected stock providers could return an unknown batch-restriction or other boolean flag that the service treated as false. The service now requires canonical `abap_bool` values for all stock-result flags before proceeding.
+
+- Resolved: injected positive demand could omit its source order unit and be interpreted as already expressed in the allocation unit. The service now rejects missing order-unit provenance before allocation.
+
+- Resolved: the SAP order reader rejected positive demand without a requested-delivery date, but an injected order provider could omit that date and let the service silently substitute today for reservation scheduling. The service now rejects missing positive-demand dates before allocation.
+
+- Resolved: a demand provider or snapshot writer could supply a valid sales document while omitting its SAP document type, item, or schedule-line identity. Service and snapshot boundaries now reject partial sales-order provenance.
+
+- Resolved: injected existing snapshots could use lowercase allocation, status, order, or reservation-unit metadata while SAP result reads returned canonical uppercase values. The service now canonicalizes snapshot metadata before validation and reservation reuse.
+
+- Resolved: SAP stock reads returned uppercase material units, but an injected stock provider could return lowercase units and trigger an unnecessary conversion. The service now canonicalizes stock units before comparing them with the allocation unit.
+
+- Resolved: sales-document types were read, filtered, and persisted case-sensitively even though SAP order codes are canonical uppercase keys. Order, service, comparison, snapshot, and sales-order write boundaries now normalize the type before use.
+
+- Resolved: reservation cancellation duplicated the SAP document length as a literal while create, goods-movement, order, service, and snapshot paths used the shared contract. Cancellation now uses `c_sap_document_length` as well.
+
+- Resolved: `ZSTOCK_ALLOC_COMPARE` reservation-movement filters rejected nonnumeric values but accepted short numeric keys before delegating to the snapshot sink. Common, old-side, and new-side filters now enforce the shared exact three-character movement-type contract at report validation.
+
+- Resolved: injected order providers could return lowercase units while SAP order reads and snapshot writes canonicalized units to uppercase, causing unnecessary case-sensitive conversion calls. The service now canonicalizes order units before validation and allocation.
+
+- Resolved: audit finalization could persist a successful run with a nonblank diagnostic that later read validation rejected. `finish_run` now rejects success messages before updating the run.
+
+- Resolved: the allocation service supplied informational text for successful and successful-preview runs even though the audit contract permits messages only for partial/error outcomes. The service now clears that text at the audit boundary while retaining partial/error diagnostics.
+
+- Resolved: goods-movement output validated fiscal years as numeric/nonzero but did not enforce the four-character SAP key length. The adapter now rejects short returned years before commit.
+
+- Resolved: SAP document-key guards accepted short numeric sales-order, reservation, or goods-movement identities because they checked only numeric content. A shared ten-character contract is now enforced at source, service, snapshot, and direct BAPI boundaries, including returned BAPI keys.
+
+- Resolved: movement-type validation checked only numeric content, so short numeric values could pass a contract documented as a three-character SAP key. A shared exact-length constant is now enforced across allocation, direct BAPI, audit, snapshot, and read-filter boundaries.
+
+- Resolved: allocation-snapshot run-reference validation checked persisted policy metadata but could accept a run whose requested-delivery bounds were reversed. Snapshot writes and reads now reject inverted persisted horizons before using the run as provenance.
+
+- Resolved: the SAP order reader filtered `VBAP-LOEKZ` in SQL, so malformed nonblank deletion flags were silently treated like deleted items and disappeared without a diagnostic. The reader now validates blank/`X` deletion flags before excluding deleted items.
+
+- Resolved: direct reservation, goods-movement, and sales-order adapters treated only `A`, `E`, and `X` BAPI return rows as failures, so an unknown nonblank `RETURN-TYPE` could be ignored and committed as success. The adapters now accept only canonical `S`/`I`/`W`/`E`/`A`/`X` (or blank) statuses and roll back invalid values.
+
+- Resolved: an injected allocator could populate service-owned `allocation_run_id`, `allocation_strategy`, or `allocation_unit` fields and defer the conflict until snapshot persistence, after reservation side effects had begun. The allocation service now rejects those metadata mutations in its allocator postcondition check.
+
+- Resolved: several report-specific README paragraphs still enumerated only the original six strategies after `E`, `A`, and `W` were implemented. Allocation, result, history, watch, and purge guidance now names the complete nine-strategy contract, while the repository contract continues to guard the authoritative list.
+
+- Resolved: the allocation service validated negative priorities on new open demand and direct snapshot writes, but its injected existing-snapshot reconciliation path could still accept a negative persisted priority before reservation reuse. Service-side snapshot validation now enforces the same nonnegative invariant.
+
+- Resolved: negative injected priorities could reach weighted allocation and be silently clamped to the lowest weight, while snapshot persistence accepted the corrupt value. All allocator implementations, the service demand boundary, and the SAP allocation sink now reject negative priorities before side effects.
+
+- Resolved: README strategy examples drifted behind the implemented strategy set after fair-share, adaptive, and weighted strategies were added. The README now has one authoritative nine-strategy contract, protected by the repository contract test.
+
+- Resolved: fair-share and weighted fair-share could leave representable `0.001` stock unused after proportional division rounded every remaining share below the quantity precision. Both allocators now redistribute residual units deterministically while respecting demand caps.
+
 - Resolved: result reads could filter by movement, shelf-life, and other originating policies but not persisted safety stock. The sink boundary now applies the zero-safe `p_safon`/`p_saf`/`p_safto` range consistently to latest, exact-run, and paginated result reads; schemas advance to detail/summary `37`/`39`.
 
 - Resolved: stale-run watch could show persisted safety-stock policy but could not isolate stale runs by that policy. `p_safon` now enables a validated inclusive `p_saf`/`p_safto` range, including explicit zero, and watch schemas advance to CSV `53` and JSON/NDJSON `56`.
@@ -257,6 +311,13 @@
 - Resolved: batch-managed materials no longer allow an empty batch input; the service rejects the run before reading demands or creating side effects.
 - Resolved: selected expired batches are no longer allocatable; the service checks `MCHA-VFDAT` against the allocation date before continuing.
 - Resolved: restricted batches are no longer allocatable; the service checks the batch status before reading demands or creating side effects.
+- Resolved: corrupt noncanonical `MARA-XCHPF` or `MCHA-ZUSTD` values could be copied into boolean stock-source outputs and treated as false; the SAP stock reader now rejects invalid batch-management and restriction flags before allocation.
+- Resolved: persisted audit rows could report more full/partial/unallocated outcomes than their demand count; audit history reads now reject inconsistent outcome-count totals.
+- Resolved: audit finalization could persist the same over-counted outcome totals that reads reject; `finish_run` now checks the persisted demand count before updating the run.
+- Resolved: audit finalization and history reads rejected outcome counts above `demand_count` but accepted under-counted finalized runs. Finalization and finalized-row validation now require full/partial/unallocated totals to equal the persisted demand count.
+- Resolved: a corrupt snapshot and run with matching blank units could be returned as a unitless allocation result; snapshot reads now reject blank allocation-unit provenance.
+- Resolved: noncanonical `MARD/MCHB/MARA/MCHA-LVORM` values could be treated as active records; the stock reader now accepts only blank or `X` deletion indicators.
+- Resolved: negative `VBEP-WMENG` and `VBEP-BMENG` values could satisfy the open-demand SQL difference and become positive demand; the order source now rejects negative schedule quantities.
 - Resolved: a batch that expires before an order’s requested delivery date is now rejected before allocation side effects.
 - Resolved: audit run quantities now carry explicit unit context through `ZSTOCKALLOC_RUN-UNIT`; consumers no longer need to infer the unit from current configuration.
 - Resolved: a requested batch with zero stock can no longer be confused with an unknown batch; `MCHB` existence is carried separately, and batch input is rejected for non-batch-managed materials.
@@ -540,3 +601,20 @@
 - Resolved: operational health could constrain completed duration but not audit lifecycle start dates; `ZSTOCK_ALLOC_HEALTH` now exposes inclusive `p_from`/`p_to` persisted start-date bounds with canonical reversed-range validation.
 - Resolved: operational health could constrain audit starts but not completed audit finishes; `ZSTOCK_ALLOC_HEALTH` now exposes inclusive `p_ffrom`/`p_fto` finish-date bounds and excludes unfinished audits when finish filtering is active.
 - Resolved: operational health could detect stale runs but could not cap the active-run age population; `ZSTOCK_ALLOC_HEALTH` now supports `p_age_to` with the canonical stale-threshold lower-bound validation.
+- Resolved: injected priorities above SAP's two-digit delivery-priority range could overflow weighted allocation arithmetic or persist as invalid snapshot data. The shared priority contract now rejects values outside 0 through 99 at allocator, service, and snapshot boundaries.
+- Resolved: the allocation service trusted an injected snapshot provider's nonblank allocation strategy and could begin reservation reconciliation before the persistence sink rejected an unknown strategy. Service-side reconciliation now accepts only the nine known strategies (or blank legacy strategy) before side effects.
+- Resolved: an injected existing snapshot could carry a nonnumeric reservation movement type and reach cancellation authorization as if it were an SAP movement type. The service now validates the persisted movement-type shape before reconciliation side effects.
+- Resolved: reservation reconciliation could pass arbitrary nonblank IDs to SAP deletion, and reservation creation trusted any nonblank BAPI document. The SAP reservation adapter now validates numeric 10-digit reservation keys at both input and output boundaries.
+- Resolved: goods-issue posting treated any nonblank BAPI material document as successful. The SAP adapter now validates the 10-digit numeric material-document key before committing the goods movement.
+- Resolved: the direct sales-order adapter validated item and schedule-line NUMC keys but not the sales-document key. It now rejects nonnumeric document IDs before authorization or BAPI execution.
+- Resolved: all-zero SAP document sentinels were nonblank and numeric, so they could pass document validation. Sales-order, reservation, and goods-movement adapters now require a nonzero document identity.
+- Resolved: cross-unit reservation reconciliation summed all converted historical reservations even after available stock was covered, allowing large valid snapshots to overflow the packed quantity accumulator. The service now caps the running total at available stock.
+- Resolved: allocation-result priority filters accepted values outside the SAP 0–99 range and silently returned no matches. The result sink now rejects invalid endpoints consistently with allocation and persistence boundaries.
+- Resolved: persisted all-zero reservation IDs were nonblank and could reach reservation reconciliation. Snapshot writes, reads, and service-side reuse now reject the SAP sentinel before side effects.
+- Resolved: goods-issue posting validated material-document output but accepted a zero fiscal-year output. The adapter now rejects malformed or zero `DOC_YEAR` values before commit.
+- Resolved: all-zero sales-document keys could pass order-source and allocation-snapshot validation even though downstream SAP order updates reject the sentinel. Order reads, service validation, and snapshot writes now reject `0000000000`.
+- Resolved: reservation cancellation copied the public 20-character reservation ID into a 10-character SAP field before validation, allowing overlength numeric IDs to be truncated into another valid key. Exact logical length is now checked first.
+- Resolved: persisted audit runs could expose negative minimum shelf-life or safety-stock policy values because run validation checked quantities but not policy metadata. Audit reads now reject negative policy values as corrupt data.
+- Resolved: allocation snapshot writes validated run scope/status/strategy but could bypass corrupt movement and policy metadata on the referenced active run. Snapshot run-reference validation now rejects those fields too.
+- Resolved: numeric reservation IDs with fewer or more than ten logical characters could enter persisted snapshots or injected reconciliation data when they were not the all-zero sentinel. Snapshot validation and service-side reuse now enforce the shared SAP document length for numeric-only IDs while preserving synthetic alphanumeric test identities.
+- Resolved: result reads accepted short or all-zero sales-document filters, and malformed numeric reservation filters silently returned no rows. The allocation sink now validates those filter identities before authorization or database reads.

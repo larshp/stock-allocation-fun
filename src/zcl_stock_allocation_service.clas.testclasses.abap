@@ -24,6 +24,36 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_order_source FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_negative_priority FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_high_priority FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_zero_sales_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_reservation FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_existing_doc FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_num_reservation FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_partial_existing_id FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS accepts_lowercase_snapshot FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS canonicalizes_stock_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_stock_flags FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_order_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_requested_date FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_partial_sales_identity FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_sales_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS caps_cross_unit_reservations FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_stock_conversion FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_demand_conversion FOR TESTING
@@ -54,6 +84,347 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_result_delete_auth FOR TESTING
       RAISING zcx_stock_allocation.
+ENDCLASS.
+
+CLASS lcl_neg_prio_order_source DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_neg_prio_order_source IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( order_id     = 'NEGATIVE-PRIORITY'
+                    order_unit   = 'EA'
+                    priority     = -1
+                    requested_on = sy-datum
+                    requested    = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_high_prio_order_source DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_high_prio_order_source IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( order_id     = 'HIGH-PRIORITY'
+                    order_unit   = 'EA'
+                    priority     = 100
+                    requested_on = sy-datum
+                    requested    = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_zero_sales_doc_order_src DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_zero_sales_doc_order_src IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( sales_document = '0000000000'
+                    order_id       = 'ZERO-SALES-DOCUMENT'
+                    order_unit     = 'EA'
+                    requested_on   = sy-datum
+                    requested      = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_short_sales_doc_order_src DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_short_sales_doc_order_src IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( sales_document = '123'
+                    order_id       = 'SHORT-SALES-DOCUMENT'
+                    order_unit     = 'EA'
+                    requested_on   = sy-datum
+                    requested      = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_overflow_stock_source DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_source.
+ENDCLASS.
+
+CLASS lcl_overflow_stock_source IMPLEMENTATION.
+  METHOD zif_stock_source~get_available.
+    rs_available-quantity = '5'.
+    rs_available-unit = 'EA'.
+    rs_available-material_found = abap_true.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_lowercase_stock_source DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_source.
+ENDCLASS.
+
+CLASS lcl_lowercase_stock_source IMPLEMENTATION.
+  METHOD zif_stock_source~get_available.
+    rs_available-quantity = 5.
+    rs_available-unit = 'ea'.
+    rs_available-material_found = abap_true.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_unexpected_conversion DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_unit_conversion.
+ENDCLASS.
+
+CLASS lcl_unexpected_conversion IMPLEMENTATION.
+  METHOD zif_unit_conversion~convert.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+
+    CREATE OBJECT lo_error.
+    lo_error->message = 'Unexpected unit conversion'.
+    RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_bad_stock_flags DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_stock_source.
+ENDCLASS.
+
+CLASS lcl_bad_stock_flags IMPLEMENTATION.
+  METHOD zif_stock_source~get_available.
+    rs_available-quantity = 1.
+    rs_available-unit = 'EA'.
+    rs_available-material_found = abap_true.
+    rs_available-batch_managed = abap_false.
+    rs_available-batch_found = abap_false.
+    rs_available-batch_restricted = '?'.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_missing_order_unit DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_missing_order_unit IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( order_id     = 'MISSING-ORDER-UNIT'
+                    requested_on = sy-datum
+                    requested    = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_missing_requested_date DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_missing_requested_date IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( order_id   = 'MISSING-REQUESTED-DATE'
+                    order_unit = 'EA'
+                    requested  = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_incomplete_sales_identity DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_incomplete_sales_identity IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( sales_document = '5000000001'
+                    order_id       = 'INCOMPLETE-SALES-IDENTITY'
+                    order_unit     = 'EA'
+                    requested_on   = sy-datum
+                    requested      = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_overflow_order_source DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_overflow_order_source IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( order_id     = 'CURRENT-OVERFLOW'
+                    order_unit   = 'EA'
+                    requested_on = sy-datum
+                    requested    = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_overflow_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_overflow_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id         = 'OLD-OVERFLOW-RUN'
+                    allocation_unit           = 'BOX'
+                    order_id                  = 'OLD-OVERFLOW-01'
+                    priority                  = 0
+                    requested_on              = sy-datum
+                    requested                 = '600000000000'
+                    allocated                 = '600000000000'
+                    allocation_status         = 'F'
+                    reservation_id            = '0000000001'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'BOX' ) TO rt_demands.
+    APPEND VALUE #( allocation_run_id         = 'OLD-OVERFLOW-RUN'
+                    allocation_unit           = 'BOX'
+                    order_id                  = 'OLD-OVERFLOW-02'
+                    priority                  = 0
+                    requested_on              = sy-datum
+                    requested                 = '600000000000'
+                    allocated                 = '600000000000'
+                    allocation_status         = 'F'
+                    reservation_id            = '0000000002'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'BOX' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_missing_reservation_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_missing_reservation_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id = 'OLD-MISSING-RESERVATION'
+                    allocation_unit   = 'EA'
+                    order_id          = 'MISSING-RESERVATION'
+                    priority          = 0
+                    requested_on      = sy-datum
+                    requested         = 1
+                    allocated         = 1
+                    shortage          = 0
+                    allocation_status = 'F' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_short_existing_doc_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_short_existing_doc_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id = 'OLD-SHORT-DOCUMENT'
+                    allocation_unit   = 'EA'
+                    sales_document    = '123'
+                    order_id          = 'SHORT-EXISTING-DOC'
+                    priority          = 0
+                    requested_on      = sy-datum
+                    requested         = 1
+                    allocated         = 0
+                    shortage          = 1
+                    allocation_status = 'U' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_short_num_reservation DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_short_num_reservation IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id         = 'OLD-SHORT-RESERVATION'
+                    allocation_unit           = 'EA'
+                    order_id                  = 'SHORT-NUMERIC-RESERVATION'
+                    priority                  = 0
+                    requested_on              = sy-datum
+                    requested                 = 1
+                    allocated                 = 1
+                    shortage                  = 0
+                    allocation_status         = 'F'
+                    reservation_id            = '123'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_partial_existing_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_partial_existing_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id = 'OLD-PARTIAL-IDENTITY'
+                    allocation_unit   = 'EA'
+                    sales_document    = '5000000001'
+                    order_id          = 'PARTIAL-EXISTING-IDENTITY'
+                    priority          = 0
+                    requested_on      = sy-datum
+                    requested         = 1
+                    allocated         = 0
+                    shortage          = 1
+                    allocation_status = 'U' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_lowercase_existing_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_lowercase_existing_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id         = 'OLD-LOWERCASE'
+                    allocation_unit           = 'ea'
+                    order_unit                = 'ea'
+                    order_id                  = 'CURRENT-OVERFLOW'
+                    priority                  = 0
+                    requested_on              = sy-datum
+                    requested                 = 1
+                    allocated                 = 1
+                    shortage                  = 0
+                    allocation_status         = 'f'
+                    reservation_id            = '0000000001'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'ea' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_overflow_unit_converter DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_unit_conversion.
+ENDCLASS.
+
+CLASS lcl_overflow_unit_converter IMPLEMENTATION.
+  METHOD zif_unit_conversion~convert.
+    rv_quantity = iv_quantity.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS lcl_fail_alloc_transaction DEFINITION FINAL.
@@ -100,7 +471,7 @@ CLASS lcl_cleanup_fail_reservation IMPLEMENTATION.
 
     mv_reserve_calls = mv_reserve_calls + 1.
     IF mv_reserve_calls = 1.
-      rv_document = 'RES-CLEANUP-FAIL'.
+      rv_document = '0000000001'.
       RETURN.
     ENDIF.
     CREATE OBJECT lo_error.
@@ -257,6 +628,788 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
         AND lgort = '0001'.
   ENDMETHOD.
 
+  METHOD rejects_negative_priority.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_neg_prio_order_source.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand priority is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand priority is invalid' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_high_priority.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_high_prio_order_source.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand priority is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand priority is invalid' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_zero_sales_document.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_zero_sales_doc_order_src.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand quantity or key is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand quantity or key is invalid' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_missing_reservation.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE lcl_missing_reservation_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot read returned invalid data' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation snapshot read returned invalid data' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_short_existing_doc.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE lcl_short_existing_doc_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot read returned invalid data' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation snapshot read returned invalid data' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_short_num_reservation.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_overflow_stock_source.
+    CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
+    CREATE OBJECT lo_sink TYPE lcl_short_num_reservation.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot read returned invalid data' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation snapshot read returned invalid data' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_partial_existing_id.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_sink TYPE lcl_partial_existing_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation snapshot read returned invalid data' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation snapshot read returned invalid data' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD accepts_lowercase_snapshot.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_overflow_stock_source.
+    CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
+    CREATE OBJECT lo_sink TYPE lcl_lowercase_existing_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_sink         = lo_sink
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    lv_remaining = lo_cut->allocate(
+      EXPORTING
+        iv_material         = 'MATERIAL-LOWERCASE'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_movement_type    = '201'
+        iv_unit             = 'EA'
+      IMPORTING
+        ev_run_id           = lv_run_id ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
+    SELECT SINGLE status
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id INTO @lv_status.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'S' ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
+  METHOD canonicalizes_stock_unit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_unit_converter TYPE REF TO zif_unit_conversion.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_lowercase_stock_source.
+    CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_unit_converter TYPE lcl_unexpected_conversion.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source   = lo_stock_source
+        io_order_source   = lo_order_source
+        io_allocator      = lo_allocator
+        io_unit_converter = lo_unit_converter
+        io_audit          = lo_audit.
+
+    lv_remaining = lo_cut->allocate(
+      EXPORTING
+        iv_material         = 'MATERIAL-LOWER-STOCK'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_movement_type    = '201'
+        iv_unit             = 'EA'
+        iv_preview          = abap_true
+      IMPORTING
+        ev_run_id           = lv_run_id ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
+    SELECT SINGLE status
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id INTO @lv_status.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'S' ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
+  METHOD rejects_bad_stock_flags.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_bad_stock_flags.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Available stock result is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Available stock result is invalid' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_missing_order_unit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_missing_order_unit.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand unit is missing' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand unit is missing' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_missing_requested_date.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_missing_requested_date.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand requested date is missing' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand requested date is missing' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_partial_sales_identity.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_incomplete_sales_identity.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand source identity is incomplete' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand source identity is incomplete' ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND unit = 'EA'.
+  ENDMETHOD.
+
+  METHOD rejects_short_sales_document.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_short_sales_doc_order_src.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-PRIO'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Open demand quantity or key is invalid' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD caps_cross_unit_reservations.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_unit_converter TYPE REF TO zif_unit_conversion.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_overflow_stock_source.
+    CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
+    CREATE OBJECT lo_sink TYPE lcl_overflow_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_unit_converter TYPE lcl_overflow_unit_converter.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source   = lo_stock_source
+        io_order_source   = lo_order_source
+        io_sink           = lo_sink
+        io_allocator      = lo_allocator
+        io_unit_converter = lo_unit_converter
+        io_audit          = lo_audit.
+
+    lv_remaining = lo_cut->allocate(
+      EXPORTING
+        iv_material         = 'MATERIAL-OVERFLOW'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_movement_type    = '201'
+        iv_unit             = 'EA'
+      IMPORTING
+        ev_run_id           = lv_run_id ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
+    SELECT SINGLE status
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id INTO @lv_status.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'P' ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
   METHOD rejects_invalid_preview.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -342,7 +1495,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
           iv_material         = 'MATERIAL-PRIO'
           iv_plant            = '1000'
           iv_storage_location = '0001'
-          iv_movement_type    = '2A1'
+          iv_movement_type    = '20'
           iv_unit             = 'EA' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.

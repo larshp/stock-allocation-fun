@@ -1689,9 +1689,15 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
-  IF ( p_rmov IS NOT INITIAL AND p_rmov CN '0123456789' )
-      OR ( p_ormov IS NOT INITIAL AND p_ormov CN '0123456789' )
-      OR ( p_nrmov IS NOT INITIAL AND p_nrmov CN '0123456789' ).
+  IF ( p_rmov IS NOT INITIAL
+        AND ( strlen( p_rmov ) <> zif_stock_allocation=>c_movement_type_length
+          OR p_rmov CN '0123456789' ) )
+      OR ( p_ormov IS NOT INITIAL
+        AND ( strlen( p_ormov ) <> zif_stock_allocation=>c_movement_type_length
+          OR p_ormov CN '0123456789' ) )
+      OR ( p_nrmov IS NOT INITIAL
+        AND ( strlen( p_nrmov ) <> zif_stock_allocation=>c_movement_type_length
+          OR p_nrmov CN '0123456789' ) ).
     lv_error_message = 'Reservation movement type filter is invalid'.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error( lv_error_message ).

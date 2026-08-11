@@ -18,6 +18,8 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS maps_delivery_priority FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS canonicalizes_sales_type FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_requested_horizon FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_reversed_horizon FOR TESTING
@@ -30,13 +32,39 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_identity FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_zero_sales_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_short_sales_document FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_quantity FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_delivery_blocks FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_deletion_flag FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized_read FOR TESTING
       RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_order_source_sap IMPLEMENTATION.
+  METHOD canonicalizes_sales_type.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+
+    UPDATE vbak SET auart = 'or'
+      WHERE vbeln = 'PRIO000001'.
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    lt_demands = lo_cut->get_open_demands(
+      iv_material = 'MATERIAL-PRIO'
+      iv_plant    = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-sales_document_type
+      exp = 'OR' ).
+    UPDATE vbak SET auart = 'OR'
+      WHERE vbeln = 'PRIO000001'.
+  ENDMETHOD.
+
   METHOD rejects_unauthorized_read.
     DATA lo_authority TYPE REF TO zif_source_read_authority.
     DATA lo_cut TYPE REF TO zif_order_source.
@@ -223,6 +251,27 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
       exp = 4 ).
   ENDMETHOD.
 
+  METHOD rejects_bad_deletion_flag.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-BAD-DELETION'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Order item deletion flag is invalid' ).
+  ENDMETHOD.
+
   METHOD rejects_invalid_identity.
     DATA lo_cut TYPE REF TO zif_order_source.
     DATA lv_raised TYPE abap_bool.
@@ -242,6 +291,69 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Open demand record is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_sales_document.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-ZERO-SALES-DOCUMENT'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand record is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_short_sales_document.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-SHORT-SALES-DOCUMENT'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand record is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_quantity.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-NEGATIVE-DEMAND'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Open demand quantity is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_missing_doc_type.

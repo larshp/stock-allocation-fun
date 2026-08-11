@@ -73,13 +73,18 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lv_sales_document_type TYPE zif_stock_allocation=>ty_sales_document_type.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
 
+    lv_sales_document_type = to_upper( iv_sales_document_type ).
     IF iv_sales_document IS INITIAL
-        OR iv_sales_document_type IS INITIAL
+        OR lv_sales_document_type IS INITIAL
         OR iv_sales_item IS INITIAL
         OR iv_schedule_line IS INITIAL
+        OR strlen( iv_sales_document ) <> zif_stock_allocation=>c_sap_document_length
+        OR iv_sales_document CN '0123456789'
+        OR iv_sales_document = '0000000000'
         OR iv_sales_item CN '0123456789'
         OR iv_schedule_line CN '0123456789'
         OR iv_quantity <= 0.
@@ -89,7 +94,7 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     IF mo_authority IS BOUND.
       TRY.
           mo_authority->check(
-            iv_sales_document_type = iv_sales_document_type ).
+            iv_sales_document_type = lv_sales_document_type ).
         CATCH zcx_stock_allocation INTO lo_error.
           IF lo_error->message IS INITIAL.
             lo_error->message = 'Sales-order change authorization failed'.
@@ -119,7 +124,18 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
         return           = lt_return.
     lv_bapi_subrc = sy-subrc.
     LOOP AT lt_return ASSIGNING <ls_return>.
-      IF <ls_return>-type = 'A'
+      IF <ls_return>-type IS NOT INITIAL
+          AND <ls_return>-type <> 'S'
+          AND <ls_return>-type <> 'I'
+          AND <ls_return>-type <> 'W'
+          AND <ls_return>-type <> 'E'
+          AND <ls_return>-type <> 'A'
+          AND <ls_return>-type <> 'X'.
+        lv_bapi_error = abap_true.
+        IF lv_bapi_message IS INITIAL.
+          lv_bapi_message = 'Sales-order change BAPI returned invalid status'.
+        ENDIF.
+      ELSEIF <ls_return>-type = 'A'
           OR <ls_return>-type = 'E'
           OR <ls_return>-type = 'X'.
         lv_bapi_error = abap_true.

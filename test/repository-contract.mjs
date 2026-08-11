@@ -565,6 +565,121 @@ assert.match(
 );
 assert.match(
   healthReportSource,
+  /PARAMETERS p_covf TYPE zif_allocation_audit=>ty_coverage\./,
+  "health must expose a minimum coverage-percentage bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_covt TYPE zif_allocation_audit=>ty_coverage\./,
+  "health must expose a maximum coverage-percentage bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_coverage_from\s+= p_covf/,
+  "health must propagate the minimum coverage-percentage bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_coverage_to\s+= p_covt/,
+  "health must propagate the maximum coverage-percentage bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /minimum_coverage_pct|maximum_coverage_pct/,
+  "health machine-readable output must expose coverage-percentage provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_tfrom TYPE i\./,
+  "health must expose a minimum audit-duration bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_tto TYPE i\./,
+  "health must expose a maximum audit-duration bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_duration_from\s+= p_tfrom/,
+  "health must propagate the minimum audit-duration bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_duration_to\s+= p_tto/,
+  "health must propagate the maximum audit-duration bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /audit_duration_from_filter|audit_duration_to_filter/,
+  "health machine-readable output must expose audit-duration provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_from TYPE d\./,
+  "health must expose an audit start-date lower bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_to TYPE d\./,
+  "health must expose an audit start-date upper bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_start_date_from\s+= p_from/,
+  "health must propagate the audit start-date lower bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_start_date_to\s+= p_to/,
+  "health must propagate the audit start-date upper bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /start_date_from_filter|start_date_to_filter/,
+  "health machine-readable output must expose audit start-date provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_ffrom TYPE d\./,
+  "health must expose an audit finish-date lower bound",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_fto TYPE d\./,
+  "health must expose an audit finish-date upper bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_finish_date_from\s+= p_ffrom/,
+  "health must propagate the audit finish-date lower bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /iv_finish_date_to\s+= p_fto/,
+  "health must propagate the audit finish-date upper bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /finish_date_from_filter|finish_date_to_filter/,
+  "health machine-readable output must expose audit finish-date provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_age_to TYPE i\./,
+  "health must expose a maximum running-age bound",
+);
+assert.match(
+  healthReportSource,
+  /iv_running_age_to\s+= p_age_to/,
+  "health must propagate the maximum running-age bound to audit reads",
+);
+assert.match(
+  healthReportSource,
+  /maximum_running_age_filter/,
+  "health machine-readable output must expose running-age provenance",
+);
+assert.match(
+  healthReportSource,
   /legacy_strategy_filter/,
   "health machine-readable output must expose legacy-strategy provenance",
 );
@@ -685,8 +800,8 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_value = 23 \) TO lt_json_fields/,
-  "health JSON schema must include the shortage-percentage contract version",
+  /iv_value = 28 \) TO lt_json_fields/,
+  "health JSON schema must include the running-age contract version",
 );
 const historySource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_history.prog.abap"),

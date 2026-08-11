@@ -21,6 +21,14 @@ PARAMETERS p_shf TYPE zif_stock_allocation=>ty_quantity.
 PARAMETERS p_sht TYPE zif_stock_allocation=>ty_quantity.
 PARAMETERS p_spf TYPE zif_allocation_audit=>ty_coverage.
 PARAMETERS p_spt TYPE zif_allocation_audit=>ty_coverage.
+PARAMETERS p_covf TYPE zif_allocation_audit=>ty_coverage.
+PARAMETERS p_covt TYPE zif_allocation_audit=>ty_coverage.
+PARAMETERS p_tfrom TYPE i.
+PARAMETERS p_tto TYPE i.
+PARAMETERS p_from TYPE d.
+PARAMETERS p_to TYPE d.
+PARAMETERS p_ffrom TYPE d.
+PARAMETERS p_fto TYPE d.
 PARAMETERS p_legacy AS CHECKBOX.
 PARAMETERS p_cov TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
 PARAMETERS p_spct TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
@@ -40,6 +48,7 @@ PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_stale TYPE i DEFAULT 3600.
+PARAMETERS p_age_to TYPE i.
 PARAMETERS p_csv AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
 
@@ -229,6 +238,15 @@ START-OF-SELECTION.
         iv_shortage_to       = p_sht
         iv_shortage_pct_from = p_spf
         iv_shortage_pct_to   = p_spt
+        iv_coverage_from     = p_covf
+        iv_coverage_to       = p_covt
+        iv_duration_from     = p_tfrom
+        iv_duration_to       = p_tto
+        iv_start_date_from   = p_from
+        iv_start_date_to     = p_to
+        iv_finish_date_from  = p_ffrom
+        iv_finish_date_to    = p_fto
+        iv_running_age_to    = p_age_to
         iv_legacy_strategy   = p_legacy
         iv_min_shelf_life    = p_shelf
         iv_safety_filter     = p_safon
@@ -268,6 +286,15 @@ START-OF-SELECTION.
           iv_shortage_to       = p_sht
           iv_shortage_pct_from = p_spf
           iv_shortage_pct_to   = p_spt
+          iv_coverage_from     = p_covf
+          iv_coverage_to       = p_covt
+          iv_duration_from     = p_tfrom
+          iv_duration_to       = p_tto
+          iv_start_date_from   = p_from
+          iv_start_date_to     = p_to
+          iv_finish_date_from  = p_ffrom
+          iv_finish_date_to    = p_fto
+          iv_running_age_to    = p_age_to
           iv_legacy_strategy   = p_legacy
           iv_min_shelf_life    = p_shelf
           iv_safety_filter     = p_safon
@@ -314,7 +341,7 @@ START-OF-SELECTION.
   IF p_json = abap_true.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 23 ) TO lt_json_fields.
+      iv_value = 28 ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'status'
       iv_value = ls_health-status ) TO lt_json_fields.
@@ -372,6 +399,33 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'maximum_shortage_pct'
       iv_value = p_spt ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'minimum_coverage_pct'
+      iv_value = p_covf ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'maximum_coverage_pct'
+      iv_value = p_covt ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'audit_duration_from_filter'
+      iv_value = p_tfrom ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'audit_duration_to_filter'
+      iv_value = p_tto ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'start_date_from_filter'
+      iv_value = p_from ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'start_date_to_filter'
+      iv_value = p_to ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'finish_date_from_filter'
+      iv_value = p_ffrom ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'finish_date_to_filter'
+      iv_value = p_fto ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'maximum_running_age_filter'
+      iv_value = p_age_to ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'legacy_strategy_filter'
       iv_value = p_legacy ) TO lt_json_fields.
@@ -597,7 +651,12 @@ START-OF-SELECTION.
       && 'minimum_requested_quantity;maximum_requested_quantity;'
       && 'minimum_allocated_quantity;maximum_allocated_quantity;'
       && 'minimum_shortage_quantity;maximum_shortage_quantity;'
-      && 'minimum_shortage_pct;maximum_shortage_pct;legacy_strategy_filter;'
+      && 'minimum_shortage_pct;maximum_shortage_pct;'
+      && 'minimum_coverage_pct;maximum_coverage_pct;'
+      && 'audit_duration_from_filter;audit_duration_to_filter;'
+      && 'start_date_from_filter;start_date_to_filter;'
+      && 'finish_date_from_filter;finish_date_to_filter;'
+      && 'maximum_running_age_filter;legacy_strategy_filter;'
       && 'overdue_only;requested_overdue_as_of;'
       && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
       && 'minimum_deadline_age_days;maximum_deadline_age_days;deadline_age_as_of;'
@@ -616,7 +675,7 @@ START-OF-SELECTION.
       && 'adaptive_coverage_pct;coverage_threshold_active;'
       && 'coverage_below_threshold;shortage_threshold_active;shortage_above_threshold'.
     APPEND zcl_stock_csv=>quote( 'zstock_alloc_health' ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 23 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 28 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-message ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-reason_code ) TO lt_csv_fields.
@@ -636,6 +695,15 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_sht ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_spf ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_spt ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_covf ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_covt ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_tfrom ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_tto ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( p_from ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( p_to ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( p_ffrom ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( p_fto ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_age_to ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_legacy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_overdue_date ) TO lt_csv_fields.
@@ -753,6 +821,15 @@ START-OF-SELECTION.
          / 'Maximum shortage quantity:', p_sht,
          / 'Minimum shortage percentage:', p_spf, '%',
          / 'Maximum shortage percentage:', p_spt, '%',
+         / 'Minimum coverage percentage:', p_covf, '%',
+         / 'Maximum coverage percentage:', p_covt, '%',
+         / 'Audit duration from:', p_tfrom, 'seconds',
+         / 'Audit duration to:', p_tto, 'seconds',
+         / 'Audit start date from:', p_from,
+         / 'Audit start date to:', p_to,
+         / 'Audit finish date from:', p_ffrom,
+         / 'Audit finish date to:', p_fto,
+         / 'Maximum running age:', p_age_to, 'seconds',
          / 'Legacy strategy filter:', p_legacy,
          / 'Overdue only:', p_ovrd,
          / 'Requested overdue as-of:', lv_overdue_date,

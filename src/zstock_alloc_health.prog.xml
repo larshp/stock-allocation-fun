@@ -32,6 +32,14 @@
     <item><ID>S</ID><KEY>P_SHT</KEY><ENTRY>Maximum shortage quantity</ENTRY><LENGTH>26</LENGTH></item>
     <item><ID>S</ID><KEY>P_SPF</KEY><ENTRY>Minimum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_SPT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COVF</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COVT</KEY><ENTRY>Maximum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TFROM</KEY><ENTRY>Minimum audit duration seconds</ENTRY><LENGTH>33</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TTO</KEY><ENTRY>Maximum audit duration seconds</ENTRY><LENGTH>33</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FROM</KEY><ENTRY>Audit start date from</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TO</KEY><ENTRY>Audit start date to</ENTRY><LENGTH>21</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FFROM</KEY><ENTRY>Audit finish date from</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FTO</KEY><ENTRY>Audit finish date to</ENTRY><LENGTH>23</LENGTH></item>
     <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>21</LENGTH></item>
     <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_SPCT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>31</LENGTH></item>
@@ -51,6 +59,7 @@
     <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>25</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AGE_TO</KEY><ENTRY>Maximum running age seconds</ENTRY><LENGTH>31</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
     <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
    </TPOOL>

@@ -1957,6 +1957,11 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deleted_snapshots TYPE i.
     DATA lv_count TYPE i.
     DATA lv_raised TYPE abap_bool.
+    DATA lv_yesterday TYPE d.
+    DATA lv_tomorrow TYPE d.
+
+    lv_yesterday = sy-datum - 1.
+    lv_tomorrow = sy-datum + 1.
 
     ls_run-mandt = sy-mandt.
     ls_run-matnr = 'MATERIAL-PURGE-POLICY'.
@@ -1977,7 +1982,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-strategy = 'P'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
-    ls_run-requested_on_from = sy-datum - 1.
+    ls_run-requested_on_from = lv_yesterday.
     INSERT zstockalloc_run FROM @ls_run.
     ls_run-run_id = 'RUN-PURGE-POLICY-OTHER'.
     ls_run-strategy = 'F'.
@@ -2036,7 +2041,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_deadline_only     = abap_true
       iv_overdue_only      = abap_true
       iv_overdue_date      = sy-datum
-      iv_requested_on_from = sy-datum - 1
+      iv_requested_on_from = lv_yesterday
       iv_before_date       = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
@@ -2107,8 +2112,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_material         = 'MATERIAL-PURGE-POLICY'
       iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_deadline_from    = sy-datum - 1
-      iv_deadline_to      = sy-datum - 1
+      iv_deadline_from    = lv_yesterday
+      iv_deadline_to      = lv_yesterday
       iv_before_date      = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
@@ -2120,7 +2125,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location  = '0001'
       iv_deadline_age_from = 2
       iv_deadline_age_to   = 2
-      iv_deadline_age_date = sy-datum + 1
+      iv_deadline_age_date = lv_tomorrow
       iv_before_date       = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
@@ -2143,7 +2148,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         iv_deadline_only     = abap_true
         iv_overdue_only      = abap_true
         iv_overdue_date      = sy-datum
-        iv_requested_on_from = sy-datum - 1
+        iv_requested_on_from = lv_yesterday
         iv_before_date       = sy-datum
       IMPORTING
         ev_deleted_snapshots = lv_deleted_snapshots ).
@@ -2221,7 +2226,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_finish_date_from = sy-datum
-          iv_finish_date_to   = sy-datum - 1
+          iv_finish_date_to   = lv_yesterday
           iv_before_date      = sy-datum ).
       CATCH zcx_stock_allocation INTO DATA(lo_finish_date_range_error).
         lv_raised = abap_true.
@@ -2267,7 +2272,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           iv_material          = 'MATERIAL-PURGE-POLICY'
           iv_plant             = '1000'
           iv_storage_location  = '0001'
-          iv_deadline_age_date = sy-datum + 1
+          iv_deadline_age_date = lv_tomorrow
           iv_before_date       = sy-datum ).
       CATCH zcx_stock_allocation INTO DATA(lo_deadline_age_date_error).
         lv_raised = abap_true.
@@ -2283,7 +2288,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_deadline_from    = sy-datum
-          iv_deadline_to      = sy-datum - 1
+          iv_deadline_to      = lv_yesterday
           iv_before_date      = sy-datum ).
       CATCH zcx_stock_allocation INTO DATA(lo_deadline_range_error).
         lv_raised = abap_true.
@@ -2299,7 +2304,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
           iv_plant             = '1000'
           iv_storage_location  = '0001'
           iv_requested_on_from = sy-datum
-          iv_requested_on_to   = sy-datum - 1
+          iv_requested_on_to   = lv_yesterday
           iv_before_date       = sy-datum ).
       CATCH zcx_stock_allocation INTO DATA(lo_requested_range_error).
         lv_raised = abap_true.

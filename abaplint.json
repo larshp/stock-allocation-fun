@@ -24,6 +24,7 @@
     "local_testclass_consistency": true,
     "uncaught_exception": true,
     "no_mandt_in_database_operations": true,
+    "strict_sql": true,
     "line_length": true,
     "allowed_object_naming": true,
     "parser_error": true,

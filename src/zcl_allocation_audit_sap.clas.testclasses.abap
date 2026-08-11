@@ -1096,10 +1096,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( lv_run_id ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @DATA(lv_run_count)
+
       WHERE matnr = 'MATERIAL-AUDIT-MVT'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @DATA(lv_run_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 0 ).
@@ -1605,10 +1605,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_snapshot_count
+
       WHERE matnr = 'MATERIAL-PURGE-SNAPSHOT'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_snapshot_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_deleted
       exp = 2 ).
@@ -1620,8 +1620,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 0 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @DATA(lv_running_count)
-      WHERE run_id = 'RUN-PURGE-RUNNING'.
+
+      WHERE run_id = 'RUN-PURGE-RUNNING' INTO @DATA(lv_running_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_running_count
       exp = 1 ).
@@ -1699,15 +1699,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RESERVED'.
+
+      WHERE run_id = 'RUN-PURGE-RESERVED' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RESERVED'.
+
+      WHERE run_id = 'RUN-PURGE-RESERVED' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
@@ -2080,15 +2080,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-POLICY-OTHER'.
+
+      WHERE run_id = 'RUN-PURGE-POLICY-OTHER' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-POLICY-RUNNING'.
+
+      WHERE run_id = 'RUN-PURGE-POLICY-RUNNING' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
@@ -2259,22 +2259,22 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-STATUS-SUCCESS'.
+
+      WHERE run_id = 'RUN-PURGE-STATUS-SUCCESS' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 0 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-STATUS-RUNNING'.
+
+      WHERE run_id = 'RUN-PURGE-STATUS-RUNNING' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-STATUS-UNKNOWN'.
+
+      WHERE run_id = 'RUN-PURGE-STATUS-UNKNOWN' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
@@ -2335,15 +2335,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-DURATION-SHORT'.
+
+      WHERE run_id = 'RUN-PURGE-DURATION-SHORT' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-DURATION-LONG'.
+
+      WHERE run_id = 'RUN-PURGE-DURATION-LONG' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 0 ).
@@ -2560,29 +2560,29 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( lv_protected_unknown ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RUN-ID-TARGET'.
+
+      WHERE run_id = 'RUN-PURGE-RUN-ID-TARGET' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 0 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RUN-ID-OTHER'.
+
+      WHERE run_id = 'RUN-PURGE-RUN-ID-OTHER' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RUN-ID-RUNNING'.
+
+      WHERE run_id = 'RUN-PURGE-RUN-ID-RUNNING' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_count
-      WHERE run_id = 'RUN-PURGE-RUN-ID-UNKNOWN'.
+
+      WHERE run_id = 'RUN-PURGE-RUN-ID-UNKNOWN' INTO @lv_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_count
       exp = 1 ).
@@ -2817,8 +2817,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_message          = 'Rejected horizon test' ).
     SELECT SINGLE requested_on_to, unit
       FROM zstockalloc_run
-      INTO ( @lv_requested_on_to, @lv_unit )
-      WHERE run_id = @lv_rejection_run_id.
+
+      WHERE run_id = @lv_rejection_run_id INTO ( @lv_requested_on_to, @lv_unit ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_requested_on_to
       exp = '20260816' ).
@@ -3108,9 +3108,10 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     SELECT SINGLE status, allocated, unit, requested_on_from,
                   requested_on_to, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_allocated, @lv_unit, @lv_requested_on_from,
-            @lv_requested_on_to, @lv_message)
-      WHERE run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id
+        INTO ( @lv_status, @lv_allocated, @lv_unit,
+               @lv_requested_on_from, @lv_requested_on_to,
+               @lv_message ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'S' ).

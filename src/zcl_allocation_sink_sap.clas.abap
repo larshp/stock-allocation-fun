@@ -389,11 +389,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
              reservation_id,
              reservation_date, reservation_movement_type, reservation_unit
         FROM zstockalloc
-        INTO CORRESPONDING FIELDS OF TABLE @rt_demands
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
-          AND batch = @iv_batch.
+          AND batch = @iv_batch INTO CORRESPONDING FIELDS OF TABLE @rt_demands.
     ELSE.
       SELECT run_id AS allocation_run_id,
              allocation_unit,
@@ -403,12 +403,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
              reservation_id,
              reservation_date, reservation_movement_type, reservation_unit
         FROM zstockalloc
-        INTO CORRESPONDING FIELDS OF TABLE @rt_demands
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
-          AND run_id = @iv_run_id.
+          AND run_id = @iv_run_id INTO CORRESPONDING FIELDS OF TABLE @rt_demands.
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
@@ -449,11 +449,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
-          INTO TABLE @lt_strategy_runs
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
-            AND batch = @iv_batch.
+            AND batch = @iv_batch INTO TABLE @lt_strategy_runs.
       ELSEIF iv_legacy_strategy = abap_true.
            SELECT run_id, strategy, movement_type, min_shelf_life, safety_stock,
                demand_count,
@@ -462,12 +462,12 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
-          INTO TABLE @lt_strategy_runs
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
-            AND strategy = @space.
+            AND strategy = @space INTO TABLE @lt_strategy_runs.
       ELSE.
            SELECT run_id, strategy, movement_type, min_shelf_life, safety_stock,
                demand_count,
@@ -476,11 +476,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
                start_date, start_time, finish_date, finish_time,
                requested_on_from, requested_on_to
           FROM zstockalloc_run
-          INTO TABLE @lt_strategy_runs
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
-            AND batch = @iv_batch.
+            AND batch = @iv_batch INTO TABLE @lt_strategy_runs.
       ENDIF.
       LOOP AT rt_demands ASSIGNING <ls_demand>.
         READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
@@ -1258,11 +1258,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     SELECT SINGLE matnr, werks, lgort, batch, unit, strategy,
                   requested_on_from, requested_on_to, status
       FROM zstockalloc_run
-      INTO (@lv_run_material, @lv_run_plant, @lv_run_storage_location,
-            @lv_run_batch, @lv_run_unit, @lv_run_strategy,
-            @lv_run_requested_on_from, @lv_run_requested_on_to,
-            @lv_run_status)
-      WHERE run_id = @iv_run_id.
+      WHERE run_id = @iv_run_id
+        INTO ( @lv_run_material, @lv_run_plant, @lv_run_storage_location,
+               @lv_run_batch, @lv_run_unit, @lv_run_strategy,
+               @lv_run_requested_on_from, @lv_run_requested_on_to,
+               @lv_run_status ).
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Allocation snapshot run was not found' ).
     ENDIF.

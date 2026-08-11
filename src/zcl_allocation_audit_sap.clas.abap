@@ -254,7 +254,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -262,7 +262,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date < @iv_before_date
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ELSE.
         SELECT run_id,
                start_date,
@@ -278,7 +278,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -287,7 +287,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ELSE.
       IF iv_start_date_from IS INITIAL.
@@ -305,7 +305,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -314,7 +314,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date < @iv_before_date
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ELSE.
         SELECT run_id,
                start_date,
@@ -330,7 +330,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -340,7 +340,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ENDIF.
     LOOP AT lt_candidates INTO ls_candidate.
@@ -452,13 +452,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
@@ -469,13 +469,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
@@ -486,13 +486,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
@@ -529,8 +529,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ENDIF.
       SELECT SINGLE run_id
         FROM zstockalloc_run
-        INTO @lv_remaining_run_id
-        WHERE run_id = @lv_run_id.
+
+        WHERE run_id = @lv_run_id INTO @lv_remaining_run_id.
       IF sy-subrc = 0.
         rollback_and_raise(
           iv_message = 'Audit run purge persistence failed' ).
@@ -711,7 +711,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -719,7 +719,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date < @iv_before_date
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ELSE.
         SELECT run_id,
                start_date,
@@ -735,7 +735,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -744,7 +744,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ELSE.
       IF iv_start_date_from IS INITIAL.
@@ -762,7 +762,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -771,7 +771,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date < @iv_before_date
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ELSE.
         SELECT run_id,
                start_date,
@@ -787,7 +787,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                strategy,
                message
           FROM zstockalloc_run
-          INTO CORRESPONDING FIELDS OF TABLE @lt_candidates
+
           WHERE matnr = @iv_material
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
@@ -797,7 +797,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
-              OR requested_on_to <> '00000000' ).
+              OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ENDIF.
     LOOP AT lt_candidates INTO ls_candidate.
@@ -909,13 +909,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               rs_preview-reserved_count =
                 rs_preview-reserved_count + 1.
@@ -927,13 +927,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               rs_preview-reserved_count =
                 rs_preview-reserved_count + 1.
@@ -945,13 +945,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             CLEAR lv_reservation_id.
             SELECT SINGLE reservation_id
               FROM zstockalloc
-              INTO @lv_reservation_id
+
               WHERE matnr = @iv_material
                 AND werks = @iv_plant
                 AND lgort = @iv_storage_location
                 AND batch = @iv_batch
                 AND run_id = @ls_candidate-run_id
-                AND reservation_id <> @space.
+                AND reservation_id <> @space INTO @lv_reservation_id.
             IF lv_reservation_id IS NOT INITIAL.
               rs_preview-reserved_count =
                 rs_preview-reserved_count + 1.
@@ -970,12 +970,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     LOOP AT lt_run_ids INTO lv_run_id.
       SELECT COUNT( * )
         FROM zstockalloc
-        INTO @lv_snapshot_count
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
-          AND run_id = @lv_run_id.
+          AND run_id = @lv_run_id INTO @lv_snapshot_count.
       rs_preview-snapshot_count =
         rs_preview-snapshot_count + lv_snapshot_count.
     ENDLOOP.
@@ -1794,11 +1794,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              shortage,
              message
         FROM zstockalloc_run
-        INTO CORRESPONDING FIELDS OF TABLE @rt_runs
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
-          AND batch = @iv_batch.
+          AND batch = @iv_batch INTO CORRESPONDING FIELDS OF TABLE @rt_runs.
     ELSE.
       SELECT run_id,
              matnr AS material,
@@ -1826,12 +1826,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              shortage,
              message
         FROM zstockalloc_run
-        INTO CORRESPONDING FIELDS OF TABLE @rt_runs
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
           AND batch = @iv_batch
-          AND run_id = @iv_run_id.
+          AND run_id = @iv_run_id INTO CORRESPONDING FIELDS OF TABLE @rt_runs.
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rt_runs.
@@ -2426,8 +2426,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     SELECT SINGLE status, available
       FROM zstockalloc_run
-      INTO (@lv_current_status, @lv_current_available)
-      WHERE run_id = @iv_run_id.
+
+      WHERE run_id = @iv_run_id INTO (@lv_current_status, @lv_current_available).
     IF sy-subrc <> 0.
       raise_error( iv_message = 'Audit run was not found' ).
     ENDIF.

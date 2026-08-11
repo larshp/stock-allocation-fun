@@ -177,13 +177,13 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT SINGLE movement_type, min_shelf_life
       FROM zstockalloc_run
-      INTO (@lv_persisted_movement_type, @lv_persisted_min_shelf_life)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND requested_on_from = '20260820'
         AND requested_on_to = '20260815'
-        AND status = 'E'.
+        AND status = 'E' INTO (@lv_persisted_movement_type, @lv_persisted_min_shelf_life).
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_movement_type
       exp = '201' ).
@@ -232,19 +232,19 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_run_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_run_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 1 ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -294,19 +294,19 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_run_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_run_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 1 ).
     SELECT SINGLE message
       FROM zstockalloc_run
-      INTO @lv_message
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_message.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Invalid preview flag' ).
@@ -353,19 +353,19 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_run_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_run_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 1 ).
     SELECT SINGLE movement_type, message
       FROM zstockalloc_run
-      INTO (@lv_persisted_movement_type, @lv_message)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO (@lv_persisted_movement_type, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Invalid movement type' ).
@@ -430,10 +430,10 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_not_initial( lv_run_id ).
     SELECT SINGLE movement_type, min_shelf_life, strategy
       FROM zstockalloc_run
-      INTO ( @lv_persisted_movement_type,
-             @lv_persisted_min_shelf_life,
-             @lv_persisted_strategy )
-      WHERE run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id
+        INTO ( @lv_persisted_movement_type,
+               @lv_persisted_min_shelf_life,
+               @lv_persisted_strategy ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_movement_type
       exp = '201' ).
@@ -445,44 +445,44 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = 'L' ).
     SELECT SINGLE unit
       FROM zstockalloc_run
-      INTO @lv_persisted_unit
-      WHERE run_id = @lv_run_id.
+
+      WHERE run_id = @lv_run_id INTO @lv_persisted_unit.
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_unit
       exp = 'EA' ).
     SELECT SINGLE allocation_unit
       FROM zstockalloc
-      INTO @lv_persisted_allocation_unit
-      WHERE run_id = @lv_run_id.
+
+      WHERE run_id = @lv_run_id INTO @lv_persisted_allocation_unit.
     cl_abap_unit_assert=>assert_equals(
       act = lv_persisted_allocation_unit
       exp = 'EA' ).
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_allocation_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_allocation_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_count
       exp = 2 ).
 
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_reservation_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100001'.
+        AND order_id = 'PRIO0000010000100001' INTO @lv_reservation_id.
     cl_abap_unit_assert=>assert_not_initial( lv_reservation_id ).
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_second_reservation_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100002'.
+        AND order_id = 'PRIO0000010000100002' INTO @lv_second_reservation_id.
     cl_abap_unit_assert=>assert_not_initial( lv_second_reservation_id ).
     IF lv_reservation_id <> lv_second_reservation_id.
       lv_reservations_differ = abap_true.
@@ -501,18 +501,18 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_rerun_reservation_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100001'.
+        AND order_id = 'PRIO0000010000100001' INTO @lv_rerun_reservation_id.
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_rerun_second_reservation_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100002'.
+        AND order_id = 'PRIO0000010000100002' INTO @lv_rerun_second_reservation_id.
     cl_abap_unit_assert=>assert_equals(
       act = lv_rerun_reservation_id
       exp = lv_reservation_id ).
@@ -532,18 +532,18 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_changed_reservation_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100001'.
+        AND order_id = 'PRIO0000010000100001' INTO @lv_changed_reservation_id.
     SELECT SINGLE reservation_id
       FROM zstockalloc
-      INTO @lv_changed_second_id
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND order_id = 'PRIO0000010000100002'.
+        AND order_id = 'PRIO0000010000100002' INTO @lv_changed_second_id.
     IF lv_changed_reservation_id = lv_reservation_id
         OR lv_changed_second_id = lv_second_reservation_id.
       lv_reservations_differ = abap_false.
@@ -554,22 +554,22 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
 
     SELECT COUNT( * )
       FROM zstockalloc_run
-      INTO @lv_run_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND status = 'P'.
+        AND status = 'P' INTO @lv_run_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_count
       exp = 3 ).
 
     SELECT SUM( full_count ), SUM( partial_count ), SUM( unallocated_count )
       FROM zstockalloc_run
-      INTO (@lv_full_count, @lv_partial_count, @lv_unallocated_count)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND status = 'P'.
+        AND status = 'P' INTO (@lv_full_count, @lv_partial_count, @lv_unallocated_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_full_count
       exp = 3 ).
@@ -621,21 +621,21 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_allocation_count
+
       WHERE matnr = 'MATERIAL-BATCH-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND batch = 'BATCH-001'.
+        AND batch = 'BATCH-001' INTO @lv_allocation_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_count
       exp = 1 ).
     SELECT SINGLE batch
       FROM zstockalloc
-      INTO @lv_batch
+
       WHERE matnr = 'MATERIAL-BATCH-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND batch = 'BATCH-001'.
+        AND batch = 'BATCH-001' INTO @lv_batch.
     cl_abap_unit_assert=>assert_equals(
       act = lv_batch
       exp = 'BATCH-001' ).
@@ -677,11 +677,11 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT SINGLE status, shortage, unallocated_count
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_shortage, @lv_unallocated_count)
+
       WHERE matnr = 'MATERIAL-BATCH'
         AND werks = '1000'
         AND lgort = '0001'
-        AND batch = 'BATCH-ZERO'.
+        AND batch = 'BATCH-ZERO' INTO (@lv_status, @lv_shortage, @lv_unallocated_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'P' ).
@@ -730,12 +730,12 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT SINGLE status, shortage, safety_stock
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_shortage, @lv_safety_stock)
+
       WHERE matnr = 'MATERIAL-BATCH'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-ZERO'
-        AND safety_stock = 1.
+        AND safety_stock = 1 INTO (@lv_status, @lv_shortage, @lv_safety_stock).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'P' ).
@@ -770,11 +770,11 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_before_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND allocation_unit = 'EA'.
+        AND allocation_unit = 'EA' INTO @lv_before_count.
 
     lv_remaining = lo_cut->allocate(
       iv_material         = 'MATERIAL-PRIO'
@@ -789,11 +789,11 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '0' ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_after_count
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND allocation_unit = 'EA'.
+        AND allocation_unit = 'EA' INTO @lv_after_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_after_count
       exp = lv_before_count ).
@@ -840,10 +840,10 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-MISSING'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -893,10 +893,10 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-NO-UNIT'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -949,11 +949,11 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND unit = 'BOX'.
+        AND unit = 'BOX' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -1007,20 +1007,20 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_allocation_count
+
       WHERE matnr = 'MATERIAL-DEMAND-FAIL'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_allocation_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_count
       exp = 0 ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-DEMAND-FAIL'
         AND werks = '1000'
         AND lgort = '0001'
-        AND unit = 'EA'.
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -1071,20 +1071,20 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_allocation_count
+
       WHERE matnr = 'MATERIAL-ERROR'
         AND werks = '1000'
-        AND lgort = '0001'.
+        AND lgort = '0001' INTO @lv_allocation_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_count
       exp = 0 ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
+
       WHERE matnr = 'MATERIAL-ERROR'
         AND werks = '1000'
         AND lgort = '0001'
-        AND unit = 'EA'.
+        AND unit = 'EA' INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -1449,12 +1449,12 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT SINGLE safety_stock, message
       FROM zstockalloc_run
-      INTO (@lv_safety_stock, @lv_message)
+
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
         AND status = 'E'
-        AND message = 'Invalid safety stock'.
+        AND message = 'Invalid safety stock' INTO (@lv_safety_stock, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_safety_stock
       exp = -1 ).
@@ -1526,8 +1526,8 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = 1 ).
     SELECT SINGLE status
       FROM zstockalloc_run
-      INTO @lv_status
-      WHERE run_id = @lv_run_id.
+
+      WHERE run_id = @lv_run_id INTO @lv_status.
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
@@ -1593,8 +1593,8 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_cleanup_message_seen ).
     SELECT SINGLE status, message
       FROM zstockalloc_run
-      INTO (@lv_status, @lv_message)
-      WHERE run_id = @lv_run_id.
+
+      WHERE run_id = @lv_run_id INTO (@lv_status, @lv_message).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'P' ).

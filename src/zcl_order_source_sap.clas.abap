@@ -89,7 +89,7 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       INNER JOIN vbep AS schedule
         ON schedule~vbeln = item~vbeln
        AND schedule~posnr = item~posnr
-      INTO TABLE @lt_schedule
+
       WHERE item~matnr = @iv_material
         AND item~werks = @iv_plant
         AND item~abgru = ''
@@ -99,7 +99,7 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND header~lifsk = ''
         AND schedule~edatu >= @lv_requested_on_from
         AND schedule~edatu <= @lv_requested_on_to
-        AND schedule~wmeng > schedule~bmeng.
+        AND schedule~wmeng > schedule~bmeng INTO TABLE @lt_schedule.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
       RETURN.

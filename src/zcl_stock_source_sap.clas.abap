@@ -49,21 +49,19 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
       CLEAR lv_stock_deleted.
       SELECT SINGLE labst, lvorm
         FROM mard
-        INTO ( @rs_available-quantity,
-               @lv_stock_deleted )
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
-          AND lgort = @iv_storage_location.
+          AND lgort = @iv_storage_location INTO ( @rs_available-quantity, @lv_stock_deleted ).
     ELSE.
       CLEAR lv_stock_deleted.
       SELECT SINGLE clabs, lvorm
         FROM mchb
-        INTO ( @rs_available-quantity,
-               @lv_stock_deleted )
+
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
-          AND charg = @iv_batch.
+          AND charg = @iv_batch INTO ( @rs_available-quantity, @lv_stock_deleted ).
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rs_available-quantity.
@@ -75,10 +73,8 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     ENDIF.
     SELECT SINGLE meins, xchpf, lvorm
       FROM mara
-      INTO ( @rs_available-unit,
-             @rs_available-batch_managed,
-             @lv_material_deleted )
-      WHERE matnr = @iv_material.
+
+      WHERE matnr = @iv_material INTO ( @rs_available-unit, @rs_available-batch_managed, @lv_material_deleted ).
     IF sy-subrc <> 0.
       CLEAR: rs_available-unit,
              rs_available-material_found,
@@ -97,12 +93,12 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
       CLEAR lv_batch_deleted.
       SELECT SINGLE vfdat, zustd, lvorm
         FROM mcha
-        INTO (@rs_available-batch_expiration_date,
-              @rs_available-batch_restricted,
-              @lv_batch_deleted)
         WHERE matnr = @iv_material
           AND werks = @iv_plant
-          AND charg = @iv_batch.
+          AND charg = @iv_batch
+          INTO ( @rs_available-batch_expiration_date,
+                 @rs_available-batch_restricted,
+                 @lv_batch_deleted ).
       IF sy-subrc <> 0.
         CLEAR: rs_available-batch_expiration_date,
                rs_available-batch_restricted.

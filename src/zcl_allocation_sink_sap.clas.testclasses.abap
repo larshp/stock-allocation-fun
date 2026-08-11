@@ -2109,8 +2109,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_saved_count
-      WHERE matnr = 'MATERIAL-MISMATCHED-RUN'.
+
+      WHERE matnr = 'MATERIAL-MISMATCHED-RUN' INTO @lv_saved_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_saved_count
       exp = 0 ).
@@ -2165,8 +2165,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_saved_count
-      WHERE matnr = 'MATERIAL-STRATEGY'.
+
+      WHERE matnr = 'MATERIAL-STRATEGY' INTO @lv_saved_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_saved_count
       exp = 0 ).
@@ -2222,8 +2222,8 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @lv_saved_count
-      WHERE matnr = 'MATERIAL-DATE'.
+
+      WHERE matnr = 'MATERIAL-DATE' INTO @lv_saved_count.
     cl_abap_unit_assert=>assert_equals(
       act = lv_saved_count
       exp = 0 ).
@@ -2650,14 +2650,16 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                   sales_item, schedule_line, order_unit, reservation_unit, requested_on,
       order_id, reservation_id, allocation_status
       FROM zstockalloc
-      INTO (@lv_run_id, @lv_batch, @lv_allocation_unit, @lv_priority, @lv_sales_document, @lv_sales_document_type,
-            @lv_sales_item, @lv_schedule_line, @lv_order_unit, @lv_reservation_unit, @lv_requested_on,
-            @lv_order_id, @lv_reservation_id, @lv_allocation_status)
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
-        AND order_id = 'ORDER-DB'.
+        AND order_id = 'ORDER-DB'
+        INTO ( @lv_run_id, @lv_batch, @lv_allocation_unit, @lv_priority,
+               @lv_sales_document, @lv_sales_document_type, @lv_sales_item,
+               @lv_schedule_line, @lv_order_unit, @lv_reservation_unit,
+               @lv_requested_on, @lv_order_id, @lv_reservation_id,
+               @lv_allocation_status ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_run_id
@@ -2754,34 +2756,34 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @DATA(lv_unit_count)
+
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
-        AND order_id = 'ORDER-DB'.
+        AND order_id = 'ORDER-DB' INTO @DATA(lv_unit_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_unit_count
       exp = 2 ).
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @DATA(lv_stale_count)
+
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
-        AND order_id = 'STALE'.
+        AND order_id = 'STALE' INTO @DATA(lv_stale_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_stale_count
       exp = 0 ).
 
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @DATA(lv_other_location_count)
+
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
-        AND lgort = '0002'.
+        AND lgort = '0002' INTO @DATA(lv_other_location_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_other_location_count
       exp = 1 ).
@@ -2905,12 +2907,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     SELECT COUNT( * )
       FROM zstockalloc
-      INTO @DATA(lv_ea_count)
+
       WHERE matnr = 'MATERIAL-DB'
         AND werks = '1000'
         AND lgort = '0001'
         AND batch = 'BATCH-001'
-        AND allocation_unit = 'EA'.
+        AND allocation_unit = 'EA' INTO @DATA(lv_ea_count).
     cl_abap_unit_assert=>assert_equals(
       act = lv_ea_count
       exp = 2 ).

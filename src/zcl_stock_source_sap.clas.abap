@@ -28,6 +28,7 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
   METHOD zif_stock_source~get_available.
     DATA lv_stock_deleted TYPE c LENGTH 1.
     DATA lv_material_deleted TYPE c LENGTH 1.
+    DATA lv_plant_material_deleted TYPE c LENGTH 1.
     DATA lv_batch_deleted TYPE c LENGTH 1.
 
     IF iv_material IS INITIAL
@@ -100,6 +101,24 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
         raise_error( iv_message = 'Material base unit is missing' ).
       ENDIF.
     ENDIF.
+    CLEAR lv_plant_material_deleted.
+    SELECT SINGLE lvorm
+      FROM marc
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+        INTO @lv_plant_material_deleted.
+    IF sy-subrc <> 0.
+      IF rs_available-material_found = abap_true.
+        raise_error( iv_message = 'Plant material data is missing' ).
+      ENDIF.
+    ELSE.
+      IF lv_plant_material_deleted <> abap_true
+          AND lv_plant_material_deleted <> abap_false.
+        raise_error( iv_message = 'Plant material deletion flag is invalid' ).
+      ELSEIF lv_plant_material_deleted = abap_true.
+        raise_error( iv_message = 'Material is marked for deletion at plant' ).
+      ENDIF.
+    ENDIF.
     IF iv_batch IS NOT INITIAL.
       CLEAR lv_batch_deleted.
       SELECT SINGLE vfdat, zustd, lvorm
@@ -126,6 +145,10 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
         IF rs_available-batch_restricted <> abap_true
             AND rs_available-batch_restricted <> abap_false.
           raise_error( iv_message = 'Batch restriction flag is invalid' ).
+        ENDIF.
+        IF zcl_allocation_date_sap=>is_valid_or_initial(
+             rs_available-batch_expiration_date ) <> abap_true.
+          raise_error( iv_message = 'Batch expiration date is invalid' ).
         ENDIF.
         rs_available-batch_found = abap_true.
       ENDIF.

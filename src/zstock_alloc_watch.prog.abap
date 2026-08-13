@@ -193,6 +193,7 @@ START-OF-SELECTION.
 
   TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_strat TO UPPER CASE.
+  TRANSLATE p_meins TO UPPER CASE.
   lv_strategy_filter = p_strat.
   IF lv_strategy_filter IS INITIAL.
     lv_strategy_filter = 'n/a'.
@@ -384,8 +385,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_csv = abap_true AND p_json = abap_true.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'Select only one export mode: CSV or JSON' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'Select only one export mode: CSV or JSON'
+        iv_schema  = 59 ).
     ELSE.
       WRITE: / 'Select only one export mode: CSV or JSON.'.
     ENDIF.
@@ -393,9 +395,10 @@ START-OF-SELECTION.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
+        iv_schema  = 56
         iv_message = 'Typed output requires JSON mode' ).
     ELSE.
       WRITE: / 'Typed output requires JSON mode.'.
@@ -404,9 +407,10 @@ START-OF-SELECTION.
   ENDIF.
   IF p_ndjson = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
+        iv_schema  = 56
         iv_message = 'NDJSON output requires JSON mode' ).
     ELSE.
       WRITE: / 'NDJSON output requires JSON mode.'.
@@ -415,13 +419,15 @@ START-OF-SELECTION.
   ENDIF.
   IF p_ndjson = abap_true AND p_sum = abap_true.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
+        iv_schema  = 56
         iv_message = 'NDJSON output cannot be combined with summary mode' ).
     ELSEIF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'NDJSON output cannot be combined with summary mode' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'NDJSON output cannot be combined with summary mode'
+        iv_schema  = 59 ).
     ELSE.
       WRITE: / 'NDJSON output cannot be combined with summary mode.'.
     ENDIF.
@@ -523,11 +529,14 @@ START-OF-SELECTION.
   ENDIF.
   IF lv_error_message IS NOT INITIAL.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = 59 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
+        iv_schema  = 56
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -862,11 +871,14 @@ START-OF-SELECTION.
         lv_error_message = 'Audit run read failed'.
       ENDIF.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = 59 ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_watch'
+          iv_schema  = 56
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.

@@ -32,6 +32,12 @@ CLASS zcl_allocation_sink_sap DEFINITION
         iv_require_running       TYPE abap_bool OPTIONAL
       RAISING
         zcx_stock_allocation.
+    METHODS validate_date
+      IMPORTING
+        iv_date    TYPE d
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
     METHODS raise_error
       IMPORTING
         iv_message TYPE zif_allocation_audit=>ty_message
@@ -122,6 +128,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_unit_filter TYPE zif_stock_allocation=>ty_unit.
     DATA lv_order_unit_filter TYPE zif_stock_allocation=>ty_unit.
     DATA lv_reservation_unit_filter TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_reservation_document_filter TYPE c LENGTH 10.
     DATA lt_coverage_filtered TYPE zif_stock_allocation=>tt_demands.
     DATA lt_strategy_runs TYPE SORTED TABLE OF ty_strategy_run
       WITH UNIQUE KEY run_id.
@@ -151,22 +158,55 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_run_deadline_age_date IS NOT INITIAL.
       lv_run_deadline_age_date = iv_run_deadline_age_date.
     ENDIF.
+    validate_date(
+      iv_date    = iv_overdue_date
+      iv_message = 'Allocation result overdue date is invalid' ).
+    validate_date(
+      iv_date    = iv_run_deadline_age_date
+      iv_message = 'Allocation result deadline age date is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_from
+      iv_message = 'Allocation result date range is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_to
+      iv_message = 'Allocation result date range is invalid' ).
+    validate_date(
+      iv_date    = iv_run_requested_on_from
+      iv_message = 'Allocation result requested horizon range is invalid' ).
+    validate_date(
+      iv_date    = iv_run_requested_on_to
+      iv_message = 'Allocation result requested horizon range is invalid' ).
+    validate_date(
+      iv_date    = iv_run_deadline_from
+      iv_message = 'Allocation result requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_run_deadline_to
+      iv_message = 'Allocation result requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_reservation_date_from
+      iv_message = 'Allocation result reservation date range is invalid' ).
+    validate_date(
+      iv_date    = iv_reservation_date_to
+      iv_message = 'Allocation result reservation date range is invalid' ).
     lv_strategy = to_upper( iv_strategy ).
     lv_sales_document_type_filter = to_upper( iv_sales_document_type ).
     lv_unit_filter = to_upper( iv_unit ).
     lv_order_unit_filter = to_upper( iv_order_unit ).
     lv_reservation_unit_filter = to_upper( iv_reservation_unit ).
+    lv_reservation_document_filter = iv_reservation_id.
     IF iv_sales_document IS NOT INITIAL
         AND ( strlen( iv_sales_document )
               <> zif_stock_allocation=>c_sap_document_length
+          OR iv_sales_document CN '0123456789'
           OR iv_sales_document = '0000000000' ).
       raise_error( iv_message = 'Allocation result sales document filter is invalid' ).
     ENDIF.
     IF iv_reservation_id IS NOT INITIAL
-        AND ( iv_reservation_id = '0000000000'
-          OR ( iv_reservation_id CO '0123456789 '
-            AND strlen( iv_reservation_id )
-                <> zif_stock_allocation=>c_sap_document_length ) ).
+        AND ( strlen( iv_reservation_id )
+              <> zif_stock_allocation=>c_sap_document_length
+          OR iv_reservation_id CN '0123456789 '
+          OR lv_reservation_document_filter CN '0123456789'
+          OR lv_reservation_document_filter = '0000000000' ).
       raise_error(
         iv_message = 'Allocation result reservation document filter is invalid' ).
     ENDIF.
@@ -376,11 +416,13 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF ( iv_allocation_movement_type IS NOT INITIAL
           AND ( strlen( iv_allocation_movement_type )
                 <> zif_stock_allocation=>c_movement_type_length
-            OR iv_allocation_movement_type CN '0123456789' ) )
+            OR iv_allocation_movement_type CN '0123456789'
+            OR iv_allocation_movement_type = zif_stock_allocation=>c_zero_movement_type ) )
         OR ( iv_movement_type IS NOT INITIAL
           AND ( strlen( iv_movement_type )
                 <> zif_stock_allocation=>c_movement_type_length
-            OR iv_movement_type CN '0123456789' ) ).
+            OR iv_movement_type CN '0123456789'
+            OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ) ).
       raise_error( iv_message = 'Allocation result movement type is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
@@ -546,6 +588,50 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
              to_upper( <ls_strategy_run>-strategy ).
            <ls_strategy_run>-status =
              to_upper( <ls_strategy_run>-status ).
+           IF <ls_strategy_run>-status <> 'R'
+               AND <ls_strategy_run>-status <> 'S'
+               AND <ls_strategy_run>-status <> 'P'
+               AND <ls_strategy_run>-status <> 'E'.
+             raise_error(
+               iv_message = 'Allocation snapshot run status is invalid' ).
+           ENDIF.
+           IF <ls_strategy_run>-start_date IS INITIAL
+               OR <ls_strategy_run>-start_time IS INITIAL
+               OR zcl_allocation_date_sap=>is_valid_or_initial(
+                 <ls_strategy_run>-start_date ) <> abap_true
+               OR zcl_allocation_time_sap=>is_valid_or_initial(
+                 <ls_strategy_run>-start_time ) <> abap_true
+               OR zcl_allocation_date_sap=>is_valid_or_initial(
+                 <ls_strategy_run>-finish_date ) <> abap_true
+               OR zcl_allocation_time_sap=>is_valid_or_initial(
+                 <ls_strategy_run>-finish_time ) <> abap_true
+               OR ( <ls_strategy_run>-finish_date IS INITIAL
+                 AND <ls_strategy_run>-finish_time IS NOT INITIAL )
+               OR ( <ls_strategy_run>-finish_date IS NOT INITIAL
+                 AND <ls_strategy_run>-finish_time IS INITIAL )
+               OR ( <ls_strategy_run>-status <> 'R'
+                 AND ( <ls_strategy_run>-finish_date IS INITIAL
+                   OR <ls_strategy_run>-finish_time IS INITIAL ) )
+               OR ( <ls_strategy_run>-finish_date IS NOT INITIAL
+                 AND ( <ls_strategy_run>-finish_date
+                       < <ls_strategy_run>-start_date
+                   OR ( <ls_strategy_run>-finish_date
+                         = <ls_strategy_run>-start_date
+                     AND <ls_strategy_run>-finish_time
+                         < <ls_strategy_run>-start_time ) ) )
+               OR ( <ls_strategy_run>-requested_on_from IS NOT INITIAL
+                 AND zcl_allocation_date_sap=>is_valid_or_initial(
+                   <ls_strategy_run>-requested_on_from ) <> abap_true )
+               OR ( <ls_strategy_run>-requested_on_to IS NOT INITIAL
+                 AND zcl_allocation_date_sap=>is_valid_or_initial(
+                   <ls_strategy_run>-requested_on_to ) <> abap_true )
+               OR ( <ls_strategy_run>-requested_on_from IS NOT INITIAL
+                 AND <ls_strategy_run>-requested_on_to IS NOT INITIAL
+                 AND <ls_strategy_run>-requested_on_from
+                   > <ls_strategy_run>-requested_on_to ).
+             raise_error(
+               iv_message = 'Allocation result audit run is invalid' ).
+           ENDIF.
            IF iv_run_message_contains IS NOT INITIAL
                AND to_upper( <ls_strategy_run>-message )
                  NS to_upper( iv_run_message_contains ).
@@ -1231,16 +1317,25 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_demand.
+    DATA lv_reservation_document TYPE c LENGTH 10.
+
+    lv_reservation_document = is_demand-reservation_id.
     IF is_demand-allocation_unit IS INITIAL
         OR is_demand-order_id IS INITIAL
         OR ( is_demand-sales_document IS NOT INITIAL
           AND strlen( is_demand-sales_document )
               <> zif_stock_allocation=>c_sap_document_length )
+        OR ( is_demand-sales_document IS NOT INITIAL
+          AND is_demand-sales_document CN '0123456789' )
         OR is_demand-sales_document = '0000000000'
         OR ( is_demand-reservation_id IS NOT INITIAL
-          AND is_demand-reservation_id CO '0123456789 '
           AND strlen( is_demand-reservation_id )
               <> zif_stock_allocation=>c_sap_document_length )
+        OR ( is_demand-reservation_id IS NOT INITIAL
+          AND is_demand-reservation_id CN '0123456789 ' )
+        OR ( is_demand-reservation_id IS NOT INITIAL
+          AND ( lv_reservation_document CN '0123456789'
+            OR lv_reservation_document = '0000000000' ) )
         OR ( ( is_demand-sales_document IS NOT INITIAL
             OR is_demand-sales_document_type IS NOT INITIAL
             OR is_demand-sales_item IS NOT INITIAL
@@ -1258,7 +1353,11 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
         OR is_demand-shortage < 0
         OR is_demand-allocated > is_demand-requested
         OR is_demand-shortage <> is_demand-requested
-          - is_demand-allocated.
+          - is_demand-allocated
+        OR zcl_allocation_date_sap=>is_valid_or_initial(
+          is_demand-requested_on ) <> abap_true
+        OR zcl_allocation_date_sap=>is_valid_or_initial(
+          is_demand-reservation_date ) <> abap_true.
       raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
     ENDIF.
     IF is_demand-allocation_status <> 'F'
@@ -1269,7 +1368,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF is_demand-reservation_movement_type IS NOT INITIAL
         AND ( strlen( is_demand-reservation_movement_type )
               <> zif_stock_allocation=>c_movement_type_length
-          OR is_demand-reservation_movement_type CN '0123456789' ).
+          OR is_demand-reservation_movement_type CN '0123456789'
+          OR is_demand-reservation_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Allocation snapshot demand is invalid' ).
     ENDIF.
     IF ( is_demand-allocation_status = 'F'
@@ -1358,7 +1458,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF lv_run_movement_type IS NOT INITIAL
         AND ( strlen( lv_run_movement_type )
               <> zif_stock_allocation=>c_movement_type_length
-          OR lv_run_movement_type CN '0123456789' ).
+          OR lv_run_movement_type CN '0123456789'
+          OR lv_run_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error(
         iv_message = 'Allocation snapshot run movement type is invalid' ).
     ENDIF.
@@ -1366,9 +1467,15 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Allocation snapshot run policy is invalid' ).
     ENDIF.
-    IF lv_run_requested_on_from IS NOT INITIAL
+    IF ( lv_run_requested_on_from IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            lv_run_requested_on_from ) <> abap_true )
+        OR ( lv_run_requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            lv_run_requested_on_to ) <> abap_true )
+        OR ( lv_run_requested_on_from IS NOT INITIAL
         AND lv_run_requested_on_to IS NOT INITIAL
-        AND lv_run_requested_on_from > lv_run_requested_on_to.
+        AND lv_run_requested_on_from > lv_run_requested_on_to ).
       raise_error(
         iv_message = 'Allocation snapshot run requested horizon is invalid' ).
     ENDIF.
@@ -1388,6 +1495,14 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_require_running = abap_true
         AND lv_run_status <> 'R'.
       raise_error( iv_message = 'Allocation snapshot run is not active' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_date.
+    IF iv_date IS NOT INITIAL
+        AND zcl_allocation_date_sap=>is_valid_or_initial(
+          iv_date ) <> abap_true.
+      raise_error( iv_message = iv_message ).
     ENDIF.
   ENDMETHOD.
 

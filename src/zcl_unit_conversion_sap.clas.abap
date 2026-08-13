@@ -67,7 +67,9 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
         i_out_me = lv_unit_to
         i_menge  = lv_input
       IMPORTING
-        e_menge  = lv_output.
+        e_menge  = lv_output
+      EXCEPTIONS
+        OTHERS   = 1.
     lv_subrc = sy-subrc.
     IF lv_subrc <> 0.
       raise_error( iv_message = 'Unit conversion failed' ).

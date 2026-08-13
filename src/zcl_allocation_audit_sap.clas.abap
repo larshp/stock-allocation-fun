@@ -30,6 +30,12 @@ CLASS zcl_allocation_audit_sap DEFINITION
         is_run TYPE zif_allocation_audit=>ty_run
       RAISING
         zcx_stock_allocation.
+    METHODS validate_date
+      IMPORTING
+        iv_date    TYPE d
+        iv_message TYPE zif_allocation_audit=>ty_message
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_allocation_audit_sap IMPLEMENTATION.
@@ -65,10 +71,34 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     lv_now_date = sy-datum.
     lv_now_time = sy-uzeit.
     IF iv_now_date IS NOT INITIAL.
+      IF zcl_allocation_date_sap=>is_valid_or_initial(
+           iv_now_date ) <> abap_true.
+        RETURN.
+      ENDIF.
       lv_now_date = iv_now_date.
     ENDIF.
     IF iv_now_time IS NOT INITIAL.
+      IF zcl_allocation_time_sap=>is_valid_or_initial(
+           iv_now_time ) <> abap_true.
+        RETURN.
+      ENDIF.
       lv_now_time = iv_now_time.
+    ENDIF.
+    IF zcl_allocation_date_sap=>is_valid_or_initial(
+         is_run-start_date ) <> abap_true.
+      RETURN.
+    ENDIF.
+    IF zcl_allocation_date_sap=>is_valid_or_initial(
+         is_run-finish_date ) <> abap_true.
+      RETURN.
+    ENDIF.
+    IF zcl_allocation_time_sap=>is_valid_or_initial(
+         is_run-start_time ) <> abap_true.
+      RETURN.
+    ENDIF.
+    IF zcl_allocation_time_sap=>is_valid_or_initial(
+         is_run-finish_time ) <> abap_true.
+      RETURN.
     ENDIF.
     IF to_upper( is_run-status ) <> 'R'
         OR is_run-finish_date IS NOT INITIAL
@@ -137,12 +167,43 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_before_date IS INITIAL.
       raise_error( iv_message = 'Audit purge date is required' ).
     ENDIF.
+    validate_date(
+      iv_date    = iv_before_date
+      iv_message = 'Audit purge date is invalid' ).
+    validate_date(
+      iv_date    = iv_overdue_date
+      iv_message = 'Audit overdue date is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_age_date
+      iv_message = 'Audit deadline age date is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_from
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_to
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_from
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_to
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_start_date_from
+      iv_message = 'Audit purge start date is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_from
+      iv_message = 'Audit purge finish date range is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_to
+      iv_message = 'Audit purge finish date range is invalid' ).
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
     ENDIF.
@@ -173,9 +234,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error(
         iv_message = 'Audit overdue as-of date requires overdue-only filtering' ).
     ENDIF.
-    IF iv_requested_on_from IS NOT INITIAL
+    IF ( iv_requested_on_from IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_from ) <> abap_true )
+        OR ( iv_requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_to ) <> abap_true )
+        OR ( iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
-        AND iv_requested_on_from > iv_requested_on_to.
+        AND iv_requested_on_from > iv_requested_on_to ).
       raise_error( iv_message = 'Audit requested date range is invalid' ).
     ENDIF.
     IF iv_deadline_from IS NOT INITIAL
@@ -348,6 +415,29 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
       ls_candidate-strategy = to_upper( ls_candidate-strategy ).
+      IF ls_candidate-start_date IS INITIAL
+          OR ls_candidate-start_time IS INITIAL
+          OR zcl_allocation_date_sap=>is_valid_or_initial(
+            ls_candidate-start_date ) <> abap_true
+          OR zcl_allocation_time_sap=>is_valid_or_initial(
+            ls_candidate-start_time ) <> abap_true
+          OR zcl_allocation_date_sap=>is_valid_or_initial(
+            ls_candidate-finish_date ) <> abap_true
+          OR zcl_allocation_time_sap=>is_valid_or_initial(
+            ls_candidate-finish_time ) <> abap_true
+          OR ( ls_candidate-status = 'R'
+            AND ( ls_candidate-finish_date IS NOT INITIAL
+              OR ls_candidate-finish_time IS NOT INITIAL ) )
+          OR ( ls_candidate-finish_date IS INITIAL
+            AND ls_candidate-finish_time IS NOT INITIAL )
+          OR ( ls_candidate-finish_date IS NOT INITIAL
+            AND ls_candidate-finish_time IS INITIAL )
+          OR ( ls_candidate-finish_date IS NOT INITIAL
+            AND ( ls_candidate-finish_date < ls_candidate-start_date
+              OR ( ls_candidate-finish_date = ls_candidate-start_date
+                AND ls_candidate-finish_time < ls_candidate-start_time ) ) ).
+        raise_error( iv_message = 'Audit purge candidate is invalid' ).
+      ENDIF.
       IF iv_legacy_strategy = abap_true
           AND ls_candidate-strategy IS NOT INITIAL.
         CONTINUE.
@@ -402,6 +492,30 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND to_upper( ls_candidate-run_id )
             NS to_upper( iv_run_id_contains ).
         CONTINUE.
+      ENDIF.
+      IF ( ls_candidate-requested_on_from IS NOT INITIAL
+            AND zcl_allocation_date_sap=>is_valid_or_initial(
+              ls_candidate-requested_on_from ) <> abap_true )
+          OR ( ls_candidate-requested_on_to IS NOT INITIAL
+            AND zcl_allocation_date_sap=>is_valid_or_initial(
+              ls_candidate-requested_on_to ) <> abap_true ).
+        IF ls_candidate-status <> 'E'.
+          raise_error( iv_message = 'Audit purge candidate is invalid' ).
+        ENDIF.
+        IF iv_deadline_only = abap_true
+            OR iv_overdue_only = abap_true
+            OR iv_deadline_from IS NOT INITIAL
+            OR iv_deadline_to IS NOT INITIAL
+            OR iv_deadline_age_from IS NOT INITIAL
+            OR iv_deadline_age_to IS NOT INITIAL.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF ls_candidate-requested_on_from IS NOT INITIAL
+          AND ls_candidate-requested_on_to IS NOT INITIAL
+          AND ls_candidate-requested_on_from
+            > ls_candidate-requested_on_to.
+        raise_error( iv_message = 'Audit purge candidate is invalid' ).
       ENDIF.
       IF ls_candidate-requested_on_to IS INITIAL.
         lv_requested_deadline = ls_candidate-requested_on_from.
@@ -608,12 +722,43 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_before_date IS INITIAL.
       raise_error( iv_message = 'Audit purge date is required' ).
     ENDIF.
+    validate_date(
+      iv_date    = iv_before_date
+      iv_message = 'Audit purge date is invalid' ).
+    validate_date(
+      iv_date    = iv_overdue_date
+      iv_message = 'Audit overdue date is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_age_date
+      iv_message = 'Audit deadline age date is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_from
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_to
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_from
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_to
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_start_date_from
+      iv_message = 'Audit purge start date is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_from
+      iv_message = 'Audit purge finish date range is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_to
+      iv_message = 'Audit purge finish date range is invalid' ).
     IF iv_before_date > sy-datum.
       raise_error( iv_message = 'Audit purge date cannot be in the future' ).
     ENDIF.
@@ -806,6 +951,29 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
       ls_candidate-strategy = to_upper( ls_candidate-strategy ).
+      IF ls_candidate-start_date IS INITIAL
+          OR ls_candidate-start_time IS INITIAL
+          OR zcl_allocation_date_sap=>is_valid_or_initial(
+            ls_candidate-start_date ) <> abap_true
+          OR zcl_allocation_time_sap=>is_valid_or_initial(
+            ls_candidate-start_time ) <> abap_true
+          OR zcl_allocation_date_sap=>is_valid_or_initial(
+            ls_candidate-finish_date ) <> abap_true
+          OR zcl_allocation_time_sap=>is_valid_or_initial(
+            ls_candidate-finish_time ) <> abap_true
+          OR ( ls_candidate-status = 'R'
+            AND ( ls_candidate-finish_date IS NOT INITIAL
+              OR ls_candidate-finish_time IS NOT INITIAL ) )
+          OR ( ls_candidate-finish_date IS INITIAL
+            AND ls_candidate-finish_time IS NOT INITIAL )
+          OR ( ls_candidate-finish_date IS NOT INITIAL
+            AND ls_candidate-finish_time IS INITIAL )
+          OR ( ls_candidate-finish_date IS NOT INITIAL
+            AND ( ls_candidate-finish_date < ls_candidate-start_date
+              OR ( ls_candidate-finish_date = ls_candidate-start_date
+                AND ls_candidate-finish_time < ls_candidate-start_time ) ) ).
+        raise_error( iv_message = 'Audit purge candidate is invalid' ).
+      ENDIF.
       IF iv_legacy_strategy = abap_true
           AND ls_candidate-strategy IS NOT INITIAL.
         CONTINUE.
@@ -860,6 +1028,30 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND to_upper( ls_candidate-run_id )
             NS to_upper( iv_run_id_contains ).
         CONTINUE.
+      ENDIF.
+      IF ( ls_candidate-requested_on_from IS NOT INITIAL
+            AND zcl_allocation_date_sap=>is_valid_or_initial(
+              ls_candidate-requested_on_from ) <> abap_true )
+          OR ( ls_candidate-requested_on_to IS NOT INITIAL
+            AND zcl_allocation_date_sap=>is_valid_or_initial(
+              ls_candidate-requested_on_to ) <> abap_true ).
+        IF ls_candidate-status <> 'E'.
+          raise_error( iv_message = 'Audit purge candidate is invalid' ).
+        ENDIF.
+        IF iv_deadline_only = abap_true
+            OR iv_overdue_only = abap_true
+            OR iv_deadline_from IS NOT INITIAL
+            OR iv_deadline_to IS NOT INITIAL
+            OR iv_deadline_age_from IS NOT INITIAL
+            OR iv_deadline_age_to IS NOT INITIAL.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF ls_candidate-requested_on_from IS NOT INITIAL
+          AND ls_candidate-requested_on_to IS NOT INITIAL
+          AND ls_candidate-requested_on_from
+            > ls_candidate-requested_on_to.
+        raise_error( iv_message = 'Audit purge candidate is invalid' ).
       ENDIF.
       IF ls_candidate-requested_on_to IS INITIAL.
         lv_requested_deadline = ls_candidate-requested_on_from.
@@ -1476,7 +1668,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_available < 0.
@@ -1588,12 +1781,43 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         OR iv_storage_location IS INITIAL.
       raise_error( iv_message = 'Audit read scope is incomplete' ).
     ENDIF.
+    validate_date(
+      iv_date    = iv_overdue_date
+      iv_message = 'Audit overdue date is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_age_date
+      iv_message = 'Audit deadline age date is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_from
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_requested_on_to
+      iv_message = 'Audit requested date range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_from
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_deadline_to
+      iv_message = 'Audit requested deadline range is invalid' ).
+    validate_date(
+      iv_date    = iv_start_date_from
+      iv_message = 'Audit date range is invalid' ).
+    validate_date(
+      iv_date    = iv_start_date_to
+      iv_message = 'Audit date range is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_from
+      iv_message = 'Audit finish date range is invalid' ).
+    validate_date(
+      iv_date    = iv_finish_date_to
+      iv_message = 'Audit finish date range is invalid' ).
     lv_status = to_upper( iv_status ).
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF iv_max_rows < 0.
@@ -1845,12 +2069,36 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       <ls_run>-status = to_upper( <ls_run>-status ).
       <ls_run>-strategy = to_upper( <ls_run>-strategy ).
       validate_run( is_run = <ls_run> ).
-      <ls_run>-requested = <ls_run>-allocated + <ls_run>-shortage.
-      IF <ls_run>-requested_on_to IS INITIAL.
+      IF <ls_run>-status = 'E'
+          AND ( ( <ls_run>-requested_on_from IS NOT INITIAL
+              AND zcl_allocation_date_sap=>is_valid_or_initial(
+                <ls_run>-requested_on_from ) <> abap_true )
+            OR ( <ls_run>-requested_on_to IS NOT INITIAL
+              AND zcl_allocation_date_sap=>is_valid_or_initial(
+                <ls_run>-requested_on_to ) <> abap_true ) )
+          AND ( iv_requested_overdue = abap_true
+            OR iv_deadline_only = abap_true
+            OR iv_deadline_from IS NOT INITIAL
+            OR iv_deadline_to IS NOT INITIAL
+            OR iv_deadline_age_from IS NOT INITIAL
+            OR iv_deadline_age_to IS NOT INITIAL
+            OR iv_sort_by_deadline_age = abap_true ).
+        DELETE rt_runs.
+        CONTINUE.
+      ELSEIF <ls_run>-status = 'E'
+          AND ( ( <ls_run>-requested_on_from IS NOT INITIAL
+              AND zcl_allocation_date_sap=>is_valid_or_initial(
+                <ls_run>-requested_on_from ) <> abap_true )
+            OR ( <ls_run>-requested_on_to IS NOT INITIAL
+              AND zcl_allocation_date_sap=>is_valid_or_initial(
+                <ls_run>-requested_on_to ) <> abap_true ) ).
+        CLEAR <ls_run>-requested_deadline.
+      ELSEIF <ls_run>-requested_on_to IS INITIAL.
         <ls_run>-requested_deadline = <ls_run>-requested_on_from.
       ELSE.
         <ls_run>-requested_deadline = <ls_run>-requested_on_to.
       ENDIF.
+      <ls_run>-requested = <ls_run>-allocated + <ls_run>-shortage.
     ENDLOOP.
     IF iv_run_id_contains IS NOT INITIAL.
       LOOP AT rt_runs ASSIGNING <ls_run>.
@@ -2316,9 +2564,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
 
-    IF iv_requested_on_from IS NOT INITIAL
+    IF ( iv_requested_on_from IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_from ) <> abap_true )
+        OR ( iv_requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_to ) <> abap_true )
+        OR ( iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
-        AND iv_requested_on_from > iv_requested_on_to.
+        AND iv_requested_on_from > iv_requested_on_to ).
       raise_error( iv_message = 'Audit requested date range is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
@@ -2329,7 +2583,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit movement type is invalid' ).
     ENDIF.
     IF lv_strategy IS NOT INITIAL
@@ -2489,6 +2744,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     RAISE EXCEPTION lo_error.
   ENDMETHOD.
 
+  METHOD validate_date.
+    IF iv_date IS NOT INITIAL
+        AND zcl_allocation_date_sap=>is_valid_or_initial(
+          iv_date ) <> abap_true.
+      raise_error( iv_message = iv_message ).
+    ENDIF.
+  ENDMETHOD.
+
   METHOD rollback_and_raise.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
 
@@ -2502,8 +2765,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               INTO lv_message SEPARATED BY '; ' .
           ELSE.
             CONCATENATE lv_message 'Transaction rollback failed:'
-              lo_rollback_error->message
               INTO lv_message SEPARATED BY '; ' .
+            CONCATENATE lv_message lo_rollback_error->message
+              INTO lv_message SEPARATED BY space.
           ENDIF.
       ENDTRY.
     ENDIF.
@@ -2511,10 +2775,30 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_run.
-    IF is_run-requested_on_from IS NOT INITIAL
+    IF ( is_run-status <> 'E'
+        AND is_run-requested_on_from IS NOT INITIAL
+        AND zcl_allocation_date_sap=>is_valid_or_initial(
+          is_run-requested_on_from ) <> abap_true )
+        OR ( is_run-status <> 'E'
+          AND is_run-requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            is_run-requested_on_to ) <> abap_true )
+        OR ( is_run-requested_on_from IS NOT INITIAL
         AND is_run-requested_on_to IS NOT INITIAL
-        AND is_run-requested_on_from > is_run-requested_on_to.
+        AND is_run-requested_on_from > is_run-requested_on_to ).
       raise_error( iv_message = 'Audit run requested date range is invalid' ).
+    ENDIF.
+    IF zcl_allocation_date_sap=>is_valid_or_initial(
+         is_run-start_date ) <> abap_true
+        OR zcl_allocation_date_sap=>is_valid_or_initial(
+          is_run-finish_date ) <> abap_true.
+      raise_error( iv_message = 'Audit run data is invalid' ).
+    ENDIF.
+    IF zcl_allocation_time_sap=>is_valid_or_initial(
+         is_run-start_time ) <> abap_true
+        OR zcl_allocation_time_sap=>is_valid_or_initial(
+          is_run-finish_time ) <> abap_true.
+      raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF is_run-run_id IS INITIAL
         OR is_run-material IS INITIAL
@@ -2541,7 +2825,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF is_run-movement_type IS NOT INITIAL
         AND ( strlen( is_run-movement_type )
               <> zif_stock_allocation=>c_movement_type_length
-          OR is_run-movement_type CN '0123456789' ).
+          OR is_run-movement_type CN '0123456789'
+          OR is_run-movement_type = zif_stock_allocation=>c_zero_movement_type ).
       raise_error( iv_message = 'Audit run data is invalid' ).
     ENDIF.
     IF is_run-status <> 'R'

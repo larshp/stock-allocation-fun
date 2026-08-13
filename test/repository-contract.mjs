@@ -12,10 +12,60 @@ function readJson(fileName) {
   return JSON.parse(fs.readFileSync(path.join(repositoryDirectory, fileName), "utf8"));
 }
 
+function collectFiles(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+    if ([".git", "node_modules", "output"].includes(entry.name)) {
+      continue;
+    }
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectFiles(entryPath));
+    } else {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
 const abaplint = readJson("abaplint.json");
 const transpiler = readJson("transpiler.json");
 const packageJson = readJson("package.json");
+const packageLock = readJson("package-lock.json");
 const readmeSource = fs.readFileSync(path.join(repositoryDirectory, "README.md"), "utf8");
+const workflowPath = path.join(repositoryDirectory, ".github", "workflows", "verify.yml");
+assert.ok(fs.existsSync(workflowPath), "CI verification workflow must be present");
+const workflowSource = fs.readFileSync(workflowPath, "utf8");
+assert.match(workflowSource, /npm ci/, "CI workflow must install the locked dependency tree");
+assert.match(workflowSource, /npm test/, "CI workflow must run the complete test pipeline");
+
+for (const filePath of collectFiles(repositoryDirectory).filter(
+  (fileName) => fileName.endsWith(".abap"),
+)) {
+  const relativePath = path.relative(repositoryDirectory, filePath);
+  const sourceText = fs.readFileSync(filePath, "utf8");
+  if (/^src[\\/]/i.test(relativePath)) {
+    continue;
+  }
+  assert.doesNotMatch(
+    sourceText,
+    /^\s*(?:REPORT|CLASS|INTERFACE)\s+Z[A-Z0-9_]+/im,
+    `${relativePath} contains a Z-namespaced ABAP object outside src/`,
+  );
+}
+for (const filePath of collectFiles(repositoryDirectory).filter(
+  (fileName) => fileName.endsWith(".xml"),
+)) {
+  const relativePath = path.relative(repositoryDirectory, filePath);
+  if (/^src[\\/]/i.test(relativePath)) {
+    continue;
+  }
+  assert.doesNotMatch(
+    path.basename(relativePath),
+    /^(?:Z|Y)[A-Z0-9_]*\.(?:clas|intf|prog|tabl)\.xml$/i,
+    `${relativePath} contains Z/Y-namespaced abapGit metadata outside src/`,
+  );
+}
 
 for (const fileName of fs.readdirSync(sourceDirectory).filter((name) => name.endsWith(".abap"))) {
   if (fileName.endsWith(".testclasses.abap")) {
@@ -58,6 +108,35 @@ for (const fileName of fs.readdirSync(sourceDirectory).filter(
     `${fileName} metadata identity must match the ABAP object name`,
   );
 }
+for (const fileName of fs.readdirSync(sourceDirectory).filter(
+  (name) => name.endsWith(".prog.abap"),
+)) {
+  const reportSource = fs.readFileSync(path.join(sourceDirectory, fileName), "utf8");
+  if (reportSource.includes("zcl_stock_json=>")) {
+    assert.doesNotMatch(
+      reportSource,
+      /zcl_stock_json=>error\(/,
+      `${fileName} must not emit an unversioned JSON error envelope`,
+    );
+    assert.match(
+      reportSource,
+      /zcl_stock_json=>error_with_schema/,
+      `${fileName} must use a schema-versioned JSON error envelope`,
+    );
+  }
+  if (reportSource.includes("zcl_stock_csv=>")) {
+    assert.doesNotMatch(
+      reportSource,
+      /zcl_stock_csv=>error\(/,
+      `${fileName} must not emit an unversioned CSV error envelope`,
+    );
+    assert.match(
+      reportSource,
+      /zcl_stock_csv=>error_with_schema/,
+      `${fileName} must use a schema-versioned CSV error envelope`,
+    );
+  }
+}
 assert.deepEqual(
   fs.readdirSync(stubDirectory).filter((name) => name.endsWith(".abap")),
   [],
@@ -97,6 +176,17 @@ assert.equal(
   true,
   "package.json must pin open-abap-core",
 );
+const openAbapCoreSpec = packageJson.devDependencies["open-abap-core"];
+assert.equal(
+  packageLock.packages?.[""].devDependencies?.["open-abap-core"],
+  openAbapCoreSpec,
+  "package-lock root must preserve the package.json open-abap-core pin",
+);
+assert.equal(
+  packageLock.packages?.["node_modules/open-abap-core"]?.resolved,
+  openAbapCoreSpec,
+  "package-lock resolved open-abap-core entry must preserve the pinned archive",
+);
 
 for (const ruleName of [
   "modify_only_own_db_tables",
@@ -112,6 +202,7 @@ for (const ruleName of [
 
 for (const fileName of [
   "mara.tabl.xml",
+  "marc.tabl.xml",
   "marm.tabl.xml",
   "mard.tabl.xml",
   "mcha.tabl.xml",
@@ -134,6 +225,13 @@ for (const fileName of fs.readdirSync(sourceDirectory).filter(
   const sourceText = fs.readFileSync(path.join(sourceDirectory, fileName), "utf8");
   for (const match of sourceText.matchAll(/CALL FUNCTION\s+'([A-Z0-9_]+)'/g)) {
     productionFunctionModules.add(match[1]);
+    const callEnd = sourceText.indexOf(".", match.index);
+    const callSource = sourceText.slice(match.index, callEnd + 1);
+    assert.match(
+      callSource,
+      /EXCEPTIONS[\s\S]*OTHERS\s*=\s*1/,
+      `${fileName} function-module call ${match[1]} must catch classic OTHERS exceptions`,
+    );
   }
 }
 const sapApiStub = fs.readFileSync(
@@ -147,7 +245,148 @@ for (const functionModule of productionFunctionModules) {
     `SAP function-module stub is missing ${functionModule}`,
   );
 }
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*const header = input\.exporting\.reservationheader\.get\(\)[\s\S]*const moveType = header\?\.move_type\?\.get\(\)\?\.trim\(\)[\s\S]*const entryQuantity = Number\(item\?\.entry_qnt\?\.get\(\)\)[\s\S]*const payloadIncomplete = [\s\S]*!isSapNumericKey\(moveType, 3\)[\s\S]*!isValidSapDate\(header\?\.res_date\?\.get\(\)\?\.trim\(\)[\s\S]*!header\?\.created_by\?\.get\(\)\?\.trim\(\)[\s\S]*items\.length !== 1[\s\S]*item\?\.plant\?\.get\(\)[\s\S]*item\?\.stge_loc\?\.get\(\)[\s\S]*!Number\.isFinite\(entryQuantity\)[\s\S]*item\?\.entry_uom\?\.get\(\)\?\.trim\(\)[\s\S]*!isValidSapDate\(item\?\.req_date\?\.get\(\)\?\.trim\(\)\)/,
+  "reservation API stub must validate the required header and item payload",
+);
+assert.match(
+  sapApiStub,
+  /if \(payloadIncomplete\)[\s\S]*Reservation payload is incomplete/,
+  "reservation API stub must return an error for incomplete payloads",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*if \(payloadIncomplete\)[\s\S]*Reservation payload is incomplete[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*reservationCounter \+= 1/,
+  "reservation API stub must not fabricate a document after payload rejection",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*Reservation rejected by test double[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*if \(material === "MATERIAL-BAD-RETURN-TYPE"\)/,
+  "reservation API stub must not fabricate a document after BAPI error",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*Invalid reservation return status[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*if \(material === "MATERIAL-BAD-RESERVATION"\)/,
+  "reservation API stub must not fabricate a document after invalid BAPI status",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*const header = input\.exporting\.goodsmvt_header\.get\(\)[\s\S]*const code = input\.exporting\.goodsmvt_code\.get\(\)[\s\S]*const movementType = item\?\.move_type\?\.get\(\)\?\.trim\(\)[\s\S]*const entryQuantity = Number\(item\?\.entry_qnt\?\.get\(\)\)[\s\S]*const payloadIncomplete = [\s\S]*!isValidSapDate\(header\?\.pstng_date\?\.get\(\)\?\.trim\(\)\)[\s\S]*!isValidSapDate\(header\?\.doc_date\?\.get\(\)\?\.trim\(\)\)[\s\S]*gm_code\?\.get\(\)\?\.trim\(\) !== "03"[\s\S]*items\.length !== 1[\s\S]*!isSapNumericKey\(movementType, 3\)[\s\S]*!Number\.isFinite\(entryQuantity\)[\s\S]*item\?\.entry_uom\?\.get\(\)/,
+  "goods-movement API stub must validate the required header, code, and item payload",
+);
+assert.match(
+  sapApiStub,
+  /payloadIncomplete\)[\s\S]*Goods movement payload is incomplete/,
+  "goods-movement API stub must return an error for incomplete payloads",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*if \(payloadIncomplete\)[\s\S]*Goods movement payload is incomplete[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*movementCounter \+= 1/,
+  "goods-movement API stub must not fabricate a document after payload rejection",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*Goods movement rejected by test double[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*if \(material === "MATERIAL-GI-BAD-RETURN-TYPE"\)/,
+  "goods-movement API stub must not fabricate a document after BAPI error",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*Invalid goods movement return status[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*movementCounter \+= 1/,
+  "goods-movement API stub must not fabricate a document after invalid BAPI status",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_SALESORDER_CHANGE[\s\S]*const headerX = input\.exporting\.order_header_inx\.get\(\)[\s\S]*const payloadIncomplete = [\s\S]*headerX\?\.updateflag\?\.get\(\)\?\.trim\(\) !== "U"[\s\S]*schedules\.length !== 1[\s\S]*scheduleXs\.length !== 1[\s\S]*scheduleX\?\.updateflag\?\.get\(\)\?\.trim\(\) !== "U"[\s\S]*scheduleX\?\.req_qty\?\.get\(\)\?\.trim\(\) !== "X"/,
+  "sales-order API stub must validate the required header and schedule payload",
+);
+assert.match(
+  sapApiStub,
+  /payloadIncomplete\)[\s\S]*Sales-order change payload is incomplete/,
+  "sales-order API stub must return an error for incomplete payloads",
+);
+assert.match(
+  sapApiStub,
+  /const isSapNumericKey = \(value, length\) =>[\s\S]*normalized !== "0"\.repeat\(length\)/,
+  "SAP API stubs must provide NUMC-key validation",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_SALESORDER_CHANGE[\s\S]*const scheduleQuantity = Number\(schedule\?\.req_qty\?\.get\(\)\)[\s\S]*!isSapNumericKey\(salesDocument, 10\)[\s\S]*!isSapNumericKey\(scheduleItem, 6\)[\s\S]*!isSapNumericKey\(scheduleLine, 4\)[\s\S]*!Number\.isFinite\(scheduleQuantity\)[\s\S]*scheduleXItem !== scheduleItem[\s\S]*scheduleXLine !== scheduleLine/,
+  "sales-order API stub must validate numeric keys, finite quantity, and row correlation",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_SALESORDER_CHANGE[\s\S]*Sales-order change payload is incomplete[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*if \(salesDocument === "9999999900"\)/,
+  "sales-order API stub must terminate after payload rejection",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_SALESORDER_CHANGE[\s\S]*Invalid sales-order return status[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*abap\.FunctionModules\["BAPI_RESERVATION_DELETE"\]/,
+  "sales-order API stub must terminate after invalid return status",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_DELETE[\s\S]*const payloadIncomplete = [\s\S]*reservation\.length !== 10[\s\S]*\^\[0-9\]\+\$[\s\S]*reservation === "0000000000"/,
+  "reservation-delete API stub must validate the SAP reservation key shape",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_DELETE[\s\S]*if \(payloadIncomplete\)[\s\S]*Reservation deletion payload is incomplete[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*commitFails = reservation === "9999999999"/,
+  "reservation-delete API stub must reject malformed payloads before transaction behavior",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_DELETE[\s\S]*Reservation deletion rejected by test double[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*if \(reservation === "9999999997"\)/,
+  "reservation-delete API stub must terminate after BAPI error",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_DELETE[\s\S]*Invalid reservation deletion return status[\s\S]*input\.tables\.return\.append\(returnRow\)[\s\S]*abap\.builtin\.sy\.get\(\)\.subrc\.set\(0\)[\s\S]*return;[\s\S]*abap\.FunctionModules\["BAPI_TRANSACTION_COMMIT"\]/,
+  "reservation-delete API stub must terminate after invalid return status",
+);
+assert.match(
+  sapApiStub,
+  /ENQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
+  "allocation enqueue stub must require material, plant, and storage scope",
+);
+assert.match(
+  sapApiStub,
+  /DEQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
+  "allocation dequeue stub must require material, plant, and storage scope",
+);
+assert.match(
+  sapApiStub,
+  /MD_CONVERT_MATERIAL_UNIT[\s\S]*const payloadIncomplete = [\s\S]*!material[\s\S]*!unitIn[\s\S]*!unitOut[\s\S]*!Number\.isFinite\(quantity\)[\s\S]*quantity < 0[\s\S]*if \(payloadIncomplete\)[\s\S]*throw \{classic: "OTHERS"\}/,
+  "material-unit conversion stub must reject incomplete or negative input payloads",
+);
+assert.match(
+  sapApiStub,
+  /const isValidSapDate = \(value\) =>[\s\S]*value === "00000000"[\s\S]*leapYear[\s\S]*monthDays/,
+  "SAP API stubs must provide calendar-date validation",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*!isValidSapDate\(header\?\.res_date\?\.get\(\)\?\.trim\(\)\)[\s\S]*!isValidSapDate\(item\?\.req_date\?\.get\(\)\?\.trim\(\)\)/,
+  "reservation API stub must validate header and required dates",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*!isValidSapDate\(header\?\.pstng_date\?\.get\(\)\?\.trim\(\)\)[\s\S]*!isValidSapDate\(header\?\.doc_date\?\.get\(\)\?\.trim\(\)\)/,
+  "goods-movement API stub must validate posting and document dates",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_CREATE1[\s\S]*const moveType = header\?\.move_type\?\.get\(\)\?\.trim\(\)[\s\S]*const entryQuantity = Number\(item\?\.entry_qnt\?\.get\(\)\)[\s\S]*!isSapNumericKey\(moveType, 3\)[\s\S]*!Number\.isFinite\(entryQuantity\)[\s\S]*entryQuantity <= 0/,
+  "reservation API stub must validate movement type and finite positive quantity",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*const movementType = item\?\.move_type\?\.get\(\)\?\.trim\(\)[\s\S]*const entryQuantity = Number\(item\?\.entry_qnt\?\.get\(\)\)[\s\S]*!isSapNumericKey\(movementType, 3\)[\s\S]*!Number\.isFinite\(entryQuantity\)[\s\S]*entryQuantity <= 0/,
+  "goods-movement API stub must validate movement type and finite positive quantity",
+);
 const productionSourceTableNames = new Set();
+const productionDatabaseWrites = new Set();
 for (const fileName of fs.readdirSync(sourceDirectory).filter(
   (name) => name.endsWith(".abap") && !name.endsWith(".testclasses.abap"),
 )) {
@@ -158,6 +397,16 @@ for (const fileName of fs.readdirSync(sourceDirectory).filter(
       productionSourceTableNames.add(tableName);
     }
   }
+  for (const match of sourceText.matchAll(/^\s*(?:DELETE\s+FROM|UPDATE|MODIFY)\s+([A-Z0-9_]+)|^\s*INSERT\s+([A-Z0-9_]+)\s+FROM\b/gim)) {
+    productionDatabaseWrites.add((match[1] ?? match[2]).toUpperCase());
+  }
+}
+for (const tableName of productionDatabaseWrites) {
+  assert.match(
+    tableName,
+    /^Z/,
+    `production database write must target a custom Z table: ${tableName}`,
+  );
 }
 for (const tableName of productionSourceTableNames) {
   const tableStubPath = path.join(stubDirectory, `${tableName.toLowerCase()}.tabl.xml`);
@@ -172,6 +421,146 @@ for (const tableName of productionSourceTableNames) {
     `SAP table stub identity must match ${tableName}`,
   );
 }
+for (const fileName of fs.readdirSync(stubDirectory).filter(
+  (name) => name.endsWith(".tabl.xml"),
+)) {
+  const tableStub = fs.readFileSync(path.join(stubDirectory, fileName), "utf8");
+  const tableName = /<TABNAME>\s*([A-Z0-9_]+)\s*<\/TABNAME>/i.exec(tableStub)?.[1]?.toUpperCase();
+  assert.ok(tableName, `${fileName} must declare a SAP table identity`);
+  assert.doesNotMatch(
+    tableName,
+    /^Z/,
+    `${fileName} must describe a standard SAP table, not a custom table`,
+  );
+  assert.match(
+    tableStub,
+    /<DD03P>[\s\S]*?<FIELDNAME>MANDT<\/FIELDNAME>[\s\S]*?<KEYFLAG>X<\/KEYFLAG>[\s\S]*?<\/DD03P>/i,
+    `${fileName} must expose MANDT as a key field for client-safe test SQL`,
+  );
+  const fieldRows = [...tableStub.matchAll(/<DD03P>([\s\S]*?)<\/DD03P>/gi)];
+  assert.ok(fieldRows.length > 0, `${fileName} must declare DDIC fields`);
+  const fieldNames = new Set();
+  for (const fieldRow of fieldRows) {
+    const row = fieldRow[1];
+    const fieldName = /<FIELDNAME>\s*([A-Z0-9_]+)\s*<\/FIELDNAME>/i.exec(row)?.[1]?.toUpperCase();
+    const dataType = /<DATATYPE>\s*([A-Z0-9_]+)\s*<\/DATATYPE>/i.exec(row)?.[1]?.toUpperCase();
+    const length = /<LENG>\s*(\d+)\s*<\/LENG>/i.exec(row)?.[1];
+    assert.ok(fieldName, `${fileName} contains a DDIC row without FIELDNAME`);
+    assert.equal(fieldNames.has(fieldName), false, `${fileName} contains duplicate field ${fieldName}`);
+    fieldNames.add(fieldName);
+    assert.equal(
+      /<TABNAME>\s*([A-Z0-9_]+)\s*<\/TABNAME>/i.exec(row)?.[1]?.toUpperCase(),
+      tableName,
+      `${fileName} field ${fieldName} must identify its containing table`,
+    );
+    assert.ok(dataType, `${fileName} field ${fieldName} must declare DATATYPE`);
+    assert.ok(length && Number(length) > 0, `${fileName} field ${fieldName} must declare a positive LENG`);
+    assert.match(row, /<POSITION>\s*\d+\s*<\/POSITION>/i, `${fileName} field ${fieldName} must declare POSITION`);
+    if (dataType === "DATS") {
+      assert.equal(length, "000008", `${fileName} date field ${fieldName} must be eight characters`);
+    }
+    if (dataType === "UNIT") {
+      assert.equal(length, "000003", `${fileName} unit field ${fieldName} must be three characters`);
+    }
+    if (dataType === "QUAN") {
+      assert.match(row, /<DECIMALS>\s*\d+\s*<\/DECIMALS>/i, `${fileName} quantity field ${fieldName} must declare DECIMALS`);
+      assert.match(row, /<REFTABLE>\s*[A-Z0-9_]+\s*<\/REFTABLE>/i, `${fileName} quantity field ${fieldName} must declare REFTABLE`);
+      assert.match(row, /<REFFIELD>\s*[A-Z0-9_]+\s*<\/REFFIELD>/i, `${fileName} quantity field ${fieldName} must declare REFFIELD`);
+    }
+  }
+}
+const requiredSapTableFields = new Map([
+  ["MARA", ["MATNR", "MEINS", "XCHPF", "LVORM"]],
+  ["MARC", ["MATNR", "WERKS", "LVORM"]],
+  ["MARD", ["MATNR", "WERKS", "LGORT", "LABST", "LVORM"]],
+  ["MARM", ["MATNR", "MEINH", "UMREZ", "UMREN"]],
+  ["MCHA", ["MATNR", "WERKS", "CHARG", "VFDAT", "ZUSTD", "LVORM"]],
+  ["MCHB", ["MATNR", "WERKS", "LGORT", "CHARG", "CLABS", "LVORM"]],
+  ["VBAK", ["VBELN", "VBTYP", "AUART", "LIFSK"]],
+  ["VBAP", ["VBELN", "POSNR", "MATNR", "WERKS", "ABGRU", "LPRIO", "VRKME", "LOEKZ", "LIFSP"]],
+  ["VBEP", ["VBELN", "POSNR", "ETENR", "EDATU", "WMENG", "BMENG", "LIFSP"]],
+]);
+for (const [tableName, fieldNames] of requiredSapTableFields) {
+  const tableStubPath = path.join(stubDirectory, `${tableName.toLowerCase()}.tabl.xml`);
+  const tableStub = fs.readFileSync(tableStubPath, "utf8");
+  for (const fieldName of fieldNames) {
+    assert.match(
+      tableStub,
+      new RegExp(`<FIELDNAME>\\s*${fieldName}\\s*</FIELDNAME>`, "i"),
+      `SAP table stub ${tableName} must expose field ${fieldName}`,
+    );
+  }
+}
+for (const fileName of fs.readdirSync(sourceDirectory).filter(
+  (name) => name.endsWith(".abap") && !name.endsWith(".testclasses.abap"),
+)) {
+  const sourceText = fs.readFileSync(path.join(sourceDirectory, fileName), "utf8");
+  const aliases = new Map();
+  for (const match of sourceText.matchAll(
+    /\b(?:FROM|JOIN)\s+([A-Z0-9_]+)(?:\s+AS\s+([A-Z0-9_]+))?/gim,
+  )) {
+    const tableName = match[1].toUpperCase();
+    const alias = (match[2] ?? tableName).toUpperCase();
+    aliases.set(alias, tableName);
+  }
+  for (const match of sourceText.matchAll(/\b([A-Z0-9_]+)~([A-Z0-9_]+)\b/gim)) {
+    const tableName = aliases.get(match[1].toUpperCase());
+    if (!tableName || tableName.startsWith("Z")) {
+      continue;
+    }
+    const tableStubPath = path.join(stubDirectory, `${tableName.toLowerCase()}.tabl.xml`);
+    assert.ok(
+      fs.existsSync(tableStubPath),
+      `${fileName} qualified SQL reference ${match[1]}~${match[2]} must have a SAP table stub`,
+    );
+    const tableStub = fs.readFileSync(tableStubPath, "utf8");
+    assert.match(
+      tableStub,
+      new RegExp(`<FIELDNAME>\\s*${match[2]}\\s*</FIELDNAME>`, "i"),
+      `${fileName} qualified SQL field ${match[1]}~${match[2]} must be declared in ${tableName}`,
+    );
+  }
+}
+for (const fileName of fs.readdirSync(sourceDirectory).filter(
+  (name) => name.endsWith(".tabl.xml"),
+)) {
+  const tableSource = fs.readFileSync(path.join(sourceDirectory, fileName), "utf8");
+  const tableName = /<TABNAME>\s*([A-Z0-9_]+)\s*<\/TABNAME>/i.exec(tableSource)?.[1]?.toUpperCase();
+  assert.ok(tableName, `${fileName} must declare a custom table identity`);
+  assert.match(
+    tableName,
+    /^Z/,
+    `${fileName} must remain in the custom Z table namespace`,
+  );
+  assert.match(
+    tableSource,
+    /<DD02V>[\s\S]*?<CLIDEP>X<\/CLIDEP>[\s\S]*?<\/DD02V>/i,
+    `${fileName} must be client-dependent`,
+  );
+  assert.match(
+    tableSource,
+    /<DD03P>[\s\S]*?<FIELDNAME>MANDT<\/FIELDNAME>[\s\S]*?<KEYFLAG>X<\/KEYFLAG>[\s\S]*?<\/DD03P>/i,
+    `${fileName} must expose MANDT as a key field for client-safe persistence`,
+  );
+}
+const vbapStubSource = fs.readFileSync(
+  path.join(stubDirectory, "vbap.tabl.xml"),
+  "utf8",
+);
+assert.match(
+  vbapStubSource,
+  /<FIELDNAME>LIFSP<\/FIELDNAME>/,
+  "VBAP SAP table stub must expose the item delivery-block field",
+);
+const marcStubSource = fs.readFileSync(
+  path.join(stubDirectory, "marc.tabl.xml"),
+  "utf8",
+);
+assert.match(
+  marcStubSource,
+  /<FIELDNAME>LVORM<\/FIELDNAME>/,
+  "MARC SAP table stub must expose the plant material deletion flag",
+);
 for (const fileName of [
   "zif_source_read_authority.intf.abap",
   "zcl_source_read_auth_sap.clas.abap",
@@ -188,6 +577,29 @@ const stockSourceSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_source_sap.clas.abap"),
   "utf8",
 );
+const allocationDateSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_allocation_date_sap.clas.abap"),
+  "utf8",
+);
+const allocationTimeSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_allocation_time_sap.clas.abap"),
+  "utf8",
+);
+assert.match(
+  stockSourceSource,
+  /FROM marc/,
+  "SAP stock source must read plant-specific material status",
+);
+assert.match(
+  stockSourceSource,
+  /Material is marked for deletion at plant/,
+  "SAP stock source must reject plant-deleted materials",
+);
+assert.match(
+  stockSourceSource,
+  /Plant material data is missing/,
+  "SAP stock source must reject material stock without plant data",
+);
 const orderSourceSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_order_source_sap.clas.abap"),
   "utf8",
@@ -195,6 +607,11 @@ const orderSourceSource = fs.readFileSync(
 const sourceAuthoritySource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_source_read_auth_sap.clas.abap"),
   "utf8",
+);
+assert.match(
+  sourceAuthoritySource,
+  /iv_table\s*=\s*'MARC'[\s\S]*Plant material read authorization failed/,
+  "stock read authorization must cover MARC plant data",
 );
 const allocationReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_allocate.prog.abap"),
@@ -220,6 +637,10 @@ const auditSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.abap"),
   "utf8",
 );
+const compareSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocation_compare.clas.abap"),
+  "utf8",
+);
 const healthReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_health.prog.abap"),
   "utf8",
@@ -232,6 +653,10 @@ const unitConversionSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.abap"),
   "utf8",
 );
+const allocationLockSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocation_lock_sap.clas.abap"),
+  "utf8",
+);
 const reservationSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_reservation_sap.clas.abap"),
   "utf8",
@@ -242,6 +667,38 @@ const movementSource = fs.readFileSync(
 );
 const orderSinkSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_order_sink_sap.clas.abap"),
+  "utf8",
+);
+const orderUpdateReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_order_update.prog.abap"),
+  "utf8",
+);
+const goodsIssueReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_goods_issue.prog.abap"),
+  "utf8",
+);
+const stockReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_stock.prog.abap"),
+  "utf8",
+);
+const reservationCancelReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_res_cancel.prog.abap"),
+  "utf8",
+);
+const reservationCreateReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_reserve.prog.abap"),
+  "utf8",
+);
+const conversionReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_convert.prog.abap"),
+  "utf8",
+);
+const stockJsonSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_json.clas.abap"),
+  "utf8",
+);
+const stockCsvSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_csv.clas.abap"),
   "utf8",
 );
 const unitConversionAuthoritySource = fs.readFileSync(
@@ -306,6 +763,11 @@ assert.match(
 );
 assert.match(
   allocationServiceSource,
+  /iv_requested_on_from[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Requested delivery date range is invalid/,
+  "allocation service must reject malformed requested-date bounds",
+);
+assert.match(
+  allocationServiceSource,
   /LOOP AT lt_existing ASSIGNING <ls_existing>[\s\S]*<ls_existing>-allocation_unit\s*=\s*[\s\S]*to_upper[\s\S]*<ls_existing>-allocation_status\s*=\s*[\s\S]*to_upper/,
   "allocation service must canonicalize injected snapshot metadata",
 );
@@ -325,12 +787,12 @@ assert.match(
 );
 assert.match(
   allocationSinkSource,
-  /iv_sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*iv_sales_document\s*=\s*'0000000000'/,
+  /iv_sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*iv_sales_document\s+CN\s+'0123456789'[\s\S]*iv_sales_document\s*=\s*'0000000000'/,
   "allocation result reads must reject malformed sales-document filters",
 );
 assert.match(
   allocationSinkSource,
-  /iv_reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*iv_reservation_id\s*=\s*'0000000000'[\s\S]*iv_reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*iv_reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  /iv_reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*iv_reservation_id\s+CN\s+'0123456789\s*'[\s\S]*lv_reservation_document_filter\s+CN\s+'0123456789'[\s\S]*lv_reservation_document_filter\s*=\s*'0000000000'/,
   "allocation result reads must reject malformed numeric reservation filters",
 );
 assert.match(
@@ -339,9 +801,69 @@ assert.match(
   "allocation snapshots must reject the all-zero reservation sentinel",
 );
 assert.match(
+  allocationSinkSource,
+  /METHOD validate_demand[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*is_demand-requested_on[\s\S]*is_demand-reservation_date/,
+  "allocation snapshots must reject malformed demand and reservation dates",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_requested_on_from[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Allocation snapshot run requested horizon is invalid/,
+  "allocation snapshots must reject malformed persisted run horizons",
+);
+assert.match(
   allocationServiceSource,
   /<ls_existing>-reservation_id\s*=\s*'0000000000'/,
   "allocation reconciliation must reject the all-zero reservation sentinel",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~start_run[\s\S]*iv_requested_on_from[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Audit requested date range is invalid/,
+  "audit run creation must reject malformed requested-date bounds",
+);
+assert.match(
+  auditSource,
+  /METHOD validate_run[\s\S]*is_run-start_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Audit run data is invalid/,
+  "audit reads must reject malformed persisted run dates",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_runs[\s\S]*validate_date[\s\S]*iv_start_date_from[\s\S]*iv_finish_date_to/,
+  "audit history filters must reject malformed lifecycle dates",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_purge_preview[\s\S]*validate_date[\s\S]*iv_before_date[\s\S]*iv_deadline_age_date/,
+  "audit purge previews must reject malformed date filters",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~purge_runs_before[\s\S]*validate_date[\s\S]*iv_before_date[\s\S]*iv_deadline_age_date/,
+  "audit purge execution must reject malformed date filters",
+);
+assert.equal(
+  (auditSource.match(/Audit purge candidate is invalid/g) || []).length,
+  6,
+  "audit purge preview and execution must validate persisted candidate timestamps and horizons",
+);
+assert.match(
+  auditSource,
+  /LOOP AT lt_candidates[\s\S]*zcl_allocation_time_sap=>is_valid_or_initial[\s\S]*Audit purge candidate is invalid[\s\S]*cl_abap_tstmp=>td_subtract/,
+  "audit purge candidates must validate timestamp shape before duration arithmetic",
+);
+assert.match(
+  auditSource,
+  /LOOP AT lt_candidates INTO ls_candidate[\s\S]*requested_on_from IS NOT INITIAL[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*lv_requested_deadline/,
+  "audit purge candidates must validate persisted requested horizons before deadline arithmetic",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_runs[\s\S]*status = 'E'[\s\S]*requested_on_from[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*iv_sort_by_deadline_age[\s\S]*DELETE rt_runs/,
+  "audit history must exclude malformed error horizons from deadline arithmetic and sorting",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_runs[\s\S]*status = 'E'[\s\S]*CLEAR <ls_run>-requested_deadline/,
+  "audit history must not expose a malformed derived deadline to report consumers",
 );
 assert.match(
   stockSourceSource,
@@ -379,6 +901,31 @@ assert.match(
   "stock source must reject noncanonical batch deletion flags",
 );
 assert.match(
+  allocationDateSource,
+  /CLASS-METHODS\s+is_valid_or_initial[\s\S]*lv_year\s+MOD\s+400[\s\S]*WHEN 2\.[\s\S]*lv_days\s*=\s*29/,
+  "shared SAP date validation must check calendar month lengths and leap years",
+);
+assert.match(
+  allocationTimeSource,
+  /CLASS-METHODS\s+is_valid_or_initial[\s\S]*lv_hour[\s\S]*lv_minute[\s\S]*lv_second[\s\S]*lv_hour\s*<=\s*23[\s\S]*lv_minute\s*<=\s*59[\s\S]*lv_second\s*<=\s*59/,
+  "shared SAP time validation must check clock bounds",
+);
+assert.match(
+  auditSource,
+  /zcl_allocation_time_sap=>is_valid_or_initial[\s\S]*is_run-start_time[\s\S]*is_run-finish_time/,
+  "audit run validation must reject malformed persisted clock times",
+);
+assert.match(
+  stockSourceSource,
+  /zcl_allocation_date_sap=>is_valid_or_initial\([\s\S]*batch_expiration_date/,
+  "stock source must reject malformed batch expiration dates",
+);
+assert.match(
+  sourceAuthoritySource,
+  /check_stock\.[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARA'[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARC'[\s\S]*IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCHA'/,
+  "stock read authority must match batch and non-batch table access",
+);
+assert.match(
   orderSourceSource,
   /io_authority\s+TYPE REF TO zif_source_read_authority/,
   "order source must expose an injectable read-authority port",
@@ -395,18 +942,43 @@ assert.match(
 );
 assert.match(
   orderSourceSource,
+  /item_delivery_block\s+TYPE\s+c\s+LENGTH\s+2[\s\S]*item~lifsp\s+AS\s+item_delivery_block[\s\S]*<ls_schedule>-item_delivery_block\s+IS\s+NOT\s+INITIAL/,
+  "order source must exclude item-level delivery-blocked sales-order items",
+);
+assert.match(
+  orderSourceSource,
   /ls_demand-sales_document\s*=\s*'0000000000'/,
   "order source must reject the all-zero sales-document sentinel",
 );
 assert.match(
   orderSourceSource,
-  /requested\s*<\s*0[\s\S]*confirmed\s*<\s*0/,
-  "order source must reject negative schedule quantities",
+  /schedule~wmeng\s*<\s*0[\s\S]*schedule~bmeng\s*<\s*0[\s\S]*requested\s*<\s*0[\s\S]*confirmed\s*<\s*0/,
+  "order source must select and reject negative schedule quantities",
+);
+assert.match(
+  orderSourceSource,
+  /requested\s*<=\s*<ls_schedule>-confirmed[\s\S]*CONTINUE/,
+  "order source must skip only genuinely fulfilled nonnegative schedules after validation",
+);
+assert.match(
+  orderSourceSource,
+  /schedule~edatu\s*>=\s*'00000000'[\s\S]*schedule~edatu\s*<=\s*'99999999'[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial/,
+  "order source must validate every candidate requested date before horizon filtering",
 );
 assert.match(
   allocationServiceSource,
   /<ls_demand>-sales_document\s*=\s*'0000000000'/,
   "allocation service must reject the all-zero sales-document sentinel",
+);
+assert.match(
+  allocationServiceSource,
+  /zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*batch_expiration_date[\s\S]*Open demand requested date is invalid/,
+  "allocation service must reject malformed provider dates before side effects",
+);
+assert.match(
+  allocationServiceSource,
+  /<ls_existing>-requested_on[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*<ls_existing>-reservation_date/,
+  "allocation service must reject malformed existing snapshot dates before reconciliation",
 );
 assert.match(
   allocationSinkSource,
@@ -433,6 +1005,36 @@ assert.match(
   /lv_run_requested_on_from\s+IS\s+NOT\s+INITIAL[\s\S]*lv_run_requested_on_to\s+IS\s+NOT\s+INITIAL[\s\S]*lv_run_requested_on_from\s*>\s*lv_run_requested_on_to/,
   "allocation snapshot run references must reject inverted requested horizons",
 );
+assert.match(
+  allocationSinkSource,
+  /zcl_allocation_time_sap=>is_valid_or_initial[\s\S]*<ls_strategy_run>-start_time[\s\S]*<ls_strategy_run>-finish_time[\s\S]*Allocation result audit run is invalid[\s\S]*cl_abap_tstmp=>td_subtract/,
+  "allocation result reads must validate originating audit timestamps before duration arithmetic",
+);
+assert.match(
+  allocationSinkSource,
+  /METHOD validate_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*raise_error/,
+  "allocation result reads must provide a shared calendar-date validation boundary",
+);
+assert.match(
+  allocationSinkSource,
+  /validate_date\([\s\S]*iv_date\s*=\s*iv_overdue_date[\s\S]*validate_date\([\s\S]*iv_date\s*=\s*iv_run_deadline_age_date[\s\S]*validate_date\([\s\S]*iv_date\s*=\s*iv_requested_on_from[\s\S]*validate_date\([\s\S]*iv_date\s*=\s*iv_run_deadline_from[\s\S]*validate_date\([\s\S]*iv_date\s*=\s*iv_reservation_date_from/,
+  "allocation result reads must validate caller-supplied date filters before comparisons or arithmetic",
+);
+assert.match(
+  compareSource,
+  /METHOD zif_stock_allocation_compare~get_running_age[\s\S]*is_run-finish_time IS NOT INITIAL[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*zcl_allocation_time_sap=>is_valid_or_initial[\s\S]*cl_abap_tstmp=>td_subtract/,
+  "comparison running-age reads must validate timestamp shape before arithmetic",
+);
+assert.match(
+  fs.readFileSync(path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"), "utf8"),
+  /p_rmov\s*=\s*zif_stock_allocation=>c_zero_movement_type[\s\S]*p_ormov\s*=\s*zif_stock_allocation=>c_zero_movement_type[\s\S]*p_nrmov\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "comparison movement-type filters must reject the zero sentinel",
+);
+assert.match(
+  reservationSource,
+  /iv_required_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Reservation input is invalid/,
+  "SAP reservation creation must reject malformed required dates",
+);
 for (const tableName of ["MARA", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
   assert.match(
     sourceAuthoritySource,
@@ -442,8 +1044,8 @@ for (const tableName of ["MARA", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]
 }
 assert.match(
   sourceAuthoritySource,
-  /IF iv_batch IS NOT INITIAL/,
-  "source read authority must scope batch-table checks to batch reads",
+  /IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCHA'/,
+  "source read authority must scope storage-table checks to the selected read path",
 );
 assert.match(
   sourceAuthoritySource,
@@ -547,18 +1149,23 @@ assert.match(
 );
 assert.match(
   allocationServiceSource,
-  /<ls_existing>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
-  "allocation service must reject short existing sales documents",
+  /<ls_existing>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*<ls_existing>-sales_document\s+CN\s+'0123456789'/,
+  "allocation service must reject malformed existing sales documents",
 );
 assert.match(
   allocationServiceSource,
-  /<ls_existing>-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*<ls_existing>-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  /<ls_existing>-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*<ls_existing>-reservation_id\s+CN\s+'0123456789\s*'/,
   "allocation service must reject short numeric existing reservation documents",
 );
 assert.match(
   allocationServiceSource,
   /ls_available-batch_restricted\s+<>\s+abap_true[\s\S]*ls_available-batch_restricted\s+<>\s+abap_false[\s\S]*Available stock result is invalid/,
   "allocation service must reject noncanonical stock flags",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_batch\s+IS\s+INITIAL[\s\S]*ls_available-batch_found\s*=\s*abap_true[\s\S]*ls_available-batch_restricted\s*=\s*abap_true[\s\S]*ls_available-batch_expiration_date\s+IS\s+NOT\s+INITIAL[\s\S]*Available stock result is invalid/,
+  "allocation service must reject batch metadata when no batch is requested",
 );
 assert.match(
   allocationServiceSource,
@@ -606,6 +1213,348 @@ assert.match(
   "sales-order writes must canonicalize sales-document types",
 );
 assert.match(
+  orderUpdateReportSource,
+  /lv_sales_document_type\s*=\s*to_upper\(\s*p_auart\s*\)/,
+  "sales-order update reports must canonicalize the displayed order type",
+);
+assert.match(
+  orderUpdateReportSource,
+  /iv_sales_document_type\s*=\s*lv_sales_document_type/,
+  "sales-order update reports must send the canonical order type",
+);
+assert.match(
+  orderUpdateReportSource,
+  /quote\(\s*lv_sales_document_type\s*\)/,
+  "sales-order update report exports must expose the canonical order type",
+);
+assert.match(
+  goodsIssueReportSource,
+  /lv_unit\s*=\s*to_upper\(\s*p_meins\s*\)/,
+  "goods-issue reports must canonicalize the displayed unit",
+);
+assert.match(
+  goodsIssueReportSource,
+  /iv_unit\s*=\s*lv_unit/,
+  "goods-issue reports must send the canonical unit",
+);
+assert.match(
+  goodsIssueReportSource,
+  /quote\(\s*lv_unit\s*\)/,
+  "goods-issue report exports must expose the canonical unit",
+);
+
+for (const [reportName, reportSource] of [
+  ["allocation", allocationReportSource],
+  ["stock", stockReportSource],
+  ["unit conversion", conversionReportSource],
+  ["reservation creation", reservationCreateReportSource],
+  ["reservation cancellation", reservationCancelReportSource],
+  ["goods issue", goodsIssueReportSource],
+  ["sales-order update", orderUpdateReportSource],
+]) {
+  assert.equal(
+    (reportSource.match(/iv_name\s*=\s*'schema_version'/g) ?? []).length,
+    2,
+    `${reportName} report must expose schema_version in typed and untyped JSON`,
+  );
+}
+assert.match(
+  stockJsonSource,
+  /CLASS-METHODS\s+error_with_schema/,
+  "JSON helper must expose a schema-versioned error envelope",
+);
+assert.match(
+  stockJsonSource,
+  /CLASS-METHODS\s+error_with_schema_run_id/,
+  "JSON helper must preserve run IDs in schema-versioned errors",
+);
+assert.match(
+  stockJsonSource,
+  /iv_name\s*=\s*'schema_version'/,
+  "JSON helper schema-versioned errors must include schema_version",
+);
+assert.match(
+  stockCsvSource,
+  /CLASS-METHODS\s+error_with_schema/,
+  "CSV helper must expose a schema-versioned error envelope",
+);
+assert.match(
+  stockCsvSource,
+  /CLASS-METHODS\s+error_with_schema_run_id/,
+  "CSV helper must preserve run IDs in schema-versioned errors",
+);
+assert.equal(
+  (allocationReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  13,
+  "allocation report must version all JSON error envelopes, including run-ID variants",
+);
+for (const [reportName, reportSource, expectedCount] of [
+  ["stock", stockReportSource, 3],
+  ["unit conversion", conversionReportSource, 3],
+  ["reservation creation", reservationCreateReportSource, 4],
+  ["reservation cancellation", reservationCancelReportSource, 4],
+  ["goods issue", goodsIssueReportSource, 5],
+  ["sales-order update", orderUpdateReportSource, 5],
+]) {
+  assert.equal(
+    (reportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+    expectedCount,
+    `${reportName} report must version all JSON error envelopes`,
+  );
+}
+assert.match(
+  readmeSource,
+  /JSON and typed JSON use schema version `1`/,
+  "README must document stock JSON schema parity",
+);
+assert.match(
+  readmeSource,
+  /## SAP integration checklist[\s\S]*Import the ABAP objects under `src\/`[\s\S]*do not import `sap_stubs\/`[\s\S]*ZSTOCKALLOC_RUN[\s\S]*MARD[\s\S]*MARM[\s\S]*BAPI_RESERVATION_CREATE1[\s\S]*S_TABU_NAM[\s\S]*M_MRES_BWA[\s\S]*V_VBAK_AAT[\s\S]*P_EXEC[\s\S]*npm test/,
+  "README must document the SAP import, dependency, authorization, report, and verification checklist",
+);
+assert.doesNotMatch(
+  readmeSource,
+  /activity `06` for result replacement, reservation cancellation/,
+  "README must not assign custom-table delete authorization to direct reservation cancellation",
+);
+assert.match(
+  readmeSource,
+  /M_MRES_BWA`\/`M_MRES_WWA` activity `01` for reservation creation and activity `06` for cancellation[\s\S]*M_MSEG_BWA`\/`M_MSEG_WWA`\/`M_MSEG_LGO` activity `01` for goods issue/,
+  "README must document the operation activities enforced by reservation and goods-movement adapters",
+);
+assert.match(
+  readmeSource,
+  /Successful CSV and JSON allocation contracts now use schema version `34`/,
+  "README must document allocation JSON schema parity",
+);
+assert.match(
+  readmeSource,
+  /Result detail\/summary schemas are `37`\/`43`, and comparison CSV\/contextual JSON schemas are `95`/,
+  "README must document current result and comparison schemas",
+);
+assert.doesNotMatch(
+  readmeSource,
+  /Comparison summary CSV\/JSON and comparison detail CSV\/JSON metadata envelopes expose numeric `schema_version: 36`/,
+  "README must not present historical comparison schema 36 as the current contract",
+);
+
+assert.match(
+  stockReportSource,
+  /REPORT\s+zstock_alloc_stock\./,
+  "stock report must be present as a Z report",
+);
+assert.match(
+  stockReportSource,
+  /lo_source->get_available\(/,
+  "stock report must use the stock-source contract",
+);
+assert.match(
+  stockReportSource,
+  /mode;generated_date;generated_time;schema_version;material;plant;'[\s\S]*storage_location;batch;quantity;unit;material_found;batch_managed;'/,
+  "stock report CSV output must expose the availability contract",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'typed'[\s\S]*iv_name\s*=\s*'quantity'[\s\S]*iv_name\s*=\s*'material_found'/,
+  "stock report typed JSON must expose numeric and boolean availability fields",
+);
+assert.match(
+  reservationCancelReportSource,
+  /REPORT\s+zstock_alloc_res_cancel\./,
+  "reservation cancellation report must be present as a Z report",
+);
+assert.match(
+  reservationCancelReportSource,
+  /IF p_exec <> abap_true[\s\S]*Select P_EXEC to cancel the reservation/,
+  "reservation cancellation report must require explicit execution",
+);
+assert.match(
+  reservationCancelReportSource,
+  /lo_reservation->cancel\([\s\S]*iv_document\s*=\s*p_resid[\s\S]*iv_plant\s*=\s*p_werks[\s\S]*iv_movement_type\s*=\s*p_bwart/,
+  "reservation cancellation report must pass the complete cancellation scope",
+);
+assert.match(
+  reservationCancelReportSource,
+  /mode;generated_date;generated_time;schema_version;[\s\S]*reservation_document;plant;movement_type;status;message/,
+  "reservation cancellation report must expose a stable machine-readable contract",
+);
+assert.match(
+  reservationCreateReportSource,
+  /REPORT\s+zstock_alloc_reserve\./,
+  "reservation creation report must be present as a Z report",
+);
+assert.match(
+  reservationCreateReportSource,
+  /IF p_exec <> abap_true[\s\S]*Select P_EXEC to create the reservation/,
+  "reservation creation report must require explicit execution",
+);
+assert.match(
+  reservationCreateReportSource,
+  /lv_unit\s*=\s*to_upper\(\s*p_meins\s*\)/,
+  "reservation creation report must canonicalize its unit",
+);
+assert.match(
+  reservationCreateReportSource,
+  /lv_document\s*=\s*lo_reservation->reserve\([\s\S]*iv_material\s*=\s*p_matnr[\s\S]*iv_required_date\s*=\s*p_reqdt[\s\S]*iv_batch\s*=\s*p_charg/,
+  "reservation creation report must pass the complete reservation scope",
+);
+assert.match(
+  reservationCreateReportSource,
+  /mode;generated_date;generated_time;schema_version;material;plant;'[\s\S]*reservation_document;status;message/,
+  "reservation creation report must expose a stable machine-readable contract",
+);
+for (const [reportName, reportSource, executionMessage] of [
+  [
+    "reservation create",
+    reservationCreateReportSource,
+    "Select P_EXEC to create the reservation",
+  ],
+  [
+    "reservation cancel",
+    reservationCancelReportSource,
+    "Select P_EXEC to cancel the reservation",
+  ],
+  [
+    "goods issue",
+    goodsIssueReportSource,
+    "Select P_EXEC to execute the goods issue",
+  ],
+  [
+    "sales-order update",
+    orderUpdateReportSource,
+    "Select P_EXEC to execute the sales-order update",
+  ],
+]) {
+  assert.match(
+    reportSource,
+    /PARAMETERS p_exec AS CHECKBOX\./,
+    `${reportName} report must expose an explicit execution switch`,
+  );
+  assert.match(
+    reportSource,
+    new RegExp(
+      `IF p_exec <> abap_true[\\s\\S]*${executionMessage}[\\s\\S]*RETURN\\.`,
+    ),
+    `${reportName} report must stop before the SAP mutation when execution is not selected`,
+  );
+}
+assert.match(
+  goodsIssueReportSource,
+  /CREATE OBJECT lo_authority TYPE zcl_stock_move_auth_sap[\s\S]*CREATE OBJECT lo_movement TYPE zcl_stock_movement_sap[\s\S]*io_authority\s*=\s*lo_authority/,
+  "goods-issue report must inject the SAP movement authority into its adapter",
+);
+assert.match(
+  orderUpdateReportSource,
+  /CREATE OBJECT lo_authority TYPE zcl_order_sink_authority_sap[\s\S]*CREATE OBJECT lo_sink TYPE zcl_order_sink_sap[\s\S]*io_authority\s*=\s*lo_authority/,
+  "sales-order report must inject the SAP order authority into its adapter",
+);
+for (const [adapterName, adapterSource, authorityCall] of [
+  ["goods movement", movementSource, "check"],
+  ["sales-order change", orderSinkSource, "check"],
+  ["reservation create/cancel", reservationSource, "check"],
+]) {
+  assert.match(
+    adapterSource,
+    new RegExp(`mo_authority->${authorityCall}\\(`),
+    `${adapterName} adapter must check authorization before its BAPI call`,
+  );
+  assert.match(
+    adapterSource,
+    /CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'/,
+    `${adapterName} adapter must commit successful BAPI work`,
+  );
+  assert.match(
+    adapterSource,
+    /CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'/,
+    `${adapterName} adapter must rollback failed BAPI work`,
+  );
+  assert.match(
+    adapterSource,
+    /CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'[\s\S]*IMPORTING[\s\S]*return\s*=\s*ls_commit_return[\s\S]*EXCEPTIONS/,
+    `${adapterName} adapter must import the SAP transaction-commit return structure`,
+  );
+  assert.match(
+    adapterSource,
+    /ls_commit_return-type\s+IS\s+NOT\s+INITIAL[\s\S]*ls_commit_return-type\s+<>\s+'S'[\s\S]*ls_commit_return-type\s+<>\s+'X'/,
+    `${adapterName} adapter must reject noncanonical transaction-commit return statuses`,
+  );
+  assert.match(
+    adapterSource,
+    /CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'[\s\S]*IMPORTING[\s\S]*return\s*=\s*ls_rollback_return[\s\S]*EXCEPTIONS/,
+    `${adapterName} adapter must import the SAP transaction-rollback return structure`,
+  );
+  assert.match(
+    adapterSource,
+    /ls_rollback_return-type\s+IS\s+NOT\s+INITIAL[\s\S]*ls_rollback_return-type\s+<>\s+'S'[\s\S]*ls_rollback_return-type\s+<>\s+'X'/,
+    `${adapterName} adapter must reject noncanonical transaction-rollback return statuses`,
+  );
+}
+assert.match(
+  transactionAdapterSource,
+  /CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'[\s\S]*IMPORTING[\s\S]*return\s*=\s*ls_return[\s\S]*EXCEPTIONS/,
+  "SAP transaction adapter must import the transaction-commit return structure",
+);
+assert.match(
+  transactionAdapterSource,
+  /ls_return-type\s+IS\s+NOT\s+INITIAL[\s\S]*ls_return-type\s+<>\s+'S'[\s\S]*ls_return-type\s+<>\s+'X'/,
+  "SAP transaction adapter must reject noncanonical transaction-commit return statuses",
+);
+assert.match(
+  transactionAdapterSource,
+  /CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'[\s\S]*IMPORTING[\s\S]*return\s*=\s*ls_return[\s\S]*EXCEPTIONS/,
+  "SAP transaction adapter must import the explicit transaction-rollback return structure",
+);
+assert.match(
+  transactionAdapterSource,
+  /ls_return-type\s+IS\s+NOT\s+INITIAL[\s\S]*ls_return-type\s+<>\s+'S'[\s\S]*ls_return-type\s+<>\s+'X'/,
+  "SAP transaction adapter must reject noncanonical explicit transaction-rollback return statuses",
+);
+assert.match(
+  reservationSource,
+  /mo_authority->check_cancel\(/,
+  "reservation cancellation must use its dedicated cancellation authority check",
+);
+assert.match(
+  conversionReportSource,
+  /REPORT\s+zstock_alloc_convert\./,
+  "unit conversion report must be present as a Z report",
+);
+assert.match(
+  conversionReportSource,
+  /lv_unit_from\s*=\s*to_upper\(\s*p_from\s*\)[\s\S]*lv_unit_to\s*=\s*to_upper\(\s*p_to\s*\)/,
+  "unit conversion report must canonicalize both unit inputs",
+);
+assert.match(
+  conversionReportSource,
+  /lo_converter->convert\([\s\S]*iv_material\s*=\s*p_matnr[\s\S]*iv_unit_from\s*=\s*lv_unit_from[\s\S]*iv_unit_to\s*=\s*lv_unit_to/,
+  "unit conversion report must use the conversion contract",
+);
+assert.match(
+  conversionReportSource,
+  /mode;generated_date;generated_time;schema_version;material;'[\s\S]*converted_quantity;status;message/,
+  "unit conversion report must expose a stable machine-readable contract",
+);
+assert.match(
+  conversionReportSource,
+  /iv_name\s*=\s*'typed'[\s\S]*iv_name\s*=\s*'quantity'[\s\S]*iv_name\s*=\s*'converted_quantity'/,
+  "unit conversion typed JSON must expose numeric quantities",
+);
+assert.match(
+  allocationReportSource,
+  /lv_unit\s*=\s*to_upper\(\s*p_meins\s*\)/,
+  "allocation reports must canonicalize the displayed unit",
+);
+assert.match(
+  allocationReportSource,
+  /iv_unit\s*=\s*lv_unit/,
+  "allocation reports must send the canonical unit",
+);
+assert.match(
+  allocationReportSource,
+  /quote\(\s*lv_unit\s*\)/,
+  "allocation report exports must expose the canonical unit",
+);
+assert.match(
   allocationServiceSource,
   /<ls_existing>-sales_document_type\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-sales_item\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_existing>-schedule_line\s+IS\s+NOT\s+INITIAL/,
   "allocation service snapshot reconciliation must inspect complete sales-order identity",
@@ -617,8 +1566,8 @@ assert.match(
 );
 assert.match(
   allocationSinkSource,
-  /is_demand-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*is_demand-reservation_id\s+CO\s+'0123456789\s*'[\s\S]*strlen\(\s*is_demand-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
-  "allocation snapshots must reject short numeric reservation documents",
+  /is_demand-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*is_demand-reservation_id\s+CN\s+'0123456789\s*'/,
+  "allocation snapshots must reject malformed reservation documents",
 );
 assert.match(
   allocationServiceSource,
@@ -667,18 +1616,18 @@ assert.match(
 );
 assert.match(
   orderSourceSource,
-  /strlen\(\s*ls_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
-  "SAP order reads must enforce the exact ten-character document length",
+  /strlen\(\s*ls_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*ls_demand-sales_document\s+CN\s+'0123456789'/,
+  "SAP order reads must enforce the exact ten-character numeric document contract",
 );
 assert.match(
   allocationServiceSource,
-  /<ls_demand>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_demand>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
-  "allocation service must reject short nonblank sales documents",
+  /<ls_demand>-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_demand>-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*<ls_demand>-sales_document\s+CN\s+'0123456789'/,
+  "allocation service must reject malformed sales documents",
 );
 assert.match(
   allocationSinkSource,
-  /is_demand-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
-  "allocation snapshots must reject short nonblank sales documents",
+  /is_demand-sales_document\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-sales_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*is_demand-sales_document\s+CN\s+'0123456789'/,
+  "allocation snapshots must reject malformed sales documents",
 );
 assert.match(
   stockAllocationInterfaceSource,
@@ -701,9 +1650,19 @@ assert.match(
   "reservation BAPI adapter must enforce the exact three-character movement-type contract",
 );
 assert.match(
+  reservationSource,
+  /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "reservation BAPI adapter must reject the zero movement-type sentinel",
+);
+assert.match(
   movementSource,
   /strlen\(\s*iv_movement_type\s*\)\s*<>\s*zif_stock_allocation=>c_movement_type_length[\s\S]*iv_movement_type\s+CN\s+'0123456789'/,
   "goods-movement BAPI adapter must enforce the exact three-character movement-type contract",
+);
+assert.match(
+  movementSource,
+  /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "goods-movement BAPI adapter must reject the zero movement-type sentinel",
 );
 assert.match(
   auditSource,
@@ -717,8 +1676,23 @@ assert.match(
 );
 assert.match(
   stockAllocationInterfaceSource,
-  /ty_movement_type\s+TYPE\s+c\s+LENGTH\s+3[\s\S]*c_movement_type_length\s+TYPE\s+i\s+VALUE\s+3/,
-  "the shared movement-type contract must define a three-character length",
+  /ty_movement_type\s+TYPE\s+c\s+LENGTH\s+3[\s\S]*c_movement_type_length\s+TYPE\s+i\s+VALUE\s+3[\s\S]*c_zero_movement_type\s+TYPE\s+ty_movement_type\s+VALUE\s+'000'/,
+  "the shared movement-type contract must define a three-character length and zero sentinel",
+);
+assert.match(
+  auditSource,
+  /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "audit movement-type boundaries must reject the zero sentinel",
+);
+assert.match(
+  allocationSinkSource,
+  /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "allocation result movement-type boundaries must reject the zero sentinel",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
+  "allocation service movement-type boundaries must reject the zero sentinel",
 );
 assert.match(
   allocationServiceSource,
@@ -1220,6 +2194,11 @@ assert.match(
   /iv_value = 28 \) TO lt_json_fields/,
   "health JSON schema must include the running-age contract version",
 );
+assert.equal(
+  (healthReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  10,
+  "health report must version all JSON error envelopes",
+);
 const historySource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_history.prog.abap"),
   "utf8",
@@ -1232,9 +2211,42 @@ const resultSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_result.prog.abap"),
   "utf8",
 );
+const purgeReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_alloc_purge.prog.abap"),
+  "utf8",
+);
+assert.equal(
+  (purgeReportSource.match(/iv_name\s*=\s*'schema_version'/g) ?? []).length,
+  4,
+  "purge preview and execution JSON must expose schema_version in typed and untyped modes",
+);
+assert.equal(
+  (purgeReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  21,
+  "purge report must version all JSON error envelopes",
+);
+for (const [mode, schemaVersion] of [["preview", 22], ["execution", 23]]) {
+  assert.equal(
+    (purgeReportSource.match(new RegExp(`iv_value\\s*=\\s*${schemaVersion}\\s*\\)`, "g")) ?? []).length,
+    2,
+    `purge ${mode} JSON schema must be present in typed and untyped modes`,
+  );
+  assert.match(
+    purgeReportSource,
+    new RegExp(
+      `IF p_typed = abap_false\\.[\\s\\S]{0,260}iv_name\\s*=\\s*'schema_version'[\\s\\S]{0,80}iv_value\\s*=\\s*${schemaVersion}`,
+    ),
+    `purge ${mode} untyped JSON must expose schema_version`,
+  );
+}
 const compareReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"),
   "utf8",
+);
+assert.equal(
+  (compareReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  102,
+  "comparison report must version all JSON error envelopes",
 );
 const compareClassSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_compare.clas.abap"),
@@ -1244,6 +2256,42 @@ assert.match(
   historySource,
   /Safety stock context:/,
   "history human summary must expose safety-stock context",
+);
+for (const [reportName, reportSource] of [
+  ["history", historySource],
+  ["result", resultSource],
+  ["watch", watchSource],
+  ["purge", purgeReportSource],
+]) {
+  assert.match(
+    reportSource,
+    /TRANSLATE\s+p_meins\s+TO\s+UPPER\s+CASE\./,
+    `${reportName} must canonicalize lowercase unit filters before reads and exports`,
+  );
+}
+assert.match(
+  historySource,
+  /TRANSLATE\s+p_stat\s+TO\s+UPPER\s+CASE\./,
+  "history must canonicalize the lifecycle status filter before reads and exports",
+);
+for (const filterName of ["p_stat", "p_auart", "p_ounit", "p_runit"]) {
+  assert.match(
+    resultSource,
+    new RegExp(`TRANSLATE\\s+${filterName}\\s+TO\\s+UPPER\\s+CASE\\.`),
+    `result must canonicalize ${filterName} before reads and exports`,
+  );
+}
+for (const filterName of ["p_auart", "p_oauart", "p_nauart"]) {
+  assert.match(
+    compareReportSource,
+    new RegExp(`TRANSLATE\\s+${filterName}\\s+TO\\s+UPPER\\s+CASE\\.`),
+    `comparison must canonicalize ${filterName} before reads and exports`,
+  );
+}
+assert.match(
+  compareReportSource,
+  /TRANSLATE\s+p_chg\s+TO\s+UPPER\s+CASE\./,
+  "comparison must canonicalize the change-type filter before validation and exports",
 );
 assert.match(
   historySource,
@@ -1299,6 +2347,11 @@ assert.match(
   historySource,
   /iv_value = 26 \) TO lt_json_fields/,
   "history detail JSON schema must include the safety-stock contract version",
+);
+assert.equal(
+  (historySource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  36,
+  "history report must version all JSON error envelopes",
 );
 assert.match(
   watchSource,
@@ -1370,6 +2423,11 @@ assert.match(
   /iv_value = 59 \)/,
   "watch JSON schema must include the safety-stock contract version",
 );
+assert.equal(
+  (watchSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  4,
+  "watch report must version all JSON error envelopes",
+);
 assert.match(
   resultSource,
   /'Safety stock:', <ls_run>-safety_stock/,
@@ -1409,6 +2467,11 @@ assert.match(
   resultSource,
   /APPEND zcl_stock_csv=>number\( 37 \)/,
   "result detail CSV schema must include the safety-stock contract version",
+);
+assert.equal(
+  (resultSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  32,
+  "result report must version all JSON error envelopes",
 );
 assert.match(
   compareClassSource,
@@ -1452,6 +2515,20 @@ assert.match(
   /iv_table\s*=\s*'MARA'[\s\S]*iv_table\s*=\s*'MARM'/,
   "unit conversion authority must cover material and unit tables",
 );
+assert.match(
+  unitConversionSource,
+  /CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'[\s\S]*EXCEPTIONS[\s\S]*OTHERS\s*=\s*1/,
+  "unit conversion must map classic function-module exceptions into sy-subrc",
+);
+for (const functionModule of ["ENQUEUE_EZSTOCKALLOC", "DEQUEUE_EZSTOCKALLOC"]) {
+  assert.match(
+    allocationLockSource,
+    new RegExp(
+      `CALL FUNCTION '${functionModule}'[\\s\\S]*EXCEPTIONS[\\s\\S]*OTHERS\\s*=\\s*1`,
+    ),
+    `${functionModule} must map classic function-module exceptions into sy-subrc`,
+  );
+}
 
 for (const scriptName of ["lint", "transpile", "test"]) {
   assert.equal(typeof packageJson.scripts[scriptName], "string", `missing npm script: ${scriptName}`);

@@ -103,6 +103,21 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
+    TYPES:
+      BEGIN OF ty_header,
+        move_type TYPE c LENGTH 3,
+    END OF ty_header.
+    TYPES:
+      BEGIN OF ty_item,
+        material_external TYPE c LENGTH 40,
+    END OF ty_item.
+    TYPES tt_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_return,
+        type    TYPE c LENGTH 1,
+        message TYPE c LENGTH 220,
+    END OF ty_return.
+    TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS records_completed_run FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_rejection_metric FOR TESTING
@@ -121,7 +136,15 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_inverted_timestamp FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_clock_time FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_duration_bounds FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_malformed_filter_dates FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_purge_time FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_purge_horizon FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS accepts_lowercase_unit FOR TESTING
       RAISING zcx_stock_allocation.
@@ -172,6 +195,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_finish_commit_failure FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_rejection_commit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_default_commit_returns FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS fallback_authority_messages FOR TESTING
       RAISING zcx_stock_allocation.
@@ -1297,6 +1322,56 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_clock_time.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_run_view TYPE zif_allocation_audit=>ty_run.
+    DATA lv_raised TYPE abap_bool.
+    DATA ls_age TYPE zif_allocation_audit=>ty_running_age.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-AUDIT-BAD-CLOCK'.
+    ls_run-matnr = 'MATERIAL-AUDIT-BAD-CLOCK'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = '20260102'.
+    ls_run-start_time = '240000'.
+    ls_run-finish_date = '20260102'.
+    ls_run-finish_time = '120000'.
+    ls_run-status = 'S'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-full_count = 1.
+    ls_run-allocated = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-BAD-CLOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit run data is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-AUDIT-BAD-CLOCK'.
+
+    CLEAR ls_run_view.
+    ls_run_view-status = 'R'.
+    ls_run_view-start_date = sy-datum.
+    ls_run_view-start_time = '120000'.
+    ls_age = lo_cut->get_running_age(
+      is_run      = ls_run_view
+      iv_now_time = '246000' ).
+    cl_abap_unit_assert=>assert_false( ls_age-available ).
+  ENDMETHOD.
+
   METHOD rejects_invalid_movement_type.
     DATA lo_cut TYPE REF TO zif_allocation_audit.
     DATA lv_raised TYPE abap_bool.
@@ -1437,6 +1512,299 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-AUDIT-STALE'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_malformed_filter_dates.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-DATE-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_start_date_from  = '20260230' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_start_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_start_date_error->message
+          exp = 'Audit date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->get_summary(
+          iv_material          = 'MATERIAL-AUDIT-DATE-FILTER'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_deadline_age_to   = 1
+          iv_deadline_age_date = '20260230' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_age_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_age_date_error->message
+          exp = 'Audit deadline age date is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-AUDIT-DATE-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_before_date      = '20260230' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_before_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_before_date_error->message
+          exp = 'Audit purge date is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->purge_runs_before(
+          iv_material         = 'MATERIAL-AUDIT-DATE-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_before_date      = '20260230' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_purge_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_purge_date_error->message
+          exp = 'Audit purge date is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_purge_time.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-BAD-PURGE-TIME'.
+    ls_run-matnr = 'MATERIAL-BAD-PURGE-TIME'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum - 2.
+    ls_run-start_time = '240000'.
+    ls_run-finish_date = sy-datum - 1.
+    ls_run-finish_time = '120000'.
+    ls_run-status = 'S'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-BAD-PURGE-TIME'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_before_date      = sy-datum
+          iv_duration_from    = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_preview_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_preview_error->message
+          exp = 'Audit purge candidate is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->purge_runs_before(
+          iv_material         = 'MATERIAL-BAD-PURGE-TIME'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_before_date      = sy-datum
+          iv_duration_from    = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_purge_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_purge_error->message
+          exp = 'Audit purge candidate is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-BAD-PURGE-TIME'.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-BAD-PURGE-PAIR'.
+    ls_run-matnr = 'MATERIAL-BAD-PURGE-TIME'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum - 2.
+    ls_run-start_time = '120000'.
+    ls_run-finish_date = sy-datum - 1.
+    ls_run-status = 'S'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-BAD-PURGE-TIME'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_before_date      = sy-datum
+          iv_duration_from    = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_pair_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_pair_error->message
+          exp = 'Audit purge candidate is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-BAD-PURGE-PAIR'.
+  ENDMETHOD.
+
+  METHOD rejects_bad_purge_horizon.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_deleted TYPE i.
+    DATA lv_count TYPE i.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-BAD-PURGE-HORIZON'.
+    ls_run-matnr = 'MATERIAL-BAD-PURGE-HORIZON'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum - 2.
+    ls_run-start_time = '120000'.
+    ls_run-finish_date = sy-datum - 1.
+    ls_run-finish_time = '120000'.
+    ls_run-requested_on_from = '20260230'.
+    ls_run-requested_on_to = '20260301'.
+    ls_run-status = 'S'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_before_date       = sy-datum
+          iv_deadline_age_from = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_preview_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_preview_error->message
+          exp = 'Audit purge candidate is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->purge_runs_before(
+          iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_before_date       = sy-datum
+          iv_deadline_age_from = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_purge_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_purge_error->message
+          exp = 'Audit purge candidate is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-BAD-PURGE-HORIZON'.
+
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-ERROR-PURGE-HORIZON'.
+    ls_run-matnr = 'MATERIAL-BAD-PURGE-HORIZON'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum - 2.
+    ls_run-start_time = '120000'.
+    ls_run-finish_date = sy-datum - 1.
+    ls_run-finish_time = '120000'.
+    ls_run-requested_on_from = '20260230'.
+    ls_run-requested_on_to = '20260301'.
+    ls_run-status = 'E'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-unallocated_count = 1.
+    ls_run-shortage = 1.
+    ls_run-message = 'diagnostic invalid horizon'.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_status           = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_runs[ 1 ]-requested_deadline ).
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_status           = 'E' ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-deadline_count ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-last_deadline_age_days ).
+    lt_runs = lo_cut->get_runs(
+      iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_status            = 'E'
+      iv_deadline_age_from = 1 ).
+    cl_abap_unit_assert=>assert_initial( lt_runs ).
+    lt_runs = lo_cut->get_runs(
+      iv_material             = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_status               = 'E'
+      iv_sort_by_deadline_age = abap_true ).
+    cl_abap_unit_assert=>assert_initial( lt_runs ).
+
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_before_date       = sy-datum
+      iv_deadline_age_from = 1 ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-audit_count ).
+    lv_deleted = lo_cut->purge_runs_before(
+      iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_before_date       = sy-datum
+      iv_deadline_age_from = 1 ).
+    cl_abap_unit_assert=>assert_initial( lv_deleted ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      WHERE run_id = 'RUN-ERROR-PURGE-HORIZON' INTO @lv_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-ERROR-PURGE-HORIZON'.
   ENDMETHOD.
 
   METHOD accepts_lowercase_unit.
@@ -1895,7 +2263,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'RES-PURGE-001'.
+    ls_allocation-reservation_id = '2000000060'.
     INSERT zstockalloc FROM @ls_allocation.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
@@ -2933,6 +3301,84 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
+  METHOD rejects_default_commit_returns.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_header TYPE ty_header.
+    DATA ls_item TYPE ty_item.
+    DATA lt_items TYPE tt_items.
+    DATA lt_return TYPE tt_return.
+    DATA lv_reservation TYPE c LENGTH 20.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_item-material_external = 'MATERIAL-COMMIT-RETURN-ERROR'.
+    APPEND ls_item TO lt_items.
+    CALL FUNCTION 'BAPI_RESERVATION_CREATE1'
+      EXPORTING
+        reservationheader = ls_header
+      IMPORTING
+        reservation       = lv_reservation
+      TABLES
+        reservationitems  = lt_items
+        return            = lt_return.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->record_rejection(
+          iv_material         = 'MATERIAL-AUDIT-COMMIT-RETURN'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_unit             = 'EA'
+          iv_available        = 0
+          iv_message          = 'Default commit return test' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Transaction commit rejected by test double' ).
+    ENDTRY.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-AUDIT-COMMIT-RETURN'.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR: ls_item, lt_items, lt_return, lv_raised.
+    ls_item-material_external = 'MATERIAL-COMMIT-BAD-RETURN'.
+    APPEND ls_item TO lt_items.
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-BAD-COMMIT'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 1
+      iv_demand_count     = 1 ).
+    CALL FUNCTION 'BAPI_RESERVATION_CREATE1'
+      EXPORTING
+        reservationheader = ls_header
+      IMPORTING
+        reservation       = lv_reservation
+      TABLES
+        reservationitems  = lt_items
+        return            = lt_return.
+    TRY.
+        lo_cut->finish_run(
+          iv_run_id     = lv_run_id
+          iv_status     = 'S'
+          iv_available  = 1
+          iv_allocated  = 1
+          iv_shortage   = 0
+          iv_full_count = 1
+          iv_message    = '' ).
+      CATCH zcx_stock_allocation INTO lo_error.
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Allocation transaction commit returned invalid status' ).
+    ENDTRY.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-AUDIT-BAD-COMMIT'.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD fallback_authority_messages.
     DATA lo_authority TYPE REF TO lcl_blank_allocation_authority.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
@@ -3182,6 +3628,25 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         lv_raised = abap_true.
         cl_abap_unit_assert=>assert_equals(
           act = lo_date_range_error->message
+          exp = 'Audit requested date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->start_run(
+          iv_material          = 'MATERIAL-AUDIT'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_unit              = 'EA'
+          iv_requested_on_from = '20260230'
+          iv_requested_on_to   = '20260301'
+          iv_available         = '1'
+          iv_demand_count      = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_invalid_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_invalid_date_error->message
           exp = 'Audit requested date range is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).

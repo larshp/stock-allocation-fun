@@ -301,17 +301,17 @@ assert.equal(
 );
 assert.equal(
   (purgeSource.match(/iv_value = 22 \) TO lt_json_fields/g) ?? []).length,
-  1,
-  "purge preview JSON schema must be 22",
+  2,
+  "purge preview JSON schema must be 22 in typed and untyped modes",
 );
 assert.equal(
   (purgeSource.match(/iv_value = 23 \) TO lt_json_fields/g) ?? []).length,
-  1,
-  "purge execution JSON schema must be 23",
+  2,
+  "purge execution JSON schema must be 23 in typed and untyped modes",
 );
 assert.match(
   readme,
-  /Purge JSON schemas are now typed preview `22` and execute `23`/,
+  /Purge preview and execution JSON use schemas `22` and `23` respectively, in both typed and untyped modes/,
   "README must document current purge JSON schemas",
 );
 assert.match(

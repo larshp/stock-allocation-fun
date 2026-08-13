@@ -47,26 +47,32 @@ START-OF-SELECTION.
   DATA lv_last_duration_seconds TYPE i.
   DATA lv_json_line TYPE string.
   DATA lv_error_message TYPE string.
+  DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_csv_line TYPE string.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
+  lv_unit = to_upper( p_meins ).
+
   IF p_csv = abap_true AND p_json = abap_true.
-    lv_json_line = zcl_stock_json=>error(
-      'Select only one export mode: CSV or JSON' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Select only one export mode: CSV or JSON'
+      iv_schema  = 34 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
+        iv_schema  = 34
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
-    lv_json_line = zcl_stock_json=>error(
-      'Typed output requires JSON mode.' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Typed output requires JSON mode.'
+      iv_schema  = 34 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
@@ -75,16 +81,18 @@ START-OF-SELECTION.
       AND p_strat <> 'S' AND p_strat <> 'L' AND p_strat <> 'B'
       AND p_strat <> 'E' AND p_strat <> 'A' AND p_strat <> 'W'.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
-          && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
+          && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).'
+        iv_schema  = 34 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
+        iv_schema  = 34
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
           && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
       RETURN.
@@ -151,26 +159,31 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_read_error).
       IF p_json = abap_true.
         IF lo_read_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Audit read authorization is missing' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Audit read authorization is missing'
+            iv_schema  = 34 ).
         ELSE.
           lv_error_message = lo_read_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = 34 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_read_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = 'Audit read authorization is missing' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = lo_read_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
@@ -190,26 +203,31 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_write_error).
       IF p_json = abap_true.
         IF lo_write_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Allocation write authorization is missing' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Allocation write authorization is missing'
+            iv_schema  = 34 ).
         ELSE.
           lv_error_message = lo_write_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = 34 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_write_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = 'Allocation write authorization is missing' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = lo_write_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
@@ -250,7 +268,7 @@ START-OF-SELECTION.
           iv_plant             = p_werks
           iv_storage_location  = p_lgort
           iv_movement_type     = p_bwart
-          iv_unit              = p_meins
+          iv_unit              = lv_unit
           iv_batch             = p_charg
           iv_requested_on_from = p_from
           iv_requested_on_to   = p_until
@@ -267,7 +285,7 @@ START-OF-SELECTION.
             iv_plant            = p_werks
             iv_storage_location = p_lgort
             iv_batch            = p_charg
-            iv_unit             = p_meins ).
+            iv_unit             = lv_unit ).
           IF p_json = abap_true.
             IF ls_summary-last_message IS INITIAL.
               IF lo_allocation_error->message IS INITIAL.
@@ -279,10 +297,13 @@ START-OF-SELECTION.
               lv_error_message = ls_summary-last_message.
             ENDIF.
             IF lv_run_id IS INITIAL.
-              lv_json_line = zcl_stock_json=>error( lv_error_message ).
-            ELSE.
-              lv_json_line = zcl_stock_json=>error_with_run_id(
+              lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
+                iv_schema  = 34 ).
+            ELSE.
+              lv_json_line = zcl_stock_json=>error_with_schema_run_id(
+                iv_message = lv_error_message
+                iv_schema  = 34
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -299,19 +320,21 @@ START-OF-SELECTION.
               lv_error_message = ls_summary-last_message.
             ENDIF.
             IF lv_run_id IS INITIAL.
-              lv_csv_line = zcl_stock_csv=>error(
+              lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
+                iv_schema  = 34
                 iv_message = lv_error_message ).
             ELSE.
-              lv_csv_line = zcl_stock_csv=>error_with_run_id(
+              lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
+                iv_schema  = 34
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
             IF lv_run_id IS INITIAL.
-              WRITE: / 'mode;status;message'.
+              WRITE: / 'mode;status;schema_version;message'.
             ELSE.
-              WRITE: / 'mode;status;message;run_id'.
+              WRITE: / 'mode;status;schema_version;message;run_id'.
             ENDIF.
             WRITE: / lv_csv_line.
             RETURN.
@@ -334,10 +357,13 @@ START-OF-SELECTION.
           ENDIF.
           IF p_json = abap_true.
             IF lv_run_id IS INITIAL.
-              lv_json_line = zcl_stock_json=>error( lv_error_message ).
-            ELSE.
-              lv_json_line = zcl_stock_json=>error_with_run_id(
+              lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
+                iv_schema  = 34 ).
+            ELSE.
+              lv_json_line = zcl_stock_json=>error_with_schema_run_id(
+                iv_message = lv_error_message
+                iv_schema  = 34
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -345,19 +371,21 @@ START-OF-SELECTION.
           ENDIF.
           IF p_csv = abap_true.
             IF lv_run_id IS INITIAL.
-              lv_csv_line = zcl_stock_csv=>error(
+              lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
+                iv_schema  = 34
                 iv_message = lv_error_message ).
             ELSE.
-              lv_csv_line = zcl_stock_csv=>error_with_run_id(
+              lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
+                iv_schema  = 34
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
             IF lv_run_id IS INITIAL.
-              WRITE: / 'mode;status;message'.
+              WRITE: / 'mode;status;schema_version;message'.
             ELSE.
-              WRITE: / 'mode;status;message;run_id'.
+              WRITE: / 'mode;status;schema_version;message;run_id'.
             ENDIF.
             WRITE: / lv_csv_line.
             RETURN.
@@ -382,34 +410,39 @@ START-OF-SELECTION.
         iv_plant            = p_werks
         iv_storage_location = p_lgort
         iv_batch            = p_charg
-        iv_unit             = p_meins ).
+        iv_unit             = lv_unit ).
     CATCH zcx_stock_allocation INTO DATA(lo_summary_error).
       IF p_json = abap_true.
         IF lo_summary_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Run summary is unavailable' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Run summary is unavailable'
+            iv_schema  = 34 ).
         ELSE.
           lv_error_message = lo_summary_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = 34 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_summary_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = 'Run summary is unavailable' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
+            iv_schema  = 34
             iv_message = lo_summary_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
-      WRITE: / 'Allocation completed. Remaining:', lv_remaining, p_meins.
+      WRITE: / 'Allocation completed. Remaining:', lv_remaining, lv_unit.
       IF lo_summary_error->message IS INITIAL.
         WRITE: / 'Run summary is unavailable.'.
       ELSE.
@@ -489,7 +522,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( p_meins ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_unit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_bwart ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_shelf ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_safstk ) TO lt_csv_fields.
@@ -672,7 +705,7 @@ START-OF-SELECTION.
       iv_value = p_charg ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'unit'
-      iv_value = p_meins ) TO lt_json_fields.
+      iv_value = lv_unit ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'movement_type'
       iv_value = p_bwart ) TO lt_json_fields.
@@ -915,6 +948,9 @@ START-OF-SELECTION.
         iv_name  = 'deadline_count'
         iv_value = ls_summary-deadline_count ) TO lt_json_fields.
     ELSE.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = 34 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'remaining'
         iv_value = lv_remaining ) TO lt_json_fields.
@@ -1257,11 +1293,11 @@ START-OF-SELECTION.
   WRITE: / 'Strategy:', lv_strategy,
          / 'Movement type:', p_bwart,
          / 'Minimum shelf-life days:', p_shelf,
-         / 'Safety stock:', p_safstk, p_meins,
+         / 'Safety stock:', p_safstk, lv_unit,
          / 'Requested filter from:', p_from,
          / 'Requested filter through:', p_until,
-         / 'Remaining:', lv_remaining, p_meins,
-         / 'Requested:', lv_requested, p_meins,
+         / 'Remaining:', lv_remaining, lv_unit,
+         / 'Requested:', lv_requested, lv_unit,
          / 'Runs:', ls_summary-total_runs,
          / 'Successful:', ls_summary-success_runs,
          / 'Partial:', ls_summary-partial_runs,

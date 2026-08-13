@@ -15,34 +15,41 @@ START-OF-SELECTION.
   DATA lo_authority TYPE REF TO zif_order_sink_authority.
   DATA lv_json_line TYPE string.
   DATA lv_error_message TYPE string.
+  DATA lv_sales_document_type TYPE zif_order_sink=>ty_sales_document_type.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_csv_line TYPE string.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
+  lv_sales_document_type = to_upper( p_auart ).
+
   IF p_csv = abap_true AND p_json = abap_true.
-    lv_json_line = zcl_stock_json=>error(
-      'Select only one export mode: CSV or JSON' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Select only one export mode: CSV or JSON'
+      iv_schema  = 1 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_order_update'
+        iv_schema  = 1
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
-    lv_json_line = zcl_stock_json=>error(
-      'Typed output requires JSON mode.' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Typed output requires JSON mode.'
+      iv_schema  = 1 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
 
   IF p_exec <> abap_true.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Select P_EXEC to execute the sales-order update' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Select P_EXEC to execute the sales-order update'
+        iv_schema  = 1 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -53,7 +60,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( 1 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_vbeln ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( p_auart ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_sales_document_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_posnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_etenr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_qty ) TO lt_csv_fields.
@@ -77,18 +84,21 @@ START-OF-SELECTION.
   TRY.
       lo_sink->change_schedule_quantity(
         iv_sales_document      = p_vbeln
-        iv_sales_document_type = p_auart
+        iv_sales_document_type = lv_sales_document_type
         iv_sales_item          = p_posnr
         iv_schedule_line       = p_etenr
         iv_quantity            = p_qty ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF p_json = abap_true.
         IF lo_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Sales-order change failed' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Sales-order change failed'
+            iv_schema  = 1 ).
         ELSE.
           lv_error_message = lo_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = 1 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -107,7 +117,7 @@ START-OF-SELECTION.
         APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>number( 1 ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( p_vbeln ) TO lt_csv_fields.
-        APPEND zcl_stock_csv=>quote( p_auart ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( lv_sales_document_type ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( p_posnr ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( p_etenr ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>number( p_qty ) TO lt_csv_fields.
@@ -133,7 +143,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( 1 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_vbeln ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( p_auart ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_sales_document_type ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_posnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_etenr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_qty ) TO lt_csv_fields.
@@ -163,6 +173,9 @@ START-OF-SELECTION.
         iv_value = sy-uzeit ) TO lt_json_fields.
     ENDIF.
     IF p_typed = abap_false.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = 1 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -178,7 +191,7 @@ START-OF-SELECTION.
       iv_value = p_vbeln ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'sales_document_type'
-      iv_value = p_auart ) TO lt_json_fields.
+      iv_value = lv_sales_document_type ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'sales_item'
       iv_value = p_posnr ) TO lt_json_fields.

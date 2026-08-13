@@ -39,6 +39,7 @@ START-OF-SELECTION.
   TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_stat TO UPPER CASE.
   TRANSLATE p_strat TO UPPER CASE.
+  TRANSLATE p_meins TO UPPER CASE.
   DATA lo_audit TYPE REF TO zif_allocation_audit.
   DATA lo_authority TYPE REF TO zif_alloc_retention_auth.
   DATA lv_deleted TYPE i.
@@ -51,6 +52,8 @@ START-OF-SELECTION.
   DATA lv_protected_reservation TYPE i.
   DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
   DATA lv_json_line TYPE string.
+  DATA lv_json_schema TYPE i.
+  DATA lv_csv_schema TYPE i.
   DATA lv_error_message TYPE string.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_csv_line TYPE string.
@@ -82,6 +85,14 @@ START-OF-SELECTION.
   DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lv_filter_names_text TYPE string.
   DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
+
+  IF p_exec = abap_true.
+    lv_json_schema = 23.
+    lv_csv_schema = 21.
+  ELSE.
+    lv_json_schema = 22.
+    lv_csv_schema = 20.
+  ENDIF.
 
   lv_movement_filter = p_mvt.
   IF lv_movement_filter IS INITIAL.
@@ -366,36 +377,41 @@ START-OF-SELECTION.
     iv_typed   = abap_true ) TO lt_filter_value_fields.
 
   IF p_csv = abap_true AND p_json = abap_true.
-    lv_json_line = zcl_stock_json=>error(
-      'Select only one export mode: CSV or JSON' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Select only one export mode: CSV or JSON'
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
-    lv_json_line = zcl_stock_json=>error(
-      'Typed output requires JSON mode.' ).
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Typed output requires JSON mode.'
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
 
   IF p_shelf < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Minimum shelf-life filter must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Minimum shelf-life filter must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum shelf-life filter must not be negative' ).
       RETURN.
     ENDIF.
@@ -408,15 +424,17 @@ START-OF-SELECTION.
       AND p_stat <> 'P'
       AND p_stat <> 'E'.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Status filter must be S, P, or E' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Status filter must be S, P, or E'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Status filter must be S, P, or E' ).
       RETURN.
     ENDIF.
@@ -434,15 +452,17 @@ START-OF-SELECTION.
       AND p_strat <> 'A'
       AND p_strat <> 'W'.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Strategy filter must be P, F, N, S, L, B, E, A, or W' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Strategy filter must be P, F, N, S, L, B, E, A, or W'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Strategy filter must be P, F, N, S, L, B, E, A, or W' ).
       RETURN.
     ENDIF.
@@ -451,15 +471,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_legacy = abap_true AND p_strat IS NOT INITIAL.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Strategy filters cannot be combined' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Strategy filters cannot be combined'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Strategy filters cannot be combined' ).
       RETURN.
     ENDIF.
@@ -469,15 +491,17 @@ START-OF-SELECTION.
 
   IF p_date > sy-datum.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'P_DATE cannot be in the future' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'P_DATE cannot be in the future'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'P_DATE cannot be in the future' ).
       RETURN.
     ENDIF.
@@ -486,15 +510,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'P_ODATE requires overdue-only filtering' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'P_ODATE requires overdue-only filtering'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'P_ODATE requires overdue-only filtering' ).
       RETURN.
     ENDIF.
@@ -503,15 +529,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_reqf IS NOT INITIAL AND p_until IS NOT INITIAL AND p_reqf > p_until.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'The requested horizon start must not be after the end date' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'The requested horizon start must not be after the end date'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'The requested horizon start must not be after the end date' ).
       RETURN.
     ENDIF.
@@ -521,14 +549,16 @@ START-OF-SELECTION.
   IF p_deadf IS NOT INITIAL AND p_deadt IS NOT INITIAL
       AND p_deadf > p_deadt.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'The requested deadline start must not be after the end date' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'The requested deadline start must not be after the end date'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'The requested deadline start must not be after the end date' ).
       RETURN.
     ENDIF.
@@ -538,14 +568,16 @@ START-OF-SELECTION.
   IF p_dagef IS NOT INITIAL AND p_daget IS NOT INITIAL
       AND p_dagef > p_daget.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'The deadline age start must not be after the end age' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'The deadline age start must not be after the end age'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'The deadline age start must not be after the end age' ).
       RETURN.
     ENDIF.
@@ -556,14 +588,16 @@ START-OF-SELECTION.
       AND p_dagef IS INITIAL
       AND p_daget IS INITIAL.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'A deadline age as-of date requires a deadline age range' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'A deadline age as-of date requires a deadline age range'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'A deadline age as-of date requires a deadline age range' ).
       RETURN.
     ENDIF.
@@ -573,14 +607,16 @@ START-OF-SELECTION.
   IF p_ffrom IS NOT INITIAL AND p_fto IS NOT INITIAL
       AND p_ffrom > p_fto.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'The finish date start must not be after the end date' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'The finish date start must not be after the end date'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'The finish date start must not be after the end date' ).
       RETURN.
     ENDIF.
@@ -590,15 +626,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_tfrom < 0 OR p_tto < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Duration bounds must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Duration bounds must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'Duration bounds must not be negative' ).
       RETURN.
     ENDIF.
@@ -608,15 +646,17 @@ START-OF-SELECTION.
   IF p_tfrom IS NOT INITIAL AND p_tto IS NOT INITIAL
       AND p_tfrom > p_tto.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'The duration start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'The duration start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
         iv_message = 'The duration start must not be after the end value' ).
       RETURN.
     ENDIF.
@@ -630,26 +670,31 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_auth_error).
       IF p_json = abap_true.
         IF lo_auth_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Retention authorization is missing' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Retention authorization is missing'
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_auth_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_auth_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_purge'
+            iv_schema  = lv_csv_schema
             iv_message = 'Retention authorization is missing' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_purge'
+            iv_schema  = lv_csv_schema
             iv_message = lo_auth_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
@@ -701,27 +746,31 @@ START-OF-SELECTION.
       CATCH zcx_stock_allocation INTO DATA(lo_preview_error).
         IF p_json = abap_true.
           IF lo_preview_error->message IS INITIAL.
-            lv_json_line = zcl_stock_json=>error(
-              'Retention preview failed' ).
+            lv_json_line = zcl_stock_json=>error_with_schema(
+              iv_message = 'Retention preview failed'
+              iv_schema  = lv_json_schema ).
           ELSE.
             lv_error_message = lo_preview_error->message.
-            lv_json_line = zcl_stock_json=>error(
-              lv_error_message ).
+            lv_json_line = zcl_stock_json=>error_with_schema(
+              iv_message = lv_error_message
+              iv_schema  = lv_json_schema ).
           ENDIF.
           WRITE: / lv_json_line.
           RETURN.
         ENDIF.
         IF p_csv = abap_true.
           IF lo_preview_error->message IS INITIAL.
-            lv_csv_line = zcl_stock_csv=>error(
+            lv_csv_line = zcl_stock_csv=>error_with_schema(
               iv_mode    = 'zstock_alloc_purge'
+              iv_schema  = lv_csv_schema
               iv_message = 'Retention preview failed' ).
           ELSE.
-            lv_csv_line = zcl_stock_csv=>error(
+            lv_csv_line = zcl_stock_csv=>error_with_schema(
               iv_mode    = 'zstock_alloc_purge'
+              iv_schema  = lv_csv_schema
               iv_message = lo_preview_error->message ).
           ENDIF.
-          WRITE: / 'mode;status;message'.
+          WRITE: / 'mode;status;schema_version;message'.
           WRITE: / lv_csv_line.
           RETURN.
         ENDIF.
@@ -749,6 +798,9 @@ START-OF-SELECTION.
           iv_value = sy-uzeit ) TO lt_json_fields.
       ENDIF.
       IF p_typed = abap_false.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'schema_version'
+          iv_value = 22 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -1088,26 +1140,31 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF p_json = abap_true.
         IF lo_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Retention execution failed' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Retention execution failed'
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_purge'
+            iv_schema  = lv_csv_schema
             iv_message = 'Retention execution failed' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_purge'
+            iv_schema  = lv_csv_schema
             iv_message = lo_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
@@ -1135,6 +1192,9 @@ START-OF-SELECTION.
         iv_value = sy-uzeit ) TO lt_json_fields.
     ENDIF.
     IF p_typed = abap_false.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = 23 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.

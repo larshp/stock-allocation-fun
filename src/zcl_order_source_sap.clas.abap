@@ -17,6 +17,7 @@ CLASS zcl_order_source_sap DEFINITION
         schedule_line       TYPE n LENGTH 4,
         order_unit          TYPE c LENGTH 3,
         item_deleted        TYPE c LENGTH 1,
+        item_delivery_block TYPE c LENGTH 2,
         delivery_priority   TYPE n LENGTH 2,
         requested_on        TYPE d,
         requested           TYPE p LENGTH 8 DECIMALS 3,
@@ -42,9 +43,6 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
   METHOD zif_order_source~get_open_demands.
     DATA lt_schedule TYPE tt_schedule.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
-    DATA lv_client TYPE c LENGTH 3.
-    DATA lv_requested_on_from TYPE d.
-    DATA lv_requested_on_to TYPE d.
     FIELD-SYMBOLS <ls_schedule> TYPE ty_schedule.
 
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
@@ -60,27 +58,24 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
           RAISE EXCEPTION lo_authority_error.
       ENDTRY.
     ENDIF.
-    IF iv_requested_on_from IS NOT INITIAL
+    IF ( iv_requested_on_from IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_from ) <> abap_true )
+        OR ( iv_requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_to ) <> abap_true )
+        OR ( iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
-        AND iv_requested_on_from > iv_requested_on_to.
+        AND iv_requested_on_from > iv_requested_on_to ).
       raise_error( iv_message = 'Requested delivery date range is invalid' ).
     ENDIF.
-    lv_client = sy-mandt.
-    lv_requested_on_from = iv_requested_on_from.
-    IF lv_requested_on_from IS INITIAL.
-      lv_requested_on_from = '00000000'.
-    ENDIF.
-    lv_requested_on_to = iv_requested_on_to.
-    IF lv_requested_on_to IS INITIAL.
-      lv_requested_on_to = '99991231'.
-    ENDIF.
-
     SELECT item~vbeln AS order_id,
            header~auart AS sales_document_type,
            item~posnr AS item_id,
            schedule~etenr AS schedule_line,
            item~vrkme AS order_unit,
            item~loekz AS item_deleted,
+           item~lifsp AS item_delivery_block,
            item~lprio AS delivery_priority,
            schedule~edatu AS requested_on,
            schedule~wmeng AS requested,
@@ -98,20 +93,32 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND schedule~lifsp = ''
         AND header~vbtyp = 'C'
         AND header~lifsk = ''
-        AND schedule~edatu >= @lv_requested_on_from
-        AND schedule~edatu <= @lv_requested_on_to
-        AND schedule~wmeng > schedule~bmeng INTO TABLE @lt_schedule.
+        AND schedule~edatu >= '00000000'
+        AND schedule~edatu <= '99999999'
+        AND ( schedule~wmeng > schedule~bmeng
+          OR schedule~wmeng < 0
+          OR schedule~bmeng < 0 ) INTO TABLE @lt_schedule.
     IF sy-subrc <> 0.
       CLEAR rt_demands.
       RETURN.
     ENDIF.
 
     LOOP AT lt_schedule ASSIGNING <ls_schedule>.
+      IF <ls_schedule>-requested_on IS INITIAL.
+        raise_error( iv_message = 'Open demand requested date is missing' ).
+      ENDIF.
+      IF zcl_allocation_date_sap=>is_valid_or_initial(
+           <ls_schedule>-requested_on ) <> abap_true.
+        raise_error( iv_message = 'Open demand requested date is invalid' ).
+      ENDIF.
       IF <ls_schedule>-item_deleted <> abap_true
           AND <ls_schedule>-item_deleted <> abap_false.
         raise_error( iv_message = 'Order item deletion flag is invalid' ).
       ENDIF.
       IF <ls_schedule>-item_deleted = abap_true.
+        CONTINUE.
+      ENDIF.
+      IF <ls_schedule>-item_delivery_block IS NOT INITIAL.
         CONTINUE.
       ENDIF.
       IF iv_requested_on_from IS NOT INITIAL
@@ -126,8 +133,8 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
           OR <ls_schedule>-confirmed < 0.
         raise_error( iv_message = 'Open demand quantity is invalid' ).
       ENDIF.
-      IF <ls_schedule>-requested_on IS INITIAL.
-        raise_error( iv_message = 'Open demand requested date is missing' ).
+      IF <ls_schedule>-requested <= <ls_schedule>-confirmed.
+        CONTINUE.
       ENDIF.
       CLEAR ls_demand.
       ls_demand-sales_document = <ls_schedule>-order_id.
@@ -155,6 +162,7 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       ENDIF.
       IF ls_demand-sales_document IS INITIAL
           OR strlen( ls_demand-sales_document ) <> zif_stock_allocation=>c_sap_document_length
+          OR ls_demand-sales_document CN '0123456789'
           OR ls_demand-sales_document = '0000000000'
           OR ls_demand-sales_item IS INITIAL
           OR ls_demand-schedule_line IS INITIAL

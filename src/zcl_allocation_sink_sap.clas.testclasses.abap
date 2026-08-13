@@ -91,6 +91,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_run_policy FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_run_timestamp FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_inverted_run_horizon FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_blank_unit_read FOR TESTING
@@ -118,6 +120,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_bad_mvt_filter FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_document_filters FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_date_filters FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS filters_by_shortage_percentage FOR TESTING
       RAISING zcx_stock_allocation.
@@ -320,7 +324,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'FILTER-RES'.
+    ls_allocation-reservation_id = '2000000001'.
     ls_allocation-reservation_date = sy-datum.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'BOX'.
@@ -658,7 +662,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'FILTER-HORIZON-RES'.
+    ls_allocation-reservation_id = '2000000002'.
     ls_allocation-reservation_date = sy-datum.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'EA'.
@@ -877,7 +881,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       iv_material         = 'MATERIAL-FILTER'
       iv_plant            = '1000'
       iv_storage_location = '0001'
-      iv_reservation_id   = 'FILTER-RES' ).
+      iv_reservation_id   = '2000000001' ).
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_demands )
       exp = 1 ).
@@ -1475,6 +1479,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           exp = 'Allocation result priority range is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+
   ENDMETHOD.
 
   METHOD rejects_missing_reservation.
@@ -1508,7 +1513,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested         = '1'
                     allocated         = '1'
                     allocation_status = 'F'
-                    reservation_id    = 'RES-WITHOUT-DATE' ) TO lt_demands.
+                    reservation_id    = '2000000003' ) TO lt_demands.
     TRY.
         lo_cut->save_allocations(
           iv_material         = 'MATERIAL-NO-RESERVATION-DATE'
@@ -1531,7 +1536,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     allocated         = '0'
                     shortage          = '1'
                     allocation_status = 'U'
-                    reservation_id    = 'RES-STALE' ) TO lt_demands.
+                    reservation_id    = '2000000004' ) TO lt_demands.
     TRY.
         lo_cut->save_allocations(
           iv_material         = 'MATERIAL-STALE-RESERVATION'
@@ -1739,6 +1744,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           exp = 'Allocation snapshot demand is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+
   ENDMETHOD.
 
   METHOD rejects_corrupt_read.
@@ -1758,7 +1764,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_corrupt-allocated = '1'.
     ls_corrupt-shortage = '0'.
     ls_corrupt-allocation_status = 'F'.
-    ls_corrupt-reservation_id = 'RES-CORRUPT'.
+    ls_corrupt-reservation_id = '2000000005'.
     ls_corrupt-reservation_date = '20260101'.
     ls_corrupt-reservation_movement_type = '201'.
     ls_corrupt-reservation_unit = 'BOX'.
@@ -1815,14 +1821,14 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_first-requested = '1'.
     ls_first-allocated = '1'.
     ls_first-allocation_status = 'F'.
-    ls_first-reservation_id = 'RES-MIXED-ONE'.
+    ls_first-reservation_id = '2000000006'.
     ls_first-reservation_date = '20260101'.
     ls_first-reservation_movement_type = '201'.
     ls_first-reservation_unit = 'EA'.
     ls_second = ls_first.
     ls_second-run_id = 'RUN-MIXED-TWO'.
     ls_second-order_id = 'MIXED-TWO'.
-    ls_second-reservation_id = 'RES-MIXED-TWO'.
+    ls_second-reservation_id = '2000000007'.
     INSERT zstockalloc FROM @ls_first.
     INSERT zstockalloc FROM @ls_second.
 
@@ -1878,7 +1884,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_first-requested = 1.
     ls_first-allocated = 1.
     ls_first-allocation_status = 'F'.
-    ls_first-reservation_id = 'RES-INTERLEAVED-ONE'.
+    ls_first-reservation_id = '2000000008'.
     ls_first-reservation_date = '20260101'.
     ls_first-reservation_movement_type = '201'.
     ls_first-reservation_unit = 'EA'.
@@ -1887,13 +1893,13 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_second-allocation_unit = 'BOX'.
     ls_second-requested_on = '20260102'.
     ls_second-order_id = 'INTERLEAVED-BOX'.
-    ls_second-reservation_id = 'RES-INTERLEAVED-BOX'.
+    ls_second-reservation_id = '2000000009'.
     ls_second-reservation_unit = 'BOX'.
     ls_third = ls_first.
     ls_third-run_id = 'RUN-INTERLEAVED-TWO'.
     ls_third-requested_on = '20260103'.
     ls_third-order_id = 'INTERLEAVED-TWO'.
-    ls_third-reservation_id = 'RES-INTERLEAVED-TWO'.
+    ls_third-reservation_id = '2000000010'.
     INSERT zstockalloc FROM @ls_first.
     INSERT zstockalloc FROM @ls_second.
     INSERT zstockalloc FROM @ls_third.
@@ -1921,7 +1927,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
 
     ls_first-run_id = 'RUN-DUPLICATE'.
     ls_first-order_id = 'DUPLICATE-ONE'.
-    ls_first-reservation_id = 'RES-DUPLICATE'.
+    ls_first-reservation_id = '2000000011'.
     ls_second = ls_first.
     ls_second-order_id = 'DUPLICATE-TWO'.
     CLEAR ls_run.
@@ -1978,7 +1984,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'RES-ORPHAN-READ'.
+    ls_allocation-reservation_id = '2000000012'.
     ls_allocation-reservation_date = '20260101'.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'EA'.
@@ -2062,6 +2068,21 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           iv_material         = 'MATERIAL-FILTER'
           iv_plant            = '1000'
           iv_storage_location = '0001'
+          iv_sales_document   = 'ORDER-DB01' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_nonnumeric_sales_document_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_nonnumeric_sales_document_error->message
+          exp = 'Allocation result sales document filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
           iv_sales_document   = '0000000000' ).
       CATCH zcx_stock_allocation INTO DATA(lo_zero_sales_document_error).
         lv_raised = abap_true.
@@ -2083,6 +2104,57 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lo_reservation_error->message
           exp = 'Allocation result reservation document filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_reservation_id   = 'RESBAD0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_nonnumeric_reservation_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_nonnumeric_reservation_error->message
+          exp = 'Allocation result reservation document filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_date_filters.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material          = 'MATERIAL-FILTER'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_requested_on_from = '20260230' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_requested_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_requested_date_error->message
+          exp = 'Allocation result date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material              = 'MATERIAL-FILTER'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_run_deadline_age_date = '20260230'
+          iv_run_deadline_age_from = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_date_error->message
+          exp = 'Allocation result deadline age date is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
@@ -2178,7 +2250,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     shortage                  = '0'
                     allocation_strategy       = 'p'
                     allocation_status         = 'f'
-                    reservation_id            = 'RES-LOWERCASE-STATUS'
+                    reservation_id            = '2000000013'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'ea' ) TO lt_demands.
@@ -2223,7 +2295,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'f'.
-    ls_allocation-reservation_id = 'RES-LOWERCASE-LEGACY'.
+    ls_allocation-reservation_id = '2000000014'.
     ls_allocation-reservation_date = '20260101'.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'ea'.
@@ -2282,7 +2354,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'RES-INVALID-STATUS'.
+    ls_allocation-reservation_id = '2000000015'.
     ls_allocation-reservation_date = '20260101'.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'EA'.
@@ -2339,7 +2411,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-requested = 1.
     ls_allocation-allocated = 1.
     ls_allocation-allocation_status = 'F'.
-    ls_allocation-reservation_id = 'RES-INVALID-STRATEGY'.
+    ls_allocation-reservation_id = '2000000016'.
     ls_allocation-reservation_date = '20260101'.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'EA'.
@@ -2413,6 +2485,62 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       WHERE matnr = 'MATERIAL-INVALID-POLICY'.
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-INVALID-POLICY'.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_run_timestamp.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-INVALID-TIMESTAMP'.
+    ls_run-matnr = 'MATERIAL-INVALID-TIMESTAMP'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = '240000'.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    APPEND VALUE #( allocation_run_id = 'RUN-INVALID-TIMESTAMP'
+                    allocation_unit   = 'EA'
+                    order_id          = 'INVALID-TIMESTAMP'
+                    requested         = '1'
+                    shortage          = '1'
+                    allocation_status = 'U' ) TO lt_demands.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    lo_cut->save_allocations(
+      iv_material         = 'MATERIAL-INVALID-TIMESTAMP'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_run_id           = 'RUN-INVALID-TIMESTAMP'
+      iv_unit             = 'EA'
+      it_demands          = lt_demands ).
+    TRY.
+        lo_cut->get_allocations(
+          iv_material          = 'MATERIAL-INVALID-TIMESTAMP'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_run_duration_from = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation result audit run is invalid' ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-INVALID-TIMESTAMP'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-INVALID-TIMESTAMP'.
   ENDMETHOD.
 
   METHOD rejects_inverted_run_horizon.
@@ -2525,7 +2653,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-MISMATCHED-UNIT'
+                    reservation_id            = '2000000017'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2558,7 +2686,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-MISMATCHED-RUN'
+                    reservation_id            = '2000000018'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2614,7 +2742,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-MISMATCHED-STRATEGY'
+                    reservation_id            = '2000000019'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2742,7 +2870,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-UNKNOWN-RUN'
+                    reservation_id            = '2000000020'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2787,7 +2915,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-INCONSISTENT-RUN'
+                    reservation_id            = '2000000021'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'BOX' ) TO lt_demands.
@@ -2837,7 +2965,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-FINALIZED-RUN'
+                    reservation_id            = '2000000022'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2887,7 +3015,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-FALLBACK'
+                    reservation_id            = '2000000023'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -2962,7 +3090,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-AUTHORITY'
+                    reservation_id            = '2000000024'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_guard_demands.
@@ -3001,7 +3129,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-STALE'
+                    reservation_id            = '2000000004'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -3032,7 +3160,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '2'
                     allocated                 = '2'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-OTHER'
+                    reservation_id            = '2000000025'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -3058,7 +3186,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       it_demands          = lt_demands ).
 
     CLEAR lt_demands.
-    APPEND VALUE #( sales_document            = 'ORDER-DB01'
+    APPEND VALUE #( sales_document            = '1000000018'
                     sales_document_type       = 'OR'
                     sales_item                = '000010'
                     schedule_line             = '0001'
@@ -3070,11 +3198,11 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     allocated                 = '4'
                     shortage                  = '1'
                     allocation_status         = 'P'
-                    reservation_id            = 'RES-DB'
+                    reservation_id            = '2000000026'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
-    APPEND VALUE #( sales_document            = 'ORDER-DB01'
+    APPEND VALUE #( sales_document            = '1000000018'
                     sales_document_type       = 'OR'
                     sales_item                = '000020'
                     schedule_line             = '0001'
@@ -3085,7 +3213,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-DB-2'
+                    reservation_id            = '2000000027'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -3155,7 +3283,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       exp = 'ORDER-DB' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_sales_document
-      exp = 'ORDER-DB01' ).
+      exp = '1000000018' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_sales_document_type
       exp = 'OR' ).
@@ -3173,7 +3301,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
       exp = '20260115' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_reservation_id
-      exp = 'RES-DB' ).
+      exp = '2000000026' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_allocation_status
       exp = 'P' ).
@@ -3197,7 +3325,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '3'
                     allocated                 = '3'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-BOX'
+                    reservation_id            = '2000000028'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'BOX' ) TO lt_demands.
@@ -3347,7 +3475,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-DUPLICATE-1'
+                    reservation_id            = '2000000029'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -3355,7 +3483,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     requested                 = '1'
                     allocated                 = '1'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-DUPLICATE-2'
+                    reservation_id            = '2000000030'
                     reservation_date          = '20260101'
                     reservation_movement_type = '201'
                     reservation_unit          = 'EA' ) TO lt_demands.
@@ -3399,7 +3527,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
                     allocated                 = '1'
                     shortage                  = '0'
                     allocation_status         = 'F'
-                    reservation_id            = 'RES-INVALID'
+                    reservation_id            = '2000000031'
                     reservation_date          = '20260101'
                     reservation_movement_type = '20'
                     reservation_unit          = 'ea' ) TO lt_demands.

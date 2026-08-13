@@ -58,6 +58,19 @@ CLASS zcl_stock_json DEFINITION
         iv_message      TYPE string
       RETURNING
         VALUE(rv_value) TYPE string.
+    CLASS-METHODS error_with_schema
+      IMPORTING
+        iv_message      TYPE string
+        iv_schema       TYPE i
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS error_with_schema_run_id
+      IMPORTING
+        iv_message      TYPE string
+        iv_schema       TYPE i
+        iv_run_id       TYPE any
+      RETURNING
+        VALUE(rv_value) TYPE string.
     CLASS-METHODS error_with_run_id
       IMPORTING
         iv_message      TYPE string
@@ -175,6 +188,47 @@ CLASS zcl_stock_json IMPLEMENTATION.
       iv_name  = 'message'
       iv_value = iv_message ).
     CONCATENATE '{' lv_mode ',' lv_message '}' INTO rv_value.
+  ENDMETHOD.
+
+  METHOD error_with_schema.
+    DATA lv_mode TYPE string.
+    DATA lv_schema TYPE string.
+    DATA lv_message TYPE string.
+
+    lv_mode = property(
+      iv_name  = 'mode'
+      iv_value = 'error' ).
+    lv_schema = number_property(
+      iv_name  = 'schema_version'
+      iv_value = iv_schema ).
+    lv_message = property(
+      iv_name  = 'message'
+      iv_value = iv_message ).
+    CONCATENATE '{' lv_mode ',' lv_schema ',' lv_message '}'
+      INTO rv_value.
+  ENDMETHOD.
+
+  METHOD error_with_schema_run_id.
+    DATA lv_mode TYPE string.
+    DATA lv_schema TYPE string.
+    DATA lv_message TYPE string.
+    DATA lv_run_id TYPE string.
+
+    lv_mode = property(
+      iv_name  = 'mode'
+      iv_value = 'error' ).
+    lv_schema = number_property(
+      iv_name  = 'schema_version'
+      iv_value = iv_schema ).
+    lv_message = property(
+      iv_name  = 'message'
+      iv_value = iv_message ).
+    lv_run_id = iv_run_id.
+    lv_run_id = property(
+      iv_name  = 'run_id'
+      iv_value = lv_run_id ).
+    CONCATENATE '{' lv_mode ',' lv_schema ',' lv_message ',' lv_run_id
+      '}' INTO rv_value.
   ENDMETHOD.
 
   METHOD error_with_run_id.

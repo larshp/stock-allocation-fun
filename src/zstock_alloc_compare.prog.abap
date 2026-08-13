@@ -288,6 +288,7 @@ START-OF-SELECTION.
   DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
   DATA lv_csv_line TYPE string.
   DATA lv_json_line TYPE string.
+  DATA lv_json_schema TYPE i.
   DATA lv_json_fields TYPE string.
   DATA lv_summary_json_fields TYPE string.
   DATA lv_filter_value_body TYPE string.
@@ -561,6 +562,7 @@ START-OF-SELECTION.
   DATA lv_new_available_to_filter TYPE string.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
+  lv_json_schema = 95.
   lv_material_filter = p_matnr.
   IF lv_material_filter IS INITIAL.
     lv_material_filter = 'n/a'.
@@ -658,6 +660,10 @@ START-OF-SELECTION.
   TRANSLATE p_nast TO UPPER CASE.
   TRANSLATE p_ostr TO UPPER CASE.
   TRANSLATE p_nstr TO UPPER CASE.
+  TRANSLATE p_auart TO UPPER CASE.
+  TRANSLATE p_oauart TO UPPER CASE.
+  TRANSLATE p_nauart TO UPPER CASE.
+  TRANSLATE p_chg TO UPPER CASE.
   lv_movement_filter = p_mvt.
   IF lv_movement_filter IS INITIAL.
     lv_movement_filter = 'n/a'.
@@ -1538,11 +1544,14 @@ START-OF-SELECTION.
   IF p_old = p_new.
     lv_error_message = 'Old and new allocation run IDs must be different'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1550,15 +1559,17 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
   IF p_csv = abap_true AND p_json = abap_true.
-    WRITE: / zcl_stock_json=>error(
-      'CSV and JSON output cannot be selected together' ).
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'CSV and JSON output cannot be selected together'
+      iv_schema  = lv_json_schema ).
     RETURN.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = 'Typed output requires JSON mode' ).
     ELSE.
       WRITE: / 'Typed output requires JSON mode.'.
@@ -1567,9 +1578,10 @@ START-OF-SELECTION.
   ENDIF.
   IF p_meta = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = 'Comparison metadata requires JSON mode' ).
     ELSE.
       WRITE: / 'Comparison metadata requires JSON mode.'.
@@ -1578,9 +1590,10 @@ START-OF-SELECTION.
   ENDIF.
   IF p_ndjson = abap_true AND p_json = abap_false.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = 'NDJSON output requires JSON mode' ).
     ELSE.
       WRITE: / 'NDJSON output requires JSON mode.'.
@@ -1588,13 +1601,15 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
   IF p_ndjson = abap_true AND p_meta = abap_true.
-    WRITE: / zcl_stock_json=>error(
-      'NDJSON output cannot be combined with metadata output' ).
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'NDJSON output cannot be combined with metadata output'
+      iv_schema  = lv_json_schema ).
     RETURN.
   ENDIF.
   IF p_ndjson = abap_true AND p_sum = abap_true.
-    WRITE: / zcl_stock_json=>error(
-      'NDJSON output cannot be combined with summary mode' ).
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'NDJSON output cannot be combined with summary mode'
+      iv_schema  = lv_json_schema ).
     RETURN.
   ENDIF.
   IF p_chg IS NOT INITIAL
@@ -1604,11 +1619,14 @@ START-OF-SELECTION.
       AND p_chg <> 'U'.
     lv_error_message = 'Comparison change type is invalid'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1618,11 +1636,14 @@ START-OF-SELECTION.
   IF p_skip < 0 OR p_max < 0.
     lv_error_message = 'Comparison pagination is invalid'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1632,11 +1653,14 @@ START-OF-SELECTION.
   IF p_shelf < 0.
     lv_error_message = 'Minimum shelf-life filter must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1646,11 +1670,14 @@ START-OF-SELECTION.
   IF p_oshelf < 0 OR p_nshelf < 0.
     lv_error_message = 'Side-specific shelf-life filters must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1662,11 +1689,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific shelf-life filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1678,11 +1708,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific unit filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1691,20 +1724,26 @@ START-OF-SELECTION.
   ENDIF.
   IF ( p_rmov IS NOT INITIAL
         AND ( strlen( p_rmov ) <> zif_stock_allocation=>c_movement_type_length
-          OR p_rmov CN '0123456789' ) )
+          OR p_rmov CN '0123456789'
+          OR p_rmov = zif_stock_allocation=>c_zero_movement_type ) )
       OR ( p_ormov IS NOT INITIAL
         AND ( strlen( p_ormov ) <> zif_stock_allocation=>c_movement_type_length
-          OR p_ormov CN '0123456789' ) )
+          OR p_ormov CN '0123456789'
+          OR p_ormov = zif_stock_allocation=>c_zero_movement_type ) )
       OR ( p_nrmov IS NOT INITIAL
         AND ( strlen( p_nrmov ) <> zif_stock_allocation=>c_movement_type_length
-          OR p_nrmov CN '0123456789' ) ).
+          OR p_nrmov CN '0123456789'
+          OR p_nrmov = zif_stock_allocation=>c_zero_movement_type ) ).
     lv_error_message = 'Reservation movement type filter is invalid'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1716,11 +1755,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific reservation movement filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1732,11 +1774,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific reservation unit filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1746,11 +1791,14 @@ START-OF-SELECTION.
   IF p_rsv = abap_true AND p_unrsv = abap_true.
     lv_error_message = 'Common reservation filters conflict'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1760,11 +1808,14 @@ START-OF-SELECTION.
   IF p_orsv = abap_true AND p_oursv = abap_true.
     lv_error_message = 'Old reservation filters conflict'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1774,11 +1825,14 @@ START-OF-SELECTION.
   IF p_nrsv = abap_true AND p_nursv = abap_true.
     lv_error_message = 'New reservation filters conflict'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1791,11 +1845,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific reservation filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1807,11 +1864,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific shortage filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1822,11 +1882,14 @@ START-OF-SELECTION.
       OR p_nshf < 0 OR p_nsht < 0.
     lv_error_message = 'Shortage bounds must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1838,11 +1901,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The common shortage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1854,11 +1920,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old shortage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1870,11 +1939,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new shortage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1887,11 +1959,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific shortage ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -1907,11 +1982,14 @@ START-OF-SELECTION.
       OR p_nspf < 0 OR p_nspf > 100 OR p_nspt < 0 OR p_nspt > 100.
     lv_error_message = 'Percentage bounds must be between 0 and 100'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1922,11 +2000,14 @@ START-OF-SELECTION.
       AND p_covf > p_covt.
     lv_error_message = 'The common coverage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1937,11 +2018,14 @@ START-OF-SELECTION.
       AND p_ocovf > p_ocovt.
     lv_error_message = 'The old coverage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1952,11 +2036,14 @@ START-OF-SELECTION.
       AND p_ncovf > p_ncovt.
     lv_error_message = 'The new coverage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1968,11 +2055,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The common shortage percentage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -1984,11 +2074,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old shortage percentage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2000,11 +2093,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new shortage percentage start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2017,11 +2113,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific coverage ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2035,11 +2134,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific shortage percentage ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2052,11 +2154,14 @@ START-OF-SELECTION.
       OR p_oaf < 0 OR p_oat < 0 OR p_naf < 0 OR p_nat < 0.
     lv_error_message = 'Quantity bounds must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2071,11 +2176,14 @@ START-OF-SELECTION.
       OR p_naf IS NOT INITIAL AND p_nat IS NOT INITIAL AND p_naf > p_nat.
     lv_error_message = 'Quantity range start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2088,11 +2196,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific requested quantity ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2106,11 +2217,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific allocated quantity ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2122,11 +2236,14 @@ START-OF-SELECTION.
       OR p_npf < 0 OR p_npt < 0.
     lv_error_message = 'Priority bounds must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2139,11 +2256,14 @@ START-OF-SELECTION.
       OR p_npf IS NOT INITIAL AND p_npt IS NOT INITIAL AND p_npf > p_npt.
     lv_error_message = 'Priority range start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2156,11 +2276,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific priority ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2177,11 +2300,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Snapshot requested-date range start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2194,11 +2320,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific snapshot date ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2211,11 +2340,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific sales-document filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2228,11 +2360,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific sales-document-type filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2245,11 +2380,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific sales-item filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2262,11 +2400,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific schedule-line filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2279,11 +2420,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific order-unit filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2296,11 +2440,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific order-ID filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2313,11 +2460,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific reservation-ID filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2330,11 +2480,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific batch filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2345,11 +2498,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Batch requires a common value or both old and new values'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2361,11 +2517,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific storage-location filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2376,11 +2535,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Storage location requires a common value or both old and new values'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2392,11 +2554,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific material filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2407,11 +2572,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Material requires a common value or both old and new values'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2423,11 +2591,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific plant filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2438,11 +2609,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Plant requires a common value or both old and new values'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2461,11 +2635,14 @@ START-OF-SELECTION.
       AND p_ostr <> 'W'.
     lv_error_message = 'Old strategy filter must be P, F, N, S, L, B, E, A, or W'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2484,11 +2661,14 @@ START-OF-SELECTION.
       AND p_nstr <> 'W'.
     lv_error_message = 'New strategy filter must be P, F, N, S, L, B, E, A, or W'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2498,11 +2678,14 @@ START-OF-SELECTION.
   IF p_oleg = abap_true AND p_ostr IS NOT INITIAL.
     lv_error_message = 'Old strategy filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2512,11 +2695,14 @@ START-OF-SELECTION.
   IF p_nleg = abap_true AND p_nstr IS NOT INITIAL.
     lv_error_message = 'New strategy filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2528,11 +2714,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific movement filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2544,11 +2733,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific overdue filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2560,11 +2752,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Overdue as-of date requires overdue-only filtering'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2576,11 +2771,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The requested horizon start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2592,11 +2790,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old requested horizon start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2608,11 +2809,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new requested horizon start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2625,11 +2829,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific requested horizons cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2642,11 +2849,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The reservation date start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2658,11 +2868,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old reservation date start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2674,11 +2887,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new reservation date start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2691,11 +2907,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific reservation date ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2706,11 +2925,14 @@ START-OF-SELECTION.
   IF p_rage < 0 OR p_rageto < 0.
     lv_error_message = 'Reservation age filters must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2721,11 +2943,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Side-specific reservation age filters must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2738,11 +2963,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific reservation age filters cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2755,11 +2983,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The common reservation age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2771,11 +3002,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old reservation age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2787,11 +3021,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new reservation age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2803,11 +3040,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Common and side-specific deadline filters cannot be combined'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2819,11 +3059,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The requested deadline start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2835,11 +3078,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old requested deadline start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2851,11 +3097,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new requested deadline start must not be after the end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2868,11 +3117,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific deadline ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2885,11 +3137,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The deadline age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2901,11 +3156,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old deadline age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2917,11 +3175,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new deadline age start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2934,11 +3195,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific deadline ages cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -2952,11 +3216,14 @@ START-OF-SELECTION.
       AND p_nagef IS INITIAL AND p_naget IS INITIAL.
     lv_error_message = 'Deadline age date requires an age range'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2968,11 +3235,14 @@ START-OF-SELECTION.
       OR p_ntfrom < 0 OR p_ntto < 0.
     lv_error_message = 'Audit-duration bounds must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -2984,11 +3254,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The audit-duration start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3000,11 +3273,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old audit-duration start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3016,11 +3292,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new audit-duration start must not be after the end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3033,11 +3312,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific audit-duration ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -3050,11 +3332,14 @@ START-OF-SELECTION.
       OR p_navf < 0 OR p_navt < 0.
     lv_error_message = 'Available-stock bounds must not be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3066,11 +3351,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The common available-stock start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3082,11 +3370,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The old available-stock start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3098,11 +3389,14 @@ START-OF-SELECTION.
     lv_error_message =
       'The new available-stock start must not be after the end'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3115,11 +3409,14 @@ START-OF-SELECTION.
       lv_error_message =
         'Common and side-specific available-stock ranges cannot be combined'.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -3132,11 +3429,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Overdue-only comparison cannot be combined with reconciliation guard'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -3147,11 +3447,14 @@ START-OF-SELECTION.
     lv_error_message =
       'Requested-deadline-only comparison cannot be combined with reconciliation guard'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -4632,11 +4935,14 @@ START-OF-SELECTION.
         lv_error_message = lo_read_error->message.
       ENDIF.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / 'Allocation snapshots are unavailable:', lv_error_message.
@@ -4693,11 +4999,14 @@ START-OF-SELECTION.
         lv_error_message = lo_compare_error->message.
       ENDIF.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error_message ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -5170,11 +5479,14 @@ START-OF-SELECTION.
       'new=' ls_new_reconciliation-mismatch_fields
       INTO lv_error_message SEPARATED BY space.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error_message ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.

@@ -15,6 +15,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES ty_unit TYPE c LENGTH 3.
   TYPES ty_movement_type TYPE c LENGTH 3.
   CONSTANTS c_movement_type_length TYPE i VALUE 3.
+  CONSTANTS c_zero_movement_type TYPE ty_movement_type VALUE '000'.
   TYPES ty_priority TYPE i.
   CONSTANTS c_max_priority TYPE ty_priority VALUE 99.
   TYPES ty_allocation_status TYPE c LENGTH 1.

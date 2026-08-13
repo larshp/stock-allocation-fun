@@ -19,10 +19,12 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
 
     CALL FUNCTION 'ENQUEUE_EZSTOCKALLOC'
       EXPORTING
-        matnr = iv_material
-        werks = iv_plant
-        lgort = iv_storage_location
-        charg = iv_batch.
+        matnr  = iv_material
+        werks  = iv_plant
+        lgort  = iv_storage_location
+        charg  = iv_batch
+      EXCEPTIONS
+        OTHERS = 1.
     IF sy-subrc <> 0.
       DATA lo_acquire_error TYPE REF TO zcx_stock_allocation.
       CREATE OBJECT lo_acquire_error.
@@ -43,10 +45,12 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
 
     CALL FUNCTION 'DEQUEUE_EZSTOCKALLOC'
       EXPORTING
-        matnr = iv_material
-        werks = iv_plant
-        lgort = iv_storage_location
-        charg = iv_batch.
+        matnr  = iv_material
+        werks  = iv_plant
+        lgort  = iv_storage_location
+        charg  = iv_batch
+      EXCEPTIONS
+        OTHERS = 1.
     IF sy-subrc <> 0.
       DATA lo_release_error TYPE REF TO zcx_stock_allocation.
       CREATE OBJECT lo_release_error.

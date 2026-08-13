@@ -69,11 +69,14 @@ START-OF-SELECTION.
   IF p_csv = abap_true AND p_json = abap_true.
     lv_error = 'Select only one export mode: CSV or JSON'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSE.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ENDIF.
     RETURN.
@@ -81,11 +84,14 @@ START-OF-SELECTION.
   IF p_stale < 0.
     lv_error = 'Stale threshold cannot be negative'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -95,11 +101,14 @@ START-OF-SELECTION.
   IF p_cov < 0 OR p_cov > 100.
     lv_error = 'Minimum coverage must be between 0 and 100'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -109,11 +118,14 @@ START-OF-SELECTION.
   IF p_spct < 0 OR p_spct > 100.
     lv_error = 'Maximum shortage percentage must be between 0 and 100'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -123,11 +135,14 @@ START-OF-SELECTION.
   IF p_legacy = abap_true AND p_strat IS NOT INITIAL.
     lv_error = 'Legacy strategy filter cannot be combined with a strategy filter'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -137,11 +152,14 @@ START-OF-SELECTION.
   IF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
     lv_error = 'Overdue as-of date requires overdue filtering'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -158,11 +176,14 @@ START-OF-SELECTION.
       AND p_deadf > p_deadt.
     lv_error = 'Requested deadline start must not be after end date'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -173,11 +194,14 @@ START-OF-SELECTION.
       AND p_dagef > p_daget.
     lv_error = 'Deadline age start must not be after end value'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -188,11 +212,14 @@ START-OF-SELECTION.
       AND p_dagef IS INITIAL AND p_daget IS INITIAL.
     lv_error = 'Deadline age date requires an age range'.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error( lv_error ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 28 ).
     ELSEIF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 28
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -326,11 +353,14 @@ START-OF-SELECTION.
         lv_error = lo_error->message.
       ENDIF.
       IF p_json = abap_true.
-        WRITE: / zcl_stock_json=>error( lv_error ).
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error
+          iv_schema  = 28 ).
       ELSEIF p_csv = abap_true.
-        WRITE: / 'mode;status;message'.
-        WRITE: / zcl_stock_csv=>error(
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_health'
+          iv_schema  = 28
           iv_message = lv_error ).
       ELSE.
         WRITE: / 'Allocation health failed:', lv_error.

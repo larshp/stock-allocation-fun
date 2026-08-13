@@ -26,6 +26,21 @@ CLASS zcl_stock_csv DEFINITION
         iv_run_id       TYPE any
       RETURNING
         VALUE(rv_value) TYPE string.
+    CLASS-METHODS error_with_schema
+      IMPORTING
+        iv_mode         TYPE any
+        iv_schema       TYPE i
+        iv_message      TYPE any
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS error_with_schema_run_id
+      IMPORTING
+        iv_mode         TYPE any
+        iv_schema       TYPE i
+        iv_message      TYPE any
+        iv_run_id       TYPE any
+      RETURNING
+        VALUE(rv_value) TYPE string.
 ENDCLASS.
 
 CLASS zcl_stock_csv IMPLEMENTATION.
@@ -65,6 +80,32 @@ CLASS zcl_stock_csv IMPLEMENTATION.
 
     rv_value = error(
       iv_mode    = iv_mode
+      iv_message = iv_message ).
+    lv_run_id = quote( iv_run_id ).
+    CONCATENATE rv_value lv_run_id
+      INTO rv_value SEPARATED BY ';'.
+  ENDMETHOD.
+
+  METHOD error_with_schema.
+    DATA lv_mode TYPE string.
+    DATA lv_status TYPE string.
+    DATA lv_schema TYPE string.
+    DATA lv_message TYPE string.
+
+    lv_mode = quote( iv_mode ).
+    lv_status = quote( 'error' ).
+    lv_schema = number( iv_schema ).
+    lv_message = quote( iv_message ).
+    CONCATENATE lv_mode lv_status lv_schema lv_message
+           INTO rv_value SEPARATED BY ';'.
+  ENDMETHOD.
+
+  METHOD error_with_schema_run_id.
+    DATA lv_run_id TYPE string.
+
+    rv_value = error_with_schema(
+      iv_mode    = iv_mode
+      iv_schema  = iv_schema
       iv_message = iv_message ).
     lv_run_id = quote( iv_run_id ).
     CONCATENATE rv_value lv_run_id

@@ -173,7 +173,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_existing_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_existing_run_id TYPE zif_stock_allocation=>ty_run_id.
-    DATA lv_reservation_document TYPE string.
+    DATA lv_reservation_document TYPE c LENGTH 10.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
@@ -190,9 +190,15 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
 
-    IF iv_requested_on_from IS NOT INITIAL
+    IF ( iv_requested_on_from IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_from ) <> abap_true )
+        OR ( iv_requested_on_to IS NOT INITIAL
+          AND zcl_allocation_date_sap=>is_valid_or_initial(
+            iv_requested_on_to ) <> abap_true )
+        OR ( iv_requested_on_from IS NOT INITIAL
         AND iv_requested_on_to IS NOT INITIAL
-        AND iv_requested_on_from > iv_requested_on_to.
+        AND iv_requested_on_from > iv_requested_on_to ).
       IF mo_audit IS BOUND.
         record_rejection(
           iv_material         = iv_material
@@ -245,7 +251,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR iv_movement_type CN '0123456789' ).
+          OR iv_movement_type CN '0123456789'
+          OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       IF mo_audit IS BOUND.
         record_rejection(
           iv_material         = iv_material
@@ -509,6 +516,32 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_message          = 'Stock quantity is invalid' ).
       raise_error( iv_message = 'Stock quantity is invalid' ).
     ENDIF.
+    IF zcl_allocation_date_sap=>is_valid_or_initial(
+         ls_available-batch_expiration_date ) <> abap_true.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = 0
+        iv_message          = 'Batch expiration date is invalid' ).
+      raise_error( iv_message = 'Batch expiration date is invalid' ).
+    ENDIF.
+    IF iv_batch IS INITIAL
+        AND ( ls_available-batch_found = abap_true
+          OR ls_available-batch_restricted = abap_true
+          OR ls_available-batch_expiration_date IS NOT INITIAL ).
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = ls_available-quantity
+        iv_message          = 'Available stock result is invalid' ).
+      raise_error( iv_message = 'Available stock result is invalid' ).
+    ENDIF.
     lv_available = ls_available-quantity.
     IF ls_available-batch_managed = abap_true
         AND iv_batch IS INITIAL.
@@ -703,6 +736,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           OR ( <ls_demand>-sales_document IS NOT INITIAL
             AND strlen( <ls_demand>-sales_document )
                 <> zif_stock_allocation=>c_sap_document_length )
+          OR ( <ls_demand>-sales_document IS NOT INITIAL
+            AND <ls_demand>-sales_document CN '0123456789' )
           OR <ls_demand>-sales_document = '0000000000'
           OR <ls_demand>-requested <= 0.
         record_rejection(
@@ -738,6 +773,19 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_available        = lv_available
         iv_message          = 'Open demand requested date is missing' ).
       raise_error( iv_message = 'Open demand requested date is missing' ).
+    ENDIF.
+    IF <ls_demand>-requested > 0
+        AND zcl_allocation_date_sap=>is_valid_or_initial(
+          <ls_demand>-requested_on ) <> abap_true.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Open demand requested date is invalid' ).
+      raise_error( iv_message = 'Open demand requested date is invalid' ).
     ENDIF.
     IF <ls_demand>-requested > 0
         AND ( <ls_demand>-sales_document IS NOT INITIAL
@@ -905,6 +953,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       ENDLOOP.
       SORT lt_existing BY allocation_unit order_id.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
+        CLEAR lv_reservation_document.
+        lv_reservation_document = <ls_existing>-reservation_id.
         IF <ls_existing>-allocation_run_id IS INITIAL
             OR <ls_existing>-order_id IS INITIAL
             OR <ls_existing>-allocation_unit IS INITIAL
@@ -919,11 +969,17 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             OR ( <ls_existing>-sales_document IS NOT INITIAL
               AND strlen( <ls_existing>-sales_document )
                   <> zif_stock_allocation=>c_sap_document_length )
+            OR ( <ls_existing>-sales_document IS NOT INITIAL
+              AND <ls_existing>-sales_document CN '0123456789' )
             OR <ls_existing>-sales_document = '0000000000'
             OR ( <ls_existing>-reservation_id IS NOT INITIAL
-              AND <ls_existing>-reservation_id CO '0123456789 '
               AND strlen( <ls_existing>-reservation_id )
                   <> zif_stock_allocation=>c_sap_document_length )
+            OR ( <ls_existing>-reservation_id IS NOT INITIAL
+              AND <ls_existing>-reservation_id CN '0123456789 ' )
+            OR ( <ls_existing>-reservation_id IS NOT INITIAL
+              AND ( lv_reservation_document CN '0123456789'
+                OR lv_reservation_document = '0000000000' ) )
             OR <ls_existing>-priority < 0
             OR <ls_existing>-priority > zif_stock_allocation=>c_max_priority
             OR ( <ls_existing>-allocation_strategy IS NOT INITIAL
@@ -939,7 +995,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             OR ( <ls_existing>-reservation_movement_type IS NOT INITIAL
               AND ( strlen( <ls_existing>-reservation_movement_type )
                     <> zif_stock_allocation=>c_movement_type_length
-                OR <ls_existing>-reservation_movement_type CN '0123456789' ) )
+                OR <ls_existing>-reservation_movement_type CN '0123456789'
+                OR <ls_existing>-reservation_movement_type = zif_stock_allocation=>c_zero_movement_type ) )
             OR ( <ls_existing>-allocated > 0
               AND ( <ls_existing>-reservation_id IS INITIAL
                 OR <ls_existing>-reservation_id = '0000000000'
@@ -949,6 +1006,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                 OR ( <ls_existing>-allocation_unit IS NOT INITIAL
                   AND <ls_existing>-reservation_unit
                     <> <ls_existing>-allocation_unit ) ) )
+            OR zcl_allocation_date_sap=>is_valid_or_initial(
+              <ls_existing>-requested_on ) <> abap_true
+            OR zcl_allocation_date_sap=>is_valid_or_initial(
+              <ls_existing>-reservation_date ) <> abap_true
             OR <ls_existing>-requested <= 0
             OR <ls_existing>-allocated < 0
             OR <ls_existing>-shortage < 0
@@ -1874,7 +1935,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     lv_movement_type = mv_movement_type.
     IF lv_movement_type IS NOT INITIAL
         AND ( strlen( lv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
-          OR lv_movement_type CN '0123456789' ).
+          OR lv_movement_type CN '0123456789'
+          OR lv_movement_type = zif_stock_allocation=>c_zero_movement_type ).
       CLEAR lv_movement_type.
     ENDIF.
     TRY.

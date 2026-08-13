@@ -77,10 +77,16 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
     DATA ls_headret TYPE ty_headret.
     DATA lt_items TYPE tt_items.
     DATA lt_return TYPE tt_return.
+    DATA ls_commit_return TYPE ty_return.
+    DATA ls_rollback_return TYPE ty_return.
     DATA lv_bapi_subrc TYPE sy-subrc.
+    DATA lv_commit_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.
     DATA lv_bapi_error TYPE abap_bool.
+    DATA lv_commit_error TYPE abap_bool.
+    DATA lv_rollback_error TYPE abap_bool.
     DATA lv_bapi_message TYPE c LENGTH 220.
+    DATA lv_commit_message TYPE c LENGTH 220.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lo_error TYPE REF TO zcx_stock_allocation.
     FIELD-SYMBOLS <ls_return> TYPE ty_return.
@@ -92,6 +98,7 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         OR iv_movement_type IS INITIAL
         OR strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
         OR iv_movement_type CN '0123456789'
+        OR iv_movement_type = zif_stock_allocation=>c_zero_movement_type
         OR lv_unit IS INITIAL
         OR iv_quantity <= 0.
       raise_error( iv_message = 'Goods movement input is invalid' ).
@@ -131,7 +138,9 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         goodsmvt_headret = ls_headret
       TABLES
         goodsmvt_item    = lt_items
-        return           = lt_return.
+        return           = lt_return
+      EXCEPTIONS
+        OTHERS           = 1.
     lv_bapi_subrc = sy-subrc.
     LOOP AT lt_return ASSIGNING <ls_return>.
       IF <ls_return>-type IS NOT INITIAL
@@ -179,15 +188,46 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
         OR strlen( ls_headret-doc_year ) <> zif_stock_allocation=>c_fiscal_year_length
         OR ls_headret-doc_year CN '0123456789'
         OR ls_headret-doc_year = '0000'.
-      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      CLEAR: ls_rollback_return,
+             lv_rollback_error.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = ls_rollback_return
+        EXCEPTIONS
+          OTHERS = 1.
       lv_rollback_subrc = sy-subrc.
+      IF ls_rollback_return-type IS NOT INITIAL
+          AND ls_rollback_return-type <> 'S'
+          AND ls_rollback_return-type <> 'I'
+          AND ls_rollback_return-type <> 'W'
+          AND ls_rollback_return-type <> 'E'
+          AND ls_rollback_return-type <> 'A'
+          AND ls_rollback_return-type <> 'X'.
+        lv_rollback_error = abap_true.
+      ELSEIF ls_rollback_return-type = 'E'
+          OR ls_rollback_return-type = 'A'
+          OR ls_rollback_return-type = 'X'.
+        lv_rollback_error = abap_true.
+      ENDIF.
+      IF lv_rollback_subrc <> 0.
+        lv_rollback_error = abap_true.
+      ENDIF.
       IF lv_bapi_message IS INITIAL.
         lv_bapi_message = 'Goods movement failed'.
       ENDIF.
-      IF lv_rollback_subrc <> 0.
-        CONCATENATE lv_bapi_message
-                    'Transaction rollback failed'
-               INTO lv_bapi_message SEPARATED BY '; '.
+      IF lv_rollback_error = abap_true.
+        IF ls_rollback_return-message IS INITIAL.
+          CONCATENATE lv_bapi_message
+                      'Transaction rollback failed'
+                 INTO lv_bapi_message SEPARATED BY '; '.
+        ELSE.
+          CONCATENATE lv_bapi_message
+                      'Transaction rollback failed:'
+                 INTO lv_bapi_message SEPARATED BY '; '.
+          CONCATENATE lv_bapi_message
+                      ls_rollback_return-message
+                 INTO lv_bapi_message SEPARATED BY space.
+        ENDIF.
       ENDIF.
       CREATE OBJECT lo_error.
       lo_error->message = lv_bapi_message.
@@ -196,16 +236,73 @@ CLASS zcl_stock_movement_sap IMPLEMENTATION.
 
     CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
       EXPORTING
-        wait = abap_true.
-    IF sy-subrc <> 0.
-      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+        wait   = abap_true
+      IMPORTING
+        return = ls_commit_return
+      EXCEPTIONS
+        OTHERS = 1.
+    lv_commit_subrc = sy-subrc.
+    IF ls_commit_return-type IS NOT INITIAL
+        AND ls_commit_return-type <> 'S'
+        AND ls_commit_return-type <> 'I'
+        AND ls_commit_return-type <> 'W'
+        AND ls_commit_return-type <> 'E'
+        AND ls_commit_return-type <> 'A'
+        AND ls_commit_return-type <> 'X'.
+      lv_commit_error = abap_true.
+      lv_commit_message = 'Goods movement commit returned invalid status'.
+    ELSEIF ls_commit_return-type = 'E'
+        OR ls_commit_return-type = 'A'
+        OR ls_commit_return-type = 'X'.
+      lv_commit_error = abap_true.
+      lv_commit_message = ls_commit_return-message.
+    ENDIF.
+    IF lv_commit_subrc <> 0.
+      lv_commit_error = abap_true.
+    ENDIF.
+    IF lv_commit_error = abap_true.
+      CLEAR: ls_rollback_return,
+             lv_rollback_error.
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+        IMPORTING
+          return = ls_rollback_return
+        EXCEPTIONS
+          OTHERS = 1.
       lv_rollback_subrc = sy-subrc.
-      CREATE OBJECT lo_error.
-      lo_error->message = 'Goods movement commit failed'.
+      IF ls_rollback_return-type IS NOT INITIAL
+          AND ls_rollback_return-type <> 'S'
+          AND ls_rollback_return-type <> 'I'
+          AND ls_rollback_return-type <> 'W'
+          AND ls_rollback_return-type <> 'E'
+          AND ls_rollback_return-type <> 'A'
+          AND ls_rollback_return-type <> 'X'.
+        lv_rollback_error = abap_true.
+      ELSEIF ls_rollback_return-type = 'E'
+          OR ls_rollback_return-type = 'A'
+          OR ls_rollback_return-type = 'X'.
+        lv_rollback_error = abap_true.
+      ENDIF.
       IF lv_rollback_subrc <> 0.
-        CONCATENATE lo_error->message
-                    'Transaction rollback failed'
-               INTO lo_error->message SEPARATED BY '; '.
+        lv_rollback_error = abap_true.
+      ENDIF.
+      CREATE OBJECT lo_error.
+      IF lv_commit_message IS INITIAL.
+        lv_commit_message = 'Goods movement commit failed'.
+      ENDIF.
+      lo_error->message = lv_commit_message.
+      IF lv_rollback_error = abap_true.
+        IF ls_rollback_return-message IS INITIAL.
+          CONCATENATE lo_error->message
+                      'Transaction rollback failed'
+                 INTO lo_error->message SEPARATED BY '; '.
+        ELSE.
+          CONCATENATE lo_error->message
+                      'Transaction rollback failed:'
+                 INTO lo_error->message SEPARATED BY '; '.
+          CONCATENATE lo_error->message
+                      ls_rollback_return-message
+                 INTO lo_error->message SEPARATED BY space.
+        ENDIF.
       ENDIF.
       RAISE EXCEPTION lo_error.
     ENDIF.

@@ -14,6 +14,8 @@ CLASS ltcl_stock_json DEFINITION FINAL FOR TESTING
     METHODS formats_string_array_property FOR TESTING.
     METHODS formats_object_property FOR TESTING.
     METHODS formats_error_envelope FOR TESTING.
+    METHODS formats_schema_error_envelope FOR TESTING.
+    METHODS formats_schema_runid_error FOR TESTING.
     METHODS formats_correlated_error FOR TESTING.
 ENDCLASS.
 
@@ -153,6 +155,23 @@ CLASS ltcl_stock_json IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_json=>error( 'Retention failed: "locked"' )
       exp = '{"mode":"error","message":"Retention failed: \"locked\""}' ).
+  ENDMETHOD.
+
+  METHOD formats_schema_error_envelope.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>error_with_schema(
+        iv_message = 'Stock read failed: "locked"'
+        iv_schema  = 1 )
+      exp = '{"mode":"error","schema_version":1,"message":"Stock read failed: \"locked\""}' ).
+  ENDMETHOD.
+
+  METHOD formats_schema_runid_error.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>error_with_schema_run_id(
+        iv_message = 'Allocation failed: "locked"'
+        iv_schema  = 34
+        iv_run_id  = 'RUN-1' )
+      exp = '{"mode":"error","schema_version":34,"message":"Allocation failed: \"locked\"","run_id":"RUN-1"}' ).
   ENDMETHOD.
 
   METHOD formats_correlated_error.

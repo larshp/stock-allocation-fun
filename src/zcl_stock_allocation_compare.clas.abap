@@ -21,6 +21,11 @@ CLASS zcl_stock_allocation_compare DEFINITION
         iv_reasons      TYPE string
       RETURNING
         VALUE(rv_match) TYPE abap_bool.
+    METHODS validate_demand
+      IMPORTING
+        is_demand TYPE zif_stock_allocation=>ty_demand
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_compare IMPLEMENTATION.
@@ -105,6 +110,7 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     ENDIF.
 
     LOOP AT it_old ASSIGNING <ls_demand>.
+      validate_demand( is_demand = <ls_demand> ).
       ls_normalized = <ls_demand>.
       ls_normalized-allocation_strategy =
         to_upper( ls_normalized-allocation_strategy ).
@@ -124,6 +130,7 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         order_id        = ls_normalized-order_id ) INTO TABLE lt_keys.
     ENDLOOP.
     LOOP AT it_new ASSIGNING <ls_demand>.
+      validate_demand( is_demand = <ls_demand> ).
       ls_normalized = <ls_demand>.
       ls_normalized-allocation_strategy =
         to_upper( ls_normalized-allocation_strategy ).
@@ -1343,8 +1350,19 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     CLEAR rs_age.
     IF to_upper( is_run-status ) <> 'R'
         OR is_run-finish_date IS NOT INITIAL
+        OR is_run-finish_time IS NOT INITIAL
         OR is_run-start_date IS INITIAL
         OR is_run-start_time IS INITIAL.
+      RETURN.
+    ENDIF.
+    IF zcl_allocation_date_sap=>is_valid_or_initial(
+         is_run-start_date ) <> abap_true
+        OR zcl_allocation_time_sap=>is_valid_or_initial(
+          is_run-start_time ) <> abap_true
+        OR zcl_allocation_date_sap=>is_valid_or_initial(
+          is_run-finish_date ) <> abap_true
+        OR zcl_allocation_time_sap=>is_valid_or_initial(
+          is_run-finish_time ) <> abap_true.
       RETURN.
     ENDIF.
 
@@ -1427,6 +1445,49 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
     CREATE OBJECT lo_error.
     lo_error->message = iv_message.
     RAISE EXCEPTION lo_error.
+  ENDMETHOD.
+
+  METHOD validate_demand.
+    DATA lv_status TYPE zif_stock_allocation=>ty_allocation_status.
+
+    IF is_demand-allocation_unit IS INITIAL
+        OR is_demand-order_id IS INITIAL.
+      raise_error( iv_message = 'Comparison snapshot key is invalid' ).
+    ENDIF.
+    IF is_demand-requested_on IS NOT INITIAL
+        AND zcl_allocation_date_sap=>is_valid_or_initial(
+          is_demand-requested_on ) <> abap_true.
+      raise_error( iv_message = 'Comparison snapshot date is invalid' ).
+    ENDIF.
+    IF is_demand-priority < 0
+        OR is_demand-priority > zif_stock_allocation=>c_max_priority
+        OR is_demand-requested < 0
+        OR is_demand-allocated < 0
+        OR is_demand-shortage < 0
+        OR is_demand-allocated > is_demand-requested
+        OR is_demand-shortage <> is_demand-requested
+          - is_demand-allocated.
+      raise_error( iv_message = 'Comparison snapshot metrics are invalid' ).
+    ENDIF.
+    lv_status = to_upper( is_demand-allocation_status ).
+    IF lv_status IS NOT INITIAL
+        AND lv_status <> 'F'
+        AND lv_status <> 'P'
+        AND lv_status <> 'U'.
+      raise_error( iv_message = 'Comparison snapshot status is invalid' ).
+    ENDIF.
+    IF ( lv_status = 'F'
+          AND ( is_demand-allocated <> is_demand-requested
+            OR is_demand-shortage <> 0 ) )
+        OR ( lv_status = 'P'
+          AND ( is_demand-allocated <= 0
+            OR is_demand-allocated >= is_demand-requested
+            OR is_demand-shortage <= 0 ) )
+        OR ( lv_status = 'U'
+          AND ( is_demand-allocated <> 0
+            OR is_demand-shortage <> is_demand-requested ) ).
+      raise_error( iv_message = 'Comparison snapshot metrics are invalid' ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD append_reason.

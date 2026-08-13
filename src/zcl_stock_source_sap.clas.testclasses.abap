@@ -28,6 +28,8 @@ CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_deletion_marked_data FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_bad_expiry_date FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized_read FOR TESTING
       RAISING zcx_stock_allocation.
 ENDCLASS.
@@ -199,6 +201,45 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Batch master data is missing' ).
+
+    CLEAR: lv_raised, lv_message.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-PLANT-MISSING'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_plant_data_error).
+        lv_raised = abap_true.
+        lv_message = lo_plant_data_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Plant material data is missing' ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_expiry_date.
+    DATA lo_cut TYPE REF TO zif_stock_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_source_sap.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-BATCH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_batch            = 'BADDATE01' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Batch expiration date is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_invalid_status_flags.
@@ -278,6 +319,21 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     CLEAR: lv_raised, lv_message.
     TRY.
         lo_cut->get_available(
+          iv_material         = 'MATERIAL-BAD-PLANT-DELETE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_plant_flag_error).
+        lv_raised = abap_true.
+        lv_message = lo_plant_flag_error->message.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Plant material deletion flag is invalid' ).
+
+    CLEAR: lv_raised, lv_message.
+    TRY.
+        lo_cut->get_available(
           iv_material         = 'MATERIAL-BAD-BATCH-DELETE'
           iv_plant            = '1000'
           iv_storage_location = '0001'
@@ -312,6 +368,21 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Material is marked for deletion' ).
+
+    CLEAR: lv_raised, lv_message.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-PLANT-DELETED'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_plant_deletion_error).
+        lv_raised = abap_true.
+        lv_message = lo_plant_deletion_error->message.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Material is marked for deletion at plant' ).
 
     CLEAR: lv_raised, lv_message.
     TRY.

@@ -32,9 +32,13 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS calculates_running_age FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_bad_running_timestamp FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS classifies_running_age_trend FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS classifies_audit_metadata FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_snapshot_metrics FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_duplicate_keys FOR TESTING
       RAISING zcx_stock_allocation.
@@ -740,6 +744,37 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( ls_age-seconds ).
   ENDMETHOD.
 
+  METHOD rejects_bad_running_timestamp.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA ls_run TYPE zif_allocation_audit=>ty_run.
+    DATA ls_age TYPE zif_stock_allocation_compare=>ty_running_age.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    ls_run-status = 'R'.
+    ls_run-start_date = '20260230'.
+    ls_run-start_time = '120000'.
+    ls_age = lo_cut->get_running_age( ls_run ).
+    cl_abap_unit_assert=>assert_false( ls_age-available ).
+    cl_abap_unit_assert=>assert_initial( ls_age-seconds ).
+
+    CLEAR: ls_run, ls_age.
+    ls_run-status = 'R'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = '240000'.
+    ls_age = lo_cut->get_running_age( ls_run ).
+    cl_abap_unit_assert=>assert_false( ls_age-available ).
+    cl_abap_unit_assert=>assert_initial( ls_age-seconds ).
+
+    CLEAR: ls_run, ls_age.
+    ls_run-status = 'R'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = '120000'.
+    ls_run-finish_time = '120001'.
+    ls_age = lo_cut->get_running_age( ls_run ).
+    cl_abap_unit_assert=>assert_false( ls_age-available ).
+    cl_abap_unit_assert=>assert_initial( ls_age-seconds ).
+  ENDMETHOD.
+
   METHOD classifies_running_age_trend.
     DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
     DATA ls_old_age TYPE zif_stock_allocation_compare=>ty_running_age.
@@ -850,7 +885,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       allocated         = 2
       shortage          = 3
       allocation_status = 'P'
-      reservation_id    = 'OLD-RES' ) TO lt_old.
+      reservation_id    = '2000000050' ) TO lt_old.
     APPEND VALUE #(
       allocation_unit   = 'EA'
       order_id          = 'REMOVED'
@@ -874,7 +909,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       allocated         = 4
       shortage          = 1
       allocation_status = 'P'
-      reservation_id    = 'NEW-RES' ) TO lt_new.
+      reservation_id    = '2000000051' ) TO lt_new.
     APPEND VALUE #(
       allocation_unit   = 'EA'
       order_id          = 'ADDED'
@@ -1114,7 +1149,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       allocated         = 2
       shortage          = 3
       allocation_status = 'P'
-      reservation_id    = 'OLD' ) TO lt_old.
+      reservation_id    = '2000000052' ) TO lt_old.
     APPEND VALUE #(
       allocation_unit   = 'EA'
       order_id          = 'SAME-RATIO'
@@ -1122,19 +1157,19 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       allocated         = 4
       shortage          = 6
       allocation_status = 'P'
-      reservation_id    = 'NEW' ) TO lt_new.
+      reservation_id    = '2000000053' ) TO lt_new.
     APPEND VALUE #(
       allocation_unit = 'EA'
       order_id        = 'ZERO-RATIO'
-      reservation_id  = 'OLD-ZERO' ) TO lt_old.
+      reservation_id  = '2000000054' ) TO lt_old.
     APPEND VALUE #(
       allocation_unit = 'EA'
       order_id        = 'ZERO-RATIO'
-      reservation_id  = 'NEW-ZERO' ) TO lt_new.
+      reservation_id  = '2000000055' ) TO lt_new.
     APPEND VALUE #(
       allocation_unit = 'EA'
       order_id        = 'BECAME-APPLICABLE'
-      reservation_id  = 'OLD-NONE' ) TO lt_old.
+      reservation_id  = '2000000056' ) TO lt_old.
     APPEND VALUE #(
       allocation_unit   = 'EA'
       order_id          = 'BECAME-APPLICABLE'
@@ -1142,7 +1177,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       allocated         = 2
       shortage          = 3
       allocation_status = 'P'
-      reservation_id    = 'NEW-SOME' ) TO lt_new.
+      reservation_id    = '2000000057' ) TO lt_new.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
     lt_changes = lo_cut->compare(
@@ -1182,7 +1217,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       requested           = 2
       allocated           = 2
       allocation_status   = 'f'
-      reservation_id      = 'RES-CASE'
+      reservation_id      = '2000000058'
       reservation_unit    = 'box' ) TO lt_old.
     APPEND VALUE #(
       allocation_unit     = 'EA'
@@ -1192,7 +1227,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       requested           = 2
       allocated           = 2
       allocation_status   = 'F'
-      reservation_id      = 'RES-CASE'
+      reservation_id      = '2000000058'
       reservation_unit    = 'BOX' ) TO lt_new.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
@@ -1240,7 +1275,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       requested                 = 4
       allocated                 = 4
       allocation_status         = 'F'
-      reservation_id            = 'RES-1'
+      reservation_id            = '2000000059'
       reservation_date          = '20260101'
       reservation_movement_type = '201'
       reservation_unit          = 'EA' ) TO lt_old.
@@ -1256,7 +1291,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       requested                 = 4
       allocated                 = 4
       allocation_status         = 'F'
-      reservation_id            = 'RES-1'
+      reservation_id            = '2000000059'
       reservation_date          = '20260102'
       reservation_movement_type = '202'
       reservation_unit          = 'BOX' ) TO lt_new.
@@ -1489,6 +1524,87 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 'unit' ).
   ENDMETHOD.
 
+  METHOD rejects_bad_snapshot_metrics.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_old TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_new TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+
+    APPEND VALUE #(
+      allocation_unit = 'EA'
+      order_id        = 'NEGATIVE-REQUEST'
+      requested       = -1 ) TO lt_old.
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    TRY.
+        lo_cut->compare(
+          it_old = lt_old
+          it_new = lt_new ).
+      CATCH zcx_stock_allocation INTO DATA(lo_quantity_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_quantity_error->message
+          exp = 'Comparison snapshot metrics are invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR: lt_old, lv_raised.
+    APPEND VALUE #(
+      allocation_unit = 'EA'
+      order_id        = 'OVER-ALLOCATED'
+      requested       = 1
+      allocated       = 2
+      shortage        = -1 ) TO lt_old.
+    TRY.
+        lo_cut->compare(
+          it_old = lt_old
+          it_new = lt_new ).
+      CATCH zcx_stock_allocation INTO lo_quantity_error.
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_quantity_error->message
+          exp = 'Comparison snapshot metrics are invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR: lt_old, lv_raised.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'BAD-STATUS-METRICS'
+      requested         = 4
+      allocated         = 4
+      allocation_status = 'P' ) TO lt_old.
+    TRY.
+        lo_cut->compare(
+          it_old = lt_old
+          it_new = lt_new ).
+      CATCH zcx_stock_allocation INTO DATA(lo_status_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_status_error->message
+          exp = 'Comparison snapshot metrics are invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR: lt_old, lv_raised.
+    APPEND VALUE #(
+      allocation_unit   = 'EA'
+      order_id          = 'UNKNOWN-STATUS'
+      requested         = 1
+      shortage          = 1
+      allocation_status = 'X' ) TO lt_old.
+    TRY.
+        lo_cut->compare(
+          it_old = lt_old
+          it_new = lt_new ).
+      CATCH zcx_stock_allocation INTO DATA(lo_status_value_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_status_value_error->message
+          exp = 'Comparison snapshot status is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD rejects_duplicate_keys.
     DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
     DATA lt_old TYPE zif_stock_allocation=>tt_demands.
@@ -1496,9 +1612,9 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     DATA lv_raised TYPE abap_bool.
 
     APPEND VALUE #( allocation_unit = 'EA' order_id = 'DUPLICATE'
-                    requested = 1 ) TO lt_old.
+                    requested = 1 shortage = 1 ) TO lt_old.
     APPEND VALUE #( allocation_unit = 'EA' order_id = 'DUPLICATE'
-                    requested = 2 ) TO lt_old.
+                    requested = 2 shortage = 2 ) TO lt_old.
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
     TRY.
         lo_cut->compare(

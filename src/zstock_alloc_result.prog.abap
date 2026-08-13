@@ -91,6 +91,11 @@ START-OF-SELECTION.
   TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_strat TO UPPER CASE.
   TRANSLATE p_astat TO UPPER CASE.
+  TRANSLATE p_meins TO UPPER CASE.
+  TRANSLATE p_stat TO UPPER CASE.
+  TRANSLATE p_auart TO UPPER CASE.
+  TRANSLATE p_ounit TO UPPER CASE.
+  TRANSLATE p_runit TO UPPER CASE.
   TYPES:
     BEGIN OF ty_strategy_total,
       strategy  TYPE c LENGTH 1,
@@ -188,6 +193,7 @@ START-OF-SELECTION.
   DATA lv_csv_field TYPE c LENGTH 1024.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_json_line TYPE string.
+  DATA lv_json_schema TYPE i.
   DATA lv_summary_json TYPE string.
   DATA lv_numeric_json TYPE string.
   DATA lv_error_message TYPE string.
@@ -244,6 +250,12 @@ START-OF-SELECTION.
   FIELD-SYMBOLS <ls_strategy_total> TYPE ty_strategy_total.
   FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
   FIELD-SYMBOLS <lv_csv_field> TYPE string.
+
+  IF p_sum = abap_true.
+    lv_json_schema = 43.
+  ELSE.
+    lv_json_schema = 37.
+  ENDIF.
 
   lv_movement_filter = p_mvt.
   IF lv_movement_filter IS INITIAL.
@@ -363,8 +375,9 @@ START-OF-SELECTION.
 
   IF p_csv = abap_true AND p_json = abap_true.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Select only one export mode: CSV or JSON' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Select only one export mode: CSV or JSON'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -456,9 +469,10 @@ START-OF-SELECTION.
       lv_csv_error_message = 'Strategy filters cannot be combined'.
     ENDIF.
     IF lv_csv_error_message IS NOT INITIAL.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = lv_csv_error_message ).
       RETURN.
     ENDIF.
@@ -491,8 +505,9 @@ START-OF-SELECTION.
 
   IF p_skip < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Row offset must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Row offset must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -501,8 +516,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_max < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Row limit must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Row limit must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -511,8 +527,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_rage < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Reservation age must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Reservation age must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -521,8 +538,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_rageto < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Reservation age must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Reservation age must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -532,8 +550,9 @@ START-OF-SELECTION.
   IF p_rage IS NOT INITIAL AND p_rageto IS NOT INITIAL
       AND p_rage > p_rageto.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Reservation age start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Reservation age start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -543,8 +562,9 @@ START-OF-SELECTION.
   IF ( p_covf IS NOT INITIAL AND ( p_covf < 0 OR p_covf > 100 ) )
       OR ( p_covt IS NOT INITIAL AND ( p_covt < 0 OR p_covt > 100 ) ).
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Coverage bounds must be between 0 and 100' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Coverage bounds must be between 0 and 100'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -553,8 +573,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_covf IS NOT INITIAL AND p_covt IS NOT INITIAL AND p_covf > p_covt.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Coverage start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Coverage start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -564,8 +585,9 @@ START-OF-SELECTION.
   IF ( p_spf IS NOT INITIAL AND ( p_spf < 0 OR p_spf > 100 ) )
       OR ( p_spt IS NOT INITIAL AND ( p_spt < 0 OR p_spt > 100 ) ).
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Shortage percentage bounds must be between 0 and 100' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Shortage percentage bounds must be between 0 and 100'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -574,8 +596,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_spf IS NOT INITIAL AND p_spt IS NOT INITIAL AND p_spf > p_spt.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Shortage percentage start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Shortage percentage start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -584,8 +607,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_shelf < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Minimum shelf-life filter must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Minimum shelf-life filter must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -595,8 +619,9 @@ START-OF-SELECTION.
   IF p_safon = abap_true
       AND ( p_saf < 0 OR p_safto < 0 OR p_saf > p_safto ).
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Safety-stock bounds require a valid nonnegative range' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Safety-stock bounds require a valid nonnegative range'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -606,8 +631,9 @@ START-OF-SELECTION.
   IF p_safon = abap_false
       AND ( p_saf IS NOT INITIAL OR p_safto IS NOT INITIAL ).
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Safety-stock bounds require the filter switch' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Safety-stock bounds require the filter switch'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -616,8 +642,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_dfrom < 0 OR p_dto < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Demand-count bounds must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Demand-count bounds must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -626,8 +653,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_dfrom IS NOT INITIAL AND p_dto IS NOT INITIAL AND p_dfrom > p_dto.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Demand-count start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Demand-count start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -636,8 +664,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_avf < 0 OR p_avt < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Available-stock bounds must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Available-stock bounds must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -646,8 +675,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_avf IS NOT INITIAL AND p_avt IS NOT INITIAL AND p_avf > p_avt.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Available-stock start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Available-stock start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -656,8 +686,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_tfrom < 0 OR p_tto < 0.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Audit-duration bounds must not be negative' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Audit-duration bounds must not be negative'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -666,8 +697,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_tfrom IS NOT INITIAL AND p_tto IS NOT INITIAL AND p_tfrom > p_tto.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Audit-duration start must not be after the end value' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Audit-duration start must not be after the end value'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -676,15 +708,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Overdue as-of date requires overdue-only filtering' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Overdue as-of date requires overdue-only filtering'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = 'Overdue as-of date requires overdue-only filtering' ).
       RETURN.
     ENDIF.
@@ -693,15 +727,17 @@ START-OF-SELECTION.
   ENDIF.
   IF p_reqf IS NOT INITIAL AND p_until IS NOT INITIAL AND p_reqf > p_until.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'The requested horizon start must not be after the end date' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'The requested horizon start must not be after the end date'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = 'The requested horizon start must not be after the end date' ).
       RETURN.
     ENDIF.
@@ -711,14 +747,16 @@ START-OF-SELECTION.
   IF p_deadf IS NOT INITIAL AND p_deadt IS NOT INITIAL
       AND p_deadf > p_deadt.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'The requested deadline start must not be after the end date' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'The requested deadline start must not be after the end date'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = 'The requested deadline start must not be after the end date' ).
       RETURN.
     ENDIF.
@@ -728,14 +766,16 @@ START-OF-SELECTION.
   IF p_dagef IS NOT INITIAL AND p_daget IS NOT INITIAL
       AND p_dagef > p_daget.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'The deadline age start must not be after the end age' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'The deadline age start must not be after the end age'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = 'The deadline age start must not be after the end age' ).
       RETURN.
     ENDIF.
@@ -746,14 +786,16 @@ START-OF-SELECTION.
       AND p_dagef IS INITIAL
       AND p_daget IS INITIAL.
     IF p_json = abap_true.
-      WRITE: / zcl_stock_json=>error(
-        'A deadline age as-of date requires a deadline age range' ).
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'A deadline age as-of date requires a deadline age range'
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
-      WRITE: / 'mode;status;message'.
-      WRITE: / zcl_stock_csv=>error(
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_result'
+        iv_schema  = lv_json_schema
         iv_message = 'A deadline age as-of date requires a deadline age range' ).
       RETURN.
     ENDIF.
@@ -762,8 +804,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_latest = abap_true AND p_runid IS NOT INITIAL.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Latest-run mode cannot be combined with an exact run ID' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Latest-run mode cannot be combined with an exact run ID'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -781,8 +824,9 @@ START-OF-SELECTION.
       AND p_strat <> 'A'
       AND p_strat <> 'W'.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Strategy must be P, F, N, S, L, B, E, A, or W' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Strategy must be P, F, N, S, L, B, E, A, or W'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -791,8 +835,9 @@ START-OF-SELECTION.
   ENDIF.
   IF p_strat IS NOT INITIAL AND p_legacy = abap_true.
     IF p_json = abap_true.
-      lv_json_line = zcl_stock_json=>error(
-        'Strategy filters cannot be combined' ).
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Strategy filters cannot be combined'
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -806,26 +851,31 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_auth_error).
       IF p_json = abap_true.
         IF lo_auth_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Result read authorization is missing' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Result read authorization is missing'
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_auth_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_auth_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_result'
+            iv_schema  = lv_json_schema
             iv_message = 'Result read authorization is missing' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_result'
+            iv_schema  = lv_json_schema
             iv_message = lo_auth_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.
@@ -890,14 +940,17 @@ START-OF-SELECTION.
           lv_error_message = lo_latest_error->message.
         ENDIF.
         IF p_json = abap_true.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
           WRITE: / lv_json_line.
           RETURN.
         ENDIF.
         IF p_csv = abap_true.
-          WRITE: / 'mode;status;message'.
-          WRITE: / zcl_stock_csv=>error(
+          WRITE: / 'mode;status;schema_version;message'.
+          WRITE: / zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_result'
+            iv_schema  = lv_json_schema
             iv_message = lv_error_message ).
           RETURN.
         ENDIF.
@@ -1098,27 +1151,32 @@ START-OF-SELECTION.
     CATCH zcx_stock_allocation INTO DATA(lo_error).
       IF p_json = abap_true.
         IF lo_error->message IS INITIAL.
-          lv_json_line = zcl_stock_json=>error(
-            'Allocation results are unavailable for the requested scope' ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = 'Allocation results are unavailable for the requested scope'
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_error->message.
-          lv_json_line = zcl_stock_json=>error( lv_error_message ).
+          lv_json_line = zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
       ENDIF.
       IF p_csv = abap_true.
         IF lo_error->message IS INITIAL.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_result'
+            iv_schema  = lv_json_schema
             iv_message =
               'Allocation results are unavailable for the requested scope' ).
         ELSE.
-          lv_csv_line = zcl_stock_csv=>error(
+          lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_result'
+            iv_schema  = lv_json_schema
             iv_message = lo_error->message ).
         ENDIF.
-        WRITE: / 'mode;status;message'.
+        WRITE: / 'mode;status;schema_version;message'.
         WRITE: / lv_csv_line.
         RETURN.
       ENDIF.

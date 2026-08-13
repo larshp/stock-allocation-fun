@@ -25,9 +25,13 @@ CLASS zcl_source_read_auth_sap IMPLEMENTATION.
       iv_table   = 'MARA'
       iv_message = 'Material read authorization failed' ).
     verify_table(
-      iv_table   = 'MARD'
-      iv_message = 'Stock read authorization failed' ).
-    IF iv_batch IS NOT INITIAL.
+      iv_table   = 'MARC'
+      iv_message = 'Plant material read authorization failed' ).
+    IF iv_batch IS INITIAL.
+      verify_table(
+        iv_table   = 'MARD'
+        iv_message = 'Stock read authorization failed' ).
+    ELSE.
       verify_table(
         iv_table   = 'MCHB'
         iv_message = 'Batch stock read authorization failed' ).

@@ -62,7 +62,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
                     priority       = 5
                     requested_on   = '20260101'
                     requested      = '1'
-                    reservation_id = 'OLD-RESERVATION' ) TO lt_demands.
+                    reservation_id = '2000000040' ) TO lt_demands.
     APPEND VALUE #( order_id     = 'A'
                     priority     = 5
                     requested_on = '20260101'
@@ -1499,7 +1499,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  requested                 = '3'
                  allocated                 = '3'
                  allocation_status         = 'F'
-                 reservation_id            = 'RES-BOX'
+                 reservation_id            = '2000000041'
                  reservation_date          = '20260101'
                  reservation_movement_type = '201'
                  reservation_unit          = 'BOX' ) ) ).
@@ -1556,7 +1556,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  allocated         = '2'
                  shortage          = '1'
                  allocation_status = 'F'
-                 reservation_id    = 'RES-OLD' ) ) ).
+                 reservation_id    = '2000000042' ) ) ).
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_reservation.
     CREATE OBJECT lo_audit.
@@ -1730,7 +1730,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  allocated                 = '1'
                  shortage                  = '0'
                  allocation_status         = 'F'
-                 reservation_id            = 'RES-OLD'
+                 reservation_id            = '2000000042'
                  reservation_date          = '20260101'
                  reservation_movement_type = 'ABC'
                  reservation_unit          = 'EA' ) ) ).
@@ -2066,7 +2066,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  allocated                 = '2'
                  shortage                  = '0'
                  allocation_status         = 'F'
-                 reservation_id            = 'RES-OLD'
+                 reservation_id            = '2000000042'
                  reservation_date          = '20260101'
                  reservation_movement_type = '201'
                  reservation_unit          = 'EA' ) ) ).
@@ -2323,7 +2323,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  allocated                 = '2'
                  shortage                  = '0'
                  allocation_status         = 'F'
-                 reservation_id            = 'RES-OLD'
+                 reservation_id            = '2000000042'
                  reservation_date          = '20260101'
                  reservation_movement_type = '201'
                  reservation_unit          = 'EA' ) ) ).
@@ -2528,7 +2528,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                  allocated                 = '2'
                  shortage                  = '0'
                  allocation_status         = 'F'
-                 reservation_id            = 'RES-OLD'
+                 reservation_id            = '2000000042'
                  reservation_date          = '20260101'
                  reservation_movement_type = '202'
                  reservation_unit          = 'EA' ) ) ).

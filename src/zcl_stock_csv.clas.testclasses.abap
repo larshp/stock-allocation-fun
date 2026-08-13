@@ -10,6 +10,8 @@ CLASS ltcl_stock_csv DEFINITION FINAL FOR TESTING
     METHODS quotes_typed_text FOR TESTING.
     METHODS formats_error_row FOR TESTING.
     METHODS formats_correlated_error FOR TESTING.
+    METHODS formats_schema_error FOR TESTING.
+    METHODS formats_schema_runid_error FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_csv IMPLEMENTATION.
@@ -73,5 +75,24 @@ CLASS ltcl_stock_csv IMPLEMENTATION.
         iv_message = 'Allocation failed'
         iv_run_id  = 'RUN-123' )
       exp = '"zstock_allocate";"error";"Allocation failed";"RUN-123"' ).
+  ENDMETHOD.
+
+  METHOD formats_schema_error.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = 34
+        iv_message = 'Allocation failed: "locked"; retry' )
+      exp = '"zstock_allocate";"error";34;"Allocation failed: ""locked""; retry"' ).
+  ENDMETHOD.
+
+  METHOD formats_schema_runid_error.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>error_with_schema_run_id(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = 34
+        iv_message = 'Allocation failed'
+        iv_run_id  = 'RUN-123' )
+      exp = '"zstock_allocate";"error";34;"Allocation failed";"RUN-123"' ).
   ENDMETHOD.
 ENDCLASS.

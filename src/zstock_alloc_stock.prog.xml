@@ -41,6 +41,24 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_MEINS</KEY>
+     <ENTRY>Output unit</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MIN</KEY>
+     <ENTRY>Minimum output quantity</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MAX</KEY>
+     <ENTRY>Maximum output quantity</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_JSON</KEY>
      <ENTRY>JSON output</ENTRY>
      <LENGTH>18</LENGTH>

@@ -40,6 +40,7 @@
     <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNID</KEY><ENTRY>Audit run ID</ENTRY><LENGTH>16</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNQ</KEY><ENTRY>Audit run ID contains</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RID</KEY><ENTRY>Run ID contains (alias)</ENTRY><LENGTH>25</LENGTH></item>
     <item><ID>S</ID><KEY>P_MSG</KEY><ENTRY>Diagnostic message contains</ENTRY><LENGTH>30</LENGTH></item>
     <item><ID>S</ID><KEY>P_MONLY</KEY><ENTRY>Only runs with diagnostics</ENTRY><LENGTH>29</LENGTH></item>
     <item><ID>S</ID><KEY>P_SHF</KEY><ENTRY>Minimum shortage</ENTRY><LENGTH>20</LENGTH></item>

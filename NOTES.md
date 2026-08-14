@@ -1,5 +1,10 @@
 # Progress notes
 
+- Extended stock output thresholds with optional `p_max`; schema advances to `4`, inverted/negative ranges are rejected, and converted stock reports below-minimum, above-maximum, within-range, or not-evaluated state.
+- Added an optional output-unit-aware stock minimum threshold via `p_min`; stock schema advances to `3` and reports active/evaluated/below-minimum state after conversion.
+- Added optional stock-report target-unit conversion via `p_meins`, preserving base/output quantity provenance with schemas advancing to `2` and reusing the authorized unit-conversion adapter.
+- Added standard `p_rid` as a compatible alias for watch run-ID substring filtering; legacy `p_runq` remains supported, ambiguous dual input is rejected, and watch contracts advance to CSV `60` and JSON/NDJSON `63`.
+- Added exact and substring run-ID provenance filters `p_runid`/`p_rid` to `ZSTOCK_ALLOC_HEALTH`, propagated them through both summary reads and all output modes, advanced the health schema to `116`, and added XML/repository-contract coverage.
 - Reconciled the current watch documentation with its executable finish-date contract: README now lists `p_ffrom`/`p_fto` and schemas `59`/`62` alongside the existing lifecycle bounds; historical release-note references remain unchanged.
 - Added inclusive audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_WATCH`, propagating them through canonical audit reads and human/CSV/JSON/NDJSON provenance; watch schemas advance to CSV `59` and JSON/NDJSON `62`, with contract coverage.
 - Added inclusive originating audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; the bounds reach latest, exact-run, context, and sink reads, appear in human/CSV/JSON/NDJSON provenance, advance result schemas to detail `40` and summary `46`, and are covered by sink and repository contracts.

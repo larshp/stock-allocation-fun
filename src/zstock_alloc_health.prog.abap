@@ -141,7 +141,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ENDIF.
     RETURN.
@@ -156,7 +156,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -173,7 +173,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -258,7 +258,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -275,7 +275,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -292,7 +292,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -309,7 +309,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -326,7 +326,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -344,7 +344,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -361,7 +361,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -378,7 +378,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -395,7 +395,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -412,7 +412,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -429,7 +429,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -446,7 +446,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -463,7 +463,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -480,7 +480,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -497,7 +497,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -514,7 +514,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -531,7 +531,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -548,7 +548,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -565,7 +565,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -582,7 +582,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -599,7 +599,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -616,7 +616,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -633,7 +633,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -650,7 +650,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -667,7 +667,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -684,7 +684,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -701,7 +701,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -718,7 +718,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -735,7 +735,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -803,7 +803,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -820,7 +820,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -837,7 +837,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -854,7 +854,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -871,7 +871,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -888,7 +888,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -905,7 +905,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -922,7 +922,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -939,7 +939,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -956,7 +956,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -973,7 +973,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -990,7 +990,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1007,7 +1007,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1024,7 +1024,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1041,7 +1041,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1058,7 +1058,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1070,12 +1070,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1087,12 +1087,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1104,12 +1104,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1121,12 +1121,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1138,12 +1138,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1155,12 +1155,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1172,12 +1172,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1189,12 +1189,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1206,12 +1206,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1223,12 +1223,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1247,12 +1247,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1265,12 +1265,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1283,12 +1283,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 115 ).
+        iv_schema  = 116 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1319,7 +1319,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 115
+        iv_schema  = 116
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1538,12 +1538,12 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error
-          iv_schema  = 115 ).
+          iv_schema  = 116 ).
       ELSEIF p_csv = abap_true.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_health'
-          iv_schema  = 115
+          iv_schema  = 116
           iv_message = lv_error ).
       ELSE.
         WRITE: / 'Allocation health failed:', lv_error.
@@ -1554,7 +1554,7 @@ START-OF-SELECTION.
   IF p_json = abap_true.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 115 ) TO lt_json_fields.
+      iv_value = 116 ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'status'
       iv_value = ls_health-status ) TO lt_json_fields.
@@ -3627,7 +3627,7 @@ START-OF-SELECTION.
        && 'stale_threshold_active;stale_threshold;stale_above_threshold;'
        && 'threshold_breach_count;threshold_breaches'.
     APPEND zcl_stock_csv=>quote( 'zstock_alloc_health' ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 115 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 116 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-message ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-reason_code ) TO lt_csv_fields.

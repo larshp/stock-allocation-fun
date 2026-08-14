@@ -1671,7 +1671,7 @@ assert.equal(
   "allocation report must version all JSON error envelopes, including run-ID variants",
 );
 for (const [reportName, reportSource, expectedCount] of [
-  ["stock", stockReportSource, 3],
+  ["stock", stockReportSource, 4],
   ["unit conversion", conversionReportSource, 3],
   ["reservation creation", reservationCreateReportSource, 4],
   ["reservation cancellation", reservationCancelReportSource, 4],
@@ -1686,7 +1686,7 @@ for (const [reportName, reportSource, expectedCount] of [
 }
 assert.match(
   readmeSource,
-  /JSON and typed JSON use schema version `1`/,
+  /JSON and typed JSON use schema version `4`/,
   "README must document stock JSON schema parity",
 );
 assert.match(
@@ -1732,8 +1732,48 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /mode;generated_date;generated_time;schema_version;material;plant;'[\s\S]*storage_location;batch;quantity;unit;material_found;batch_managed;'/,
+  /mode;generated_date;generated_time;schema_version;material;plant;[\s\S]*storage_location;batch;quantity;unit;[\s\S]*base_quantity;base_unit;[\s\S]*target_unit;converted;[\s\S]*minimum_quantity;minimum_threshold_active;[\s\S]*minimum_threshold_evaluated;below_minimum;maximum_quantity;[\s\S]*maximum_threshold_active;maximum_threshold_evaluated;above_maximum;[\s\S]*availability_status;[\s\S]*material_found;batch_managed;/,
   "stock report CSV output must expose the availability contract",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit\.[\s\S]*zcl_unit_conversion_auth_sap[\s\S]*zcl_unit_conversion_sap[\s\S]*io_authority\s*=\s*lo_authority[\s\S]*lv_output_quantity\s*=\s*lo_converter->convert\(/,
+  "stock report must use the authorized unit-conversion path for an output unit",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_min TYPE zif_stock_allocation=>ty_quantity DEFAULT 0\.[\s\S]*lv_minimum_evaluated[\s\S]*lv_output_quantity < p_min[\s\S]*below_minimum/,
+  "stock report must evaluate the minimum threshold after output conversion",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_max TYPE zif_stock_allocation=>ty_quantity DEFAULT 0\.[\s\S]*lv_maximum_evaluated[\s\S]*lv_output_quantity > p_max[\s\S]*above_maximum/,
+  "stock report must evaluate the maximum threshold after output conversion",
+);
+assert.match(
+  stockReportSource,
+  /p_min > 0 AND p_max > 0 AND p_min > p_max[\s\S]*Minimum output quantity cannot exceed maximum output quantity/,
+  "stock report must reject an inverted active output range",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'base_quantity'[\s\S]*iv_name\s*=\s*'base_unit'[\s\S]*iv_name\s*=\s*'target_unit'[\s\S]*iv_name\s*=\s*'converted'/,
+  "stock report JSON must expose quantity conversion provenance",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'schema_version'[\s\S]*iv_value\s*=\s*4/,
+  "stock report JSON must publish schema version 4",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'minimum_quantity'[\s\S]*iv_name\s*=\s*'minimum_threshold_active'[\s\S]*iv_name\s*=\s*'minimum_threshold_evaluated'[\s\S]*iv_name\s*=\s*'below_minimum'[\s\S]*iv_name\s*=\s*'availability_status'/,
+  "stock report JSON must expose threshold decision provenance",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'maximum_quantity'[\s\S]*iv_name\s*=\s*'maximum_threshold_active'[\s\S]*iv_name\s*=\s*'maximum_threshold_evaluated'[\s\S]*iv_name\s*=\s*'above_maximum'/,
+  "stock report JSON must expose maximum-threshold provenance",
 );
 assert.match(
   stockReportSource,
@@ -2165,6 +2205,26 @@ assert.match(
   healthReportSource,
   /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\./,
   "health must expose a preview provenance filter",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_runid TYPE zif_allocation_audit=>ty_run_id\./,
+  "health must expose an exact run-ID filter",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_rid TYPE zif_allocation_audit=>ty_run_id\./,
+  "health must expose a run-ID fragment filter",
+);
+assert.equal(
+  (healthReportSource.match(/iv_run_id\s+= p_runid/g) ?? []).length,
+  2,
+  "health must propagate the exact run-ID filter to both summary reads",
+);
+assert.equal(
+  (healthReportSource.match(/iv_run_id_contains\s+= p_rid/g) ?? []).length,
+  2,
+  "health must propagate the run-ID fragment filter to both summary reads",
 );
 assert.match(
   healthReportSource,
@@ -2608,12 +2668,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_value = 115 \) TO lt_json_fields/,
+  /iv_value = 116 \) TO lt_json_fields/,
   "health JSON schema must include the preview-filter contract version",
 );
 assert.match(
   readmeSource,
-  /Health JSON errors use schema `115`, matching the successful health envelope\./,
+  /Health JSON errors use schema `116`, matching the successful health envelope\./,
   "README must document the current health JSON error schema",
 );
 assert.match(
@@ -4148,6 +4208,26 @@ assert.match(
 );
 assert.match(
   watchSource,
+  /PARAMETERS p_rid TYPE zif_allocation_audit=>ty_run_id\./,
+  "watch must expose the standard run-ID fragment alias",
+);
+assert.match(
+  watchSource,
+  /IF p_runq IS NOT INITIAL AND p_rid IS NOT INITIAL\./,
+  "watch must reject ambiguous run-ID fragment aliases",
+);
+assert.match(
+  watchSource,
+  /p_runq and p_rid cannot both be supplied/,
+  "watch must explain the ambiguous run-ID fragment aliases",
+);
+assert.match(
+  watchSource,
+  /iv_run_id_contains\s+= lv_run_contains_value/,
+  "watch must propagate the effective run-ID fragment filter",
+);
+assert.match(
+  watchSource,
   /PARAMETERS p_fto TYPE d\./,
   "watch must expose an audit finish-date upper bound",
 );
@@ -4238,12 +4318,12 @@ assert.match(
 );
 assert.match(
   watchSource,
-  /number\( 59 \)/,
+  /number\( 60 \)/,
   "watch CSV schema must include the preview-filter contract version",
 );
 assert.match(
   watchSource,
-  /iv_value = 62 \)/,
+  /iv_value = 63 \)/,
   "watch JSON schema must include the preview-filter contract version",
 );
 assert.equal(

@@ -29,6 +29,7 @@ PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter.
 PARAMETERS p_legacy AS CHECKBOX.
 PARAMETERS p_runid TYPE zif_allocation_audit=>ty_run_id.
 PARAMETERS p_runq TYPE zif_allocation_audit=>ty_run_id.
+PARAMETERS p_rid TYPE zif_allocation_audit=>ty_run_id.
 PARAMETERS p_msg TYPE zif_allocation_audit=>ty_message.
 PARAMETERS p_monly AS CHECKBOX.
 PARAMETERS p_shf TYPE zif_stock_allocation=>ty_quantity.
@@ -83,6 +84,7 @@ START-OF-SELECTION.
   DATA lv_preview_filter TYPE string.
   DATA lv_legacy_filter_text TYPE string.
   DATA lv_run_filter TYPE string.
+  DATA lv_run_contains_value TYPE zif_allocation_audit=>ty_run_id.
   DATA lv_run_contains_filter TYPE string.
   DATA lv_message_filter TYPE string.
   DATA lv_message_only_text TYPE string.
@@ -205,6 +207,14 @@ START-OF-SELECTION.
   TRANSLATE p_strat TO UPPER CASE.
   TRANSLATE p_prev TO UPPER CASE.
   TRANSLATE p_meins TO UPPER CASE.
+  IF p_runq IS NOT INITIAL AND p_rid IS NOT INITIAL.
+    lv_error_message =
+      'Run-ID fragment filters p_runq and p_rid cannot both be supplied'.
+  ELSEIF p_rid IS NOT INITIAL.
+    lv_run_contains_value = p_rid.
+  ELSE.
+    lv_run_contains_value = p_runq.
+  ENDIF.
   lv_strategy_filter = p_strat.
   IF lv_strategy_filter IS INITIAL.
     lv_strategy_filter = 'n/a'.
@@ -222,7 +232,7 @@ START-OF-SELECTION.
   IF lv_run_filter IS INITIAL.
     lv_run_filter = 'n/a'.
   ENDIF.
-  lv_run_contains_filter = p_runq.
+  lv_run_contains_filter = lv_run_contains_value.
   IF lv_run_contains_filter IS INITIAL.
     lv_run_contains_filter = 'n/a'.
   ENDIF.
@@ -422,7 +432,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'Select only one export mode: CSV or JSON'
-        iv_schema  = 62 ).
+        iv_schema  = 63 ).
     ELSE.
       WRITE: / 'Select only one export mode: CSV or JSON.'.
     ENDIF.
@@ -433,7 +443,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 59
+        iv_schema  = 60
         iv_message = 'Typed output requires JSON mode' ).
     ELSE.
       WRITE: / 'Typed output requires JSON mode.'.
@@ -445,7 +455,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 59
+        iv_schema  = 60
         iv_message = 'NDJSON output requires JSON mode' ).
     ELSE.
       WRITE: / 'NDJSON output requires JSON mode.'.
@@ -457,12 +467,12 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 59
+        iv_schema  = 60
         iv_message = 'NDJSON output cannot be combined with summary mode' ).
     ELSEIF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'NDJSON output cannot be combined with summary mode'
-        iv_schema  = 62 ).
+        iv_schema  = 63 ).
     ELSE.
       WRITE: / 'NDJSON output cannot be combined with summary mode.'.
     ENDIF.
@@ -578,12 +588,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error_message
-        iv_schema  = 62 ).
+        iv_schema  = 63 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 59
+        iv_schema  = 60
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -637,7 +647,7 @@ START-OF-SELECTION.
   IF p_runid IS NOT INITIAL.
     APPEND 'run_id' TO lt_filter_names.
   ENDIF.
-  IF p_runq IS NOT INITIAL.
+  IF lv_run_contains_value IS NOT INITIAL.
     APPEND 'run_id_contains' TO lt_filter_names.
   ENDIF.
   IF p_msg IS NOT INITIAL.
@@ -929,7 +939,7 @@ START-OF-SELECTION.
           iv_preview_filter    = p_prev
           iv_legacy_strategy   = p_legacy
           iv_run_id            = p_runid
-          iv_run_id_contains   = p_runq
+          iv_run_id_contains   = lv_run_contains_value
           iv_message_contains  = p_msg
           iv_message_only      = p_monly
           iv_shortage_from     = p_shf
@@ -955,12 +965,12 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error_message
-          iv_schema  = 62 ).
+          iv_schema  = 63 ).
       ELSEIF p_csv = abap_true.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_watch'
-          iv_schema  = 59
+          iv_schema  = 60
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -1282,7 +1292,7 @@ START-OF-SELECTION.
         && 'newest_deadline_age_days;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 59 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1417,7 +1427,7 @@ START-OF-SELECTION.
       && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-       APPEND zcl_stock_csv=>number( 59 ) TO lt_csv_fields.
+       APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1673,7 +1683,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 62 ).
+          iv_value = 63 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -2295,7 +2305,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 62 ).
+      iv_value = 63 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'

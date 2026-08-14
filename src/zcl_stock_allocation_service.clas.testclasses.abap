@@ -10,6 +10,36 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS previews_with_safety_stock FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_shortage_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_shortage_pct_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_coverage_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_full_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_min_full_count FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_max_full_count FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_demand_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_quantity_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_allocation_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_min_alloc_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_min_alloc_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_allocation_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unallocated_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_partial_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_shortage_line_limit FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS previews_without_writes FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_date_window FOR TESTING
@@ -1428,6 +1458,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_raised TYPE abap_bool.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
     DATA lv_message TYPE zif_allocation_audit=>ty_message.
+    DATA lv_preview TYPE abap_bool.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE lcl_missing_order_unit.
@@ -1454,18 +1485,21 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
           exp = 'Open demand unit is missing' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
-    SELECT SINGLE status, message
+    SELECT SINGLE status, message, preview
       FROM zstockalloc_run
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
         AND lgort = '0001'
-        AND unit = 'EA' INTO (@lv_status, @lv_message).
+        AND unit = 'EA' INTO (@lv_status, @lv_message, @lv_preview).
     cl_abap_unit_assert=>assert_equals(
       act = lv_status
       exp = 'E' ).
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Open demand unit is missing' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_preview
+      exp = abap_true ).
     DELETE FROM zstockalloc_run
       WHERE matnr = 'MATERIAL-PRIO'
         AND werks = '1000'
@@ -2157,6 +2191,1104 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '1' ).
   ENDMETHOD.
 
+  METHOD rejects_shortage_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material              = 'MATERIAL-BATCH'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_movement_type         = '201'
+          iv_unit                  = 'EA'
+          iv_batch                 = 'BATCH-ZERO'
+          iv_preview               = abap_true
+          iv_shortage_limit_active = abap_true
+          iv_max_shortage          = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum shortage limit exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum shortage limit exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum shortage limit exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_shortage_pct_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material          = 'MATERIAL-BATCH'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_movement_type     = '201'
+          iv_unit              = 'EA'
+          iv_batch             = 'BATCH-ZERO'
+          iv_preview           = abap_true
+          iv_spct_limit_active = abap_true
+          iv_max_shortage_pct  = 50 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum shortage percentage exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum shortage percentage exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum shortage percentage exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_coverage_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material              = 'MATERIAL-BATCH'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_movement_type         = '201'
+          iv_unit                  = 'EA'
+          iv_batch                 = 'BATCH-ZERO'
+          iv_preview               = abap_true
+          iv_coverage_limit_active = abap_true
+          iv_min_coverage          = 50 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Minimum coverage limit not met' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Minimum coverage limit not met'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Minimum coverage limit not met' ).
+  ENDMETHOD.
+
+  METHOD rejects_full_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material               = 'MATERIAL-BATCH'
+          iv_plant                  = '1000'
+          iv_storage_location       = '0001'
+          iv_movement_type          = '201'
+          iv_unit                   = 'EA'
+          iv_batch                  = 'BATCH-ZERO'
+          iv_preview                = abap_true
+          iv_full_line_limit_active = abap_true
+          iv_min_full_line_pct      = 100 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Minimum full-line percentage not met' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Minimum full-line percentage not met'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Minimum full-line percentage not met' ).
+  ENDMETHOD.
+
+  METHOD rejects_min_full_count.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material                = 'MATERIAL-BATCH'
+          iv_plant                   = '1000'
+          iv_storage_location        = '0001'
+          iv_movement_type           = '201'
+          iv_unit                    = 'EA'
+          iv_batch                   = 'BATCH-ZERO'
+          iv_preview                 = abap_true
+          iv_full_count_limit_active = abap_true
+          iv_min_full_lines          = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Minimum full lines not met' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Minimum full lines not met'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Minimum full lines not met' ).
+  ENDMETHOD.
+
+  METHOD rejects_max_full_count.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-001' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material                    = 'MATERIAL-BATCH'
+          iv_plant                       = '1000'
+          iv_storage_location            = '0001'
+          iv_movement_type               = '201'
+          iv_unit                        = 'EA'
+          iv_batch                       = 'BATCH-001'
+          iv_preview                     = abap_true
+          iv_max_full_count_limit_active = abap_true
+          iv_max_full_lines              = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum full lines limit exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-001' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-001'
+        AND message = 'Maximum full lines limit exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum full lines limit exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_demand_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material            = 'MATERIAL-BATCH'
+          iv_plant               = '1000'
+          iv_storage_location    = '0001'
+          iv_movement_type       = '201'
+          iv_unit                = 'EA'
+          iv_batch               = 'BATCH-ZERO'
+          iv_preview             = abap_true
+          iv_demand_limit_active = abap_true
+          iv_max_demand_count    = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum demand count exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum demand count exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum demand count exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_quantity_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material               = 'MATERIAL-BATCH'
+          iv_plant                  = '1000'
+          iv_storage_location       = '0001'
+          iv_movement_type          = '201'
+          iv_unit                   = 'EA'
+          iv_batch                  = 'BATCH-ZERO'
+          iv_preview                = abap_true
+          iv_quantity_limit_active  = abap_true
+          iv_max_requested_quantity = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum requested quantity exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum requested quantity exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum requested quantity exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_allocation_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material                = 'MATERIAL-PRIO'
+          iv_plant                   = '1000'
+          iv_storage_location        = '0001'
+          iv_movement_type           = '201'
+          iv_unit                    = 'EA'
+          iv_preview                 = abap_true
+          iv_allocation_limit_active = abap_true
+          iv_max_allocated_quantity  = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum allocated quantity exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND message = 'Maximum allocated quantity exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum allocated quantity exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_min_alloc_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material               = 'MATERIAL-BATCH'
+          iv_plant                  = '1000'
+          iv_storage_location       = '0001'
+          iv_movement_type          = '201'
+          iv_unit                   = 'EA'
+          iv_batch                  = 'BATCH-ZERO'
+          iv_preview                = abap_true
+          iv_min_alloc_limit_active = abap_true
+          iv_min_allocated_quantity = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Minimum allocated quantity not met' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Minimum allocated quantity not met'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Minimum allocated quantity not met' ).
+  ENDMETHOD.
+
+  METHOD rejects_min_alloc_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material              = 'MATERIAL-BATCH'
+          iv_plant                 = '1000'
+          iv_storage_location      = '0001'
+          iv_movement_type         = '201'
+          iv_unit                  = 'EA'
+          iv_batch                 = 'BATCH-ZERO'
+          iv_preview               = abap_true
+          iv_min_line_limit_active = abap_true
+          iv_min_alloc_lines       = 1 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Minimum allocated lines not met' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Minimum allocated lines not met'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Minimum allocated lines not met' ).
+  ENDMETHOD.
+
+  METHOD rejects_allocation_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material          = 'MATERIAL-PRIO'
+          iv_plant             = '1000'
+          iv_storage_location  = '0001'
+          iv_movement_type     = '201'
+          iv_unit              = 'EA'
+          iv_preview           = abap_true
+          iv_line_limit_active = abap_true
+          iv_max_alloc_lines   = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum allocated lines exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND message = 'Maximum allocated lines exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum allocated lines exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_unallocated_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material             = 'MATERIAL-BATCH'
+          iv_plant                = '1000'
+          iv_storage_location     = '0001'
+          iv_movement_type        = '201'
+          iv_unit                 = 'EA'
+          iv_batch                = 'BATCH-ZERO'
+          iv_preview              = abap_true
+          iv_unalloc_limit_active = abap_true
+          iv_max_unalloc_lines    = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum unallocated lines exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum unallocated lines exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum unallocated lines exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_partial_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material             = 'MATERIAL-PRIO'
+          iv_plant                = '1000'
+          iv_storage_location     = '0001'
+          iv_movement_type        = '201'
+          iv_unit                 = 'EA'
+          iv_preview              = abap_true
+          iv_partial_limit_active = abap_true
+          iv_max_partial_lines    = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum partial lines exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND message = 'Maximum partial lines exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum partial lines exceeded' ).
+  ENDMETHOD.
+
+  METHOD rejects_shortage_line_limit.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_before_count TYPE i.
+    DATA lv_after_count TYPE i.
+    DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_before_count.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material            = 'MATERIAL-BATCH'
+          iv_plant               = '1000'
+          iv_storage_location    = '0001'
+          iv_movement_type       = '201'
+          iv_unit                = 'EA'
+          iv_batch               = 'BATCH-ZERO'
+          iv_preview             = abap_true
+          iv_shline_limit_active = abap_true
+          iv_max_shortage_lines  = 0 ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Maximum shortage lines exceeded' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT COUNT( * )
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO' INTO @lv_after_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_after_count
+      exp = lv_before_count ).
+    SELECT SINGLE status, message
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND batch = 'BATCH-ZERO'
+        AND message = 'Maximum shortage lines exceeded'
+      INTO (@lv_status, @lv_message).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Maximum shortage lines exceeded' ).
+  ENDMETHOD.
+
   METHOD previews_without_writes.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -2164,6 +3296,8 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_preview TYPE abap_bool.
     DATA lv_before_count TYPE i.
     DATA lv_after_count TYPE i.
 
@@ -2187,12 +3321,15 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
         AND allocation_unit = 'EA' INTO @lv_before_count.
 
     lv_remaining = lo_cut->allocate(
+      EXPORTING
       iv_material         = 'MATERIAL-PRIO'
       iv_plant            = '1000'
       iv_storage_location = '0001'
       iv_movement_type    = '201'
       iv_unit             = 'EA'
-      iv_preview          = abap_true ).
+      iv_preview          = abap_true
+      IMPORTING
+        ev_run_id         = lv_run_id ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
@@ -2207,6 +3344,13 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_after_count
       exp = lv_before_count ).
+    SELECT SINGLE preview
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id
+      INTO @lv_preview.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_preview
+      exp = abap_true ).
   ENDMETHOD.
 
   METHOD rejects_missing_material.

@@ -1,5 +1,17 @@
 # Anomalies and known issues
 
+- Resolved: stale-run monitoring could scope originating audits by lifecycle start date but not completion date, so alerts could mix runs from different operational windows. `ZSTOCK_ALLOC_WATCH` `p_ffrom`/`p_fto` now constrain canonical audit reads and publish finish-date provenance across all output modes.
+- Resolved: result consumers could scope originating audits by lifecycle start date but not completion date, so reports could mix runs finished in different operational windows. `ZSTOCK_ALLOC_RESULT` `p_ffrom`/`p_fto` now constrain originating audit and snapshot reads and publish finish-date provenance across all output modes.
+- Resolved: comparison could scope old and new audits by policy, horizon, and snapshot dates but not by persisted lifecycle start date, allowing cross-era runs into the same comparison. Common and side-specific audit start-date windows now constrain both sides and publish their effective provenance in every comparison output.
+- Resolved: result consumers could constrain originating audits by requested horizon but not by when the audit actually started, making lifecycle-window reconciliation incomplete. `ZSTOCK_ALLOC_RESULT-p_sfrom`/`p_sto` now apply an inclusive persisted audit start-date range independently of snapshot-row dates and publish its provenance across every export mode.
+- Resolved: stale-run monitoring could not narrow alerts to a persisted audit lifecycle window, so historical and current runs shared the same watch scope. `ZSTOCK_ALLOC_WATCH-p_from`/`p_to` now apply an inclusive start-date range and publish its provenance in every output mode.
+- Resolved: purge could bound audit start dates only from below, making a precise historical start-date window impossible. `p_to` now adds an inclusive upper bound through the audit API and all purge output contracts while retaining the exclusive retention cutoff.
+- Resolved: capped purge output reported only selected and protected counts, leaving operators unable to see how many eligible finalized runs remained for a later batch. Preview and execution now expose `capped_audit_runs` with the exact post-cap finalized count.
+- Resolved: the README still described health JSON errors with historical schema `113` even though the report emitted current schema `115`. The documentation and repository contract now enforce the same version for success and error envelopes.
+- Resolved: reaching the purge maximum caused later protected candidates to be skipped entirely, hiding reservation, running, or unknown rows from preview counts. The cap now gates only finalized unprotected selection while all matching protection states remain observable.
+- Resolved: the bounded purge cap could rely on database return order, so the same positive maximum could select different runs across executions. Preview and execution now sort candidates by oldest start timestamp with run ID as a stable tie-breaker before applying the cap.
+- Resolved: retention calls could select every matching finalized audit run in one transaction, making an overly broad cutoff expensive and difficult to control. Purge now accepts a nonnegative maximum-run cap (`p_max`/`iv_max_runs`), applies it consistently to preview and execution, and preserves the unlimited behavior only when the cap is zero.
+- Resolved: preview provenance was persisted for successful allocation runs but dropped when the service recorded validation or post-calculation rejections, causing failed simulations to appear as operational errors. Rejection audits now validate and persist the request preview marker, and the service carries it through every rejection path.
 - Resolved: the integration checklist incorrectly implied that direct reservation cancellation needed custom-table delete authorization even though its adapter only calls `BAPI_RESERVATION_DELETE` under `M_MRES_*` authorization. The checklist now distinguishes reservation authorization from custom-table retention/replacement deletes.
 - Resolved: the reservation API test double could accept a payload with no `CREATED_BY` header identity, allowing a production communication-structure regression to look successful. The stub now rejects that incomplete header before document fabrication.
 - Resolved: the implementation had SAP-facing objects and authorization seams but no concise deployment checklist distinguishing abapGit-importable custom objects from local stubs or naming the DDIC, BAPI, and authorization prerequisites. README now provides an executable integration checklist, with repository-contract anchors to keep it aligned.
@@ -698,3 +710,122 @@
 - Resolved: nonnumeric reservation IDs, as well as numeric IDs with fewer or more than ten logical characters, could enter persisted snapshots or injected reconciliation data when they were not the all-zero sentinel. Snapshot validation, service-side reuse, and reservation result filters now enforce the shared numeric ten-character contract for every nonblank reservation ID.
 - Resolved: result reads accepted short or all-zero sales-document filters, and malformed numeric reservation filters silently returned no rows. The allocation sink now validates those filter identities before authorization or database reads.
 Resolved: The SAP integration checklist named reservation and goods-movement authorization objects without their enforced activity values; it now records create/cancel (`01`/`06`) and goods issue (`01`) requirements and the repository contract protects the wording.
+Resolved: Allocation policy could cap absolute shortage but could not reject a run whose relative fulfillment fell below an operator threshold; `ZSTOCK_ALLOCATE` now supports a validated minimum-coverage guard that records the rejection before reservation or snapshot writes.
+Resolved: Aggregate coverage could hide a high count of partial or unallocated demand lines; `ZSTOCK_ALLOCATE` now supports a validated minimum full-line percentage guard with the same fail-before-side-effects boundary.
+Resolved: Broad material scopes could admit an unexpectedly large number of open demand lines into one allocation run; `ZSTOCK_ALLOCATE` now supports a validated maximum-demand guard before allocator or audit-run side effects.
+
+Resolved: A scope could contain a modest number of demand lines whose aggregate requested quantity was still too large for an operational allocation window; `ZSTOCK_ALLOCATE` now supports a normalized-unit maximum-requested-quantity guard before allocator or audit-run side effects.
+
+Resolved: A valid allocation calculation could still reserve more stock than an operational batch limit allowed; `ZSTOCK_ALLOCATE` now supports a maximum-allocated-quantity guard before reservation or snapshot side effects.
+
+Resolved: A quantity-safe run could still create too many individual allocated demand lines and corresponding reservation operations; `ZSTOCK_ALLOCATE` now supports a maximum-allocated-line guard before audit start and reservation side effects.
+
+Resolved: An absolute shortage cap could still allow an unacceptable shortage ratio for a small demand scope; `ZSTOCK_ALLOCATE` now supports a maximum-shortage-percentage guard with a 0–100 range before audit start and reservation side effects.
+
+Resolved: A run could remain within shortage and allocated-line limits while leaving too many demand lines untouched; `ZSTOCK_ALLOCATE` now supports a maximum-unallocated-line guard before audit start and reservation side effects.
+
+Resolved: A run could remain within aggregate shortage and unallocated-line limits while fragmenting demand across too many partial allocations; `ZSTOCK_ALLOCATE` now supports a maximum-partial-line guard before audit start and reservation side effects.
+
+Resolved: A run could pass every maximum guard while allocating too little stock to be operationally useful; `ZSTOCK_ALLOCATE` now supports a minimum-allocated-quantity guard before audit start and reservation side effects.
+
+Resolved: A run could satisfy aggregate shortage limits while spreading shortages across too many demand lines; `ZSTOCK_ALLOCATE` now supports a maximum-shortage-line guard before audit start and reservation side effects.
+
+Resolved: A run could meet aggregate quantity thresholds while allocating too few demand lines for an operational service-level commitment; `ZSTOCK_ALLOCATE` now supports a minimum-allocated-line guard before audit start and reservation side effects.
+
+Resolved: A run could meet a full-line percentage target while producing too few completely fulfilled demand lines in a small scope; `ZSTOCK_ALLOCATE` now supports a minimum-full-line-count guard before audit start and reservation side effects.
+
+Resolved: Health output exposed error-rate telemetry but could not flag a configured maximum error-rate threshold; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_errmax` with deterministic `error` breach provenance.
+
+Resolved: Health output exposed partial-run-rate telemetry but could not flag a configured maximum partial-run-rate threshold; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_prtmax` with deterministic `partial` breach provenance.
+
+Resolved: Health output exposed completion-rate telemetry but could not flag a configured minimum completion-rate threshold; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_cmin` with deterministic `completion` breach provenance.
+
+Resolved: Health output could flag only the latest slow run, not sustained average latency; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_avgmax` with deterministic `average_duration` breach provenance.
+
+Resolved: Health output could still hide a slow completed-run tail behind a normal average; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_maxdur` with deterministic `maximum_duration` breach provenance.
+- Resolved: Allocation policy could cap minimum full lines but not maximum full lines; `ZSTOCK_ALLOCATE` now supports `p_mflg`/`p_mflmax` and rejects over-limit scopes before audit start, reservations, or snapshot writes.
+- Resolved: Health exposed aggregate quantities and run rates but not demand-line outcomes; `ZSTOCK_ALLOC_HEALTH` now exports demand, full, partial, and unallocated counts.
+- Resolved: Health exposed demand-line outcome counts but operators still had to calculate normalized line rates; `ZSTOCK_ALLOC_HEALTH` now exports full, partial, and unallocated line percentages with zero-demand-safe handling.
+- Resolved: Health exposed normalized full-line rates but could not warn on low complete-line fulfillment; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_flmin` with zero-demand-safe threshold semantics.
+- Resolved: Health exposed unallocated demand-line percentages but could not warn when untouched lines exceeded an operational limit; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_ulmax` with zero-demand-safe threshold semantics.
+- Resolved: Health could warn on excessive unallocated lines but not on excessive partial allocations; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_plmax` with zero-demand-safe threshold semantics.
+- Resolved: Health line-rate thresholds could hide small populations with too few completely fulfilled lines; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_flcnt` as an absolute full-line-count threshold.
+- Resolved: Health could filter demand volume but could not warn on oversized selected populations; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_dmax` as a maximum demand-count threshold.
+- Resolved: Health exposed shortage quantities and shortage percentages but could not warn on an absolute shortage cap; `ZSTOCK_ALLOC_HEALTH` now evaluates `p_shmax` only for unit-comparable populations.
+- Resolved: Health classified stale running work as critical but did not expose the configured stale-age threshold or its breach state; `ZSTOCK_ALLOC_HEALTH` now exports `p_stale` provenance and stale-threshold telemetry.
+- Resolved: Health exported coverage and shortage threshold flags but omitted the configured values from machine-readable output; `ZSTOCK_ALLOC_HEALTH` now exports both percentage thresholds with their state.
+- Resolved: Health selection output omitted the actual material/plant/storage/batch and movement/unit filter scope; `ZSTOCK_ALLOC_HEALTH` now exports complete selection provenance.
+- Resolved: Health selection output omitted shelf-life, safety-stock, and requested-delivery horizon policy filters; `ZSTOCK_ALLOC_HEALTH` now exports complete policy provenance.
+- Resolved: Health exposed active-run counts but could not warn on an oversized concurrent running population; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_rmax` with deterministic `running_count` breach provenance.
+- Resolved: Health exposed success rates but could not require an absolute successful-run population; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_sucnt` with deterministic `success_count` breach provenance.
+- Resolved: Health exposed duration availability but could not guard against undersampled duration statistics; `ZSTOCK_ALLOC_HEALTH` now evaluates and exports `p_durcnt` with deterministic `duration_count` breach provenance.
+- Resolved: Health exported policy filter inputs but not the actual policy context found in selected audit rows; `ZSTOCK_ALLOC_HEALTH` now exports movement type, shelf-life, safety-stock, and mixed-policy context.
+- Resolved: Health suppressed mixed-unit quantities without an explicit reason field; `ZSTOCK_ALLOC_HEALTH` now exports `mixed_units` alongside `shortage_available`.
+- Resolved: Health exposed aggregate deadline ranges but omitted the latest run's requested-delivery horizon; `ZSTOCK_ALLOC_HEALTH` now exports the latest requested start, end, and effective deadline.
+- Resolved: Health exposed mixed-policy state but could not make it an operator-controlled warning; `ZSTOCK_ALLOC_HEALTH` now supports opt-in `p_pmix` mixed-policy breach handling.
+- Resolved: Health exposed mixed-unit quantity suppression but could not make it an operator-controlled warning; `ZSTOCK_ALLOC_HEALTH` now supports opt-in `p_umix` mixed-unit breach handling.
+- Resolved: Health could warn on successful-run and duration-sample volume but had no general minimum run-volume guard; `ZSTOCK_ALLOC_HEALTH` now supports opt-in `p_runcnt` handling while leaving empty populations neutral.
+- Resolved: Health exposed deadline-bearing-run counts but could not warn when requested-delivery horizon coverage was too low; `ZSTOCK_ALLOC_HEALTH` now supports opt-in `p_dcmin` handling while leaving empty populations neutral.
+- Resolved: Health exposed available-stock filters but not the selected population's persisted stock baseline; summaries now distinguish a consistent available-stock context from mixed values or mixed units, with zero-valued baselines remaining valid.
+- Resolved: Health exposed a consistent available-stock context but could not alert on an out-of-range baseline; `p_avmin`/`p_avmax` now add mixed-unit-safe minimum and maximum warnings without treating unavailable or empty populations as breaches.
+- Resolved: Health exposed the latest run identity without its persisted stock baseline; latest-run telemetry now carries the available quantity and unit separately from population-wide stock context, preserving zero values and unavailable states.
+- Resolved: Health exposed the latest run identity and stock baseline without its persisted allocation outcome; latest-run result telemetry now carries quantities, coverage, and demand-line outcomes with explicit no-run null/n/a behavior.
+- Resolved: Health could warn on population-wide coverage but not on the most recent allocation result; `p_lcov` now reports a latest-run coverage breach without treating zero-demand latest runs as failures.
+- Resolved: Health could cap aggregate shortage quantity but not the most recent allocation result; `p_lshmax` now warns on a latest-run shortage cap using the persisted latest-run unit and neutral no-request behavior.
+- Resolved: Health exposed latest line counts but not their normalized rates; latest-run line rates now include an explicit availability flag and stay null/n/a for zero-demand results.
+- Resolved: Health exposed latest shortage quantity and coverage but not a normalized shortage rate; latest-run shortage percentage now has an explicit availability state and remains null/n/a for zero-request results.
+- Resolved: Health exposed latest shortage percentage but could not warn on excessive latest-run shortage rate; `p_lspct` now adds zero-request-safe threshold telemetry and deterministic `last_shortage_pct` breach provenance.
+- Resolved: Health reported latest finish timestamps but not elapsed freshness; `p_lage` now warns on stale completed latest runs while keeping running, unfinished, invalid, and future timestamps neutral.
+- Resolved: A newer running audit could hide the last completed result behind an unavailable freshness value; audit summaries and health output now expose the newest completed run separately and use it for `p_lage`.
+- Resolved: Health identified the last completed run but did not show its allocation outcome while a newer run was active; completed requested/allocated/shortage, coverage, and line-count telemetry is now exported separately.
+- Resolved: Completed outcome consumers had to recompute shortage and line rates and could divide by zero; normalized completed rates now carry explicit availability state.
+- Resolved: Health could warn on latest-run quality but not the latest completed result while newer work was running; completed coverage and shortage-rate thresholds now remain neutral when unavailable and report deterministic breach provenance.
+- Resolved: Unavailable completed-age telemetry did not distinguish no result, malformed timestamps, and future timestamps; health now exposes a normalized `last_age_reason`.
+- Resolved: Latest-completed age values had no reproducible as-of timestamp; health now exports the exact age reference date and time used by the calculation.
+- Resolved: Latest completed allocation outcome lacked its persisted available-stock baseline; health now exposes zero-safe completed stock context with explicit availability and unit.
+- Resolved: Latest completed status lacked its persisted diagnostic message; health now exposes the completed-run message separately from the latest run.
+- Resolved: Latest completed duration lacked its persisted start timestamp; health now exports the complete persisted interval context.
+- Resolved: Latest completed outcomes lacked their effective allocation policy; health now exports policy availability, movement type, minimum shelf life, and safety stock.
+- Resolved: Latest completed outcomes lacked their requested-delivery horizon; health now exports the completed run's originating horizon and effective deadline.
+- Resolved: Latest completed deadline age had to be recomputed from exported dates; health now exposes a zero-safe age value with explicit availability and reference-date provenance.
+- Resolved: Latest-completed requested deadlines were observable but could not drive a freshness warning; `p_cdag` now reports an availability-aware maximum deadline-age breach without treating missing deadlines as failures.
+- Resolved: An unavailable latest-completed deadline age did not identify whether the cause was an empty completed population or a missing deadline; health now exports an explicit reason.
+- Resolved: Population-wide demand thresholds could hide demand-count drift in the latest completed result; `p_cdmax` now evaluates that result directly.
+- Resolved: Latest-completed shortage quantity had no dedicated warning threshold, and completed coverage/rate breaches were not independently reflected in health status; `p_cshmax` and explicit completed-threshold status mapping now close those gaps.
+- Resolved: Population stock bounds did not detect drift in the latest completed persisted result; `p_cavmin` and `p_cavmax` now evaluate available completed stock while remaining neutral when that context is unavailable.
+- Resolved: Latest-completed line-rate telemetry did not support a minimum full-line fulfillment warning; `p_cflmin` now evaluates it only when completed demand-line rates are available.
+
+- Resolved: Latest-completed unallocated-line telemetry did not support a maximum threshold; `p_culmax` now evaluates it only when completed demand-line rates are available.
+
+- Resolved: Latest-completed partial-line telemetry did not support a maximum threshold; `p_cplmax` now evaluates it only when completed demand-line rates are available.
+
+- Resolved: Latest-completed full-line count telemetry did not support a minimum threshold; `p_cflcnt` now evaluates it only when completed demand-line rates are available.
+- Resolved: Latest-completed partial-line and full-count threshold state was absent from JSON even though CSV and human output exposed it; schema `97` now keeps all completed threshold surfaces aligned.
+- Resolved: Latest-completed allocated quantity had no dedicated minimum warning despite being exposed in health telemetry; `p_camin` now reports a zero-request-safe allocated-quantity breach and schema `98` exports its state consistently.
+- Resolved: Latest-completed requested quantity had no dedicated maximum warning despite being exposed in health telemetry; `p_crqmax` now reports a zero-request-safe requested-quantity breach and schema `99` exports its state consistently.
+- Resolved: Latest-completed allocated quantity had a minimum warning but no configurable maximum; `p_caqmax` now reports a zero-request-safe allocated-quantity ceiling and schema `100` exports its state consistently.
+- Resolved: Latest-completed coverage had a minimum warning but no configurable ceiling; `p_ccvmax` now reports a zero-request-safe coverage maximum and schema `101` exports its state consistently.
+- Resolved: Latest-completed full-line rate had a minimum warning but no configurable ceiling; `p_cflmax` now reports a zero-demand-safe full-line-rate maximum and schema `102` exports its state consistently.
+- Resolved: Paired latest-completed coverage and full-line-rate bounds could be configured in an inverted order; active minimum-above-maximum pairs are now rejected before evaluation.
+- Resolved: Latest-completed unallocated-line rate had a ceiling but its absolute line count was not directly guardable; `p_culcnt` now exports a zero-demand-safe count ceiling in schema `103`.
+- Resolved: Latest-completed partial-line rate had a ceiling but its absolute line count was not directly guardable; `p_cplcnt` now exports a zero-demand-safe count ceiling in schema `104`.
+- Resolved: Latest-completed requested quantity had only an upper guard; `p_crqmin` now exports a zero-request-safe lower bound in schema `105`.
+- Resolved: Latest-completed demand count had only an upper guard; `p_cdmin` now exports a zero-demand-safe lower bound in schema `106`.
+- Resolved: New latest-completed lower/upper quantity and demand-count bounds could be inverted; active inverted pairs are now rejected before evaluation.
+- Resolved: Latest-completed allocated-quantity lower/upper bounds could be inverted; active inverted pairs are now rejected before evaluation.
+- Resolved: Latest-completed partial and unallocated counts were only guardable independently; `p_cshcnt` now caps their combined shortage-line count with zero-demand-safe semantics.
+- Resolved: A slow latest completed run could be hidden by a newer running audit; `p_cdurmx` now evaluates completed duration independently with zero-safe no-completed-run behavior.
+- Resolved: A completed run could finish implausibly quickly without an operator-visible lower bound; `p_cdurmn` now flags positive latest-completed durations below the configured minimum while leaving missing or zero durations neutral.
+- Resolved: Population-wide success rate could hide a newest completed partial result; `p_csucc` now warns when the latest completed status is not `S`, while no completed result remains neutral.
+- Resolved: One successful newest result could hide a recent run-quality regression; `p_cstrk` now warns when the consecutive newest completed-success streak is below the configured minimum.
+- Resolved: Operators could not tolerate one recent partial/error result while still detecting a repeated regression; `p_cfail` now caps the consecutive newest completed non-success streak.
+- Resolved: Health could require full lines but could not require any successful allocation coverage when lines were partial; `p_cacnt` now guards the latest completed full-plus-partial allocated line count.
+- Resolved: Health could enforce a minimum allocated-line count but could not detect unexpectedly high completed allocation coverage; `p_cacmax` now provides a complementary maximum guard with deterministic breach provenance.
+- Resolved: finalized preview audits were indistinguishable from operational runs in persisted history. `ZSTOCKALLOC_RUN-PREVIEW` now records and returns the simulation marker while preserving existing preview side-effect safety.
+- Resolved: history consumers could not select preview simulations separately from operational runs; `p_prev` now filters on the persisted marker before pagination and exports filter provenance.
+- Resolved: operational health mixed simulation and live audit runs in its population; `ZSTOCK_ALLOC_HEALTH-p_prev` now applies the persisted provenance filter before health evaluation and exports the selected scope.
+- Resolved: stale-run monitoring could alert on simulation audits; `ZSTOCK_ALLOC_WATCH-p_prev` now filters the persisted preview marker before alert sorting/pagination and exports the selected scope.
+- Resolved: allocation-result consumers could still mix simulation and operational snapshot lines; `p_prev` now applies the persisted preview filter before latest-run selection, exact-run context, and result pagination.
+- Resolved: comparison could select old and new runs without expressing whether each persisted run was a preview or operational execution. `p_prev`, `p_oprev`, and `p_nprev` now constrain both audit and snapshot reads and expose effective filter and selected-run preview provenance in schema `96`.
+- Resolved: retention cleanup could delete preview and operational audit runs from the same scope. Purge now validates and applies `p_prev`/`iv_preview_filter` before deletion, preserving the selected run type in all purge output contracts.
+- Resolved: comparison could scope old and new audits by lifecycle start date but not by lifecycle completion date, allowing runs completed in different operational periods to be compared under one start-date policy. Common and side-specific audit finish-date windows now constrain both audit and snapshot reads and publish their effective provenance in every comparison output.

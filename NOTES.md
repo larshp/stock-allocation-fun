@@ -1,5 +1,18 @@
 # Progress notes
 
+- Reconciled the current watch documentation with its executable finish-date contract: README now lists `p_ffrom`/`p_fto` and schemas `59`/`62` alongside the existing lifecycle bounds; historical release-note references remain unchanged.
+- Added inclusive audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_WATCH`, propagating them through canonical audit reads and human/CSV/JSON/NDJSON provenance; watch schemas advance to CSV `59` and JSON/NDJSON `62`, with contract coverage.
+- Added inclusive originating audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; the bounds reach latest, exact-run, context, and sink reads, appear in human/CSV/JSON/NDJSON provenance, advance result schemas to detail `40` and summary `46`, and are covered by sink and repository contracts.
+- Added common and old/new side-specific audit lifecycle start-date windows to `ZSTOCK_ALLOC_COMPARE`; effective bounds reach originating-run and snapshot reads, are exposed across human/CSV/JSON/NDJSON/typed provenance, advance comparison contextual schemas to `97`, and include common-versus-side validation and contract coverage.
+- Added inclusive originating audit lifecycle start-date bounds `p_sfrom`/`p_sto` to `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; the bounds reach latest, exact-run, and sink reads, appear in human/CSV/JSON/NDJSON provenance, advance result schemas to detail `39` and summary `45`, and are covered by sink and repository contracts.
+- Added inclusive audit lifecycle start-date bounds `p_from`/`p_to` to `ZSTOCK_ALLOC_WATCH`, propagating them through canonical audit reads and human/CSV/JSON/NDJSON provenance; watch schemas advance to CSV `58` and JSON/NDJSON `61`, with contract coverage.
+- Added an inclusive purge audit-start upper bound `p_to` to pair with `p_from`; the filter reaches preview and execution reads, provenance in human/CSV/JSON output, schemas advance to CSV `25`/`26` and JSON `27`/`28`, and ABAP Unit/contracts cover the bounded window.
+- Added purge cap-effect telemetry: preview and execution now expose `capped_audit_runs`, counting finalized unprotected runs matched after `p_max` was reached; the audit API returns the same count, schemas advance to CSV `24`/`25` and JSON `26`/`27`, and regression/contracts cover the value.
+- Reconciled the health report documentation with its current JSON error envelope: README now records schema `115`, and repository-contract coverage prevents the error reference from drifting from the successful health schema.
+- Corrected capped purge accounting so `p_max` limits only unprotected finalized runs; preview and execution continue scanning later candidates and report running, unknown, and reservation-protected rows even after the deletion cap is reached.
+- Made capped purge selection deterministic: preview and execution now sort eligible candidates by start date, start time, and run ID before applying `iv_max_runs`, so repeated capped retention requests select the same oldest runs; ABAP Unit and repository-contract coverage protect the ordering invariant.
+- Added bounded purge retention with `ZSTOCK_ALLOC_PURGE-p_max` and `iv_max_runs`; positive values cap finalized runs selected in both preview and execution, while zero preserves unlimited behavior. Max-run filter provenance is exported, purge contracts advance to CSV `23`/`24` and JSON `25`/`26`, and ABAP Unit covers cap, remaining-row, and negative-value behavior.
+- Propagated preview provenance into rejection audits: validation, source, and post-calculation failures from preview allocations now persist `PREVIEW = X`, so `p_prev = P` does not miss failed simulations; ABAP Unit and repository-contract coverage protect the API and service propagation.
 - Corrected the SAP integration checklist so custom-table delete authorization is scoped to snapshot replacement and retention only; direct reservation cancellation uses the reservation authorization boundary and does not delete `ZSTOCKALLOC` rows.
 - Tightened `BAPI_RESERVATION_CREATE1` stub fidelity to require the standard reservation header `CREATED_BY` identity in addition to movement/date and item fields; repository-contract coverage protects the communication-structure boundary.
 - Added an SAP-system integration checklist covering abapGit import scope, custom DDIC activation, standard table/BAPI prerequisites, authorization objects and activities, report activation, preview/execute safety, and the boundary between local stubs and target-system validation; repository-contract coverage protects the checklist anchors.
@@ -1062,3 +1075,118 @@
 - Hardened result-read identity filters: sales-document filters require a nonzero ten-character key, and numeric reservation filters require the same shape. Added focused sink regressions and repository-contract coverage so malformed filters fail before the result query.
 - Reconciled stale current-schema references in `README.md` with the executable contracts: result `37`/`43`, history `26`/`43`, and watch `56`/`59`; historical release notes remain unchanged.
 2026-08-11: Continued the SAP integration checklist audit by documenting the exact activity values enforced by reservation create/cancel and goods-movement authority adapters, with a repository-contract guard.
+- Added successful-run counts to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH` JSON, CSV, and human output; health export schema advances to `29` so operators can distinguish completed successful runs from total and partial activity.
+- Added completion, success, partial, and error rate telemetry to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `30` and reuses the canonical audit-summary rates.
+- Added legacy-strategy run counts and unit-safe requested/allocated/shortage/coverage telemetry to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `31`.
+- Added priority, FIFO, full-only, smallest, largest, and best-fit strategy counts to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `32`.
+- Added unit-safe requested/allocated/shortage/coverage telemetry for priority, FIFO, full-only, smallest, largest, and best-fit strategies to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `33`.
+- Added latest-run identity/status/timestamps, duration aggregates, and running-age identities to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `34`.
+- Added unit-independent strategy mix percentages for priority, FIFO, full-only, smallest, largest, best-fit, fair-share, weighted, adaptive, and legacy runs; health JSON/CSV schema advances to `35`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_durmax` latest-completed-duration warning threshold with availability-aware breach state; health JSON/CSV schema advances to `36`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_succ` minimum success-rate warning threshold with no-run-safe breach state; health JSON/CSV schema advances to `37`.
+- Added deterministic aggregate threshold-breach count/list telemetry (`coverage`, `shortage`, `duration`, `success`) to `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `38`.
+- Added optional `ZSTOCK_ALLOCATE-p_shg`/`p_shmax` maximum-shortage guard; exceeded caps record a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `35`.
+- Added optional `ZSTOCK_ALLOCATE-p_covg`/`p_covmin` minimum-coverage guard; below-threshold aggregate coverage records a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `36`.
+- Added optional `ZSTOCK_ALLOCATE-p_fullg`/`p_fmin` minimum full-line guard; below-threshold fully allocated demand-line percentage records a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `37`.
+- Added optional `ZSTOCK_ALLOCATE-p_dg`/`p_dmax` maximum-demand guard; scopes exceeding the nonnegative open-demand-line cap record a rejected audit row before allocation side effects, and allocation JSON/CSV schema advances to `38`.
+- Added optional `ZSTOCK_ALLOCATE-p_qg`/`p_qmax` maximum-requested-quantity guard; aggregate demand is checked after unit conversion in the normalized allocation unit, rejected scopes are audited before allocation side effects, and allocation JSON/CSV schema advances to `39`.
+- Added optional `ZSTOCK_ALLOCATE-p_ag`/`p_amax` maximum-allocated-quantity guard; calculated allocation is capped before reservations or snapshot writes, rejected scopes are audited, and allocation JSON/CSV schema advances to `40`.
+- Added optional `ZSTOCK_ALLOCATE-p_lg`/`p_lmax` maximum-allocated-line guard; predicted fully or partially allocated demand lines are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `41`.
+- Added optional `ZSTOCK_ALLOCATE-p_spg`/`p_spmax` maximum-shortage-percentage guard; aggregate shortage percentage is capped from 0 through 100 before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `42`.
+- Added optional `ZSTOCK_ALLOCATE-p_ug`/`p_umax` maximum-unallocated-line guard; unallocated demand lines are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `43`.
+- Added optional `ZSTOCK_ALLOCATE-p_pg`/`p_pmax` maximum-partial-line guard; partial allocations are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `44`.
+- Added optional `ZSTOCK_ALLOCATE-p_mg`/`p_mmin` minimum-allocated-quantity guard; insufficient calculated allocation is rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `45`.
+- Added optional `ZSTOCK_ALLOCATE-p_slg`/`p_slmax` maximum-shortage-line guard; scopes with too many partial or unallocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `46`.
+- Added optional `ZSTOCK_ALLOCATE-p_ilg`/`p_imin` minimum-allocated-line guard; scopes with too few fully or partially allocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `47`.
+- Added optional `ZSTOCK_ALLOCATE-p_flg`/`p_flmin` minimum-full-line-count guard; scopes with too few completely allocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `48`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_errmax` maximum-error-rate warning threshold; health evaluation and human/CSV/JSON output now expose error-threshold state and append `error` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `39`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_prtmax` maximum partial-run-rate warning threshold; health evaluation and human/CSV/JSON output now expose partial-threshold state and append `partial` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `40`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cmin` minimum completion-rate warning threshold; health evaluation and human/CSV/JSON output now expose completion-threshold state and append `completion` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `41`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_avgmax` maximum average-duration warning threshold; health evaluation and human/CSV/JSON output now expose sustained-latency threshold state and append `average_duration` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `42`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_maxdur` maximum completed-duration warning threshold; health evaluation and human/CSV/JSON output now expose tail-latency threshold state and append `maximum_duration` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `43`.
+- Added optional `ZSTOCK_ALLOCATE-p_mflg`/`p_mflmax` maximum-full-line-count guard; calculated scopes over the threshold are rejected before audit, reservation, or snapshot side effects, with allocation JSON/CSV schema advancing to `49`.
+- Added health line-outcome telemetry for aggregate demand, full, partial, and unallocated counts; `ZSTOCK_ALLOC_HEALTH` JSON/CSV schema advances to `44`.
+- Added zero-demand-safe full, partial, and unallocated demand-line percentages to `ZSTOCK_ALLOC_HEALTH`; JSON/CSV schema advances to `45`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_flmin` minimum-full-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `46`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_ulmax` maximum-unallocated-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `47`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_plmax` maximum-partial-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `48`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_flcnt` minimum-full-line-count warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `49`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_dmax` maximum-demand-count warning threshold; oversized selected populations now append `demand_count` breach provenance, and health JSON/CSV schema advances to `50`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_shmax` maximum-shortage-quantity warning threshold; mixed-unit populations never breach it, shortage-quantity breach provenance is exported, and health JSON/CSV schema advances to `51`.
+- Added stale-running threshold state to `ZSTOCK_ALLOC_HEALTH`; `p_stale` provenance and active/breached state are exported in human, CSV, and JSON output, advancing health schema to `52`.
+- Added configured coverage and shortage-percentage threshold values to health JSON, CSV, and human output alongside their active/breached state; health schema advances to `53`.
+- Added selected material, plant, storage-location, batch, movement-type, and unit filter provenance to ZSTOCK_ALLOC_HEALTH human, CSV, and JSON output; health schema advances to `54`.
+- Added minimum shelf-life, safety-stock range, and requested-delivery horizon provenance to ZSTOCK_ALLOC_HEALTH human, CSV, and JSON output; health schema advances to `55`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_rmax` maximum-running-count warning threshold; active-run populations above the nonnegative cap now report deterministic `running_count` breach provenance, and health schema advances to `56`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_sucnt` minimum-successful-run-count warning threshold; selected populations below the nonnegative floor now report deterministic `success_count` breach provenance, and health schema advances to `57`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_durcnt` minimum-duration-sample-count warning threshold; selected populations with too few completed duration observations now report deterministic `duration_count` breach provenance, and health schema advances to `58`.
+- Added actual movement-type, shelf-life, safety-stock, and mixed-policy context to `ZSTOCK_ALLOC_HEALTH`; selected-population policy provenance is now exported in all report modes, advancing health schema to `59`.
+- Added explicit `mixed_units` telemetry to `ZSTOCK_ALLOC_HEALTH`; quantity suppression is now distinguishable from empty metrics in every report mode, advancing health schema to `60`.
+- Added latest-run requested-delivery horizon context (`last_requested_on_from`, `last_requested_on_to`, and `last_requested_deadline`) to `ZSTOCK_ALLOC_HEALTH`, advancing health schema to `61`.
+- Added opt-in `ZSTOCK_ALLOC_HEALTH-p_pmix` mixed-policy warning; selected populations with mixed movement-type, shelf-life, or safety-stock context now report deterministic `mixed_policies` breach provenance, advancing health schema to `62`.
+- Added opt-in `ZSTOCK_ALLOC_HEALTH-p_umix` mixed-unit warning; selected populations with mixed allocation units now report deterministic `mixed_units` breach provenance, advancing health schema to `63`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_runcnt` minimum-total-run-count warning; selected populations below the configured run-volume floor now report deterministic `run_count` breach provenance, advancing health schema to `64`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_dcmin` minimum-deadline-bearing-run-count warning; selected populations with too few effective requested-delivery horizons now report deterministic `deadline_count` breach provenance, advancing health schema to `65`.
+- Added available-stock context telemetry to audit summaries and health JSON/CSV/human output; a consistent persisted baseline is reported while mixed-unit or mixed-value populations are explicitly marked unavailable, advancing health schema to `66`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_avmin`/`p_avmax` available-stock warning thresholds; comparable persisted baselines now report below/above-range breach provenance while mixed or empty populations remain neutral, advancing health schema to `67`.
+- Added latest-run available-stock context to audit summaries and health output, including the persisted unit and explicit availability state, advancing health schema to `68`.
+- Added latest-run result context to audit summaries and health output, including requested, allocated, shortage, coverage, and line-outcome metrics, advancing health schema to `69`; README current-schema references now match the report contract.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lcov` minimum latest-run coverage warning; no-request latest runs remain neutral, breach provenance is exported in all output modes, and health schema advances to `70`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lshmax` maximum latest-run shortage-quantity warning; the comparison uses the latest persisted run's unit, no-request latest runs remain neutral, and health schema advances to `71`.
+- Added zero-demand-safe latest-run full/partial/unallocated line-rate telemetry to health output, advancing schema to `72`.
+- Added zero-request-safe latest-run shortage-percentage telemetry to health output, advancing schema to `73`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lspct` maximum latest-run shortage-percentage warning, advancing health schema to `74`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lage` maximum latest-completed-age warning with explicit unavailable state, advancing health schema to `75`.
+- Added explicit latest-completed-run identity and timestamp context for health freshness, allowing `p_lage` to evaluate the newest completed result while a newer run is still running; health schema advances to `76`.
+- Added latest-completed allocation outcome telemetry for health, including quantities, coverage, and line counts, advancing health schema to `77`.
+- Added zero-safe latest-completed shortage and line-rate telemetry with explicit availability flags, advancing health schema to `78`.
+- Added zero-safe latest-completed coverage and shortage-rate warning thresholds (`p_ccov`/`p_cspct`), advancing health schema to `79`.
+- Added explicit latest-completed-age reason telemetry (`last_age_reason`) for unavailable, invalid, future, and available timestamps, advancing health schema to `80`.
+- Added exact latest-completed-age calculation reference date/time telemetry, advancing health schema to `81`.
+- Added latest-completed persisted available-stock context with explicit availability and unit, advancing health schema to `82`.
+- Added latest-completed persisted diagnostic message context, advancing health schema to `83`.
+- Added latest-completed persisted start date/time context, advancing health schema to `84`.
+- Added latest-completed persisted allocation-policy context, advancing health schema to `85`.
+- Added latest-completed persisted requested-delivery horizon context, advancing health schema to `86`.
+- Added zero-safe latest-completed deadline age telemetry tied to the selected deadline reference date, advancing health schema to `87`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdag` maximum latest-completed deadline-age warning threshold in days; runs without a completed requested deadline remain neutral, advancing health schema to `88`.
+- Added explicit latest-completed deadline-age reason telemetry (`available`, `no_deadline`, or `no_completed_run`), advancing health schema to `89`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdmax` maximum latest-completed demand-count warning threshold, advancing health schema to `90`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cshmax` maximum latest-completed shortage-quantity warning threshold and completed-threshold warning status mapping, advancing health schema to `91`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cavmin`/`p_cavmax` latest-completed available-stock bounds with availability-aware warning state, advancing health schema to `92`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflmin` minimum latest-completed full-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `93`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_culmax` maximum latest-completed unallocated-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `94`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cplmax` maximum latest-completed partial-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `95`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflcnt` minimum latest-completed full-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `96`.
+- Added JSON threshold-state provenance for latest-completed partial-line rate and full-line count, advancing health schema to `97`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_camin` minimum latest-completed allocated-quantity warning threshold with zero-request-safe semantics, advancing health schema to `98`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_crqmax` maximum latest-completed requested-quantity warning threshold with zero-request-safe semantics, advancing health schema to `99`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_caqmax` maximum latest-completed allocated-quantity warning threshold with zero-request-safe semantics, advancing health schema to `100`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_ccvmax` maximum latest-completed coverage warning threshold with zero-request-safe semantics, advancing health schema to `101`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflmax` maximum latest-completed full-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `102`.
+- Added validation rejecting inverted active latest-completed coverage and full-line-rate threshold pairs while retaining schema `102` error envelopes.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_culcnt` maximum latest-completed unallocated-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `103`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cplcnt` maximum latest-completed partial-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `104`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_crqmin` minimum latest-completed requested-quantity warning threshold with zero-request-safe semantics, advancing health schema to `105`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdmin` minimum latest-completed demand-count warning threshold with zero-demand-safe semantics, advancing health schema to `106`.
+- Added validation rejecting inverted active `p_crqmin`/`p_crqmax` and `p_cdmin`/`p_cdmax` bounds while retaining health schema `106`.
+- Added validation rejecting inverted active `p_camin`/`p_caqmax` bounds while retaining health schema `106`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cshcnt` maximum latest-completed shortage-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `107`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdurmx` maximum latest-completed-duration warning threshold with zero-completed-run-safe semantics, advancing health schema to `108`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdurmn` minimum latest-completed-duration warning threshold with zero-duration-safe semantics, advancing health schema to `109`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_csucc` latest-completed-success requirement with no-completed-run-safe semantics, advancing health schema to `110`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cstrk` minimum latest-completed success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `111`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cfail` maximum latest-completed non-success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `112`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cacnt` minimum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics, advancing health schema to `113`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cacmax` maximum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics and min/max validation, advancing health schema to `114`.
+- Added persisted `ZSTOCKALLOC_RUN-PREVIEW` provenance. Allocation-service previews now pass the marker through `start_run`, audit reads return it on `ty_run`, and invalid direct audit flags are rejected.
+- Added `ZSTOCK_ALLOC_HISTORY-p_prev` preview/operational run-type filtering (`P`/`O`) with audit API propagation, filter provenance, and history schema updates to JSON `27`/`44` and matching CSV contracts.
+- Added `ZSTOCK_ALLOC_HEALTH-p_prev` preview/operational run-type filtering (`P`/`O`) so operational health can exclude simulation audits; both health audit reads carry the scope and health schema advances to `115`.
+- Added `ZSTOCK_ALLOC_WATCH-p_prev` preview/operational run-type filtering (`P`/`O`) so stale-run monitoring can exclude simulation audits; watch schemas advance to CSV `57` and JSON/NDJSON `60`.
+- Added `ZSTOCK_ALLOC_RESULT-p_prev` preview/operational run-type filtering (`P`/`O`) through latest-run selection, exact audit context, and snapshot reads; result schemas advance to detail `38` and summary `44`.
+- Extended `ZSTOCK_ALLOC_COMPARE` with common `p_prev` and side-specific `p_oprev`/`p_nprev` preview-versus-operational run-type filters. Effective old/new provenance now reaches both audit and allocation-snapshot reads, and comparison CSV/JSON/NDJSON/human metadata exposes the requested filters plus selected run preview flags; comparison schema advanced to `96`.
+- Added purge provenance scoping: `ZSTOCK_ALLOC_PURGE-p_prev` and the retention API now select preview (`P`) or operational (`O`) runs before candidate protection/deletion. Filter provenance is emitted in human/CSV/JSON output, with schemas advancing to CSV `21`/`22` and JSON `23`/`24`; ABAP Unit covers preview-only and operational-only cleanup.
+- Added common and old/new side-specific audit lifecycle finish-date windows to ZSTOCK_ALLOC_COMPARE; effective bounds reach originating-run and snapshot reads, are exposed across human/CSV/JSON/NDJSON/typed provenance, advance comparison contextual schemas to 98, and include common-versus-side validation and contract coverage.

@@ -66,8 +66,20 @@
    <item>
     <ID>S</ID>
     <KEY>P_STAT</KEY>
-    <ENTRY>Final run status</ENTRY>
-    <LENGTH>18</LENGTH>
+   <ENTRY>Final run status</ENTRY>
+   <LENGTH>18</LENGTH>
+  </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MAX</KEY>
+    <ENTRY>Maximum runs to purge (0 unlimited)</ENTRY>
+    <LENGTH>36</LENGTH>
    </item>
    <item>
     <ID>S</ID>
@@ -173,9 +185,15 @@
     </item>
    <item>
     <ID>S</ID>
-    <KEY>P_FROM</KEY>
-    <ENTRY>Audit start date from</ENTRY>
-    <LENGTH>23</LENGTH>
+   <KEY>P_FROM</KEY>
+   <ENTRY>Audit start date from</ENTRY>
+   <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TO</KEY>
+    <ENTRY>Audit start date to</ENTRY>
+    <LENGTH>21</LENGTH>
    </item>
    <item>
     <ID>S</ID>

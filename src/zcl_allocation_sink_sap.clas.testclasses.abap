@@ -123,6 +123,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_date_filters FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_audit_start_range FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_by_shortage_percentage FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_priority_filter_range FOR TESTING
@@ -260,6 +262,7 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
     ls_run-status = 'S'.
+    ls_run-preview = abap_true.
     ls_run-message = 'Unallocated diagnostic message'.
     ls_run-movement_type = '201'.
     ls_run-min_shelf_life = 5.
@@ -329,6 +332,45 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_allocation-reservation_movement_type = '201'.
     ls_allocation-reservation_unit = 'BOX'.
     INSERT zstockalloc FROM @ls_allocation.
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_preview_filter   = 'p' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material         = 'MATERIAL-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_preview_filter   = 'o' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material         = 'MATERIAL-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_preview_filter   = 'X' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_preview_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_preview_error->message
+          exp = 'Allocation audit preview filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material         = 'MATERIAL-FILTER'
@@ -1441,6 +1483,44 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lo_priority_error->message
           exp = 'Allocation result priority range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_audit_start_range.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material            = 'MATERIAL-FILTER'
+          iv_plant               = '1000'
+          iv_storage_location    = '0001'
+          iv_run_start_date_from = '20260821'
+          iv_run_start_date_to   = '20260816' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_start_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_start_date_error->message
+          exp = 'Allocation result audit start date range is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    CLEAR lv_raised.
+    TRY.
+        lt_demands = lo_cut->get_allocations(
+          iv_material             = 'MATERIAL-FILTER'
+          iv_plant                = '1000'
+          iv_storage_location     = '0001'
+          iv_run_finish_date_from = '20260821'
+          iv_run_finish_date_to   = '20260816' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_finish_date_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_finish_date_error->message
+          exp = 'Allocation result audit finish date range is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.

@@ -637,6 +637,18 @@ const auditSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.abap"),
   "utf8",
 );
+const auditInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_allocation_audit.intf.abap"),
+  "utf8",
+);
+const auditTableSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstockalloc_run.tabl.xml"),
+  "utf8",
+);
+const auditTestSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.testclasses.abap"),
+  "utf8",
+);
 const compareSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_compare.clas.abap"),
   "utf8",
@@ -758,6 +770,81 @@ assert.match(
 );
 assert.match(
   allocationServiceSource,
+  /iv_shortage_limit_active[\s\S]*iv_max_shortage[\s\S]*Maximum shortage limit exceeded/,
+  "allocation service must enforce the maximum-shortage guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_coverage_limit_active[\s\S]*iv_min_coverage[\s\S]*Minimum coverage limit not met/,
+  "allocation service must enforce the minimum-coverage guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_full_line_limit_active[\s\S]*iv_min_full_line_pct[\s\S]*Minimum full-line percentage not met/,
+  "allocation service must enforce the minimum full-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_full_count_limit_active[\s\S]*iv_min_full_lines[\s\S]*Minimum full lines not met/,
+  "allocation service must enforce the minimum full-line-count guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_max_full_count_limit_active[\s\S]*iv_max_full_lines[\s\S]*Maximum full lines limit exceeded/,
+  "allocation service must enforce the maximum full-line-count guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_demand_limit_active[\s\S]*iv_max_demand_count[\s\S]*Maximum demand count exceeded/,
+  "allocation service must enforce the maximum-demand guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_quantity_limit_active[\s\S]*iv_max_requested_quantity[\s\S]*Maximum requested quantity exceeded/,
+  "allocation service must enforce the maximum-quantity guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_allocation_limit_active[\s\S]*iv_max_allocated_quantity[\s\S]*Maximum allocated quantity exceeded/,
+  "allocation service must enforce the maximum-allocation guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_min_alloc_limit_active[\s\S]*iv_min_allocated_quantity[\s\S]*Minimum allocated quantity not met/,
+  "allocation service must enforce the minimum-allocation guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_min_line_limit_active[\s\S]*iv_min_alloc_lines[\s\S]*Minimum allocated lines not met/,
+  "allocation service must enforce the minimum-allocation-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_line_limit_active[\s\S]*iv_max_alloc_lines[\s\S]*Maximum allocated lines exceeded/,
+  "allocation service must enforce the maximum-allocation-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_spct_limit_active[\s\S]*iv_max_shortage_pct[\s\S]*Maximum shortage percentage exceeded/,
+  "allocation service must enforce the maximum-shortage-percentage guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_unalloc_limit_active[\s\S]*iv_max_unalloc_lines[\s\S]*Maximum unallocated lines exceeded/,
+  "allocation service must enforce the maximum-unallocated-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_partial_limit_active[\s\S]*iv_max_partial_lines[\s\S]*Maximum partial lines exceeded/,
+  "allocation service must enforce the maximum-partial-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_shline_limit_active[\s\S]*iv_max_shortage_lines[\s\S]*Maximum shortage lines exceeded/,
+  "allocation service must enforce the maximum-shortage-line guard before writes",
+);
+assert.match(
+  allocationServiceSource,
   /<ls_demand>-allocation_run_id\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_demand>-allocation_strategy\s+IS\s+NOT\s+INITIAL[\s\S]*<ls_demand>-allocation_unit\s+IS\s+NOT\s+INITIAL/,
   "allocation service must reject allocator-owned allocation metadata mutation",
 );
@@ -821,6 +908,71 @@ assert.match(
   "audit run creation must reject malformed requested-date bounds",
 );
 assert.match(
+  auditInterfaceSource,
+  /BEGIN OF ty_run[\s\S]*preview\s+TYPE abap_bool/,
+  "audit run API must expose persisted preview provenance",
+);
+assert.match(
+  auditInterfaceSource,
+  /METHODS start_run[\s\S]*iv_strategy[\s\S]*iv_preview\s+TYPE abap_bool OPTIONAL/,
+  "audit run creation must accept preview provenance",
+);
+assert.match(
+  auditInterfaceSource,
+  /METHODS get_runs[\s\S]*iv_status[\s\S]*iv_preview_filter\s+TYPE ty_preview_filter OPTIONAL/,
+  "audit history reads must accept a preview provenance filter",
+);
+assert.match(
+  auditTableSource,
+  /<FIELDNAME>PREVIEW<\/FIELDNAME>[\s\S]*<DATATYPE>CHAR<\/DATATYPE>[\s\S]*<LENG>000001<\/LENG>/,
+  "audit run table must persist a one-character preview marker",
+);
+assert.match(
+  allocationServiceSource,
+  /iv_strategy\s*=\s*lv_strategy[\s\S]*iv_preview\s*=\s*iv_preview/,
+  "allocation service must persist preview provenance when starting an audit run",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~start_run[\s\S]*iv_preview IS NOT INITIAL[\s\S]*Audit preview flag is invalid[\s\S]*ls_run-preview\s*=\s*iv_preview/,
+  "audit run creation must validate and persist preview provenance",
+);
+assert.match(
+  auditInterfaceSource,
+  /METHODS record_rejection[\s\S]*iv_message\s+TYPE ty_message[\s\S]*iv_preview\s+TYPE abap_bool OPTIONAL/,
+  "audit rejection writes must accept preview provenance",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~record_rejection[\s\S]*iv_preview IS NOT INITIAL[\s\S]*Audit preview flag is invalid[\s\S]*ls_run-preview\s*=\s*iv_preview/,
+  "audit rejection writes must validate and persist preview provenance",
+);
+assert.match(
+  allocationServiceSource,
+  /mv_preview\s*=\s*xsdbool\(\s*iv_preview\s*=\s*abap_true\s*\)[\s\S]*iv_preview\s*=\s*mv_preview/,
+  "allocation rejection audits must carry the request preview provenance",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_runs[\s\S]*strategy,[\s\S]*preview,[\s\S]*start_date/,
+  "audit history reads must return preview provenance",
+);
+assert.match(
+  auditSource,
+  /lv_preview_filter\s*=\s*to_upper\( iv_preview_filter \)[\s\S]*Audit preview filter is invalid[\s\S]*lv_preview_filter = 'P'[\s\S]*<ls_run>-preview <> abap_true/,
+  "audit history reads must validate and apply preview provenance filters",
+);
+assert.match(
+  auditTestSource,
+  /METHOD records_preview_provenance[\s\S]*iv_preview\s*=\s*abap_true[\s\S]*-preview/,
+  "audit tests must cover preview provenance persistence and reads",
+);
+assert.match(
+  auditTestSource,
+  /METHOD filters_preview_runs[\s\S]*iv_preview_filter\s*=\s*'p'[\s\S]*iv_preview_filter\s*=\s*'o'/,
+  "audit tests must cover preview-only and operational-only filtering",
+);
+assert.match(
   auditSource,
   /METHOD validate_run[\s\S]*is_run-start_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Audit run data is invalid/,
   "audit reads must reject malformed persisted run dates",
@@ -839,6 +991,16 @@ assert.match(
   auditSource,
   /METHOD zif_allocation_audit~purge_runs_before[\s\S]*validate_date[\s\S]*iv_before_date[\s\S]*iv_deadline_age_date/,
   "audit purge execution must reject malformed date filters",
+);
+assert.equal(
+  (auditSource.match(/SORT lt_candidates BY start_date ASCENDING start_time ASCENDING\s+run_id ASCENDING/g) || []).length,
+  2,
+  "audit purge preview and execution must sort candidates deterministically",
+);
+assert.equal(
+  (auditSource.match(/IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs/g) || []).length,
+  6,
+  "audit purge caps must apply to finalized statuses after reservation protection checks",
 );
 assert.equal(
   (auditSource.match(/Audit purge candidate is invalid/g) || []).length,
@@ -1072,6 +1234,226 @@ assert.match(
   /iv_safety_stock\s*=\s*p_safstk/,
   "allocation report must pass the safety-stock selection to the service",
 );
+assert.match(
+  allocationReportSource,
+  /p_shg[\s\S]*p_shmax/,
+  "allocation report must expose the shortage guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_shortage_limit_active\s*=\s*p_shg[\s\S]*iv_max_shortage\s*=\s*p_shmax/,
+  "allocation report must pass the shortage guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /p_covg[\s\S]*p_covmin/,
+  "allocation report must expose the coverage guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_coverage_limit_active\s*=\s*p_covg[\s\S]*iv_min_coverage\s*=\s*p_covmin/,
+  "allocation report must pass the coverage guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /coverage_guard_active[\s\S]*minimum_coverage_pct/,
+  "allocation report exports must expose coverage guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_fullg[\s\S]*p_fmin/,
+  "allocation report must expose the full-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_full_line_limit_active\s*=\s*p_fullg[\s\S]*iv_min_full_line_pct\s*=\s*p_fmin/,
+  "allocation report must pass the full-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /full_line_guard_active[\s\S]*minimum_full_line_pct/,
+  "allocation report exports must expose full-line guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_flg[\s\S]*p_flmin/,
+  "allocation report must expose the minimum full-line-count guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_full_count_limit_active\s*=\s*p_flg[\s\S]*iv_min_full_lines\s*=\s*p_flmin/,
+  "allocation report must pass the minimum full-line-count guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /full_line_count_guard_active[\s\S]*minimum_full_lines/,
+  "allocation report exports must expose minimum full-line-count guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_mflg[\s\S]*p_mflmax/,
+  "allocation report must expose the maximum full-line-count guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_max_full_count_limit_active\s*=\s*p_mflg[\s\S]*iv_max_full_lines\s*=\s*p_mflmax/,
+  "allocation report must pass the maximum full-line-count guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /maximum_full_line_count_guard_active[\s\S]*maximum_full_lines/,
+  "allocation report exports must expose maximum full-line-count guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_dg[\s\S]*p_dmax/,
+  "allocation report must expose the demand-count guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_demand_limit_active\s*=\s*p_dg[\s\S]*iv_max_demand_count\s*=\s*p_dmax/,
+  "allocation report must pass the demand-count guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /demand_guard_active[\s\S]*maximum_demand_count/,
+  "allocation report exports must expose demand-count guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_qg[\s\S]*p_qmax/,
+  "allocation report must expose the requested-quantity guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_quantity_limit_active\s*=\s*p_qg[\s\S]*iv_max_requested_quantity\s*=\s*p_qmax/,
+  "allocation report must pass the requested-quantity guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /quantity_guard_active[\s\S]*maximum_requested_quantity/,
+  "allocation report exports must expose requested-quantity guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_ag[\s\S]*p_amax/,
+  "allocation report must expose the allocated-quantity guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_allocation_limit_active\s*=\s*p_ag[\s\S]*iv_max_allocated_quantity\s*=\s*p_amax/,
+  "allocation report must pass the allocated-quantity guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /allocation_guard_active[\s\S]*maximum_allocated_quantity/,
+  "allocation report exports must expose allocated-quantity guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_mg[\s\S]*p_mmin/,
+  "allocation report must expose the minimum-allocation guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_min_alloc_limit_active\s*=\s*p_mg[\s\S]*iv_min_allocated_quantity\s*=\s*p_mmin/,
+  "allocation report must pass the minimum-allocation guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /minimum_allocation_guard_active[\s\S]*minimum_allocated_quantity/,
+  "allocation report exports must expose minimum-allocation guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_ilg[\s\S]*p_imin/,
+  "allocation report must expose the minimum-allocation-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_min_line_limit_active\s*=\s*p_ilg[\s\S]*iv_min_alloc_lines\s*=\s*p_imin/,
+  "allocation report must pass the minimum-allocation-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /minimum_allocation_line_guard_active[\s\S]*minimum_allocated_lines/,
+  "allocation report exports must expose minimum-allocation-line guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_lg[\s\S]*p_lmax/,
+  "allocation report must expose the allocated-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_line_limit_active\s*=\s*p_lg[\s\S]*iv_max_alloc_lines\s*=\s*p_lmax/,
+  "allocation report must pass the allocated-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /allocation_line_guard_active[\s\S]*maximum_allocated_lines/,
+  "allocation report exports must expose allocated-line guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_spg[\s\S]*p_spmax/,
+  "allocation report must expose the shortage-percentage guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_spct_limit_active\s*=\s*p_spg[\s\S]*iv_max_shortage_pct\s*=\s*p_spmax/,
+  "allocation report must pass the shortage-percentage guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /shortage_pct_guard_active[\s\S]*maximum_shortage_pct/,
+  "allocation report exports must expose shortage-percentage guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_ug[\s\S]*p_umax/,
+  "allocation report must expose the unallocated-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_unalloc_limit_active\s*=\s*p_ug[\s\S]*iv_max_unalloc_lines\s*=\s*p_umax/,
+  "allocation report must pass the unallocated-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /unallocated_line_guard_active[\s\S]*maximum_unallocated_lines/,
+  "allocation report exports must expose unallocated-line guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_pg[\s\S]*p_pmax/,
+  "allocation report must expose the partial-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_partial_limit_active\s*=\s*p_pg[\s\S]*iv_max_partial_lines\s*=\s*p_pmax/,
+  "allocation report must pass the partial-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /partial_line_guard_active[\s\S]*maximum_partial_lines/,
+  "allocation report exports must expose partial-line guard provenance",
+);
+assert.match(
+  allocationReportSource,
+  /p_slg[\s\S]*p_slmax/,
+  "allocation report must expose the shortage-line guard selections",
+);
+assert.match(
+  allocationReportSource,
+  /iv_shline_limit_active\s*=\s*p_slg[\s\S]*iv_max_shortage_lines\s*=\s*p_slmax/,
+  "allocation report must pass the shortage-line guard selections to the service",
+);
+assert.match(
+  allocationReportSource,
+  /shortage_line_guard_active[\s\S]*maximum_shortage_lines/,
+  "allocation report exports must expose shortage-line guard provenance",
+);
 assert.equal(
   (allocationReportSource.match(/io_authority\s*=\s*lo_source_read_authority/g) ?? []).length,
   2,
@@ -1285,7 +1667,7 @@ assert.match(
 );
 assert.equal(
   (allocationReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  13,
+  28,
   "allocation report must version all JSON error envelopes, including run-ID variants",
 );
 for (const [reportName, reportSource, expectedCount] of [
@@ -1324,12 +1706,12 @@ assert.match(
 );
 assert.match(
   readmeSource,
-  /Successful CSV and JSON allocation contracts now use schema version `34`/,
+  /Successful CSV and JSON allocation contracts now use schema version `49`/,
   "README must document allocation JSON schema parity",
 );
 assert.match(
   readmeSource,
-  /Result detail\/summary schemas are `37`\/`43`, and comparison CSV\/contextual JSON schemas are `95`/,
+  /Result detail\/summary schemas are `40`\/`46`, and comparison CSV\/contextual JSON schemas are `98`/,
   "README must document current result and comparison schemas",
 );
 assert.doesNotMatch(
@@ -1745,6 +2127,16 @@ assert.match(
   "health output must expose weighted strategy analytics",
 );
 assert.match(
+  auditSource,
+  /available_context\s*=\s*<ls_run>-available[\s\S]*available_context_ok|mixed_available/,
+  "audit summaries must classify a consistent available-stock context",
+);
+assert.match(
+  auditSource,
+  /rs_summary-available_context_ok\s*=\s*abap_false[\s\S]*rs_summary-mixed_available\s*=\s*abap_true/,
+  "audit summaries must suppress mixed available-stock context",
+);
+assert.match(
   readmeSource,
   /Current strategy contract:.*`P`.*`F`.*`N`.*`S`.*`L`.*`B`.*`E`.*`A`.*`W`/s,
   "README must document the complete current strategy contract",
@@ -1771,13 +2163,28 @@ assert.match(
 );
 assert.match(
   healthReportSource,
+  /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\./,
+  "health must expose a preview provenance filter",
+);
+assert.match(
+  healthReportSource,
   /iv_status\s+= p_stat/,
   "health must propagate the audit status filter to audit reads",
 );
 assert.match(
   healthReportSource,
+  /iv_preview_filter\s+= p_prev/,
+  "health must propagate the preview provenance filter to audit reads",
+);
+assert.match(
+  healthReportSource,
   /status_filter/,
   "health machine-readable output must expose audit status provenance",
+);
+assert.match(
+  healthReportSource,
+  /preview_filter/,
+  "health machine-readable output must expose preview provenance",
 );
 assert.match(
   healthReportSource,
@@ -2186,17 +2593,1257 @@ assert.match(
 );
 assert.match(
   healthSource,
+  /rs_health-last_requested_on_from\s*=\s*is_summary-last_requested_on_from[\s\S]*rs_health-last_requested_on_to\s*=\s*is_summary-last_requested_on_to[\s\S]*rs_health-last_requested_deadline\s*=\s*is_summary-last_requested_deadline/,
+  "health evaluator must propagate the latest requested horizon",
+);
+assert.match(
+  healthReportSource,
+  /last_requested_on_from|last_requested_on_to|last_requested_deadline/,
+  "health report must expose the latest requested horizon",
+);
+assert.match(
+  healthSource,
   /rs_health-deadline_age_reference_date\s*=\s*is_summary-deadline_age_reference_date/,
   "health evaluator must propagate deadline-age provenance",
 );
 assert.match(
   healthReportSource,
-  /iv_value = 28 \) TO lt_json_fields/,
-  "health JSON schema must include the running-age contract version",
+  /iv_value = 115 \) TO lt_json_fields/,
+  "health JSON schema must include the preview-filter contract version",
+);
+assert.match(
+  readmeSource,
+  /Health JSON errors use schema `115`, matching the successful health envelope\./,
+  "README must document the current health JSON error schema",
+);
+assert.match(
+  healthSource,
+  /last_line_rates_available|last_full_line_pct|last_partial_line_pct|last_unallocated_line_pct/,
+  "health evaluator must expose latest line-rate telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_line_rates_available|last_full_line_pct|last_partial_line_pct|last_unallocated_line_pct/,
+  "health report must expose latest line-rate telemetry",
+);
+assert.match(
+  healthSource,
+  /last_shortage_pct_available|last_shortage_pct/,
+  "health evaluator must expose latest shortage-rate telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_shortage_pct_available|last_shortage_pct/,
+  "health report must expose latest shortage-rate telemetry",
+);
+assert.match(
+  healthSource,
+  /last_age_available|last_age_seconds/,
+  "health evaluator must expose latest completed-age telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_age_available|last_age_seconds/,
+  "health report must expose latest completed-age telemetry",
+);
+assert.match(
+  healthSource,
+  /last_completed_run_id|last_completed_finish_date|last_completed_status/,
+  "health evaluator must expose latest completed-run context",
+);
+assert.match(
+  healthReportSource,
+  /last_completed_run_available|last_completed_run_id|last_completed_finish_date|last_completed_duration_seconds/,
+  "health report must expose latest completed-run context",
+);
+assert.match(
+  healthSource,
+  /last_completed_requested|last_completed_allocated|last_completed_shortage|last_completed_coverage/,
+  "health evaluator must expose latest completed allocation outcome",
+);
+assert.match(
+  healthReportSource,
+  /last_completed_requested|last_completed_allocated|last_completed_shortage|last_completed_coverage_pct|last_completed_full_line_count/,
+  "health report must expose latest completed allocation outcome",
+);
+assert.match(
+  healthSource,
+  /last_completed_shortage_pct_available|last_completed_shortage_pct|last_completed_line_rates_available/,
+  "health evaluator must expose latest completed normalized rates",
+);
+assert.match(
+  healthReportSource,
+  /last_completed_shortage_pct_available|last_completed_shortage_pct|last_completed_full_line_pct|last_completed_unallocated_line_pct/,
+  "health report must expose latest completed normalized rates",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'material'[\s\S]*iv_name\s*=\s*'plant'[\s\S]*iv_name\s*=\s*'storage_location'[\s\S]*iv_name\s*=\s*'batch'/,
+  "health JSON must expose selected material, plant, storage, and batch provenance",
+);
+assert.match(
+  healthReportSource,
+  /mode;schema_version;status;message;reason_code;material;plant;[\s\S]*storage_location;batch;movement_type_filter;unit_filter;/,
+  "health CSV must expose selected scope and movement/unit filter provenance",
+);
+assert.match(
+  healthReportSource,
+  /'Material:',\s*p_matnr,[\s\S]*'Plant:',\s*p_werks,[\s\S]*'Storage location:',\s*p_lgort,[\s\S]*'Batch:',\s*p_charg,[\s\S]*'Movement type filter:',\s*p_mvt,[\s\S]*'Unit filter:',\s*p_meins/,
+  "health human output must expose selected scope and movement/unit filter provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'minimum_shelf_life_filter'[\s\S]*iv_name\s*=\s*'safety_stock_filter'[\s\S]*iv_name\s*=\s*'minimum_safety_stock_filter'[\s\S]*iv_name\s*=\s*'maximum_safety_stock_filter'[\s\S]*iv_name\s*=\s*'requested_on_from_filter'[\s\S]*iv_name\s*=\s*'requested_on_to_filter'/,
+  "health JSON must expose shelf-life, safety-stock, and requested-horizon provenance",
+);
+assert.match(
+  healthReportSource,
+  /minimum_shelf_life_filter;[\s\S]*safety_stock_filter;[\s\S]*minimum_safety_stock_filter;[\s\S]*maximum_safety_stock_filter;[\s\S]*requested_on_from_filter;[\s\S]*requested_on_to_filter;/,
+  "health CSV must expose shelf-life, safety-stock, and requested-horizon provenance",
+);
+assert.match(
+  healthReportSource,
+  /'Minimum shelf life:',\s*p_shelf,[\s\S]*'Safety-stock filter:',\s*p_safon,[\s\S]*'Minimum safety stock:',\s*p_saf,[\s\S]*'Maximum safety stock:',\s*p_safto,[\s\S]*'Requested delivery from:',\s*p_reqf,[\s\S]*'Requested delivery to:',\s*p_until/,
+  "health human output must expose shelf-life, safety-stock, and requested-horizon provenance",
+);
+assert.match(
+  healthSource,
+  /policy_context_available|mixed_policies|movement_type_context|minimum_shelf_life_context|safety_stock_context/,
+  "health evaluator must expose actual policy-context telemetry",
+);
+assert.match(
+  healthSource,
+  /is_summary-policy_context_available|is_summary-mixed_policies|is_summary-movement_type_context|is_summary-min_shelf_life_context|is_summary-safety_stock_context/,
+  "health evaluator must propagate actual policy context from the audit summary",
+);
+assert.match(
+  healthReportSource,
+  /policy_context_available|mixed_policies|movement_type_context|minimum_shelf_life_context|safety_stock_context/,
+  "health report must expose actual policy-context telemetry",
+);
+assert.match(
+  healthSource,
+  /mixed_units/,
+  "health evaluator must expose mixed-unit state",
+);
+assert.match(
+  healthReportSource,
+  /mixed_units/,
+  "health report must expose mixed-unit state",
+);
+assert.match(
+  healthSource,
+  /available_stock_context_available|available_stock_context|mixed_available_stock/,
+  "health evaluator must expose available-stock context telemetry",
+);
+assert.match(
+  healthSource,
+  /is_summary-available_context_ok|is_summary-available_context|is_summary-mixed_available/,
+  "health evaluator must propagate available-stock context from the audit summary",
+);
+assert.match(
+  healthReportSource,
+  /available_stock_context_available|available_stock_context|mixed_available_stock/,
+  "health report must expose available-stock context telemetry",
+);
+assert.match(
+  healthSource,
+  /stale_threshold_active|stale_threshold|stale_above_threshold/,
+  "health evaluator must expose stale-threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_stale_threshold|stale_above_threshold[\s\S]*lv_stale/,
+  "health evaluator must derive stale-threshold breach state",
+);
+assert.match(
+  healthReportSource,
+  /p_stale|stale_threshold_seconds|stale_above_threshold/,
+  "health report must expose stale-threshold provenance",
+);
+assert.match(
+  healthSource,
+  /coverage_threshold\s*=\s*iv_min_coverage|shortage_threshold\s*=\s*iv_max_shortage_pct/,
+  "health evaluator must retain configured percentage thresholds",
+);
+assert.match(
+  healthReportSource,
+  /coverage_threshold|shortage_threshold/,
+  "health report must expose configured percentage thresholds",
+);
+assert.match(
+  healthSource,
+  /rs_health-success_runs\s*=\s*is_summary-success_runs/,
+  "health evaluator must propagate successful-run counts",
+);
+assert.match(
+  healthReportSource,
+  /success_runs/,
+  "health report must expose successful-run counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-completion_pct\s*=\s*is_summary-completion_pct/,
+  "health evaluator must propagate completion percentage",
+);
+assert.match(
+  healthSource,
+  /rs_health-success_rate_pct\s*=\s*is_summary-success_rate_pct/,
+  "health evaluator must propagate success rate",
+);
+assert.match(
+  healthReportSource,
+  /completion_pct|success_rate_pct|partial_rate_pct|error_rate_pct/,
+  "health report must expose run-quality rates",
+);
+assert.match(
+  healthSource,
+  /rs_health-demand_count\s*=\s*is_summary-demand_count[\s\S]*rs_health-full_count\s*=\s*is_summary-full_count[\s\S]*rs_health-partial_count\s*=\s*is_summary-partial_count[\s\S]*rs_health-unallocated_count\s*=\s*is_summary-unallocated_count/,
+  "health evaluator must propagate line-outcome counts",
+);
+assert.match(
+  healthReportSource,
+  /demand_count[\s\S]*full_count[\s\S]*partial_count[\s\S]*unallocated_count/,
+  "health report must expose line-outcome counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-full_line_pct\s*=\s*is_summary-full_count\s*\*\s*100[\s\S]*rs_health-partial_line_pct\s*=\s*is_summary-partial_count\s*\*\s*100[\s\S]*rs_health-unallocated_line_pct\s*=\s*is_summary-unallocated_count\s*\*\s*100/,
+  "health evaluator must calculate line-outcome rates",
+);
+assert.match(
+  healthReportSource,
+  /full_line_pct[\s\S]*partial_line_pct[\s\S]*unallocated_line_pct/,
+  "health report must expose line-outcome rates",
+);
+assert.match(
+  healthSource,
+  /full_line_threshold_active|full_line_threshold|full_line_below_threshold/,
+  "health evaluator must expose full-line-rate threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_full_line_rate|full_line_below_threshold[\s\S]*demand_count > 0/,
+  "health evaluator must apply a zero-demand-safe full-line-rate threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_flmin|minimum_full_line_rate|full_line_threshold|full_line_below_threshold/,
+  "health report must expose full-line-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /unallocated_line_threshold_active|unallocated_line_threshold|unallocated_line_above_threshold/,
+  "health evaluator must expose unallocated-line-rate threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_unalloc_line_rate|unallocated_line_above_threshold[\s\S]*demand_count > 0/,
+  "health evaluator must apply a zero-demand-safe unallocated-line-rate threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_ulmax|maximum_unallocated_line_rate|unallocated_line_threshold|unallocated_line_above_threshold/,
+  "health report must expose unallocated-line-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /partial_line_threshold_active|partial_line_threshold|partial_line_above_threshold/,
+  "health evaluator must expose partial-line-rate threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_partial_line_rate|partial_line_above_threshold[\s\S]*demand_count > 0/,
+  "health evaluator must apply a zero-demand-safe partial-line-rate threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_plmax|maximum_partial_line_rate|partial_line_threshold|partial_line_above_threshold/,
+  "health report must expose partial-line-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /full_count_threshold_active|full_count_threshold|full_count_below_threshold/,
+  "health evaluator must expose full-line-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_full_line_count|full_count_below_threshold[\s\S]*demand_count > 0/,
+  "health evaluator must apply a zero-demand-safe full-line-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_flcnt|minimum_full_line_count|full_count_threshold|full_count_below_threshold/,
+  "health report must expose full-line-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /demand_count_threshold_active|demand_count_threshold|demand_count_above_threshold/,
+  "health evaluator must expose demand-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_demand_count|demand_count_above_threshold[\s\S]*iv_max_demand_count/,
+  "health evaluator must apply a demand-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dmax|maximum_demand_count_threshold|demand_count_threshold|demand_count_above_threshold/,
+  "health report must expose demand-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /running_count_threshold_active|running_count_threshold|running_count_above_threshold/,
+  "health evaluator must expose running-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_running_count|running_count_above_threshold[\s\S]*iv_max_running_count/,
+  "health evaluator must apply a maximum running-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_rmax|maximum_running_count_threshold|running_count_threshold|running_count_above_threshold/,
+  "health report must expose running-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /shortage_quantity_threshold_active|shortage_quantity_threshold|shortage_quantity_above_threshold/,
+  "health evaluator must expose shortage-quantity threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_shortage_quantity|shortage_quantity_above_threshold[\s\S]*shortage_available = abap_true/,
+  "health evaluator must apply a mixed-unit-safe shortage-quantity threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_shmax|maximum_shortage_quantity_threshold|shortage_quantity_threshold|shortage_quantity_above_threshold/,
+  "health report must expose shortage-quantity threshold provenance",
+);
+assert.match(
+  healthSource,
+  /avail_stock_min_threshold_active|avail_stock_min_threshold|avail_stock_below_threshold/,
+  "health evaluator must expose minimum available-stock threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_available_stock|avail_stock_below_threshold[\s\S]*available_stock_context_available = abap_true/,
+  "health evaluator must apply a comparable-context-safe minimum available-stock threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_avmin|minimum_available_stock_threshold|available_stock_min_threshold|available_stock_below_threshold/,
+  "health report must expose minimum available-stock threshold provenance",
+);
+assert.match(
+  healthSource,
+  /avail_stock_max_threshold_active|avail_stock_max_threshold|avail_stock_above_threshold/,
+  "health evaluator must expose maximum available-stock threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_max_available_stock|avail_stock_above_threshold[\s\S]*available_stock_context_available = abap_true/,
+  "health evaluator must apply a comparable-context-safe maximum available-stock threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_avmax|maximum_available_stock_threshold|available_stock_max_threshold|available_stock_above_threshold/,
+  "health report must expose maximum available-stock threshold provenance",
+);
+assert.match(
+  healthSource,
+  /rs_health-legacy_runs\s*=\s*is_summary-legacy_strategy_runs/,
+  "health evaluator must propagate legacy-strategy run counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-legacy_requested\s*=\s*is_summary-legacy_requested/,
+  "health evaluator must propagate legacy-strategy quantities",
+);
+assert.match(
+  healthReportSource,
+  /legacy_runs|legacy_requested|legacy_coverage_pct/,
+  "health report must expose legacy-strategy telemetry",
+);
+assert.match(
+  healthSource,
+  /rs_health-priority_runs\s*=\s*is_summary-priority_runs/,
+  "health evaluator must propagate priority strategy counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-best_runs\s*=\s*is_summary-best_runs/,
+  "health evaluator must propagate best-fit strategy counts",
+);
+assert.match(
+  healthReportSource,
+  /priority_runs|fifo_runs|full_only_runs|smallest_runs|largest_runs|best_runs/,
+  "health report must expose core strategy mix counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-priority_requested\s*=\s*is_summary-priority_requested/,
+  "health evaluator must propagate priority strategy quantities",
+);
+assert.match(
+  healthSource,
+  /rs_health-best_coverage\s*=\s*is_summary-best_coverage/,
+  "health evaluator must propagate best-fit strategy coverage",
+);
+assert.match(
+  healthReportSource,
+  /priority_requested|fifo_requested|full_only_requested|smallest_requested|largest_requested|best_requested/,
+  "health report must expose core strategy quantity telemetry",
+);
+assert.match(
+  healthSource,
+  /rs_health-last_run_id\s*=\s*is_summary-last_run_id/,
+  "health evaluator must propagate the latest run identity",
+);
+assert.match(
+  healthSource,
+  /rs_health-average_duration_seconds\s*=\s*is_summary-average_duration_seconds/,
+  "health evaluator must propagate duration aggregates",
+);
+assert.match(
+  healthSource,
+  /rs_health-oldest_running_run_id\s*=\s*is_summary-oldest_running_run_id/,
+  "health evaluator must propagate oldest running identity",
+);
+assert.match(
+  healthReportSource,
+  /last_run_available|last_run_id|last_duration_seconds|average_duration_seconds|oldest_running_run_id|newest_running_run_id/,
+  "health report must expose recency and performance telemetry",
+);
+assert.match(
+  healthSource,
+  /last_available_stock\s*=\s*is_summary-last_avail|last_available_stock_available/,
+  "health evaluator must expose latest available-stock telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_available_stock_available|last_available_stock_unit|last_available_stock/,
+  "health report must expose latest available-stock telemetry",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_lcov|minimum_last_coverage|last_coverage_threshold|last_coverage_below_threshold/,
+  "health report must expose latest-run coverage threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_lshmax|maximum_last_shortage_quantity|last_shortage_quantity_threshold|last_shortage_quantity_above_threshold/,
+  "health report must expose latest-run shortage threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_lspct|maximum_last_shortage_pct|last_shortage_pct_threshold|last_shortage_pct_above_threshold/,
+  "health report must expose latest-run shortage-percentage threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_age|last_age_above_threshold|last_age_reason/,
+  "health evaluator must support latest-run age threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_lage|maximum_last_age|last_age_threshold|last_age_above_threshold|last_age_reason/,
+  "health report must expose latest-run age threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_deadline_age|last_completed_deadline_age_above_threshold/,
+  "health evaluator must support latest-completed deadline-age threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdag|maximum_last_completed_deadline_age|last_completed_deadline_age_threshold|last_completed_deadline_age_above_threshold/,
+  "health report must expose latest-completed deadline-age threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_demand_count|last_completed_demand_count_above_threshold/,
+  "health evaluator must support latest-completed demand-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdmax|maximum_last_completed_demand_count|last_completed_demand_count_threshold|last_completed_demand_count_above_threshold/,
+  "health report must expose latest-completed demand-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /last_age_reference_date|last_age_reference_time/,
+  "health report must expose the age calculation reference timestamp",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_run_id|last_completed_finish_date|last_completed_status/,
+  "audit summary must expose latest completed-run context",
+);
+assert.match(
+  auditSource,
+  /last_completed_run_id|last_completed_finish_date|last_completed_status/,
+  "audit implementation must derive latest completed-run context",
+);
+assert.match(
+  auditSource,
+  /lt_completed_runs|last_completed_success_streak|last_completed_non_success_streak|SORT lt_completed_runs/,
+  "audit summary must calculate completed run-quality streaks",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_requested|last_completed_allocated|last_completed_shortage|last_completed_coverage/,
+  "audit summary must expose latest completed allocation outcome",
+);
+assert.match(
+  auditSource,
+  /last_completed_requested|last_completed_allocated|last_completed_shortage|last_completed_coverage/,
+  "audit implementation must derive latest completed allocation outcome",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_avail|last_completed_avail_unit|last_completed_avail_ok/,
+  "audit summary must expose latest completed available-stock context",
+);
+assert.match(
+  auditSource,
+  /last_completed_avail|last_completed_avail_unit|last_completed_avail_ok/,
+  "audit implementation must derive latest completed available-stock context",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_message/,
+  "audit summary must expose the latest completed diagnostic message",
+);
+assert.match(
+  auditSource,
+  /last_completed_message\s*=\s*<ls_run>-message/,
+  "audit implementation must derive the latest completed diagnostic message",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_start_date|last_completed_start_time/,
+  "audit summary must expose latest completed start timestamp",
+);
+assert.match(
+  auditSource,
+  /last_completed_start_date\s*=\s*<ls_run>-start_date[\s\S]*last_completed_start_time\s*=\s*<ls_run>-start_time/,
+  "audit implementation must derive latest completed start timestamp",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_policy_available|last_completed_movement_type|last_completed_min_shelf_life|last_completed_safety_stock/,
+  "audit summary must expose latest completed policy context",
+);
+assert.match(
+  auditSource,
+  /last_completed_policy_available\s*=\s*abap_true[\s\S]*last_completed_movement_type\s*=\s*<ls_run>-movement_type[\s\S]*last_completed_min_shelf_life\s*=\s*<ls_run>-min_shelf_life[\s\S]*last_completed_safety_stock\s*=\s*<ls_run>-safety_stock/,
+  "audit implementation must derive latest completed policy context",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_horizon_available|last_completed_requested_on_from|last_completed_requested_on_to|last_completed_requested_deadline/,
+  "audit summary must expose latest completed requested horizon",
+);
+assert.match(
+  auditSource,
+  /last_completed_horizon_available\s*=\s*abap_true[\s\S]*last_completed_requested_on_from\s*=\s*<ls_run>-requested_on_from[\s\S]*last_completed_requested_on_to\s*=\s*<ls_run>-requested_on_to[\s\S]*last_completed_requested_deadline\s*=\s*<ls_run>-requested_deadline/,
+  "audit implementation must derive latest completed requested horizon",
+);
+assert.match(
+  auditInterfaceSource,
+  /last_completed_deadline_age_available|last_completed_deadline_age_days|last_completed_deadline_age_reason/,
+  "audit summary must expose latest completed deadline age",
+);
+assert.match(
+  auditSource,
+  /last_completed_deadline_age_available\s*=\s*abap_true[\s\S]*last_completed_deadline_age_days\s*=\s*lv_deadline_age_reference_date/,
+  "audit implementation must derive latest completed deadline age",
+);
+assert.match(
+  healthSource,
+  /last_completed_available_stock|last_completed_available_stock_available|last_completed_message|last_completed_start_date|last_completed_policy_available|last_completed_horizon_available|last_completed_deadline_age_available|last_completed_deadline_age_reason/,
+  "health evaluator must expose latest completed available-stock context",
+);
+assert.match(
+  healthReportSource,
+  /last_completed_available_stock|last_completed_available_stock_available|last_completed_message|last_completed_start_date|last_completed_start_time|last_completed_policy_available|last_completed_movement_type|last_completed_horizon_available|last_completed_requested_on_from|last_completed_deadline_age_available|last_completed_deadline_age_reason/,
+  "health report must expose latest completed result context",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_coverage|last_coverage_below_threshold/,
+  "health evaluator must support latest-run coverage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_shortage_qty|last_shortage_qty_above_threshold/,
+  "health evaluator must support latest-run shortage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_shortage_pct|last_shortage_pct_above_threshold/,
+  "health evaluator must support latest-run shortage-percentage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_coverage|last_completed_coverage_below_threshold/,
+  "health evaluator must support latest-completed coverage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_coverage|last_completed_coverage_above_threshold/,
+  "health evaluator must support maximum latest-completed coverage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_shortage_pct|last_completed_shortage_pct_above_threshold/,
+  "health evaluator must support latest-completed shortage-percentage threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_shortage_qty|last_completed_shortage_qty_above_threshold/,
+  "health evaluator must support latest-completed shortage-quantity threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_allocated|last_completed_allocated_below_threshold/,
+  "health evaluator must support latest-completed allocated-quantity threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_allocated|last_completed_allocated_above_threshold/,
+  "health evaluator must support maximum latest-completed allocated-quantity threshold evaluation",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_requested|last_completed_requested_above_threshold/,
+  "health evaluator must support latest-completed requested-quantity threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_ccov|minimum_last_completed_coverage|last_completed_coverage_threshold/,
+  "health report must expose latest-completed coverage threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_ccvmax|maximum_last_completed_coverage|last_completed_coverage_max_threshold/,
+  "health report must expose maximum latest-completed coverage threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /p_ccov\s*>\s*0[\s\S]*p_ccvmax\s*>\s*0[\s\S]*p_ccov\s*>\s*p_ccvmax[\s\S]*Latest completed coverage minimum cannot exceed its maximum/,
+  "health report must reject an inverted latest-completed coverage threshold range",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_coverage_max_threshold_active'[\s\S]*ls_health-last_completed_coverage_max_threshold_active/,
+  "health JSON must expose maximum latest-completed coverage threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_coverage_above_threshold'[\s\S]*ls_health-last_completed_coverage_above_threshold/,
+  "health JSON must expose maximum latest-completed coverage breach state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cspct|maximum_last_completed_shortage_pct|last_completed_shortage_pct_threshold/,
+  "health report must expose latest-completed shortage-percentage threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cshmax|maximum_last_completed_shortage_quantity|last_completed_shortage_qty_threshold/,
+  "health report must expose latest-completed shortage-quantity threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_camin|minimum_last_completed_allocated_quantity|last_completed_allocated_threshold/,
+  "health report must expose latest-completed allocated-quantity threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_threshold_active'[\s\S]*ls_health-last_completed_allocated_threshold_active/,
+  "health JSON must expose latest-completed allocated-quantity threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_below_threshold'[\s\S]*ls_health-last_completed_allocated_below_threshold/,
+  "health JSON must expose latest-completed allocated-quantity breach state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_crqmax|maximum_last_completed_requested_quantity|last_completed_requested_threshold/,
+  "health report must expose latest-completed requested-quantity threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_requested_threshold_active'[\s\S]*ls_health-last_completed_requested_threshold_active/,
+  "health JSON must expose latest-completed requested-quantity threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_requested_above_threshold'[\s\S]*ls_health-last_completed_requested_above_threshold/,
+  "health JSON must expose latest-completed requested-quantity breach state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_caqmax|maximum_last_completed_allocated_quantity|last_completed_allocated_max_threshold/,
+  "health report must expose maximum latest-completed allocated-quantity threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_max_threshold_active'[\s\S]*ls_health-last_completed_allocated_max_threshold_active/,
+  "health JSON must expose maximum latest-completed allocated-quantity threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_above_threshold'[\s\S]*ls_health-last_completed_allocated_above_threshold/,
+  "health JSON must expose maximum latest-completed allocated-quantity breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_avail_stock|last_completed_avail_stock_below_threshold|iv_max_last_completed_avail_stock|last_completed_avail_stock_above_threshold/,
+  "health evaluator must support latest-completed available-stock thresholds",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cavmin|PARAMETERS p_cavmax|minimum_last_completed_available_stock|maximum_last_completed_available_stock|last_completed_avail_stock_min_threshold|last_completed_avail_stock_max_threshold/,
+  "health report must expose latest-completed available-stock threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_full_line_rate|last_completed_full_line_below_threshold/,
+  "health evaluator must support latest-completed full-line-rate threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cflmin|minimum_last_completed_full_line_rate|last_completed_full_line_threshold/,
+  "health report must expose latest-completed full-line-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_full_line_rate|last_completed_full_line_above_threshold/,
+  "health evaluator must support maximum latest-completed full-line-rate threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cflmax|maximum_last_completed_full_line_rate|last_completed_full_line_max_threshold/,
+  "health report must expose maximum latest-completed full-line-rate threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /p_cflmin\s*>\s*0[\s\S]*p_cflmax\s*>\s*0[\s\S]*p_cflmin\s*>\s*p_cflmax[\s\S]*Latest completed full-line rate minimum cannot exceed its maximum/,
+  "health report must reject an inverted latest-completed full-line-rate threshold range",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_full_line_max_threshold_active'[\s\S]*ls_health-last_completed_full_line_max_threshold_active/,
+  "health JSON must expose maximum latest-completed full-line threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_full_line_above_threshold'[\s\S]*ls_health-last_completed_full_line_above_threshold/,
+  "health JSON must expose maximum latest-completed full-line breach state",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_unalloc_line_rate|last_completed_unalloc_line_above_threshold/,
+  "health evaluator must support latest-completed unallocated-line-rate threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_culmax|maximum_last_completed_unallocated_line_rate|last_completed_unalloc_line_threshold/,
+  "health report must expose latest-completed unallocated-line-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_partial_line_rate|last_completed_partial_line_above_threshold/,
+  "health evaluator must support latest-completed partial-line-rate threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cplmax|maximum_last_completed_partial_line_rate|last_completed_partial_line_threshold/,
+  "health report must expose latest-completed partial-line-rate threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_partial_line_threshold_active'[\s\S]*ls_health-last_completed_partial_line_threshold_active/,
+  "health JSON must expose latest-completed partial-line threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_partial_line_above_threshold'[\s\S]*ls_health-last_completed_partial_line_above_threshold/,
+  "health JSON must expose latest-completed partial-line breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_full_line_count|last_completed_full_count_below_threshold/,
+  "health evaluator must support latest-completed full-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cflcnt|minimum_last_completed_full_line_count|last_completed_full_count_threshold/,
+  "health report must expose latest-completed full-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_full_count_threshold_active'[\s\S]*ls_health-last_completed_full_count_threshold_active/,
+  "health JSON must expose latest-completed full-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_full_count_below_threshold'[\s\S]*ls_health-last_completed_full_count_below_threshold/,
+  "health JSON must expose latest-completed full-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_alloc_lines|last_completed_allocated_count_below_threshold/,
+  "health evaluator must support latest-completed allocated-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cacnt|minimum_last_completed_allocated_line_count|last_completed_allocated_count_threshold/,
+  "health report must expose latest-completed allocated-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_count_threshold_active'[\s\S]*ls_health-last_completed_allocated_count_threshold_active/,
+  "health JSON must expose latest-completed allocated-line-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_count_below_threshold'[\s\S]*ls_health-last_completed_allocated_count_below_threshold/,
+  "health JSON must expose latest-completed allocated-line-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_alloc_lines|last_completed_alloc_count_max_above_threshold/,
+  "health evaluator must support maximum latest-completed allocated-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cacmax|maximum_last_completed_allocated_line_count|last_completed_allocated_count_max_threshold/,
+  "health report must expose maximum latest-completed allocated-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_count_max_threshold_active'[\s\S]*ls_health-last_completed_alloc_count_max_threshold_active/,
+  "health JSON must expose maximum latest-completed allocated-line-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_allocated_count_above_threshold'[\s\S]*ls_health-last_completed_alloc_count_max_above_threshold/,
+  "health JSON must expose maximum latest-completed allocated-line-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_unalloc_line_count|last_completed_unalloc_count_above_threshold/,
+  "health evaluator must support latest-completed unallocated-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_culcnt|maximum_last_completed_unallocated_line_count|last_completed_unalloc_count_threshold/,
+  "health report must expose latest-completed unallocated-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_unalloc_count_threshold_active'[\s\S]*ls_health-last_completed_unalloc_count_threshold_active/,
+  "health JSON must expose latest-completed unallocated-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_unalloc_count_above_threshold'[\s\S]*ls_health-last_completed_unalloc_count_above_threshold/,
+  "health JSON must expose latest-completed unallocated-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_partial_line_count|last_completed_partial_count_above_threshold/,
+  "health evaluator must support latest-completed partial-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cplcnt|maximum_last_completed_partial_line_count|last_completed_partial_count_threshold/,
+  "health report must expose latest-completed partial-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_partial_count_threshold_active'[\s\S]*ls_health-last_completed_partial_count_threshold_active/,
+  "health JSON must expose latest-completed partial-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_partial_count_above_threshold'[\s\S]*ls_health-last_completed_partial_count_above_threshold/,
+  "health JSON must expose latest-completed partial-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_shortage_line_count|last_completed_shortage_count_above_threshold/,
+  "health evaluator must support latest-completed shortage-line-count threshold evaluation",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cshcnt|maximum_last_completed_shortage_line_count|last_completed_shortage_count_threshold/,
+  "health report must expose latest-completed shortage-line-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_shortage_count_threshold_active'[\s\S]*ls_health-last_completed_shortage_count_threshold_active/,
+  "health JSON must expose latest-completed shortage-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_shortage_count_above_threshold'[\s\S]*ls_health-last_completed_shortage_count_above_threshold/,
+  "health JSON must expose latest-completed shortage-count breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_requested|last_completed_requested_below_threshold/,
+  "health evaluator must support a minimum latest-completed requested-quantity threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_crqmin|minimum_last_completed_requested_quantity|last_completed_requested_min_threshold/,
+  "health report must expose minimum latest-completed requested-quantity threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_requested_min_threshold_active'[\s\S]*ls_health-last_completed_requested_min_threshold_active/,
+  "health JSON must expose minimum latest-completed requested-quantity threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_requested_below_threshold'[\s\S]*ls_health-last_completed_requested_below_threshold/,
+  "health JSON must expose minimum latest-completed requested-quantity breach state",
+);
+assert.match(
+  healthReportSource,
+  /p_crqmin\s*>\s*0[\s\S]*p_crqmax\s*>\s*0[\s\S]*p_crqmin\s*>\s*p_crqmax[\s\S]*Minimum latest completed requested quantity cannot exceed maximum/,
+  "health report must reject an inverted latest-completed requested-quantity range",
+);
+assert.match(
+  healthReportSource,
+  /p_camin\s*>\s*0[\s\S]*p_caqmax\s*>\s*0[\s\S]*p_camin\s*>\s*p_caqmax[\s\S]*Minimum latest completed allocated quantity cannot exceed maximum/,
+  "health report must reject an inverted latest-completed allocated-quantity range",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_demand_count|last_completed_demand_count_below_threshold/,
+  "health evaluator must support a minimum latest-completed demand-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdmin|minimum_last_completed_demand_count|last_completed_demand_count_min_threshold/,
+  "health report must expose minimum latest-completed demand-count threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_demand_count_min_threshold_active'[\s\S]*ls_health-last_completed_demand_count_min_threshold_active/,
+  "health JSON must expose minimum latest-completed demand-count threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_demand_count_below_threshold'[\s\S]*ls_health-last_completed_demand_count_below_threshold/,
+  "health JSON must expose minimum latest-completed demand-count breach state",
+);
+assert.match(
+  healthReportSource,
+  /p_cdmin\s*>\s*0[\s\S]*p_cdmax\s*>\s*0[\s\S]*p_cdmin\s*>\s*p_cdmax[\s\S]*Minimum latest completed demand count cannot exceed maximum/,
+  "health report must reject an inverted latest-completed demand-count range",
+);
+assert.match(
+  healthReportSource,
+  /minimum_coverage;[\s\S]*minimum_last_coverage;[\s\S]*maximum_average_duration/,
+  "health CSV must keep latest-coverage provenance in parameter order",
+);
+assert.match(
+  healthSource,
+  /last_requested_quantity\s*=\s*is_summary-last_requested|last_coverage_pct\s*=\s*is_summary-last_coverage/,
+  "health evaluator must expose latest-run outcome telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_requested_quantity|last_allocated_quantity|last_shortage_quantity|last_coverage_pct|last_unallocated_line_count/,
+  "health report must expose latest-run outcome telemetry",
+);
+assert.match(
+  healthSource,
+  /priority_mix_pct|fifo_mix_pct|full_only_mix_pct|smallest_mix_pct|largest_mix_pct|best_mix_pct/,
+  "health evaluator must calculate strategy-mix percentages",
+);
+assert.match(
+  healthReportSource,
+  /priority_mix_pct|fifo_mix_pct|full_only_mix_pct|smallest_mix_pct|largest_mix_pct|best_mix_pct|legacy_mix_pct/,
+  "health report must expose strategy-mix percentages",
+);
+assert.match(
+  healthSource,
+  /duration_above_threshold|duration_threshold_active|last_duration_available/,
+  "health evaluator must expose latest-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /maximum_last_duration|duration_threshold|duration_above_threshold/,
+  "health report must expose latest-duration threshold provenance",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_duration|last_completed_duration_above_threshold/,
+  "health evaluator must expose latest-completed-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdurmx|maximum_last_completed_duration|last_completed_duration_threshold/,
+  "health report must expose latest-completed-duration threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_duration_threshold_active'[\s\S]*ls_health-last_completed_duration_threshold_active/,
+  "health JSON must expose latest-completed-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_duration_above_threshold'[\s\S]*ls_health-last_completed_duration_above_threshold/,
+  "health JSON must expose latest-completed-duration breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_duration|last_completed_duration_below_threshold/,
+  "health evaluator must expose minimum latest-completed-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdurmn|minimum_last_completed_duration|last_completed_duration_min_threshold/,
+  "health report must expose minimum latest-completed-duration threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_duration_below_threshold'[\s\S]*ls_health-last_completed_duration_below_threshold/,
+  "health JSON must expose minimum latest-completed-duration breach state",
+);
+assert.match(
+  healthSource,
+  /iv_require_last_completed_success|last_completed_success_breach/,
+  "health evaluator must expose latest-completed-success requirement state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_csucc|require_last_completed_success|last_completed_success_required_active/,
+  "health report must expose latest-completed-success requirement provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_success_breach'[\s\S]*ls_health-last_completed_success_breach/,
+  "health JSON must expose latest-completed-success breach state",
+);
+assert.match(
+  healthSource,
+  /iv_min_last_completed_success_streak|last_completed_success_streak_below_threshold/,
+  "health evaluator must expose minimum latest-completed-success-streak threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cstrk|minimum_last_completed_success_streak|last_completed_success_streak_threshold/,
+  "health report must expose minimum latest-completed-success-streak threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_success_streak_below_threshold'[\s\S]*ls_health-last_completed_success_streak_below_threshold/,
+  "health JSON must expose latest-completed-success-streak breach state",
+);
+assert.match(
+  healthSource,
+  /last_completed_success_streak\s*=\s*is_summary-last_completed_success_streak/,
+  "health evaluator must propagate latest-completed-success streak telemetry",
+);
+assert.match(
+  healthReportSource,
+  /last_completed_success_streak/,
+  "health report must expose latest-completed-success streak telemetry",
+);
+assert.match(
+  healthSource,
+  /iv_max_last_completed_non_success_streak|last_completed_non_success_above_threshold/,
+  "health evaluator must expose maximum latest-completed-non-success-streak threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cfail|maximum_last_completed_non_success_streak|last_completed_non_success_threshold/,
+  "health report must expose maximum latest-completed-non-success-streak threshold provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_name\s*=\s*'last_completed_non_success_streak_above_threshold'[\s\S]*ls_health-last_completed_non_success_above_threshold/,
+  "health JSON must expose maximum latest-completed-non-success-streak breach state",
+);
+assert.match(
+  healthSource,
+  /last_completed_non_success_streak\s*=\s*is_summary-last_completed_non_success_streak/,
+  "health evaluator must propagate latest-completed non-success streak telemetry",
+);
+assert.match(
+  healthSource,
+  /average_duration_above_threshold|average_duration_threshold_active|average_duration_threshold/,
+  "health evaluator must expose average-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_avgmax|maximum_average_duration|average_duration_threshold|average_duration_above_threshold/,
+  "health report must expose average-duration threshold provenance",
+);
+assert.match(
+  healthSource,
+  /maximum_duration_above_threshold|maximum_duration_threshold_active|maximum_duration_threshold/,
+  "health evaluator must expose maximum-duration threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_maxdur|maximum_completed_duration|maximum_duration_threshold|maximum_duration_above_threshold/,
+  "health report must expose maximum-duration threshold provenance",
+);
+assert.match(
+  healthSource,
+  /success_below_threshold|success_threshold_active|success_threshold/,
+  "health evaluator must expose success-rate threshold state",
+);
+assert.match(
+  healthReportSource,
+  /minimum_success_rate|success_threshold|success_below_threshold/,
+  "health report must expose success-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /success_count_threshold_active|success_count_threshold|success_count_below_threshold/,
+  "health evaluator must expose success-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_success_count|success_count_below_threshold[\s\S]*iv_min_success_count/,
+  "health evaluator must apply a minimum successful-run count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_sucnt|minimum_success_count|success_count_threshold|success_count_below_threshold/,
+  "health report must expose success-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /duration_count_threshold_active|duration_count_threshold|duration_count_below_threshold/,
+  "health evaluator must expose duration-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_duration_count|duration_count_below_threshold[\s\S]*iv_min_duration_count/,
+  "health evaluator must apply a minimum duration sample-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_durcnt|minimum_duration_count|duration_count_threshold|duration_count_below_threshold/,
+  "health report must expose duration-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /run_count_threshold_active|run_count_threshold|run_count_below_threshold/,
+  "health evaluator must expose total-run-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_run_count|run_count_below_threshold[\s\S]*total_runs < iv_min_run_count/,
+  "health evaluator must apply a minimum total-run-count threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_runcnt|minimum_run_count|run_count_threshold|run_count_below_threshold/,
+  "health report must expose total-run-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /deadline_count_threshold_active|deadline_count_threshold|deadline_count_below_threshold/,
+  "health evaluator must expose deadline-count threshold state",
+);
+assert.match(
+  healthSource,
+  /iv_min_deadline_count|deadline_count_below_threshold[\s\S]*deadline_count < iv_min_deadline_count/,
+  "health evaluator must apply a minimum deadline-bearing-run threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dcmin|minimum_deadline_count|deadline_count_threshold|deadline_count_below_threshold/,
+  "health report must expose deadline-count threshold provenance",
+);
+assert.match(
+  healthSource,
+  /mixed_policy_warning_active|mixed_policy_breach/,
+  "health evaluator must expose mixed-policy warning state",
+);
+assert.match(
+  healthSource,
+  /iv_warn_mixed_policies|mixed_policy_breach[\s\S]*is_summary-mixed_policies/,
+  "health evaluator must apply the mixed-policy warning switch",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_pmix|warn_mixed_policies|mixed_policy_warning_active|mixed_policy_breach/,
+  "health report must expose mixed-policy warning provenance",
+);
+assert.match(
+  healthSource,
+  /mixed_unit_warning_active|mixed_unit_breach/,
+  "health evaluator must expose mixed-unit warning state",
+);
+assert.match(
+  healthSource,
+  /iv_warn_mixed_units|mixed_unit_breach[\s\S]*is_summary-mixed_units/,
+  "health evaluator must apply the mixed-unit warning switch",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_umix|warn_mixed_units|mixed_unit_warning_active|mixed_unit_breach/,
+  "health report must expose mixed-unit warning provenance",
+);
+assert.match(
+  healthSource,
+  /error_above_threshold|error_threshold_active|error_threshold/,
+  "health evaluator must expose error-rate threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_errmax|maximum_error_rate|error_threshold|error_above_threshold/,
+  "health report must expose error-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /partial_above_threshold|partial_threshold_active|partial_threshold/,
+  "health evaluator must expose partial-run-rate threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_prtmax|maximum_partial_rate|partial_threshold|partial_above_threshold/,
+  "health report must expose partial-run-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /completion_below_threshold|completion_threshold_active|completion_threshold/,
+  "health evaluator must expose completion-rate threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cmin|minimum_completion_rate|completion_threshold|completion_below_threshold/,
+  "health report must expose completion-rate threshold provenance",
+);
+assert.match(
+  healthSource,
+  /threshold_breach_count|threshold_breaches/,
+  "health evaluator must aggregate threshold breaches",
+);
+assert.match(
+  healthReportSource,
+  /threshold_breach_count|threshold_breaches/,
+  "health report must expose aggregated threshold breaches",
 );
 assert.equal(
   (healthReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  10,
+  70,
   "health report must version all JSON error envelopes",
 );
 const historySource = fs.readFileSync(
@@ -2222,10 +3869,10 @@ assert.equal(
 );
 assert.equal(
   (purgeReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  21,
+  24,
   "purge report must version all JSON error envelopes",
 );
-for (const [mode, schemaVersion] of [["preview", 22], ["execution", 23]]) {
+for (const [mode, schemaVersion] of [["preview", 27], ["execution", 28]]) {
   assert.equal(
     (purgeReportSource.match(new RegExp(`iv_value\\s*=\\s*${schemaVersion}\\s*\\)`, "g")) ?? []).length,
     2,
@@ -2239,15 +3886,106 @@ for (const [mode, schemaVersion] of [["preview", 22], ["execution", 23]]) {
     `purge ${mode} untyped JSON must expose schema_version`,
   );
 }
+assert.match(
+  purgeReportSource,
+  /PARAMETERS\s+p_prev\s+TYPE\s+zif_allocation_audit=>ty_preview_filter\./,
+  "purge report must expose the preview provenance filter",
+);
+assert.match(
+  purgeReportSource,
+  /PARAMETERS\s+p_max\s+TYPE\s+i\./,
+  "purge report must expose a maximum-run retention cap",
+);
+assert.match(
+  purgeReportSource,
+  /PARAMETERS\s+p_to\s+TYPE\s+d\./,
+  "purge report must expose an audit start-date upper bound",
+);
+assert.match(
+  purgeReportSource,
+  /iv_preview_filter\s*=\s*p_prev/,
+  "purge report must propagate preview provenance to both retention paths",
+);
+assert.match(
+  purgeReportSource,
+  /iv_max_runs\s*=\s*p_max/,
+  "purge report must propagate the maximum-run cap to both retention paths",
+);
+assert.match(
+  purgeReportSource,
+  /iv_start_date_to\s*=\s*p_to/,
+  "purge report must propagate the audit start-date upper bound to both retention paths",
+);
+assert.match(
+  purgeReportSource,
+  /Preview filter must be P or O/,
+  "purge report must validate preview provenance values",
+);
+assert.match(
+  purgeReportSource,
+  /Maximum purge runs must not be negative/,
+  "purge report must validate the maximum-run cap",
+);
+assert.match(
+  purgeReportSource,
+  /max_runs_filter/,
+  "purge output must expose the maximum-run cap provenance",
+);
+assert.match(
+  purgeReportSource,
+  /start_date_to_filter/,
+  "purge output must expose the audit start-date upper-bound provenance",
+);
+assert.match(
+  purgeReportSource,
+  /capped_audit_runs/,
+  "purge output must expose runs skipped by the maximum-run cap",
+);
 const compareReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"),
   "utf8",
 );
 assert.equal(
   (compareReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  102,
+  114,
   "comparison report must version all JSON error envelopes",
 );
+for (const previewParameter of ["P_PREV", "P_OPREV", "P_NPREV"]) {
+  assert.match(
+    compareReportSource,
+    new RegExp(`PARAMETERS\\s+${previewParameter}\\s+TYPE\\s+zif_allocation_audit=>ty_preview_filter`, "i"),
+    `comparison report must expose ${previewParameter}`,
+  );
+}
+for (const previewBinding of [
+  /iv_preview_filter\s*=\s*lv_old_preview/,
+  /iv_preview_filter\s*=\s*lv_new_preview/,
+  /iv_preview_filter\s*=\s*lv_old_preview[\s\S]*iv_strategy/,
+  /iv_preview_filter\s*=\s*lv_new_preview[\s\S]*iv_strategy/,
+]) {
+  assert.match(
+    compareReportSource,
+    previewBinding,
+    `comparison report must propagate preview provenance: ${previewBinding}`,
+  );
+}
+for (const previewContractText of [
+  "Common and side-specific preview filters cannot be combined",
+  "Preview filter is invalid",
+  "Old preview filter is invalid",
+  "New preview filter is invalid",
+  "preview_filter",
+  "old_preview_filter",
+  "new_preview_filter",
+  "old_run_preview",
+  "new_run_preview",
+]) {
+  assert.match(
+    compareReportSource,
+    new RegExp(previewContractText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `comparison preview contract missing ${previewContractText}`,
+  );
+}
 const compareClassSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_compare.clas.abap"),
   "utf8",
@@ -2274,6 +4012,11 @@ assert.match(
   /TRANSLATE\s+p_stat\s+TO\s+UPPER\s+CASE\./,
   "history must canonicalize the lifecycle status filter before reads and exports",
 );
+assert.match(
+  historySource,
+  /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\.[\s\S]*TRANSLATE\s+p_prev\s+TO\s+UPPER\s+CASE\./,
+  "history must canonicalize the preview provenance filter before reads and exports",
+);
 for (const filterName of ["p_stat", "p_auart", "p_ounit", "p_runit"]) {
   assert.match(
     resultSource,
@@ -2281,6 +4024,11 @@ for (const filterName of ["p_stat", "p_auart", "p_ounit", "p_runit"]) {
     `result must canonicalize ${filterName} before reads and exports`,
   );
 }
+assert.match(
+  resultSource,
+  /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\.[\s\S]*TRANSLATE\s+p_prev\s+TO\s+UPPER\s+CASE\./,
+  "result must canonicalize the preview provenance filter before reads and exports",
+);
 for (const filterName of ["p_auart", "p_oauart", "p_nauart"]) {
   assert.match(
     compareReportSource,
@@ -2325,6 +4073,16 @@ assert.match(
 );
 assert.match(
   historySource,
+  /iv_preview_filter\s+= p_prev/,
+  "history must propagate the preview provenance filter to audit reads",
+);
+assert.match(
+  historySource,
+  /preview_filter/,
+  "history machine-readable output must expose preview provenance filter provenance",
+);
+assert.match(
+  historySource,
   /minimum_safety_stock_filter/,
   "history machine-readable filters must expose the minimum safety-stock bound",
 );
@@ -2340,17 +4098,17 @@ assert.match(
 );
 assert.match(
   historySource,
-  /iv_value = 43 \) TO lt_json_fields/,
-  "history summary JSON schema must include the safety-stock contract version",
+  /iv_value = 44 \) TO lt_json_fields/,
+  "history summary JSON schema must include the preview-filter contract version",
 );
 assert.match(
   historySource,
-  /iv_value = 26 \) TO lt_json_fields/,
-  "history detail JSON schema must include the safety-stock contract version",
+  /iv_value = 27 \) TO lt_json_fields/,
+  "history detail JSON schema must include the preview-filter contract version",
 );
 assert.equal(
   (historySource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  36,
+  37,
   "history report must version all JSON error envelopes",
 );
 assert.match(
@@ -2370,8 +4128,63 @@ assert.match(
 );
 assert.match(
   watchSource,
+  /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\./,
+  "watch must expose a preview provenance filter",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_from TYPE d\./,
+  "watch must expose an audit start-date lower bound",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_to TYPE d\./,
+  "watch must expose an audit start-date upper bound",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_ffrom TYPE d\./,
+  "watch must expose an audit finish-date lower bound",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_fto TYPE d\./,
+  "watch must expose an audit finish-date upper bound",
+);
+assert.match(
+  watchSource,
   /iv_safety_filter\s+= p_safon/,
   "watch must propagate the safety-stock filter switch to audit reads",
+);
+assert.match(
+  watchSource,
+  /iv_preview_filter\s+= p_prev/,
+  "watch must propagate the preview provenance filter to audit reads",
+);
+assert.match(
+  watchSource,
+  /iv_start_date_from\s+= p_from/,
+  "watch must propagate the audit start-date lower bound to audit reads",
+);
+assert.match(
+  watchSource,
+  /iv_start_date_to\s+= p_to/,
+  "watch must propagate the audit start-date upper bound to audit reads",
+);
+assert.match(
+  watchSource,
+  /iv_finish_date_from\s+= p_ffrom/,
+  "watch must propagate the audit finish-date lower bound to audit reads",
+);
+assert.match(
+  watchSource,
+  /iv_finish_date_to\s+= p_fto/,
+  "watch must propagate the audit finish-date upper bound to audit reads",
+);
+assert.match(
+  watchSource,
+  /preview_filter/,
+  "watch machine-readable output must expose preview provenance",
 );
 assert.match(
   watchSource,
@@ -2382,6 +4195,16 @@ assert.match(
   watchSource,
   /maximum_safety_stock_filter/,
   "watch machine-readable filters must expose the maximum safety-stock bound",
+);
+assert.match(
+  watchSource,
+  /start_date_from_filter|start_date_to_filter/,
+  "watch machine-readable filters must expose audit start-date bounds",
+);
+assert.match(
+  watchSource,
+  /finish_date_from_filter|finish_date_to_filter/,
+  "watch machine-readable filters must expose audit finish-date bounds",
 );
 assert.match(
   watchSource,
@@ -2415,13 +4238,13 @@ assert.match(
 );
 assert.match(
   watchSource,
-  /number\( 56 \)/,
-  "watch CSV schema must include the safety-stock contract version",
+  /number\( 59 \)/,
+  "watch CSV schema must include the preview-filter contract version",
 );
 assert.match(
   watchSource,
-  /iv_value = 59 \)/,
-  "watch JSON schema must include the safety-stock contract version",
+  /iv_value = 62 \)/,
+  "watch JSON schema must include the preview-filter contract version",
 );
 assert.equal(
   (watchSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
@@ -2450,6 +4273,46 @@ assert.match(
 );
 assert.match(
   resultSource,
+  /iv_preview_filter\s+= p_prev/,
+  "result must propagate the preview provenance filter to audit and sink reads",
+);
+assert.match(
+  resultSource,
+  /iv_run_start_date_from\s*= p_sfrom[\s\S]*iv_run_start_date_to\s*= p_sto/,
+  "result must propagate audit start-date bounds to sink reads",
+);
+assert.match(
+  resultSource,
+  /iv_run_finish_date_from\s*= p_ffrom[\s\S]*iv_run_finish_date_to\s*= p_fto/,
+  "result must propagate audit finish-date bounds to sink reads",
+);
+assert.match(
+  resultSource,
+  /iv_start_date_from\s*= p_sfrom[\s\S]*iv_start_date_to\s*= p_sto/,
+  "result must propagate audit start-date bounds to audit reads",
+);
+assert.match(
+  resultSource,
+  /iv_finish_date_from\s*= p_ffrom[\s\S]*iv_finish_date_to\s*= p_fto/,
+  "result must propagate audit finish-date bounds to audit reads",
+);
+assert.match(
+  resultSource,
+  /audit_start_date_from_filter[\s\S]*audit_start_date_to_filter/,
+  "result machine-readable output must expose audit start-date provenance",
+);
+assert.match(
+  resultSource,
+  /audit_finish_date_from_filter[\s\S]*audit_finish_date_to_filter/,
+  "result machine-readable output must expose audit finish-date provenance",
+);
+assert.match(
+  resultSource,
+  /preview_filter/,
+  "result machine-readable output must expose preview provenance",
+);
+assert.match(
+  resultSource,
   /minimum_safety_stock/,
   "result machine-readable filters must expose the minimum safety-stock bound",
 );
@@ -2460,17 +4323,17 @@ assert.match(
 );
 assert.match(
   resultSource,
-  /APPEND zcl_stock_csv=>number\( 43 \)/,
+  /APPEND zcl_stock_csv=>number\( 46 \)/,
   "result summary CSV schema must include the safety-stock contract version",
 );
 assert.match(
   resultSource,
-  /APPEND zcl_stock_csv=>number\( 37 \)/,
+  /APPEND zcl_stock_csv=>number\( 40 \)/,
   "result detail CSV schema must include the safety-stock contract version",
 );
 assert.equal(
   (resultSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  32,
+  35,
   "result report must version all JSON error envelopes",
 );
 assert.match(

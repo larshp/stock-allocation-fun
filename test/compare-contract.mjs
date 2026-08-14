@@ -136,6 +136,9 @@ for (const requiredParameter of [
   "P_NLGORT",
   "P_OBATCH",
   "P_NBATCH",
+  "P_PREV",
+  "P_OPREV",
+  "P_NPREV",
   "P_TFROM",
   "P_TTO",
   "P_OTFROM",
@@ -151,8 +154,43 @@ for (const requiredParameter of [
   "P_RAGETO",
   "P_ORAGTO",
   "P_NRAGTO",
+  "P_AFROM",
+  "P_ATO",
+  "P_FFROM",
+  "P_FTO",
+  "P_OAFROM",
+  "P_OATO",
+  "P_OFFROM",
+  "P_OFTO",
+  "P_NAFROM",
+  "P_NATO",
+  "P_NFFROM",
+  "P_NFTO",
 ]) {
   assert.ok(parameters.includes(requiredParameter), `missing ${requiredParameter}`);
+}
+for (const previewBinding of [
+  /iv_preview_filter\s*=\s*lv_old_preview/,
+  /iv_preview_filter\s*=\s*lv_new_preview/,
+]) {
+  assert.match(source, previewBinding, `missing preview propagation: ${previewBinding}`);
+}
+for (const previewContractText of [
+  "Common and side-specific preview filters cannot be combined",
+  "Preview filter is invalid",
+  "Old preview filter is invalid",
+  "New preview filter is invalid",
+  "preview_filter",
+  "old_preview_filter",
+  "new_preview_filter",
+  "old_run_preview",
+  "new_run_preview",
+]) {
+  assert.match(
+    source,
+    new RegExp(previewContractText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `comparison preview contract missing ${previewContractText}`,
+  );
 }
 for (const durationBinding of [
   /iv_run_duration_from\s*=\s*lv_old_duration_from/,
@@ -272,9 +310,24 @@ const auditSapSource = fs.readFileSync(
   "utf8",
 );
 const purgeParameters = extractParameters(purgeSource);
-for (const requiredParameter of ["P_TFROM", "P_TTO"]) {
+for (const requiredParameter of ["P_TFROM", "P_TTO", "P_TO"]) {
   assert.ok(purgeParameters.includes(requiredParameter), `purge report missing ${requiredParameter}`);
 }
+assert.ok(purgeParameters.includes("P_PREV"), "purge report missing P_PREV");
+assert.ok(purgeParameters.includes("P_MAX"), "purge report missing P_MAX");
+assert.match(purgeSource, /TRANSLATE\s+p_prev\s+TO\s+UPPER\s+CASE\./);
+assert.match(purgeSource, /iv_preview_filter\s*=\s*p_prev/);
+assert.match(purgeSource, /iv_max_runs\s*=\s*p_max/);
+assert.match(purgeSource, /iv_start_date_to\s*=\s*p_to/);
+assert.match(purgeSource, /start_date_to_filter/);
+assert.match(purgeSource, /preview_filter/);
+assert.match(purgeSource, /max_runs_filter/);
+assert.match(purgeSource, /Preview filter must be P or O/);
+assert.match(purgeSource, /Maximum purge runs must not be negative/);
+assert.match(auditInterfaceSource, /iv_preview_filter\s+TYPE ty_preview_filter OPTIONAL/);
+assert.match(auditInterfaceSource, /iv_max_runs\s+TYPE i OPTIONAL/);
+assert.match(auditSapSource, /Audit purge preview filter is invalid/);
+assert.match(auditSapSource, /Audit purge maximum run count is invalid/);
 assert.match(purgeSource, /iv_duration_from\s*=\s*p_tfrom/);
 assert.match(purgeSource, /iv_duration_to\s*=\s*p_tto/);
 for (const purgeContractText of [
@@ -290,39 +343,42 @@ for (const purgeContractText of [
   );
 }
 assert.equal(
-  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 20 \)/g) ?? []).length,
+  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 25 \)/g) ?? []).length,
   1,
-  "purge preview CSV schema must be 20",
+  "purge preview CSV schema must be 25",
 );
 assert.equal(
-  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 21 \)/g) ?? []).length,
+  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 26 \)/g) ?? []).length,
   1,
-  "purge execution CSV schema must be 21",
+  "purge execution CSV schema must be 26",
 );
 assert.equal(
-  (purgeSource.match(/iv_value = 22 \) TO lt_json_fields/g) ?? []).length,
+  (purgeSource.match(/iv_value = 27 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "purge preview JSON schema must be 22 in typed and untyped modes",
+  "purge preview JSON schema must be 27 in typed and untyped modes",
 );
 assert.equal(
-  (purgeSource.match(/iv_value = 23 \) TO lt_json_fields/g) ?? []).length,
+  (purgeSource.match(/iv_value = 28 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "purge execution JSON schema must be 23 in typed and untyped modes",
+  "purge execution JSON schema must be 28 in typed and untyped modes",
 );
 assert.match(
   readme,
-  /Purge preview and execution JSON use schemas `22` and `23` respectively, in both typed and untyped modes/,
+  /Preview JSON uses schema version `27`, and execution JSON uses schema version `28`/,
   "README must document current purge JSON schemas",
 );
 assert.match(
   readme,
-  /numeric `schema_version` `20` for preview or `21` for execution/,
+  /numeric `schema_version` `25` for preview or `26` for execution/,
   "README must document current purge CSV schemas",
 );
 for (const reservationContractText of [
   "reserved_count",
   "ev_reserved_runs",
+  "ev_capped_runs",
   "protected_reservation_runs",
+  "capped_audit_runs",
+  "capped_count",
   "reservation_id",
 ]) {
   assert.match(
@@ -340,8 +396,74 @@ for (const requiredParameter of [
   "P_TFROM",
   "P_TTO",
   "P_RAGETO",
+  "P_SFROM",
+  "P_STO",
+  "P_FFROM",
+  "P_FTO",
 ]) {
   assert.ok(resultParameters.includes(requiredParameter), `result report missing ${requiredParameter}`);
+}
+for (const finishDateBinding of [
+  /iv_run_finish_date_from\s*=\s*lv_old_audit_finish_from/,
+  /iv_run_finish_date_to\s*=\s*lv_old_audit_finish_to/,
+  /iv_run_finish_date_from\s*=\s*lv_new_audit_finish_from/,
+  /iv_run_finish_date_to\s*=\s*lv_new_audit_finish_to/,
+  /iv_finish_date_from\s*=\s*lv_old_audit_finish_from/,
+  /iv_finish_date_to\s*=\s*lv_old_audit_finish_to/,
+  /iv_finish_date_from\s*=\s*lv_new_audit_finish_from/,
+  /iv_finish_date_to\s*=\s*lv_new_audit_finish_to/,
+]) {
+  assert.match(source, finishDateBinding, `missing audit finish-date propagation: ${finishDateBinding}`);
+}
+for (const finishDateContractText of [
+  "The audit finish-date lower bound must not be after the upper bound",
+  "The old audit finish-date lower bound must not be after the upper bound",
+  "The new audit finish-date lower bound must not be after the upper bound",
+  "Common and side-specific audit finish-date ranges cannot be combined",
+  "audit_finish_date_range",
+  "old_audit_finish_date_range",
+  "new_audit_finish_date_range",
+  "audit_finish_date_from_filter",
+  "audit_finish_date_to_filter",
+  "old_audit_finish_date_from_filter",
+  "old_audit_finish_date_to_filter",
+  "new_audit_finish_date_from_filter",
+  "new_audit_finish_date_to_filter",
+]) {
+  assert.match(source, new RegExp(finishDateContractText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+for (const startDateBinding of [
+  /iv_run_start_date_from\s*=\s*lv_old_audit_start_from/,
+  /iv_run_start_date_to\s*=\s*lv_old_audit_start_to/,
+  /iv_run_start_date_from\s*=\s*lv_new_audit_start_from/,
+  /iv_run_start_date_to\s*=\s*lv_new_audit_start_to/,
+  /iv_start_date_from\s*=\s*lv_old_audit_start_from/,
+  /iv_start_date_to\s*=\s*lv_old_audit_start_to/,
+  /iv_start_date_from\s*=\s*lv_new_audit_start_from/,
+  /iv_start_date_to\s*=\s*lv_new_audit_start_to/,
+]) {
+  assert.match(source, startDateBinding, "missing audit start-date propagation: " + startDateBinding);
+}
+for (const startDateContractText of [
+  "The audit start-date lower bound must not be after the upper bound",
+  "The old audit start-date lower bound must not be after the upper bound",
+  "The new audit start-date lower bound must not be after the upper bound",
+  "Common and side-specific audit start-date ranges cannot be combined",
+  "audit_start_date_range",
+  "old_audit_start_date_range",
+  "new_audit_start_date_range",
+  "audit_start_date_from_filter",
+  "audit_start_date_to_filter",
+  "old_audit_start_date_from_filter",
+  "old_audit_start_date_to_filter",
+  "new_audit_start_date_from_filter",
+  "new_audit_start_date_to_filter",
+]) {
+  assert.match(
+    source,
+    new RegExp(startDateContractText),
+    "comparison audit start-date contract missing " + startDateContractText,
+  );
 }
 assert.match(resultSource, /iv_run_demand_from\s*=\s*p_dfrom/);
 assert.match(resultSource, /iv_run_demand_to\s*=\s*p_dto/);
@@ -350,6 +472,16 @@ assert.match(resultSource, /iv_run_available_to\s*=\s*p_avt/);
 assert.match(resultSource, /iv_run_duration_from\s*=\s*p_tfrom/);
 assert.match(resultSource, /iv_run_duration_to\s*=\s*p_tto/);
 assert.match(resultSource, /iv_reservation_age_to\s*=\s*p_rageto/);
+assert.match(resultSource, /iv_run_start_date_from\s*=\s*p_sfrom/);
+assert.match(resultSource, /iv_run_start_date_to\s*=\s*p_sto/);
+assert.match(resultSource, /iv_run_finish_date_from\s*=\s*p_ffrom/);
+assert.match(resultSource, /iv_run_finish_date_to\s*=\s*p_fto/);
+assert.match(resultSource, /iv_finish_date_from\s*=\s*p_ffrom/);
+assert.match(resultSource, /iv_finish_date_to\s*=\s*p_fto/);
+assert.match(resultSource, /audit_start_date_from_filter/);
+assert.match(resultSource, /audit_start_date_to_filter/);
+assert.match(resultSource, /audit_finish_date_from_filter/);
+assert.match(resultSource, /audit_finish_date_to_filter/);
 assert.match(resultSource, /maximum_reservation_age_days/);
 assert.match(
   resultSource,
@@ -357,24 +489,24 @@ assert.match(
   "result report must reject reversed reservation-age bounds",
 );
 assert.equal(
-  (resultSource.match(/APPEND zcl_stock_csv=>number\( 43 \)/g) ?? []).length,
+  (resultSource.match(/APPEND zcl_stock_csv=>number\( 46 \)/g) ?? []).length,
   1,
-  "result summary CSV schema must be 43",
+  "result summary CSV schema must be 46",
 );
 assert.equal(
-  (resultSource.match(/APPEND zcl_stock_csv=>number\( 37 \)/g) ?? []).length,
+  (resultSource.match(/APPEND zcl_stock_csv=>number\( 40 \)/g) ?? []).length,
   1,
-  "result detail CSV schema must be 37",
+  "result detail CSV schema must be 40",
 );
 assert.equal(
-  (resultSource.match(/iv_value = 43 \) TO lt_json_fields/g) ?? []).length,
+  (resultSource.match(/iv_value = 46 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "result summary JSON schemas must be 43",
+  "result summary JSON schemas must be 46",
 );
 assert.equal(
-  (resultSource.match(/iv_value = 37 \) TO lt_json_fields/g) ?? []).length,
+  (resultSource.match(/iv_value = 40 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "result detail JSON schemas must be 37",
+  "result detail JSON schemas must be 40",
 );
 
 assert.doesNotMatch(

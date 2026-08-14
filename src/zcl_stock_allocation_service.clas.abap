@@ -18,22 +18,52 @@ CLASS zcl_stock_allocation_service DEFINITION
         io_audit           TYPE REF TO zif_allocation_audit.
     METHODS allocate
       IMPORTING
-        iv_material          TYPE zif_stock_allocation=>ty_material
-        iv_plant             TYPE zif_stock_allocation=>ty_plant
-        iv_storage_location  TYPE zif_stock_allocation=>ty_storage_location
-        iv_movement_type     TYPE zif_stock_allocation=>ty_movement_type
-        iv_unit              TYPE zif_stock_allocation=>ty_unit
-        iv_batch             TYPE zif_stock_allocation=>ty_batch OPTIONAL
-        iv_requested_on_from TYPE d OPTIONAL
-        iv_requested_on_to   TYPE d OPTIONAL
-        iv_preview           TYPE abap_bool OPTIONAL
-        iv_min_shelf_life    TYPE i OPTIONAL
-        iv_safety_stock      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_strategy          TYPE zif_allocation_audit=>ty_strategy OPTIONAL
-      EXPORTING
-        ev_run_id            TYPE zif_allocation_audit=>ty_run_id
+        iv_material                    TYPE zif_stock_allocation=>ty_material
+        iv_plant                       TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location            TYPE zif_stock_allocation=>ty_storage_location
+        iv_movement_type               TYPE zif_stock_allocation=>ty_movement_type
+        iv_unit                        TYPE zif_stock_allocation=>ty_unit
+        iv_batch                       TYPE zif_stock_allocation=>ty_batch OPTIONAL
+        iv_requested_on_from           TYPE d OPTIONAL
+        iv_requested_on_to             TYPE d OPTIONAL
+        iv_preview                     TYPE abap_bool OPTIONAL
+        iv_min_shelf_life              TYPE i OPTIONAL
+        iv_safety_stock                TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_shortage_limit_active       TYPE abap_bool OPTIONAL
+        iv_max_shortage                TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_spct_limit_active           TYPE abap_bool OPTIONAL
+        iv_max_shortage_pct            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_coverage_limit_active       TYPE abap_bool OPTIONAL
+        iv_min_coverage                TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_full_line_limit_active      TYPE abap_bool OPTIONAL
+        iv_min_full_line_pct           TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_full_count_limit_active     TYPE abap_bool OPTIONAL
+        iv_min_full_lines              TYPE i OPTIONAL
+        iv_max_full_count_limit_active TYPE abap_bool OPTIONAL
+        iv_max_full_lines              TYPE i OPTIONAL
+        iv_demand_limit_active         TYPE abap_bool OPTIONAL
+        iv_max_demand_count            TYPE i OPTIONAL
+        iv_quantity_limit_active       TYPE abap_bool OPTIONAL
+        iv_max_requested_quantity      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_allocation_limit_active     TYPE abap_bool OPTIONAL
+        iv_max_allocated_quantity      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_alloc_limit_active      TYPE abap_bool OPTIONAL
+        iv_min_allocated_quantity      TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_line_limit_active       TYPE abap_bool OPTIONAL
+        iv_min_alloc_lines             TYPE i OPTIONAL
+        iv_line_limit_active           TYPE abap_bool OPTIONAL
+        iv_max_alloc_lines             TYPE i OPTIONAL
+        iv_unalloc_limit_active        TYPE abap_bool OPTIONAL
+        iv_max_unalloc_lines           TYPE i OPTIONAL
+        iv_partial_limit_active        TYPE abap_bool OPTIONAL
+        iv_max_partial_lines           TYPE i OPTIONAL
+        iv_shline_limit_active         TYPE abap_bool OPTIONAL
+        iv_max_shortage_lines          TYPE i OPTIONAL
+        iv_strategy                    TYPE zif_allocation_audit=>ty_strategy OPTIONAL
+       EXPORTING
+         ev_run_id                     TYPE zif_allocation_audit=>ty_run_id
       RETURNING
-        VALUE(rv_remaining)  TYPE zif_stock_allocation=>ty_quantity
+         VALUE(rv_remaining)           TYPE zif_stock_allocation=>ty_quantity
       RAISING
         zcx_stock_allocation.
   PRIVATE SECTION.
@@ -53,6 +83,7 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mv_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA mv_min_shelf_life TYPE i.
     DATA mv_safety_stock TYPE zif_stock_allocation=>ty_quantity.
+    DATA mv_preview TYPE abap_bool.
     METHODS finish_audit
       IMPORTING
         iv_run_id            TYPE zif_allocation_audit=>ty_run_id
@@ -130,11 +161,16 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA ls_available TYPE zif_stock_allocation=>ty_available.
     DATA lv_required_date TYPE d.
     DATA lv_allocated TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_requested TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_shortage TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_coverage TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
+    DATA lv_full_line_pct TYPE zif_allocation_audit=>ty_coverage.
     DATA lv_full_count TYPE i.
     DATA lv_partial_count TYPE i.
     DATA lv_unallocated_count TYPE i.
     DATA lv_demand_count TYPE i.
+    DATA lv_requested_total TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_result_count TYPE i.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
@@ -187,6 +223,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     mv_movement_type = iv_movement_type.
     mv_min_shelf_life = iv_min_shelf_life.
     mv_safety_stock = iv_safety_stock.
+    mv_preview = xsdbool( iv_preview = abap_true ).
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
 
@@ -308,6 +345,411 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_message          = 'Invalid safety stock' ).
       ENDIF.
       raise_error( iv_message = 'Invalid safety stock' ).
+    ENDIF.
+    IF iv_shortage_limit_active IS NOT INITIAL
+        AND iv_shortage_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid shortage limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid shortage limit flag' ).
+    ENDIF.
+    IF iv_max_shortage < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum shortage' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum shortage' ).
+    ENDIF.
+    IF iv_spct_limit_active IS NOT INITIAL
+        AND iv_spct_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid shortage percentage limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid shortage percentage limit flag' ).
+    ENDIF.
+    IF iv_max_shortage_pct < 0 OR iv_max_shortage_pct > 100.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum shortage percentage' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum shortage percentage' ).
+    ENDIF.
+    IF iv_coverage_limit_active IS NOT INITIAL
+        AND iv_coverage_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid coverage limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid coverage limit flag' ).
+    ENDIF.
+    IF iv_min_coverage < 0 OR iv_min_coverage > 100.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum coverage' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum coverage' ).
+    ENDIF.
+    IF iv_full_line_limit_active IS NOT INITIAL
+        AND iv_full_line_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid full-line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid full-line limit flag' ).
+    ENDIF.
+    IF iv_min_full_line_pct < 0 OR iv_min_full_line_pct > 100.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum full-line percentage' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum full-line percentage' ).
+    ENDIF.
+    IF iv_full_count_limit_active IS NOT INITIAL
+        AND iv_full_count_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid full-line-count limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid full-line-count limit flag' ).
+    ENDIF.
+    IF iv_min_full_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum full lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum full lines' ).
+    ENDIF.
+    IF iv_max_full_count_limit_active IS NOT INITIAL
+        AND iv_max_full_count_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum full-line-count limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum full-line-count limit flag' ).
+    ENDIF.
+    IF iv_max_full_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum full lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum full lines' ).
+    ENDIF.
+    IF iv_demand_limit_active IS NOT INITIAL
+        AND iv_demand_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid demand limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid demand limit flag' ).
+    ENDIF.
+    IF iv_max_demand_count < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum demand count' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum demand count' ).
+    ENDIF.
+    IF iv_quantity_limit_active IS NOT INITIAL
+        AND iv_quantity_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid quantity limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid quantity limit flag' ).
+    ENDIF.
+    IF iv_max_requested_quantity < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum requested quantity' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum requested quantity' ).
+    ENDIF.
+    IF iv_allocation_limit_active IS NOT INITIAL
+        AND iv_allocation_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid allocation limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid allocation limit flag' ).
+    ENDIF.
+    IF iv_max_allocated_quantity < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum allocated quantity' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum allocated quantity' ).
+    ENDIF.
+    IF iv_min_alloc_limit_active IS NOT INITIAL
+        AND iv_min_alloc_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum allocation limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum allocation limit flag' ).
+    ENDIF.
+    IF iv_min_allocated_quantity < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum allocated quantity' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum allocated quantity' ).
+    ENDIF.
+    IF iv_min_line_limit_active IS NOT INITIAL
+        AND iv_min_line_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum allocation-line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum allocation-line limit flag' ).
+    ENDIF.
+    IF iv_min_alloc_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid minimum allocated lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid minimum allocated lines' ).
+    ENDIF.
+    IF iv_line_limit_active IS NOT INITIAL
+        AND iv_line_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid allocation line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid allocation line limit flag' ).
+    ENDIF.
+    IF iv_max_alloc_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum allocated lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum allocated lines' ).
+    ENDIF.
+    IF iv_unalloc_limit_active IS NOT INITIAL
+        AND iv_unalloc_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid unallocated-line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid unallocated-line limit flag' ).
+    ENDIF.
+    IF iv_max_unalloc_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum unallocated lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum unallocated lines' ).
+    ENDIF.
+    IF iv_partial_limit_active IS NOT INITIAL
+        AND iv_partial_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid partial-line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid partial-line limit flag' ).
+    ENDIF.
+    IF iv_max_partial_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum partial lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum partial lines' ).
+    ENDIF.
+    IF iv_shline_limit_active IS NOT INITIAL
+        AND iv_shline_limit_active <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid shortage-line limit flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid shortage-line limit flag' ).
+    ENDIF.
+    IF iv_max_shortage_lines < 0.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid maximum shortage lines' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid maximum shortage lines' ).
     ENDIF.
     IF mo_stock_source IS NOT BOUND
         OR mo_order_source IS NOT BOUND
@@ -831,6 +1273,18 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
     DESCRIBE TABLE lt_demands LINES lv_demand_count.
+    IF iv_demand_limit_active = abap_true
+        AND lv_demand_count > iv_max_demand_count.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum demand count exceeded' ).
+      raise_error( iv_message = 'Maximum demand count exceeded' ).
+    ENDIF.
     IF ls_available-batch_expiration_date IS NOT INITIAL.
       LOOP AT lt_demands ASSIGNING <ls_demand>.
         IF <ls_demand>-requested_on IS NOT INITIAL
@@ -906,6 +1360,24 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ENDIF.
         ENDIF.
     ENDLOOP.
+    IF iv_quantity_limit_active = abap_true.
+      CLEAR lv_requested_total.
+      LOOP AT lt_demands ASSIGNING <ls_demand>.
+        IF <ls_demand>-requested > iv_max_requested_quantity
+            - lv_requested_total.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = lv_unit
+            iv_available        = lv_available
+            iv_message          = 'Maximum requested quantity exceeded' ).
+          raise_error( iv_message = 'Maximum requested quantity exceeded' ).
+        ENDIF.
+        lv_requested_total = lv_requested_total + <ls_demand>-requested.
+      ENDLOOP.
+    ENDIF.
     IF iv_preview <> abap_true.
       TRY.
           lt_existing = mo_sink->get_allocations(
@@ -1405,6 +1877,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_message          = 'Allocation result is invalid' ).
         raise_error( iv_message = 'Allocation result is invalid' ).
       ENDIF.
+      lv_requested = lv_requested + <ls_demand>-requested.
       lv_allocated = lv_allocated + <ls_demand>-allocated.
       lv_shortage = lv_shortage + <ls_demand>-shortage.
       IF <ls_demand>-allocation_status = 'F'.
@@ -1427,6 +1900,171 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_message          = 'Allocation result is invalid' ).
       raise_error( iv_message = 'Allocation result is invalid' ).
     ENDIF.
+    IF iv_allocation_limit_active = abap_true
+        AND lv_allocated > iv_max_allocated_quantity.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum allocated quantity exceeded' ).
+      raise_error( iv_message = 'Maximum allocated quantity exceeded' ).
+    ENDIF.
+    IF iv_min_alloc_limit_active = abap_true
+        AND lv_allocated < iv_min_allocated_quantity.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Minimum allocated quantity not met' ).
+      raise_error( iv_message = 'Minimum allocated quantity not met' ).
+    ENDIF.
+    IF iv_line_limit_active = abap_true
+        AND lv_full_count + lv_partial_count > iv_max_alloc_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum allocated lines exceeded' ).
+      raise_error( iv_message = 'Maximum allocated lines exceeded' ).
+    ENDIF.
+    IF iv_min_line_limit_active = abap_true
+        AND lv_full_count + lv_partial_count < iv_min_alloc_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Minimum allocated lines not met' ).
+      raise_error( iv_message = 'Minimum allocated lines not met' ).
+    ENDIF.
+    IF iv_full_count_limit_active = abap_true
+        AND lv_full_count < iv_min_full_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Minimum full lines not met' ).
+      raise_error( iv_message = 'Minimum full lines not met' ).
+    ENDIF.
+    IF iv_max_full_count_limit_active = abap_true
+        AND lv_full_count > iv_max_full_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum full lines limit exceeded' ).
+      raise_error( iv_message = 'Maximum full lines limit exceeded' ).
+    ENDIF.
+    IF iv_unalloc_limit_active = abap_true
+        AND lv_unallocated_count > iv_max_unalloc_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum unallocated lines exceeded' ).
+      raise_error( iv_message = 'Maximum unallocated lines exceeded' ).
+    ENDIF.
+    IF iv_partial_limit_active = abap_true
+        AND lv_partial_count > iv_max_partial_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum partial lines exceeded' ).
+      raise_error( iv_message = 'Maximum partial lines exceeded' ).
+    ENDIF.
+    IF iv_shline_limit_active = abap_true
+        AND lv_partial_count + lv_unallocated_count > iv_max_shortage_lines.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum shortage lines exceeded' ).
+      raise_error( iv_message = 'Maximum shortage lines exceeded' ).
+    ENDIF.
+    IF iv_shortage_limit_active = abap_true
+        AND lv_shortage > iv_max_shortage.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum shortage limit exceeded' ).
+      raise_error( iv_message = 'Maximum shortage limit exceeded' ).
+    ENDIF.
+    IF iv_spct_limit_active = abap_true
+        AND lv_requested > 0.
+      lv_shortage_pct = lv_shortage * 100 / lv_requested.
+      IF lv_shortage_pct > iv_max_shortage_pct.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Maximum shortage percentage exceeded' ).
+        raise_error( iv_message = 'Maximum shortage percentage exceeded' ).
+      ENDIF.
+    ENDIF.
+    IF iv_coverage_limit_active = abap_true
+        AND lv_requested > 0.
+      lv_coverage = lv_allocated * 100 / lv_requested.
+      IF lv_coverage < iv_min_coverage.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Minimum coverage limit not met' ).
+        raise_error( iv_message = 'Minimum coverage limit not met' ).
+      ENDIF.
+    ENDIF.
+    IF iv_full_line_limit_active = abap_true
+        AND lv_demand_count > 0.
+      lv_full_line_pct = lv_full_count * 100 / lv_demand_count.
+      IF lv_full_line_pct < iv_min_full_line_pct.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Minimum full-line percentage not met' ).
+        raise_error( iv_message = 'Minimum full-line percentage not met' ).
+      ENDIF.
+    ENDIF.
     TRY.
         lv_run_id = mo_audit->start_run(
           iv_material          = iv_material
@@ -1441,7 +2079,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_requested_on_from = iv_requested_on_from
           iv_requested_on_to   = iv_requested_on_to
           iv_unit              = lv_unit
-          iv_strategy          = lv_strategy ).
+          iv_strategy          = lv_strategy
+          iv_preview           = iv_preview ).
       CATCH zcx_stock_allocation INTO lo_error.
         IF lo_error->message IS INITIAL.
           lo_error->message = 'Audit run start failed'.
@@ -1952,6 +2591,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           iv_requested_on_from = mv_requested_on_from
           iv_requested_on_to   = mv_requested_on_to
           iv_available         = iv_available
+          iv_preview           = mv_preview
           iv_message           = iv_message ).
       CATCH zcx_stock_allocation.
         RETURN.

@@ -147,12 +147,18 @@
      <ENTRY>Unit</ENTRY>
      <LENGTH>12</LENGTH>
     </item>
-    <item>
-     <ID>S</ID>
-     <KEY>P_STAT</KEY>
-     <ENTRY>Status</ENTRY>
-     <LENGTH>14</LENGTH>
-    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STAT</KEY>
+    <ENTRY>Status</ENTRY>
+    <LENGTH>14</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
     <item>
      <ID>S</ID>
      <KEY>P_STRAT</KEY>

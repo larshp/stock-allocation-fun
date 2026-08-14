@@ -22,6 +22,10 @@
     <item><ID>S</ID><KEY>P_SAFTO</KEY><ENTRY>Maximum safety stock</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_REQF</KEY><ENTRY>Requested horizon from</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_UNTIL</KEY><ENTRY>Requested horizon to</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FROM</KEY><ENTRY>Audit start date from</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TO</KEY><ENTRY>Audit start date to</ENTRY><LENGTH>21</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FFROM</KEY><ENTRY>Audit finish date from</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FTO</KEY><ENTRY>Audit finish date to</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_OVRD</KEY><ENTRY>Overdue requested horizon only</ENTRY><LENGTH>32</LENGTH></item>
     <item><ID>S</ID><KEY>P_ODATE</KEY><ENTRY>Overdue as-of date</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_DEAD</KEY><ENTRY>Requested deadline only</ENTRY><LENGTH>26</LENGTH></item>
@@ -32,6 +36,7 @@
     <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>26</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_PREV</KEY><ENTRY>Run type (P preview / O operational)</ENTRY><LENGTH>36</LENGTH></item>
     <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNID</KEY><ENTRY>Audit run ID</ENTRY><LENGTH>16</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNQ</KEY><ENTRY>Audit run ID contains</ENTRY><LENGTH>24</LENGTH></item>

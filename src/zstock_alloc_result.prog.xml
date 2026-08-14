@@ -113,12 +113,18 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_ASTAT</KEY>
-     <ENTRY>Audit status (R/S/P/E)</ENTRY>
-     <LENGTH>25</LENGTH>
-    </item>
-    <item>
-     <ID>S</ID>
+    <KEY>P_ASTAT</KEY>
+    <ENTRY>Audit status (R/S/P/E)</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
      <KEY>P_MSG</KEY>
      <ENTRY>Audit message contains</ENTRY>
      <LENGTH>25</LENGTH>
@@ -261,6 +267,30 @@
     <ENTRY>Requested horizon to</ENTRY>
     <LENGTH>21</LENGTH>
    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SFROM</KEY>
+    <ENTRY>Audit start date from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STO</KEY>
+    <ENTRY>Audit start date to</ENTRY>
+    <LENGTH>21</LENGTH>
+  </item>
+  <item>
+    <ID>S</ID>
+    <KEY>P_FFROM</KEY>
+    <ENTRY>Audit finish date from</ENTRY>
+    <LENGTH>24</LENGTH>
+  </item>
+  <item>
+    <ID>S</ID>
+    <KEY>P_FTO</KEY>
+    <ENTRY>Audit finish date to</ENTRY>
+    <LENGTH>22</LENGTH>
+  </item>
    <item>
      <ID>S</ID>
      <KEY>P_RFROM</KEY>

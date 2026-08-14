@@ -120,6 +120,14 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS records_completed_run FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS records_preview_provenance FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS filters_preview_runs FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_preview_flag FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_preview_filter FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_bad_rejection_metric FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_final_counts FOR TESTING
@@ -164,6 +172,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS latest_summary_tie_breaker FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS latest_success_streak FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS reports_completion_running FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS reports_running_age FOR TESTING
@@ -188,6 +198,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_purge_status FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS filters_purge_preview_runs FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_bad_mvt_filter FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_purge_commit_failure FOR TESTING
@@ -207,6 +219,177 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
 ENDCLASS.
 
 CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
+  METHOD records_preview_provenance.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_preview TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 5
+      iv_demand_count     = 1
+      iv_preview          = abap_true ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_run_id
+      iv_status     = 'S'
+      iv_available  = 5
+      iv_allocated  = 5
+      iv_shortage   = 0
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    SELECT SINGLE preview
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id
+      INTO @lv_preview.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_preview
+      exp = abap_true ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-preview
+      exp = abap_true ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_preview_flag.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->start_run(
+          iv_material         = 'MATERIAL-AUDIT-BAD-PREVIEW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_unit             = 'EA'
+          iv_available        = 1
+          iv_demand_count     = 1
+          iv_preview          = 'Y' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit preview flag is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->record_rejection(
+          iv_material         = 'MATERIAL-AUDIT-BAD-REJECTION-PREVIEW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_unit             = 'EA'
+          iv_available        = 0
+          iv_message          = 'Invalid rejection preview'
+          iv_preview          = 'Y' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_rejection_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_rejection_error->message
+          exp = 'Audit preview flag is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD filters_preview_runs.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_preview_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_operational_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_preview_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 5
+      iv_demand_count     = 1
+      iv_preview          = abap_true ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_preview_run_id
+      iv_status     = 'S'
+      iv_available  = 5
+      iv_allocated  = 5
+      iv_shortage   = 0
+      iv_full_count = 1
+      iv_message    = '' ).
+    lv_operational_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = 4
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_operational_run_id
+      iv_status     = 'S'
+      iv_available  = 4
+      iv_allocated  = 4
+      iv_shortage   = 0
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_preview_filter   = 'p' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-preview
+      exp = abap_true ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-PREVIEW-FILTER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_preview_filter   = 'o' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_runs[ 1 ]-preview
+      exp = abap_false ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_preview_run_id
+         OR run_id = @lv_operational_run_id.
+  ENDMETHOD.
+
+  METHOD rejects_invalid_preview_filter.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-BAD-PREVIEW-FILTER'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_preview_filter   = 'X' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit preview filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD accepts_largest_strategy.
     DATA lo_cut TYPE REF TO zif_allocation_audit.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
@@ -499,6 +682,96 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = '0.00' ).
   ENDMETHOD.
 
+  METHOD latest_success_streak.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_oldest_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_middle_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_newest_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_oldest_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-STREAK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '5'
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id        = lv_oldest_run_id
+      iv_status        = 'P'
+      iv_available     = '5'
+      iv_allocated     = '4'
+      iv_shortage      = '1'
+      iv_full_count    = 0
+      iv_partial_count = 1
+      iv_message       = 'streak regression' ).
+    lv_middle_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-STREAK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '5'
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_middle_run_id
+      iv_status     = 'S'
+      iv_available  = '5'
+      iv_allocated  = '5'
+      iv_shortage   = '0'
+      iv_full_count = 1
+      iv_message    = '' ).
+    lv_newest_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-STREAK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = '5'
+      iv_demand_count     = 1 ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_newest_run_id
+      iv_status     = 'S'
+      iv_available  = '5'
+      iv_allocated  = '5'
+      iv_shortage   = '0'
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    UPDATE zstockalloc_run
+      SET start_date  = '20260701',
+          start_time  = '010000',
+          finish_date = '20260702',
+          finish_time = '010001'
+      WHERE run_id = @lv_oldest_run_id.
+    UPDATE zstockalloc_run
+      SET start_date  = '20260701',
+          start_time  = '010000',
+          finish_date = '20260702',
+          finish_time = '010002'
+      WHERE run_id = @lv_middle_run_id.
+    UPDATE zstockalloc_run
+      SET start_date  = '20260701',
+          start_time  = '010000',
+          finish_date = '20260702',
+          finish_time = '010003'
+      WHERE run_id = @lv_newest_run_id.
+
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-STREAK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_run_id
+      exp = lv_newest_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_status
+      exp = 'S' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_success_streak
+      exp = 2 ).
+  ENDMETHOD.
+
   METHOD reports_completion_running.
     DATA lo_cut TYPE REF TO zif_allocation_audit.
     DATA lv_completed_run_id TYPE zif_allocation_audit=>ty_run_id.
@@ -509,20 +782,25 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_completed_run_id = lo_cut->start_run(
-      iv_material         = 'MATERIAL-AUDIT-COMPLETION'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_unit             = 'EA'
-      iv_available        = '1'
-      iv_demand_count     = 1 ).
+      iv_material          = 'MATERIAL-AUDIT-COMPLETION'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_unit              = 'EA'
+      iv_movement_type     = '201'
+      iv_min_shelf_life    = 5
+      iv_safety_stock      = 3
+      iv_requested_on_from = '20260801'
+      iv_requested_on_to   = '20260807'
+      iv_available         = '1'
+      iv_demand_count      = 1 ).
     lo_cut->finish_run(
       iv_run_id     = lv_completed_run_id
-      iv_status     = 'S'
+      iv_status     = 'E'
       iv_available  = '1'
       iv_allocated  = '1'
       iv_shortage   = '0'
       iv_full_count = 1
-      iv_message    = '' ).
+      iv_message    = 'completed diagnostic' ).
     lv_running_run_id = lo_cut->start_run(
       iv_material         = 'MATERIAL-AUDIT-COMPLETION'
       iv_plant            = '1000'
@@ -554,6 +832,63 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-running_runs
       exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_run_id
+      exp = lv_completed_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_status
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_message
+      exp = 'completed diagnostic' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      ls_summary-last_completed_start_date ).
+    cl_abap_unit_assert=>assert_not_initial(
+      ls_summary-last_completed_start_time ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_requested
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_allocated
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_shortage
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_demand
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_avail
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_avail_unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-last_completed_avail_ok ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-last_completed_policy_available ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_movement_type
+      exp = '201' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_min_shelf_life
+      exp = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_safety_stock
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-last_completed_horizon_available ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_requested_on_from
+      exp = '20260801' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_requested_on_to
+      exp = '20260807' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_requested_deadline
+      exp = '20260807' ).
+    cl_abap_unit_assert=>assert_not_initial(
+      ls_summary-last_completed_finish_date ).
     cl_abap_unit_assert=>assert_true(
       xsdbool( ls_summary-oldest_running_age_seconds >= 86399 ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -574,13 +909,30 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = '33.33' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-success_rate_pct
-      exp = '100.00' ).
+      exp = '0.00' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-partial_rate_pct
       exp = '0.00' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-error_rate_pct
-      exp = '0.00' ).
+      exp = '100.00' ).
+
+    ls_summary = lo_cut->get_summary(
+      iv_material          = 'MATERIAL-AUDIT-COMPLETION'
+      iv_plant             = '1000'
+      iv_storage_location  = '0001'
+      iv_unit              = 'EA'
+      iv_deadline_age_from = -1000
+      iv_deadline_age_to   = 1000
+      iv_deadline_age_date = '20260810' ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-last_completed_deadline_age_available ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_deadline_age_days
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_deadline_age_reason
+      exp = 'available' ).
   ENDMETHOD.
 
   METHOD reports_running_age.
@@ -707,6 +1059,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_oldest_deadline TYPE d.
     DATA lv_newest_deadline TYPE d.
     DATA lv_raised TYPE abap_bool.
+    DATA ls_last_run TYPE zif_allocation_audit=>ty_run.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_run_id = lo_cut->start_run(
@@ -737,14 +1090,14 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_min_shelf_life    = 7
       iv_safety_stock      = '3'
       iv_unit              = 'EA'
-      iv_available         = '10'
+      iv_available         = '8'
       iv_demand_count      = 1
       iv_requested_on_from = '20260901'
       iv_requested_on_to   = '20260907' ).
     lo_cut->finish_run(
       iv_run_id     = lv_run_id
       iv_status     = 'S'
-      iv_available  = '10'
+      iv_available  = '8'
       iv_allocated  = '2'
       iv_shortage   = '0'
       iv_full_count = 1
@@ -764,6 +1117,45 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       ls_summary-policy_context_available ).
     cl_abap_unit_assert=>assert_true(
       ls_summary-mixed_policies ).
+    cl_abap_unit_assert=>assert_false(
+      ls_summary-available_context_ok ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-mixed_available ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-last_avail_ok ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    READ TABLE lt_runs WITH KEY run_id = ls_summary-last_run_id
+      INTO ls_last_run.
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_avail
+      exp = ls_last_run-available ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_avail_unit
+      exp = ls_last_run-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_requested
+      exp = ls_last_run-requested ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_allocated
+      exp = ls_last_run-allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_shortage
+      exp = ls_last_run-shortage ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_demand
+      exp = ls_last_run-demand_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_full
+      exp = ls_last_run-full_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_partial
+      exp = ls_last_run-partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_unalloc
+      exp = ls_last_run-unallocated_count ).
     cl_abap_unit_assert=>assert_initial(
       ls_summary-min_shelf_life_context ).
     lv_oldest_deadline = '20260807'.
@@ -777,6 +1169,18 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-deadline_age_reference_date
       exp = sy-datum ).
+    ls_summary = lo_cut->get_summary(
+      iv_material         = 'MATERIAL-AUDIT-POLICY'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201' ).
+    cl_abap_unit_assert=>assert_true(
+      ls_summary-available_context_ok ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-available_context
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_false(
+      ls_summary-mixed_available ).
     lt_runs = lo_cut->get_runs(
       iv_material         = 'MATERIAL-AUDIT-POLICY'
       iv_plant            = '1000'
@@ -3006,6 +3410,202 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
+  METHOD filters_purge_preview_runs.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA ls_preview TYPE zif_allocation_audit=>ty_purge_preview.
+    DATA lv_deleted TYPE i.
+    DATA lv_count TYPE i.
+    DATA lv_capped TYPE i.
+    DATA lv_remaining_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-matnr = 'MATERIAL-PURGE-PREVIEW'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = '20260101'.
+    ls_run-start_time = '010000'.
+    ls_run-finish_date = '20260101'.
+    ls_run-finish_time = '010001'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    ls_run-allocated = 1.
+    ls_run-status = 'S'.
+    ls_run-preview = abap_true.
+    ls_run-run_id = 'RUN-PURGE-PREVIEW'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-preview = abap_false.
+    ls_run-run_id = 'RUN-PURGE-OPERATIONAL'.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-PREVIEW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_preview_filter   = 'p'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-PREVIEW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_preview_filter   = 'o'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+        iv_material         = 'MATERIAL-PURGE-PREVIEW'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_unit             = 'EA'
+        iv_preview_filter   = 'P'
+        iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      WHERE run_id = 'RUN-PURGE-OPERATIONAL' INTO @lv_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+        iv_material         = 'MATERIAL-PURGE-PREVIEW'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_unit             = 'EA'
+        iv_preview_filter   = 'O'
+        iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-PREVIEW' INTO @lv_count.
+    cl_abap_unit_assert=>assert_initial( lv_count ).
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-PREVIEW'.
+
+    ls_run-matnr = 'MATERIAL-PURGE-MAX'.
+    ls_run-preview = abap_false.
+    ls_run-start_time = '010002'.
+    ls_run-finish_time = '010003'.
+    ls_run-run_id = 'RUN-PURGE-MAX-1'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-start_time = '010001'.
+    ls_run-finish_time = '010002'.
+    ls_run-run_id = 'RUN-PURGE-MAX-2'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_run-start_time = '010003'.
+    ls_run-finish_time = '010004'.
+    ls_run-run_id = 'RUN-PURGE-MAX-3'.
+    INSERT zstockalloc_run FROM @ls_run.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-PURGE-MAX'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'PURGE-MAX-003'.
+    ls_allocation-run_id = 'RUN-PURGE-MAX-3'.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = '2000000061'.
+    INSERT zstockalloc FROM @ls_allocation.
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-MAX'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_max_runs         = 1
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-capped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-reserved_count
+      exp = 1 ).
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+        iv_material         = 'MATERIAL-PURGE-MAX'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_unit             = 'EA'
+        iv_max_runs         = 1
+        iv_before_date      = sy-datum
+      IMPORTING
+        ev_capped_runs      = lv_capped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_capped
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-MAX' INTO @lv_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 2 ).
+    SELECT SINGLE run_id
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-MAX' INTO @lv_remaining_run_id.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining_run_id
+      exp = 'RUN-PURGE-MAX-1' ).
+    lv_deleted = lo_cut->purge_runs_before(
+      EXPORTING
+        iv_material         = 'MATERIAL-PURGE-MAX'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_unit             = 'EA'
+        iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_deleted
+      exp = 1 ).
+    SELECT COUNT( * )
+      FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-MAX' INTO @lv_count.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_count
+      exp = 1 ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PURGE-MAX'.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PURGE-MAX'.
+
+    TRY.
+        lo_cut->get_purge_preview(
+          iv_material         = 'MATERIAL-PURGE-MAX'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_max_runs         = -1
+          iv_before_date      = sy-datum ).
+      CATCH zcx_stock_allocation INTO DATA(lo_max_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_max_error->message
+          exp = 'Audit purge maximum run count is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD rejects_bad_mvt_filter.
     DATA lo_cut TYPE REF TO zif_allocation_audit.
     DATA lv_raised TYPE abap_bool.
@@ -3084,6 +3684,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-allocated = 1.
     ls_run-run_id = 'RUN-PURGE-RUN-ID-TARGET'.
     INSERT zstockalloc_run FROM @ls_run.
+    ls_run-start_date = '20260102'.
     ls_run-run_id = 'RUN-PURGE-RUN-ID-OTHER'.
     INSERT zstockalloc_run FROM @ls_run.
     ls_run-run_id = 'RUN-PURGE-RUN-ID-RUNNING'.
@@ -3124,6 +3725,22 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-success_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-running_count ).
+    cl_abap_unit_assert=>assert_initial( ls_preview-unknown_count ).
+    ls_preview = lo_cut->get_purge_preview(
+      iv_material         = 'MATERIAL-PURGE-RUN-ID'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_start_date_from  = '20260101'
+      iv_start_date_to    = '20260101'
+      iv_before_date      = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-audit_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_preview-snapshot_count
       exp = 1 ).
     cl_abap_unit_assert=>assert_initial( ls_preview-running_count ).
     cl_abap_unit_assert=>assert_initial( ls_preview-unknown_count ).

@@ -12,6 +12,9 @@ PARAMETERS p_nlgort TYPE zif_stock_allocation=>ty_storage_location.
 PARAMETERS p_charg TYPE zif_stock_allocation=>ty_batch.
 PARAMETERS p_obatch TYPE zif_stock_allocation=>ty_batch.
 PARAMETERS p_nbatch TYPE zif_stock_allocation=>ty_batch.
+PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter.
+PARAMETERS p_oprev TYPE zif_allocation_audit=>ty_preview_filter.
+PARAMETERS p_nprev TYPE zif_allocation_audit=>ty_preview_filter.
 PARAMETERS p_mvt TYPE zif_stock_allocation=>ty_movement_type.
 PARAMETERS p_omvt TYPE zif_stock_allocation=>ty_movement_type.
 PARAMETERS p_nmvt TYPE zif_stock_allocation=>ty_movement_type.
@@ -24,10 +27,22 @@ PARAMETERS p_novrd AS CHECKBOX.
 PARAMETERS p_odate TYPE d.
 PARAMETERS p_reqf TYPE d.
 PARAMETERS p_until TYPE d.
+PARAMETERS p_afrom TYPE d.
+PARAMETERS p_ato TYPE d.
+PARAMETERS p_ffrom TYPE d.
+PARAMETERS p_fto TYPE d.
 PARAMETERS p_oreqf TYPE d.
 PARAMETERS p_oreqt TYPE d.
+PARAMETERS p_oafrom TYPE d.
+PARAMETERS p_oato TYPE d.
+PARAMETERS p_offrom TYPE d.
+PARAMETERS p_ofto TYPE d.
 PARAMETERS p_nreqf TYPE d.
 PARAMETERS p_nreqt TYPE d.
+PARAMETERS p_nafrom TYPE d.
+PARAMETERS p_nato TYPE d.
+PARAMETERS p_nffrom TYPE d.
+PARAMETERS p_nfto TYPE d.
 PARAMETERS p_dead AS CHECKBOX.
 PARAMETERS p_odead AS CHECKBOX.
 PARAMETERS p_ndead AS CHECKBOX.
@@ -470,6 +485,11 @@ START-OF-SELECTION.
   DATA lv_new_plant_filter TYPE string.
   DATA lv_old_plant TYPE zif_stock_allocation=>ty_plant.
   DATA lv_new_plant TYPE zif_stock_allocation=>ty_plant.
+  DATA lv_preview_filter TYPE string.
+  DATA lv_old_preview TYPE zif_allocation_audit=>ty_preview_filter.
+  DATA lv_new_preview TYPE zif_allocation_audit=>ty_preview_filter.
+  DATA lv_old_preview_filter TYPE string.
+  DATA lv_new_preview_filter TYPE string.
   DATA lv_rdate_from_filter TYPE c LENGTH 10.
   DATA lv_rdate_to_filter TYPE c LENGTH 10.
   DATA lv_old_rdate_from_filter TYPE c LENGTH 10.
@@ -507,10 +527,30 @@ START-OF-SELECTION.
   DATA lv_old_requested_to_filter TYPE c LENGTH 10.
   DATA lv_new_requested_from_filter TYPE c LENGTH 10.
   DATA lv_new_requested_to_filter TYPE c LENGTH 10.
+  DATA lv_audit_start_from_filter TYPE c LENGTH 10.
+  DATA lv_audit_start_to_filter TYPE c LENGTH 10.
+  DATA lv_old_audit_start_from_filter TYPE c LENGTH 10.
+  DATA lv_old_audit_start_to_filter TYPE c LENGTH 10.
+  DATA lv_new_audit_start_from_filter TYPE c LENGTH 10.
+  DATA lv_new_audit_start_to_filter TYPE c LENGTH 10.
+  DATA lv_audit_finish_from_filter TYPE c LENGTH 10.
+  DATA lv_audit_finish_to_filter TYPE c LENGTH 10.
+  DATA lv_old_audit_fin_from_filter TYPE c LENGTH 10.
+  DATA lv_old_audit_fin_to_filter TYPE c LENGTH 10.
+  DATA lv_new_audit_fin_from_filter TYPE c LENGTH 10.
+  DATA lv_new_audit_fin_to_filter TYPE c LENGTH 10.
   DATA lv_old_requested_from TYPE d.
   DATA lv_old_requested_to TYPE d.
   DATA lv_new_requested_from TYPE d.
   DATA lv_new_requested_to TYPE d.
+  DATA lv_old_audit_start_from TYPE d.
+  DATA lv_old_audit_start_to TYPE d.
+  DATA lv_new_audit_start_from TYPE d.
+  DATA lv_new_audit_start_to TYPE d.
+  DATA lv_old_audit_finish_from TYPE d.
+  DATA lv_old_audit_finish_to TYPE d.
+  DATA lv_new_audit_finish_from TYPE d.
+  DATA lv_new_audit_finish_to TYPE d.
   DATA lv_old_deadline_only TYPE abap_bool.
   DATA lv_new_deadline_only TYPE abap_bool.
   DATA lv_old_deadline_only_filter TYPE string.
@@ -562,7 +602,7 @@ START-OF-SELECTION.
   DATA lv_new_available_to_filter TYPE string.
   FIELD-SYMBOLS <ls_change> TYPE zif_stock_allocation_compare=>ty_change.
 
-  lv_json_schema = 95.
+  lv_json_schema = 98.
   lv_material_filter = p_matnr.
   IF lv_material_filter IS INITIAL.
     lv_material_filter = 'n/a'.
@@ -658,6 +698,9 @@ START-OF-SELECTION.
   TRANSLATE p_nst TO UPPER CASE.
   TRANSLATE p_oast TO UPPER CASE.
   TRANSLATE p_nast TO UPPER CASE.
+  TRANSLATE p_prev TO UPPER CASE.
+  TRANSLATE p_oprev TO UPPER CASE.
+  TRANSLATE p_nprev TO UPPER CASE.
   TRANSLATE p_ostr TO UPPER CASE.
   TRANSLATE p_nstr TO UPPER CASE.
   TRANSLATE p_auart TO UPPER CASE.
@@ -1254,6 +1297,24 @@ START-OF-SELECTION.
     lv_new_rageto = p_nragto.
     lv_new_rageto_filter = zcl_stock_csv=>number( p_nragto ).
   ENDIF.
+  lv_preview_filter = p_prev.
+  IF lv_preview_filter IS INITIAL.
+    lv_preview_filter = 'n/a'.
+  ENDIF.
+  IF p_oprev IS INITIAL.
+    lv_old_preview = p_prev.
+    lv_old_preview_filter = lv_preview_filter.
+  ELSE.
+    lv_old_preview = p_oprev.
+    lv_old_preview_filter = p_oprev.
+  ENDIF.
+  IF p_nprev IS INITIAL.
+    lv_new_preview = p_prev.
+    lv_new_preview_filter = lv_preview_filter.
+  ELSE.
+    lv_new_preview = p_nprev.
+    lv_new_preview_filter = p_nprev.
+  ENDIF.
   lv_old_audit_status_filter = p_oast.
   IF lv_old_audit_status_filter IS INITIAL.
     lv_old_audit_status_filter = 'n/a'.
@@ -1342,6 +1403,82 @@ START-OF-SELECTION.
   ELSE.
     lv_new_requested_to = p_nreqt.
     lv_new_requested_to_filter = p_nreqt.
+  ENDIF.
+  IF p_afrom IS INITIAL.
+    lv_audit_start_from_filter = 'n/a'.
+  ELSE.
+    lv_audit_start_from_filter = p_afrom.
+  ENDIF.
+  IF p_ato IS INITIAL.
+    lv_audit_start_to_filter = 'n/a'.
+  ELSE.
+    lv_audit_start_to_filter = p_ato.
+  ENDIF.
+  IF p_oafrom IS INITIAL.
+    lv_old_audit_start_from = p_afrom.
+    lv_old_audit_start_from_filter = lv_audit_start_from_filter.
+  ELSE.
+    lv_old_audit_start_from = p_oafrom.
+    lv_old_audit_start_from_filter = p_oafrom.
+  ENDIF.
+  IF p_oato IS INITIAL.
+    lv_old_audit_start_to = p_ato.
+    lv_old_audit_start_to_filter = lv_audit_start_to_filter.
+  ELSE.
+    lv_old_audit_start_to = p_oato.
+    lv_old_audit_start_to_filter = p_oato.
+  ENDIF.
+  IF p_nafrom IS INITIAL.
+    lv_new_audit_start_from = p_afrom.
+    lv_new_audit_start_from_filter = lv_audit_start_from_filter.
+  ELSE.
+    lv_new_audit_start_from = p_nafrom.
+    lv_new_audit_start_from_filter = p_nafrom.
+  ENDIF.
+  IF p_nato IS INITIAL.
+    lv_new_audit_start_to = p_ato.
+    lv_new_audit_start_to_filter = lv_audit_start_to_filter.
+  ELSE.
+    lv_new_audit_start_to = p_nato.
+    lv_new_audit_start_to_filter = p_nato.
+  ENDIF.
+  IF p_ffrom IS INITIAL.
+    lv_audit_finish_from_filter = 'n/a'.
+  ELSE.
+    lv_audit_finish_from_filter = p_ffrom.
+  ENDIF.
+  IF p_fto IS INITIAL.
+    lv_audit_finish_to_filter = 'n/a'.
+  ELSE.
+    lv_audit_finish_to_filter = p_fto.
+  ENDIF.
+  IF p_offrom IS INITIAL.
+    lv_old_audit_finish_from = p_ffrom.
+    lv_old_audit_fin_from_filter = lv_audit_finish_from_filter.
+  ELSE.
+    lv_old_audit_finish_from = p_offrom.
+    lv_old_audit_fin_from_filter = p_offrom.
+  ENDIF.
+  IF p_ofto IS INITIAL.
+    lv_old_audit_finish_to = p_fto.
+    lv_old_audit_fin_to_filter = lv_audit_finish_to_filter.
+  ELSE.
+    lv_old_audit_finish_to = p_ofto.
+    lv_old_audit_fin_to_filter = p_ofto.
+  ENDIF.
+  IF p_nffrom IS INITIAL.
+    lv_new_audit_finish_from = p_ffrom.
+    lv_new_audit_fin_from_filter = lv_audit_finish_from_filter.
+  ELSE.
+    lv_new_audit_finish_from = p_nffrom.
+    lv_new_audit_fin_from_filter = p_nffrom.
+  ENDIF.
+  IF p_nfto IS INITIAL.
+    lv_new_audit_finish_to = p_fto.
+    lv_new_audit_fin_to_filter = lv_audit_finish_to_filter.
+  ELSE.
+    lv_new_audit_finish_to = p_nfto.
+    lv_new_audit_fin_to_filter = p_nfto.
   ENDIF.
   IF p_odead = abap_true.
     lv_old_deadline_only = abap_true.
@@ -2728,6 +2865,76 @@ START-OF-SELECTION.
     ENDIF.
     RETURN.
   ENDIF.
+  IF p_prev IS NOT INITIAL
+      AND ( p_oprev IS NOT INITIAL OR p_nprev IS NOT INITIAL ).
+    lv_error_message =
+      'Common and side-specific preview filters cannot be combined'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_prev IS NOT INITIAL AND p_prev <> 'P' AND p_prev <> 'O'.
+    lv_error_message = 'Preview filter is invalid'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_oprev IS NOT INITIAL AND p_oprev <> 'P' AND p_oprev <> 'O'.
+    lv_error_message = 'Old preview filter is invalid'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nprev IS NOT INITIAL AND p_nprev <> 'P' AND p_nprev <> 'O'.
+    lv_error_message = 'New preview filter is invalid'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
   IF p_ovrd = abap_true
       AND ( p_oovrd = abap_true OR p_novrd = abap_true ).
     lv_error_message =
@@ -2828,6 +3035,160 @@ START-OF-SELECTION.
         OR p_nreqf IS NOT INITIAL OR p_nreqt IS NOT INITIAL.
       lv_error_message =
         'Common and side-specific requested horizons cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
+  IF p_afrom IS NOT INITIAL AND p_ato IS NOT INITIAL AND p_afrom > p_ato.
+    lv_error_message =
+      'The audit start-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_oafrom IS NOT INITIAL AND p_oato IS NOT INITIAL
+      AND p_oafrom > p_oato.
+    lv_error_message =
+      'The old audit start-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nafrom IS NOT INITIAL AND p_nato IS NOT INITIAL
+      AND p_nafrom > p_nato.
+    lv_error_message =
+      'The new audit start-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_afrom IS NOT INITIAL OR p_ato IS NOT INITIAL.
+    IF p_oafrom IS NOT INITIAL OR p_oato IS NOT INITIAL
+        OR p_nafrom IS NOT INITIAL OR p_nato IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific audit start-date ranges cannot be combined'.
+      IF p_json = abap_true.
+        WRITE: / zcl_stock_json=>error_with_schema(
+          iv_message = lv_error_message
+          iv_schema  = lv_json_schema ).
+      ELSEIF p_csv = abap_true.
+        WRITE: / 'mode;status;schema_version;message'.
+        WRITE: / zcl_stock_csv=>error_with_schema(
+          iv_mode    = 'zstock_alloc_compare'
+          iv_schema  = lv_json_schema
+          iv_message = lv_error_message ).
+      ELSE.
+        WRITE: / lv_error_message.
+      ENDIF.
+      RETURN.
+    ENDIF.
+  ENDIF.
+  IF p_ffrom IS NOT INITIAL AND p_fto IS NOT INITIAL AND p_ffrom > p_fto.
+    lv_error_message =
+      'The audit finish-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_offrom IS NOT INITIAL AND p_ofto IS NOT INITIAL
+      AND p_offrom > p_ofto.
+    lv_error_message =
+      'The old audit finish-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_nffrom IS NOT INITIAL AND p_nfto IS NOT INITIAL
+      AND p_nffrom > p_nfto.
+    lv_error_message =
+      'The new audit finish-date lower bound must not be after the upper bound'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error_message
+        iv_schema  = lv_json_schema ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_compare'
+        iv_schema  = lv_json_schema
+        iv_message = lv_error_message ).
+    ELSE.
+      WRITE: / lv_error_message.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_ffrom IS NOT INITIAL OR p_fto IS NOT INITIAL.
+    IF p_offrom IS NOT INITIAL OR p_ofto IS NOT INITIAL
+        OR p_nffrom IS NOT INITIAL OR p_nfto IS NOT INITIAL.
+      lv_error_message =
+        'Common and side-specific audit finish-date ranges cannot be combined'.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error_message
@@ -3607,6 +3968,24 @@ START-OF-SELECTION.
   IF p_nsdf IS NOT INITIAL OR p_nsdt IS NOT INITIAL.
     APPEND 'new_snapshot_requested_date_range' TO lt_filter_names.
   ENDIF.
+  IF p_afrom IS NOT INITIAL OR p_ato IS NOT INITIAL.
+    APPEND 'audit_start_date_range' TO lt_filter_names.
+  ENDIF.
+  IF p_oafrom IS NOT INITIAL OR p_oato IS NOT INITIAL.
+    APPEND 'old_audit_start_date_range' TO lt_filter_names.
+  ENDIF.
+  IF p_nafrom IS NOT INITIAL OR p_nato IS NOT INITIAL.
+    APPEND 'new_audit_start_date_range' TO lt_filter_names.
+  ENDIF.
+  IF p_ffrom IS NOT INITIAL OR p_fto IS NOT INITIAL.
+    APPEND 'audit_finish_date_range' TO lt_filter_names.
+  ENDIF.
+  IF p_offrom IS NOT INITIAL OR p_ofto IS NOT INITIAL.
+    APPEND 'old_audit_finish_date_range' TO lt_filter_names.
+  ENDIF.
+  IF p_nffrom IS NOT INITIAL OR p_nfto IS NOT INITIAL.
+    APPEND 'new_audit_finish_date_range' TO lt_filter_names.
+  ENDIF.
   IF p_vbeln IS NOT INITIAL.
     APPEND 'sales_document' TO lt_filter_names.
   ENDIF.
@@ -3821,6 +4200,15 @@ START-OF-SELECTION.
   IF p_nast IS NOT INITIAL.
     APPEND 'new_audit_status' TO lt_filter_names.
   ENDIF.
+  IF p_prev IS NOT INITIAL.
+    APPEND 'preview' TO lt_filter_names.
+  ENDIF.
+  IF p_oprev IS NOT INITIAL.
+    APPEND 'old_preview' TO lt_filter_names.
+  ENDIF.
+  IF p_nprev IS NOT INITIAL.
+    APPEND 'new_preview' TO lt_filter_names.
+  ENDIF.
   IF p_ostr IS NOT INITIAL.
     APPEND 'old_strategy' TO lt_filter_names.
   ENDIF.
@@ -3942,6 +4330,15 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'new_batch'
     iv_value = lv_new_batch_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'preview_filter'
+    iv_value = lv_preview_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_preview_filter'
+    iv_value = lv_old_preview_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_preview_filter'
+    iv_value = lv_new_preview_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>property(
     iv_name  = 'movement_type'
     iv_value = p_mvt ) TO lt_filter_value_fields.
@@ -4566,6 +4963,42 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'new_requested_on_to'
     iv_value = lv_new_requested_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'audit_start_date_from'
+    iv_value = lv_audit_start_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'audit_start_date_to'
+    iv_value = lv_audit_start_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_audit_start_date_from'
+    iv_value = lv_old_audit_start_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_audit_start_date_to'
+    iv_value = lv_old_audit_start_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_audit_start_date_from'
+    iv_value = lv_new_audit_start_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_audit_start_date_to'
+    iv_value = lv_new_audit_start_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'audit_finish_date_from'
+    iv_value = lv_audit_finish_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'audit_finish_date_to'
+    iv_value = lv_audit_finish_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_audit_finish_date_from'
+    iv_value = lv_old_audit_fin_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'old_audit_finish_date_to'
+    iv_value = lv_old_audit_fin_to_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_audit_finish_date_from'
+    iv_value = lv_new_audit_fin_from_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'new_audit_finish_date_to'
+    iv_value = lv_new_audit_fin_to_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>number_property(
     iv_name  = 'offset'
     iv_value = p_skip ) TO lt_filter_value_fields.
@@ -4635,7 +5068,12 @@ START-OF-SELECTION.
           iv_run_duration_to         = lv_old_duration_to
           iv_run_available_from      = lv_old_available_from
           iv_run_available_to        = lv_old_available_to
+          iv_run_start_date_from     = lv_old_audit_start_from
+          iv_run_start_date_to       = lv_old_audit_start_to
+          iv_run_finish_date_from    = lv_old_audit_finish_from
+          iv_run_finish_date_to      = lv_old_audit_finish_to
           iv_run_status              = p_oast
+          iv_preview_filter          = lv_old_preview
           iv_strategy                = p_ostr
           iv_legacy_strategy         = p_oleg
           iv_run_message_contains    = p_omsg
@@ -4689,7 +5127,12 @@ START-OF-SELECTION.
           iv_run_duration_to         = lv_new_duration_to
           iv_run_available_from      = lv_new_available_from
           iv_run_available_to        = lv_new_available_to
+          iv_run_start_date_from     = lv_new_audit_start_from
+          iv_run_start_date_to       = lv_new_audit_start_to
+          iv_run_finish_date_from    = lv_new_audit_finish_from
+          iv_run_finish_date_to      = lv_new_audit_finish_to
           iv_run_status              = p_nast
+          iv_preview_filter          = lv_new_preview
           iv_strategy                = p_nstr
           iv_legacy_strategy         = p_nleg
           iv_run_message_contains    = p_nmsg
@@ -4704,6 +5147,7 @@ START-OF-SELECTION.
         iv_movement_type     = lv_old_movement_type
         iv_min_shelf_life    = lv_old_shelf_life
         iv_status            = p_oast
+        iv_preview_filter    = lv_old_preview
         iv_strategy          = p_ostr
         iv_legacy_strategy   = p_oleg
         iv_message_contains  = p_omsg
@@ -4720,6 +5164,10 @@ START-OF-SELECTION.
         iv_duration_to       = lv_old_duration_to
         iv_available_from    = lv_old_available_from
         iv_available_to      = lv_old_available_to
+        iv_start_date_from   = lv_old_audit_start_from
+        iv_start_date_to     = lv_old_audit_start_to
+        iv_finish_date_from  = lv_old_audit_finish_from
+        iv_finish_date_to    = lv_old_audit_finish_to
         iv_requested_on_from = lv_old_requested_from
         iv_requested_on_to   = lv_old_requested_to
         iv_run_id            = p_old ).
@@ -4732,6 +5180,7 @@ START-OF-SELECTION.
         iv_movement_type     = lv_new_movement_type
         iv_min_shelf_life    = lv_new_shelf_life
         iv_status            = p_nast
+        iv_preview_filter    = lv_new_preview
         iv_strategy          = p_nstr
         iv_legacy_strategy   = p_nleg
         iv_message_contains  = p_nmsg
@@ -4748,6 +5197,10 @@ START-OF-SELECTION.
         iv_duration_to       = lv_new_duration_to
         iv_available_from    = lv_new_available_from
         iv_available_to      = lv_new_available_to
+        iv_start_date_from   = lv_new_audit_start_from
+        iv_start_date_to     = lv_new_audit_start_to
+        iv_finish_date_from  = lv_new_audit_finish_from
+        iv_finish_date_to    = lv_new_audit_finish_to
         iv_requested_on_from = lv_new_requested_from
         iv_requested_on_to   = lv_new_requested_to
         iv_run_id            = p_new ).
@@ -4783,6 +5236,12 @@ START-OF-SELECTION.
             OR p_sdf IS NOT INITIAL OR p_sdt IS NOT INITIAL
             OR p_osdf IS NOT INITIAL OR p_osdt IS NOT INITIAL
             OR p_nsdf IS NOT INITIAL OR p_nsdt IS NOT INITIAL
+            OR p_afrom IS NOT INITIAL OR p_ato IS NOT INITIAL
+            OR p_oafrom IS NOT INITIAL OR p_oato IS NOT INITIAL
+            OR p_nafrom IS NOT INITIAL OR p_nato IS NOT INITIAL
+            OR p_ffrom IS NOT INITIAL OR p_fto IS NOT INITIAL
+            OR p_offrom IS NOT INITIAL OR p_ofto IS NOT INITIAL
+            OR p_nffrom IS NOT INITIAL OR p_nfto IS NOT INITIAL
              OR p_vbeln IS NOT INITIAL OR p_ovbeln IS NOT INITIAL
              OR p_nvbeln IS NOT INITIAL
              OR p_auart IS NOT INITIAL OR p_oauart IS NOT INITIAL
@@ -4817,6 +5276,8 @@ START-OF-SELECTION.
             OR p_shelf IS NOT INITIAL OR p_oshelf IS NOT INITIAL
             OR p_nshelf IS NOT INITIAL
             OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
+            OR p_prev IS NOT INITIAL OR p_oprev IS NOT INITIAL
+            OR p_nprev IS NOT INITIAL
             OR p_ostr IS NOT INITIAL OR p_nstr IS NOT INITIAL
             OR p_oleg = abap_true OR p_nleg = abap_true
             OR p_omsg IS NOT INITIAL OR p_nmsg IS NOT INITIAL
@@ -4876,6 +5337,12 @@ START-OF-SELECTION.
             OR p_sdf IS NOT INITIAL OR p_sdt IS NOT INITIAL
             OR p_osdf IS NOT INITIAL OR p_osdt IS NOT INITIAL
             OR p_nsdf IS NOT INITIAL OR p_nsdt IS NOT INITIAL
+            OR p_afrom IS NOT INITIAL OR p_ato IS NOT INITIAL
+            OR p_oafrom IS NOT INITIAL OR p_oato IS NOT INITIAL
+            OR p_nafrom IS NOT INITIAL OR p_nato IS NOT INITIAL
+            OR p_ffrom IS NOT INITIAL OR p_fto IS NOT INITIAL
+            OR p_offrom IS NOT INITIAL OR p_ofto IS NOT INITIAL
+            OR p_nffrom IS NOT INITIAL OR p_nfto IS NOT INITIAL
              OR p_vbeln IS NOT INITIAL OR p_ovbeln IS NOT INITIAL
              OR p_nvbeln IS NOT INITIAL
              OR p_auart IS NOT INITIAL OR p_oauart IS NOT INITIAL
@@ -4904,6 +5371,8 @@ START-OF-SELECTION.
             OR p_shelf IS NOT INITIAL OR p_oshelf IS NOT INITIAL
             OR p_nshelf IS NOT INITIAL
             OR p_oast IS NOT INITIAL OR p_nast IS NOT INITIAL
+            OR p_prev IS NOT INITIAL OR p_oprev IS NOT INITIAL
+            OR p_nprev IS NOT INITIAL
             OR p_ostr IS NOT INITIAL OR p_nstr IS NOT INITIAL
             OR p_oleg = abap_true OR p_nleg = abap_true
             OR p_omsg IS NOT INITIAL OR p_nmsg IS NOT INITIAL
@@ -5582,6 +6051,12 @@ START-OF-SELECTION.
         && 'requested_on_from_filter;'
         && 'requested_on_to_filter;old_requested_on_from_filter;old_requested_on_to_filter;'
         && 'new_requested_on_from_filter;new_requested_on_to_filter;'
+        && 'audit_start_date_from_filter;audit_start_date_to_filter;'
+        && 'old_audit_start_date_from_filter;old_audit_start_date_to_filter;'
+        && 'new_audit_start_date_from_filter;new_audit_start_date_to_filter;'
+        && 'audit_finish_date_from_filter;audit_finish_date_to_filter;'
+        && 'old_audit_finish_date_from_filter;old_audit_finish_date_to_filter;'
+        && 'new_audit_finish_date_from_filter;new_audit_finish_date_to_filter;'
         && 'requested_deadline_only;old_requested_deadline_only;new_requested_deadline_only;'
         && 'requested_deadline_from_filter;requested_deadline_to_filter;'
         && 'old_requested_deadline_from_filter;old_requested_deadline_to_filter;'
@@ -5597,12 +6072,14 @@ START-OF-SELECTION.
         && 'old_available_stock_from_filter;old_available_stock_to_filter;'
         && 'new_available_stock_from_filter;new_available_stock_to_filter;'
         && 'change_type;reason_filter;old_status_filter;new_status_filter;'
+        && 'preview_filter;old_preview_filter;new_preview_filter;'
         && 'old_audit_status_filter;new_audit_status_filter;old_strategy_filter;'
         && 'new_strategy_filter;old_legacy_strategy_filter;new_legacy_strategy_filter;'
         && 'old_message_filter;'
         && 'new_message_filter;old_message_only;new_message_only;'
         && 'include_unchanged;'
-        && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;old_movement_type;'
+        && 'reconciliation_guard;old_run_status;new_run_status;old_run_strategy;new_run_strategy;'
+        && 'old_run_preview;new_run_preview;old_movement_type;'
         && 'new_movement_type;old_min_shelf_life;new_min_shelf_life;old_safety_stock;new_safety_stock;old_start_date;'
         && 'new_start_date;old_start_time;new_start_time;old_finish_date;new_finish_date;old_finish_time;'
         && 'new_finish_time;old_requested_on_from;new_requested_on_from;old_requested_on_to;new_requested_on_to;'
@@ -5633,7 +6110,7 @@ START-OF-SELECTION.
         && 'shortage_pct_delta;filter_values;has_more;next_offset;'
         && 'has_previous;previous_offset;page_number;page_count;last_offset'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 95 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 98 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_old ) TO lt_csv_fields.
@@ -5772,6 +6249,26 @@ START-OF-SELECTION.
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_requested_to_filter )
         TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_start_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_start_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_start_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_start_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_start_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_start_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_finish_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_finish_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_fin_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_fin_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_fin_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_fin_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_old_deadline_only_filter )
         TO lt_csv_fields.
@@ -5814,6 +6311,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ost ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_nst ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_preview_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_preview_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_preview_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_old_audit_status_filter )
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
@@ -5836,6 +6336,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-strategy ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_old_run-preview ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_new_run-preview ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
@@ -6173,7 +6675,7 @@ START-OF-SELECTION.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 95 ) TO lt_json_fields.
+        iv_value = 98 ) TO lt_json_fields.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
@@ -6716,6 +7218,42 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'new_requested_on_to_filter'
         iv_value = lv_new_requested_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'audit_start_date_from_filter'
+        iv_value = lv_audit_start_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'audit_start_date_to_filter'
+        iv_value = lv_audit_start_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_audit_start_date_from_filter'
+        iv_value = lv_old_audit_start_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_audit_start_date_to_filter'
+        iv_value = lv_old_audit_start_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_audit_start_date_from_filter'
+        iv_value = lv_new_audit_start_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_audit_start_date_to_filter'
+        iv_value = lv_new_audit_start_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'audit_finish_date_from_filter'
+        iv_value = lv_audit_finish_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'audit_finish_date_to_filter'
+        iv_value = lv_audit_finish_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_audit_finish_date_from_filter'
+        iv_value = lv_old_audit_fin_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_audit_finish_date_to_filter'
+        iv_value = lv_old_audit_fin_to_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_audit_finish_date_from_filter'
+        iv_value = lv_new_audit_fin_from_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_audit_finish_date_to_filter'
+        iv_value = lv_new_audit_fin_to_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'requested_deadline_only'
         iv_value = p_dead ) TO lt_json_fields.
@@ -6813,6 +7351,15 @@ START-OF-SELECTION.
         iv_name  = 'new_status_filter'
         iv_value = p_nst ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'preview_filter'
+        iv_value = lv_preview_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'old_preview_filter'
+        iv_value = lv_old_preview_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'new_preview_filter'
+        iv_value = lv_new_preview_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
         iv_name  = 'old_audit_status_filter'
         iv_value = lv_old_audit_status_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
@@ -6860,6 +7407,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'new_run_strategy'
         iv_value = ls_new_run-strategy ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'old_run_preview'
+        iv_value = ls_old_run-preview ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'new_run_preview'
+        iv_value = ls_new_run-preview ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'old_movement_type'
         iv_value = ls_old_run-movement_type ) TO lt_json_fields.
@@ -7422,7 +7975,8 @@ START-OF-SELECTION.
       && 'snapshot_coverage_delta_pct;snapshot_shortage_pct_delta;old_reservation_id;'
       && 'new_reservation_id;old_reservation_date;new_reservation_date;old_reservation_movement_type;'
       && 'new_reservation_movement_type;old_reservation_unit;new_reservation_unit;old_run_status;new_run_status;'
-      && 'old_run_strategy;new_run_strategy;old_movement_type;new_movement_type;old_min_shelf_life;'
+      && 'old_run_strategy;new_run_strategy;old_run_preview;new_run_preview;'
+      && 'old_movement_type;new_movement_type;old_min_shelf_life;'
       && 'new_min_shelf_life;old_safety_stock;new_safety_stock;old_start_date;'
       && 'new_start_date;old_start_time;new_start_time;'
       && 'old_finish_date;new_finish_date;old_requested_on_from;new_requested_on_from;old_requested_on_to;'
@@ -7448,6 +8002,7 @@ START-OF-SELECTION.
       && 'new_snapshot_unallocated_rows;old_snapshot_allocated;new_snapshot_allocated;old_snapshot_shortage;'
       && 'new_snapshot_shortage;reconciliation_guard;reason_filter;'
       && 'old_status_filter;new_status_filter;'
+      && 'preview_filter;old_preview_filter;new_preview_filter;'
       && 'old_audit_status_filter;new_audit_status_filter;old_strategy_filter;'
       && 'new_strategy_filter;old_legacy_strategy_filter;new_legacy_strategy_filter;'
       && 'old_message_filter;'
@@ -7507,6 +8062,12 @@ START-OF-SELECTION.
       && 'requested_on_from_filter;'
       && 'requested_on_to_filter;old_requested_on_from_filter;old_requested_on_to_filter;'
       && 'new_requested_on_from_filter;new_requested_on_to_filter;'
+      && 'audit_start_date_from_filter;audit_start_date_to_filter;'
+      && 'old_audit_start_date_from_filter;old_audit_start_date_to_filter;'
+      && 'new_audit_start_date_from_filter;new_audit_start_date_to_filter;'
+      && 'audit_finish_date_from_filter;audit_finish_date_to_filter;'
+      && 'old_audit_finish_date_from_filter;old_audit_finish_date_to_filter;'
+      && 'new_audit_finish_date_from_filter;new_audit_finish_date_to_filter;'
       && 'requested_deadline_only;old_requested_deadline_only;new_requested_deadline_only;'
       && 'requested_deadline_from_filter;requested_deadline_to_filter;'
       && 'old_requested_deadline_from_filter;old_requested_deadline_to_filter;'
@@ -7525,7 +8086,7 @@ START-OF-SELECTION.
       && 'has_previous;previous_offset;page_number;page_count;last_offset'.
     LOOP AT lt_changes ASSIGNING <ls_change>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 95 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 98 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_change>-change_type ) TO lt_csv_fields.
@@ -7627,6 +8188,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_new_run-status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-strategy ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_old_run-preview ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_new_run-preview ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_old_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_new_run-movement_type ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_old_run-min_shelf_life ) TO lt_csv_fields.
@@ -7739,6 +8302,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( p_reason ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ost ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_nst ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_preview_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_preview_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_preview_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_old_audit_status_filter )
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_audit_status_filter )
@@ -7889,6 +8455,26 @@ START-OF-SELECTION.
         TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_new_requested_to_filter )
         TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_start_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_start_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_start_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_start_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_start_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_start_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_finish_from_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_audit_finish_to_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_fin_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_old_audit_fin_to_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_fin_from_filter )
+        TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_new_audit_fin_to_filter )
+        TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_dead ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_old_deadline_only_filter )
         TO lt_csv_fields.
@@ -7949,7 +8535,7 @@ START-OF-SELECTION.
       WRITE: / '{' NO-GAP.
       WRITE: / zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 95 ) NO-GAP.
+        iv_value = 98 ) NO-GAP.
       IF p_typed = abap_true.
         WRITE: / ',' NO-GAP.
         WRITE: / zcl_stock_json=>boolean_property(
@@ -8084,6 +8670,54 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'new_requested_on_to_filter'
         iv_value = lv_new_requested_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'audit_start_date_from_filter'
+        iv_value = lv_audit_start_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'audit_start_date_to_filter'
+        iv_value = lv_audit_start_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_audit_start_date_from_filter'
+        iv_value = lv_old_audit_start_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_audit_start_date_to_filter'
+        iv_value = lv_old_audit_start_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_audit_start_date_from_filter'
+        iv_value = lv_new_audit_start_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_audit_start_date_to_filter'
+        iv_value = lv_new_audit_start_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'audit_finish_date_from_filter'
+        iv_value = lv_audit_finish_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'audit_finish_date_to_filter'
+        iv_value = lv_audit_finish_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_audit_finish_date_from_filter'
+        iv_value = lv_old_audit_fin_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_audit_finish_date_to_filter'
+        iv_value = lv_old_audit_fin_to_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_audit_finish_date_from_filter'
+        iv_value = lv_new_audit_fin_from_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_audit_finish_date_to_filter'
+        iv_value = lv_new_audit_fin_to_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>boolean_property(
         iv_name  = 'requested_deadline_only'
@@ -8821,6 +9455,18 @@ START-OF-SELECTION.
         iv_value = p_nst ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
+        iv_name  = 'preview_filter'
+        iv_value = lv_preview_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'old_preview_filter'
+        iv_value = lv_old_preview_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
+        iv_name  = 'new_preview_filter'
+        iv_value = lv_new_preview_filter ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>property(
         iv_name  = 'old_audit_status_filter'
         iv_value = lv_old_audit_status_filter ) NO-GAP.
       WRITE: / ',' NO-GAP.
@@ -8883,6 +9529,14 @@ START-OF-SELECTION.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'new_run_strategy'
         iv_value = ls_new_run-strategy ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'old_run_preview'
+        iv_value = ls_old_run-preview ) NO-GAP.
+      WRITE: / ',' NO-GAP.
+      WRITE: / zcl_stock_json=>boolean_property(
+        iv_name  = 'new_run_preview'
+        iv_value = ls_new_run-preview ) NO-GAP.
       WRITE: / ',' NO-GAP.
       WRITE: / zcl_stock_json=>property(
         iv_name  = 'old_movement_type'
@@ -9806,6 +10460,18 @@ START-OF-SELECTION.
     WRITE: / 'Old snapshot requested date to:', lv_old_snapshot_to_filter.
     WRITE: / 'New snapshot requested date from:', lv_new_snapshot_from_filter.
     WRITE: / 'New snapshot requested date to:', lv_new_snapshot_to_filter.
+    WRITE: / 'Audit start date from:', lv_audit_start_from_filter.
+    WRITE: / 'Audit start date to:', lv_audit_start_to_filter.
+    WRITE: / 'Old audit start date from:', lv_old_audit_start_from_filter.
+    WRITE: / 'Old audit start date to:', lv_old_audit_start_to_filter.
+    WRITE: / 'New audit start date from:', lv_new_audit_start_from_filter.
+    WRITE: / 'New audit start date to:', lv_new_audit_start_to_filter.
+    WRITE: / 'Audit finish date from:', lv_audit_finish_from_filter.
+    WRITE: / 'Audit finish date to:', lv_audit_finish_to_filter.
+    WRITE: / 'Old audit finish date from:', lv_old_audit_fin_from_filter.
+    WRITE: / 'Old audit finish date to:', lv_old_audit_fin_to_filter.
+    WRITE: / 'New audit finish date from:', lv_new_audit_fin_from_filter.
+    WRITE: / 'New audit finish date to:', lv_new_audit_fin_to_filter.
     WRITE: / 'Sales document filter:', lv_sales_document_filter.
     WRITE: / 'Old sales document filter:', lv_old_sales_document_filter.
     WRITE: / 'New sales document filter:', lv_new_sales_document_filter.
@@ -9843,6 +10509,9 @@ START-OF-SELECTION.
     WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
     WRITE: / 'Old minimum shelf-life filter:', lv_old_shelf_filter.
     WRITE: / 'New minimum shelf-life filter:', lv_new_shelf_filter.
+    WRITE: / 'Preview filter:', lv_preview_filter.
+    WRITE: / 'Old preview filter:', lv_old_preview_filter.
+    WRITE: / 'New preview filter:', lv_new_preview_filter.
     WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
     WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
     WRITE: / 'Old strategy filter:', lv_old_strategy_filter.
@@ -10088,6 +10757,18 @@ START-OF-SELECTION.
   WRITE: / 'Old snapshot requested date to:', lv_old_snapshot_to_filter.
   WRITE: / 'New snapshot requested date from:', lv_new_snapshot_from_filter.
   WRITE: / 'New snapshot requested date to:', lv_new_snapshot_to_filter.
+  WRITE: / 'Audit start date from:', lv_audit_start_from_filter.
+  WRITE: / 'Audit start date to:', lv_audit_start_to_filter.
+  WRITE: / 'Old audit start date from:', lv_old_audit_start_from_filter.
+  WRITE: / 'Old audit start date to:', lv_old_audit_start_to_filter.
+  WRITE: / 'New audit start date from:', lv_new_audit_start_from_filter.
+  WRITE: / 'New audit start date to:', lv_new_audit_start_to_filter.
+  WRITE: / 'Audit finish date from:', lv_audit_finish_from_filter.
+  WRITE: / 'Audit finish date to:', lv_audit_finish_to_filter.
+  WRITE: / 'Old audit finish date from:', lv_old_audit_fin_from_filter.
+  WRITE: / 'Old audit finish date to:', lv_old_audit_fin_to_filter.
+  WRITE: / 'New audit finish date from:', lv_new_audit_fin_from_filter.
+  WRITE: / 'New audit finish date to:', lv_new_audit_fin_to_filter.
   WRITE: / 'Sales document filter:', lv_sales_document_filter.
   WRITE: / 'Old sales document filter:', lv_old_sales_document_filter.
   WRITE: / 'New sales document filter:', lv_new_sales_document_filter.
@@ -10131,6 +10812,9 @@ START-OF-SELECTION.
   WRITE: / 'Minimum shelf-life filter:', lv_min_shelf_filter.
   WRITE: / 'Old minimum shelf-life filter:', lv_old_shelf_filter.
   WRITE: / 'New minimum shelf-life filter:', lv_new_shelf_filter.
+  WRITE: / 'Preview filter:', lv_preview_filter.
+  WRITE: / 'Old preview filter:', lv_old_preview_filter.
+  WRITE: / 'New preview filter:', lv_new_preview_filter.
   WRITE: / 'Old audit status filter:', lv_old_audit_status_filter.
   WRITE: / 'New audit status filter:', lv_new_audit_status_filter.
   WRITE: / 'Old strategy filter:', lv_old_strategy_filter.

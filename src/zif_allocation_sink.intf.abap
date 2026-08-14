@@ -17,6 +17,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_safety_to                  TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       iv_status                     TYPE zif_stock_allocation=>ty_allocation_status OPTIONAL
       iv_run_status                 TYPE zif_allocation_audit=>ty_run_status OPTIONAL
+      iv_preview_filter             TYPE zif_allocation_audit=>ty_preview_filter OPTIONAL
       iv_run_demand_from            TYPE i OPTIONAL
       iv_run_demand_to              TYPE i OPTIONAL
       iv_run_available_from         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
@@ -47,6 +48,10 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_run_deadline_age_from      TYPE i OPTIONAL
       iv_run_deadline_age_to        TYPE i OPTIONAL
       iv_run_deadline_age_date      TYPE d OPTIONAL
+      iv_run_start_date_from        TYPE d OPTIONAL
+      iv_run_start_date_to          TYPE d OPTIONAL
+      iv_run_finish_date_from       TYPE d OPTIONAL
+      iv_run_finish_date_to         TYPE d OPTIONAL
       iv_reservation_date_from      TYPE d OPTIONAL
       iv_reservation_date_to        TYPE d OPTIONAL
       iv_reservation_age_from       TYPE i OPTIONAL

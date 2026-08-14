@@ -83,10 +83,28 @@
     </item>
     <item>
      <ID>S</ID>
-     <KEY>P_NBATCH</KEY>
-     <ENTRY>New batch</ENTRY>
-     <LENGTH>17</LENGTH>
-    </item>
+    <KEY>P_NBATCH</KEY>
+    <ENTRY>New batch</ENTRY>
+    <LENGTH>17</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OPREV</KEY>
+    <ENTRY>Old run type (P preview / O operational)</ENTRY>
+    <LENGTH>40</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NPREV</KEY>
+    <ENTRY>New run type (P preview / O operational)</ENTRY>
+    <LENGTH>40</LENGTH>
+   </item>
      <item>
       <ID>S</ID>
      <KEY>P_MVT</KEY>
@@ -154,11 +172,35 @@
      <LENGTH>23</LENGTH>
    </item>
    <item>
-     <ID>S</ID>
-     <KEY>P_UNTIL</KEY>
-     <ENTRY>Requested horizon to</ENTRY>
-     <LENGTH>21</LENGTH>
+    <ID>S</ID>
+    <KEY>P_UNTIL</KEY>
+    <ENTRY>Requested horizon to</ENTRY>
+    <LENGTH>21</LENGTH>
    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AFROM</KEY>
+    <ENTRY>Audit start date from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_ATO</KEY>
+   <ENTRY>Audit start date to</ENTRY>
+   <LENGTH>21</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_FFROM</KEY>
+   <ENTRY>Audit finish date from</ENTRY>
+   <LENGTH>24</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_FTO</KEY>
+   <ENTRY>Audit finish date to</ENTRY>
+   <LENGTH>22</LENGTH>
+  </item>
    <item>
     <ID>S</ID>
     <KEY>P_OREQF</KEY>
@@ -173,6 +215,30 @@
    </item>
    <item>
     <ID>S</ID>
+    <KEY>P_OAFROM</KEY>
+    <ENTRY>Old audit start date from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_OATO</KEY>
+   <ENTRY>Old audit start date to</ENTRY>
+   <LENGTH>26</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_OFFROM</KEY>
+   <ENTRY>Old audit finish date from</ENTRY>
+   <LENGTH>29</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_OFTO</KEY>
+   <ENTRY>Old audit finish date to</ENTRY>
+   <LENGTH>27</LENGTH>
+  </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_NREQF</KEY>
     <ENTRY>New requested horizon from</ENTRY>
     <LENGTH>28</LENGTH>
@@ -183,6 +249,30 @@
     <ENTRY>New requested horizon to</ENTRY>
     <LENGTH>26</LENGTH>
    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NAFROM</KEY>
+    <ENTRY>New audit start date from</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_NATO</KEY>
+   <ENTRY>New audit start date to</ENTRY>
+   <LENGTH>26</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_NFFROM</KEY>
+   <ENTRY>New audit finish date from</ENTRY>
+   <LENGTH>29</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_NFTO</KEY>
+   <ENTRY>New audit finish date to</ENTRY>
+   <LENGTH>27</LENGTH>
+  </item>
    <item>
     <ID>S</ID>
     <KEY>P_DEAD</KEY>

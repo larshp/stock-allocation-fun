@@ -138,9 +138,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         requested_on_to   TYPE d,
         status            TYPE zif_allocation_audit=>ty_run_status,
         strategy          TYPE zif_allocation_audit=>ty_strategy,
+        preview           TYPE abap_bool,
         message           TYPE zif_allocation_audit=>ty_message,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_preview_filter TYPE zif_allocation_audit=>ty_preview_filter.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_overdue_date TYPE d.
@@ -148,6 +150,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
     DATA lv_duration_seconds TYPE i.
+    DATA lv_start_date_to TYPE d.
     DATA lv_remaining_run_id TYPE zif_allocation_audit=>ty_run_id.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -155,6 +158,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_preview_filter = to_upper( iv_preview_filter ).
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     lv_overdue_date = sy-datum.
@@ -199,6 +203,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_date    = iv_start_date_from
       iv_message = 'Audit purge start date is invalid' ).
     validate_date(
+      iv_date    = iv_start_date_to
+      iv_message = 'Audit purge start date range is invalid' ).
+    validate_date(
       iv_date    = iv_finish_date_from
       iv_message = 'Audit purge finish date range is invalid' ).
     validate_date(
@@ -211,6 +218,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_start_date_from >= iv_before_date.
       raise_error(
         iv_message = 'Audit purge start date must be before the cutoff date' ).
+    ENDIF.
+    IF iv_start_date_from IS NOT INITIAL
+        AND iv_start_date_to IS NOT INITIAL
+        AND iv_start_date_from > iv_start_date_to.
+      raise_error( iv_message = 'Audit purge start date range is invalid' ).
     ENDIF.
     IF iv_finish_date_from IS NOT INITIAL
         AND iv_finish_date_to IS NOT INITIAL
@@ -225,6 +237,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_duration_to IS NOT INITIAL
         AND iv_duration_from > iv_duration_to.
       raise_error( iv_message = 'Audit purge duration range is invalid' ).
+    ENDIF.
+    IF iv_max_runs < 0.
+      raise_error( iv_message = 'Audit purge maximum run count is invalid' ).
+    ENDIF.
+    lv_start_date_to = '99991231'.
+    IF iv_start_date_to IS NOT INITIAL.
+      lv_start_date_to = iv_start_date_to.
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -267,6 +286,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit purge status filter is invalid' ).
     ENDIF.
+    IF lv_preview_filter IS NOT INITIAL
+        AND lv_preview_filter <> 'P'
+        AND lv_preview_filter <> 'O'.
+      raise_error( iv_message = 'Audit purge preview filter is invalid' ).
+    ENDIF.
     IF lv_strategy IS NOT INITIAL
         AND lv_strategy <> 'P'
         AND lv_strategy <> 'F'
@@ -300,6 +324,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deleted_success TYPE i.
     DATA lv_deleted_partial TYPE i.
     DATA lv_deleted_error TYPE i.
+    DATA lv_selected_count TYPE i.
+    DATA lv_capped_runs TYPE i.
     DATA lv_protected_running TYPE i.
     DATA lv_protected_unknown TYPE i.
     DATA lv_protected_reservation TYPE i.
@@ -320,6 +346,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -328,6 +355,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
@@ -344,6 +372,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -352,6 +381,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
@@ -371,6 +401,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -380,6 +411,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND run_id = @iv_run_id
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
@@ -396,6 +428,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -405,12 +438,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND run_id = @iv_run_id
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ENDIF.
+    SORT lt_candidates BY start_date ASCENDING start_time ASCENDING
+      run_id ASCENDING.
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
@@ -442,8 +478,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ls_candidate-strategy IS NOT INITIAL.
         CONTINUE.
       ENDIF.
+      IF lv_preview_filter = 'P'
+          AND ls_candidate-preview <> abap_true.
+        CONTINUE.
+      ELSEIF lv_preview_filter = 'O'
+          AND ls_candidate-preview = abap_true.
+        CONTINUE.
+      ENDIF.
       IF iv_start_date_from IS NOT INITIAL
           AND ls_candidate-start_date < iv_start_date_from.
+        CONTINUE.
+      ENDIF.
+      IF iv_start_date_to IS NOT INITIAL
+          AND ls_candidate-start_date > iv_start_date_to.
         CONTINUE.
       ENDIF.
       IF iv_finish_date_from IS NOT INITIAL
@@ -578,7 +625,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              lv_capped_runs = lv_capped_runs + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             lv_deleted_success = lv_deleted_success + 1.
           WHEN 'P'.
             CLEAR lv_reservation_id.
@@ -595,7 +647,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              lv_capped_runs = lv_capped_runs + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             lv_deleted_partial = lv_deleted_partial + 1.
           WHEN 'E'.
             CLEAR lv_reservation_id.
@@ -612,7 +669,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               lv_protected_reservation = lv_protected_reservation + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              lv_capped_runs = lv_capped_runs + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             lv_deleted_error = lv_deleted_error + 1.
           WHEN 'R'.
             lv_protected_running = lv_protected_running + 1.
@@ -659,6 +721,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ev_protected_running = lv_protected_running.
     ev_protected_unknown = lv_protected_unknown.
     ev_reserved_runs = lv_protected_reservation.
+    ev_capped_runs = lv_capped_runs.
     IF mo_transaction IS BOUND.
       TRY.
           mo_transaction->commit( ).
@@ -686,9 +749,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         requested_on_to   TYPE d,
         status            TYPE zif_allocation_audit=>ty_run_status,
         strategy          TYPE zif_allocation_audit=>ty_strategy,
+        preview           TYPE abap_bool,
         message           TYPE zif_allocation_audit=>ty_message,
       END OF ty_purge_candidate.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_preview_filter TYPE zif_allocation_audit=>ty_preview_filter.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_overdue_date TYPE d.
@@ -696,12 +761,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
     DATA lv_duration_seconds TYPE i.
+    DATA lv_start_date_to TYPE d.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA lt_run_ids TYPE SORTED TABLE OF zif_allocation_audit=>ty_run_id
       WITH UNIQUE KEY table_line.
     DATA ls_candidate TYPE ty_purge_candidate.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_snapshot_count TYPE i.
+    DATA lv_selected_count TYPE i.
     DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
 
     IF iv_material IS INITIAL
@@ -710,6 +777,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       raise_error( iv_message = 'Audit purge scope is incomplete' ).
     ENDIF.
     lv_status = to_upper( iv_status ).
+    lv_preview_filter = to_upper( iv_preview_filter ).
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     lv_overdue_date = sy-datum.
@@ -754,6 +822,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_date    = iv_start_date_from
       iv_message = 'Audit purge start date is invalid' ).
     validate_date(
+      iv_date    = iv_start_date_to
+      iv_message = 'Audit purge start date range is invalid' ).
+    validate_date(
       iv_date    = iv_finish_date_from
       iv_message = 'Audit purge finish date range is invalid' ).
     validate_date(
@@ -766,6 +837,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_start_date_from >= iv_before_date.
       raise_error(
         iv_message = 'Audit purge start date must be before the cutoff date' ).
+    ENDIF.
+    IF iv_start_date_from IS NOT INITIAL
+        AND iv_start_date_to IS NOT INITIAL
+        AND iv_start_date_from > iv_start_date_to.
+      raise_error( iv_message = 'Audit purge start date range is invalid' ).
     ENDIF.
     IF iv_finish_date_from IS NOT INITIAL
         AND iv_finish_date_to IS NOT INITIAL
@@ -780,6 +856,13 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND iv_duration_to IS NOT INITIAL
         AND iv_duration_from > iv_duration_to.
       raise_error( iv_message = 'Audit purge duration range is invalid' ).
+    ENDIF.
+    IF iv_max_runs < 0.
+      raise_error( iv_message = 'Audit purge maximum run count is invalid' ).
+    ENDIF.
+    lv_start_date_to = '99991231'.
+    IF iv_start_date_to IS NOT INITIAL.
+      lv_start_date_to = iv_start_date_to.
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit purge minimum shelf-life filter is invalid' ).
@@ -815,6 +898,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_status <> 'P'
         AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit purge status filter is invalid' ).
+    ENDIF.
+    IF lv_preview_filter IS NOT INITIAL
+        AND lv_preview_filter <> 'P'
+        AND lv_preview_filter <> 'O'.
+      raise_error( iv_message = 'Audit purge preview filter is invalid' ).
     ENDIF.
     IF lv_strategy IS NOT INITIAL
         AND lv_strategy <> 'P'
@@ -856,6 +944,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -864,6 +953,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
@@ -880,6 +970,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -888,6 +979,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND lgort = @iv_storage_location
             AND batch = @iv_batch
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
@@ -907,6 +999,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -916,6 +1009,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND run_id = @iv_run_id
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
@@ -932,6 +1026,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                requested_on_to,
                status,
                strategy,
+               preview,
                message
           FROM zstockalloc_run
 
@@ -941,12 +1036,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND batch = @iv_batch
             AND run_id = @iv_run_id
             AND start_date < @iv_before_date
+            AND start_date <= @lv_start_date_to
             AND start_date >= @iv_start_date_from
             AND ( @iv_deadline_only = @abap_false
               OR requested_on_from <> '00000000'
               OR requested_on_to <> '00000000' ) INTO CORRESPONDING FIELDS OF TABLE @lt_candidates.
       ENDIF.
     ENDIF.
+    SORT lt_candidates BY start_date ASCENDING start_time ASCENDING
+      run_id ASCENDING.
     LOOP AT lt_candidates INTO ls_candidate.
       ls_candidate-unit = to_upper( ls_candidate-unit ).
       ls_candidate-status = to_upper( ls_candidate-status ).
@@ -978,8 +1076,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           AND ls_candidate-strategy IS NOT INITIAL.
         CONTINUE.
       ENDIF.
+      IF lv_preview_filter = 'P'
+          AND ls_candidate-preview <> abap_true.
+        CONTINUE.
+      ELSEIF lv_preview_filter = 'O'
+          AND ls_candidate-preview = abap_true.
+        CONTINUE.
+      ENDIF.
       IF iv_start_date_from IS NOT INITIAL
           AND ls_candidate-start_date < iv_start_date_from.
+        CONTINUE.
+      ENDIF.
+      IF iv_start_date_to IS NOT INITIAL
+          AND ls_candidate-start_date > iv_start_date_to.
         CONTINUE.
       ENDIF.
       IF iv_finish_date_from IS NOT INITIAL
@@ -1115,7 +1224,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                 rs_preview-reserved_count + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              rs_preview-capped_count = rs_preview-capped_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             rs_preview-success_count = rs_preview-success_count + 1.
           WHEN 'P'.
             CLEAR lv_reservation_id.
@@ -1133,7 +1247,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                 rs_preview-reserved_count + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              rs_preview-capped_count = rs_preview-capped_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             rs_preview-partial_count = rs_preview-partial_count + 1.
           WHEN 'E'.
             CLEAR lv_reservation_id.
@@ -1151,7 +1270,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                 rs_preview-reserved_count + 1.
               CONTINUE.
             ENDIF.
+            IF iv_max_runs > 0 AND lv_selected_count >= iv_max_runs.
+              rs_preview-capped_count = rs_preview-capped_count + 1.
+              CONTINUE.
+            ENDIF.
             INSERT ls_candidate-run_id INTO TABLE lt_run_ids.
+            lv_selected_count = lv_selected_count + 1.
             rs_preview-error_count = rs_preview-error_count + 1.
           WHEN 'R'.
             rs_preview-running_count = rs_preview-running_count + 1.
@@ -1177,8 +1301,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
 
   METHOD zif_allocation_audit~get_summary.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lt_completed_runs TYPE zif_allocation_audit=>tt_runs.
     DATA lv_summary_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_last_duration_seconds TYPE i.
+    DATA lv_completed_duration TYPE i.
     DATA lv_duration_seconds TYPE i.
     DATA lv_duration_total TYPE p LENGTH 12 DECIMALS 2.
     DATA lv_duration_count TYPE i.
@@ -1189,6 +1315,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_policy_movement_type TYPE zif_stock_allocation=>ty_movement_type.
     DATA lv_policy_min_shelf_life TYPE i.
     DATA lv_policy_safety_stock TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_available_context_set TYPE abap_bool.
+    DATA lv_available_context_mixed TYPE abap_bool.
     DATA lv_deadline_age_reference_date TYPE d.
     DATA ls_running_age TYPE zif_allocation_audit=>ty_running_age.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
@@ -1246,6 +1374,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_running_age_to    = iv_running_age_to
       iv_unit              = iv_unit
       iv_status            = iv_status
+      iv_preview_filter    = iv_preview_filter
       iv_strategy          = iv_strategy
       iv_legacy_strategy   = iv_legacy_strategy
       iv_message_contains  = iv_message_contains
@@ -1294,6 +1423,12 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         lv_summary_unit = <ls_run>-unit.
       ELSEIF lv_summary_unit <> <ls_run>-unit.
         rs_summary-mixed_units = abap_true.
+      ENDIF.
+      IF lv_available_context_set = abap_false.
+        lv_available_context_set = abap_true.
+        rs_summary-available_context = <ls_run>-available.
+      ELSEIF rs_summary-available_context <> <ls_run>-available.
+        lv_available_context_mixed = abap_true.
       ENDIF.
       IF lv_policy_initialized = abap_false.
         lv_policy_initialized = abap_true.
@@ -1440,6 +1575,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       ELSEIF <ls_run>-status = 'E'.
         rs_summary-error_runs = rs_summary-error_runs + 1.
       ENDIF.
+      IF <ls_run>-finish_date IS NOT INITIAL
+          AND <ls_run>-status <> 'R'.
+        APPEND <ls_run> TO lt_completed_runs.
+      ENDIF.
       IF <ls_run>-finish_date IS NOT INITIAL.
         CLEAR lv_duration_seconds.
         cl_abap_tstmp=>td_subtract(
@@ -1461,6 +1600,61 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         ENDIF.
         lv_duration_count = lv_duration_count + 1.
       ENDIF.
+      IF <ls_run>-finish_date IS NOT INITIAL
+          AND <ls_run>-status <> 'R'
+          AND ( <ls_run>-finish_date > rs_summary-last_completed_finish_date
+            OR ( <ls_run>-finish_date = rs_summary-last_completed_finish_date
+              AND <ls_run>-finish_time > rs_summary-last_completed_finish_time )
+            OR ( <ls_run>-finish_date = rs_summary-last_completed_finish_date
+              AND <ls_run>-finish_time = rs_summary-last_completed_finish_time
+              AND <ls_run>-run_id > rs_summary-last_completed_run_id ) ).
+        rs_summary-last_completed_run_id = <ls_run>-run_id.
+        rs_summary-last_completed_start_date = <ls_run>-start_date.
+        rs_summary-last_completed_start_time = <ls_run>-start_time.
+        rs_summary-last_completed_finish_date = <ls_run>-finish_date.
+        rs_summary-last_completed_finish_time = <ls_run>-finish_time.
+        rs_summary-last_completed_status = <ls_run>-status.
+        rs_summary-last_completed_message = <ls_run>-message.
+        CLEAR lv_completed_duration.
+        rs_summary-last_completed_unit = <ls_run>-unit.
+        rs_summary-last_completed_strategy = <ls_run>-strategy.
+        rs_summary-last_completed_requested = <ls_run>-requested.
+        rs_summary-last_completed_allocated = <ls_run>-allocated.
+        rs_summary-last_completed_shortage = <ls_run>-shortage.
+        IF <ls_run>-requested > 0.
+          rs_summary-last_completed_coverage =
+            <ls_run>-allocated * 100 / <ls_run>-requested.
+        ELSE.
+          CLEAR rs_summary-last_completed_coverage.
+        ENDIF.
+        rs_summary-last_completed_demand = <ls_run>-demand_count.
+        rs_summary-last_completed_full = <ls_run>-full_count.
+        rs_summary-last_completed_partial = <ls_run>-partial_count.
+        rs_summary-last_completed_unalloc = <ls_run>-unallocated_count.
+        IF <ls_run>-start_date IS NOT INITIAL
+            AND <ls_run>-start_time IS NOT INITIAL.
+          cl_abap_tstmp=>td_subtract(
+            EXPORTING
+              date1    = <ls_run>-finish_date
+              time1    = <ls_run>-finish_time
+              date2    = <ls_run>-start_date
+              time2    = <ls_run>-start_time
+            IMPORTING
+              res_secs = lv_completed_duration ).
+        ENDIF.
+        rs_summary-last_completed_duration = lv_completed_duration.
+        rs_summary-last_completed_policy_available = abap_true.
+        rs_summary-last_completed_movement_type = <ls_run>-movement_type.
+        rs_summary-last_completed_min_shelf_life = <ls_run>-min_shelf_life.
+        rs_summary-last_completed_safety_stock = <ls_run>-safety_stock.
+        rs_summary-last_completed_horizon_available = abap_true.
+        rs_summary-last_completed_requested_on_from = <ls_run>-requested_on_from.
+        rs_summary-last_completed_requested_on_to = <ls_run>-requested_on_to.
+        rs_summary-last_completed_requested_deadline = <ls_run>-requested_deadline.
+        rs_summary-last_completed_avail = <ls_run>-available.
+        rs_summary-last_completed_avail_unit = <ls_run>-unit.
+        rs_summary-last_completed_avail_ok = abap_true.
+      ENDIF.
       IF <ls_run>-start_date > rs_summary-last_start_date
           OR ( <ls_run>-start_date = rs_summary-last_start_date
             AND <ls_run>-start_time > rs_summary-last_start_time )
@@ -1468,6 +1662,22 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND <ls_run>-start_time = rs_summary-last_start_time
             AND <ls_run>-run_id > rs_summary-last_run_id ).
         rs_summary-last_run_id = <ls_run>-run_id.
+        rs_summary-last_avail = <ls_run>-available.
+        rs_summary-last_avail_unit = <ls_run>-unit.
+        rs_summary-last_avail_ok = abap_true.
+        rs_summary-last_requested = <ls_run>-requested.
+        rs_summary-last_allocated = <ls_run>-allocated.
+        rs_summary-last_shortage = <ls_run>-shortage.
+        IF <ls_run>-requested > 0.
+          rs_summary-last_coverage = <ls_run>-allocated * 100
+            / <ls_run>-requested.
+        ELSE.
+          CLEAR rs_summary-last_coverage.
+        ENDIF.
+        rs_summary-last_demand = <ls_run>-demand_count.
+        rs_summary-last_full = <ls_run>-full_count.
+        rs_summary-last_partial = <ls_run>-partial_count.
+        rs_summary-last_unalloc = <ls_run>-unallocated_count.
         rs_summary-last_start_date = <ls_run>-start_date.
         rs_summary-last_start_time = <ls_run>-start_time.
         rs_summary-last_requested_on_from = <ls_run>-requested_on_from.
@@ -1490,6 +1700,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         rs_summary-last_duration_seconds = lv_last_duration_seconds.
         rs_summary-last_status = <ls_run>-status.
         rs_summary-last_message = <ls_run>-message.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_completed_runs BY finish_date DESCENDING
+      finish_time DESCENDING run_id DESCENDING.
+    LOOP AT lt_completed_runs ASSIGNING <ls_run>.
+      IF <ls_run>-status = 'S'.
+        rs_summary-last_completed_success_streak =
+          rs_summary-last_completed_success_streak + 1.
+      ELSE.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT lt_completed_runs ASSIGNING <ls_run>.
+      IF <ls_run>-status <> 'S'.
+        rs_summary-last_completed_non_success_streak =
+          rs_summary-last_completed_non_success_streak + 1.
+      ELSE.
+        EXIT.
       ENDIF.
     ENDLOOP.
     IF lv_duration_count > 0.
@@ -1625,6 +1853,19 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              rs_summary-adaptive_coverage,
              rs_summary-legacy_coverage.
     ENDIF.
+    IF lv_available_context_set = abap_false.
+      rs_summary-available_context_ok = abap_false.
+      rs_summary-mixed_available = abap_false.
+      CLEAR rs_summary-available_context.
+    ELSEIF lv_available_context_mixed = abap_true
+        OR rs_summary-mixed_units = abap_true.
+      rs_summary-available_context_ok = abap_false.
+      rs_summary-mixed_available = abap_true.
+      CLEAR rs_summary-available_context.
+    ELSE.
+      rs_summary-available_context_ok = abap_true.
+      rs_summary-mixed_available = abap_false.
+    ENDIF.
     IF lv_policy_initialized = abap_false.
       rs_summary-movement_type_context = 'n/a'.
       CLEAR rs_summary-min_shelf_life_context.
@@ -1647,6 +1888,20 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF rs_summary-last_requested_deadline IS NOT INITIAL.
       rs_summary-last_deadline_age_days = lv_deadline_age_reference_date
         - rs_summary-last_requested_deadline.
+    ENDIF.
+    IF rs_summary-last_completed_requested_deadline IS INITIAL.
+      rs_summary-last_completed_deadline_age_available = abap_false.
+      CLEAR rs_summary-last_completed_deadline_age_days.
+      IF rs_summary-last_completed_run_id IS INITIAL.
+        rs_summary-last_completed_deadline_age_reason = 'no_completed_run'.
+      ELSE.
+        rs_summary-last_completed_deadline_age_reason = 'no_deadline'.
+      ENDIF.
+    ELSE.
+      rs_summary-last_completed_deadline_age_available = abap_true.
+      rs_summary-last_completed_deadline_age_days = lv_deadline_age_reference_date
+        - rs_summary-last_completed_requested_deadline.
+      rs_summary-last_completed_deadline_age_reason = 'available'.
     ENDIF.
     IF rs_summary-earliest_requested_deadline IS NOT INITIAL.
       rs_summary-oldest_deadline_age_days = lv_deadline_age_reference_date
@@ -1674,6 +1929,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_available < 0.
       raise_error( iv_message = 'Audit rejection metrics are invalid' ).
+    ENDIF.
+    IF iv_preview IS NOT INITIAL AND iv_preview <> abap_true.
+      raise_error( iv_message = 'Audit preview flag is invalid' ).
     ENDIF.
     IF mo_write_authority IS BOUND.
       TRY.
@@ -1707,6 +1965,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-finish_date = sy-datum.
     ls_run-finish_time = sy-uzeit.
     ls_run-status = 'E'.
+    ls_run-preview = iv_preview.
     ls_run-available = iv_available.
     ls_run-message = iv_message.
     MODIFY zstockalloc_run FROM @ls_run.
@@ -1759,6 +2018,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_running_age_seconds TYPE i.
     DATA lv_limit_start TYPE i.
     DATA lv_status TYPE zif_allocation_audit=>ty_run_status.
+    DATA lv_preview_filter TYPE zif_allocation_audit=>ty_preview_filter.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lt_coverage_sorted TYPE STANDARD TABLE OF ty_coverage_run
@@ -1812,6 +2072,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_date    = iv_finish_date_to
       iv_message = 'Audit finish date range is invalid' ).
     lv_status = to_upper( iv_status ).
+    lv_preview_filter = to_upper( iv_preview_filter ).
     lv_strategy = to_upper( iv_strategy ).
     lv_unit = to_upper( iv_unit ).
     IF iv_movement_type IS NOT INITIAL
@@ -1968,6 +2229,11 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_status <> 'E'.
       raise_error( iv_message = 'Audit status is invalid' ).
     ENDIF.
+    IF lv_preview_filter IS NOT INITIAL
+        AND lv_preview_filter <> 'P'
+        AND lv_preview_filter <> 'O'.
+      raise_error( iv_message = 'Audit preview filter is invalid' ).
+    ENDIF.
     IF lv_strategy IS NOT INITIAL
         AND lv_strategy <> 'P'
         AND lv_strategy <> 'F'
@@ -2006,6 +2272,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              safety_stock,
              unit,
              strategy,
+             preview,
              start_date,
              start_time,
               finish_date,
@@ -2038,6 +2305,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
              safety_stock,
              unit,
              strategy,
+             preview,
              start_date,
              start_time,
               finish_date,
@@ -2069,6 +2337,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       <ls_run>-status = to_upper( <ls_run>-status ).
       <ls_run>-strategy = to_upper( <ls_run>-strategy ).
       validate_run( is_run = <ls_run> ).
+      IF lv_preview_filter = 'P'
+          AND <ls_run>-preview <> abap_true.
+        DELETE rt_runs.
+        CONTINUE.
+      ELSEIF lv_preview_filter = 'O'
+          AND <ls_run>-preview = abap_true.
+        DELETE rt_runs.
+        CONTINUE.
+      ENDIF.
       IF <ls_run>-status = 'E'
           AND ( ( <ls_run>-requested_on_from IS NOT INITIAL
               AND zcl_allocation_date_sap=>is_valid_or_initial(
@@ -2599,6 +2876,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         AND lv_strategy <> 'W'.
       raise_error( iv_message = 'Audit strategy is invalid' ).
     ENDIF.
+    IF iv_preview IS NOT INITIAL AND iv_preview <> abap_true.
+      raise_error( iv_message = 'Audit preview flag is invalid' ).
+    ENDIF.
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
         OR iv_storage_location IS INITIAL
@@ -2636,6 +2916,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ls_run-requested_on_to = iv_requested_on_to.
     ls_run-unit = lv_unit.
     ls_run-strategy = lv_strategy.
+    ls_run-preview = iv_preview.
     ls_run-start_date = sy-datum.
     ls_run-start_time = sy-uzeit.
     ls_run-status = 'R'.
@@ -2775,6 +3056,9 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD validate_run.
+    IF is_run-preview IS NOT INITIAL AND is_run-preview <> abap_true.
+      raise_error( iv_message = 'Audit run data is invalid' ).
+    ENDIF.
     IF ( is_run-status <> 'E'
         AND is_run-requested_on_from IS NOT INITIAL
         AND zcl_allocation_date_sap=>is_valid_or_initial(

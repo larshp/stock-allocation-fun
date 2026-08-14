@@ -11,6 +11,10 @@ PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity.
 PARAMETERS p_safto TYPE zif_stock_allocation=>ty_quantity.
 PARAMETERS p_reqf TYPE d.
 PARAMETERS p_until TYPE d.
+PARAMETERS p_from TYPE d.
+PARAMETERS p_to TYPE d.
+PARAMETERS p_ffrom TYPE d.
+PARAMETERS p_fto TYPE d.
 PARAMETERS p_ovrd AS CHECKBOX.
 PARAMETERS p_odate TYPE d.
 PARAMETERS p_dead AS CHECKBOX.
@@ -21,6 +25,7 @@ PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_strat TYPE zif_allocation_audit=>ty_strategy.
+PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter.
 PARAMETERS p_legacy AS CHECKBOX.
 PARAMETERS p_runid TYPE zif_allocation_audit=>ty_run_id.
 PARAMETERS p_runq TYPE zif_allocation_audit=>ty_run_id.
@@ -75,6 +80,7 @@ START-OF-SELECTION.
   DATA lv_json_runs TYPE string.
   DATA lv_json_ndjson_prefix TYPE string.
   DATA lv_strategy_filter TYPE string.
+  DATA lv_preview_filter TYPE string.
   DATA lv_legacy_filter_text TYPE string.
   DATA lv_run_filter TYPE string.
   DATA lv_run_contains_filter TYPE string.
@@ -91,6 +97,10 @@ START-OF-SELECTION.
   DATA lv_safety_stock_to_filter TYPE string.
   DATA lv_requested_from_filter TYPE c LENGTH 10.
   DATA lv_requested_to_filter TYPE c LENGTH 10.
+  DATA lv_start_date_from_filter TYPE c LENGTH 10.
+  DATA lv_start_date_to_filter TYPE c LENGTH 10.
+  DATA lv_finish_date_from_filter TYPE c LENGTH 10.
+  DATA lv_finish_date_to_filter TYPE c LENGTH 10.
   DATA lv_deadline_from_filter TYPE c LENGTH 10.
   DATA lv_deadline_to_filter TYPE c LENGTH 10.
   DATA lv_deadline_age_from_filter TYPE string.
@@ -193,10 +203,15 @@ START-OF-SELECTION.
 
   TRANSLATE p_mvt TO UPPER CASE.
   TRANSLATE p_strat TO UPPER CASE.
+  TRANSLATE p_prev TO UPPER CASE.
   TRANSLATE p_meins TO UPPER CASE.
   lv_strategy_filter = p_strat.
   IF lv_strategy_filter IS INITIAL.
     lv_strategy_filter = 'n/a'.
+  ENDIF.
+  lv_preview_filter = p_prev.
+  IF lv_preview_filter IS INITIAL.
+    lv_preview_filter = 'n/a'.
   ENDIF.
   IF p_legacy = abap_true.
     lv_legacy_filter_text = 'true'.
@@ -264,6 +279,26 @@ START-OF-SELECTION.
     lv_requested_to_filter = 'n/a'.
   ELSE.
     lv_requested_to_filter = p_until.
+  ENDIF.
+  IF p_from IS INITIAL.
+    lv_start_date_from_filter = 'n/a'.
+  ELSE.
+    lv_start_date_from_filter = p_from.
+  ENDIF.
+  IF p_to IS INITIAL.
+    lv_start_date_to_filter = 'n/a'.
+  ELSE.
+    lv_start_date_to_filter = p_to.
+  ENDIF.
+  IF p_ffrom IS INITIAL.
+    lv_finish_date_from_filter = 'n/a'.
+  ELSE.
+    lv_finish_date_from_filter = p_ffrom.
+  ENDIF.
+  IF p_fto IS INITIAL.
+    lv_finish_date_to_filter = 'n/a'.
+  ELSE.
+    lv_finish_date_to_filter = p_fto.
   ENDIF.
   IF p_deadf IS INITIAL.
     lv_deadline_from_filter = 'n/a'.
@@ -387,7 +422,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'Select only one export mode: CSV or JSON'
-        iv_schema  = 59 ).
+        iv_schema  = 62 ).
     ELSE.
       WRITE: / 'Select only one export mode: CSV or JSON.'.
     ENDIF.
@@ -398,7 +433,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 56
+        iv_schema  = 59
         iv_message = 'Typed output requires JSON mode' ).
     ELSE.
       WRITE: / 'Typed output requires JSON mode.'.
@@ -410,7 +445,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 56
+        iv_schema  = 59
         iv_message = 'NDJSON output requires JSON mode' ).
     ELSE.
       WRITE: / 'NDJSON output requires JSON mode.'.
@@ -422,12 +457,12 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 56
+        iv_schema  = 59
         iv_message = 'NDJSON output cannot be combined with summary mode' ).
     ELSEIF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'NDJSON output cannot be combined with summary mode'
-        iv_schema  = 59 ).
+        iv_schema  = 62 ).
     ELSE.
       WRITE: / 'NDJSON output cannot be combined with summary mode.'.
     ENDIF.
@@ -459,6 +494,14 @@ START-OF-SELECTION.
       AND p_reqf > p_until.
     lv_error_message =
       'Requested horizon start must not be after end date'.
+  ELSEIF p_from IS NOT INITIAL AND p_to IS NOT INITIAL
+      AND p_from > p_to.
+    lv_error_message =
+      'Audit start-date lower bound must not be after upper bound'.
+  ELSEIF p_ffrom IS NOT INITIAL AND p_fto IS NOT INITIAL
+      AND p_ffrom > p_fto.
+    lv_error_message =
+      'Audit finish-date lower bound must not be after upper bound'.
   ELSEIF p_deadf IS NOT INITIAL AND p_deadt IS NOT INITIAL
       AND p_deadf > p_deadt.
     lv_error_message =
@@ -515,6 +558,10 @@ START-OF-SELECTION.
     lv_error_message = 'Minimum coverage must not exceed maximum coverage'.
   ELSEIF p_legacy = abap_true AND p_strat IS NOT INITIAL.
     lv_error_message = 'Legacy strategy cannot be combined with watch strategy'.
+  ELSEIF p_prev IS NOT INITIAL
+      AND p_prev <> 'P'
+      AND p_prev <> 'O'.
+    lv_error_message = 'Watch preview filter is invalid'.
   ELSEIF p_strat IS NOT INITIAL
       AND p_strat <> 'P'
       AND p_strat <> 'F'
@@ -531,12 +578,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error_message
-        iv_schema  = 59 ).
+        iv_schema  = 62 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 56
+        iv_schema  = 59
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -563,11 +610,26 @@ START-OF-SELECTION.
   IF p_until IS NOT INITIAL.
     APPEND 'requested_date_to' TO lt_filter_names.
   ENDIF.
+  IF p_from IS NOT INITIAL.
+    APPEND 'start_date_from' TO lt_filter_names.
+  ENDIF.
+  IF p_to IS NOT INITIAL.
+    APPEND 'start_date_to' TO lt_filter_names.
+  ENDIF.
+  IF p_ffrom IS NOT INITIAL.
+    APPEND 'finish_date_from' TO lt_filter_names.
+  ENDIF.
+  IF p_fto IS NOT INITIAL.
+    APPEND 'finish_date_to' TO lt_filter_names.
+  ENDIF.
   IF p_meins IS NOT INITIAL.
     APPEND 'unit' TO lt_filter_names.
   ENDIF.
   IF p_strat IS NOT INITIAL.
     APPEND 'strategy' TO lt_filter_names.
+  ENDIF.
+  IF p_prev IS NOT INITIAL.
+    APPEND 'preview' TO lt_filter_names.
   ENDIF.
   IF p_legacy = abap_true.
     APPEND 'legacy_strategy' TO lt_filter_names.
@@ -665,6 +727,9 @@ START-OF-SELECTION.
 
   IF p_typed = abap_true.
     CLEAR lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'preview_filter'
+      iv_value = p_prev ) TO lt_filter_value_fields.
     APPEND zcl_stock_json=>filter_number_property(
       iv_name    = 'minimum_shelf_life'
       iv_value   = p_shelf
@@ -686,6 +751,18 @@ START-OF-SELECTION.
       iv_text    = lv_safety_stock_to_filter
       iv_present = p_safon
       iv_typed   = abap_true ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'start_date_from_filter'
+      iv_value = lv_start_date_from_filter ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'start_date_to_filter'
+      iv_value = lv_start_date_to_filter ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'finish_date_from_filter'
+      iv_value = lv_finish_date_from_filter ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'finish_date_to_filter'
+      iv_value = lv_finish_date_to_filter ) TO lt_filter_value_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'requested_overdue_only'
       iv_value = p_ovrd ) TO lt_filter_value_fields.
@@ -835,6 +912,10 @@ START-OF-SELECTION.
           iv_safety_to         = p_safto
           iv_requested_on_from = p_reqf
           iv_requested_on_to   = p_until
+          iv_start_date_from   = p_from
+          iv_start_date_to     = p_to
+          iv_finish_date_from  = p_ffrom
+          iv_finish_date_to    = p_fto
           iv_requested_overdue = p_ovrd
           iv_overdue_date      = p_odate
           iv_deadline_only     = p_dead
@@ -845,6 +926,7 @@ START-OF-SELECTION.
           iv_deadline_age_date = p_daged
           iv_unit              = p_meins
           iv_strategy          = p_strat
+          iv_preview_filter    = p_prev
           iv_legacy_strategy   = p_legacy
           iv_run_id            = p_runid
           iv_run_id_contains   = p_runq
@@ -873,12 +955,12 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error_message
-          iv_schema  = 59 ).
+          iv_schema  = 62 ).
       ELSEIF p_csv = abap_true.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_watch'
-          iv_schema  = 56
+          iv_schema  = 59
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -1170,9 +1252,11 @@ START-OF-SELECTION.
     IF p_sum = abap_true.
       WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
         && 'filters_applied;filters;'
-        && 'sort_mode;strategy_filter;movement_type_filter;minimum_shelf_life_filter;'
+        && 'sort_mode;strategy_filter;preview_filter;movement_type_filter;minimum_shelf_life_filter;'
         && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
         && 'requested_on_from_filter;requested_on_to_filter;'
+        && 'start_date_from_filter;start_date_to_filter;'
+        && 'finish_date_from_filter;finish_date_to_filter;'
         && 'requested_overdue_only;requested_overdue_as_of_filter;'
         && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
         && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
@@ -1198,7 +1282,7 @@ START-OF-SELECTION.
         && 'newest_deadline_age_days;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 59 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1212,6 +1296,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       APPEND lv_strategy_filter TO lt_csv_fields.
+      APPEND lv_preview_filter TO lt_csv_fields.
       APPEND lv_movement_filter TO lt_csv_fields.
       APPEND lv_min_shelf_filter TO lt_csv_fields.
       APPEND lv_safety_stock_filter_text TO lt_csv_fields.
@@ -1219,6 +1304,10 @@ START-OF-SELECTION.
       APPEND lv_safety_stock_to_filter TO lt_csv_fields.
       APPEND lv_requested_from_filter TO lt_csv_fields.
       APPEND lv_requested_to_filter TO lt_csv_fields.
+      APPEND lv_start_date_from_filter TO lt_csv_fields.
+      APPEND lv_start_date_to_filter TO lt_csv_fields.
+      APPEND lv_finish_date_from_filter TO lt_csv_fields.
+      APPEND lv_finish_date_to_filter TO lt_csv_fields.
       APPEND lv_overdue_only_text TO lt_csv_fields.
       APPEND lv_overdue_as_of_filter TO lt_csv_fields.
       APPEND lv_deadline_only_text TO lt_csv_fields.
@@ -1302,9 +1391,11 @@ START-OF-SELECTION.
     ENDIF.
     WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
       && 'filters_applied;filters;'
-      && 'sort_mode;strategy_filter;movement_type_filter;minimum_shelf_life_filter;'
+      && 'sort_mode;strategy_filter;preview_filter;movement_type_filter;minimum_shelf_life_filter;'
       && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
       && 'requested_on_from_filter;requested_on_to_filter;'
+      && 'start_date_from_filter;start_date_to_filter;'
+      && 'finish_date_from_filter;finish_date_to_filter;'
       && 'requested_overdue_only;requested_overdue_as_of_filter;'
       && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
       && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
@@ -1326,7 +1417,7 @@ START-OF-SELECTION.
       && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 56 ) TO lt_csv_fields.
+       APPEND zcl_stock_csv=>number( 59 ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1340,13 +1431,18 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_filter_names_text ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_sort_mode ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_strategy_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_preview_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_movement_filter ) TO lt_csv_fields.
       APPEND lv_min_shelf_filter TO lt_csv_fields.
       APPEND lv_safety_stock_filter_text TO lt_csv_fields.
       APPEND lv_safety_stock_from_filter TO lt_csv_fields.
       APPEND lv_safety_stock_to_filter TO lt_csv_fields.
-      APPEND lv_requested_from_filter TO lt_csv_fields.
-      APPEND lv_requested_to_filter TO lt_csv_fields.
+       APPEND lv_requested_from_filter TO lt_csv_fields.
+       APPEND lv_requested_to_filter TO lt_csv_fields.
+       APPEND lv_start_date_from_filter TO lt_csv_fields.
+       APPEND lv_start_date_to_filter TO lt_csv_fields.
+       APPEND lv_finish_date_from_filter TO lt_csv_fields.
+       APPEND lv_finish_date_to_filter TO lt_csv_fields.
       APPEND lv_overdue_only_text TO lt_csv_fields.
       APPEND lv_overdue_as_of_filter TO lt_csv_fields.
       APPEND lv_deadline_only_text TO lt_csv_fields.
@@ -1577,7 +1673,7 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 59 ).
+          iv_value = 62 ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1596,6 +1692,11 @@ START-OF-SELECTION.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>property(
+          iv_name  = 'preview_filter'
+          iv_value = lv_preview_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
           iv_name  = 'movement_type_filter'
           iv_value = lv_movement_filter ).
         CONCATENATE lv_json_ndjson_prefix lv_field
@@ -1608,6 +1709,26 @@ START-OF-SELECTION.
         lv_field = zcl_stock_json=>property(
           iv_name  = 'requested_on_to_filter'
           iv_value = lv_requested_to_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'start_date_from_filter'
+          iv_value = lv_start_date_from_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'start_date_to_filter'
+          iv_value = lv_start_date_to_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'finish_date_from_filter'
+          iv_value = lv_finish_date_from_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'finish_date_to_filter'
+          iv_value = lv_finish_date_to_filter ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -2174,7 +2295,7 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 59 ).
+      iv_value = 62 ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -2189,6 +2310,10 @@ START-OF-SELECTION.
       iv_value = lv_strategy_filter ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>property(
+      iv_name  = 'preview_filter'
+      iv_value = lv_preview_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
       iv_name  = 'movement_type_filter'
       iv_value = lv_movement_filter ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
@@ -2199,6 +2324,22 @@ START-OF-SELECTION.
     lv_field = zcl_stock_json=>property(
       iv_name  = 'requested_on_to_filter'
       iv_value = lv_requested_to_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'start_date_from_filter'
+      iv_value = lv_start_date_from_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'start_date_to_filter'
+      iv_value = lv_start_date_to_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'finish_date_from_filter'
+      iv_value = lv_finish_date_from_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'finish_date_to_filter'
+      iv_value = lv_finish_date_to_filter ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'requested_overdue_only'
@@ -2709,10 +2850,15 @@ START-OF-SELECTION.
          / 'Maximum age (seconds):', lv_max_age_filter,
          / 'Sort mode:', lv_sort_mode,
          / 'Strategy filter:', lv_strategy_filter,
+         / 'Preview filter:', lv_preview_filter,
          / 'Movement type filter:', lv_movement_filter,
          / 'Minimum shelf-life filter:', lv_min_shelf_filter,
          / 'Requested horizon from:', lv_requested_from_filter,
          / 'Requested horizon to:', lv_requested_to_filter,
+         / 'Audit start date from:', lv_start_date_from_filter,
+         / 'Audit start date to:', lv_start_date_to_filter,
+         / 'Audit finish date from:', lv_finish_date_from_filter,
+         / 'Audit finish date to:', lv_finish_date_to_filter,
          / 'Requested deadline from:', lv_deadline_from_filter,
          / 'Requested deadline to:', lv_deadline_to_filter,
          / 'Deadline age from:', lv_deadline_age_from_filter,

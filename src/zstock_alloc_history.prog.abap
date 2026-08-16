@@ -19,6 +19,7 @@ PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_runid TYPE zif_allocation_audit=>ty_run_id.
 PARAMETERS p_rid TYPE zif_allocation_audit=>ty_run_id.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
@@ -104,10 +105,24 @@ START-OF-SELECTION.
   DATA lv_adaptive_fair_runs TYPE i.
   DATA lv_legacy_strategy_runs TYPE i.
   DATA lv_demand_count TYPE i.
+  DATA lv_preview_runs TYPE i.
+  DATA lv_operational_runs TYPE i.
+  DATA lv_preview_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_operational_mix_pct TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_deadline_count TYPE i.
+  DATA lv_deadline_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_overdue_count TYPE i.
+  DATA lv_current_deadline_count TYPE i.
+  DATA lv_future_deadline_count TYPE i.
+  DATA lv_overdue_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_current_deadline_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_future_deadline_mix_pct TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_full_count TYPE i.
   DATA lv_partial_count TYPE i.
   DATA lv_unallocated_count TYPE i.
+  DATA lv_full_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_partial_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_unallocated_mix_pct TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_available_total TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_requested_total TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_allocated_total TYPE zif_stock_allocation=>ty_quantity.
@@ -206,8 +221,11 @@ START-OF-SELECTION.
   DATA lv_newest_deadline_age_days TYPE i.
   DATA lv_oldest_deadline_age_text TYPE string.
   DATA lv_newest_deadline_age_text TYPE string.
+  DATA lv_oldest_deadline_urgency TYPE string.
+  DATA lv_newest_deadline_urgency TYPE string.
   DATA lv_deadline_age_days TYPE i.
   DATA lv_deadline_age_text TYPE string.
+  DATA lv_deadline_urgency TYPE string.
   DATA lv_deadline_age_initialized TYPE abap_bool.
   DATA lv_deadline_reference_date TYPE d.
   DATA lv_summary_policy_available TYPE abap_bool.
@@ -223,6 +241,8 @@ START-OF-SELECTION.
   DATA lv_deadline_age_from_filter TYPE string.
   DATA lv_deadline_age_to_filter TYPE string.
   DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
+  DATA lv_deadline_urgency_filter TYPE string.
+  DATA lv_deadline_urgency_input TYPE string.
   DATA lv_movement_filter TYPE string.
   DATA lv_preview_filter TYPE string.
   DATA lv_min_shelf_filter TYPE string.
@@ -245,9 +265,9 @@ START-OF-SELECTION.
   FIELD-SYMBOLS <lv_csv_field> TYPE string.
 
   IF p_sum = abap_true.
-    lv_json_schema = 44.
+    lv_json_schema = 51.
   ELSE.
-    lv_json_schema = 27.
+    lv_json_schema = 30.
   ENDIF.
 
   IF p_ovrd = abap_true.
@@ -284,6 +304,11 @@ START-OF-SELECTION.
     lv_deadline_age_date_filter = 'n/a'.
   ELSE.
     lv_deadline_age_date_filter = p_daged.
+  ENDIF.
+  lv_deadline_urgency_input = to_lower( p_durg ).
+  lv_deadline_urgency_filter = lv_deadline_urgency_input.
+  IF lv_deadline_urgency_input IS INITIAL.
+    lv_deadline_urgency_filter = 'n/a'.
   ENDIF.
 
   lv_movement_filter = p_mvt.
@@ -458,7 +483,8 @@ START-OF-SELECTION.
       lv_csv_error_message =
         'The deadline age start must not be after the end value'.
     ELSEIF p_daged IS NOT INITIAL
-        AND p_dagef IS INITIAL AND p_daget IS INITIAL.
+        AND p_dagef IS INITIAL AND p_daget IS INITIAL
+        AND p_durg IS INITIAL.
       lv_csv_error_message =
         'Deadline age date requires an age range'.
     ELSEIF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
@@ -939,6 +965,7 @@ START-OF-SELECTION.
         iv_deadline_age_from    = p_dagef
         iv_deadline_age_to      = p_daget
         iv_deadline_age_date    = p_daged
+        iv_deadline_urgency     = lv_deadline_urgency_input
         iv_run_id               = p_runid
         iv_run_id_contains      = p_rid
         iv_unit                 = p_meins
@@ -1057,6 +1084,13 @@ START-OF-SELECTION.
     IF <ls_run>-requested_deadline IS NOT INITIAL.
       lv_deadline_age_days = lv_deadline_reference_date
         - <ls_run>-requested_deadline.
+      IF lv_deadline_age_days > 0.
+        lv_overdue_count = lv_overdue_count + 1.
+      ELSEIF lv_deadline_age_days = 0.
+        lv_current_deadline_count = lv_current_deadline_count + 1.
+      ELSE.
+        lv_future_deadline_count = lv_future_deadline_count + 1.
+      ENDIF.
       IF lv_deadline_age_initialized = abap_false.
         lv_oldest_deadline_age_days = lv_deadline_age_days.
         lv_newest_deadline_age_days = lv_deadline_age_days.
@@ -1086,6 +1120,13 @@ START-OF-SELECTION.
       lv_summary_policy_mixed = abap_true.
     ENDIF.
   ENDLOOP.
+  IF lines( lt_runs ) > 0.
+    lv_overdue_mix_pct = lv_overdue_count * 100 / lines( lt_runs ).
+    lv_current_deadline_mix_pct = lv_current_deadline_count * 100
+      / lines( lt_runs ).
+    lv_future_deadline_mix_pct = lv_future_deadline_count * 100
+      / lines( lt_runs ).
+  ENDIF.
   IF lv_summary_policy_available = abap_false.
     lv_summary_movement_type = 'n/a'.
     lv_summary_min_shelf_life_text = 'n/a'.
@@ -1118,6 +1159,25 @@ START-OF-SELECTION.
       lv_oldest_deadline_age_days ).
     lv_newest_deadline_age_text = zcl_stock_csv=>number(
       lv_newest_deadline_age_days ).
+  ENDIF.
+  IF lv_deadline_age_initialized = abap_false.
+    lv_oldest_deadline_urgency = 'n/a'.
+    lv_newest_deadline_urgency = 'n/a'.
+  ELSEIF lv_oldest_deadline_age_days > 0.
+    lv_oldest_deadline_urgency = 'overdue'.
+  ELSEIF lv_oldest_deadline_age_days = 0.
+    lv_oldest_deadline_urgency = 'current_day'.
+  ELSE.
+    lv_oldest_deadline_urgency = 'future'.
+  ENDIF.
+  IF lv_deadline_age_initialized = abap_true.
+    IF lv_newest_deadline_age_days > 0.
+      lv_newest_deadline_urgency = 'overdue'.
+    ELSEIF lv_newest_deadline_age_days = 0.
+      lv_newest_deadline_urgency = 'current_day'.
+    ELSE.
+      lv_newest_deadline_urgency = 'future'.
+    ENDIF.
   ENDIF.
   lv_sort_mode = 'default'.
   IF p_cov = abap_true.
@@ -1152,6 +1212,7 @@ START-OF-SELECTION.
       OR p_dagef IS NOT INITIAL
       OR p_daget IS NOT INITIAL
       OR p_daged IS NOT INITIAL
+      OR p_durg IS NOT INITIAL
       OR p_runid IS NOT INITIAL
       OR p_rid IS NOT INITIAL
       OR p_meins IS NOT INITIAL
@@ -1280,6 +1341,9 @@ START-OF-SELECTION.
   IF p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
       OR p_daged IS NOT INITIAL.
     APPEND 'deadline_age_range' TO lt_filter_names.
+  ENDIF.
+  IF p_durg IS NOT INITIAL.
+    APPEND 'deadline_urgency' TO lt_filter_names.
   ENDIF.
   IF p_latest = abap_true.
     APPEND 'latest' TO lt_filter_names.
@@ -1453,6 +1517,9 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'deadline_age_as_of'
     iv_value = lv_deadline_age_date_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'deadline_urgency_filter'
+    iv_value = lv_deadline_urgency_filter ) TO lt_filter_value_fields.
 
   IF lines( lt_runs ) = 0 AND p_sum = abap_false
       AND p_meta = abap_false
@@ -1468,11 +1535,14 @@ START-OF-SELECTION.
           && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
           && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
           && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
-          && 'deadline_age_to;deadline_age_date;offset;max_rows;'
+          && 'deadline_age_to;deadline_age_date;deadline_urgency_filter;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
           && 'plant;storage_location;batch;unit;strategy;movement_type_context;min_shelf_life_context;'
           && 'safety_stock_context;'
-          && 'mixed_units;run_count;priority_run_count;fifo_run_count;'
+          && 'mixed_units;run_count;preview_runs;operational_runs;'
+          && 'preview_mix_pct;operational_mix_pct;deadline_mix_pct;overdue_count;overdue_mix_pct;'
+          && 'current_deadline_count;current_deadline_mix_pct;future_deadline_count;future_deadline_mix_pct;'
+          && 'priority_run_count;fifo_run_count;'
           && 'full_only_run_count;smallest_run_count;largest_run_count;best_run_count;'
           && 'fair_run_count;adaptive_run_count;adaptive_priority_run_count;adaptive_fair_run_count;'
           && 'legacy_strategy_run_count;'
@@ -1485,7 +1555,8 @@ START-OF-SELECTION.
           && 'adaptive_shortage;adaptive_coverage_pct;legacy_requested;legacy_allocated;'
           && 'legacy_shortage;legacy_coverage_pct;running_count;success_count;partial_run_count;error_count;'
           && 'completion_pct;success_rate_pct;partial_rate_pct;error_rate_pct;full_count;partial_count;'
-          && 'unallocated_count;demand_count;available;requested;allocated;shortage;coverage_pct;shortage_pct;'
+          && 'unallocated_count;full_mix_pct;partial_mix_pct;unallocated_mix_pct;'
+          && 'demand_count;available;requested;allocated;shortage;coverage_pct;shortage_pct;'
           && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
           && 'oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id'.
       ELSE.
@@ -1494,10 +1565,11 @@ START-OF-SELECTION.
           && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
           && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
           && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
-          && 'deadline_age_to;deadline_age_date;offset;max_rows;'
+          && 'deadline_age_to;deadline_age_date;deadline_urgency_filter;offset;max_rows;'
           && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-          && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;'
-          && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;available;allocated;'
+         && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;preview;'
+          && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;deadline_urgency;'
+          && 'available;allocated;'
           && 'shortage;coverage_pct;shortage_pct;status;message;demand_count;full_count;partial_count;'
           && 'unallocated_count;start_date;start_time;finish_date;finish_time;duration_seconds;running_age_seconds'.
       ENDIF.
@@ -1631,10 +1703,16 @@ START-OF-SELECTION.
              lv_partial_runs,
              lv_error_runs,
              lv_demand_count,
-             lv_deadline_count,
-             lv_full_count,
+         lv_preview_runs,
+         lv_operational_runs,
+         lv_deadline_count,
+         lv_deadline_mix_pct,
+         lv_full_count,
               lv_partial_count,
               lv_unallocated_count,
+              lv_full_mix_pct,
+              lv_partial_mix_pct,
+              lv_unallocated_mix_pct,
               lv_priority_runs,
               lv_fifo_runs,
               lv_full_only_runs,
@@ -1879,6 +1957,11 @@ START-OF-SELECTION.
             / lv_legacy_requested.
         ENDIF.
         lv_demand_count = lv_demand_count + <ls_run>-demand_count.
+        IF <ls_run>-preview = abap_true.
+          lv_preview_runs = lv_preview_runs + 1.
+        ELSE.
+          lv_operational_runs = lv_operational_runs + 1.
+        ENDIF.
         IF <ls_run>-requested_deadline IS NOT INITIAL.
           lv_deadline_count = lv_deadline_count + 1.
         ENDIF.
@@ -1894,6 +1977,17 @@ START-OF-SELECTION.
           lv_shortage_total = lv_shortage_total + <ls_run>-shortage.
          ENDIF.
        ENDLOOP.
+       IF lv_demand_count > 0.
+         lv_full_mix_pct = lv_full_count * 100 / lv_demand_count.
+         lv_partial_mix_pct = lv_partial_count * 100 / lv_demand_count.
+         lv_unallocated_mix_pct = lv_unallocated_count * 100
+           / lv_demand_count.
+       ENDIF.
+       IF lines( lt_runs ) > 0.
+         lv_preview_mix_pct = lv_preview_runs * 100 / lines( lt_runs ).
+         lv_operational_mix_pct = lv_operational_runs * 100 / lines( lt_runs ).
+         lv_deadline_mix_pct = lv_deadline_count * 100 / lines( lt_runs ).
+       ENDIF.
        CLEAR lv_summary_strategy.
        IF lv_priority_runs > 0.
          lv_summary_strategy = 'P'.
@@ -1982,14 +2076,18 @@ START-OF-SELECTION.
         && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
         && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
         && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
-        && 'deadline_age_to;deadline_age_date;offset;max_rows;'
+        && 'deadline_age_to;deadline_age_date;deadline_urgency_filter;offset;max_rows;'
         && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
         && 'plant;storage_location;batch;unit;strategy;movement_type_context;min_shelf_life_context;'
         && 'safety_stock_context;'
         && 'earliest_requested_deadline;latest_requested_deadline;'
-        && 'oldest_deadline_age_days;newest_deadline_age_days;'
+        && 'oldest_deadline_age_days;oldest_deadline_urgency;'
+        && 'newest_deadline_age_days;newest_deadline_urgency;'
         && 'deadline_age_reference_date;'
-        && 'mixed_units;run_count;priority_run_count;fifo_run_count;'
+        && 'mixed_units;run_count;preview_runs;operational_runs;'
+        && 'preview_mix_pct;operational_mix_pct;deadline_mix_pct;overdue_count;overdue_mix_pct;'
+        && 'current_deadline_count;current_deadline_mix_pct;future_deadline_count;future_deadline_mix_pct;'
+        && 'priority_run_count;fifo_run_count;'
         && 'full_only_run_count;smallest_run_count;largest_run_count;best_run_count;'
         && 'fair_run_count;weighted_run_count;adaptive_run_count;adaptive_priority_run_count;adaptive_fair_run_count;'
         && 'legacy_strategy_run_count;'
@@ -2003,14 +2101,15 @@ START-OF-SELECTION.
         && 'adaptive_shortage;adaptive_coverage_pct;legacy_requested;legacy_allocated;'
         && 'legacy_shortage;legacy_coverage_pct;running_count;success_count;partial_run_count;error_count;'
         && 'completion_pct;success_rate_pct;partial_rate_pct;error_rate_pct;full_count;partial_count;'
-        && 'unallocated_count;demand_count;deadline_count;available;requested;allocated;'
+        && 'unallocated_count;full_mix_pct;partial_mix_pct;unallocated_mix_pct;'
+        && 'demand_count;deadline_count;deadline_mix_pct;available;requested;allocated;'
         && 'shortage;coverage_pct;shortage_pct;'
         && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
         && 'oldest_running_age_seconds;oldest_running_run_id;newest_running_age_seconds;newest_running_run_id'.
       APPEND 'summary' TO lt_csv_fields.
       APPEND sy-datum TO lt_csv_fields.
       APPEND sy-uzeit TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 44 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 51 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -2032,6 +2131,7 @@ START-OF-SELECTION.
       APPEND lv_deadline_age_from_filter TO lt_csv_fields.
       APPEND lv_deadline_age_to_filter TO lt_csv_fields.
       APPEND lv_deadline_age_date_filter TO lt_csv_fields.
+      APPEND lv_deadline_urgency_filter TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
       IF p_max > 0.
@@ -2082,7 +2182,9 @@ START-OF-SELECTION.
       APPEND lv_earliest_deadline_text TO lt_csv_fields.
       APPEND lv_latest_deadline_text TO lt_csv_fields.
       APPEND lv_oldest_deadline_age_text TO lt_csv_fields.
+      APPEND lv_oldest_deadline_urgency TO lt_csv_fields.
       APPEND lv_newest_deadline_age_text TO lt_csv_fields.
+      APPEND lv_newest_deadline_urgency TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_reference_date )
         TO lt_csv_fields.
       IF lv_mixed_units = abap_true.
@@ -2091,6 +2193,14 @@ START-OF-SELECTION.
         APPEND 'false' TO lt_csv_fields.
       ENDIF.
       lv_csv_field = zcl_stock_csv=>number( lines( lt_runs ) ).
+      APPEND lv_csv_field TO lt_csv_fields.
+      lv_csv_field = zcl_stock_csv=>number( lv_preview_runs ).
+      APPEND lv_csv_field TO lt_csv_fields.
+      lv_csv_field = zcl_stock_csv=>number( lv_operational_runs ).
+      APPEND lv_csv_field TO lt_csv_fields.
+      lv_csv_field = zcl_stock_csv=>number( lv_preview_mix_pct ).
+      APPEND lv_csv_field TO lt_csv_fields.
+      lv_csv_field = zcl_stock_csv=>number( lv_operational_mix_pct ).
       APPEND lv_csv_field TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lv_priority_runs ).
       APPEND lv_csv_field TO lt_csv_fields.
@@ -2212,10 +2322,21 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lv_unallocated_count ).
       APPEND lv_csv_field TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_full_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_partial_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_unallocated_mix_pct ) TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lv_demand_count ).
       APPEND lv_csv_field TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( lv_deadline_count ).
       APPEND lv_csv_field TO lt_csv_fields.
+      lv_csv_field = zcl_stock_csv=>number( lv_deadline_mix_pct ).
+      APPEND lv_csv_field TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_overdue_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_overdue_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_current_deadline_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_current_deadline_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_future_deadline_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( lv_future_deadline_mix_pct ) TO lt_csv_fields.
       IF lv_mixed_units = abap_true.
         APPEND 'n/a' TO lt_csv_fields.
         APPEND 'n/a' TO lt_csv_fields.
@@ -2258,10 +2379,10 @@ START-OF-SELECTION.
       && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
       && 'requested_overdue_only;requested_overdue_as_of_filter;requested_deadline_only;'
       && 'requested_deadline_from;requested_deadline_to;deadline_age_from;'
-      && 'deadline_age_to;deadline_age_date;offset;max_rows;'
+      && 'deadline_age_to;deadline_age_date;deadline_urgency_filter;offset;max_rows;'
       && 'page_number;page_count;last_offset;has_previous;previous_offset;has_more;next_offset;total_rows;material;'
-        && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;'
-        && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;'
+         && 'plant;storage_location;batch;movement_type;min_shelf_life;safety_stock;unit;strategy;preview;'
+        && 'requested_on_from;requested_on_to;requested_deadline;deadline_age_days;deadline_urgency;'
       && 'deadline_age_reference_date;available;allocated;'
       && 'shortage;coverage_pct;shortage_pct;status;message;demand_count;full_count;partial_count;'
       && 'unallocated_count;start_date;start_time;finish_date;finish_time;duration_seconds;running_age_seconds'.
@@ -2294,7 +2415,7 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 27 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 30 ) TO lt_csv_fields.
       APPEND lv_sort_mode TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
@@ -2316,6 +2437,7 @@ START-OF-SELECTION.
       APPEND lv_deadline_age_from_filter TO lt_csv_fields.
       APPEND lv_deadline_age_to_filter TO lt_csv_fields.
       APPEND lv_deadline_age_date_filter TO lt_csv_fields.
+      APPEND lv_deadline_urgency_filter TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_skip ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( p_max ) TO lt_csv_fields.
       IF p_max > 0.
@@ -2366,6 +2488,11 @@ START-OF-SELECTION.
       APPEND lv_csv_field TO lt_csv_fields.
       WRITE <ls_run>-strategy TO lv_csv_field.
       APPEND lv_csv_field TO lt_csv_fields.
+      IF <ls_run>-preview = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
       WRITE <ls_run>-requested_on_from TO lv_csv_field.
       APPEND lv_csv_field TO lt_csv_fields.
       WRITE <ls_run>-requested_on_to TO lv_csv_field.
@@ -2373,13 +2500,22 @@ START-OF-SELECTION.
       WRITE <ls_run>-requested_deadline TO lv_csv_field.
       APPEND lv_csv_field TO lt_csv_fields.
       IF <ls_run>-requested_deadline IS INITIAL.
+        lv_deadline_urgency = 'n/a'.
         APPEND 'n/a' TO lt_csv_fields.
       ELSE.
         lv_deadline_age_days = lv_deadline_reference_date
           - <ls_run>-requested_deadline.
+        IF lv_deadline_age_days > 0.
+          lv_deadline_urgency = 'overdue'.
+        ELSEIF lv_deadline_age_days = 0.
+          lv_deadline_urgency = 'current_day'.
+        ELSE.
+          lv_deadline_urgency = 'future'.
+        ENDIF.
         APPEND zcl_stock_csv=>number( lv_deadline_age_days )
           TO lt_csv_fields.
       ENDIF.
+      APPEND lv_deadline_urgency TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_reference_date )
         TO lt_csv_fields.
       lv_csv_field = zcl_stock_csv=>number( <ls_run>-available ).
@@ -2452,10 +2588,16 @@ START-OF-SELECTION.
              lv_partial_runs,
              lv_error_runs,
              lv_demand_count,
+             lv_preview_runs,
+             lv_operational_runs,
              lv_deadline_count,
+             lv_deadline_mix_pct,
              lv_full_count,
               lv_partial_count,
               lv_unallocated_count,
+              lv_full_mix_pct,
+              lv_partial_mix_pct,
+              lv_unallocated_mix_pct,
               lv_priority_runs,
               lv_fifo_runs,
               lv_full_only_runs,
@@ -2510,7 +2652,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 44 ) TO lt_json_fields.
+          iv_value = 51 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -2613,6 +2755,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_as_of'
         iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency_filter'
+        iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
         APPEND zcl_stock_json=>object_property(
           iv_name   = 'filter_values'
           it_fields = lt_filter_value_fields ) TO lt_json_fields.
@@ -2858,6 +3003,11 @@ START-OF-SELECTION.
             / lv_legacy_requested.
         ENDIF.
         lv_demand_count = lv_demand_count + <ls_run>-demand_count.
+        IF <ls_run>-preview = abap_true.
+          lv_preview_runs = lv_preview_runs + 1.
+        ELSE.
+          lv_operational_runs = lv_operational_runs + 1.
+        ENDIF.
         IF <ls_run>-requested_deadline IS NOT INITIAL.
           lv_deadline_count = lv_deadline_count + 1.
         ENDIF.
@@ -2873,6 +3023,17 @@ START-OF-SELECTION.
           lv_shortage_total = lv_shortage_total + <ls_run>-shortage.
          ENDIF.
        ENDLOOP.
+       IF lv_demand_count > 0.
+         lv_full_mix_pct = lv_full_count * 100 / lv_demand_count.
+         lv_partial_mix_pct = lv_partial_count * 100 / lv_demand_count.
+         lv_unallocated_mix_pct = lv_unallocated_count * 100
+           / lv_demand_count.
+       ENDIF.
+       IF lines( lt_runs ) > 0.
+         lv_preview_mix_pct = lv_preview_runs * 100 / lines( lt_runs ).
+         lv_operational_mix_pct = lv_operational_runs * 100 / lines( lt_runs ).
+         lv_deadline_mix_pct = lv_deadline_count * 100 / lines( lt_runs ).
+       ENDIF.
        CLEAR lv_summary_strategy.
        IF lv_priority_runs > 0.
          lv_summary_strategy = 'P'.
@@ -2981,6 +3142,12 @@ START-OF-SELECTION.
           iv_name  = 'newest_deadline_age_days'
           iv_value = lv_newest_deadline_age_text ) TO lt_json_fields.
       ENDIF.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'oldest_deadline_urgency'
+        iv_value = lv_oldest_deadline_urgency ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'newest_deadline_urgency'
+        iv_value = lv_newest_deadline_urgency ) TO lt_json_fields.
       IF ( p_meta = abap_true OR p_typed = abap_true )
           AND lv_summary_policy_available = abap_true
           AND lv_summary_policy_mixed = abap_false.
@@ -3017,6 +3184,18 @@ START-OF-SELECTION.
           iv_name  = 'run_count'
           iv_value = lines( lt_runs ) ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
+          iv_name  = 'preview_runs'
+          iv_value = lv_preview_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'operational_runs'
+          iv_value = lv_operational_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'preview_mix_pct'
+          iv_value = lv_preview_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'operational_mix_pct'
+          iv_value = lv_operational_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
           iv_name  = 'running_count'
           iv_value = lv_running_runs ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
@@ -3050,11 +3229,41 @@ START-OF-SELECTION.
           iv_name  = 'unallocated_count'
           iv_value = lv_unallocated_count ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
+          iv_name  = 'full_mix_pct'
+          iv_value = lv_full_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'partial_mix_pct'
+          iv_value = lv_partial_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'unallocated_mix_pct'
+          iv_value = lv_unallocated_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
           iv_name  = 'demand_count'
           iv_value = lv_demand_count ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'deadline_count'
           iv_value = lv_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'deadline_mix_pct'
+          iv_value = lv_deadline_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'overdue_count'
+          iv_value = lv_overdue_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'overdue_mix_pct'
+          iv_value = lv_overdue_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'current_deadline_count'
+          iv_value = lv_current_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'current_deadline_mix_pct'
+          iv_value = lv_current_deadline_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'future_deadline_count'
+          iv_value = lv_future_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'future_deadline_mix_pct'
+          iv_value = lv_future_deadline_mix_pct ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'priority_run_count'
           iv_value = lv_priority_runs ) TO lt_json_fields.
@@ -3096,6 +3305,18 @@ START-OF-SELECTION.
           iv_name  = 'run_count'
           iv_value = lines( lt_runs ) ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
+          iv_name  = 'preview_runs'
+          iv_value = lv_preview_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'operational_runs'
+          iv_value = lv_operational_runs ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'preview_mix_pct'
+          iv_value = lv_preview_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'operational_mix_pct'
+          iv_value = lv_operational_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
           iv_name  = 'running_count'
           iv_value = lv_running_runs ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
@@ -3129,11 +3350,41 @@ START-OF-SELECTION.
           iv_name  = 'unallocated_count'
           iv_value = lv_unallocated_count ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
+          iv_name  = 'full_mix_pct'
+          iv_value = lv_full_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'partial_mix_pct'
+          iv_value = lv_partial_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'unallocated_mix_pct'
+          iv_value = lv_unallocated_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
           iv_name  = 'demand_count'
           iv_value = lv_demand_count ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'deadline_count'
           iv_value = lv_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'deadline_mix_pct'
+          iv_value = lv_deadline_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'overdue_count'
+          iv_value = lv_overdue_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'overdue_mix_pct'
+          iv_value = lv_overdue_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'current_deadline_count'
+          iv_value = lv_current_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'current_deadline_mix_pct'
+          iv_value = lv_current_deadline_mix_pct ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'future_deadline_count'
+          iv_value = lv_future_deadline_count ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'future_deadline_mix_pct'
+          iv_value = lv_future_deadline_mix_pct ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'priority_run_count'
           iv_value = lv_priority_runs ) TO lt_json_fields.
@@ -3695,7 +3946,7 @@ START-OF-SELECTION.
           iv_value = 'summary' ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 44 ) TO lt_json_fields.
+        iv_value = 51 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -3759,6 +4010,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'deadline_age_as_of'
           iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'deadline_urgency_filter'
+          iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
         APPEND zcl_stock_json=>object_property(
           iv_name   = 'filter_values'
           it_fields = lt_filter_value_fields ) TO lt_json_fields.
@@ -3916,7 +4170,7 @@ START-OF-SELECTION.
         iv_value = 'detail' ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 27 ) TO lt_json_fields.
+        iv_value = 30 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -3980,6 +4234,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_as_of'
         iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency_filter'
+        iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
         APPEND zcl_stock_json=>object_property(
         iv_name   = 'filter_values'
         it_fields = lt_filter_value_fields ) TO lt_json_fields.
@@ -4126,14 +4383,22 @@ START-OF-SELECTION.
              lv_json_line,
              lt_json_fields.
       CLEAR lv_deadline_age_days.
+      lv_deadline_urgency = 'n/a'.
       IF <ls_run>-requested_deadline IS NOT INITIAL.
         lv_deadline_age_days = lv_deadline_reference_date
           - <ls_run>-requested_deadline.
+        IF lv_deadline_age_days > 0.
+          lv_deadline_urgency = 'overdue'.
+        ELSEIF lv_deadline_age_days = 0.
+          lv_deadline_urgency = 'current_day'.
+        ELSE.
+          lv_deadline_urgency = 'future'.
+        ENDIF.
       ENDIF.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 27 ) TO lt_json_fields.
+          iv_value = 30 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -4200,6 +4465,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'deadline_age_as_of'
           iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'deadline_urgency_filter'
+          iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
         APPEND zcl_stock_json=>object_property(
           iv_name   = 'filter_values'
           it_fields = lt_filter_value_fields ) TO lt_json_fields.
@@ -4343,6 +4611,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'strategy'
         iv_value = <ls_run>-strategy ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'preview'
+        iv_value = <ls_run>-preview ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'requested_on_from'
         iv_value = <ls_run>-requested_on_from ) TO lt_json_fields.
@@ -4364,6 +4635,9 @@ START-OF-SELECTION.
           iv_name  = 'deadline_age_days'
           iv_value = lv_deadline_age_days ) TO lt_json_fields.
       ENDIF.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency'
+        iv_value = lv_deadline_urgency ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_reference_date'
         iv_value = lv_deadline_reference_date ) TO lt_json_fields.
@@ -4565,6 +4839,9 @@ START-OF-SELECTION.
         APPEND zcl_stock_json=>property(
           iv_name  = 'strategy'
           iv_value = <ls_run>-strategy ) TO lt_json_fields.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'preview'
+          iv_value = <ls_run>-preview ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'requested_on_from'
           iv_value = <ls_run>-requested_on_from ) TO lt_json_fields.
@@ -4582,6 +4859,9 @@ START-OF-SELECTION.
             iv_name  = 'deadline_age_days'
             iv_value = lv_deadline_age_days ) TO lt_json_fields.
         ENDIF.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'deadline_urgency'
+          iv_value = lv_deadline_urgency ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'deadline_age_reference_date'
           iv_value = lv_deadline_reference_date ) TO lt_json_fields.
@@ -4854,6 +5134,11 @@ START-OF-SELECTION.
         ENDIF.
         lv_full_count = lv_full_count + <ls_run>-full_count.
     lv_demand_count = lv_demand_count + <ls_run>-demand_count.
+    IF <ls_run>-preview = abap_true.
+      lv_preview_runs = lv_preview_runs + 1.
+    ELSE.
+      lv_operational_runs = lv_operational_runs + 1.
+    ENDIF.
     IF <ls_run>-requested_deadline IS NOT INITIAL.
       lv_deadline_count = lv_deadline_count + 1.
     ENDIF.
@@ -4867,6 +5152,18 @@ START-OF-SELECTION.
       lv_shortage_total = lv_shortage_total + <ls_run>-shortage.
     ENDIF.
   ENDLOOP.
+
+  IF lv_demand_count > 0.
+    lv_full_mix_pct = lv_full_count * 100 / lv_demand_count.
+    lv_partial_mix_pct = lv_partial_count * 100 / lv_demand_count.
+    lv_unallocated_mix_pct = lv_unallocated_count * 100 / lv_demand_count.
+  ENDIF.
+
+  IF lines( lt_runs ) > 0.
+    lv_preview_mix_pct = lv_preview_runs * 100 / lines( lt_runs ).
+    lv_operational_mix_pct = lv_operational_runs * 100 / lines( lt_runs ).
+    lv_deadline_mix_pct = lv_deadline_count * 100 / lines( lt_runs ).
+  ENDIF.
 
   CLEAR lv_summary_strategy.
   IF lv_priority_runs > 0.
@@ -4962,12 +5259,20 @@ START-OF-SELECTION.
            lv_latest_deadline_text,
            'Oldest deadline age days:',
            lv_oldest_deadline_age_text,
+           'Oldest deadline urgency:',
+           lv_oldest_deadline_urgency,
            'Newest deadline age days:',
            lv_newest_deadline_age_text,
+           'Newest deadline urgency:',
+           lv_newest_deadline_urgency,
            'Deadline age reference date:',
            lv_deadline_reference_date,
-           'Filtered runs:', lines( lt_runs ),
+    'Filtered runs:', lines( lt_runs ),
            'Total matching runs:', lv_total_rows,
+           'Preview runs:', lv_preview_runs,
+           'Operational runs:', lv_operational_runs,
+           'Preview mix:', lv_preview_mix_pct, '%',
+           'Operational mix:', lv_operational_mix_pct, '%',
            'Running:', lv_running_runs,
            'Success:', lv_success_runs,
            'Partial:', lv_partial_runs,
@@ -4993,10 +5298,24 @@ START-OF-SELECTION.
     WRITE: / 'Last page offset:', lv_last_offset.
   ENDIF.
   WRITE: / 'Demand lines:', lv_demand_count.
-  WRITE: / 'Runs with requested deadline:', lv_deadline_count.
+  WRITE: / 'Preview runs:', lv_preview_runs,
+           'Operational runs:', lv_operational_runs,
+           'Preview mix:', lv_preview_mix_pct, '%',
+           'Operational mix:', lv_operational_mix_pct, '%'.
+  WRITE: / 'Runs with requested deadline:', lv_deadline_count,
+           'mix:', lv_deadline_mix_pct, '%'.
+  WRITE: / 'Overdue deadline runs:', lv_overdue_count,
+           'mix:', lv_overdue_mix_pct, '%',
+         / 'Current-day deadline runs:', lv_current_deadline_count,
+           'mix:', lv_current_deadline_mix_pct, '%',
+         / 'Future deadline runs:', lv_future_deadline_count,
+           'mix:', lv_future_deadline_mix_pct, '%'.
   WRITE: / 'Demand outcomes - full:', lv_full_count,
            'partial:', lv_partial_count,
-           'unallocated:', lv_unallocated_count.
+           'unallocated:', lv_unallocated_count,
+           'full mix:', lv_full_mix_pct, '%',
+           'partial mix:', lv_partial_mix_pct, '%',
+           'unallocated mix:', lv_unallocated_mix_pct, '%'.
   IF lv_mixed_units = abap_true.
     WRITE: / 'Quantity totals omitted: mixed allocation units.',
            / 'Allocation shortage: n/a (mixed allocation units).'.
@@ -5118,11 +5437,19 @@ START-OF-SELECTION.
      ENDIF.
      IF <ls_run>-requested_deadline IS INITIAL.
        lv_deadline_age_text = 'n/a'.
+       lv_deadline_urgency = 'n/a'.
      ELSE.
        lv_deadline_age_days = lv_deadline_reference_date
          - <ls_run>-requested_deadline.
        lv_deadline_age_text = zcl_stock_csv=>number(
          lv_deadline_age_days ).
+       IF lv_deadline_age_days > 0.
+         lv_deadline_urgency = 'overdue'.
+       ELSEIF lv_deadline_age_days = 0.
+         lv_deadline_urgency = 'current_day'.
+       ELSE.
+         lv_deadline_urgency = 'future'.
+       ENDIF.
      ENDIF.
      IF <ls_run>-strategy IS INITIAL.
        lv_display_strategy = 'LEGACY'.
@@ -5153,6 +5480,7 @@ START-OF-SELECTION.
              266 lv_running_age_text.
     WRITE: / 'Message:', <ls_run>-message.
     WRITE: / 'Deadline age days:', lv_deadline_age_text.
+    WRITE: / 'Deadline urgency:', lv_deadline_urgency.
     WRITE: / 'Deadline age reference date:', lv_deadline_reference_date.
     WRITE: / 'Deadline age filter from:', lv_deadline_age_from_filter,
              'to:', lv_deadline_age_to_filter,

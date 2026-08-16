@@ -33,6 +33,7 @@ INTERFACE zif_stock_allocation PUBLIC.
   TYPES:
     BEGIN OF ty_demand,
       allocation_run_id         TYPE ty_run_id,
+      preview                   TYPE abap_bool,
       allocation_strategy       TYPE c LENGTH 1,
       allocation_unit           TYPE ty_unit,
       sales_document            TYPE ty_sales_document,
@@ -43,6 +44,7 @@ INTERFACE zif_stock_allocation PUBLIC.
       order_id                  TYPE ty_order_id,
       priority                  TYPE ty_priority,
       requested_on              TYPE d,
+      requested_deadline        TYPE d,
       requested                 TYPE ty_quantity,
       allocated                 TYPE ty_quantity,
       shortage                  TYPE ty_quantity,

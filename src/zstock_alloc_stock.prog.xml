@@ -41,6 +41,42 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_EXPDT</KEY>
+     <ENTRY>Expiration as-of date</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHELF</KEY>
+     <ENTRY>Minimum shelf life days</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAF</KEY>
+     <ENTRY>Safety stock quantity</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AMIN</KEY>
+     <ENTRY>Minimum allocatable quantity</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AMAX</KEY>
+     <ENTRY>Maximum allocatable quantity</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NET</KEY>
+     <ENTRY>Net existing allocations</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Output unit</ENTRY>
      <LENGTH>18</LENGTH>
@@ -68,6 +104,12 @@
      <KEY>P_CSV</KEY>
      <ENTRY>CSV output</ENTRY>
      <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_META</KEY>
+     <ENTRY>JSON metadata envelope</ENTRY>
+     <LENGTH>26</LENGTH>
     </item>
     <item>
      <ID>S</ID>

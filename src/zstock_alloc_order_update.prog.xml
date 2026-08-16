@@ -65,6 +65,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_META</KEY>
+     <ENTRY>JSON metadata envelope</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TYPED</KEY>
      <ENTRY>Typed JSON output</ENTRY>
      <LENGTH>22</LENGTH>

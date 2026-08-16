@@ -61,6 +61,7 @@
     <item><ID>S</ID><KEY>P_DURCNT</KEY><ENTRY>Minimum duration sample count</ENTRY><LENGTH>29</LENGTH></item>
     <item><ID>S</ID><KEY>P_RUNCNT</KEY><ENTRY>Minimum total run count</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_DCMIN</KEY><ENTRY>Minimum deadline-bearing run count</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DMMIN</KEY><ENTRY>Minimum deadline mix percentage</ENTRY><LENGTH>33</LENGTH></item>
     <item><ID>S</ID><KEY>P_PMIX</KEY><ENTRY>Warn on mixed policies</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_UMIX</KEY><ENTRY>Warn on mixed units</ENTRY><LENGTH>19</LENGTH></item>
     <item><ID>S</ID><KEY>P_CMIN</KEY><ENTRY>Minimum completion rate percentage</ENTRY><LENGTH>34</LENGTH></item>
@@ -89,6 +90,9 @@
     <item><ID>S</ID><KEY>P_CSHCNT</KEY><ENTRY>Maximum latest completed shortage-line count</ENTRY><LENGTH>48</LENGTH></item>
     <item><ID>S</ID><KEY>P_LAGE</KEY><ENTRY>Maximum latest completed age seconds</ENTRY><LENGTH>36</LENGTH></item>
     <item><ID>S</ID><KEY>P_CDAG</KEY><ENTRY>Maximum latest completed deadline age days</ENTRY><LENGTH>45</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ODMAX</KEY><ENTRY>Maximum overdue deadline mix percentage</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDMMAX</KEY><ENTRY>Maximum current-day deadline mix percentage</ENTRY><LENGTH>47</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FDMMIN</KEY><ENTRY>Minimum future deadline mix percentage</ENTRY><LENGTH>42</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSHMAX</KEY><ENTRY>Maximum latest completed shortage quantity</ENTRY><LENGTH>47</LENGTH></item>
     <item><ID>S</ID><KEY>P_CAMIN</KEY><ENTRY>Minimum latest completed allocated quantity</ENTRY><LENGTH>47</LENGTH></item>
     <item><ID>S</ID><KEY>P_CRQMIN</KEY><ENTRY>Minimum latest completed requested quantity</ENTRY><LENGTH>48</LENGTH></item>
@@ -114,11 +118,13 @@
     <item><ID>S</ID><KEY>P_DAGEF</KEY><ENTRY>Minimum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
     <item><ID>S</ID><KEY>P_DAGET</KEY><ENTRY>Maximum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
     <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DURG</KEY><ENTRY>Deadline urgency filter</ENTRY><LENGTH>25</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
     <item><ID>S</ID><KEY>P_AGE_TO</KEY><ENTRY>Maximum running age seconds</ENTRY><LENGTH>31</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
     <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
+    <item><ID>S</ID><KEY>P_META</KEY><ENTRY>JSON metadata envelope</ENTRY><LENGTH>26</LENGTH></item>
    </TPOOL>
   </asx:values>
  </asx:abap>

@@ -41,9 +41,12 @@ PARAMETERS p_slg AS CHECKBOX.
 PARAMETERS p_slmax TYPE i.
 PARAMETERS p_from TYPE d.
 PARAMETERS p_until TYPE d.
+PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_test AS CHECKBOX.
+PARAMETERS p_recon AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
 PARAMETERS p_csv AS CHECKBOX.
+PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 
 START-OF-SELECTION.
@@ -74,20 +77,62 @@ START-OF-SELECTION.
   DATA lv_last_deadline_age_text TYPE string.
   DATA lv_oldest_deadline_age_text TYPE string.
   DATA lv_newest_deadline_age_text TYPE string.
+  DATA lv_last_deadline_urgency TYPE string.
+  DATA lv_oldest_deadline_urgency TYPE string.
+  DATA lv_newest_deadline_urgency TYPE string.
+  DATA lv_deadline_urgency_input TYPE string.
+  DATA lv_deadline_urgency_filter TYPE string.
   DATA lv_last_duration_seconds TYPE i.
   DATA lv_json_line TYPE string.
   DATA lv_error_message TYPE string.
   DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+  DATA lv_existing_allocation_count TYPE i.
+  DATA lv_existing_alloc_unit_count TYPE i.
+  DATA lv_existing_cross_unit_qty TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_existing_recon_evaluated TYPE abap_bool.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_scope_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lv_csv_line TYPE string.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
   lv_unit = to_upper( p_meins ).
+  lv_deadline_urgency_input = to_lower( p_durg ).
+  lv_deadline_urgency_filter = lv_deadline_urgency_input.
+  IF lv_deadline_urgency_filter IS INITIAL.
+    lv_deadline_urgency_filter = 'n/a'.
+  ENDIF.
+
+  IF lv_deadline_urgency_input IS NOT INITIAL
+      AND lv_deadline_urgency_input <> 'overdue'
+      AND lv_deadline_urgency_input <> 'current_day'
+      AND lv_deadline_urgency_input <> 'future'
+      AND lv_deadline_urgency_input <> 'n/a'.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Deadline urgency filter is invalid'
+        iv_schema  = 58 ).
+      WRITE: / lv_json_line.
+      RETURN.
+    ENDIF.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = 58
+        iv_message = 'Deadline urgency filter is invalid' ).
+      RETURN.
+    ENDIF.
+    WRITE: / 'Deadline urgency filter is invalid'.
+    RETURN.
+  ENDIF.
 
   IF p_csv = abap_true AND p_json = abap_true.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Select only one export mode: CSV or JSON'
-      iv_schema  = 49 ).
+      iv_schema  = 58 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
@@ -96,13 +141,35 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Typed output requires JSON mode.'
-      iv_schema  = 49 ).
+      iv_schema  = 58 ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = 58
+        iv_message = 'Metadata output requires JSON mode.' ).
+      RETURN.
+    ENDIF.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Metadata output requires JSON mode.'
+      iv_schema  = 58 ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_typed = abap_true.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Select either typed JSON or metadata output.'
+      iv_schema  = 58 ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
@@ -110,7 +177,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -118,7 +185,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum shortage must not be negative' ).
       RETURN.
     ENDIF.
@@ -129,7 +196,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage percentage must be between 0 and 100'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -137,7 +204,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum shortage percentage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -148,7 +215,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum coverage must be between 0 and 100'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -156,7 +223,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Minimum coverage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -167,7 +234,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum full-line percentage must be between 0 and 100'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -175,7 +242,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Minimum full-line percentage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -186,7 +253,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum full lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -194,7 +261,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Minimum full lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -205,7 +272,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum full lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -213,7 +280,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum full lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -224,7 +291,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum demand count must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -232,7 +299,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum demand count must not be negative' ).
       RETURN.
     ENDIF.
@@ -243,7 +310,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum requested quantity must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -251,7 +318,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum requested quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -262,7 +329,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum allocated quantity must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -270,7 +337,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum allocated quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -281,7 +348,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum allocated quantity must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -289,7 +356,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Minimum allocated quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -300,7 +367,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum allocated lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -308,7 +375,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Minimum allocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -319,7 +386,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum allocated lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -327,7 +394,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum allocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -338,7 +405,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum unallocated lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -346,7 +413,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum unallocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -357,7 +424,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum partial lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -365,7 +432,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum partial lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -376,7 +443,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage lines must not be negative'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -384,7 +451,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Maximum shortage lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -399,7 +466,7 @@ START-OF-SELECTION.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
           && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).'
-        iv_schema  = 49 ).
+        iv_schema  = 58 ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -407,7 +474,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 49
+        iv_schema  = 58
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
           && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
       RETURN.
@@ -476,12 +543,12 @@ START-OF-SELECTION.
         IF lo_read_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Audit read authorization is missing'
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ELSE.
           lv_error_message = lo_read_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -490,12 +557,12 @@ START-OF-SELECTION.
         IF lo_read_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = 'Audit read authorization is missing' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = lo_read_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -509,6 +576,8 @@ START-OF-SELECTION.
       ENDIF.
       RETURN.
   ENDTRY.
+  lv_existing_recon_evaluated = xsdbool(
+    p_test = abap_false OR p_recon = abap_true ).
   TRY.
       lo_write_authority->check_audit_write( ).
       IF p_test <> abap_true.
@@ -520,12 +589,12 @@ START-OF-SELECTION.
         IF lo_write_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Allocation write authorization is missing'
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ELSE.
           lv_error_message = lo_write_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -534,12 +603,12 @@ START-OF-SELECTION.
         IF lo_write_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = 'Allocation write authorization is missing' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = lo_write_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -589,6 +658,7 @@ START-OF-SELECTION.
           iv_requested_on_to             = p_until
           iv_min_shelf_life              = p_shelf
           iv_safety_stock                = p_safstk
+          iv_reconcile_existing          = p_recon
           iv_shortage_limit_active       = p_shg
           iv_max_shortage                = p_shmax
           iv_spct_limit_active           = p_spg
@@ -622,7 +692,11 @@ START-OF-SELECTION.
           iv_strategy                    = p_strat
           iv_preview                     = p_test
         IMPORTING
-          ev_run_id                      = lv_run_id ).
+          ev_run_id                      = lv_run_id
+          ev_existing_allocation_count   = lv_existing_allocation_count
+          ev_existing_alloc_unit_count   =
+            lv_existing_alloc_unit_count
+          ev_existing_cross_unit_qty     = lv_existing_cross_unit_qty ).
     CATCH zcx_stock_allocation INTO DATA(lo_allocation_error).
       TRY.
           ls_summary = lo_audit->get_summary(
@@ -630,7 +704,8 @@ START-OF-SELECTION.
             iv_plant            = p_werks
             iv_storage_location = p_lgort
             iv_batch            = p_charg
-            iv_unit             = lv_unit ).
+            iv_unit             = lv_unit
+            iv_deadline_urgency = lv_deadline_urgency_input ).
           IF p_json = abap_true.
             IF ls_summary-last_message IS INITIAL.
               IF lo_allocation_error->message IS INITIAL.
@@ -644,11 +719,11 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
-                iv_schema  = 49 ).
+                iv_schema  = 58 ).
             ELSE.
               lv_json_line = zcl_stock_json=>error_with_schema_run_id(
                 iv_message = lv_error_message
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -667,12 +742,12 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_message = lv_error_message ).
             ELSE.
               lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
@@ -704,11 +779,11 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
-                iv_schema  = 49 ).
+                iv_schema  = 58 ).
             ELSE.
               lv_json_line = zcl_stock_json=>error_with_schema_run_id(
                 iv_message = lv_error_message
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -718,12 +793,12 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_message = lv_error_message ).
             ELSE.
               lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 49
+                iv_schema  = 58
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
@@ -755,18 +830,19 @@ START-OF-SELECTION.
         iv_plant            = p_werks
         iv_storage_location = p_lgort
         iv_batch            = p_charg
-        iv_unit             = lv_unit ).
+        iv_unit             = lv_unit
+        iv_deadline_urgency = lv_deadline_urgency_input ).
     CATCH zcx_stock_allocation INTO DATA(lo_summary_error).
       IF p_json = abap_true.
         IF lo_summary_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Run summary is unavailable'
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ELSE.
           lv_error_message = lo_summary_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 49 ).
+            iv_schema  = 58 ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -775,12 +851,12 @@ START-OF-SELECTION.
         IF lo_summary_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = 'Run summary is unavailable' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 49
+            iv_schema  = 58
             iv_message = lo_summary_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -802,7 +878,8 @@ START-OF-SELECTION.
         iv_plant            = p_werks
         iv_storage_location = p_lgort
         iv_batch            = p_charg
-        iv_run_id           = lv_run_id ).
+        iv_run_id           = lv_run_id
+        iv_deadline_urgency = lv_deadline_urgency_input ).
       READ TABLE lt_run_context INTO ls_run_context INDEX 1.
       IF sy-subrc = 0.
         ls_summary-last_requested_on_from = ls_run_context-requested_on_from.
@@ -851,6 +928,9 @@ START-OF-SELECTION.
     lv_newest_deadline_age_text = zcl_stock_csv=>number(
       lv_newest_deadline_age_days ).
   ENDIF.
+  lv_last_deadline_urgency = ls_summary-last_deadline_urgency.
+  lv_oldest_deadline_urgency = ls_summary-oldest_deadline_urgency.
+  lv_newest_deadline_urgency = ls_summary-newest_deadline_urgency.
   lv_requested = ls_summary-requested.
   IF p_csv = abap_true.
     CLEAR lt_csv_fields.
@@ -859,10 +939,19 @@ START-OF-SELECTION.
     ELSE.
     APPEND zcl_stock_csv=>quote( 'execute' ) TO lt_csv_fields.
     ENDIF.
+    APPEND zcl_stock_csv=>quote( p_recon ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      lv_existing_recon_evaluated ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_existing_allocation_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_existing_alloc_unit_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_existing_cross_unit_qty ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 49 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 58 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -903,6 +992,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_slmax ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_until ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_deadline_urgency_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_remaining ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_requested ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-total_runs ) TO lt_csv_fields.
@@ -974,6 +1064,16 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_summary-unallocated_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-demand_count ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_summary-deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-deadline_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-overdue_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_summary-current_deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-future_deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_summary-overdue_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_summary-current_deadline_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_summary-future_deadline_mix_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_on_to ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_requested_deadline ) TO lt_csv_fields.
@@ -982,8 +1082,11 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote(
       ls_summary-latest_requested_deadline ) TO lt_csv_fields.
     APPEND lv_last_deadline_age_text TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_last_deadline_urgency ) TO lt_csv_fields.
     APPEND lv_oldest_deadline_age_text TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_oldest_deadline_urgency ) TO lt_csv_fields.
     APPEND lv_newest_deadline_age_text TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_newest_deadline_urgency ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote(
       ls_summary-deadline_age_reference_date ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_run_id ) TO lt_csv_fields.
@@ -1005,7 +1108,11 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_summary-last_status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_summary-last_message ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
-    WRITE: / 'mode;strategy;generated_date;generated_time;schema_version;material;plant;storage_location;batch;unit;'
+    WRITE: / 'mode;preview_reconciliation_active;existing_reconciliation_evaluated;'
+      && 'existing_allocation_count;existing_allocation_unit_count;'
+      && 'existing_cross_unit_quantity;strategy;'
+      && 'generated_date;generated_time;'
+      && 'schema_version;material;plant;storage_location;batch;unit;'
       && 'movement_type;minimum_shelf_life_days;safety_stock;shortage_guard_active;maximum_shortage;'
       && 'shortage_pct_guard_active;maximum_shortage_pct;'
       && 'coverage_guard_active;minimum_coverage_pct;'
@@ -1021,7 +1128,7 @@ START-OF-SELECTION.
       && 'unallocated_line_guard_active;maximum_unallocated_lines;'
       && 'partial_line_guard_active;maximum_partial_lines;'
       && 'shortage_line_guard_active;maximum_shortage_lines;'
-      && 'requested_on_filter_from;requested_on_filter_to;'
+      && 'requested_on_filter_from;requested_on_filter_to;deadline_urgency_filter;'
       && 'remaining;requested;runs;successful_runs;partial_runs;error_runs;priority_runs;fifo_runs;full_only_runs;'
       && 'smallest_runs;largest_runs;best_runs;fair_runs;weighted_runs;adaptive_runs;adaptive_priority_runs;'
       && 'adaptive_fair_runs;'
@@ -1035,9 +1142,13 @@ START-OF-SELECTION.
       && 'weighted_shortage;weighted_coverage_pct;adaptive_requested;adaptive_allocated;'
       && 'adaptive_shortage;adaptive_coverage_pct;legacy_requested;'
       && 'legacy_allocated;legacy_shortage;legacy_coverage_pct;allocated;shortage;coverage_pct;shortage_pct;'
-      && 'full_count;partial_count;unallocated_count;demand_count;deadline_count;requested_on_from;requested_on_to;'
+      && 'full_count;partial_count;unallocated_count;demand_count;deadline_count;'
+      && 'deadline_mix_pct;overdue_count;current_deadline_count;future_deadline_count;'
+      && 'overdue_mix_pct;current_deadline_mix_pct;future_deadline_mix_pct;'
+      && 'requested_on_from;requested_on_to;'
       && 'requested_deadline;earliest_requested_deadline;latest_requested_deadline;'
-      && 'last_deadline_age_days;oldest_deadline_age_days;newest_deadline_age_days;'
+      && 'last_deadline_age_days;last_deadline_urgency;oldest_deadline_age_days;oldest_deadline_urgency;'
+      && 'newest_deadline_age_days;newest_deadline_urgency;'
       && 'deadline_age_reference_date;run_id;last_run_id;'
       && 'last_strategy;last_start_date;last_start_time;last_finish_date;last_finish_time;last_duration_seconds;'
       && 'average_duration_seconds;minimum_duration_seconds;maximum_duration_seconds;completed_duration_runs;'
@@ -1056,13 +1167,49 @@ START-OF-SELECTION.
         iv_name  = 'mode'
         iv_value = 'execute' ) TO lt_json_fields.
     ENDIF.
+    IF p_typed = abap_true.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'preview_reconciliation_active'
+        iv_value = p_recon ) TO lt_json_fields.
+    ELSE.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'preview_reconciliation_active'
+        iv_value = p_recon ) TO lt_json_fields.
+    ENDIF.
+    IF p_typed = abap_true.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'existing_reconciliation_evaluated'
+        iv_value = lv_existing_recon_evaluated ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'existing_allocation_count'
+        iv_value = lv_existing_allocation_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'existing_allocation_unit_count'
+        iv_value = lv_existing_alloc_unit_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'existing_cross_unit_quantity'
+        iv_value = lv_existing_cross_unit_qty ) TO lt_json_fields.
+    ELSE.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_reconciliation_evaluated'
+        iv_value = lv_existing_recon_evaluated ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_count'
+        iv_value = lv_existing_allocation_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_unit_count'
+        iv_value = lv_existing_alloc_unit_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_cross_unit_quantity'
+        iv_value = lv_existing_cross_unit_qty ) TO lt_json_fields.
+    ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'strategy'
       iv_value = lv_strategy ) TO lt_json_fields.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 49 ) TO lt_json_fields.
+        iv_value = 58 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -1306,6 +1453,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_filter_to'
       iv_value = p_until ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'deadline_urgency_filter'
+      iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'remaining'
@@ -1520,10 +1670,31 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'deadline_count'
         iv_value = ls_summary-deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'deadline_mix_pct'
+        iv_value = ls_summary-deadline_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'overdue_count'
+        iv_value = ls_summary-overdue_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'current_deadline_count'
+        iv_value = ls_summary-current_deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'future_deadline_count'
+        iv_value = ls_summary-future_deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'overdue_mix_pct'
+        iv_value = ls_summary-overdue_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'current_deadline_mix_pct'
+        iv_value = ls_summary-current_deadline_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'future_deadline_mix_pct'
+        iv_value = ls_summary-future_deadline_mix_pct ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 49 ) TO lt_json_fields.
+        iv_value = 58 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'remaining'
         iv_value = lv_remaining ) TO lt_json_fields.
@@ -1737,6 +1908,27 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_count'
         iv_value = ls_summary-deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_mix_pct'
+        iv_value = ls_summary-deadline_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'overdue_count'
+        iv_value = ls_summary-overdue_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'current_deadline_count'
+        iv_value = ls_summary-current_deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'future_deadline_count'
+        iv_value = ls_summary-future_deadline_count ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'overdue_mix_pct'
+        iv_value = ls_summary-overdue_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'current_deadline_mix_pct'
+        iv_value = ls_summary-current_deadline_mix_pct ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'future_deadline_mix_pct'
+        iv_value = ls_summary-future_deadline_mix_pct ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'requested_on_from'
@@ -1759,18 +1951,27 @@ START-OF-SELECTION.
       iv_text    = lv_last_deadline_age_text
       iv_present = xsdbool( ls_summary-last_requested_deadline IS NOT INITIAL )
       iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'last_deadline_urgency'
+      iv_value = lv_last_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>filter_number_property(
       iv_name    = 'oldest_deadline_age_days'
       iv_value   = lv_oldest_deadline_age_days
       iv_text    = lv_oldest_deadline_age_text
       iv_present = xsdbool( ls_summary-earliest_requested_deadline IS NOT INITIAL )
       iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'oldest_deadline_urgency'
+      iv_value = lv_oldest_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>filter_number_property(
       iv_name    = 'newest_deadline_age_days'
       iv_value   = lv_newest_deadline_age_days
       iv_text    = lv_newest_deadline_age_text
       iv_present = xsdbool( ls_summary-latest_requested_deadline IS NOT INITIAL )
       iv_typed   = p_typed ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'newest_deadline_urgency'
+      iv_value = lv_newest_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'deadline_age_reference_date'
       iv_value = ls_summary-deadline_age_reference_date ) TO lt_json_fields.
@@ -1858,6 +2059,83 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'last_message'
       iv_value = ls_summary-last_message ) TO lt_json_fields.
+    IF p_meta = abap_true.
+      lt_summary_fields = lt_json_fields.
+      CLEAR lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'material'
+        iv_value = p_matnr ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'storage_location'
+        iv_value = p_lgort ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'batch'
+        iv_value = p_charg ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = lv_unit ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'movement_type'
+        iv_value = p_bwart ) TO lt_scope_fields.
+      CLEAR lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'requested_on_from'
+        iv_value = p_from ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'requested_on_to'
+        iv_value = p_until ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency_filter'
+        iv_value = lv_deadline_urgency_filter ) TO lt_filter_fields.
+      CLEAR lt_filter_names.
+      IF p_from IS NOT INITIAL.
+        APPEND 'requested_on_from' TO lt_filter_names.
+      ENDIF.
+      IF p_until IS NOT INITIAL.
+        APPEND 'requested_on_to' TO lt_filter_names.
+      ENDIF.
+      IF p_recon = abap_true.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'preview_reconciliation'
+          iv_value = 'true' ) TO lt_filter_fields.
+        APPEND 'preview_reconciliation' TO lt_filter_names.
+      ENDIF.
+      APPEND 'deadline_urgency_filter' TO lt_filter_names.
+      CLEAR lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = 58 ) TO lt_json_fields.
+      IF p_test = abap_true.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'mode'
+          iv_value = 'preview' ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'mode'
+          iv_value = 'execute' ) TO lt_json_fields.
+      ENDIF.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_date'
+        iv_value = sy-datum ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_time'
+        iv_value = sy-uzeit ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'scope'
+        it_fields = lt_scope_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>string_array_property(
+        iv_name   = 'filters_applied'
+        it_values = lt_filter_names ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'filters'
+        it_fields = lt_filter_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'summary'
+        it_fields = lt_summary_fields ) TO lt_json_fields.
+    ENDIF.
     CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
     CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
     WRITE: / lv_json_line.
@@ -1899,6 +2177,14 @@ START-OF-SELECTION.
          / 'Maximum shortage lines:', p_slmax,
          / 'Requested filter from:', p_from,
          / 'Requested filter through:', p_until,
+         / 'Deadline urgency filter:', lv_deadline_urgency_filter,
+         / 'Preview reconciliation active:', p_recon,
+         / 'Existing reconciliation evaluated:',
+           lv_existing_recon_evaluated,
+         / 'Existing allocation rows:', lv_existing_allocation_count,
+         / 'Existing allocation units:',
+           lv_existing_alloc_unit_count,
+         / 'Existing cross-unit quantity:', lv_existing_cross_unit_qty, lv_unit,
          / 'Remaining:', lv_remaining, lv_unit,
          / 'Requested:', lv_requested, lv_unit,
          / 'Runs:', ls_summary-total_runs,
@@ -1976,6 +2262,13 @@ START-OF-SELECTION.
          / 'Unallocated lines:', ls_summary-unallocated_count,
          / 'Demand lines:', ls_summary-demand_count,
          / 'Alerts with requested deadline:', ls_summary-deadline_count,
+         / 'Deadline-bearing mix:', ls_summary-deadline_mix_pct, '%',
+         / 'Overdue deadline runs:', ls_summary-overdue_count,
+         / 'Overdue deadline mix:', ls_summary-overdue_mix_pct, '%',
+         / 'Current-day deadline runs:', ls_summary-current_deadline_count,
+         / 'Current-day deadline mix:', ls_summary-current_deadline_mix_pct, '%',
+         / 'Future deadline runs:', ls_summary-future_deadline_count,
+         / 'Future deadline mix:', ls_summary-future_deadline_mix_pct, '%',
          / 'Completion:', ls_summary-completion_pct, '%',
          / 'Success rate:', ls_summary-success_rate_pct, '%',
          / 'Partial rate:', ls_summary-partial_rate_pct, '%',
@@ -1988,8 +2281,11 @@ START-OF-SELECTION.
          / 'Latest requested deadline:',
            ls_summary-latest_requested_deadline,
          / 'Last deadline age days:', lv_last_deadline_age_text,
+         / 'Last deadline urgency:', lv_last_deadline_urgency,
          / 'Oldest deadline age days:', lv_oldest_deadline_age_text,
+         / 'Oldest deadline urgency:', lv_oldest_deadline_urgency,
          / 'Newest deadline age days:', lv_newest_deadline_age_text,
+         / 'Newest deadline urgency:', lv_newest_deadline_urgency,
          / 'Deadline age reference date:',
            ls_summary-deadline_age_reference_date,
          / 'Run ID:', lv_run_id,

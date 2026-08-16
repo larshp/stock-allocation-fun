@@ -249,12 +249,18 @@
     <ENTRY>Deadline age to</ENTRY>
     <LENGTH>20</LENGTH>
    </item>
-   <item>
-    <ID>S</ID>
-    <KEY>P_DAGED</KEY>
-    <ENTRY>Deadline age as-of date</ENTRY>
-    <LENGTH>26</LENGTH>
-   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGED</KEY>
+     <ENTRY>Deadline age as-of date</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DURG</KEY>
+     <ENTRY>Deadline urgency</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
    <item>
     <ID>S</ID>
     <KEY>P_REQF</KEY>

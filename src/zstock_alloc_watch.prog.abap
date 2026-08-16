@@ -23,6 +23,7 @@ PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_strat TYPE zif_allocation_audit=>ty_strategy.
 PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter.
@@ -60,6 +61,7 @@ PARAMETERS p_new AS CHECKBOX.
 PARAMETERS p_sum AS CHECKBOX.
 PARAMETERS p_csv AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
+PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 PARAMETERS p_ndjson AS CHECKBOX.
 
@@ -79,6 +81,7 @@ START-OF-SELECTION.
   DATA lv_json_threshold TYPE string.
   DATA lv_json_count TYPE string.
   DATA lv_json_runs TYPE string.
+  DATA lv_json_meta TYPE string.
   DATA lv_json_ndjson_prefix TYPE string.
   DATA lv_strategy_filter TYPE string.
   DATA lv_preview_filter TYPE string.
@@ -108,6 +111,8 @@ START-OF-SELECTION.
   DATA lv_deadline_age_from_filter TYPE string.
   DATA lv_deadline_age_to_filter TYPE string.
   DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
+  DATA lv_deadline_urgency_filter TYPE string.
+  DATA lv_deadline_urgency_input TYPE string.
   DATA lv_shortage_filter TYPE string.
   DATA lv_max_shortage_filter TYPE string.
   DATA lv_min_shortage_pct_filter TYPE string.
@@ -127,6 +132,9 @@ START-OF-SELECTION.
   DATA lv_run_coverage_available TYPE abap_bool.
   DATA lv_run_shortage_pct TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_run_shortage_pct_available TYPE abap_bool.
+  DATA lv_run_full_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_run_partial_mix_pct TYPE zif_allocation_audit=>ty_coverage.
+  DATA lv_run_unallocated_mix_pct TYPE zif_allocation_audit=>ty_coverage.
   DATA lv_sort_mode TYPE string.
   DATA lv_total_available TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_total_requested TYPE zif_stock_allocation=>ty_quantity.
@@ -151,8 +159,11 @@ START-OF-SELECTION.
   DATA lv_latest_deadline_text TYPE string.
   DATA lv_oldest_deadline_age_text TYPE string.
   DATA lv_newest_deadline_age_text TYPE string.
+  DATA lv_oldest_deadline_urgency TYPE string.
+  DATA lv_newest_deadline_urgency TYPE string.
   DATA lv_deadline_count TYPE i.
   DATA lv_deadline_age_days TYPE i.
+  DATA lv_deadline_urgency TYPE string.
   DATA lv_alert_deadline_age_text TYPE string.
   DATA lv_deadline_age_mixed TYPE abap_bool.
   DATA lv_deadline_age_mixed_text TYPE string.
@@ -336,6 +347,11 @@ START-OF-SELECTION.
     lv_deadline_age_date_filter = p_daged.
     lv_deadline_reference_date = p_daged.
   ENDIF.
+  lv_deadline_urgency_input = to_lower( p_durg ).
+  lv_deadline_urgency_filter = lv_deadline_urgency_input.
+  IF lv_deadline_urgency_input IS INITIAL.
+    lv_deadline_urgency_filter = 'n/a'.
+  ENDIF.
   IF p_shf IS INITIAL.
     lv_shortage_filter = 'n/a'.
   ELSE.
@@ -432,9 +448,31 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'Select only one export mode: CSV or JSON'
-        iv_schema  = 63 ).
+        iv_schema  = 75 ).
     ELSE.
       WRITE: / 'Select only one export mode: CSV or JSON.'.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_watch'
+        iv_schema  = 71
+        iv_message = 'Metadata output requires JSON mode' ).
+    ELSE.
+      WRITE: / 'Metadata output requires JSON mode.'.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND ( p_typed = abap_true OR p_ndjson = abap_true ).
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'Metadata output cannot be combined with typed or NDJSON output'
+        iv_schema  = 75 ).
+    ELSE.
+      WRITE: / 'Metadata output cannot be combined with typed or NDJSON output.'.
     ENDIF.
     RETURN.
   ENDIF.
@@ -443,7 +481,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 60
+        iv_schema  = 71
         iv_message = 'Typed output requires JSON mode' ).
     ELSE.
       WRITE: / 'Typed output requires JSON mode.'.
@@ -455,7 +493,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 60
+        iv_schema  = 71
         iv_message = 'NDJSON output requires JSON mode' ).
     ELSE.
       WRITE: / 'NDJSON output requires JSON mode.'.
@@ -467,12 +505,12 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 60
+        iv_schema  = 71
         iv_message = 'NDJSON output cannot be combined with summary mode' ).
     ELSEIF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'NDJSON output cannot be combined with summary mode'
-        iv_schema  = 63 ).
+        iv_schema  = 75 ).
     ELSE.
       WRITE: / 'NDJSON output cannot be combined with summary mode.'.
     ENDIF.
@@ -521,7 +559,8 @@ START-OF-SELECTION.
     lv_error_message =
       'Deadline age start must not be after end value'.
   ELSEIF p_daged IS NOT INITIAL
-      AND p_dagef IS INITIAL AND p_daget IS INITIAL.
+      AND p_dagef IS INITIAL AND p_daget IS INITIAL
+      AND p_durg IS INITIAL.
     lv_error_message = 'Deadline age date requires an age range'.
   ELSEIF p_odate IS NOT INITIAL AND p_ovrd = abap_false.
     lv_error_message =
@@ -588,12 +627,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error_message
-        iv_schema  = 63 ).
+        iv_schema  = 75 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_watch'
-        iv_schema  = 60
+        iv_schema  = 71
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / lv_error_message.
@@ -671,6 +710,12 @@ START-OF-SELECTION.
   IF p_dagef IS NOT INITIAL OR p_daget IS NOT INITIAL
       OR p_daged IS NOT INITIAL.
     APPEND 'deadline_age_range' TO lt_filter_names.
+  ENDIF.
+  IF p_durg IS NOT INITIAL.
+    APPEND 'deadline_urgency' TO lt_filter_names.
+  ENDIF.
+  IF p_durg IS NOT INITIAL.
+    APPEND 'deadline_urgency' TO lt_filter_names.
   ENDIF.
   IF p_shf IS NOT INITIAL.
     APPEND 'minimum_shortage' TO lt_filter_names.
@@ -803,6 +848,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'deadline_age_as_of'
       iv_value = lv_deadline_age_date_filter ) TO lt_filter_value_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'deadline_urgency_filter'
+      iv_value = lv_deadline_urgency_filter ) TO lt_filter_value_fields.
     APPEND zcl_stock_json=>filter_number_property(
       iv_name    = 'minimum_demand_count'
       iv_value   = p_dfrom
@@ -934,6 +982,7 @@ START-OF-SELECTION.
           iv_deadline_age_from = p_dagef
           iv_deadline_age_to   = p_daget
           iv_deadline_age_date = p_daged
+          iv_deadline_urgency  = lv_deadline_urgency_input
           iv_unit              = p_meins
           iv_strategy          = p_strat
           iv_preview_filter    = p_prev
@@ -965,12 +1014,12 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error_message
-          iv_schema  = 63 ).
+          iv_schema  = 75 ).
       ELSEIF p_csv = abap_true.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_watch'
-          iv_schema  = 60
+          iv_schema  = 71
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / lv_error_message.
@@ -984,11 +1033,22 @@ START-OF-SELECTION.
     lv_run_coverage_available = abap_false.
     CLEAR lv_run_shortage_pct.
     lv_run_shortage_pct_available = abap_false.
+    CLEAR: lv_run_full_mix_pct,
+           lv_run_partial_mix_pct,
+           lv_run_unallocated_mix_pct.
     IF <ls_run>-requested > 0.
       lv_run_coverage = <ls_run>-allocated * 100 / <ls_run>-requested.
       lv_run_coverage_available = abap_true.
       lv_run_shortage_pct = <ls_run>-shortage * 100 / <ls_run>-requested.
       lv_run_shortage_pct_available = abap_true.
+    ENDIF.
+    IF <ls_run>-demand_count > 0.
+      lv_run_full_mix_pct = <ls_run>-full_count * 100
+        / <ls_run>-demand_count.
+      lv_run_partial_mix_pct = <ls_run>-partial_count * 100
+        / <ls_run>-demand_count.
+      lv_run_unallocated_mix_pct = <ls_run>-unallocated_count * 100
+        / <ls_run>-demand_count.
     ENDIF.
     IF lv_run_age-available = abap_true
         AND lv_run_age-seconds >= p_stale
@@ -1015,6 +1075,7 @@ START-OF-SELECTION.
       APPEND VALUE #(
         run_id                 = <ls_run>-run_id
         strategy               = <ls_run>-strategy
+        preview                = <ls_run>-preview
         adaptive_branch        = lv_adaptive_branch
         movement_type          = <ls_run>-movement_type
         min_shelf_life         = <ls_run>-min_shelf_life
@@ -1042,6 +1103,12 @@ START-OF-SELECTION.
         shortage_pct           = lv_run_shortage_pct
         shortage_pct_available = lv_run_shortage_pct_available
         demand_count           = <ls_run>-demand_count
+        full_count             = <ls_run>-full_count
+        partial_count          = <ls_run>-partial_count
+        unallocated_count      = <ls_run>-unallocated_count
+        full_mix_pct           = lv_run_full_mix_pct
+        partial_mix_pct        = lv_run_partial_mix_pct
+        unallocated_mix_pct    = lv_run_unallocated_mix_pct
         message                = <ls_run>-message ) TO lt_alerts.
     ENDIF.
   ENDLOOP.
@@ -1198,6 +1265,8 @@ START-OF-SELECTION.
     lv_newest_deadline_age_text = zcl_stock_csv=>number(
       ls_unit_summary-newest_deadline_age_days ).
   ENDIF.
+  lv_oldest_deadline_urgency = ls_unit_summary-oldest_deadline_urgency.
+  lv_newest_deadline_urgency = ls_unit_summary-newest_deadline_urgency.
   DATA(lv_total_demand_count) = ls_unit_summary-demand_count.
   lv_summary_unit = ls_unit_summary-unit.
   lv_mixed_units = ls_unit_summary-mixed_units.
@@ -1260,7 +1329,7 @@ START-OF-SELECTION.
   ENDIF.
   IF p_csv = abap_true.
     IF p_sum = abap_true.
-      WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
+      WRITE: / 'schema_version;generated_date;generated_time;material;plant;storage_location;batch;requested_unit;'
         && 'filters_applied;filters;'
         && 'sort_mode;strategy_filter;preview_filter;movement_type_filter;minimum_shelf_life_filter;'
         && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
@@ -1269,7 +1338,7 @@ START-OF-SELECTION.
         && 'finish_date_from_filter;finish_date_to_filter;'
         && 'requested_overdue_only;requested_overdue_as_of_filter;'
         && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
-        && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
+        && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;deadline_urgency_filter;'
         && 'legacy_strategy_filter;'
         && 'run_id_filter;run_id_contains_filter;'
         && 'message_filter;message_only;offset;has_more;next_offset;has_previous;'
@@ -1283,16 +1352,20 @@ START-OF-SELECTION.
         && 'candidate_count;limited;alert_count;adaptive_priority_runs;'
         && 'adaptive_fair_runs;weighted_strategy_runs;weighted_requested;'
         && 'weighted_allocated;weighted_shortage;weighted_coverage_pct;'
-        && 'demand_count;'
-        && 'deadline_count;unit;'
+        && 'demand_count;preview_runs;operational_runs;preview_mix_pct;operational_mix_pct;'
+        && 'full_count;partial_count;unallocated_count;full_mix_pct;partial_mix_pct;unallocated_mix_pct;'
+        && 'deadline_count;deadline_mix_pct;overdue_count;overdue_mix_pct;'
+        && 'current_deadline_count;current_deadline_mix_pct;future_deadline_count;future_deadline_mix_pct;unit;'
         && 'safety_stock_context;mixed_units;available;requested;'
         && 'allocated;shortage;coverage_pct;shortage_pct;'
         && 'oldest_age_seconds;newest_age_seconds;earliest_requested_deadline;'
-        && 'latest_requested_deadline;oldest_deadline_age_days;'
-        && 'newest_deadline_age_days;deadline_age_reference_date;'
+        && 'latest_requested_deadline;oldest_deadline_age_days;oldest_deadline_urgency;'
+        && 'newest_deadline_age_days;newest_deadline_urgency;deadline_age_reference_date;'
         && 'deadline_age_mixed'.
       CLEAR lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 71 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1326,6 +1399,7 @@ START-OF-SELECTION.
       APPEND lv_deadline_age_from_filter TO lt_csv_fields.
       APPEND lv_deadline_age_to_filter TO lt_csv_fields.
       APPEND lv_deadline_age_date_filter TO lt_csv_fields.
+      APPEND lv_deadline_urgency_filter TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
       APPEND lv_run_filter TO lt_csv_fields.
       APPEND lv_run_contains_filter TO lt_csv_fields.
@@ -1366,7 +1440,24 @@ START-OF-SELECTION.
       APPEND lv_weighted_shortage_text TO lt_csv_fields.
       APPEND lv_weighted_coverage_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_total_demand_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-preview_runs ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-operational_runs ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-preview_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-operational_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-full_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-partial_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-unallocated_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-full_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-partial_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-unallocated_mix_pct ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( lv_deadline_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-deadline_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-overdue_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-overdue_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-current_deadline_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-current_deadline_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-future_deadline_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_unit_summary-future_deadline_mix_pct ) TO lt_csv_fields.
       APPEND lv_summary_unit TO lt_csv_fields.
       APPEND lv_safety_stock_text TO lt_csv_fields.
       APPEND lv_mixed_units_text TO lt_csv_fields.
@@ -1388,7 +1479,9 @@ START-OF-SELECTION.
       APPEND lv_earliest_deadline_text TO lt_csv_fields.
       APPEND lv_latest_deadline_text TO lt_csv_fields.
       APPEND lv_oldest_deadline_age_text TO lt_csv_fields.
+      APPEND lv_oldest_deadline_urgency TO lt_csv_fields.
       APPEND lv_newest_deadline_age_text TO lt_csv_fields.
+      APPEND lv_newest_deadline_urgency TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_reference_date )
         TO lt_csv_fields.
       APPEND lv_deadline_age_mixed_text TO lt_csv_fields.
@@ -1399,7 +1492,7 @@ START-OF-SELECTION.
       WRITE: / lv_csv_line.
       RETURN.
     ENDIF.
-    WRITE: / 'schema_version;material;plant;storage_location;batch;requested_unit;'
+    WRITE: / 'schema_version;generated_date;generated_time;material;plant;storage_location;batch;requested_unit;'
       && 'filters_applied;filters;'
       && 'sort_mode;strategy_filter;preview_filter;movement_type_filter;minimum_shelf_life_filter;'
       && 'safety_stock_filter;minimum_safety_stock_filter;maximum_safety_stock_filter;'
@@ -1408,7 +1501,7 @@ START-OF-SELECTION.
       && 'finish_date_from_filter;finish_date_to_filter;'
       && 'requested_overdue_only;requested_overdue_as_of_filter;'
       && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
-      && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
+      && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;deadline_urgency_filter;'
       && 'legacy_strategy_filter;'
       && 'run_id_filter;run_id_contains_filter;'
       && 'message_filter;message_only;offset;has_more;next_offset;has_previous;'
@@ -1419,15 +1512,19 @@ START-OF-SELECTION.
       && 'minimum_shortage;maximum_shortage;minimum_shortage_pct;'
       && 'maximum_shortage_pct;minimum_coverage;maximum_coverage;'
       && 'candidate_count;limited;rank;'
-       && 'run_id;strategy;weighted_strategy;adaptive_branch;movement_type;'
+        && 'run_id;strategy;preview;weighted_strategy;adaptive_branch;movement_type;'
        && 'min_shelf_life;safety_stock;requested_on_from;requested_on_to;'
-       && 'requested_deadline;deadline_age_days;'
+       && 'requested_deadline;deadline_age_days;deadline_urgency;'
        && 'deadline_age_reference_date;deadline_age_mixed;'
       && 'unit;start_date;start_time;age_seconds;'
-      && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;demand_count;message'.
+      && 'available;requested;allocated;shortage;coverage_pct;shortage_pct;'
+      && 'demand_count;full_count;partial_count;unallocated_count;'
+      && 'full_mix_pct;partial_mix_pct;unallocated_mix_pct;message'.
     LOOP AT lt_alerts ASSIGNING <ls_alert>.
       CLEAR lt_csv_fields.
-       APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
+       APPEND zcl_stock_csv=>number( 71 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1461,6 +1558,7 @@ START-OF-SELECTION.
       APPEND lv_deadline_age_from_filter TO lt_csv_fields.
       APPEND lv_deadline_age_to_filter TO lt_csv_fields.
       APPEND lv_deadline_age_date_filter TO lt_csv_fields.
+      APPEND lv_deadline_urgency_filter TO lt_csv_fields.
       APPEND lv_legacy_filter_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_run_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_run_contains_filter ) TO lt_csv_fields.
@@ -1495,6 +1593,11 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( lv_rank ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-run_id ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-strategy ) TO lt_csv_fields.
+      IF <ls_alert>-preview = abap_true.
+        APPEND 'true' TO lt_csv_fields.
+      ELSE.
+        APPEND 'false' TO lt_csv_fields.
+      ENDIF.
       APPEND xsdbool( <ls_alert>-strategy = 'W' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-adaptive_branch ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-movement_type ) TO lt_csv_fields.
@@ -1504,11 +1607,20 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( <ls_alert>-requested_on_to ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-requested_deadline ) TO lt_csv_fields.
       IF <ls_alert>-requested_deadline IS INITIAL.
+        lv_deadline_urgency = 'n/a'.
         APPEND 'n/a' TO lt_csv_fields.
       ELSE.
+        IF <ls_alert>-deadline_age_days > 0.
+          lv_deadline_urgency = 'overdue'.
+        ELSEIF <ls_alert>-deadline_age_days = 0.
+          lv_deadline_urgency = 'current_day'.
+        ELSE.
+          lv_deadline_urgency = 'future'.
+        ENDIF.
         APPEND zcl_stock_csv=>number( <ls_alert>-deadline_age_days )
           TO lt_csv_fields.
       ENDIF.
+      APPEND lv_deadline_urgency TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_reference_date )
         TO lt_csv_fields.
       APPEND lv_deadline_age_mixed_text TO lt_csv_fields.
@@ -1536,6 +1648,12 @@ START-OF-SELECTION.
       ENDIF.
       APPEND lv_alert_shortage_pct_text TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( <ls_alert>-demand_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-full_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-partial_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-unallocated_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-full_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-partial_mix_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( <ls_alert>-unallocated_mix_pct ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( <ls_alert>-message ) TO lt_csv_fields.
       CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
       WRITE: / lv_csv_line.
@@ -1556,6 +1674,10 @@ START-OF-SELECTION.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'strategy'
         iv_value = <ls_alert>-strategy ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>boolean_property(
+        iv_name  = 'preview'
+        iv_value = <ls_alert>-preview ).
       CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
       lv_field = zcl_stock_json=>boolean_property(
         iv_name  = 'weighted_strategy'
@@ -1604,11 +1726,23 @@ START-OF-SELECTION.
       IF <ls_alert>-requested_deadline IS INITIAL.
         lv_field = zcl_stock_json=>null_property(
           iv_name = 'deadline_age_days' ).
+        lv_deadline_urgency = 'n/a'.
       ELSE.
+        IF <ls_alert>-deadline_age_days > 0.
+          lv_deadline_urgency = 'overdue'.
+        ELSEIF <ls_alert>-deadline_age_days = 0.
+          lv_deadline_urgency = 'current_day'.
+        ELSE.
+          lv_deadline_urgency = 'future'.
+        ENDIF.
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'deadline_age_days'
           iv_value = <ls_alert>-deadline_age_days ).
       ENDIF.
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency'
+        iv_value = lv_deadline_urgency ).
       CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'deadline_age_reference_date'
@@ -1673,6 +1807,30 @@ START-OF-SELECTION.
         iv_name  = 'demand_count'
         iv_value = <ls_alert>-demand_count ).
       CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'full_count'
+        iv_value = <ls_alert>-full_count ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'partial_count'
+        iv_value = <ls_alert>-partial_count ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'unallocated_count'
+        iv_value = <ls_alert>-unallocated_count ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'full_mix_pct'
+        iv_value = <ls_alert>-full_mix_pct ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'partial_mix_pct'
+        iv_value = <ls_alert>-partial_mix_pct ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
+      lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'unallocated_mix_pct'
+        iv_value = <ls_alert>-unallocated_mix_pct ).
+      CONCATENATE lv_item lv_field INTO lv_item SEPARATED BY ','.
       lv_field = zcl_stock_json=>property(
         iv_name  = 'message'
         iv_value = <ls_alert>-message ).
@@ -1683,7 +1841,17 @@ START-OF-SELECTION.
           iv_value = 'zstock_alloc_watch' ).
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 63 ).
+          iv_value = 75 ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'generated_date'
+          iv_value = sy-datum ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'generated_time'
+          iv_value = sy-uzeit ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>boolean_property(
@@ -1789,6 +1957,11 @@ START-OF-SELECTION.
         lv_field = zcl_stock_json=>property(
           iv_name  = 'deadline_age_date_filter'
           iv_value = lv_deadline_age_date_filter ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'deadline_urgency_filter'
+          iv_value = lv_deadline_urgency_filter ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         IF p_typed = abap_true.
@@ -2076,6 +2249,56 @@ START-OF-SELECTION.
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'preview_runs'
+          iv_value = ls_unit_summary-preview_runs ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+        iv_name  = 'operational_runs'
+        iv_value = ls_unit_summary-operational_runs ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'preview_mix_pct'
+          iv_value = ls_unit_summary-preview_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'operational_mix_pct'
+          iv_value = ls_unit_summary-operational_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'full_count'
+          iv_value = ls_unit_summary-full_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'partial_count'
+          iv_value = ls_unit_summary-partial_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'unallocated_count'
+          iv_value = ls_unit_summary-unallocated_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'full_mix_pct'
+          iv_value = ls_unit_summary-full_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'partial_mix_pct'
+          iv_value = ls_unit_summary-partial_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'unallocated_mix_pct'
+          iv_value = ls_unit_summary-unallocated_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
           iv_name  = 'weighted_strategy_runs'
           iv_value = lv_weighted_strategy_runs ).
         CONCATENATE lv_json_ndjson_prefix lv_field
@@ -2088,6 +2311,16 @@ START-OF-SELECTION.
             iv_name  = 'weighted_requested'
             iv_value = lv_weighted_requested ).
         ENDIF.
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'oldest_deadline_urgency'
+          iv_value = lv_oldest_deadline_urgency ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>property(
+          iv_name  = 'newest_deadline_urgency'
+          iv_value = lv_newest_deadline_urgency ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         IF lv_mixed_units = abap_true.
@@ -2128,6 +2361,41 @@ START-OF-SELECTION.
         lv_field = zcl_stock_json=>number_property(
           iv_name  = 'deadline_count'
           iv_value = lv_deadline_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'deadline_mix_pct'
+          iv_value = ls_unit_summary-deadline_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'overdue_count'
+          iv_value = ls_unit_summary-overdue_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'overdue_mix_pct'
+          iv_value = ls_unit_summary-overdue_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'current_deadline_count'
+          iv_value = ls_unit_summary-current_deadline_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'current_deadline_mix_pct'
+          iv_value = ls_unit_summary-current_deadline_mix_pct ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'future_deadline_count'
+          iv_value = ls_unit_summary-future_deadline_count ).
+        CONCATENATE lv_json_ndjson_prefix lv_field
+          INTO lv_json_ndjson_prefix SEPARATED BY ','.
+        lv_field = zcl_stock_json=>number_property(
+          iv_name  = 'future_deadline_mix_pct'
+          iv_value = ls_unit_summary-future_deadline_mix_pct ).
         CONCATENATE lv_json_ndjson_prefix lv_field
           INTO lv_json_ndjson_prefix SEPARATED BY ','.
         lv_field = zcl_stock_json=>property(
@@ -2305,7 +2573,15 @@ START-OF-SELECTION.
       iv_value = 'zstock_alloc_watch' ).
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 63 ).
+      iv_value = 75 ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'generated_date'
+      iv_value = sy-datum ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'generated_time'
+      iv_value = sy-uzeit ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     lv_field = zcl_stock_json=>boolean_property(
       iv_name  = 'typed'
@@ -2382,6 +2658,10 @@ START-OF-SELECTION.
     lv_field = zcl_stock_json=>property(
       iv_name  = 'deadline_age_date_filter'
       iv_value = lv_deadline_age_date_filter ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'deadline_urgency_filter'
+      iv_value = lv_deadline_urgency_filter ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     IF p_typed = abap_true.
       lv_field = zcl_stock_json=>filter_number_property(
@@ -2629,6 +2909,46 @@ START-OF-SELECTION.
       iv_name  = 'alert_count'
       iv_value = lines( lt_alerts ) ).
     lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'preview_runs'
+      iv_value = ls_unit_summary-preview_runs ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'operational_runs'
+      iv_value = ls_unit_summary-operational_runs ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'preview_mix_pct'
+      iv_value = ls_unit_summary-preview_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'operational_mix_pct'
+      iv_value = ls_unit_summary-operational_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'full_count'
+      iv_value = ls_unit_summary-full_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'partial_count'
+      iv_value = ls_unit_summary-partial_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'unallocated_count'
+      iv_value = ls_unit_summary-unallocated_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'full_mix_pct'
+      iv_value = ls_unit_summary-full_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'partial_mix_pct'
+      iv_value = ls_unit_summary-partial_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'unallocated_mix_pct'
+      iv_value = ls_unit_summary-unallocated_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
       iv_name  = 'adaptive_priority_runs'
       iv_value = lv_adaptive_priority_runs ).
     CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
@@ -2683,6 +3003,34 @@ START-OF-SELECTION.
     lv_field = zcl_stock_json=>number_property(
       iv_name  = 'deadline_count'
       iv_value = lv_deadline_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'deadline_mix_pct'
+      iv_value = ls_unit_summary-deadline_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'overdue_count'
+      iv_value = ls_unit_summary-overdue_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'overdue_mix_pct'
+      iv_value = ls_unit_summary-overdue_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'current_deadline_count'
+      iv_value = ls_unit_summary-current_deadline_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'current_deadline_mix_pct'
+      iv_value = ls_unit_summary-current_deadline_mix_pct ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'future_deadline_count'
+      iv_value = ls_unit_summary-future_deadline_count ).
+    CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'future_deadline_mix_pct'
+      iv_value = ls_unit_summary-future_deadline_mix_pct ).
     CONCATENATE lv_json_count lv_field INTO lv_json_count SEPARATED BY ','.
     lv_field = zcl_stock_json=>property(
       iv_name  = 'unit'
@@ -2739,6 +3087,14 @@ START-OF-SELECTION.
         iv_name  = 'newest_deadline_age_days'
         iv_value = ls_unit_summary-newest_deadline_age_days ).
     ENDIF.
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'oldest_deadline_urgency'
+      iv_value = lv_oldest_deadline_urgency ).
+    CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
+    lv_field = zcl_stock_json=>property(
+      iv_name  = 'newest_deadline_urgency'
+      iv_value = lv_newest_deadline_urgency ).
     CONCATENATE lv_json_header lv_field INTO lv_json_header SEPARATED BY ','.
     IF lv_mixed_units = abap_true.
       lv_field = zcl_stock_json=>null_property( iv_name = 'available' ).
@@ -2838,8 +3194,24 @@ START-OF-SELECTION.
     lv_json_runs = zcl_stock_json=>property(
       iv_name  = 'scope'
       iv_value = |{ p_matnr }/{ p_werks }/{ p_lgort }| ).
+    lv_json_meta = zcl_stock_json=>number_property(
+      iv_name  = 'row_count'
+      iv_value = lines( lt_alerts ) ).
+    lv_field = zcl_stock_json=>number_property(
+      iv_name  = 'max_rows'
+      iv_value = p_max ).
+    CONCATENATE lv_json_meta lv_field INTO lv_json_meta SEPARATED BY ','.
     IF p_ndjson = abap_true.
       RETURN.
+    ELSEIF p_meta = abap_true.
+      IF p_sum = abap_true.
+        CONCATENATE '{' lv_json_header ',' lv_json_threshold ',' lv_json_count
+          ',' lv_json_runs ',' lv_json_meta '}' INTO lv_json_line.
+      ELSE.
+        CONCATENATE '{' lv_json_header ',' lv_json_threshold ',' lv_json_count
+          ',' lv_json_runs ',' lv_json_meta ',"rows":[' lv_items ']}'
+          INTO lv_json_line.
+      ENDIF.
     ELSEIF p_sum = abap_true.
       CONCATENATE '{' lv_json_header ',' lv_json_threshold ',' lv_json_count
         ',' lv_json_runs '}' INTO lv_json_line.
@@ -2854,6 +3226,15 @@ START-OF-SELECTION.
   WRITE: / 'Stale running allocations:', lines( lt_alerts ),
          / 'Demand lines:', lv_total_demand_count,
          / 'Alerts with requested deadline:', lv_deadline_count,
+         / 'Deadline-bearing mix:', ls_unit_summary-deadline_mix_pct, '%',
+         / 'Overdue deadline alerts:', ls_unit_summary-overdue_count,
+         / 'Overdue deadline mix:', ls_unit_summary-overdue_mix_pct, '%',
+         / 'Current-day deadline alerts:',
+           ls_unit_summary-current_deadline_count,
+         / 'Current-day deadline mix:',
+           ls_unit_summary-current_deadline_mix_pct, '%',
+         / 'Future deadline alerts:', ls_unit_summary-future_deadline_count,
+         / 'Future deadline mix:', ls_unit_summary-future_deadline_mix_pct, '%',
          / 'Candidate alerts:', lv_candidate_count,
          / 'Limited:', lv_limited_text,
          / 'Threshold (seconds):', p_stale,
@@ -2874,6 +3255,7 @@ START-OF-SELECTION.
          / 'Deadline age from:', lv_deadline_age_from_filter,
          / 'Deadline age to:', lv_deadline_age_to_filter,
          / 'Deadline age as-of:', lv_deadline_age_date_filter,
+         / 'Deadline urgency:', lv_deadline_urgency_filter,
          / 'Overdue as-of date:', lv_overdue_as_of_filter,
          / 'Legacy strategy filter:', lv_legacy_filter_text,
          / 'Run ID filter:', lv_run_filter,
@@ -2915,6 +3297,16 @@ START-OF-SELECTION.
          / 'Coverage:', lv_total_coverage_text,
          / 'Shortage percentage:', lv_total_shortage_pct_text,
          / 'Weighted strategy runs:', lv_weighted_strategy_runs,
+         / 'Preview runs:', ls_unit_summary-preview_runs,
+         / 'Operational runs:', ls_unit_summary-operational_runs,
+         / 'Preview mix:', ls_unit_summary-preview_mix_pct, '%',
+         / 'Operational mix:', ls_unit_summary-operational_mix_pct, '%',
+         / 'Full lines:', ls_unit_summary-full_count,
+         / 'Partial lines:', ls_unit_summary-partial_count,
+         / 'Unallocated lines:', ls_unit_summary-unallocated_count,
+         / 'Full mix:', ls_unit_summary-full_mix_pct, '%',
+         / 'Partial mix:', ls_unit_summary-partial_mix_pct, '%',
+         / 'Unallocated mix:', ls_unit_summary-unallocated_mix_pct, '%',
          / 'Weighted requested:', lv_weighted_requested_text,
          / 'Weighted allocated:', lv_weighted_allocated_text,
          / 'Weighted shortage:', lv_weighted_shortage_text,
@@ -2922,7 +3314,9 @@ START-OF-SELECTION.
          / 'Earliest requested deadline:', lv_earliest_deadline_text,
          / 'Latest requested deadline:', lv_latest_deadline_text,
          / 'Oldest deadline age (days):', lv_oldest_deadline_age_text,
+         / 'Oldest deadline urgency:', lv_oldest_deadline_urgency,
          / 'Newest deadline age (days):', lv_newest_deadline_age_text,
+         / 'Newest deadline urgency:', lv_newest_deadline_urgency,
          / 'Deadline age reference date:', lv_deadline_reference_date,
          / 'Deadline age mixed:', lv_deadline_age_mixed_text,
          / 'Scope:', p_matnr, p_werks, p_lgort, p_charg, p_meins.
@@ -2944,10 +3338,20 @@ START-OF-SELECTION.
     ELSE.
       lv_alert_shortage_pct_text = 'n/a'.
     ENDIF.
+    IF <ls_alert>-requested_deadline IS INITIAL.
+      lv_deadline_urgency = 'n/a'.
+    ELSEIF <ls_alert>-deadline_age_days > 0.
+      lv_deadline_urgency = 'overdue'.
+    ELSEIF <ls_alert>-deadline_age_days = 0.
+      lv_deadline_urgency = 'current_day'.
+    ELSE.
+      lv_deadline_urgency = 'future'.
+    ENDIF.
     WRITE: / 'rank', lv_rank,
              <ls_alert>-run_id,
              'age', <ls_alert>-age_seconds,
              'strategy', <ls_alert>-strategy,
+             'preview', <ls_alert>-preview,
              'weighted strategy', xsdbool( <ls_alert>-strategy = 'W' ),
              'adaptive branch', <ls_alert>-adaptive_branch,
              'movement type', <ls_alert>-movement_type,
@@ -2957,10 +3361,17 @@ START-OF-SELECTION.
              <ls_alert>-requested_on_to,
              'requested deadline', <ls_alert>-requested_deadline,
              'deadline age days', <ls_alert>-deadline_age_days,
+             'deadline urgency', lv_deadline_urgency,
              'deadline age reference date', lv_deadline_reference_date,
              'deadline age mixed', lv_deadline_age_mixed_text,
              'unit', <ls_alert>-unit,
              'shortage', <ls_alert>-shortage,
              'coverage', lv_alert_coverage_text,
-             'shortage %', lv_alert_shortage_pct_text.
+             'shortage %', lv_alert_shortage_pct_text,
+             'full lines', <ls_alert>-full_count,
+             'partial lines', <ls_alert>-partial_count,
+             'unallocated lines', <ls_alert>-unallocated_count,
+             'full mix %', <ls_alert>-full_mix_pct,
+             'partial mix %', <ls_alert>-partial_mix_pct,
+             'unallocated mix %', <ls_alert>-unallocated_mix_pct.
   ENDLOOP.

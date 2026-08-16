@@ -149,6 +149,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_requested_deadline TYPE d.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
+    DATA lv_deadline_urgency_filter TYPE string.
+    DATA lv_deadline_urgency TYPE string.
     DATA lv_duration_seconds TYPE i.
     DATA lv_start_date_to TYPE d.
     DATA lv_remaining_run_id TYPE zif_allocation_audit=>ty_run_id.
@@ -169,6 +171,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_deadline_age_date IS NOT INITIAL.
       lv_deadline_age_date = iv_deadline_age_date.
     ENDIF.
+    lv_deadline_urgency_filter = to_lower( iv_deadline_urgency ).
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
           OR iv_movement_type CN '0123456789'
@@ -276,9 +279,17 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_deadline_age_date IS NOT INITIAL
         AND iv_deadline_age_from IS INITIAL
-        AND iv_deadline_age_to IS INITIAL.
+        AND iv_deadline_age_to IS INITIAL
+        AND iv_deadline_urgency IS INITIAL.
       raise_error(
         iv_message = 'Audit deadline age date requires an age range' ).
+    ENDIF.
+    IF lv_deadline_urgency_filter IS NOT INITIAL
+        AND lv_deadline_urgency_filter <> 'overdue'
+        AND lv_deadline_urgency_filter <> 'current_day'
+        AND lv_deadline_urgency_filter <> 'future'
+        AND lv_deadline_urgency_filter <> 'n/a'.
+      raise_error( iv_message = 'Audit deadline urgency filter is invalid' ).
     ENDIF.
     IF lv_status IS NOT INITIAL
         AND lv_status <> 'S'
@@ -554,7 +565,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR iv_deadline_from IS NOT INITIAL
             OR iv_deadline_to IS NOT INITIAL
             OR iv_deadline_age_from IS NOT INITIAL
-            OR iv_deadline_age_to IS NOT INITIAL.
+            OR iv_deadline_age_to IS NOT INITIAL
+            OR iv_deadline_urgency IS NOT INITIAL.
           CONTINUE.
         ENDIF.
       ENDIF.
@@ -593,6 +605,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               AND lv_deadline_age_days < iv_deadline_age_from )
             OR ( iv_deadline_age_to IS NOT INITIAL
               AND lv_deadline_age_days > iv_deadline_age_to ).
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF lv_deadline_urgency_filter IS NOT INITIAL.
+        IF lv_requested_deadline IS INITIAL.
+          lv_deadline_urgency = 'n/a'.
+        ELSE.
+          lv_deadline_age_days = lv_deadline_age_date
+            - lv_requested_deadline.
+          IF lv_deadline_age_days > 0.
+            lv_deadline_urgency = 'overdue'.
+          ELSEIF lv_deadline_age_days = 0.
+            lv_deadline_urgency = 'current_day'.
+          ELSE.
+            lv_deadline_urgency = 'future'.
+          ENDIF.
+        ENDIF.
+        IF lv_deadline_urgency <> lv_deadline_urgency_filter.
           CONTINUE.
         ENDIF.
       ENDIF.
@@ -760,6 +790,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_requested_deadline TYPE d.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
+    DATA lv_deadline_urgency_filter TYPE string.
+    DATA lv_deadline_urgency TYPE string.
     DATA lv_duration_seconds TYPE i.
     DATA lv_start_date_to TYPE d.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
@@ -788,6 +820,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_deadline_age_date IS NOT INITIAL.
       lv_deadline_age_date = iv_deadline_age_date.
     ENDIF.
+    lv_deadline_urgency_filter = to_lower( iv_deadline_urgency ).
     IF iv_movement_type IS NOT INITIAL
         AND ( strlen( iv_movement_type ) <> zif_stock_allocation=>c_movement_type_length
           OR iv_movement_type CN '0123456789'
@@ -889,9 +922,17 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_deadline_age_date IS NOT INITIAL
         AND iv_deadline_age_from IS INITIAL
-        AND iv_deadline_age_to IS INITIAL.
+        AND iv_deadline_age_to IS INITIAL
+        AND iv_deadline_urgency IS INITIAL.
       raise_error(
         iv_message = 'Audit deadline age date requires an age range' ).
+    ENDIF.
+    IF lv_deadline_urgency_filter IS NOT INITIAL
+        AND lv_deadline_urgency_filter <> 'overdue'
+        AND lv_deadline_urgency_filter <> 'current_day'
+        AND lv_deadline_urgency_filter <> 'future'
+        AND lv_deadline_urgency_filter <> 'n/a'.
+      raise_error( iv_message = 'Audit deadline urgency filter is invalid' ).
     ENDIF.
     IF lv_status IS NOT INITIAL
         AND lv_status <> 'S'
@@ -1152,7 +1193,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR iv_deadline_from IS NOT INITIAL
             OR iv_deadline_to IS NOT INITIAL
             OR iv_deadline_age_from IS NOT INITIAL
-            OR iv_deadline_age_to IS NOT INITIAL.
+            OR iv_deadline_age_to IS NOT INITIAL
+            OR iv_deadline_urgency IS NOT INITIAL.
           CONTINUE.
         ENDIF.
       ENDIF.
@@ -1191,6 +1233,24 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               AND lv_deadline_age_days < iv_deadline_age_from )
             OR ( iv_deadline_age_to IS NOT INITIAL
               AND lv_deadline_age_days > iv_deadline_age_to ).
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF lv_deadline_urgency_filter IS NOT INITIAL.
+        IF lv_requested_deadline IS INITIAL.
+          lv_deadline_urgency = 'n/a'.
+        ELSE.
+          lv_deadline_age_days = lv_deadline_age_date
+            - lv_requested_deadline.
+          IF lv_deadline_age_days > 0.
+            lv_deadline_urgency = 'overdue'.
+          ELSEIF lv_deadline_age_days = 0.
+            lv_deadline_urgency = 'current_day'.
+          ELSE.
+            lv_deadline_urgency = 'future'.
+          ENDIF.
+        ENDIF.
+        IF lv_deadline_urgency <> lv_deadline_urgency_filter.
           CONTINUE.
         ENDIF.
       ENDIF.
@@ -1318,6 +1378,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_available_context_set TYPE abap_bool.
     DATA lv_available_context_mixed TYPE abap_bool.
     DATA lv_deadline_age_reference_date TYPE d.
+    DATA lv_deadline_age_days TYPE i.
     DATA ls_running_age TYPE zif_allocation_audit=>ty_running_age.
     FIELD-SYMBOLS <ls_run> TYPE zif_allocation_audit=>ty_run.
 
@@ -1350,6 +1411,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       iv_deadline_age_from = iv_deadline_age_from
       iv_deadline_age_to   = iv_deadline_age_to
       iv_deadline_age_date = iv_deadline_age_date
+      iv_deadline_urgency  = iv_deadline_urgency
       iv_start_date_from   = iv_start_date_from
       iv_start_date_to     = iv_start_date_to
       iv_finish_date_from  = iv_finish_date_from
@@ -1384,10 +1446,26 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     LOOP AT lt_runs ASSIGNING <ls_run>.
       rs_summary-total_runs = rs_summary-total_runs + 1.
+      IF <ls_run>-preview = abap_true.
+        rs_summary-preview_runs = rs_summary-preview_runs + 1.
+      ELSE.
+        rs_summary-operational_runs = rs_summary-operational_runs + 1.
+      ENDIF.
       rs_summary-demand_count = rs_summary-demand_count
         + <ls_run>-demand_count.
       IF <ls_run>-requested_deadline IS NOT INITIAL.
         rs_summary-deadline_count = rs_summary-deadline_count + 1.
+        lv_deadline_age_days = lv_deadline_age_reference_date
+          - <ls_run>-requested_deadline.
+        IF lv_deadline_age_days > 0.
+          rs_summary-overdue_count = rs_summary-overdue_count + 1.
+        ELSEIF lv_deadline_age_days = 0.
+          rs_summary-current_deadline_count =
+            rs_summary-current_deadline_count + 1.
+        ELSE.
+          rs_summary-future_deadline_count =
+            rs_summary-future_deadline_count + 1.
+        ENDIF.
       ENDIF.
       CASE <ls_run>-strategy.
         WHEN 'P'.
@@ -1609,6 +1687,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               AND <ls_run>-finish_time = rs_summary-last_completed_finish_time
               AND <ls_run>-run_id > rs_summary-last_completed_run_id ) ).
         rs_summary-last_completed_run_id = <ls_run>-run_id.
+        rs_summary-last_completed_preview = <ls_run>-preview.
         rs_summary-last_completed_start_date = <ls_run>-start_date.
         rs_summary-last_completed_start_time = <ls_run>-start_time.
         rs_summary-last_completed_finish_date = <ls_run>-finish_date.
@@ -1662,6 +1741,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             AND <ls_run>-start_time = rs_summary-last_start_time
             AND <ls_run>-run_id > rs_summary-last_run_id ).
         rs_summary-last_run_id = <ls_run>-run_id.
+        rs_summary-last_preview = <ls_run>-preview.
         rs_summary-last_avail = <ls_run>-available.
         rs_summary-last_avail_unit = <ls_run>-unit.
         rs_summary-last_avail_ok = abap_true.
@@ -1729,6 +1809,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       rs_summary-completion_pct =
         ( rs_summary-success_runs + rs_summary-partial_runs
           + rs_summary-error_runs ) * 100 / rs_summary-total_runs.
+      rs_summary-deadline_mix_pct = rs_summary-deadline_count * 100
+        / rs_summary-total_runs.
+      rs_summary-overdue_mix_pct = rs_summary-overdue_count * 100
+        / rs_summary-total_runs.
+      rs_summary-current_deadline_mix_pct =
+        rs_summary-current_deadline_count * 100 / rs_summary-total_runs.
+      rs_summary-future_deadline_mix_pct = rs_summary-future_deadline_count * 100
+        / rs_summary-total_runs.
     ENDIF.
     IF rs_summary-success_runs + rs_summary-partial_runs
         + rs_summary-error_runs > 0.
@@ -1889,6 +1977,15 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       rs_summary-last_deadline_age_days = lv_deadline_age_reference_date
         - rs_summary-last_requested_deadline.
     ENDIF.
+    IF rs_summary-last_requested_deadline IS INITIAL.
+      rs_summary-last_deadline_urgency = 'n/a'.
+    ELSEIF rs_summary-last_deadline_age_days > 0.
+      rs_summary-last_deadline_urgency = 'overdue'.
+    ELSEIF rs_summary-last_deadline_age_days = 0.
+      rs_summary-last_deadline_urgency = 'current_day'.
+    ELSE.
+      rs_summary-last_deadline_urgency = 'future'.
+    ENDIF.
     IF rs_summary-last_completed_requested_deadline IS INITIAL.
       rs_summary-last_completed_deadline_age_available = abap_false.
       CLEAR rs_summary-last_completed_deadline_age_days.
@@ -1903,13 +2000,40 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         - rs_summary-last_completed_requested_deadline.
       rs_summary-last_completed_deadline_age_reason = 'available'.
     ENDIF.
+    IF rs_summary-last_completed_requested_deadline IS INITIAL.
+      rs_summary-last_completed_deadline_urgency = 'n/a'.
+    ELSEIF rs_summary-last_completed_deadline_age_days > 0.
+      rs_summary-last_completed_deadline_urgency = 'overdue'.
+    ELSEIF rs_summary-last_completed_deadline_age_days = 0.
+      rs_summary-last_completed_deadline_urgency = 'current_day'.
+    ELSE.
+      rs_summary-last_completed_deadline_urgency = 'future'.
+    ENDIF.
     IF rs_summary-earliest_requested_deadline IS NOT INITIAL.
       rs_summary-oldest_deadline_age_days = lv_deadline_age_reference_date
         - rs_summary-earliest_requested_deadline.
     ENDIF.
+    IF rs_summary-earliest_requested_deadline IS INITIAL.
+      rs_summary-oldest_deadline_urgency = 'n/a'.
+    ELSEIF rs_summary-oldest_deadline_age_days > 0.
+      rs_summary-oldest_deadline_urgency = 'overdue'.
+    ELSEIF rs_summary-oldest_deadline_age_days = 0.
+      rs_summary-oldest_deadline_urgency = 'current_day'.
+    ELSE.
+      rs_summary-oldest_deadline_urgency = 'future'.
+    ENDIF.
     IF rs_summary-latest_requested_deadline IS NOT INITIAL.
       rs_summary-newest_deadline_age_days = lv_deadline_age_reference_date
         - rs_summary-latest_requested_deadline.
+    ENDIF.
+    IF rs_summary-latest_requested_deadline IS INITIAL.
+      rs_summary-newest_deadline_urgency = 'n/a'.
+    ELSEIF rs_summary-newest_deadline_age_days > 0.
+      rs_summary-newest_deadline_urgency = 'overdue'.
+    ELSEIF rs_summary-newest_deadline_age_days = 0.
+      rs_summary-newest_deadline_urgency = 'current_day'.
+    ELSE.
+      rs_summary-newest_deadline_urgency = 'future'.
     ENDIF.
   ENDMETHOD.
 
@@ -2012,6 +2136,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_overdue_date TYPE d.
     DATA lv_deadline_age_date TYPE d.
     DATA lv_deadline_age_days TYPE i.
+    DATA lv_deadline_urgency_filter TYPE string.
+    DATA lv_deadline_urgency TYPE string.
     DATA lv_sort_date TYPE d.
     DATA lv_status_rank TYPE i.
     DATA lv_duration_seconds TYPE i.
@@ -2035,6 +2161,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     IF iv_deadline_age_date IS NOT INITIAL.
       lv_deadline_age_date = iv_deadline_age_date.
     ENDIF.
+    lv_deadline_urgency_filter = to_lower( iv_deadline_urgency ).
 
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -2201,9 +2328,17 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDIF.
     IF iv_deadline_age_date IS NOT INITIAL
         AND iv_deadline_age_from IS INITIAL
-        AND iv_deadline_age_to IS INITIAL.
+        AND iv_deadline_age_to IS INITIAL
+        AND iv_deadline_urgency IS INITIAL.
       raise_error(
         iv_message = 'Audit deadline age date requires an age range' ).
+    ENDIF.
+    IF lv_deadline_urgency_filter IS NOT INITIAL
+        AND lv_deadline_urgency_filter <> 'overdue'
+        AND lv_deadline_urgency_filter <> 'current_day'
+        AND lv_deadline_urgency_filter <> 'future'
+        AND lv_deadline_urgency_filter <> 'n/a'.
+      raise_error( iv_message = 'Audit deadline urgency filter is invalid' ).
     ENDIF.
     IF iv_min_shelf_life < 0.
       raise_error( iv_message = 'Audit minimum shelf-life filter is invalid' ).
@@ -2359,6 +2494,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
             OR iv_deadline_to IS NOT INITIAL
             OR iv_deadline_age_from IS NOT INITIAL
             OR iv_deadline_age_to IS NOT INITIAL
+            OR iv_deadline_urgency IS NOT INITIAL
             OR iv_sort_by_deadline_age = abap_true ).
         DELETE rt_runs.
         CONTINUE.
@@ -2439,6 +2575,26 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
                 AND lv_deadline_age_days > iv_deadline_age_to ).
             DELETE rt_runs.
           ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    IF lv_deadline_urgency_filter IS NOT INITIAL.
+      LOOP AT rt_runs ASSIGNING <ls_run>.
+        IF <ls_run>-requested_deadline IS INITIAL.
+          lv_deadline_urgency = 'n/a'.
+        ELSE.
+          lv_deadline_age_days = lv_deadline_age_date
+            - <ls_run>-requested_deadline.
+          IF lv_deadline_age_days > 0.
+            lv_deadline_urgency = 'overdue'.
+          ELSEIF lv_deadline_age_days = 0.
+            lv_deadline_urgency = 'current_day'.
+          ELSE.
+            lv_deadline_urgency = 'future'.
+          ENDIF.
+        ENDIF.
+        IF lv_deadline_urgency <> lv_deadline_urgency_filter.
+          DELETE rt_runs.
         ENDIF.
       ENDLOOP.
     ENDIF.

@@ -10,6 +10,8 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS previews_with_safety_stock FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS previews_with_recon FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_shortage_limit FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_shortage_pct_limit FOR TESTING
@@ -338,6 +340,32 @@ CLASS lcl_overflow_sink IMPLEMENTATION.
                     allocated                 = '600000000000'
                     allocation_status         = 'F'
                     reservation_id            = '0000000002'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'BOX' ) TO rt_demands.
+  ENDMETHOD.
+
+  METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_preview_reconcile_sink DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_sink.
+ENDCLASS.
+
+CLASS lcl_preview_reconcile_sink IMPLEMENTATION.
+  METHOD zif_allocation_sink~get_allocations.
+    APPEND VALUE #( allocation_run_id         = 'OLD-PREVIEW-RECON'
+                    allocation_unit           = 'BOX'
+                    order_id                  = 'OLD-PREVIEW-RECON-01'
+                    priority                  = 0
+                    requested_on              = sy-datum
+                    requested                 = 2
+                    allocated                 = 2
+                    shortage                  = 0
+                    allocation_status         = 'F'
+                    reservation_id            = '0000000101'
                     reservation_date          = sy-datum
                     reservation_movement_type = '201'
                     reservation_unit          = 'BOX' ) TO rt_demands.
@@ -2189,6 +2217,68 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_safety_stock
       exp = '1' ).
+  ENDMETHOD.
+
+  METHOD previews_with_recon.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_unit_converter TYPE REF TO zif_unit_conversion.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_available TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_existing_count TYPE i.
+    DATA lv_existing_cross_unit_qty TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
+    CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
+    CREATE OBJECT lo_sink TYPE lcl_preview_reconcile_sink.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_unit_converter TYPE lcl_overflow_unit_converter.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source   = lo_stock_source
+        io_order_source   = lo_order_source
+        io_sink           = lo_sink
+        io_allocator      = lo_allocator
+        io_unit_converter = lo_unit_converter
+        io_audit          = lo_audit.
+
+    lv_remaining = lo_cut->allocate(
+      EXPORTING
+        iv_material                  = 'MATERIAL-PRIO'
+        iv_plant                     = '1000'
+        iv_storage_location          = '0001'
+        iv_movement_type             = '201'
+        iv_unit                      = 'EA'
+        iv_preview                   = abap_true
+        iv_reconcile_existing        = abap_true
+      IMPORTING
+        ev_run_id                    = lv_run_id
+        ev_existing_allocation_count = lv_existing_count
+        ev_existing_cross_unit_qty   = lv_existing_cross_unit_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining
+      exp = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_existing_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_existing_cross_unit_qty
+      exp = '2' ).
+    SELECT SINGLE available
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id INTO @lv_available.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_available
+      exp = '4' ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
   ENDMETHOD.
 
   METHOD rejects_shortage_limit.

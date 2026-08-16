@@ -334,6 +334,45 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     INSERT zstockalloc FROM @ls_allocation.
 
     lt_demands = lo_cut->get_allocations(
+      iv_material             = 'MATERIAL-FILTER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_run_deadline_urgency = 'OVERDUE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-U' ).
+
+    lt_demands = lo_cut->get_allocations(
+      iv_material             = 'MATERIAL-FILTER'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_run_deadline_urgency = 'N/A' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-allocation_run_id
+      exp = 'RUN-FILTER-F' ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->get_allocations(
+          iv_material             = 'MATERIAL-FILTER'
+          iv_plant                = '1000'
+          iv_storage_location     = '0001'
+          iv_run_deadline_urgency = 'unknown' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_urgency_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_urgency_error->message
+          exp = 'Allocation result deadline urgency filter is invalid' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    lt_demands = lo_cut->get_allocations(
       iv_material         = 'MATERIAL-FILTER'
       iv_plant            = '1000'
       iv_storage_location = '0001'
@@ -344,6 +383,12 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-allocation_run_id
       exp = 'RUN-FILTER-U' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-requested_deadline
+      exp = lv_overdue_date ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-preview
+      exp = abap_true ).
 
     lt_demands = lo_cut->get_allocations(
       iv_material         = 'MATERIAL-FILTER'
@@ -356,6 +401,9 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demands[ 1 ]-allocation_run_id
       exp = 'RUN-FILTER-F' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demands[ 1 ]-preview
+      exp = abap_false ).
 
     CLEAR lv_raised.
     TRY.

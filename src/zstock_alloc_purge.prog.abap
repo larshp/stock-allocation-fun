@@ -21,6 +21,7 @@ PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_tfrom TYPE i.
 PARAMETERS p_tto TYPE i.
 PARAMETERS p_ovrd AS CHECKBOX.
@@ -36,6 +37,7 @@ PARAMETERS p_date TYPE d OBLIGATORY.
 PARAMETERS p_exec AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
 PARAMETERS p_csv AS CHECKBOX.
+PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 
 START-OF-SELECTION.
@@ -61,6 +63,8 @@ START-OF-SELECTION.
   DATA lv_csv_schema TYPE i.
   DATA lv_error_message TYPE string.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_scope_fields TYPE zcl_stock_json=>tt_strings.
   DATA lv_csv_line TYPE string.
   DATA lv_csv_field TYPE c LENGTH 1024.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
@@ -83,6 +87,8 @@ START-OF-SELECTION.
   DATA lv_deadline_age_from_filter TYPE string.
   DATA lv_deadline_age_to_filter TYPE string.
   DATA lv_deadline_age_date_filter TYPE c LENGTH 10.
+  DATA lv_deadline_urgency_input TYPE string.
+  DATA lv_deadline_urgency_filter TYPE string.
   DATA lv_start_date_from_filter TYPE c LENGTH 10.
   DATA lv_start_date_to_filter TYPE c LENGTH 10.
   DATA lv_finish_date_from_filter TYPE c LENGTH 10.
@@ -95,11 +101,17 @@ START-OF-SELECTION.
   DATA lt_filter_value_fields TYPE zcl_stock_json=>tt_strings.
 
   IF p_exec = abap_true.
-    lv_json_schema = 28.
-    lv_csv_schema = 26.
+    lv_json_schema = 31.
+    lv_csv_schema = 27.
   ELSE.
-    lv_json_schema = 27.
-    lv_csv_schema = 25.
+    lv_json_schema = 30.
+    lv_csv_schema = 26.
+  ENDIF.
+
+  lv_deadline_urgency_input = to_lower( p_durg ).
+  lv_deadline_urgency_filter = lv_deadline_urgency_input.
+  IF lv_deadline_urgency_filter IS INITIAL.
+    lv_deadline_urgency_filter = 'n/a'.
   ENDIF.
 
   lv_movement_filter = p_mvt.
@@ -287,6 +299,10 @@ START-OF-SELECTION.
     lv_filters_applied = abap_true.
     APPEND 'deadline_age_range' TO lt_filter_names.
   ENDIF.
+  IF p_durg IS NOT INITIAL.
+    lv_filters_applied = abap_true.
+    APPEND 'deadline_urgency' TO lt_filter_names.
+  ENDIF.
   IF p_ovrd = abap_true.
     lv_filters_applied = abap_true.
     APPEND 'overdue_only' TO lt_filter_names.
@@ -385,6 +401,9 @@ START-OF-SELECTION.
   APPEND zcl_stock_json=>property(
     iv_name  = 'deadline_age_as_of'
     iv_value = lv_deadline_age_date_filter ) TO lt_filter_value_fields.
+  APPEND zcl_stock_json=>property(
+    iv_name  = 'deadline_urgency_filter'
+    iv_value = lv_deadline_urgency_filter ) TO lt_filter_value_fields.
   APPEND zcl_stock_json=>boolean_property(
     iv_name  = 'overdue_only'
     iv_value = p_ovrd ) TO lt_filter_value_fields.
@@ -709,6 +728,50 @@ START-OF-SELECTION.
     WRITE: / 'No rows deleted. A deadline age as-of date requires a deadline age range.'.
     RETURN.
   ENDIF.
+  IF p_meta = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
+        iv_message = 'Metadata output requires JSON mode.' ).
+      RETURN.
+    ENDIF.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Metadata output requires JSON mode.'
+      iv_schema  = lv_json_schema ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_typed = abap_true.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'Select either typed JSON or metadata output.'
+      iv_schema  = lv_json_schema ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF lv_deadline_urgency_input IS NOT INITIAL
+      AND lv_deadline_urgency_input <> 'overdue'
+      AND lv_deadline_urgency_input <> 'current_day'
+      AND lv_deadline_urgency_input <> 'future'
+      AND lv_deadline_urgency_input <> 'n/a'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = 'Deadline urgency filter is invalid'
+        iv_schema  = lv_json_schema ).
+      RETURN.
+    ENDIF.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_purge'
+        iv_schema  = lv_csv_schema
+        iv_message = 'Deadline urgency filter is invalid' ).
+      RETURN.
+    ENDIF.
+    WRITE: / 'No rows deleted. Deadline urgency filter is invalid.'.
+    RETURN.
+  ENDIF.
   IF p_ffrom IS NOT INITIAL AND p_fto IS NOT INITIAL
       AND p_ffrom > p_fto.
     IF p_json = abap_true.
@@ -840,6 +903,7 @@ START-OF-SELECTION.
           iv_deadline_age_from = p_dagef
           iv_deadline_age_to   = p_daget
           iv_deadline_age_date = p_daged
+          iv_deadline_urgency  = lv_deadline_urgency_input
           iv_overdue_only      = p_ovrd
           iv_overdue_date      = p_odate
           iv_requested_on_from = p_reqf
@@ -894,7 +958,7 @@ START-OF-SELECTION.
       IF p_typed = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 27 ) TO lt_json_fields.
+          iv_value = 30 ) TO lt_json_fields.
         APPEND zcl_stock_json=>boolean_property(
           iv_name  = 'typed'
           iv_value = abap_true ) TO lt_json_fields.
@@ -908,7 +972,7 @@ START-OF-SELECTION.
       IF p_typed = abap_false.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'schema_version'
-          iv_value = 27 ) TO lt_json_fields.
+          iv_value = 30 ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'generated_date'
           iv_value = sy-datum ) TO lt_json_fields.
@@ -1008,6 +1072,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'deadline_age_date_filter'
         iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency_filter'
+        iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'overdue_only'
         iv_value = p_ovrd ) TO lt_json_fields.
@@ -1107,6 +1174,59 @@ START-OF-SELECTION.
           iv_name  = 'capped_audit_runs'
           iv_value = ls_preview-capped_count ) TO lt_json_fields.
       ENDIF.
+      IF p_meta = abap_true.
+        lt_summary_fields = lt_json_fields.
+        CLEAR lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'material'
+          iv_value = p_matnr ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'plant'
+          iv_value = p_werks ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'storage_location'
+          iv_value = p_lgort ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'batch'
+          iv_value = p_charg ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'run_id_filter'
+          iv_value = lv_run_filter ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'unit'
+          iv_value = p_meins ) TO lt_scope_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'before_date'
+          iv_value = p_date ) TO lt_scope_fields.
+        CLEAR lt_json_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'schema_version'
+          iv_value = lv_json_schema ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'mode'
+          iv_value = 'preview' ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'generated_date'
+          iv_value = sy-datum ) TO lt_json_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'generated_time'
+          iv_value = sy-uzeit ) TO lt_json_fields.
+        APPEND zcl_stock_json=>boolean_property(
+          iv_name  = 'filters_applied'
+          iv_value = lv_filters_applied ) TO lt_json_fields.
+        APPEND zcl_stock_json=>string_array_property(
+          iv_name   = 'filters'
+          it_values = lt_filter_names ) TO lt_json_fields.
+        APPEND zcl_stock_json=>object_property(
+          iv_name   = 'filter_values'
+          it_fields = lt_filter_value_fields ) TO lt_json_fields.
+        APPEND zcl_stock_json=>object_property(
+          iv_name   = 'scope'
+          it_fields = lt_scope_fields ) TO lt_json_fields.
+        APPEND zcl_stock_json=>object_property(
+          iv_name   = 'summary'
+          it_fields = lt_summary_fields ) TO lt_json_fields.
+      ENDIF.
       CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
       CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
       WRITE: / lv_json_line.
@@ -1117,7 +1237,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( 'preview' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( 25 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 26 ) TO lt_csv_fields.
       IF lv_filters_applied = abap_true.
         APPEND 'true' TO lt_csv_fields.
       ELSE.
@@ -1146,6 +1266,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_deadline_urgency_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
@@ -1178,6 +1299,7 @@ START-OF-SELECTION.
         && 'legacy_strategy_filter;message_filter;message_only;unit;'
         && 'requested_deadline_only;requested_deadline_from_filter;requested_deadline_to_filter;'
         && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
+        && 'deadline_urgency_filter;'
         && 'overdue_only;requested_overdue_as_of;requested_on_from_filter;'
         && 'requested_on_to_filter;start_date_from_filter;start_date_to_filter;'
         && 'finish_date_from_filter;'
@@ -1207,6 +1329,7 @@ START-OF-SELECTION.
            / 'Deadline age from:', lv_deadline_age_from_filter,
            / 'Deadline age to:', lv_deadline_age_to_filter,
            / 'Deadline age as-of date:', lv_deadline_age_date_filter,
+           / 'Deadline urgency filter:', lv_deadline_urgency_filter,
            / 'Overdue-only filter:', p_ovrd,
            / 'Overdue as-of date:', lv_overdue_as_of_filter,
            / 'Requested horizon from:', lv_requested_from_filter,
@@ -1255,6 +1378,7 @@ START-OF-SELECTION.
           iv_deadline_age_from = p_dagef
           iv_deadline_age_to   = p_daget
           iv_deadline_age_date = p_daged
+          iv_deadline_urgency  = lv_deadline_urgency_input
           iv_overdue_only      = p_ovrd
           iv_overdue_date      = p_odate
           iv_requested_on_from = p_reqf
@@ -1319,7 +1443,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 28 ) TO lt_json_fields.
+        iv_value = 31 ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -1333,7 +1457,7 @@ START-OF-SELECTION.
     IF p_typed = abap_false.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 28 ) TO lt_json_fields.
+        iv_value = 31 ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'generated_date'
         iv_value = sy-datum ) TO lt_json_fields.
@@ -1433,6 +1557,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'deadline_age_date_filter'
       iv_value = lv_deadline_age_date_filter ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'deadline_urgency_filter'
+      iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'overdue_only'
       iv_value = p_ovrd ) TO lt_json_fields.
@@ -1532,6 +1659,59 @@ START-OF-SELECTION.
         iv_name  = 'capped_audit_runs'
         iv_value = lv_capped_runs ) TO lt_json_fields.
     ENDIF.
+    IF p_meta = abap_true.
+      lt_summary_fields = lt_json_fields.
+      CLEAR lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'material'
+        iv_value = p_matnr ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'storage_location'
+        iv_value = p_lgort ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'batch'
+        iv_value = p_charg ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'run_id_filter'
+        iv_value = lv_run_filter ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = p_meins ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'before_date'
+        iv_value = p_date ) TO lt_scope_fields.
+      CLEAR lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = lv_json_schema ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'mode'
+        iv_value = 'execute' ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_date'
+        iv_value = sy-datum ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_time'
+        iv_value = sy-uzeit ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'filters_applied'
+        iv_value = lv_filters_applied ) TO lt_json_fields.
+      APPEND zcl_stock_json=>string_array_property(
+        iv_name   = 'filters'
+        it_values = lt_filter_names ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'filter_values'
+        it_fields = lt_filter_value_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'scope'
+        it_fields = lt_scope_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'summary'
+        it_fields = lt_summary_fields ) TO lt_json_fields.
+    ENDIF.
     CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
     CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
     WRITE: / lv_json_line.
@@ -1543,7 +1723,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'execute' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 26 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 27 ) TO lt_csv_fields.
     IF lv_filters_applied = abap_true.
       APPEND 'true' TO lt_csv_fields.
     ELSE.
@@ -1572,6 +1752,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_deadline_age_from_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_deadline_age_to_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_deadline_age_date_filter ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_deadline_urgency_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_ovrd ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_overdue_as_of_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_requested_from_filter ) TO lt_csv_fields.
@@ -1604,6 +1785,7 @@ START-OF-SELECTION.
       && 'legacy_strategy_filter;message_filter;message_only;unit;'
       && 'requested_deadline_only;requested_deadline_from_filter;requested_deadline_to_filter;'
       && 'deadline_age_from_filter;deadline_age_to_filter;deadline_age_date_filter;'
+      && 'deadline_urgency_filter;'
       && 'overdue_only;requested_overdue_as_of;requested_on_from_filter;'
       && 'requested_on_to_filter;start_date_from_filter;start_date_to_filter;'
       && 'finish_date_from_filter;'
@@ -1635,6 +1817,7 @@ START-OF-SELECTION.
          / 'Deadline age from:', lv_deadline_age_from_filter,
          / 'Deadline age to:', lv_deadline_age_to_filter,
          / 'Deadline age as-of date:', lv_deadline_age_date_filter,
+         / 'Deadline urgency filter:', lv_deadline_urgency_filter,
          / 'Overdue-only filter:', p_ovrd,
          / 'Overdue as-of date:', lv_overdue_as_of_filter,
          / 'Requested horizon from:', lv_requested_from_filter,

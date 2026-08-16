@@ -126,6 +126,56 @@ assert.equal(
   0,
   `comparison schema ${schema - 1} markers must be retired`,
 );
+assert.match(
+  source,
+  /lt_summary_json_fields[\s\S]*old_deadline_age_days[\s\S]*new_deadline_age_days[\s\S]*old_deadline_urgency[\s\S]*new_deadline_urgency[\s\S]*deadline_age_delta_days/,
+  "comparison contextual summaries must expose old/new run deadline age and urgency telemetry",
+);
+assert.match(
+  source,
+  /deadline_age_delta_days[\s\S]*deadline_urgency_transition/,
+  "comparison outputs must expose the derived deadline urgency transition",
+);
+assert.match(
+  source,
+  /lv_deadline_age_delta_days > 0[\s\S]*'more_urgent'[\s\S]*lv_deadline_age_delta_days < 0[\s\S]*'less_urgent'[\s\S]*'unchanged'/,
+  "comparison deadline urgency transitions must classify age deltas",
+);
+assert.match(
+  source,
+  /PARAMETERS\s+p_dtr\s+TYPE\s+c\s+LENGTH\s+12/i,
+  "comparison must expose the deadline urgency transition filter",
+);
+assert.match(
+  source,
+  /PARAMETERS\s+p_durg\s+TYPE\s+c\s+LENGTH\s+11/i,
+  "comparison must expose the common deadline urgency filter",
+);
+assert.match(
+  source,
+  /PARAMETERS\s+p_odurg\s+TYPE\s+c\s+LENGTH\s+11/i,
+  "comparison must expose the old deadline urgency filter",
+);
+assert.match(
+  source,
+  /PARAMETERS\s+p_ndurg\s+TYPE\s+c\s+LENGTH\s+11/i,
+  "comparison must expose the new deadline urgency filter",
+);
+assert.match(
+  source,
+  /iv_run_deadline_urgency\s*=\s*lv_old_deadline_urgency_input[\s\S]*iv_run_deadline_urgency\s*=\s*lv_new_deadline_urgency_input/,
+  "comparison must propagate old/new deadline urgency filters to snapshot reads",
+);
+assert.match(
+  source,
+  /iv_deadline_urgency\s*=\s*lv_old_deadline_urgency_input[\s\S]*iv_deadline_urgency\s*=\s*lv_new_deadline_urgency_input/,
+  "comparison must propagate old/new deadline urgency filters to audit reads",
+);
+assert.match(
+  source,
+  /Common and side-specific deadline urgency filters cannot be combined/,
+  "comparison must reject common and side-specific deadline urgency combinations",
+);
 
 for (const requiredParameter of [
   "P_OMATNR",
@@ -154,6 +204,7 @@ for (const requiredParameter of [
   "P_RAGETO",
   "P_ORAGTO",
   "P_NRAGTO",
+  "P_DTR",
   "P_AFROM",
   "P_ATO",
   "P_FFROM",
@@ -315,6 +366,7 @@ for (const requiredParameter of ["P_TFROM", "P_TTO", "P_TO"]) {
 }
 assert.ok(purgeParameters.includes("P_PREV"), "purge report missing P_PREV");
 assert.ok(purgeParameters.includes("P_MAX"), "purge report missing P_MAX");
+assert.ok(purgeParameters.includes("P_DURG"), "purge report missing P_DURG");
 assert.match(purgeSource, /TRANSLATE\s+p_prev\s+TO\s+UPPER\s+CASE\./);
 assert.match(purgeSource, /iv_preview_filter\s*=\s*p_prev/);
 assert.match(purgeSource, /iv_max_runs\s*=\s*p_max/);
@@ -322,6 +374,9 @@ assert.match(purgeSource, /iv_start_date_to\s*=\s*p_to/);
 assert.match(purgeSource, /start_date_to_filter/);
 assert.match(purgeSource, /preview_filter/);
 assert.match(purgeSource, /max_runs_filter/);
+assert.match(purgeSource, /deadline_urgency_filter/);
+assert.match(purgeSource, /iv_deadline_urgency\s*=\s*lv_deadline_urgency_input/);
+assert.match(auditSapSource, /Audit deadline urgency filter is invalid/);
 assert.match(purgeSource, /Preview filter must be P or O/);
 assert.match(purgeSource, /Maximum purge runs must not be negative/);
 assert.match(auditInterfaceSource, /iv_preview_filter\s+TYPE ty_preview_filter OPTIONAL/);
@@ -343,33 +398,33 @@ for (const purgeContractText of [
   );
 }
 assert.equal(
-  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 25 \)/g) ?? []).length,
-  1,
-  "purge preview CSV schema must be 25",
-);
-assert.equal(
   (purgeSource.match(/APPEND zcl_stock_csv=>number\( 26 \)/g) ?? []).length,
   1,
-  "purge execution CSV schema must be 26",
+  "purge preview CSV schema must be 26",
 );
 assert.equal(
-  (purgeSource.match(/iv_value = 27 \) TO lt_json_fields/g) ?? []).length,
-  2,
-  "purge preview JSON schema must be 27 in typed and untyped modes",
+  (purgeSource.match(/APPEND zcl_stock_csv=>number\( 27 \)/g) ?? []).length,
+  1,
+  "purge execution CSV schema must be 27",
 );
 assert.equal(
-  (purgeSource.match(/iv_value = 28 \) TO lt_json_fields/g) ?? []).length,
+  (purgeSource.match(/iv_value = 30 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "purge execution JSON schema must be 28 in typed and untyped modes",
+  "purge preview JSON schema must be 30 in typed and untyped modes",
+);
+assert.equal(
+  (purgeSource.match(/iv_value = 31 \) TO lt_json_fields/g) ?? []).length,
+  2,
+  "purge execution JSON schema must be 31 in typed and untyped modes",
 );
 assert.match(
   readme,
-  /Preview JSON uses schema version `27`, and execution JSON uses schema version `28`/,
+  /Preview JSON uses schema version `30`, and execution JSON uses schema version `31`/,
   "README must document current purge JSON schemas",
 );
 assert.match(
   readme,
-  /numeric `schema_version` `25` for preview or `26` for execution/,
+  /numeric `schema_version` `26` for preview or `27` for execution/,
   "README must document current purge CSV schemas",
 );
 for (const reservationContractText of [
@@ -489,24 +544,44 @@ assert.match(
   "result report must reject reversed reservation-age bounds",
 );
 assert.equal(
-  (resultSource.match(/APPEND zcl_stock_csv=>number\( 46 \)/g) ?? []).length,
+  (resultSource.match(/APPEND zcl_stock_csv=>number\( 53 \)/g) ?? []).length,
   1,
-  "result summary CSV schema must be 46",
+  "result summary CSV schema must be 53",
 );
 assert.equal(
-  (resultSource.match(/APPEND zcl_stock_csv=>number\( 40 \)/g) ?? []).length,
+  (resultSource.match(/APPEND zcl_stock_csv=>number\( 43 \)/g) ?? []).length,
   1,
-  "result detail CSV schema must be 40",
+  "result detail CSV schema must be 43",
 );
 assert.equal(
-  (resultSource.match(/iv_value = 46 \) TO lt_json_fields/g) ?? []).length,
+  (resultSource.match(/iv_value = 53 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "result summary JSON schemas must be 46",
+  "result summary JSON schemas must be 53",
+);
+assert.match(
+  resultSource,
+  /deadline_lines|deadline_mix_pct/,
+  "result summaries must expose deadline-bearing line composition",
+);
+assert.match(
+  resultSource,
+  /overdue_lines|current_deadline_lines|future_deadline_lines/,
+  "result summaries must expose deadline urgency composition",
+);
+assert.match(
+  resultSource,
+  /requested_deadline\s*<\s*lv_deadline_reference_date[\s\S]*current_deadline_lines[\s\S]*future_deadline_lines/,
+  "result summaries must classify deadline urgency against the reported reference date",
+);
+assert.match(
+  resultSource,
+  /lv_overdue_mix_pct\s*=\s*lv_overdue_lines\s*\*\s*100\s*\/\s*lines\( lt_demands \)/,
+  "result overdue mix percentage must be zero-safe against returned lines",
 );
 assert.equal(
-  (resultSource.match(/iv_value = 40 \) TO lt_json_fields/g) ?? []).length,
+  (resultSource.match(/iv_value = 43 \) TO lt_json_fields/g) ?? []).length,
   2,
-  "result detail JSON schemas must be 40",
+  "result detail JSON schemas must be 43",
 );
 
 assert.doesNotMatch(

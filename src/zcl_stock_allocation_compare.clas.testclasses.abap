@@ -4,6 +4,8 @@ CLASS ltcl_stock_allocation_compare DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS classifies_snapshot_changes FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS zero_status_mix_empty FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS filters_by_allocation_status FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS filters_coverage_reason_safely FOR TESTING
@@ -906,9 +908,8 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       order_id          = 'CHANGED'
       priority          = 10
       requested         = 5
-      allocated         = 4
-      shortage          = 1
-      allocation_status = 'P'
+      allocated         = 5
+      allocation_status = 'F'
       reservation_id    = '2000000051' ) TO lt_new.
     APPEND VALUE #(
       allocation_unit   = 'EA'
@@ -947,10 +948,10 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 'C' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-delta_allocated
-      exp = 2 ).
+      exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-delta_shortage
-      exp = -2 ).
+      exp = -3 ).
     cl_abap_unit_assert=>assert_true(
       lt_changes[ order_id = 'CHANGED' ]-old_coverage_available ).
     cl_abap_unit_assert=>assert_equals(
@@ -960,7 +961,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       lt_changes[ order_id = 'CHANGED' ]-new_coverage_available ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-new_coverage
-      exp = 80 ).
+      exp = 100 ).
     cl_abap_unit_assert=>assert_true(
       lt_changes[ order_id = 'CHANGED' ]-old_shortage_pct_available ).
     cl_abap_unit_assert=>assert_equals(
@@ -970,17 +971,17 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       lt_changes[ order_id = 'CHANGED' ]-new_shortage_pct_available ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-new_shortage_pct
-      exp = 20 ).
+      exp = 0 ).
     cl_abap_unit_assert=>assert_true(
       lt_changes[ order_id = 'CHANGED' ]-coverage_delta_available ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-coverage_delta
-      exp = 40 ).
+      exp = 60 ).
     cl_abap_unit_assert=>assert_true(
       lt_changes[ order_id = 'CHANGED' ]-shortage_pct_delta_available ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ order_id = 'CHANGED' ]-shortage_pct_delta
-      exp = -40 ).
+      exp = -60 ).
     cl_abap_unit_assert=>assert_false(
       lt_changes[ order_id = 'REMOVED' ]-new_coverage_available ).
     cl_abap_unit_assert=>assert_false(
@@ -1037,11 +1038,29 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       act = ls_summary-unchanged_rows
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-delta_allocated
+      act = ls_summary-status_changed_rows
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-delta_shortage
+      act = ls_summary-status_improved_rows
       exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_regressed_rows
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_changed_mix_pct
+      exp = '33.33' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_improved_mix_pct
+      exp = '33.33' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_regressed_mix_pct
+      exp = '0.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-delta_allocated
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-delta_shortage
+      exp = 0 ).
     cl_abap_unit_assert=>assert_true( ls_summary-old_coverage_available ).
     cl_abap_unit_assert=>assert_true( ls_summary-new_coverage_available ).
     cl_abap_unit_assert=>assert_equals(
@@ -1049,11 +1068,11 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = '50.00' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-new_coverage
-      exp = '50.00' ).
+      exp = '62.50' ).
     cl_abap_unit_assert=>assert_true( ls_summary-coverage_delta_available ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-coverage_delta
-      exp = '0.00' ).
+      exp = '12.50' ).
     cl_abap_unit_assert=>assert_true(
       ls_summary-old_shortage_pct_available ).
     cl_abap_unit_assert=>assert_true(
@@ -1063,12 +1082,12 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = '50.00' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-new_shortage_pct
-      exp = '50.00' ).
+      exp = '37.50' ).
     cl_abap_unit_assert=>assert_true(
       ls_summary-shortage_pct_delta_available ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-shortage_pct_delta
-      exp = '0.00' ).
+      exp = '-12.50' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-unit
       exp = 'EA' ).
@@ -1093,7 +1112,7 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-delta_allocated
-      exp = 2 ).
+      exp = 3 ).
 
     lt_changes = lo_cut->compare(
       EXPORTING
@@ -1134,6 +1153,33 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_changes[ 1 ]-order_id
       exp = 'CHANGED' ).
+  ENDMETHOD.
+
+  METHOD zero_status_mix_empty.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_compare.
+    DATA lt_old TYPE zif_stock_allocation=>tt_demands.
+    DATA lt_new TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_summary TYPE zif_stock_allocation_compare=>ty_summary.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_compare.
+    lo_cut->compare(
+      EXPORTING
+        it_old     = lt_old
+        it_new     = lt_new
+      IMPORTING
+        es_summary = ls_summary ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-total_rows
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_changed_mix_pct
+      exp = '0.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_improved_mix_pct
+      exp = '0.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-status_regressed_mix_pct
+      exp = '0.00' ).
   ENDMETHOD.
 
   METHOD filters_coverage_reason_safely.
@@ -1434,6 +1480,15 @@ CLASS ltcl_stock_allocation_compare IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_reconciliation-snapshot_unallocated_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-snapshot_full_mix_pct
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-snapshot_partial_mix_pct
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reconciliation-snapshot_unallocated_mix_pct
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_reconciliation-snapshot_allocated

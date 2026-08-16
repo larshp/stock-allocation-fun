@@ -41,6 +41,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_overdue_only               TYPE abap_bool OPTIONAL
       iv_overdue_date               TYPE d OPTIONAL
       iv_deadline_only              TYPE abap_bool OPTIONAL
+      iv_run_deadline_urgency       TYPE string OPTIONAL
       iv_run_requested_on_from      TYPE d OPTIONAL
       iv_run_requested_on_to        TYPE d OPTIONAL
       iv_run_deadline_from          TYPE d OPTIONAL

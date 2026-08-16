@@ -118,6 +118,8 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     DATA lv_run_deadline TYPE d.
     DATA lv_run_deadline_age_date TYPE d.
     DATA lv_run_deadline_age_days TYPE i.
+    DATA lv_run_deadline_urgency_filter TYPE string.
+    DATA lv_run_deadline_urgency TYPE string.
     DATA lv_duration_seconds TYPE i.
     DATA lv_status_rank TYPE i.
     DATA lv_limit_start TYPE i.
@@ -161,6 +163,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     IF iv_run_deadline_age_date IS NOT INITIAL.
       lv_run_deadline_age_date = iv_run_deadline_age_date.
     ENDIF.
+    lv_run_deadline_urgency_filter = to_lower( iv_run_deadline_urgency ).
     validate_date(
       iv_date    = iv_overdue_date
       iv_message = 'Allocation result overdue date is invalid' ).
@@ -312,9 +315,18 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ENDIF.
     IF iv_run_deadline_age_date IS NOT INITIAL
         AND iv_run_deadline_age_from IS INITIAL
-        AND iv_run_deadline_age_to IS INITIAL.
+        AND iv_run_deadline_age_to IS INITIAL
+        AND iv_run_deadline_urgency IS INITIAL.
       raise_error(
         iv_message = 'Allocation result deadline age date requires an age range' ).
+    ENDIF.
+    IF lv_run_deadline_urgency_filter IS NOT INITIAL
+        AND lv_run_deadline_urgency_filter <> 'overdue'
+        AND lv_run_deadline_urgency_filter <> 'current_day'
+        AND lv_run_deadline_urgency_filter <> 'future'
+        AND lv_run_deadline_urgency_filter <> 'n/a'.
+      raise_error(
+        iv_message = 'Allocation result deadline urgency filter is invalid' ).
     ENDIF.
     IF iv_reservation_date_from IS NOT INITIAL
         AND iv_reservation_date_to IS NOT INITIAL
@@ -669,6 +681,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
              raise_error(
                iv_message = 'Allocation result audit run is invalid' ).
            ENDIF.
+           <ls_demand>-preview = <ls_strategy_run>-preview.
            IF iv_run_message_contains IS NOT INITIAL
                AND to_upper( <ls_strategy_run>-message )
                  NS to_upper( iv_run_message_contains ).
@@ -758,7 +771,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
                 AND ( <ls_strategy_run>-finish_date IS INITIAL
                   OR <ls_strategy_run>-finish_date < iv_run_finish_date_from ) )
               OR ( iv_run_finish_date_to IS NOT INITIAL
-                AND ( <ls_strategy_run>-finish_date IS INITIAL
+              AND ( <ls_strategy_run>-finish_date IS INITIAL
                   OR <ls_strategy_run>-finish_date > iv_run_finish_date_to ) ).
             DELETE rt_demands.
           ELSE.
@@ -767,7 +780,24 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
             ELSE.
               lv_run_deadline = <ls_strategy_run>-requested_on_to.
             ENDIF.
-            IF ( iv_run_deadline_from IS NOT INITIAL
+            IF lv_run_deadline_urgency_filter IS NOT INITIAL.
+              IF lv_run_deadline IS INITIAL.
+                lv_run_deadline_urgency = 'n/a'.
+              ELSE.
+                lv_run_deadline_age_days = lv_run_deadline_age_date
+                  - lv_run_deadline.
+                IF lv_run_deadline_age_days > 0.
+                  lv_run_deadline_urgency = 'overdue'.
+                ELSEIF lv_run_deadline_age_days = 0.
+                  lv_run_deadline_urgency = 'current_day'.
+                ELSE.
+                  lv_run_deadline_urgency = 'future'.
+                ENDIF.
+              ENDIF.
+              IF lv_run_deadline_urgency <> lv_run_deadline_urgency_filter.
+                DELETE rt_demands.
+              ENDIF.
+            ELSEIF ( iv_run_deadline_from IS NOT INITIAL
                   AND ( lv_run_deadline IS INITIAL
                     OR lv_run_deadline < iv_run_deadline_from ) )
                 OR ( iv_run_deadline_to IS NOT INITIAL
@@ -1152,6 +1182,19 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       SORT rt_demands BY allocation_unit order_id.
     ENDIF.
     LOOP AT rt_demands ASSIGNING <ls_demand>.
+      CLEAR lv_run_deadline.
+      READ TABLE lt_strategy_runs ASSIGNING <ls_strategy_run>
+        WITH TABLE KEY run_id = <ls_demand>-allocation_run_id.
+      IF sy-subrc = 0.
+        IF <ls_strategy_run>-requested_on_to IS INITIAL.
+          lv_run_deadline = <ls_strategy_run>-requested_on_from.
+        ELSE.
+          lv_run_deadline = <ls_strategy_run>-requested_on_to.
+        ENDIF.
+        <ls_demand>-requested_deadline = lv_run_deadline.
+      ELSE.
+        CLEAR <ls_demand>-requested_deadline.
+      ENDIF.
       validate_demand(
         is_demand         = <ls_demand>
         iv_require_run_id = abap_true ).

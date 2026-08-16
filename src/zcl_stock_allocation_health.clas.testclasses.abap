@@ -20,6 +20,10 @@ CLASS ltcl_stock_allocation_health DEFINITION FINAL FOR TESTING
     METHODS reports_duration_count FOR TESTING.
     METHODS reports_run_count FOR TESTING.
     METHODS reports_deadline_count FOR TESTING.
+    METHODS reports_deadline_mix_threshold FOR TESTING.
+    METHODS reports_overdue_mix_threshold FOR TESTING.
+    METHODS reports_current_deadline_mix FOR TESTING.
+    METHODS reports_future_deadline_mix FOR TESTING.
     METHODS reports_mixed_policy_warning FOR TESTING.
     METHODS reports_mixed_unit_warning FOR TESTING.
     METHODS reports_avail_context FOR TESTING.
@@ -84,6 +88,12 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
 
     ls_summary-total_runs = 3.
+    ls_summary-preview_runs = 1.
+    ls_summary-operational_runs = 2.
+    ls_summary-deadline_count = 1.
+    ls_summary-deadline_mix_pct = '33.33'.
+    ls_summary-overdue_count = 1.
+    ls_summary-overdue_mix_pct = '33.33'.
     ls_summary-success_runs = 3.
     ls_summary-unit = 'EA'.
     ls_summary-requested = 10.
@@ -105,6 +115,27 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-coverage
       exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-preview_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-operational_runs
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-preview_mix_pct
+      exp = '33.33' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-operational_mix_pct
+      exp = '66.67' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_pct
+      exp = '33.33' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_pct
+      exp = '33.33' ).
   ENDMETHOD.
 
   METHOD reports_policy_context.
@@ -202,6 +233,17 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       exp = 'no_completed_run' ).
     cl_abap_unit_assert=>assert_initial( ls_health-priority_mix_pct ).
     cl_abap_unit_assert=>assert_initial( ls_health-legacy_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_health-preview_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_health-operational_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_health-deadline_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_health-overdue_count ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_health-current_deadline_count ).
+    cl_abap_unit_assert=>assert_initial( ls_health-future_deadline_count ).
+    cl_abap_unit_assert=>assert_initial( ls_health-overdue_mix_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_health-current_deadline_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_health-future_deadline_mix_pct ).
   ENDMETHOD.
 
   METHOD reports_backlog_warning.
@@ -918,6 +960,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-total_runs = 4.
     ls_summary-deadline_count = 1.
+    ls_summary-deadline_mix_pct = '25'.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
       is_summary            = ls_summary
@@ -926,6 +969,9 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_count_threshold_active
       exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_pct
+      exp = '25' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_count_threshold
       exp = 2 ).
@@ -953,6 +999,165 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_count_below_threshold
       exp = abap_false ).
+  ENDMETHOD.
+
+  METHOD reports_deadline_mix_threshold.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 4.
+    ls_summary-deadline_count = 1.
+    ls_summary-deadline_mix_pct = '25'.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary          = ls_summary
+      iv_min_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_threshold_active
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_threshold
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_below_threshold
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breach_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breaches
+      exp = 'deadline_mix' ).
+
+    CLEAR ls_summary.
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary          = ls_summary
+      iv_min_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-deadline_mix_below_threshold
+      exp = abap_false ).
+    cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
+  ENDMETHOD.
+
+  METHOD reports_overdue_mix_threshold.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 4.
+    ls_summary-deadline_count = 4.
+    ls_summary-overdue_count = 3.
+    ls_summary-overdue_mix_pct = '75'.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary         = ls_summary
+      iv_max_overdue_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_threshold_active
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_threshold
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_above_threshold
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breach_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breaches
+      exp = 'overdue_mix' ).
+
+    CLEAR ls_summary.
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary         = ls_summary
+      iv_max_overdue_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_above_threshold
+      exp = abap_false ).
+    cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
+  ENDMETHOD.
+
+  METHOD reports_current_deadline_mix.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 4.
+    ls_summary-deadline_count = 4.
+    ls_summary-current_deadline_count = 3.
+    ls_summary-current_deadline_mix_pct = '75'.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary                  = ls_summary
+      iv_max_current_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_mix_threshold_active
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_mix_threshold
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_mix_above_threshold
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breach_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breaches
+      exp = 'current_deadline_mix' ).
+
+    CLEAR ls_summary.
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary                  = ls_summary
+      iv_max_current_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_mix_above_threshold
+      exp = abap_false ).
+    cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
+  ENDMETHOD.
+
+  METHOD reports_future_deadline_mix.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+    DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
+
+    ls_summary-total_runs = 4.
+    ls_summary-deadline_count = 4.
+    ls_summary-future_deadline_count = 1.
+    ls_summary-future_deadline_mix_pct = '25'.
+
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary                 = ls_summary
+      iv_min_future_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-future_deadline_mix_threshold_active
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-future_deadline_mix_threshold
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-future_deadline_mix_below_threshold
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breach_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-threshold_breaches
+      exp = 'future_deadline_mix' ).
+
+    CLEAR ls_summary.
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary                 = ls_summary
+      iv_min_future_deadline_mix = 50 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-future_deadline_mix_below_threshold
+      exp = abap_false ).
+    cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
   ENDMETHOD.
 
   METHOD reports_mixed_policy_warning.
@@ -2047,11 +2252,20 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-total_runs = 2.
     ls_summary-deadline_count = 2.
+    ls_summary-deadline_mix_pct = 100.
+    ls_summary-overdue_count = 1.
+    ls_summary-current_deadline_count = 1.
+    ls_summary-overdue_mix_pct = 50.
+    ls_summary-current_deadline_mix_pct = 50.
+    ls_summary-last_requested_deadline = '20260808'.
     ls_summary-earliest_requested_deadline = '20260801'.
     ls_summary-latest_requested_deadline = '20260811'.
     ls_summary-last_deadline_age_days = 3.
     ls_summary-oldest_deadline_age_days = 7.
     ls_summary-newest_deadline_age_days = -2.
+    ls_summary-last_deadline_urgency = 'overdue'.
+    ls_summary-oldest_deadline_urgency = 'overdue'.
+    ls_summary-newest_deadline_urgency = 'future'.
     ls_summary-deadline_age_reference_date = '20260811'.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
@@ -2060,6 +2274,18 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_count
       exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-overdue_mix_pct
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-current_deadline_mix_pct
+      exp = 50 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-earliest_requested_deadline
       exp = '20260801' ).
@@ -2070,14 +2296,35 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_deadline_age_days
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_deadline_urgency
+      exp = 'overdue' ).
+    cl_abap_unit_assert=>assert_equals(
       act = ls_health-oldest_deadline_age_days
       exp = 7 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-oldest_deadline_urgency
+      exp = 'overdue' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-newest_deadline_age_days
       exp = -2 ).
     cl_abap_unit_assert=>assert_equals(
+      act = ls_health-newest_deadline_urgency
+      exp = 'future' ).
+    cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_age_reference_date
       exp = '20260811' ).
+    CLEAR ls_summary.
+    ls_health = zcl_stock_allocation_health=>evaluate(
+      is_summary = ls_summary ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_deadline_urgency
+      exp = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-oldest_deadline_urgency
+      exp = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-newest_deadline_urgency
+      exp = 'n/a' ).
   ENDMETHOD.
 
   METHOD reports_low_coverage_warning.
@@ -2256,8 +2503,10 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-total_runs = 1.
     ls_summary-last_run_id = 'RUN-LATEST-AGE'.
+    ls_summary-last_preview = abap_true.
     ls_summary-last_status = 'S'.
     ls_summary-last_completed_run_id = 'RUN-COMPLETED-AGE'.
+    ls_summary-last_completed_preview = abap_true.
     ls_summary-last_completed_finish_date = '20260812'.
     ls_summary-last_completed_finish_time = '120000'.
     ls_summary-last_completed_status = 'S'.
@@ -2275,6 +2524,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_deadline_age_available = abap_true.
     ls_summary-last_completed_deadline_age_reason = 'available'.
     ls_summary-last_completed_deadline_age_days = 3.
+    ls_summary-last_completed_deadline_urgency = 'overdue'.
     ls_summary-last_completed_duration = 45.
     ls_summary-last_completed_requested = 1.
     ls_summary-last_completed_allocated = 1.
@@ -2313,6 +2563,12 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_run_id
       exp = 'RUN-COMPLETED-AGE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_preview
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_completed_preview
+      exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_duration_seconds
       exp = 45 ).
@@ -2355,6 +2611,9 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_deadline_age_days
       exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_health-last_completed_deadline_urgency
+      exp = 'overdue' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_available_stock
       exp = 25 ).

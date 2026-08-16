@@ -58,6 +58,8 @@ INTERFACE zif_allocation_audit PUBLIC.
   TYPES:
     BEGIN OF ty_summary,
       total_runs                            TYPE i,
+      preview_runs                          TYPE i,
+      operational_runs                      TYPE i,
       priority_runs                         TYPE i,
       fifo_runs                             TYPE i,
       full_only_runs                        TYPE i,
@@ -82,6 +84,13 @@ INTERFACE zif_allocation_audit PUBLIC.
       requested                             TYPE zif_stock_allocation=>ty_quantity,
       demand_count                          TYPE i,
       deadline_count                        TYPE i,
+      deadline_mix_pct                      TYPE ty_coverage,
+      overdue_count                         TYPE i,
+      current_deadline_count                TYPE i,
+      future_deadline_count                 TYPE i,
+      overdue_mix_pct                       TYPE ty_coverage,
+      current_deadline_mix_pct              TYPE ty_coverage,
+      future_deadline_mix_pct               TYPE ty_coverage,
       coverage                              TYPE ty_coverage,
       shortage_pct                          TYPE ty_coverage,
       priority_allocated                    TYPE zif_stock_allocation=>ty_quantity,
@@ -129,6 +138,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       partial_count                         TYPE i,
       unallocated_count                     TYPE i,
       last_run_id                           TYPE ty_run_id,
+      last_preview                          TYPE abap_bool,
       last_avail                            TYPE zif_stock_allocation=>ty_quantity,
       last_avail_unit                       TYPE zif_stock_allocation=>ty_unit,
       last_avail_ok                         TYPE abap_bool,
@@ -150,12 +160,16 @@ INTERFACE zif_allocation_audit PUBLIC.
       last_deadline_age_days                TYPE i,
       oldest_deadline_age_days              TYPE i,
       newest_deadline_age_days              TYPE i,
+      last_deadline_urgency                 TYPE string,
+      oldest_deadline_urgency               TYPE string,
+      newest_deadline_urgency               TYPE string,
       deadline_age_reference_date           TYPE d,
       last_strategy                         TYPE ty_strategy,
       last_finish_date                      TYPE d,
       last_finish_time                      TYPE t,
       last_duration_seconds                 TYPE i,
       last_completed_run_id                 TYPE ty_run_id,
+      last_completed_preview                TYPE abap_bool,
       last_completed_start_date             TYPE d,
       last_completed_start_time             TYPE t,
       last_completed_finish_date            TYPE d,
@@ -177,6 +191,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       last_completed_deadline_age_available TYPE abap_bool,
       last_completed_deadline_age_days      TYPE i,
       last_completed_deadline_age_reason    TYPE string,
+      last_completed_deadline_urgency       TYPE string,
       last_completed_avail                  TYPE zif_stock_allocation=>ty_quantity,
       last_completed_avail_unit             TYPE zif_stock_allocation=>ty_unit,
       last_completed_avail_ok               TYPE abap_bool,
@@ -232,6 +247,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_deadline_age_from    TYPE i OPTIONAL
       iv_deadline_age_to      TYPE i OPTIONAL
       iv_deadline_age_date    TYPE d OPTIONAL
+      iv_deadline_urgency     TYPE string OPTIONAL
       iv_run_id               TYPE ty_run_id OPTIONAL
       iv_run_id_contains      TYPE ty_run_id OPTIONAL
       iv_unit                 TYPE zif_stock_allocation=>ty_unit OPTIONAL
@@ -303,6 +319,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_deadline_age_from TYPE i OPTIONAL
       iv_deadline_age_to   TYPE i OPTIONAL
       iv_deadline_age_date TYPE d OPTIONAL
+      iv_deadline_urgency  TYPE string OPTIONAL
       iv_start_date_from   TYPE d OPTIONAL
       iv_start_date_to     TYPE d OPTIONAL
       iv_finish_date_from  TYPE d OPTIONAL
@@ -367,6 +384,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_deadline_age_from TYPE i OPTIONAL
       iv_deadline_age_to   TYPE i OPTIONAL
       iv_deadline_age_date TYPE d OPTIONAL
+      iv_deadline_urgency  TYPE string OPTIONAL
       iv_overdue_only      TYPE abap_bool OPTIONAL
       iv_overdue_date      TYPE d OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL
@@ -415,6 +433,7 @@ INTERFACE zif_allocation_audit PUBLIC.
       iv_deadline_age_from TYPE i OPTIONAL
       iv_deadline_age_to   TYPE i OPTIONAL
       iv_deadline_age_date TYPE d OPTIONAL
+      iv_deadline_urgency  TYPE string OPTIONAL
       iv_overdue_only      TYPE abap_bool OPTIONAL
       iv_overdue_date      TYPE d OPTIONAL
       iv_requested_on_from TYPE d OPTIONAL

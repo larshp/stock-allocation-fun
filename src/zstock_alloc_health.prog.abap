@@ -50,6 +50,7 @@ PARAMETERS p_maxdur TYPE i DEFAULT 0.
 PARAMETERS p_durcnt TYPE i DEFAULT 0.
 PARAMETERS p_runcnt TYPE i DEFAULT 0.
 PARAMETERS p_dcmin TYPE i DEFAULT 0.
+PARAMETERS p_dmmin TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
 PARAMETERS p_pmix AS CHECKBOX.
 PARAMETERS p_umix AS CHECKBOX.
 PARAMETERS p_cmin TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
@@ -78,6 +79,9 @@ PARAMETERS p_cplcnt TYPE i DEFAULT 0.
 PARAMETERS p_cshcnt TYPE i DEFAULT 0.
 PARAMETERS p_lage TYPE i DEFAULT 0.
 PARAMETERS p_cdag TYPE i DEFAULT 0.
+PARAMETERS p_odmax TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
+PARAMETERS p_cdmmax TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
+PARAMETERS p_fdmmin TYPE zif_allocation_audit=>ty_coverage DEFAULT 0.
 PARAMETERS p_cshmax TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_camin TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_crqmin TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
@@ -103,11 +107,13 @@ PARAMETERS p_deadt TYPE d.
 PARAMETERS p_dagef TYPE i.
 PARAMETERS p_daget TYPE i.
 PARAMETERS p_daged TYPE d.
+PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_stale TYPE i DEFAULT 3600.
 PARAMETERS p_age_to TYPE i.
 PARAMETERS p_csv AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
+PARAMETERS p_meta AS CHECKBOX.
 
 START-OF-SELECTION.
   DATA lo_audit TYPE REF TO zif_allocation_audit.
@@ -116,12 +122,18 @@ START-OF-SELECTION.
   DATA ls_stale_summary TYPE zif_allocation_audit=>ty_summary.
   DATA ls_health TYPE zcl_stock_allocation_health=>ty_health.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_scope_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lv_json_line TYPE string.
   DATA lv_csv_line TYPE string.
   DATA lv_error TYPE string.
   DATA lv_overdue_date TYPE d.
   DATA lv_deadline_age_date TYPE d.
+  DATA lv_deadline_urgency_filter TYPE string.
+  DATA lv_deadline_urgency_input TYPE string.
   DATA lv_last_age_available TYPE abap_bool.
   DATA lv_last_age_seconds TYPE i.
   DATA lv_last_age_reason TYPE string.
@@ -136,12 +148,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSE.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ENDIF.
     RETURN.
@@ -151,12 +163,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -168,12 +180,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -185,12 +197,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -202,12 +214,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -219,12 +231,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -236,12 +248,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -253,12 +265,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -270,12 +282,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -287,12 +299,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -304,12 +316,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -321,12 +333,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -339,12 +351,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -356,12 +368,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -373,12 +385,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -390,12 +402,43 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
+        iv_message = lv_error ).
+    ELSE.
+      WRITE: / lv_error.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 130
+        iv_message = 'Metadata output requires JSON mode.' ).
+      RETURN.
+    ENDIF.
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'Metadata output requires JSON mode.'
+      iv_schema  = 130 ).
+    RETURN.
+  ENDIF.
+  IF p_dmmin < 0 OR p_dmmin > 100.
+    lv_error = 'Minimum deadline mix must be between 0 and 100'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 130 ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -407,12 +450,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -424,12 +467,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -441,12 +484,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -458,12 +501,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -475,12 +518,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -492,12 +535,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -509,12 +552,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -526,12 +569,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -543,12 +586,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -560,12 +603,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -577,12 +620,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -594,12 +637,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -611,12 +654,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -628,12 +671,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -645,12 +688,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -662,12 +705,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -679,12 +722,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -696,12 +739,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -713,12 +756,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -730,12 +773,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -747,12 +790,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -764,12 +807,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -781,12 +824,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -798,12 +841,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -815,12 +858,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -832,12 +875,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -849,12 +892,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -866,12 +909,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -883,12 +926,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -900,12 +943,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -917,12 +960,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -934,12 +977,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -951,12 +994,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -968,12 +1011,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -985,12 +1028,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1002,12 +1045,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1019,12 +1062,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1036,12 +1079,63 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
+        iv_message = lv_error ).
+    ELSE.
+      WRITE: / lv_error.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_odmax < 0 OR p_odmax > 100.
+    lv_error = 'Maximum overdue deadline mix must be between 0 and 100'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 130 ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 130
+        iv_message = lv_error ).
+    ELSE.
+      WRITE: / lv_error.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_cdmmax < 0 OR p_cdmmax > 100.
+    lv_error = 'Maximum current-day deadline mix must be between 0 and 100'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 130 ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 130
+        iv_message = lv_error ).
+    ELSE.
+      WRITE: / lv_error.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_fdmmin < 0 OR p_fdmmin > 100.
+    lv_error = 'Minimum future deadline mix must be between 0 and 100'.
+    IF p_json = abap_true.
+      WRITE: / zcl_stock_json=>error_with_schema(
+        iv_message = lv_error
+        iv_schema  = 130 ).
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_health'
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1053,12 +1147,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1070,12 +1164,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1087,12 +1181,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1104,12 +1198,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1121,12 +1215,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1138,12 +1232,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1155,12 +1249,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1172,12 +1266,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1189,12 +1283,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1206,12 +1300,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1223,12 +1317,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1247,12 +1341,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1265,12 +1359,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1283,12 +1377,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1300,6 +1394,12 @@ START-OF-SELECTION.
     IF lv_deadline_age_date IS INITIAL.
       lv_deadline_age_date = sy-datum.
     ENDIF.
+  ENDIF.
+
+  lv_deadline_urgency_input = to_lower( p_durg ).
+  lv_deadline_urgency_filter = lv_deadline_urgency_input.
+  IF lv_deadline_urgency_filter IS INITIAL.
+    lv_deadline_urgency_filter = 'n/a'.
   ENDIF.
 
   TRANSLATE p_mvt TO UPPER CASE.
@@ -1314,12 +1414,12 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = lv_error
-        iv_schema  = 116 ).
+        iv_schema  = 130 ).
     ELSEIF p_csv = abap_true.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_health'
-        iv_schema  = 116
+        iv_schema  = 130
         iv_message = lv_error ).
     ELSE.
       WRITE: / lv_error.
@@ -1380,7 +1480,8 @@ START-OF-SELECTION.
         iv_deadline_to       = p_deadt
         iv_deadline_age_from = p_dagef
         iv_deadline_age_to   = p_daget
-        iv_deadline_age_date = lv_deadline_age_date ).
+        iv_deadline_age_date = lv_deadline_age_date
+        iv_deadline_urgency  = lv_deadline_urgency_input ).
       IF p_stale > 0.
         ls_stale_summary = lo_audit->get_summary(
           iv_material          = p_matnr
@@ -1432,6 +1533,7 @@ START-OF-SELECTION.
           iv_deadline_age_from = p_dagef
           iv_deadline_age_to   = p_daget
           iv_deadline_age_date = lv_deadline_age_date
+          iv_deadline_urgency  = lv_deadline_urgency_input
           iv_stale_seconds     = p_stale ).
       ENDIF.
       CLEAR lv_last_age_seconds.
@@ -1487,6 +1589,7 @@ START-OF-SELECTION.
         iv_min_duration_count                     = p_durcnt
         iv_min_run_count                          = p_runcnt
         iv_min_deadline_count                     = p_dcmin
+        iv_min_deadline_mix                       = p_dmmin
         iv_warn_mixed_policies                    = p_pmix
         iv_warn_mixed_units                       = p_umix
         iv_min_completion_rate                    = p_cmin
@@ -1525,6 +1628,9 @@ START-OF-SELECTION.
         iv_max_last_completed_shortage_line_count = p_cshcnt
         iv_max_last_age                           = p_lage
         iv_max_last_completed_deadline_age        = p_cdag
+        iv_max_overdue_mix                        = p_odmax
+        iv_max_current_deadline_mix               = p_cdmmax
+        iv_min_future_deadline_mix                = p_fdmmin
         iv_min_last_completed_demand_count        = p_cdmin
         iv_max_last_completed_demand_count        = p_cdmax
         iv_min_available_stock                    = p_avmin
@@ -1538,12 +1644,12 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error
-          iv_schema  = 116 ).
+          iv_schema  = 130 ).
       ELSEIF p_csv = abap_true.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_health'
-          iv_schema  = 116
+          iv_schema  = 130
           iv_message = lv_error ).
       ELSE.
         WRITE: / 'Allocation health failed:', lv_error.
@@ -1554,7 +1660,13 @@ START-OF-SELECTION.
   IF p_json = abap_true.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'schema_version'
-      iv_value = 116 ) TO lt_json_fields.
+      iv_value = 130 ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'generated_date'
+      iv_value = sy-datum ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'generated_time'
+      iv_value = sy-uzeit ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'status'
       iv_value = ls_health-status ) TO lt_json_fields.
@@ -1714,9 +1826,33 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'deadline_age_as_of'
       iv_value = lv_deadline_age_date ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'deadline_urgency_filter'
+      iv_value = lv_deadline_urgency_filter ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'deadline_count'
       iv_value = ls_health-deadline_count ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'deadline_mix_pct'
+      iv_value = ls_health-deadline_mix_pct ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'overdue_count'
+      iv_value = ls_health-overdue_count ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'current_deadline_count'
+      iv_value = ls_health-current_deadline_count ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'future_deadline_count'
+      iv_value = ls_health-future_deadline_count ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'overdue_mix_pct'
+      iv_value = ls_health-overdue_mix_pct ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'current_deadline_mix_pct'
+      iv_value = ls_health-current_deadline_mix_pct ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'future_deadline_mix_pct'
+      iv_value = ls_health-future_deadline_mix_pct ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'last_requested_on_from'
       iv_value = ls_health-last_requested_on_from ) TO lt_json_fields.
@@ -1735,12 +1871,21 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_deadline_age_days'
       iv_value = ls_health-last_deadline_age_days ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'last_deadline_urgency'
+      iv_value = ls_health-last_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'oldest_deadline_age_days'
       iv_value = ls_health-oldest_deadline_age_days ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'oldest_deadline_urgency'
+      iv_value = ls_health-oldest_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'newest_deadline_age_days'
       iv_value = ls_health-newest_deadline_age_days ) TO lt_json_fields.
+    APPEND zcl_stock_json=>property(
+      iv_name  = 'newest_deadline_urgency'
+      iv_value = ls_health-newest_deadline_urgency ) TO lt_json_fields.
     APPEND zcl_stock_json=>property(
       iv_name  = 'deadline_age_reference_date'
       iv_value = ls_health-deadline_age_reference_date ) TO lt_json_fields.
@@ -1786,6 +1931,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'minimum_deadline_count'
       iv_value = p_dcmin ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'minimum_deadline_mix'
+      iv_value = p_dmmin ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'warn_mixed_policies'
       iv_value = p_pmix ) TO lt_json_fields.
@@ -1901,6 +2049,15 @@ START-OF-SELECTION.
       iv_name  = 'maximum_last_completed_deadline_age'
       iv_value = p_cdag ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
+      iv_name  = 'maximum_overdue_deadline_mix'
+      iv_value = p_odmax ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'maximum_current_day_deadline_mix'
+      iv_value = p_cdmmax ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'minimum_future_deadline_mix'
+      iv_value = p_fdmmin ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
       iv_name  = 'maximum_last_completed_demand_count'
       iv_value = p_cdmax ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
@@ -1915,6 +2072,18 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'total_runs'
       iv_value = ls_health-total_runs ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'preview_runs'
+      iv_value = ls_health-preview_runs ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'operational_runs'
+      iv_value = ls_health-operational_runs ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'preview_mix_pct'
+      iv_value = ls_health-preview_mix_pct ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'operational_mix_pct'
+      iv_value = ls_health-operational_mix_pct ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'success_runs'
       iv_value = ls_health-success_runs ) TO lt_json_fields.
@@ -2361,6 +2530,9 @@ START-OF-SELECTION.
         iv_name  = 'last_run_id'
         iv_value = ls_health-last_run_id ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'last_preview'
+        iv_value = ls_health-last_preview ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_available_stock_available'
         iv_value = ls_health-last_available_stock_available ) TO lt_json_fields.
       IF ls_health-last_available_stock_available = abap_true.
@@ -2537,6 +2709,7 @@ START-OF-SELECTION.
         iv_name  = 'last_age_reference_time'
         iv_value = ls_health-last_age_reference_time ) TO lt_json_fields.
       APPEND zcl_stock_json=>null_property( iv_name = 'last_run_message' ) TO lt_json_fields.
+      APPEND zcl_stock_json=>null_property( iv_name = 'last_preview' ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_run_available'
@@ -2545,6 +2718,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_run_id'
         iv_value = ls_health-last_completed_run_id ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'last_completed_preview'
+        iv_value = ls_health-last_completed_preview ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_status'
         iv_value = ls_health-last_completed_status ) TO lt_json_fields.
@@ -2631,6 +2807,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_age_reason'
         iv_value = ls_health-last_completed_deadline_age_reason ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'last_completed_deadline_urgency'
+        iv_value = ls_health-last_completed_deadline_urgency ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_available_stock_available'
         iv_value = ls_health-last_completed_available_stock_available ) TO lt_json_fields.
@@ -2713,6 +2892,8 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>null_property(
         iv_name = 'last_completed_run_id' ) TO lt_json_fields.
       APPEND zcl_stock_json=>null_property(
+        iv_name = 'last_completed_preview' ) TO lt_json_fields.
+      APPEND zcl_stock_json=>null_property(
         iv_name = 'last_completed_status' ) TO lt_json_fields.
       APPEND zcl_stock_json=>null_property(
         iv_name = 'last_completed_success_streak' ) TO lt_json_fields.
@@ -2758,6 +2939,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_age_reason'
         iv_value = ls_health-last_completed_deadline_age_reason ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'last_completed_deadline_urgency'
+        iv_value = ls_health-last_completed_deadline_urgency ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_available_stock_available'
         iv_value = abap_false ) TO lt_json_fields.
@@ -3304,6 +3488,24 @@ START-OF-SELECTION.
       iv_name  = 'deadline_count_below_threshold'
       iv_value = ls_health-deadline_count_below_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
+      iv_name  = 'deadline_mix_threshold_active'
+      iv_value = ls_health-deadline_mix_threshold_active ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'deadline_mix_threshold'
+      iv_value = ls_health-deadline_mix_threshold ) TO lt_json_fields.
+    APPEND zcl_stock_json=>boolean_property(
+      iv_name  = 'deadline_mix_below_threshold'
+      iv_value = ls_health-deadline_mix_below_threshold ) TO lt_json_fields.
+    APPEND zcl_stock_json=>boolean_property(
+      iv_name  = 'overdue_mix_threshold_active'
+      iv_value = ls_health-overdue_mix_threshold_active ) TO lt_json_fields.
+    APPEND zcl_stock_json=>number_property(
+      iv_name  = 'overdue_mix_threshold'
+      iv_value = ls_health-overdue_mix_threshold ) TO lt_json_fields.
+    APPEND zcl_stock_json=>boolean_property(
+      iv_name  = 'overdue_mix_above_threshold'
+      iv_value = ls_health-overdue_mix_above_threshold ) TO lt_json_fields.
+    APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'mixed_policy_warning_active'
       iv_value = ls_health-mixed_policy_warning_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
@@ -3366,6 +3568,122 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'threshold_breaches'
       iv_value = ls_health-threshold_breaches ) TO lt_json_fields.
+    IF p_meta = abap_true.
+      lt_summary_fields = lt_json_fields.
+      CLEAR lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'material'
+        iv_value = p_matnr ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'storage_location'
+        iv_value = p_lgort ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'batch'
+        iv_value = p_charg ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = p_meins ) TO lt_scope_fields.
+      CLEAR lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'run_id_filter'
+        iv_value = p_runid ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'run_id_contains_filter'
+        iv_value = p_rid ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'movement_type_filter'
+        iv_value = p_mvt ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit_filter'
+        iv_value = p_meins ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'strategy_filter'
+        iv_value = p_strat ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'status_filter'
+        iv_value = p_stat ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'preview_filter'
+        iv_value = p_prev ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'message_filter'
+        iv_value = p_msg ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'message_only'
+        iv_value = p_monly ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'requested_on_from_filter'
+        iv_value = p_reqf ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'requested_on_to_filter'
+        iv_value = p_until ) TO lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'deadline_urgency_filter'
+        iv_value = lv_deadline_urgency_filter ) TO lt_filter_fields.
+      CLEAR lt_filter_names.
+      IF p_runid IS NOT INITIAL.
+        APPEND 'run_id_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_rid IS NOT INITIAL.
+        APPEND 'run_id_contains_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_mvt IS NOT INITIAL.
+        APPEND 'movement_type_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_meins IS NOT INITIAL.
+        APPEND 'unit_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_strat IS NOT INITIAL.
+        APPEND 'strategy_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_stat IS NOT INITIAL.
+        APPEND 'status_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_prev IS NOT INITIAL.
+        APPEND 'preview_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_msg IS NOT INITIAL.
+        APPEND 'message_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_monly = abap_true.
+        APPEND 'message_only' TO lt_filter_names.
+      ENDIF.
+      IF p_reqf IS NOT INITIAL.
+        APPEND 'requested_on_from_filter' TO lt_filter_names.
+      ENDIF.
+      IF p_until IS NOT INITIAL.
+        APPEND 'requested_on_to_filter' TO lt_filter_names.
+      ENDIF.
+      APPEND 'deadline_urgency_filter' TO lt_filter_names.
+      CLEAR lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = 130 ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'mode'
+        iv_value = 'health' ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_date'
+        iv_value = sy-datum ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_time'
+        iv_value = sy-uzeit ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'scope'
+        it_fields = lt_scope_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>string_array_property(
+        iv_name   = 'filters_applied'
+        it_values = lt_filter_names ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'filters'
+        it_fields = lt_filter_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'summary'
+        it_fields = lt_summary_fields ) TO lt_json_fields.
+    ENDIF.
     CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
     CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
     WRITE: / lv_json_line.
@@ -3373,7 +3691,7 @@ START-OF-SELECTION.
   ENDIF.
 
   IF p_csv = abap_true.
-    WRITE: / 'mode;schema_version;status;message;reason_code;material;plant;'
+    WRITE: / 'mode;generated_date;generated_time;schema_version;status;message;reason_code;material;plant;'
       && 'storage_location;batch;movement_type_filter;unit_filter;'
       && 'run_id_filter;run_id_contains_filter;'
       && 'minimum_shelf_life_filter;safety_stock_filter;'
@@ -3393,7 +3711,7 @@ START-OF-SELECTION.
        && 'maximum_running_age_filter;stale_threshold_seconds;legacy_strategy_filter;'
       && 'overdue_only;requested_overdue_as_of;'
       && 'requested_deadline_only;requested_deadline_from;requested_deadline_to;'
-      && 'minimum_deadline_age_days;maximum_deadline_age_days;deadline_age_as_of;'
+      && 'minimum_deadline_age_days;maximum_deadline_age_days;deadline_age_as_of;deadline_urgency_filter;'
       && 'minimum_coverage;maximum_shortage_pct;maximum_last_duration;'
       && 'maximum_last_completed_duration;'
       && 'minimum_last_completed_duration;'
@@ -3405,7 +3723,7 @@ START-OF-SELECTION.
       && 'maximum_last_completed_shortage_pct;'
       && 'maximum_average_duration;'
       && 'maximum_completed_duration;minimum_duration_count;minimum_run_count;'
-      && 'minimum_deadline_count;'
+      && 'minimum_deadline_count;minimum_deadline_mix;'
       && 'warn_mixed_policies;'
       && 'warn_mixed_units;'
       && 'minimum_completion_rate;'
@@ -3421,6 +3739,9 @@ START-OF-SELECTION.
       && 'maximum_last_shortage_pct;'
       && 'maximum_last_age;'
       && 'maximum_last_completed_deadline_age;'
+      && 'maximum_overdue_deadline_mix;'
+      && 'maximum_current_day_deadline_mix;'
+      && 'minimum_future_deadline_mix;'
       && 'maximum_last_completed_shortage_quantity;'
       && 'minimum_last_completed_allocated_quantity;'
       && 'minimum_last_completed_requested_quantity;'
@@ -3441,20 +3762,23 @@ START-OF-SELECTION.
       && 'minimum_last_completed_demand_count;'
       && 'maximum_last_completed_demand_count;'
       && 'minimum_available_stock_threshold;maximum_available_stock_threshold;'
-      && 'total_runs;success_runs;completion_pct;'
+      && 'total_runs;preview_runs;operational_runs;preview_mix_pct;operational_mix_pct;success_runs;completion_pct;'
       && 'success_rate_pct;partial_rate_pct;error_rate_pct;'
       && 'demand_count;full_count;partial_count;unallocated_count;'
       && 'full_line_pct;partial_line_pct;unallocated_line_pct;'
-      && 'deadline_count;last_requested_on_from;last_requested_on_to;'
+      && 'deadline_count;deadline_mix_pct;overdue_count;current_deadline_count;future_deadline_count;'
+      && 'overdue_mix_pct;current_deadline_mix_pct;future_deadline_mix_pct;'
+      && 'last_requested_on_from;last_requested_on_to;'
       && 'last_requested_deadline;earliest_requested_deadline;latest_requested_deadline;'
-      && 'last_deadline_age_days;oldest_deadline_age_days;newest_deadline_age_days;'
+      && 'last_deadline_age_days;last_deadline_urgency;oldest_deadline_age_days;'
+      && 'oldest_deadline_urgency;newest_deadline_age_days;newest_deadline_urgency;'
       && 'deadline_age_reference_date;'
       && 'running_runs;stale_running_runs;error_runs;partial_runs;priority_runs;fifo_runs;'
       && 'full_only_runs;smallest_runs;largest_runs;best_runs;fair_runs;weighted_runs;adaptive_runs;'
       && 'adaptive_priority_runs;adaptive_fair_runs;legacy_runs;priority_mix_pct;'
       && 'fifo_mix_pct;full_only_mix_pct;smallest_mix_pct;largest_mix_pct;best_mix_pct;'
       && 'fair_mix_pct;weighted_mix_pct;adaptive_mix_pct;legacy_mix_pct;last_run_available;'
-      && 'last_run_id;last_available_stock_available;last_available_stock;'
+      && 'last_run_id;last_preview;last_available_stock_available;last_available_stock;'
       && 'last_available_stock_unit;last_requested_quantity;last_allocated_quantity;'
       && 'last_shortage_quantity;last_shortage_pct_available;last_shortage_pct;'
       && 'last_coverage_pct;last_demand_count;'
@@ -3465,7 +3789,7 @@ START-OF-SELECTION.
       && 'last_finish_date;last_finish_time;last_duration_seconds;last_run_message;'
       && 'last_age_available;last_age_seconds;last_age_reason;'
       && 'last_age_reference_date;last_age_reference_time;'
-      && 'last_completed_run_available;last_completed_run_id;last_completed_status;'
+      && 'last_completed_run_available;last_completed_run_id;last_completed_preview;last_completed_status;'
       && 'last_completed_success_streak;'
       && 'last_completed_non_success_streak;'
       && 'last_completed_message;'
@@ -3477,7 +3801,7 @@ START-OF-SELECTION.
       && 'last_completed_horizon_available;last_completed_requested_on_from;'
       && 'last_completed_requested_on_to;last_completed_requested_deadline;'
       && 'last_completed_deadline_age_available;last_completed_deadline_age_days;'
-      && 'last_completed_deadline_age_reason;'
+      && 'last_completed_deadline_age_reason;last_completed_deadline_urgency;'
       && 'last_completed_available_stock_available;last_completed_available_stock;'
       && 'last_completed_available_stock_unit;last_completed_strategy;'
       && 'last_completed_requested;last_completed_allocated;last_completed_shortage;'
@@ -3530,6 +3854,14 @@ START-OF-SELECTION.
       && 'run_count_threshold_active;run_count_threshold;run_count_below_threshold;'
       && 'deadline_count_threshold_active;deadline_count_threshold;'
       && 'deadline_count_below_threshold;'
+      && 'deadline_mix_threshold_active;deadline_mix_threshold;'
+      && 'deadline_mix_below_threshold;'
+      && 'overdue_mix_threshold_active;overdue_mix_threshold;'
+      && 'overdue_mix_above_threshold;'
+      && 'current_deadline_mix_threshold_active;current_deadline_mix_threshold;'
+      && 'current_deadline_mix_above_threshold;'
+      && 'future_deadline_mix_threshold_active;future_deadline_mix_threshold;'
+      && 'future_deadline_mix_below_threshold;'
       && 'mixed_policy_warning_active;mixed_policy_breach;'
       && 'mixed_unit_warning_active;mixed_unit_breach;'
       && 'error_threshold_active;error_threshold;'
@@ -3627,7 +3959,9 @@ START-OF-SELECTION.
        && 'stale_threshold_active;stale_threshold;stale_above_threshold;'
        && 'threshold_breach_count;threshold_breaches'.
     APPEND zcl_stock_csv=>quote( 'zstock_alloc_health' ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 116 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 130 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-message ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-reason_code ) TO lt_csv_fields.
@@ -3681,6 +4015,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_dagef ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_daget ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_deadline_age_date ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_deadline_urgency_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_cov ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_spct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_durmax ) TO lt_csv_fields.
@@ -3698,6 +4033,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_durcnt ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_runcnt ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_dcmin ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_dmmin ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_pmix ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_umix ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_cmin ) TO lt_csv_fields.
@@ -3716,6 +4052,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_lspct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_lage ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_cdag ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_odmax ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_cdmmax ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( p_fdmmin ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_cshmax ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_camin ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_crqmin ) TO lt_csv_fields.
@@ -3738,6 +4077,10 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( p_avmin ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_avmax ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-total_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-preview_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-operational_runs ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-preview_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-operational_mix_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-success_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-completion_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-success_rate_pct ) TO lt_csv_fields.
@@ -3751,14 +4094,27 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_health-partial_line_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-unallocated_line_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-deadline_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-overdue_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_health-current_deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-future_deadline_count ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-overdue_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_health-current_deadline_mix_pct ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_health-future_deadline_mix_pct ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-last_requested_on_from ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-last_requested_on_to ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-last_requested_deadline ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-earliest_requested_deadline ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-latest_requested_deadline ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-last_deadline_age_days ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_deadline_urgency ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-oldest_deadline_age_days ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-oldest_deadline_urgency ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-newest_deadline_age_days ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-newest_deadline_urgency ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-deadline_age_reference_date ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-running_runs ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-stale_running_runs ) TO lt_csv_fields.
@@ -3789,6 +4145,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-last_run_available ) TO lt_csv_fields.
     IF ls_health-last_run_available = abap_true.
       APPEND zcl_stock_csv=>quote( ls_health-last_run_id ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_preview ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_available_stock_available ) TO lt_csv_fields.
       IF ls_health-last_available_stock_available = abap_true.
         APPEND zcl_stock_csv=>number( ls_health-last_available_stock ) TO lt_csv_fields.
@@ -3840,6 +4197,7 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_health-last_age_reference_time ) TO lt_csv_fields.
     ELSE.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( 'false' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
@@ -3874,6 +4232,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-last_completed_run_available ) TO lt_csv_fields.
     IF ls_health-last_completed_run_available = abap_true.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_run_id ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_completed_preview ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_success_streak ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_non_success_streak ) TO lt_csv_fields.
@@ -3911,6 +4270,7 @@ START-OF-SELECTION.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       ENDIF.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_age_reason ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_urgency ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_available_stock_available ) TO lt_csv_fields.
       IF ls_health-last_completed_available_stock_available = abap_true.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_available_stock ) TO lt_csv_fields.
@@ -3947,6 +4307,7 @@ START-OF-SELECTION.
       ENDIF.
     ELSE.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields. " run id
+      APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields. " preview
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields. " status
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields. " success streak
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields. " non-success streak
@@ -4225,6 +4586,18 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-deadline_count_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-deadline_count_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-deadline_count_below_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-deadline_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-deadline_mix_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-deadline_mix_below_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-overdue_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-overdue_mix_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-overdue_mix_above_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-current_deadline_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-current_deadline_mix_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-current_deadline_mix_above_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-future_deadline_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-future_deadline_mix_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-future_deadline_mix_below_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_policy_warning_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_policy_breach ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_unit_warning_active ) TO lt_csv_fields.
@@ -4359,7 +4732,9 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-    WRITE: / 'Allocation health:', ls_health-status,
+    WRITE: / 'Generated date:', sy-datum,
+         / 'Generated time:', sy-uzeit,
+         / 'Allocation health:', ls_health-status,
          / 'Message:', ls_health-message,
          / 'Reason code:', ls_health-reason_code,
          / 'Material:', p_matnr,
@@ -4412,6 +4787,7 @@ START-OF-SELECTION.
          / 'Minimum deadline age days:', p_dagef,
          / 'Maximum deadline age days:', p_daget,
          / 'Deadline age as-of:', lv_deadline_age_date,
+         / 'Deadline urgency:', lv_deadline_urgency_filter,
          / 'Minimum coverage:', p_cov, '%',
          / 'Maximum shortage:', p_spct, '%',
          / 'Maximum latest duration:', p_durmax, 'seconds',
@@ -4422,6 +4798,9 @@ START-OF-SELECTION.
          / 'Maximum latest completed non-success streak:', p_cfail,
          / 'Maximum latest completed age:', p_lage, 'seconds',
          / 'Maximum latest completed deadline age:', p_cdag, 'days',
+         / 'Maximum overdue deadline mix:', p_odmax, '%',
+         / 'Maximum current-day deadline mix:', p_cdmmax, '%',
+         / 'Minimum future deadline mix:', p_fdmmin, '%',
          / 'Maximum latest completed shortage quantity:', p_cshmax,
          / 'Minimum latest completed coverage:', p_ccov, '%',
          / 'Maximum latest completed coverage:', p_ccvmax, '%',
@@ -4445,6 +4824,7 @@ START-OF-SELECTION.
          / 'Minimum duration sample count:', p_durcnt,
          / 'Minimum total run count:', p_runcnt,
          / 'Minimum deadline-bearing run count:', p_dcmin,
+         / 'Minimum deadline mix:', p_dmmin, '%',
          / 'Warn on mixed policies:', p_pmix,
          / 'Warn on mixed units:', p_umix,
          / 'Minimum completion rate:', p_cmin, '%',
@@ -4452,16 +4832,30 @@ START-OF-SELECTION.
          / 'Maximum error rate:', p_errmax, '%',
          / 'Maximum partial-run rate:', p_prtmax, '%',
          / 'Deadline count:', ls_health-deadline_count,
+         'mix:', ls_health-deadline_mix_pct, '%',
+         / 'Overdue deadline count:', ls_health-overdue_count,
+         'mix:', ls_health-overdue_mix_pct, '%',
+         / 'Current-day deadline count:', ls_health-current_deadline_count,
+         'mix:', ls_health-current_deadline_mix_pct, '%',
+         / 'Future deadline count:', ls_health-future_deadline_count,
+         'mix:', ls_health-future_deadline_mix_pct, '%',
          / 'Last requested delivery from:', ls_health-last_requested_on_from,
          / 'Last requested delivery to:', ls_health-last_requested_on_to,
          / 'Last requested deadline:', ls_health-last_requested_deadline,
          / 'Earliest requested deadline:', ls_health-earliest_requested_deadline,
          / 'Latest requested deadline:', ls_health-latest_requested_deadline,
          / 'Last deadline age days:', ls_health-last_deadline_age_days,
+         / 'Last deadline urgency:', ls_health-last_deadline_urgency,
          / 'Oldest deadline age days:', ls_health-oldest_deadline_age_days,
+         / 'Oldest deadline urgency:', ls_health-oldest_deadline_urgency,
          / 'Newest deadline age days:', ls_health-newest_deadline_age_days,
+         / 'Newest deadline urgency:', ls_health-newest_deadline_urgency,
          / 'Deadline age reference date:', ls_health-deadline_age_reference_date,
          / 'Runs:', ls_health-total_runs,
+         / 'Preview runs:', ls_health-preview_runs,
+         / 'Operational runs:', ls_health-operational_runs,
+         / 'Preview mix:', ls_health-preview_mix_pct, '%',
+         / 'Operational mix:', ls_health-operational_mix_pct, '%',
          / 'Successful:', ls_health-success_runs,
          / 'Completion:', ls_health-completion_pct, '%',
          / 'Success rate:', ls_health-success_rate_pct, '%',
@@ -4531,6 +4925,7 @@ START-OF-SELECTION.
            / 'Last line rates available:', ls_health-last_line_rates_available,
            / 'Last strategy:', ls_health-last_strategy,
            / 'Last status:', ls_health-last_status,
+           / 'Last preview:', ls_health-last_preview,
            / 'Last start:', ls_health-last_start_date, ls_health-last_start_time,
            / 'Last finish:', ls_health-last_finish_date, ls_health-last_finish_time,
            / 'Last duration seconds:', ls_health-last_duration_seconds,
@@ -4555,6 +4950,7 @@ START-OF-SELECTION.
   IF ls_health-last_completed_run_available = abap_true.
     WRITE: / 'Last completed run ID:', ls_health-last_completed_run_id,
            / 'Last completed status:', ls_health-last_completed_status,
+           / 'Last completed preview:', ls_health-last_completed_preview,
            / 'Last completed message:', ls_health-last_completed_message,
            / 'Last completed start:',
              ls_health-last_completed_start_date,
@@ -4594,6 +4990,8 @@ START-OF-SELECTION.
     ENDIF.
     WRITE: / 'Last completed deadline age reason:',
       ls_health-last_completed_deadline_age_reason.
+    WRITE: / 'Last completed deadline urgency:',
+      ls_health-last_completed_deadline_urgency.
     IF ls_health-last_completed_available_stock_available = abap_true.
       WRITE: / 'Last completed available stock:',
         ls_health-last_completed_available_stock,
@@ -4834,6 +5232,18 @@ START-OF-SELECTION.
          / 'Deadline-count threshold active:', ls_health-deadline_count_threshold_active,
          / 'Deadline-count threshold:', ls_health-deadline_count_threshold,
          / 'Deadline-count threshold breached:', ls_health-deadline_count_below_threshold,
+         / 'Deadline-mix threshold active:', ls_health-deadline_mix_threshold_active,
+         / 'Deadline-mix threshold:', ls_health-deadline_mix_threshold, '%',
+         / 'Deadline-mix threshold breached:', ls_health-deadline_mix_below_threshold,
+         / 'Overdue-mix threshold active:', ls_health-overdue_mix_threshold_active,
+         / 'Overdue-mix threshold:', ls_health-overdue_mix_threshold, '%',
+         / 'Overdue-mix threshold breached:', ls_health-overdue_mix_above_threshold,
+         / 'Current-day deadline-mix threshold active:', ls_health-current_deadline_mix_threshold_active,
+         / 'Current-day deadline-mix threshold:', ls_health-current_deadline_mix_threshold, '%',
+         / 'Current-day deadline-mix threshold breached:', ls_health-current_deadline_mix_above_threshold,
+         / 'Future deadline-mix threshold active:', ls_health-future_deadline_mix_threshold_active,
+         / 'Future deadline-mix threshold:', ls_health-future_deadline_mix_threshold, '%',
+         / 'Future deadline-mix threshold breached:', ls_health-future_deadline_mix_below_threshold,
          / 'Mixed-policy warning active:', ls_health-mixed_policy_warning_active,
          / 'Mixed-policy warning breached:', ls_health-mixed_policy_breach,
          / 'Mixed-unit warning active:', ls_health-mixed_unit_warning_active,

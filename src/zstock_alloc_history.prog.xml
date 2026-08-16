@@ -131,6 +131,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DURG</KEY>
+     <ENTRY>Deadline urgency</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
     <KEY>P_RUNID</KEY>
     <ENTRY>Run ID</ENTRY>
     <LENGTH>38</LENGTH>

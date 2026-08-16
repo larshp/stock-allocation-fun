@@ -143,6 +143,12 @@
    </item>
    <item>
     <ID>S</ID>
+    <KEY>P_DURG</KEY>
+    <ENTRY>Deadline urgency filter</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
     <KEY>P_TFROM</KEY>
     <ENTRY>Audit duration from</ENTRY>
     <LENGTH>19</LENGTH>
@@ -230,6 +236,12 @@
      <KEY>P_CSV</KEY>
      <ENTRY>CSV output</ENTRY>
      <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_META</KEY>
+     <ENTRY>JSON metadata envelope</ENTRY>
+     <LENGTH>26</LENGTH>
     </item>
     <item>
      <ID>S</ID>

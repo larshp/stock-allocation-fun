@@ -633,6 +633,10 @@ const stockAllocationInterfaceSource = fs.readFileSync(
   path.join(sourceDirectory, "zif_stock_allocation.intf.abap"),
   "utf8",
 );
+const allocationSinkInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_allocation_sink.intf.abap"),
+  "utf8",
+);
 const auditSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_allocation_audit_sap.clas.abap"),
   "utf8",
@@ -963,6 +967,16 @@ assert.match(
   "audit history reads must validate and apply preview provenance filters",
 );
 assert.match(
+  auditSource,
+  /lv_deadline_urgency_filter\s*=\s*to_lower\( iv_deadline_urgency \)[\s\S]*lv_deadline_urgency_filter <> 'overdue'[\s\S]*Audit deadline urgency filter is invalid/,
+  "audit history reads must validate deadline urgency filters",
+);
+assert.match(
+  auditSource,
+  /IF lv_deadline_urgency_filter IS NOT INITIAL[\s\S]*lv_deadline_urgency = 'n\/a'[\s\S]*lv_deadline_urgency = 'overdue'[\s\S]*lv_deadline_urgency = 'current_day'[\s\S]*lv_deadline_urgency = 'future'[\s\S]*DELETE rt_runs/,
+  "audit history reads must apply deadline urgency filters after deriving effective deadlines",
+);
+assert.match(
   auditTestSource,
   /METHOD records_preview_provenance[\s\S]*iv_preview\s*=\s*abap_true[\s\S]*-preview/,
   "audit tests must cover preview provenance persistence and reads",
@@ -971,6 +985,11 @@ assert.match(
   auditTestSource,
   /METHOD filters_preview_runs[\s\S]*iv_preview_filter\s*=\s*'p'[\s\S]*iv_preview_filter\s*=\s*'o'/,
   "audit tests must cover preview-only and operational-only filtering",
+);
+assert.match(
+  auditTestSource,
+  /METHOD filters_overdue_horizon[\s\S]*iv_deadline_urgency\s*=\s*'OVERDUE'[\s\S]*iv_deadline_urgency\s*=\s*'current_day'[\s\S]*iv_deadline_urgency\s*=\s*'future'[\s\S]*iv_deadline_urgency\s*=\s*'n\/a'/,
+  "audit tests must cover every deadline urgency bucket",
 );
 assert.match(
   auditSource,
@@ -991,6 +1010,21 @@ assert.match(
   auditSource,
   /METHOD zif_allocation_audit~purge_runs_before[\s\S]*validate_date[\s\S]*iv_before_date[\s\S]*iv_deadline_age_date/,
   "audit purge execution must reject malformed date filters",
+);
+assert.equal(
+  (auditInterfaceSource.match(/iv_deadline_urgency\s+TYPE string OPTIONAL/g) ?? []).length,
+  4,
+  "audit interface must expose urgency filters for reads, summaries, and retention",
+);
+assert.equal(
+  (auditSource.match(/METHOD zif_allocation_audit~get_purge_preview[\s\S]*lv_deadline_urgency_filter = to_lower\( iv_deadline_urgency \)[\s\S]*lv_deadline_urgency <> lv_deadline_urgency_filter/g) ?? []).length,
+  1,
+  "audit purge previews must apply deadline urgency",
+);
+assert.equal(
+  (auditSource.match(/METHOD zif_allocation_audit~purge_runs_before[\s\S]*lv_deadline_urgency_filter = to_lower\( iv_deadline_urgency \)[\s\S]*lv_deadline_urgency <> lv_deadline_urgency_filter/g) ?? []).length,
+  1,
+  "audit purge execution must apply deadline urgency",
 );
 assert.equal(
   (auditSource.match(/SORT lt_candidates BY start_date ASCENDING start_time ASCENDING\s+run_id ASCENDING/g) || []).length,
@@ -1228,6 +1262,26 @@ assert.match(
   allocationReportSource,
   /p_safstk/,
   "allocation report must expose the safety-stock selection",
+);
+assert.match(
+  allocationReportSource,
+  /PARAMETERS p_recon AS CHECKBOX\./,
+  "allocation report must expose preview existing-allocation reconciliation",
+);
+assert.match(
+  allocationReportSource,
+  /iv_reconcile_existing\s*=\s*p_recon/,
+  "allocation report must pass preview reconciliation to the service",
+);
+assert.match(
+  allocationReportSource,
+  /preview_reconciliation_active/,
+  "allocation report exports must expose preview reconciliation provenance",
+);
+assert.match(
+  allocationReportSource,
+  /existing_reconciliation_evaluated|existing_allocation_count|existing_allocation_unit_count|existing_cross_unit_quantity/,
+  "allocation report exports must expose reconciliation telemetry",
 );
 assert.match(
   allocationReportSource,
@@ -1636,7 +1690,7 @@ for (const [reportName, reportSource] of [
 ]) {
   assert.equal(
     (reportSource.match(/iv_name\s*=\s*'schema_version'/g) ?? []).length,
-    2,
+    reportName === "allocation" || reportName === "health" || reportName === "stock" || reportName === "unit conversion" || reportName === "goods issue" || reportName === "reservation creation" || reportName === "reservation cancellation" || reportName === "sales-order update" ? 3 : 2,
     `${reportName} report must expose schema_version in typed and untyped JSON`,
   );
 }
@@ -1667,16 +1721,16 @@ assert.match(
 );
 assert.equal(
   (allocationReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  28,
+  31,
   "allocation report must version all JSON error envelopes, including run-ID variants",
 );
 for (const [reportName, reportSource, expectedCount] of [
-  ["stock", stockReportSource, 4],
-  ["unit conversion", conversionReportSource, 3],
-  ["reservation creation", reservationCreateReportSource, 4],
-  ["reservation cancellation", reservationCancelReportSource, 4],
-  ["goods issue", goodsIssueReportSource, 5],
-  ["sales-order update", orderUpdateReportSource, 5],
+  ["stock", stockReportSource, 8],
+  ["unit conversion", conversionReportSource, 5],
+  ["reservation creation", reservationCreateReportSource, 6],
+  ["reservation cancellation", reservationCancelReportSource, 6],
+  ["goods issue", goodsIssueReportSource, 7],
+  ["sales-order update", orderUpdateReportSource, 7],
 ]) {
   assert.equal(
     (reportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
@@ -1686,8 +1740,8 @@ for (const [reportName, reportSource, expectedCount] of [
 }
 assert.match(
   readmeSource,
-  /JSON and typed JSON use schema version `4`/,
-  "README must document stock JSON schema parity",
+  /JSON and typed JSON use schema version `25`; metadata JSON uses schema `26`/,
+  "README must document stock JSON and metadata schema parity",
 );
 assert.match(
   readmeSource,
@@ -1706,13 +1760,18 @@ assert.match(
 );
 assert.match(
   readmeSource,
-  /Successful CSV and JSON allocation contracts now use schema version `49`/,
+  /Successful CSV and JSON allocation contracts now use schema version `58`/,
   "README must document allocation JSON schema parity",
 );
 assert.match(
   readmeSource,
-  /Result detail\/summary schemas are `40`\/`46`, and comparison CSV\/contextual JSON schemas are `98`/,
+  /The current result deadline-urgency filter contract also uses `p_durg`[\s\S]*result detail\/summary schemas to `43`\/`53`/,
   "README must document current result and comparison schemas",
+);
+assert.match(
+  readmeSource,
+  /The current history deadline-urgency filter contract uses `p_durg`[\s\S]*history detail\/summary schemas to `30`\/`51`/,
+  "README must document current history and watch row urgency schemas",
 );
 assert.doesNotMatch(
   readmeSource,
@@ -1732,8 +1791,13 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /mode;generated_date;generated_time;schema_version;material;plant;[\s\S]*storage_location;batch;quantity;unit;[\s\S]*base_quantity;base_unit;[\s\S]*target_unit;converted;[\s\S]*minimum_quantity;minimum_threshold_active;[\s\S]*minimum_threshold_evaluated;below_minimum;maximum_quantity;[\s\S]*maximum_threshold_active;maximum_threshold_evaluated;above_maximum;[\s\S]*availability_status;[\s\S]*material_found;batch_managed;/,
+  /mode;generated_date;generated_time;schema_version;material;plant;[\s\S]*storage_location;batch;quantity;unit;[\s\S]*base_quantity;base_unit;[\s\S]*target_unit;converted;safety_stock;safety_stock_threshold_active;[\s\S]*safety_stock_threshold_evaluated;at_or_below_safety_stock;[\s\S]*allocatable_quantity;allocatable_quantity_status;[\s\S]*minimum_allocatable_quantity;minimum_allocatable_threshold_active;[\s\S]*minimum_allocatable_threshold_evaluated;below_minimum_allocatable;[\s\S]*maximum_allocatable_quantity;maximum_allocatable_threshold_active;[\s\S]*maximum_allocatable_threshold_evaluated;above_maximum_allocatable;[\s\S]*allocatable_range_status;[\s\S]*net_allocation_active;existing_allocated_quantity;existing_allocated_pct;[\s\S]*existing_allocation_count;existing_allocated_row_count;[\s\S]*existing_allocation_run_count;[\s\S]*existing_allocation_unit_count;[\s\S]*existing_allocation_units_mixed;[\s\S]*existing_allocations_overflow;[\s\S]*existing_allocations_overflow_quantity;[\s\S]*existing_allocations_evaluated;existing_allocations_status;[\s\S]*net_available_quantity;net_allocatable_quantity;net_allocatable_pct;[\s\S]*net_allocatable_quantity_status;[\s\S]*minimum_quantity;[\s\S]*minimum_threshold_active;[\s\S]*minimum_threshold_evaluated;below_minimum;maximum_quantity;[\s\S]*maximum_threshold_active;maximum_threshold_evaluated;above_maximum;[\s\S]*availability_status;[\s\S]*material_found;batch_managed;[\s\S]*batch_expiration_date;expiration_as_of;expiration_status;[\s\S]*remaining_shelf_life_days;minimum_shelf_life_days;[\s\S]*shelf_life_threshold_active;shelf_life_threshold_evaluated;[\s\S]*below_minimum_shelf_life;shelf_life_status;[\s\S]*allocation_eligibility_status;/,
   "stock report CSV output must expose the availability contract",
+);
+assert.match(
+  stockReportSource,
+  /APPEND zcl_stock_csv=>number\( 25 \) TO lt_csv_fields/,
+  "stock report CSV output must publish the current schema version",
 );
 assert.match(
   stockReportSource,
@@ -1762,8 +1826,18 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /iv_name\s*=\s*'schema_version'[\s\S]*iv_value\s*=\s*4/,
-  "stock report JSON must publish schema version 4",
+  /lv_json_schema\s*=\s*25[\s\S]*iv_name\s*=\s*'schema_version'[\s\S]*iv_value\s*=\s*lv_json_schema/,
+  "stock report non-metadata JSON must publish schema version 25",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*26[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "stock report must validate metadata mode and publish its schema",
+);
+assert.match(
+  stockReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "stock report metadata JSON must expose scope, filters, and summary",
 );
 assert.match(
   stockReportSource,
@@ -1774,6 +1848,136 @@ assert.match(
   stockReportSource,
   /iv_name\s*=\s*'maximum_quantity'[\s\S]*iv_name\s*=\s*'maximum_threshold_active'[\s\S]*iv_name\s*=\s*'maximum_threshold_evaluated'[\s\S]*iv_name\s*=\s*'above_maximum'/,
   "stock report JSON must expose maximum-threshold provenance",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_expdt TYPE d[\s\S]*lv_expiration_as_of\s*=\s*sy-datum[\s\S]*is_valid_or_initial\( p_expdt \)[\s\S]*batch_expiration_date[\s\S]*lv_expiration_status\s*=\s*'n\/a'[\s\S]*lv_expiration_status\s*=\s*'expired'[\s\S]*lv_expiration_status\s*=\s*'current_day'[\s\S]*lv_expiration_status\s*=\s*'future'[\s\S]*iv_name\s*=\s*'expiration_as_of'[\s\S]*iv_name\s*=\s*'expiration_status'/,
+  "stock report must classify batch expiration status across output modes",
+);
+assert.match(
+  stockReportSource,
+  /IF p_expdt IS NOT INITIAL[\s\S]*iv_name\s*=\s*'expiration_as_of'[\s\S]*APPEND 'expiration_as_of' TO lt_filter_names/,
+  "stock report metadata must publish an explicit expiration as-of filter",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_shelf TYPE i DEFAULT 0[\s\S]*p_shelf < 0[\s\S]*Minimum shelf life cannot be negative[\s\S]*p_shelf > 0 AND p_charg IS INITIAL[\s\S]*Minimum shelf life requires a batch[\s\S]*remaining_shelf_life_days[\s\S]*minimum_shelf_life_days[\s\S]*shelf_life_threshold_active[\s\S]*shelf_life_threshold_evaluated[\s\S]*below_minimum_shelf_life[\s\S]*shelf_life_status/,
+  "stock report must evaluate and export minimum shelf-life provenance",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity DEFAULT 0\.[\s\S]*p_saf < 0[\s\S]*Safety stock cannot be negative[\s\S]*lv_output_quantity - p_saf[\s\S]*allocatable_quantity[\s\S]*at_or_below_safety_stock[\s\S]*allocatable_quantity_status/,
+  "stock report must evaluate post-safety-stock allocatable quantity",
+);
+assert.match(
+  stockReportSource,
+  /lv_output_quantity <= 0[\s\S]*lv_allocatable_quantity_status = 'no_available_stock'[\s\S]*lv_eligibility_status = 'no_available_stock'/,
+  "stock report must distinguish empty stock from safety-stock exhaustion",
+);
+assert.match(
+  stockReportSource,
+  /p_saf > 0 AND lv_safety_stock_evaluated = abap_false[\s\S]*safety_stock_not_evaluated[\s\S]*lv_at_or_below_safety_stock = abap_true[\s\S]*no_allocatable_stock/,
+  "stock report eligibility must fail closed when safety-stock policy blocks allocation",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_amin TYPE zif_stock_allocation=>ty_quantity DEFAULT 0\.[\s\S]*PARAMETERS p_amax TYPE zif_stock_allocation=>ty_quantity DEFAULT 0\.[\s\S]*p_amin < 0[\s\S]*Minimum allocatable quantity cannot be negative[\s\S]*p_amax < 0[\s\S]*Maximum allocatable quantity cannot be negative[\s\S]*p_amin > 0 AND p_amax > 0 AND p_amin > p_amax[\s\S]*Minimum allocatable quantity cannot exceed maximum allocatable quantity[\s\S]*lv_range_quantity < p_amin[\s\S]*lv_range_quantity > p_amax[\s\S]*below_minimum_allocatable[\s\S]*above_maximum_allocatable[\s\S]*allocatable_range_status/,
+  "stock report must evaluate post-safety-stock allocatable quantity bounds",
+);
+assert.match(
+  stockReportSource,
+  /PARAMETERS p_net AS CHECKBOX\.[\s\S]*lv_existing_alloc_active\s*=\s*xsdbool\( p_net = abap_true \)[\s\S]*zcl_allocation_sink_sap[\s\S]*get_allocations\([\s\S]*lv_existing_alloc_qty[\s\S]*lv_existing_converted_qty[\s\S]*lv_net_available_quantity[\s\S]*lv_net_allocatable_quantity[\s\S]*lv_net_allocatable_status[\s\S]*no_net_allocatable_stock/,
+  "stock report must reconcile existing allocations before evaluating net availability",
+);
+assert.match(
+  stockReportSource,
+  /lv_existing_pct_available\s*=\s*xsdbool\([\s\S]*lv_existing_alloc_evaluated\s*=\s*abap_true[\s\S]*lv_output_quantity\s*>\s*0[\s\S]*lv_existing_alloc_qty\s*\*\s*100\s*\/\s*lv_output_quantity/,
+  "stock report must calculate a zero-safe existing-allocation percentage",
+);
+assert.match(
+  stockReportSource,
+  /IF lv_existing_pct_available = abap_true[\s\S]*zcl_stock_csv=>number\([\s\S]*ELSE[\s\S]*zcl_stock_csv=>quote\( 'n\/a' \)[\s\S]*existing_allocated_pct_text/,
+  "stock report must preserve unavailable percentage semantics in CSV and human output",
+);
+assert.match(
+  stockReportSource,
+  /lt_existing_alloc_run_ids TYPE SORTED TABLE OF[\s\S]*INSERT <ls_existing_allocation>-allocation_run_id[\s\S]*DESCRIBE TABLE lt_existing_alloc_run_ids[\s\S]*lv_existing_alloc_run_count/,
+  "stock report must count distinct contributing allocation runs",
+);
+assert.match(
+  stockReportSource,
+  /lt_existing_alloc_units TYPE SORTED TABLE OF[\s\S]*INSERT <ls_existing_allocation>-allocation_unit[\s\S]*DESCRIBE TABLE lt_existing_alloc_units[\s\S]*lv_existing_alloc_unit_count/,
+  "stock report must count distinct represented allocation units",
+);
+assert.match(
+  stockReportSource,
+  /lv_existing_alloc_units_mixed\s*=\s*xsdbool\([\s\S]*lv_existing_alloc_unit_count\s*>\s*1/,
+  "stock report must expose an explicit mixed-allocation-unit flag",
+);
+assert.match(
+  stockReportSource,
+  /IF lv_existing_alloc_qty >= lv_output_quantity[\s\S]*lv_existing_alloc_overflow = abap_true[\s\S]*ELSEIF lv_existing_converted_qty[\s\S]*> lv_output_quantity - lv_existing_alloc_qty[\s\S]*lv_existing_alloc_overflow = abap_true/,
+  "stock report must expose when persisted allocations exceed gross stock",
+);
+assert.match(
+  stockReportSource,
+  /lv_existing_alloc_overflow_qty[\s\S]*lv_existing_converted_qty[\s\S]*lv_output_quantity - lv_existing_alloc_qty/,
+  "stock report must quantify persisted allocation overflow",
+);
+assert.match(
+  stockReportSource,
+  /IF <ls_existing_allocation>-allocated <= 0[\s\S]*CONTINUE[\s\S]*lv_existing_alloc_row_count\s*=\s*lv_existing_alloc_row_count\s*\+\s*1/,
+  "stock report must count only positive allocated snapshot rows",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'safety_stock'[\s\S]*iv_name\s*=\s*'safety_stock_threshold_active'[\s\S]*iv_name\s*=\s*'safety_stock_threshold_evaluated'[\s\S]*iv_name\s*=\s*'allocatable_quantity'/,
+  "stock report JSON must expose safety-stock and allocatable-quantity provenance",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'minimum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'minimum_allocatable_threshold_active'[\s\S]*iv_name\s*=\s*'minimum_allocatable_threshold_evaluated'[\s\S]*iv_name\s*=\s*'below_minimum_allocatable'[\s\S]*iv_name\s*=\s*'maximum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'maximum_allocatable_threshold_active'[\s\S]*iv_name\s*=\s*'maximum_allocatable_threshold_evaluated'[\s\S]*iv_name\s*=\s*'above_maximum_allocatable'[\s\S]*iv_name\s*=\s*'allocatable_range_status'/,
+  "stock report JSON must expose allocatable-quantity range provenance",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'net_allocation_active'[\s\S]*iv_name\s*=\s*'existing_allocated_quantity'[\s\S]*iv_name\s*=\s*'existing_allocated_pct'[\s\S]*iv_name\s*=\s*'existing_allocated_row_count'[\s\S]*iv_name\s*=\s*'existing_allocation_run_count'[\s\S]*iv_name\s*=\s*'existing_allocation_unit_count'[\s\S]*iv_name\s*=\s*'existing_allocation_units_mixed'[\s\S]*iv_name\s*=\s*'existing_allocations_overflow'[\s\S]*iv_name\s*=\s*'existing_allocations_overflow_quantity'[\s\S]*iv_name\s*=\s*'existing_allocations_evaluated'[\s\S]*iv_name\s*=\s*'existing_allocations_status'[\s\S]*iv_name\s*=\s*'net_allocatable_quantity'[\s\S]*iv_name\s*=\s*'net_allocatable_pct'[\s\S]*iv_name\s*=\s*'net_allocatable_quantity_status'/,
+  "stock report JSON must expose existing-allocation netting provenance",
+);
+assert.match(
+  stockReportSource,
+  /IF lv_existing_pct_available = abap_true[\s\S]*number_property\([\s\S]*iv_name\s*=\s*'existing_allocated_pct'[\s\S]*ELSE[\s\S]*null_property\([\s\S]*iv_name\s*=\s*'existing_allocated_pct'[\s\S]*iv_name\s*=\s*'existing_allocated_pct'[\s\S]*lv_existing_allocated_pct_text/,
+  "stock typed JSON must expose null for unavailable existing-allocation percentage",
+);
+assert.match(
+  stockReportSource,
+  /IF lv_net_pct_available = abap_true[\s\S]*number_property\([\s\S]*iv_name\s*=\s*'net_allocatable_pct'[\s\S]*ELSE[\s\S]*null_property\([\s\S]*iv_name\s*=\s*'net_allocatable_pct'[\s\S]*iv_name\s*=\s*'net_allocatable_pct'[\s\S]*lv_net_allocatable_pct_text/,
+  "stock typed JSON must expose null for unavailable net allocatable percentage",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'existing_allocated_quantity'[\s\S]*iv_name\s*=\s*'existing_allocation_count'/,
+  "stock report JSON must expose inspected existing-allocation row count",
+);
+assert.match(
+  stockReportSource,
+  /iv_name\s*=\s*'net_available_quantity'[\s\S]*iv_name\s*=\s*'net_allocatable_quantity'[\s\S]*iv_name\s*=\s*'net_allocatable_pct'/,
+  "stock report JSON must expose net quantity and remaining-capacity percentage",
+);
+assert.match(
+  stockReportSource,
+  /IF p_shelf > 0[\s\S]*iv_name\s*=\s*'minimum_shelf_life_days'[\s\S]*APPEND 'minimum_shelf_life_days' TO lt_filter_names/,
+  "stock report metadata must publish an active shelf-life filter",
+);
+assert.match(
+  stockReportSource,
+  /lv_eligibility_status\s*=\s*'material_not_found'[\s\S]*lv_eligibility_status\s*=\s*'batch_required'[\s\S]*lv_eligibility_status\s*=\s*'batch_not_managed'[\s\S]*lv_eligibility_status\s*=\s*'batch_not_found'[\s\S]*lv_eligibility_status\s*=\s*'batch_restricted'[\s\S]*lv_eligibility_status\s*=\s*'expired'[\s\S]*lv_eligibility_status\s*=\s*'shelf_life_not_evaluated'[\s\S]*lv_eligibility_status\s*=\s*'below_minimum_shelf_life'[\s\S]*lv_eligibility_status\s*=\s*'no_available_stock'[\s\S]*lv_eligibility_status\s*=\s*'safety_stock_not_evaluated'[\s\S]*lv_eligibility_status\s*=\s*'no_allocatable_stock'[\s\S]*lv_eligibility_status\s*=\s*'no_net_allocatable_stock'[\s\S]*lv_eligibility_status\s*=\s*'below_minimum_allocatable'[\s\S]*lv_eligibility_status\s*=\s*'above_maximum_allocatable'[\s\S]*lv_eligibility_status\s*=\s*'below_minimum'[\s\S]*lv_eligibility_status\s*=\s*'above_maximum'[\s\S]*lv_eligibility_status\s*=\s*'eligible'[\s\S]*iv_name\s*=\s*'allocation_eligibility_status'/,
+  "stock report must expose deterministic allocation eligibility status",
+);
+assert.match(
+  stockReportSource,
+  /IF p_typed = abap_true[\s\S]*iv_name\s*=\s*'target_unit'[\s\S]*iv_name\s*=\s*'minimum_quantity'[\s\S]*iv_name\s*=\s*'maximum_quantity'[\s\S]*iv_name\s*=\s*'minimum_shelf_life_days'[\s\S]*iv_name\s*=\s*'safety_stock'[\s\S]*iv_name\s*=\s*'minimum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'maximum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'net_existing_allocations'[\s\S]*iv_name\s*=\s*'expiration_as_of'[\s\S]*iv_name\s*=\s*'filter_values'/,
+  "stock typed JSON must expose typed filter values",
 );
 assert.match(
   stockReportSource,
@@ -1962,6 +2166,78 @@ assert.match(
   "unit conversion typed JSON must expose numeric quantities",
 );
 assert.match(
+  conversionReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*2[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "unit conversion report must validate metadata mode and publish its schema",
+);
+assert.match(
+  conversionReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "unit conversion metadata JSON must expose scope, filters, and summary",
+);
+assert.match(
+  reservationCreateReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*2[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "reservation creation report must validate metadata mode and publish its schema",
+);
+assert.match(
+  reservationCreateReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "reservation creation metadata JSON must expose scope, filters, and summary",
+);
+assert.match(
+  reservationCancelReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*2[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "reservation cancellation report must validate metadata mode and publish its schema",
+);
+assert.match(
+  reservationCancelReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "reservation cancellation metadata JSON must expose scope, filters, and summary",
+);
+assert.match(
+  orderUpdateReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*2[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "sales-order update report must validate metadata mode and publish its schema",
+);
+assert.match(
+  orderUpdateReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "sales-order update metadata JSON must expose scope, filters, and summary",
+);
+for (const [reportName, reportSource, message] of [
+  ["goods issue", goodsIssueReportSource, "Goods issue posted"],
+  ["reservation creation", reservationCreateReportSource, "Reservation created"],
+  ["reservation cancellation", reservationCancelReportSource, "Reservation canceled"],
+  ["sales-order update", orderUpdateReportSource, "Sales-order schedule quantity changed"],
+]) {
+  assert.match(
+    reportSource,
+    /iv_name\s*=\s*'status'[\s\S]*iv_value\s*=\s*'success'[\s\S]*iv_name\s*=\s*'message'/,
+    `${reportName} JSON success must expose status and message fields`,
+  );
+  assert.match(
+    reportSource,
+    new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `${reportName} JSON success must preserve its success message`,
+  );
+  assert.match(
+    reportSource,
+    /lv_json_schema\s*=\s*3[\s\S]*lv_json_schema\s*=\s*2/,
+    `${reportName} must version ordinary JSON and metadata JSON separately`,
+  );
+}
+assert.match(
+  goodsIssueReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*2[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  "goods-issue report must validate metadata mode and publish its schema",
+);
+assert.match(
+  goodsIssueReportSource,
+  /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
+  "goods-issue metadata JSON must expose scope, filters, and summary",
+);
+assert.match(
   allocationReportSource,
   /lv_unit\s*=\s*to_upper\(\s*p_meins\s*\)/,
   "allocation reports must canonicalize the displayed unit",
@@ -2143,6 +2419,31 @@ assert.match(
 );
 assert.match(
   allocationServiceSource,
+  /iv_reconcile_existing\s+TYPE abap_bool OPTIONAL/,
+  "allocation service must expose preview existing-allocation reconciliation",
+);
+assert.match(
+  allocationServiceSource,
+  /ev_existing_allocation_count\s+TYPE i[\s\S]*ev_existing_alloc_unit_count\s+TYPE i[\s\S]*ev_existing_cross_unit_qty\s+TYPE zif_stock_allocation=>ty_quantity/,
+  "allocation service must return reconciliation telemetry",
+);
+assert.match(
+  allocationServiceSource,
+  /DESCRIBE TABLE lt_existing LINES ev_existing_allocation_count[\s\S]*DESCRIBE TABLE lt_existing_units[\s\S]*LINES ev_existing_alloc_unit_count[\s\S]*ev_existing_cross_unit_qty\s*=\s*lv_reserved_quantity/,
+  "allocation service must report inspected rows and deducted cross-unit quantity",
+);
+assert.match(
+  allocationServiceSource,
+  /IF iv_preview <> abap_true[\s\S]*OR iv_reconcile_existing = abap_true[\s\S]*mo_sink->get_allocations/,
+  "allocation service must read existing allocations when preview reconciliation is enabled",
+);
+assert.match(
+  allocationServiceSource,
+  /IF iv_preview <> abap_true[\s\S]*LOOP AT lt_cancel_movement_types[\s\S]*mo_authority->check_cancel/,
+  "preview reconciliation must not require reservation-cancellation authorization",
+);
+assert.match(
+  allocationServiceSource,
   /lv_available = lv_available - iv_safety_stock/,
   "allocation service must protect the configured safety-stock floor",
 );
@@ -2160,6 +2461,121 @@ assert.match(
   allocationReportSource,
   /weighted_runs|weighted_requested|weighted_coverage/,
   "allocation summaries must expose weighted strategy analytics",
+);
+assert.match(
+  allocationReportSource,
+  /deadline_count[\s\S]*deadline_mix_pct/,
+  "allocation summaries must expose deadline composition",
+);
+assert.match(
+  allocationReportSource,
+  /ls_summary-deadline_mix_pct/,
+  "allocation summaries must expose the canonical deadline mix percentage",
+);
+assert.match(
+  auditSource,
+  /overdue_count|current_deadline_count|future_deadline_count/,
+  "audit summaries must expose deadline urgency composition",
+);
+assert.match(
+  auditSource,
+  /<ls_run>-requested_deadline IS NOT INITIAL[\s\S]*lv_deadline_age_days[\s\S]*overdue_count[\s\S]*current_deadline_count[\s\S]*future_deadline_count/,
+  "audit summaries must classify deadline urgency from effective deadline age",
+);
+assert.match(
+  allocationReportSource,
+  /overdue_count|current_deadline_count|future_deadline_count|overdue_mix_pct|current_deadline_mix_pct|future_deadline_mix_pct/,
+  "allocation summaries must expose deadline urgency composition",
+);
+assert.match(
+  allocationReportSource,
+  /APPEND zcl_stock_csv=>number\( 58 \)/,
+  "allocation CSV schema must include the preview-reconciliation contract version",
+);
+assert.equal(
+  (allocationReportSource.match(/iv_value = 58 \) TO lt_json_fields/g) ?? []).length,
+  3,
+  "allocation JSON success schemas must use version 58",
+);
+assert.match(
+  allocationReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\./,
+  "allocation report must expose the JSON metadata mode",
+);
+assert.match(
+  allocationReportSource,
+  /Metadata output requires JSON mode\./,
+  "allocation metadata mode must require JSON output",
+);
+assert.match(
+  allocationReportSource,
+  /Select either typed JSON or metadata output\./,
+  "allocation metadata mode must be mutually exclusive with typed JSON",
+);
+assert.match(
+  allocationReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'scope'[\s\S]{0,120}lt_scope_fields/,
+  "allocation metadata must publish execution scope",
+);
+assert.match(
+  allocationReportSource,
+  /string_array_property\([\s\n]+        iv_name\s+=\s+'filters_applied'/,
+  "allocation metadata must publish applied filters",
+);
+assert.match(
+  allocationReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'summary'[\s\S]{0,120}lt_summary_fields/,
+  "allocation metadata must wrap the existing summary",
+);
+assert.match(
+  allocationReportSource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "allocation report must expose the deadline urgency summary selector",
+);
+assert.equal(
+  (allocationReportSource.match(/iv_deadline_urgency\s*=\s*lv_deadline_urgency_input/g) ?? []).length,
+  3,
+  "allocation must propagate deadline urgency to summary and exact-run reads",
+);
+assert.match(
+  allocationReportSource,
+  /Deadline urgency filter is invalid/,
+  "allocation must validate deadline urgency values before allocation",
+);
+assert.match(
+  allocationReportSource,
+  /deadline_urgency_filter/,
+  "allocation output must publish deadline urgency filter provenance",
+);
+assert.match(
+  allocationReportSource,
+  /ls_summary-last_deadline_urgency/,
+  "allocation output must consume the canonical latest deadline urgency",
+);
+assert.match(
+  allocationReportSource,
+  /last_deadline_urgency/,
+  "allocation output must expose latest deadline urgency",
+);
+assert.match(
+  auditSource,
+  /last_deadline_urgency\s*=\s*'n\/a'[\s\S]*last_deadline_urgency\s*=\s*'overdue'[\s\S]*last_deadline_urgency\s*=\s*'current_day'[\s\S]*last_deadline_urgency\s*=\s*'future'/,
+  "audit summaries must classify the latest signed deadline age",
+);
+assert.match(
+  auditSource,
+  /oldest_deadline_urgency\s*=\s*'n\/a'[\s\S]*oldest_deadline_urgency\s*=\s*'overdue'[\s\S]*oldest_deadline_urgency\s*=\s*'current_day'[\s\S]*oldest_deadline_urgency\s*=\s*'future'/,
+  "audit summaries must classify the oldest signed deadline age",
+);
+assert.match(
+  auditSource,
+  /newest_deadline_urgency\s*=\s*'n\/a'[\s\S]*newest_deadline_urgency\s*=\s*'overdue'[\s\S]*newest_deadline_urgency\s*=\s*'current_day'[\s\S]*newest_deadline_urgency\s*=\s*'future'/,
+  "audit summaries must classify the newest signed deadline age",
+);
+assert.match(
+  allocationReportSource,
+  /ls_summary-last_deadline_urgency|ls_summary-oldest_deadline_urgency|ls_summary-newest_deadline_urgency/,
+  "allocation output must consume canonical deadline urgency categories",
 );
 assert.match(
   healthReportSource,
@@ -2623,6 +3039,11 @@ assert.match(
 );
 assert.match(
   healthReportSource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "health must expose a deadline urgency filter",
+);
+assert.match(
+  healthReportSource,
   /iv_deadline_age_from\s+= p_dagef/,
   "health must propagate the minimum deadline age to audit reads",
 );
@@ -2636,9 +3057,14 @@ assert.match(
   /iv_deadline_age_date\s+= lv_deadline_age_date/,
   "health must propagate the deadline-age as-of date to audit reads",
 );
+assert.equal(
+  (healthReportSource.match(/iv_deadline_urgency\s+= lv_deadline_urgency_input/g) ?? []).length,
+  2,
+  "health must propagate the deadline urgency filter to both audit reads",
+);
 assert.match(
   healthReportSource,
-  /minimum_deadline_age_days|maximum_deadline_age_days|deadline_age_as_of/,
+  /minimum_deadline_age_days|maximum_deadline_age_days|deadline_age_as_of|deadline_urgency_filter/,
   "health machine-readable output must expose deadline-age provenance",
 );
 assert.match(
@@ -2650,6 +3076,16 @@ assert.match(
   healthSource,
   /rs_health-deadline_count\s*=\s*is_summary-deadline_count/,
   "health evaluator must propagate deadline counts",
+);
+assert.match(
+  healthSource,
+  /rs_health-overdue_count\s*=\s*is_summary-overdue_count[\s\S]*rs_health-current_deadline_count\s*=\s*is_summary-current_deadline_count[\s\S]*rs_health-future_deadline_count\s*=\s*is_summary-future_deadline_count/,
+  "health evaluator must propagate deadline urgency counts",
+);
+assert.match(
+  healthReportSource,
+  /overdue_count|current_deadline_count|future_deadline_count|overdue_mix_pct|current_deadline_mix_pct|future_deadline_mix_pct/,
+  "health output must expose deadline urgency composition",
 );
 assert.match(
   healthSource,
@@ -2667,14 +3103,194 @@ assert.match(
   "health evaluator must propagate deadline-age provenance",
 );
 assert.match(
+  healthSource,
+  /is_summary-last_deadline_urgency|rs_health-last_deadline_urgency/,
+  "health evaluator must consume the canonical latest deadline urgency",
+);
+assert.match(
+  auditSource,
+  /last_completed_deadline_urgency\s*=\s*'n\/a'[\s\S]*last_completed_deadline_urgency\s*=\s*'overdue'[\s\S]*last_completed_deadline_urgency\s*=\s*'current_day'[\s\S]*last_completed_deadline_urgency\s*=\s*'future'/,
+  "audit summaries must classify the latest completed signed deadline age",
+);
+assert.match(
+  healthSource,
+  /is_summary-oldest_deadline_urgency|rs_health-oldest_deadline_urgency/,
+  "health evaluator must consume the canonical oldest deadline urgency",
+);
+assert.match(
+  healthSource,
+  /is_summary-newest_deadline_urgency|rs_health-newest_deadline_urgency/,
+  "health evaluator must consume the canonical newest deadline urgency",
+);
+assert.match(
+  healthSource,
+  /is_summary-last_completed_deadline_urgency|rs_health-last_completed_deadline_urgency/,
+  "health evaluator must consume the canonical latest-completed deadline urgency",
+);
+assert.match(
   healthReportSource,
-  /iv_value = 116 \) TO lt_json_fields/,
-  "health JSON schema must include the preview-filter contract version",
+  /last_deadline_urgency|oldest_deadline_urgency|newest_deadline_urgency|last_completed_deadline_urgency/,
+  "health output must expose deadline urgency categories",
+);
+assert.match(
+  healthReportSource,
+  /iv_value = 130 \) TO lt_json_fields/,
+  "health JSON schema must include generated-timestamp provenance",
+);
+assert.match(
+  healthReportSource,
+  /iv_schema\s*= 130/,
+  "health error envelopes must use the synchronized contract version",
+);
+assert.match(
+  healthReportSource,
+  /generated_date[\s\S]*generated_time/,
+  "health machine-readable output must expose generated date and time",
+);
+assert.match(
+  healthReportSource,
+  /mode;generated_date;generated_time;schema_version;status/,
+  "health CSV output must expose generated timestamp columns",
+);
+assert.match(
+  healthReportSource,
+  /number\( 130 \)/,
+  "health CSV output must synchronize its schema version",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_meta AS CHECKBOX\./,
+  "health report must expose the JSON metadata mode",
+);
+assert.match(
+  healthReportSource,
+  /Metadata output requires JSON mode\./,
+  "health metadata mode must require JSON output",
+);
+assert.match(
+  healthReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'scope'[\s\S]{0,120}lt_scope_fields/,
+  "health metadata must publish evaluation scope",
+);
+assert.match(
+  healthReportSource,
+  /string_array_property\([\s\S]{0,120}iv_name\s+=\s+'filters_applied'/,
+  "health metadata must publish applied filters",
+);
+assert.match(
+  healthReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'summary'[\s\S]{0,120}lt_summary_fields/,
+  "health metadata must wrap the existing summary",
+);
+assert.match(
+  healthReportSource,
+  /deadline_count;deadline_mix_pct/,
+  "health CSV summary must expose deadline composition",
+);
+assert.match(
+  healthReportSource,
+  /overdue_mix_threshold_active|overdue_mix_threshold|overdue_mix_above_threshold/,
+  "health output must expose the overdue-mix threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_odmax|iv_max_overdue_mix|overdue_mix_above_threshold/,
+  "health must expose and evaluate the maximum overdue-mix threshold",
+);
+assert.match(
+  healthReportSource,
+  /deadline_mix_threshold_active|deadline_mix_threshold|deadline_mix_below_threshold/,
+  "health output must expose the deadline-mix threshold state",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_dmmin|iv_min_deadline_mix|deadline_mix_below_threshold/,
+  "health must expose and evaluate the minimum deadline-mix threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_cdmmax|iv_max_current_deadline_mix|current_deadline_mix_above_threshold/,
+  "health must expose and evaluate the maximum current-day deadline-mix threshold",
+);
+assert.match(
+  healthReportSource,
+  /PARAMETERS p_fdmmin|iv_min_future_deadline_mix|future_deadline_mix_below_threshold/,
+  "health must expose and evaluate the minimum future deadline-mix threshold",
 );
 assert.match(
   readmeSource,
-  /Health JSON errors use schema `116`, matching the successful health envelope\./,
+  /Health JSON errors use schema `130`, matching the successful health envelope\./,
   "README must document the current health JSON error schema",
+);
+assert.match(
+  auditSource,
+  /rs_summary-last_completed_preview\s*=\s*<ls_run>-preview/,
+  "audit summaries must preserve latest-run preview provenance",
+);
+assert.match(
+  auditSource,
+  /rs_summary-last_preview\s*=\s*<ls_run>-preview/,
+  "audit summaries must preserve latest-run preview provenance",
+);
+assert.match(
+  healthSource,
+  /rs_health-last_preview\s*=\s*is_summary-last_preview[\s\S]*rs_health-last_completed_preview\s*=\s*is_summary-last_completed_preview/,
+  "health evaluator must propagate latest-run preview provenance",
+);
+assert.match(
+  healthReportSource,
+  /last_preview|last_completed_preview/,
+  "health report must expose latest-run preview provenance",
+);
+assert.match(
+  auditSource,
+  /rs_summary-preview_runs\s*=\s*rs_summary-preview_runs\s*\+/,
+  "audit summary must count preview runs",
+);
+assert.match(
+  auditSource,
+  /rs_summary-operational_runs\s*=\s*rs_summary-operational_runs\s*\+/,
+  "audit summary must count operational runs",
+);
+assert.match(
+  auditInterfaceSource,
+  /deadline_count\s+TYPE i,[\s\S]*deadline_mix_pct\s+TYPE ty_coverage/,
+  "audit summary must expose deadline population mix",
+);
+assert.match(
+  auditSource,
+  /rs_summary-deadline_mix_pct = rs_summary-deadline_count \* 100[\s\S]*rs_summary-total_runs/,
+  "audit summary must calculate zero-safe deadline population mix",
+);
+assert.match(
+  healthSource,
+  /rs_health-preview_runs\s*=\s*is_summary-preview_runs[\s\S]*rs_health-operational_runs\s*=\s*is_summary-operational_runs/,
+  "health evaluator must propagate run-type composition",
+);
+assert.match(
+  healthReportSource,
+  /preview_runs|operational_runs/,
+  "health report must expose run-type composition",
+);
+assert.match(
+  healthSource,
+  /preview_mix_pct|operational_mix_pct/,
+  "health evaluator must calculate preview and operational mix percentages",
+);
+assert.match(
+  healthSource,
+  /deadline_mix_pct = is_summary-deadline_mix_pct/,
+  "health evaluator must propagate the canonical deadline mix percentage",
+);
+assert.match(
+  healthReportSource,
+  /preview_mix_pct|operational_mix_pct/,
+  "health report must expose preview and operational mix percentages",
+);
+assert.match(
+  healthReportSource,
+  /deadline_mix_pct/,
+  "health report must expose deadline mix percentages",
 );
 assert.match(
   healthSource,
@@ -2743,7 +3359,7 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /mode;schema_version;status;message;reason_code;material;plant;[\s\S]*storage_location;batch;movement_type_filter;unit_filter;/,
+  /mode;generated_date;generated_time;schema_version;status;message;reason_code;material;plant;[\s\S]*storage_location;batch;movement_type_filter;unit_filter;/,
   "health CSV must expose selected scope and movement/unit filter provenance",
 );
 assert.match(
@@ -3903,7 +4519,7 @@ assert.match(
 );
 assert.equal(
   (healthReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  70,
+  75,
   "health report must version all JSON error envelopes",
 );
 const historySource = fs.readFileSync(
@@ -3912,6 +4528,10 @@ const historySource = fs.readFileSync(
 );
 const watchSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_watch.prog.abap"),
+  "utf8",
+);
+const watchClassSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocation_watch.clas.abap"),
   "utf8",
 );
 const resultSource = fs.readFileSync(
@@ -3924,15 +4544,15 @@ const purgeReportSource = fs.readFileSync(
 );
 assert.equal(
   (purgeReportSource.match(/iv_name\s*=\s*'schema_version'/g) ?? []).length,
-  4,
+  6,
   "purge preview and execution JSON must expose schema_version in typed and untyped modes",
 );
 assert.equal(
   (purgeReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  24,
+  27,
   "purge report must version all JSON error envelopes",
 );
-for (const [mode, schemaVersion] of [["preview", 27], ["execution", 28]]) {
+for (const [mode, schemaVersion] of [["preview", 30], ["execution", 31]]) {
   assert.equal(
     (purgeReportSource.match(new RegExp(`iv_value\\s*=\\s*${schemaVersion}\\s*\\)`, "g")) ?? []).length,
     2,
@@ -3958,6 +4578,11 @@ assert.match(
 );
 assert.match(
   purgeReportSource,
+  /PARAMETERS\s+p_durg\s+TYPE\s+c\s+LENGTH\s+11\./,
+  "purge report must expose the deadline urgency filter",
+);
+assert.match(
+  purgeReportSource,
   /PARAMETERS\s+p_to\s+TYPE\s+d\./,
   "purge report must expose an audit start-date upper bound",
 );
@@ -3976,6 +4601,16 @@ assert.match(
   /iv_start_date_to\s*=\s*p_to/,
   "purge report must propagate the audit start-date upper bound to both retention paths",
 );
+assert.equal(
+  (purgeReportSource.match(/iv_deadline_urgency\s+=\s+lv_deadline_urgency_input/g) ?? []).length,
+  2,
+  "purge report must propagate deadline urgency to both retention paths",
+);
+assert.match(
+  purgeReportSource,
+  /Deadline urgency filter is invalid/,
+  "purge report must validate deadline urgency values",
+);
 assert.match(
   purgeReportSource,
   /Preview filter must be P or O/,
@@ -3993,6 +4628,11 @@ assert.match(
 );
 assert.match(
   purgeReportSource,
+  /deadline_urgency_filter/,
+  "purge output must expose deadline urgency provenance",
+);
+assert.match(
+  purgeReportSource,
   /start_date_to_filter/,
   "purge output must expose the audit start-date upper-bound provenance",
 );
@@ -4001,13 +4641,33 @@ assert.match(
   /capped_audit_runs/,
   "purge output must expose runs skipped by the maximum-run cap",
 );
+assert.match(
+  purgeReportSource,
+  /PARAMETERS\s+p_meta\s+AS CHECKBOX\./,
+  "purge report must expose the JSON metadata mode",
+);
+assert.match(
+  purgeReportSource,
+  /Metadata output requires JSON mode\./,
+  "purge metadata mode must require JSON output",
+);
+assert.match(
+  purgeReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'scope'[\s\S]{0,120}lt_scope_fields/,
+  "purge metadata must publish retention scope",
+);
+assert.match(
+  purgeReportSource,
+  /object_property\([\s\S]{0,120}iv_name\s+=\s+'summary'[\s\S]{0,120}lt_summary_fields/,
+  "purge metadata must wrap the existing result",
+);
 const compareReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"),
   "utf8",
 );
 assert.equal(
   (compareReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  114,
+  118,
   "comparison report must version all JSON error envelopes",
 );
 for (const previewParameter of ["P_PREV", "P_OPREV", "P_NPREV"]) {
@@ -4089,6 +4749,16 @@ assert.match(
   /PARAMETERS p_prev TYPE zif_allocation_audit=>ty_preview_filter\.[\s\S]*TRANSLATE\s+p_prev\s+TO\s+UPPER\s+CASE\./,
   "result must canonicalize the preview provenance filter before reads and exports",
 );
+assert.match(
+  resultSource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "result must expose the deadline urgency selector",
+);
+assert.match(
+  resultSource,
+  /iv_deadline_urgency\s+= lv_deadline_urgency_input[\s\S]*iv_run_deadline_urgency\s+= lv_deadline_urgency_input/,
+  "result must propagate deadline urgency to audit and snapshot reads",
+);
 for (const filterName of ["p_auart", "p_oauart", "p_nauart"]) {
   assert.match(
     compareReportSource,
@@ -4138,8 +4808,63 @@ assert.match(
 );
 assert.match(
   historySource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "history must expose the deadline urgency selector",
+);
+assert.match(
+  historySource,
+  /iv_deadline_urgency\s+= lv_deadline_urgency_input/,
+  "history must propagate the normalized deadline urgency selector to audit reads",
+);
+assert.match(
+  historySource,
   /preview_filter/,
   "history machine-readable output must expose preview provenance filter provenance",
+);
+assert.match(
+  historySource,
+  /lv_preview_runs|lv_operational_runs/,
+  "history summaries must expose preview and operational composition",
+);
+assert.match(
+  historySource,
+  /lv_preview_mix_pct|lv_operational_mix_pct/,
+  "history summaries must expose preview and operational mix percentages",
+);
+assert.match(
+  historySource,
+  /lv_deadline_count|lv_deadline_mix_pct/,
+  "history summaries must expose deadline composition",
+);
+assert.match(
+  historySource,
+  /lv_deadline_mix_pct = lv_deadline_count \* 100 \/ lines\( lt_runs \)/,
+  "history deadline mix percentage must be zero-safe against run count",
+);
+assert.match(
+  historySource,
+  /lv_overdue_count|lv_current_deadline_count|lv_future_deadline_count/,
+  "history summaries must expose deadline urgency composition",
+);
+assert.match(
+  historySource,
+  /lv_deadline_age_days > 0[\s\S]*lv_current_deadline_count[\s\S]*lv_future_deadline_count/,
+  "history summaries must classify deadline urgency from signed age",
+);
+assert.match(
+  historySource,
+  /lv_overdue_mix_pct = lv_overdue_count \* 100 \/ lines\( lt_runs \)/,
+  "history overdue mix percentage must be zero-safe against returned runs",
+);
+assert.match(
+  historySource,
+  /lv_full_mix_pct|lv_partial_mix_pct|lv_unallocated_mix_pct/,
+  "history summaries must expose allocation-status mix percentages",
+);
+assert.match(
+  historySource,
+  /IF lv_demand_count > 0[\s\S]*lv_full_mix_pct = lv_full_count \* 100 \/ lv_demand_count[\s\S]*lv_unallocated_mix_pct = lv_unallocated_count \* 100/,
+  "history allocation-status mix percentages must be zero-safe against demand count",
 );
 assert.match(
   historySource,
@@ -4148,8 +4873,18 @@ assert.match(
 );
 assert.match(
   historySource,
+  /deadline_urgency_filter/,
+  "history machine-readable filters must expose deadline urgency provenance",
+);
+assert.match(
+  historySource,
   /maximum_safety_stock_filter/,
   "history machine-readable filters must expose the maximum safety-stock bound",
+);
+assert.match(
+  historySource,
+  /APPEND zcl_stock_csv=>number\( 51 \)/,
+  "history summary CSV schema must include the deadline-composition contract version",
 );
 assert.match(
   historySource,
@@ -4158,13 +4893,53 @@ assert.match(
 );
 assert.match(
   historySource,
-  /iv_value = 44 \) TO lt_json_fields/,
-  "history summary JSON schema must include the preview-filter contract version",
+  /unit;strategy;preview;/,
+  "history CSV detail must expose per-run preview provenance",
 );
 assert.match(
   historySource,
-  /iv_value = 27 \) TO lt_json_fields/,
-  "history detail JSON schema must include the preview-filter contract version",
+  /iv_name\s*=\s*'preview'[\s\S]*<ls_run>-preview/,
+  "history JSON detail must expose per-run preview provenance",
+);
+assert.match(
+  historySource,
+  /iv_value = 51 \) TO lt_json_fields/,
+  "history summary JSON schema must include the deadline-composition contract version",
+);
+assert.match(
+  historySource,
+  /lv_oldest_deadline_age_days > 0[\s\S]*lv_oldest_deadline_urgency = 'overdue'[\s\S]*lv_oldest_deadline_urgency = 'current_day'[\s\S]*lv_oldest_deadline_urgency = 'future'/,
+  "history summaries must classify the oldest signed deadline age",
+);
+assert.match(
+  historySource,
+  /lv_newest_deadline_age_days > 0[\s\S]*lv_newest_deadline_urgency = 'overdue'[\s\S]*lv_newest_deadline_urgency = 'current_day'[\s\S]*lv_newest_deadline_urgency = 'future'/,
+  "history summaries must classify the newest signed deadline age",
+);
+assert.match(
+  historySource,
+  /lv_oldest_deadline_urgency = 'n\/a'[\s\S]*lv_newest_deadline_urgency = 'n\/a'/,
+  "history summaries must mark missing deadline-age endpoints as unavailable",
+);
+assert.match(
+  historySource,
+  /oldest_deadline_urgency|newest_deadline_urgency/,
+  "history summary exports must expose deadline urgency categories",
+);
+assert.match(
+  historySource,
+  /iv_value = 30 \) TO lt_json_fields/,
+  "history detail JSON schema must include the row urgency contract version",
+);
+assert.match(
+  historySource,
+  /deadline_urgency/,
+  "history detail exports must expose row-level deadline urgency",
+);
+assert.match(
+  historySource,
+  /lv_deadline_age_days > 0[\s\S]*lv_deadline_urgency = 'overdue'[\s\S]*lv_deadline_urgency = 'current_day'[\s\S]*lv_deadline_urgency = 'future'/,
+  "history detail urgency must classify the signed deadline age",
 );
 assert.equal(
   (historySource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
@@ -4318,17 +5093,147 @@ assert.match(
 );
 assert.match(
   watchSource,
-  /number\( 60 \)/,
-  "watch CSV schema must include the preview-filter contract version",
+  /run_id;strategy;preview;weighted_strategy/,
+  "watch CSV alerts must expose per-alert preview provenance",
 );
 assert.match(
   watchSource,
-  /iv_value = 63 \)/,
-  "watch JSON schema must include the preview-filter contract version",
+  /iv_name\s*=\s*'preview'[\s\S]*<ls_alert>-preview/,
+  "watch JSON alerts must expose per-alert preview provenance",
+);
+assert.match(
+  watchSource,
+  /preview_runs|operational_runs/,
+  "watch summaries must expose preview and operational composition",
+);
+assert.match(
+  watchSource,
+  /preview_mix_pct|operational_mix_pct/,
+  "watch summaries must expose preview and operational mix percentages",
+);
+assert.match(
+  watchSource,
+  /full_count|partial_count|unallocated_count|full_mix_pct|partial_mix_pct|unallocated_mix_pct/,
+  "watch summaries must expose allocation-status composition",
+);
+assert.match(
+  watchSource,
+  /deadline_count|deadline_mix_pct/,
+  "watch summaries must expose deadline composition",
+);
+assert.match(
+  watchSource,
+  /overdue_count|current_deadline_count|future_deadline_count/,
+  "watch summaries must expose deadline urgency composition",
+);
+assert.match(
+  watchClassSource,
+  /oldest_deadline_urgency\s+TYPE\s+string[\s\S]*newest_deadline_urgency\s+TYPE\s+string/,
+  "watch shared summaries must carry deadline urgency categories",
+);
+assert.match(
+  watchClassSource,
+  /lv_deadline_age_initialized = abap_false[\s\S]*oldest_deadline_urgency = 'n\/a'[\s\S]*oldest_deadline_urgency = 'overdue'[\s\S]*oldest_deadline_urgency = 'current_day'[\s\S]*oldest_deadline_urgency = 'future'/,
+  "watch shared summaries must classify the oldest signed deadline age",
+);
+assert.match(
+  watchClassSource,
+  /newest_deadline_urgency = 'n\/a'[\s\S]*newest_deadline_age_days > 0[\s\S]*newest_deadline_urgency = 'overdue'[\s\S]*newest_deadline_urgency = 'current_day'[\s\S]*newest_deadline_urgency = 'future'/,
+  "watch shared summaries must classify the newest signed deadline age and missing endpoints",
+);
+assert.match(
+  watchSource,
+  /ls_unit_summary-oldest_deadline_urgency[\s\S]*ls_unit_summary-newest_deadline_urgency/,
+  "watch report must consume shared deadline urgency categories",
+);
+assert.match(
+  watchSource,
+  /deadline_age_days[\s\S]*overdue_count[\s\S]*current_deadline_count[\s\S]*future_deadline_count/,
+  "watch summaries must classify deadline urgency from signed age",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "watch must expose the deadline urgency selector",
+);
+assert.match(
+  watchSource,
+  /iv_deadline_urgency\s+= lv_deadline_urgency_input/,
+  "watch must propagate the normalized deadline urgency selector to audit reads",
+);
+assert.match(
+  watchSource,
+  /deadline_urgency_filter/,
+  "watch machine-readable output must expose deadline urgency filter provenance",
+);
+assert.match(
+  watchSource,
+  /demand_count;full_count;partial_count;unallocated_count;/,
+  "watch CSV alerts must expose allocation-status counts",
+);
+assert.match(
+  watchSource,
+  /iv_name\s*=\s*'full_mix_pct'[\s\S]*<ls_alert>-full_mix_pct/,
+  "watch JSON alerts must expose allocation-status mix percentages",
+);
+assert.match(
+  watchSource,
+  /number\( 71 \)/,
+  "watch CSV schema must include row urgency provenance",
+);
+assert.match(
+  watchSource,
+  /iv_value = 75 \)/,
+  "watch JSON schema must include row urgency provenance",
+);
+assert.equal(
+  (watchSource.match(/iv_value = 75 \)/g) ?? []).length,
+  2,
+  "watch typed and untyped JSON must expose schema version 75",
+);
+assert.match(
+  watchSource,
+  /deadline_urgency/,
+  "watch detail exports must expose row-level deadline urgency",
+);
+assert.match(
+  watchSource,
+  /<ls_alert>-deadline_age_days > 0[\s\S]*lv_deadline_urgency = 'overdue'[\s\S]*lv_deadline_urgency = 'current_day'[\s\S]*lv_deadline_urgency = 'future'/,
+  "watch detail urgency must classify the signed deadline age",
+);
+assert.match(
+  watchSource,
+  /generated_date[\s\S]*generated_time/,
+  "watch machine-readable output must expose generated date and time",
+);
+assert.match(
+  watchSource,
+  /schema_version;generated_date;generated_time;material/,
+  "watch CSV output must place generated date and time in its stable header",
+);
+assert.match(
+  watchSource,
+  /iv_name\s*=\s*'generated_date'[\s\S]*iv_name\s*=\s*'generated_time'/,
+  "watch JSON output must place generated date and time in its envelope context",
+);
+assert.match(
+  watchSource,
+  /PARAMETERS p_meta AS CHECKBOX\./,
+  "watch must expose a JSON metadata-envelope switch",
+);
+assert.match(
+  watchSource,
+  /Metadata output requires JSON mode|Metadata output cannot be combined with typed or NDJSON output/,
+  "watch metadata output must validate its JSON-only combinations",
+);
+assert.match(
+  watchSource,
+  /iv_name\s*=\s*'row_count'[\s\S]*iv_name\s*=\s*'max_rows'[\s\S]*\"rows\":\[/,
+  "watch metadata JSON must expose row count, limit, and rows",
 );
 assert.equal(
   (watchSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  4,
+  5,
   "watch report must version all JSON error envelopes",
 );
 assert.match(
@@ -4393,6 +5298,166 @@ assert.match(
 );
 assert.match(
   resultSource,
+  /full_mix_pct|partial_mix_pct|unallocated_mix_pct/,
+  "result summaries must expose allocation-status mix percentages",
+);
+assert.match(
+  resultSource,
+  /preview_lines|operational_lines|preview_mix_pct|operational_mix_pct/,
+  "result summaries must expose preview/operational composition",
+);
+assert.match(
+  resultSource,
+  /reserved_lines|unreserved_lines|reserved_mix_pct|unreserved_mix_pct/,
+  "result summaries must expose reservation composition",
+);
+assert.match(
+  compareReportSource,
+  /old_snapshot_full_mix_pct|new_snapshot_full_mix_pct|old_snapshot_partial_mix_pct|new_snapshot_partial_mix_pct|old_snapshot_unallocated_mix_pct|new_snapshot_unallocated_mix_pct|snapshot_full_mix_delta_pct|snapshot_partial_mix_delta_pct|snapshot_unallocated_mix_delta_pct|status_changed_rows|status_improved_rows|status_regressed_rows|status_changed_mix_pct|status_improved_mix_pct|status_regressed_mix_pct|returned_status_changed_rows|returned_status_improved_rows|returned_status_regressed_rows|returned_status_changed_mix_pct|returned_status_improved_mix_pct|returned_status_regressed_mix_pct|old_deadline_age_days|new_deadline_age_days|old_deadline_urgency|new_deadline_urgency|deadline_age_delta_days|deadline_urgency_transition|old_deadline_count|new_deadline_count|old_deadline_mix_pct|new_deadline_mix_pct|old_overdue_count|old_current_deadline_count|old_future_deadline_count|new_overdue_count|new_current_deadline_count|new_future_deadline_count|old_overdue_mix_pct|old_current_deadline_mix_pct|old_future_deadline_mix_pct|new_overdue_mix_pct|new_current_deadline_mix_pct|new_future_deadline_mix_pct|deadline_count_delta|overdue_count_delta|current_deadline_count_delta|future_deadline_count_delta|deadline_mix_delta_pct|overdue_mix_delta_pct|current_deadline_mix_delta_pct|future_deadline_mix_delta_pct/,
+  "comparison summaries must expose run deadline telemetry and transitions, snapshot composition, deltas, status transition shares, and deadline urgency composition and deltas",
+);
+assert.match(
+  compareReportSource,
+  /<ls_change>-change_type.*'A'/,
+  "comparison deadline composition must count old and new sides asymmetrically for added and removed rows",
+);
+assert.match(
+  compareReportSource,
+  /<ls_change>-change_type.*'R'/,
+  "comparison deadline composition must count new rows separately from removed rows",
+);
+assert.match(
+  compareReportSource,
+  /lv_page_old_overdue_count|lv_old_deadline_age_days|lv_page_old_current_count|lv_page_old_future_count/,
+  "comparison deadline composition must classify old rows from signed deadline age",
+);
+assert.match(
+  compareReportSource,
+  /lv_page_new_overdue_count|lv_new_deadline_age_days|lv_page_new_current_count|lv_page_new_future_count/,
+  "comparison deadline composition must classify new rows from signed deadline age",
+);
+assert.match(
+  compareReportSource,
+  /old_deadline_urgency|new_deadline_urgency/,
+  "comparison detail exports must expose side-aware row deadline urgency",
+);
+assert.match(
+  compareReportSource,
+  /p_dtr|deadline_urgency_transition_filter|did not match the selected runs/,
+  "comparison must validate and publish the deadline urgency transition filter",
+);
+assert.match(
+  compareReportSource,
+  /PARAMETERS p_durg TYPE c LENGTH 11\./,
+  "comparison must expose the common deadline urgency filter",
+);
+assert.match(
+  compareReportSource,
+  /PARAMETERS p_odurg TYPE c LENGTH 11\./,
+  "comparison must expose the old deadline urgency filter",
+);
+assert.match(
+  compareReportSource,
+  /PARAMETERS p_ndurg TYPE c LENGTH 11\./,
+  "comparison must expose the new deadline urgency filter",
+);
+assert.equal(
+  (compareReportSource.match(/iv_run_deadline_urgency\s+= lv_old_deadline_urgency_input/g) ?? []).length,
+  1,
+  "comparison must propagate the old deadline urgency filter to snapshot reads",
+);
+assert.equal(
+  (compareReportSource.match(/iv_run_deadline_urgency\s+= lv_new_deadline_urgency_input/g) ?? []).length,
+  1,
+  "comparison must propagate the new deadline urgency filter to snapshot reads",
+);
+assert.equal(
+  (compareReportSource.match(/iv_deadline_urgency\s+= lv_old_deadline_urgency_input/g) ?? []).length,
+  1,
+  "comparison must propagate the old deadline urgency filter to audit reads",
+);
+assert.equal(
+  (compareReportSource.match(/iv_deadline_urgency\s+= lv_new_deadline_urgency_input/g) ?? []).length,
+  1,
+  "comparison must propagate the new deadline urgency filter to audit reads",
+);
+assert.match(
+  compareReportSource,
+  /Common and side-specific deadline urgency filters cannot be combined/,
+  "comparison must reject common and side-specific urgency combinations",
+);
+assert.match(
+  compareReportSource,
+  /deadline_urgency_filter/,
+  "comparison machine-readable output must publish the common deadline urgency filter",
+);
+assert.match(
+  compareReportSource,
+  /lv_old_deadline_age_days > 0[\s\S]*lv_old_deadline_urgency = 'overdue'[\s\S]*lv_old_deadline_urgency = 'current_day'[\s\S]*lv_old_deadline_urgency = 'future'/,
+  "comparison old detail urgency must classify the signed deadline age",
+);
+assert.match(
+  compareReportSource,
+  /lv_new_deadline_age_days > 0[\s\S]*lv_new_deadline_urgency = 'overdue'[\s\S]*lv_new_deadline_urgency = 'current_day'[\s\S]*lv_new_deadline_urgency = 'future'/,
+  "comparison new detail urgency must classify the signed deadline age",
+);
+for (const deltaContract of [
+  "lv_page_deadline_count_delta = lv_page_new_deadline_count -",
+  "lv_page_overdue_count_delta = lv_page_new_overdue_count -",
+  "lv_page_current_count_delta = lv_page_new_current_count -",
+  "lv_page_future_count_delta = lv_page_new_future_count -",
+  "lv_page_deadline_mix_delta = lv_page_new_deadline_mix -",
+  "lv_page_overdue_mix_delta = lv_page_new_overdue_mix -",
+  "lv_page_current_mix_delta = lv_page_new_current_mix -",
+  "lv_page_future_mix_delta = lv_page_new_future_mix -",
+]) {
+  assert.ok(
+    compareReportSource.includes(deltaContract),
+    `comparison deadline delta contract missing ${deltaContract}`,
+  );
+}
+assert.match(
+  resultSource,
+  /allocation_run_id;strategy;preview;/,
+  "result detail CSV must expose persisted preview provenance",
+);
+assert.match(
+  resultSource,
+  /iv_name\s*=\s*'preview'[\s\S]*<ls_demand>-preview/,
+  "result detail JSON must expose persisted preview provenance",
+);
+assert.match(
+  allocationSinkSource,
+  /<ls_demand>-preview\s*=\s*<ls_strategy_run>-preview/,
+  "allocation sink must propagate persisted preview provenance to result rows",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /requested_deadline\s+TYPE\s+d/,
+  "allocation demand rows must carry effective originating deadlines",
+);
+assert.match(
+  allocationSinkSource,
+  /<ls_demand>-requested_deadline\s*=\s*lv_run_deadline/,
+  "allocation sink must propagate effective originating deadlines to result rows",
+);
+assert.match(
+  allocationSinkInterfaceSource,
+  /iv_run_deadline_urgency\s+TYPE\s+string/,
+  "allocation sink must expose the originating deadline urgency selector",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_deadline_urgency_filter\s*=\s*to_lower\( iv_run_deadline_urgency \)[\s\S]*Allocation result deadline urgency filter is invalid/,
+  "allocation sink must validate the originating deadline urgency selector",
+);
+assert.match(
+  allocationSinkSource,
+  /lv_run_deadline_urgency = 'n\/a'[\s\S]*lv_run_deadline_urgency = 'overdue'[\s\S]*lv_run_deadline_urgency = 'current_day'[\s\S]*lv_run_deadline_urgency = 'future'[\s\S]*DELETE rt_demands/,
+  "allocation sink must apply the originating deadline urgency selector",
+);
+assert.match(
+  resultSource,
   /minimum_safety_stock/,
   "result machine-readable filters must expose the minimum safety-stock bound",
 );
@@ -4403,18 +5468,73 @@ assert.match(
 );
 assert.match(
   resultSource,
-  /APPEND zcl_stock_csv=>number\( 46 \)/,
-  "result summary CSV schema must include the safety-stock contract version",
+  /APPEND zcl_stock_csv=>number\( 53 \)/,
+  "result summary CSV schema must include the deadline-composition contract version",
 );
 assert.match(
   resultSource,
-  /APPEND zcl_stock_csv=>number\( 40 \)/,
-  "result detail CSV schema must include the safety-stock contract version",
+  /APPEND zcl_stock_csv=>number\( 43 \)/,
+  "result detail CSV schema must include the row urgency contract version",
 );
 assert.equal(
   (resultSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
   35,
   "result report must version all JSON error envelopes",
+);
+assert.match(
+  resultSource,
+  /iv_value = 53 \) TO lt_json_fields/,
+  "result summary JSON schema must include the deadline-composition contract version",
+);
+assert.match(
+  resultSource,
+  /deadline_lines|deadline_mix_pct/,
+  "result summaries must expose deadline-bearing line composition",
+);
+assert.match(
+  resultSource,
+  /overdue_lines|current_deadline_lines|future_deadline_lines/,
+  "result summaries must expose deadline urgency composition",
+);
+assert.match(
+  resultSource,
+  /requested_deadline\s*<\s*lv_deadline_reference_date[\s\S]*current_deadline_lines[\s\S]*future_deadline_lines/,
+  "result summaries must classify deadline urgency against the reported reference date",
+);
+assert.match(
+  resultSource,
+  /lv_summary_deadline_age_days\s*=\s*lv_deadline_reference_date[\s\S]*lv_oldest_deadline_age_days[\s\S]*lv_newest_deadline_age_days/,
+  "result summaries must calculate page-scoped signed deadline age bounds",
+);
+assert.match(
+  resultSource,
+  /oldest_deadline_age_days[\s\S]*oldest_deadline_urgency[\s\S]*newest_deadline_age_days[\s\S]*newest_deadline_urgency/,
+  "result summaries must expose signed deadline age bounds and urgency categories",
+);
+assert.match(
+  resultSource,
+  /lv_oldest_deadline_urgency = 'n\/a'[\s\S]*lv_newest_deadline_urgency = 'n\/a'/,
+  "result summaries must expose n/a deadline age telemetry when no deadline is available",
+);
+assert.match(
+  resultSource,
+  /lv_overdue_mix_pct\s*=\s*lv_overdue_lines\s*\*\s*100\s*\/\s*lines\( lt_demands \)/,
+  "result overdue mix percentage must be zero-safe against returned lines",
+);
+assert.match(
+  resultSource,
+  /iv_value = 43 \) TO lt_json_fields/,
+  "result detail JSON schema must include the row urgency contract version",
+);
+assert.match(
+  resultSource,
+  /deadline_urgency/,
+  "result detail exports must expose row-level deadline urgency",
+);
+assert.match(
+  resultSource,
+  /lv_audit_deadline_age_days > 0[\s\S]*lv_deadline_urgency = 'overdue'[\s\S]*lv_deadline_urgency = 'current_day'[\s\S]*lv_deadline_urgency = 'future'/,
+  "result detail urgency must classify the signed audit deadline age",
 );
 assert.match(
   compareClassSource,

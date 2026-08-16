@@ -340,11 +340,35 @@
      <LENGTH>20</LENGTH>
     </item>
     <item>
-     <ID>S</ID>
-     <KEY>P_DAGED</KEY>
-     <ENTRY>Deadline age as-of date</ENTRY>
-     <LENGTH>26</LENGTH>
-    </item>
+    <ID>S</ID>
+    <KEY>P_DAGED</KEY>
+    <ENTRY>Deadline age as-of date</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_DTR</KEY>
+   <ENTRY>Deadline urgency transition filter</ENTRY>
+   <LENGTH>37</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_DURG</KEY>
+   <ENTRY>Common deadline urgency filter</ENTRY>
+   <LENGTH>33</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_ODURG</KEY>
+   <ENTRY>Old deadline urgency filter</ENTRY>
+   <LENGTH>30</LENGTH>
+  </item>
+  <item>
+   <ID>S</ID>
+   <KEY>P_NDURG</KEY>
+   <ENTRY>New deadline urgency filter</ENTRY>
+   <LENGTH>30</LENGTH>
+  </item>
    <item>
     <ID>S</ID>
     <KEY>P_OAGEF</KEY>

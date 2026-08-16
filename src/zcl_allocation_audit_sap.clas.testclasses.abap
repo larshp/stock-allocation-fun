@@ -727,7 +727,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_unit             = 'EA'
       iv_available        = '5'
-      iv_demand_count     = 1 ).
+      iv_demand_count     = 1
+      iv_preview          = abap_true ).
     lo_cut->finish_run(
       iv_run_id     = lv_newest_run_id
       iv_status     = 'S'
@@ -739,19 +740,19 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
 
     UPDATE zstockalloc_run
       SET start_date  = '20260701',
-          start_time  = '010000',
+          start_time  = '010001',
           finish_date = '20260702',
           finish_time = '010001'
       WHERE run_id = @lv_oldest_run_id.
     UPDATE zstockalloc_run
       SET start_date  = '20260701',
-          start_time  = '010000',
+          start_time  = '010002',
           finish_date = '20260702',
           finish_time = '010002'
       WHERE run_id = @lv_middle_run_id.
     UPDATE zstockalloc_run
       SET start_date  = '20260701',
-          start_time  = '010000',
+          start_time  = '010003',
           finish_date = '20260702',
           finish_time = '010003'
       WHERE run_id = @lv_newest_run_id.
@@ -765,8 +766,20 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = ls_summary-last_completed_run_id
       exp = lv_newest_run_id ).
     cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-preview_runs
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-operational_runs
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_completed_status
       exp = 'S' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_preview
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_preview
+      exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_completed_success_streak
       exp = 2 ).
@@ -933,6 +946,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_completed_deadline_age_reason
       exp = 'available' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_completed_deadline_urgency
+      exp = 'overdue' ).
   ENDMETHOD.
 
   METHOD reports_running_age.
@@ -1167,8 +1183,32 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = ls_summary-newest_deadline_age_days
       exp = sy-datum - lv_newest_deadline ).
     cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_urgency
+      exp = 'overdue' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_urgency
+      exp = 'future' ).
+    cl_abap_unit_assert=>assert_equals(
       act = ls_summary-deadline_age_reference_date
       exp = sy-datum ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-overdue_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-current_deadline_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-future_deadline_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-overdue_mix_pct
+      exp = 50 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-current_deadline_mix_pct
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-future_deadline_mix_pct
+      exp = 50 ).
     ls_summary = lo_cut->get_summary(
       iv_material         = 'MATERIAL-AUDIT-POLICY'
       iv_plant            = '1000'
@@ -2170,8 +2210,26 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_status           = 'E' ).
     cl_abap_unit_assert=>assert_initial( ls_summary-deadline_count ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-deadline_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-overdue_count ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-current_deadline_count ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-future_deadline_count ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-overdue_mix_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_summary-current_deadline_mix_pct ).
+    cl_abap_unit_assert=>assert_initial( ls_summary-future_deadline_mix_pct ).
     cl_abap_unit_assert=>assert_initial(
       ls_summary-last_deadline_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-last_deadline_urgency
+      exp = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_urgency
+      exp = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_urgency
+      exp = 'n/a' ).
     lt_runs = lo_cut->get_runs(
       iv_material          = 'MATERIAL-BAD-PURGE-HORIZON'
       iv_plant             = '1000'
@@ -3199,6 +3257,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_unit             = 'EA'
       iv_status           = 'p'
+      iv_deadline_urgency = 'n/a'
       iv_before_date      = sy-datum ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_preview-audit_count
@@ -3218,6 +3277,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         iv_storage_location  = '0001'
         iv_unit              = 'EA'
         iv_status            = 'p'
+        iv_deadline_urgency  = 'n/a'
         iv_before_date       = sy-datum
       IMPORTING
         ev_deleted_snapshots = lv_deleted_snapshots
@@ -5540,6 +5600,9 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = ls_summary-deadline_count
       exp = 4 ).
     cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-deadline_mix_pct
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_requested_deadline
       exp = lt_runs[ 1 ]-requested_deadline ).
     cl_abap_unit_assert=>assert_equals(
@@ -5635,6 +5698,12 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-newest_deadline_age_days
       exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-oldest_deadline_urgency
+      exp = 'overdue' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_summary-newest_deadline_urgency
+      exp = 'overdue' ).
     TRY.
         lo_cut->get_runs(
           iv_material          = 'MATERIAL-AUDIT-OVERDUE'
@@ -5661,6 +5730,52 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals(
           act = lo_deadline_age_date_error->message
           exp = 'Audit deadline age date requires an age range' ).
+    ENDTRY.
+
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_urgency = 'OVERDUE' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 2 ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_urgency = 'current_day' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_urgency = 'future' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    lt_runs = lo_cut->get_runs(
+      iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_deadline_urgency = 'n/a' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_runs )
+      exp = 1 ).
+    TRY.
+        lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-OVERDUE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_deadline_urgency = 'unknown' ).
+        cl_abap_unit_assert=>fail(
+          msg = 'Expected invalid deadline urgency filter' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_deadline_urgency_error).
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_deadline_urgency_error->message
+          exp = 'Audit deadline urgency filter is invalid' ).
     ENDTRY.
   ENDMETHOD.
 ENDCLASS.

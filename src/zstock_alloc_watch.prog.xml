@@ -34,6 +34,7 @@
     <item><ID>S</ID><KEY>P_DAGEF</KEY><ENTRY>Deadline age from</ENTRY><LENGTH>22</LENGTH></item>
     <item><ID>S</ID><KEY>P_DAGET</KEY><ENTRY>Deadline age to</ENTRY><LENGTH>20</LENGTH></item>
     <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DURG</KEY><ENTRY>Deadline urgency</ENTRY><LENGTH>18</LENGTH></item>
     <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
     <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_PREV</KEY><ENTRY>Run type (P preview / O operational)</ENTRY><LENGTH>36</LENGTH></item>
@@ -71,6 +72,7 @@
     <item><ID>S</ID><KEY>P_SUM</KEY><ENTRY>Summary CSV</ENTRY><LENGTH>16</LENGTH></item>
     <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
     <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
+    <item><ID>S</ID><KEY>P_META</KEY><ENTRY>JSON metadata envelope</ENTRY><LENGTH>26</LENGTH></item>
     <item><ID>S</ID><KEY>P_TYPED</KEY><ENTRY>Typed JSON filters</ENTRY><LENGTH>24</LENGTH></item>
     <item><ID>S</ID><KEY>P_NDJSON</KEY><ENTRY>NDJSON output</ENTRY><LENGTH>20</LENGTH></item>
    </TPOOL>

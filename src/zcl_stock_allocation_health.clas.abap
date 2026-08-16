@@ -6,6 +6,29 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         message                                          TYPE zif_allocation_audit=>ty_message,
         reason_code                                      TYPE c LENGTH 16,
         total_runs                                       TYPE i,
+        preview_runs                                     TYPE i,
+        operational_runs                                 TYPE i,
+        preview_mix_pct                                  TYPE zif_allocation_audit=>ty_coverage,
+        operational_mix_pct                              TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
+        overdue_count                                    TYPE i,
+        current_deadline_count                           TYPE i,
+        future_deadline_count                            TYPE i,
+        overdue_mix_pct                                  TYPE zif_allocation_audit=>ty_coverage,
+        current_deadline_mix_pct                         TYPE zif_allocation_audit=>ty_coverage,
+        future_deadline_mix_pct                          TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_threshold_active                    TYPE abap_bool,
+        deadline_mix_threshold                           TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_below_threshold                     TYPE abap_bool,
+        overdue_mix_threshold_active                     TYPE abap_bool,
+        overdue_mix_threshold                            TYPE zif_allocation_audit=>ty_coverage,
+        overdue_mix_above_threshold                      TYPE abap_bool,
+        current_deadline_mix_threshold_active            TYPE abap_bool,
+        current_deadline_mix_threshold                   TYPE zif_allocation_audit=>ty_coverage,
+        current_deadline_mix_above_threshold             TYPE abap_bool,
+        future_deadline_mix_threshold_active             TYPE abap_bool,
+        future_deadline_mix_threshold                    TYPE zif_allocation_audit=>ty_coverage,
+        future_deadline_mix_below_threshold              TYPE abap_bool,
         run_count_threshold_active                       TYPE abap_bool,
         run_count_threshold                              TYPE i,
         run_count_below_threshold                        TYPE abap_bool,
@@ -90,6 +113,7 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         last_age_reference_time                          TYPE t,
         last_completed_run_available                     TYPE abap_bool,
         last_completed_run_id                            TYPE zif_allocation_audit=>ty_run_id,
+        last_completed_preview                           TYPE abap_bool,
         last_completed_status                            TYPE zif_allocation_audit=>ty_run_status,
         last_completed_success_streak                    TYPE i,
         last_completed_non_success_streak                TYPE i,
@@ -111,6 +135,7 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         last_completed_deadline_age_available            TYPE abap_bool,
         last_completed_deadline_age_days                 TYPE i,
         last_completed_deadline_age_reason               TYPE string,
+        last_completed_deadline_urgency                  TYPE string,
         last_completed_available_stock                   TYPE zif_stock_allocation=>ty_quantity,
         last_completed_available_stock_unit              TYPE string,
         last_completed_available_stock_available         TYPE abap_bool,
@@ -131,6 +156,7 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         last_completed_partial_line_pct                  TYPE zif_allocation_audit=>ty_coverage,
         last_completed_unalloc_line_pct                  TYPE zif_allocation_audit=>ty_coverage,
         last_run_id                                      TYPE zif_allocation_audit=>ty_run_id,
+        last_preview                                     TYPE abap_bool,
         last_available_stock                             TYPE zif_stock_allocation=>ty_quantity,
         last_available_stock_unit                        TYPE string,
         last_available_stock_available                   TYPE abap_bool,
@@ -383,6 +409,9 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         last_deadline_age_days                           TYPE i,
         oldest_deadline_age_days                         TYPE i,
         newest_deadline_age_days                         TYPE i,
+        last_deadline_urgency                            TYPE string,
+        oldest_deadline_urgency                          TYPE string,
+        newest_deadline_urgency                          TYPE string,
         deadline_age_reference_date                      TYPE d,
       END OF ty_health.
     CLASS-METHODS evaluate
@@ -410,6 +439,10 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
         iv_min_duration_count                     TYPE i OPTIONAL
         iv_min_run_count                          TYPE i OPTIONAL
         iv_min_deadline_count                     TYPE i OPTIONAL
+        iv_min_deadline_mix                       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_overdue_mix                        TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_current_deadline_mix               TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_future_deadline_mix                TYPE zif_allocation_audit=>ty_coverage OPTIONAL
         iv_warn_mixed_policies                    TYPE abap_bool OPTIONAL
         iv_warn_mixed_units                       TYPE abap_bool OPTIONAL
         iv_min_completion_rate                    TYPE zif_allocation_audit=>ty_coverage OPTIONAL
@@ -461,6 +494,13 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
   METHOD evaluate.
     DATA lv_stale TYPE abap_bool.
     rs_health-total_runs = is_summary-total_runs.
+    rs_health-preview_runs = is_summary-preview_runs.
+    rs_health-operational_runs = is_summary-operational_runs.
+    IF is_summary-total_runs > 0.
+      rs_health-preview_mix_pct = is_summary-preview_runs * 100        / is_summary-total_runs.
+      rs_health-operational_mix_pct = is_summary-operational_runs * 100        / is_summary-total_runs.
+      rs_health-deadline_mix_pct = is_summary-deadline_mix_pct.
+    ENDIF.
     rs_health-success_runs = is_summary-success_runs.
     rs_health-completion_pct = is_summary-completion_pct.
     rs_health-success_rate_pct = is_summary-success_rate_pct.
@@ -507,6 +547,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         AND is_summary-last_run_id IS NOT INITIAL ).
     rs_health-duration_metrics_available = xsdbool(      is_summary-completed_duration_runs > 0 ).
     rs_health-last_run_id = is_summary-last_run_id.
+    rs_health-last_preview = is_summary-last_preview.
     rs_health-last_available_stock = is_summary-last_avail.
     rs_health-last_available_stock_unit = is_summary-last_avail_unit.
     rs_health-last_available_stock_available =
@@ -570,6 +611,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_completed_run_available = xsdbool(
       is_summary-last_completed_run_id IS NOT INITIAL ).
     rs_health-last_completed_run_id = is_summary-last_completed_run_id.
+    rs_health-last_completed_preview = is_summary-last_completed_preview.
     rs_health-last_completed_status = is_summary-last_completed_status.
     rs_health-last_completed_success_streak =
       is_summary-last_completed_success_streak.
@@ -618,6 +660,12 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         rs_health-last_completed_deadline_age_reason = 'no_deadline'.
       ENDIF.
     ENDIF.
+    IF is_summary-last_completed_deadline_urgency IS INITIAL.
+      rs_health-last_completed_deadline_urgency = 'n/a'.
+    ELSE.
+      rs_health-last_completed_deadline_urgency =
+        is_summary-last_completed_deadline_urgency.
+    ENDIF.
     rs_health-last_completed_available_stock = is_summary-last_completed_avail.
     rs_health-last_completed_available_stock_unit =
       is_summary-last_completed_avail_unit.
@@ -664,6 +712,12 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         AND is_summary-last_finish_date IS NOT INITIAL
         AND is_summary-last_finish_time IS NOT INITIAL ).
     rs_health-deadline_count = is_summary-deadline_count.
+    rs_health-overdue_count = is_summary-overdue_count.
+    rs_health-current_deadline_count = is_summary-current_deadline_count.
+    rs_health-future_deadline_count = is_summary-future_deadline_count.
+    rs_health-overdue_mix_pct = is_summary-overdue_mix_pct.
+    rs_health-current_deadline_mix_pct = is_summary-current_deadline_mix_pct.
+    rs_health-future_deadline_mix_pct = is_summary-future_deadline_mix_pct.
     rs_health-last_requested_on_from = is_summary-last_requested_on_from.
     rs_health-last_requested_on_to = is_summary-last_requested_on_to.
     rs_health-last_requested_deadline = is_summary-last_requested_deadline.
@@ -672,6 +726,21 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_deadline_age_days = is_summary-last_deadline_age_days.
     rs_health-oldest_deadline_age_days = is_summary-oldest_deadline_age_days.
     rs_health-newest_deadline_age_days = is_summary-newest_deadline_age_days.
+    IF is_summary-last_deadline_urgency IS INITIAL.
+      rs_health-last_deadline_urgency = 'n/a'.
+    ELSE.
+      rs_health-last_deadline_urgency = is_summary-last_deadline_urgency.
+    ENDIF.
+    IF is_summary-oldest_deadline_urgency IS INITIAL.
+      rs_health-oldest_deadline_urgency = 'n/a'.
+    ELSE.
+      rs_health-oldest_deadline_urgency = is_summary-oldest_deadline_urgency.
+    ENDIF.
+    IF is_summary-newest_deadline_urgency IS INITIAL.
+      rs_health-newest_deadline_urgency = 'n/a'.
+    ELSE.
+      rs_health-newest_deadline_urgency = is_summary-newest_deadline_urgency.
+    ENDIF.
     rs_health-deadline_age_reference_date =      is_summary-deadline_age_reference_date.
     rs_health-unit = is_summary-unit.
     rs_health-policy_context_available = is_summary-policy_context_available.
@@ -830,6 +899,34 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-deadline_count_threshold_active = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-deadline_count < iv_min_deadline_count ).
+    rs_health-deadline_mix_threshold_active = xsdbool(
+      iv_min_deadline_mix > 0 ).
+    rs_health-deadline_mix_threshold = iv_min_deadline_mix.
+    rs_health-deadline_mix_below_threshold = xsdbool(
+      rs_health-deadline_mix_threshold_active = abap_true
+      AND is_summary-total_runs > 0
+      AND is_summary-deadline_mix_pct < iv_min_deadline_mix ).
+    rs_health-overdue_mix_threshold_active = xsdbool(
+      iv_max_overdue_mix > 0 ).
+    rs_health-overdue_mix_threshold = iv_max_overdue_mix.
+    rs_health-overdue_mix_above_threshold = xsdbool(
+      rs_health-overdue_mix_threshold_active = abap_true
+      AND is_summary-total_runs > 0
+      AND is_summary-overdue_mix_pct > iv_max_overdue_mix ).
+    rs_health-current_deadline_mix_threshold_active = xsdbool(
+      iv_max_current_deadline_mix > 0 ).
+    rs_health-current_deadline_mix_threshold = iv_max_current_deadline_mix.
+    rs_health-current_deadline_mix_above_threshold = xsdbool(
+      rs_health-current_deadline_mix_threshold_active = abap_true
+      AND is_summary-total_runs > 0
+      AND is_summary-current_deadline_mix_pct > iv_max_current_deadline_mix ).
+    rs_health-future_deadline_mix_threshold_active = xsdbool(
+      iv_min_future_deadline_mix > 0 ).
+    rs_health-future_deadline_mix_threshold = iv_min_future_deadline_mix.
+    rs_health-future_deadline_mix_below_threshold = xsdbool(
+      rs_health-future_deadline_mix_threshold_active = abap_true
+      AND is_summary-total_runs > 0
+      AND is_summary-future_deadline_mix_pct < iv_min_future_deadline_mix ).
     rs_health-mixed_policy_warning_active = xsdbool(
       iv_warn_mixed_policies = abap_true ).
     rs_health-mixed_policy_breach = xsdbool(
@@ -1391,6 +1488,42 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         rs_health-threshold_breaches = 'deadline_count'.
       ELSE.
         CONCATENATE rs_health-threshold_breaches 'deadline_count'
+          INTO rs_health-threshold_breaches SEPARATED BY '|'.
+      ENDIF.
+    ENDIF.
+    IF rs_health-deadline_mix_below_threshold = abap_true.
+      rs_health-threshold_breach_count += 1.
+      IF rs_health-threshold_breaches IS INITIAL.
+        rs_health-threshold_breaches = 'deadline_mix'.
+      ELSE.
+        CONCATENATE rs_health-threshold_breaches 'deadline_mix'
+          INTO rs_health-threshold_breaches SEPARATED BY '|'.
+      ENDIF.
+    ENDIF.
+    IF rs_health-overdue_mix_above_threshold = abap_true.
+      rs_health-threshold_breach_count += 1.
+      IF rs_health-threshold_breaches IS INITIAL.
+        rs_health-threshold_breaches = 'overdue_mix'.
+      ELSE.
+        CONCATENATE rs_health-threshold_breaches 'overdue_mix'
+          INTO rs_health-threshold_breaches SEPARATED BY '|'.
+      ENDIF.
+    ENDIF.
+    IF rs_health-current_deadline_mix_above_threshold = abap_true.
+      rs_health-threshold_breach_count += 1.
+      IF rs_health-threshold_breaches IS INITIAL.
+        rs_health-threshold_breaches = 'current_deadline_mix'.
+      ELSE.
+        CONCATENATE rs_health-threshold_breaches 'current_deadline_mix'
+          INTO rs_health-threshold_breaches SEPARATED BY '|'.
+      ENDIF.
+    ENDIF.
+    IF rs_health-future_deadline_mix_below_threshold = abap_true.
+      rs_health-threshold_breach_count += 1.
+      IF rs_health-threshold_breaches IS INITIAL.
+        rs_health-threshold_breaches = 'future_deadline_mix'.
+      ELSE.
+        CONCATENATE rs_health-threshold_breaches 'future_deadline_mix'
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.

@@ -6,6 +6,7 @@ PARAMETERS p_bwart TYPE zif_stock_allocation=>ty_movement_type OBLIGATORY.
 PARAMETERS p_exec AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
 PARAMETERS p_csv AS CHECKBOX.
+PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 
 START-OF-SELECTION.
@@ -14,13 +15,24 @@ START-OF-SELECTION.
   DATA lv_json_line TYPE string.
   DATA lv_csv_line TYPE string.
   DATA lv_error_message TYPE string.
+  DATA lv_json_schema TYPE i.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+  DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_scope_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_fields TYPE zcl_stock_json=>tt_strings.
+  DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+  IF p_meta = abap_true.
+    lv_json_schema = 3.
+  ELSE.
+    lv_json_schema = 2.
+  ENDIF.
 
   IF p_csv = abap_true AND p_json = abap_true.
     WRITE: / zcl_stock_json=>error_with_schema(
       iv_message = 'Select only one export mode: CSV or JSON'
-      iv_schema  = 1 ).
+      iv_schema  = lv_json_schema ).
     RETURN.
   ENDIF.
   IF p_typed = abap_true AND p_json = abap_false.
@@ -34,7 +46,27 @@ START-OF-SELECTION.
     ENDIF.
     WRITE: / zcl_stock_json=>error_with_schema(
       iv_message = 'Typed output requires JSON mode.'
-      iv_schema  = 1 ).
+      iv_schema  = lv_json_schema ).
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_alloc_res_cancel'
+        iv_schema  = 1
+        iv_message = 'Metadata output requires JSON mode.' ).
+      RETURN.
+    ENDIF.
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'Metadata output requires JSON mode.'
+      iv_schema  = lv_json_schema ).
+    RETURN.
+  ENDIF.
+  IF p_meta = abap_true AND p_typed = abap_true.
+    WRITE: / zcl_stock_json=>error_with_schema(
+      iv_message = 'Select either typed JSON or metadata output.'
+      iv_schema  = lv_json_schema ).
     RETURN.
   ENDIF.
 
@@ -42,7 +74,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       WRITE: / zcl_stock_json=>error_with_schema(
         iv_message = 'Select P_EXEC to cancel the reservation'
-        iv_schema  = 1 ).
+        iv_schema  = lv_json_schema ).
       RETURN.
     ENDIF.
     IF p_csv = abap_true.
@@ -85,7 +117,7 @@ START-OF-SELECTION.
       IF p_json = abap_true.
         WRITE: / zcl_stock_json=>error_with_schema(
           iv_message = lv_error_message
-          iv_schema  = 1 ).
+          iv_schema  = lv_json_schema ).
       ELSEIF p_csv = abap_true.
         CLEAR lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'execute' ) TO lt_csv_fields.
@@ -129,14 +161,14 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 1 ) TO lt_json_fields.
+        iv_value = lv_json_schema ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 1 ) TO lt_json_fields.
+        iv_value = lv_json_schema ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'mode'
@@ -162,6 +194,47 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'message'
       iv_value = 'Reservation canceled' ) TO lt_json_fields.
+    IF p_meta = abap_true.
+      lt_summary_fields = lt_json_fields.
+      CLEAR lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'reservation_document'
+        iv_value = p_resid ) TO lt_scope_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'plant'
+        iv_value = p_werks ) TO lt_scope_fields.
+      CLEAR lt_filter_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'movement_type'
+        iv_value = p_bwart ) TO lt_filter_fields.
+      CLEAR lt_filter_names.
+      APPEND 'movement_type' TO lt_filter_names.
+      CLEAR lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'schema_version'
+        iv_value = lv_json_schema ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'mode'
+        iv_value = 'execute' ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_date'
+        iv_value = sy-datum ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'generated_time'
+        iv_value = sy-uzeit ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'scope'
+        it_fields = lt_scope_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>string_array_property(
+        iv_name   = 'filters_applied'
+        it_values = lt_filter_names ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'filters'
+        it_fields = lt_filter_fields ) TO lt_json_fields.
+      APPEND zcl_stock_json=>object_property(
+        iv_name   = 'summary'
+        it_fields = lt_summary_fields ) TO lt_json_fields.
+    ENDIF.
     CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
     CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
     WRITE: / lv_json_line.

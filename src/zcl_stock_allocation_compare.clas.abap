@@ -366,6 +366,27 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
           WHEN 'U'.
             es_summary-unchanged_rows = es_summary-unchanged_rows + 1.
         ENDCASE.
+        IF ls_change-old_status IS NOT INITIAL
+            AND ls_change-new_status IS NOT INITIAL
+            AND ls_change-old_status <> ls_change-new_status.
+          es_summary-status_changed_rows =
+            es_summary-status_changed_rows + 1.
+          IF ( ls_change-old_status = 'U'
+              AND ( ls_change-new_status = 'P'
+                    OR ls_change-new_status = 'F' ) )
+              OR ( ls_change-old_status = 'P'
+                   AND ls_change-new_status = 'F' ).
+            es_summary-status_improved_rows =
+              es_summary-status_improved_rows + 1.
+          ELSEIF ( ls_change-old_status = 'F'
+                   AND ( ls_change-new_status = 'P'
+                         OR ls_change-new_status = 'U' ) )
+              OR ( ls_change-old_status = 'P'
+                   AND ls_change-new_status = 'U' ).
+            es_summary-status_regressed_rows =
+              es_summary-status_regressed_rows + 1.
+          ENDIF.
+        ENDIF.
         IF es_summary-unit IS INITIAL.
           es_summary-unit = ls_change-allocation_unit.
         ELSEIF es_summary-unit <> ls_change-allocation_unit.
@@ -403,6 +424,14 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
+    IF es_summary-total_rows > 0.
+      es_summary-status_changed_mix_pct =
+        es_summary-status_changed_rows * 100 / es_summary-total_rows.
+      es_summary-status_improved_mix_pct =
+        es_summary-status_improved_rows * 100 / es_summary-total_rows.
+      es_summary-status_regressed_mix_pct =
+        es_summary-status_regressed_rows * 100 / es_summary-total_rows.
+    ENDIF.
     IF es_summary-mixed_units = abap_false.
       IF es_summary-old_requested > 0.
         es_summary-old_coverage_available = abap_true.
@@ -1278,6 +1307,18 @@ CLASS zcl_stock_allocation_compare IMPLEMENTATION.
       rs_reconciliation-snapshot_shortage =
         rs_reconciliation-snapshot_shortage + <ls_snapshot>-shortage.
     ENDLOOP.
+
+    IF rs_reconciliation-snapshot_rows > 0.
+      rs_reconciliation-snapshot_full_mix_pct =
+        rs_reconciliation-snapshot_full_count * 100
+          / rs_reconciliation-snapshot_rows.
+      rs_reconciliation-snapshot_partial_mix_pct =
+        rs_reconciliation-snapshot_partial_count * 100
+          / rs_reconciliation-snapshot_rows.
+      rs_reconciliation-snapshot_unallocated_mix_pct =
+        rs_reconciliation-snapshot_unallocated_count * 100
+          / rs_reconciliation-snapshot_rows.
+    ENDIF.
 
     IF lv_invalid_status = abap_true.
       append_reason( EXPORTING iv_reason = 'status'

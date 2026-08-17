@@ -40,6 +40,7 @@ START-OF-SELECTION.
   DATA lv_availability_status TYPE string.
   DATA lv_expiration_status TYPE string.
   DATA lv_expiration_as_of TYPE d.
+  DATA lv_min_shelf_life_date TYPE d.
   DATA lv_remaining_shelf_life TYPE i.
   DATA lv_remaining_shelf_life_text TYPE string.
   DATA lv_shelf_life_threshold_active TYPE abap_bool.
@@ -430,10 +431,11 @@ START-OF-SELECTION.
   ELSE.
     lv_remaining_shelf_life_text = 'n/a'.
   ENDIF.
+  lv_min_shelf_life_date = lv_expiration_as_of + p_shelf.
   lv_below_minimum_shelf_life = xsdbool(
     lv_shelf_life_evaluated = abap_true
     AND ls_available-batch_expiration_date
-      < lv_expiration_as_of + p_shelf ).
+      < lv_min_shelf_life_date ).
   IF lv_shelf_life_evaluated = abap_false.
     lv_shelf_life_status = 'not_evaluated'.
   ELSEIF lv_below_minimum_shelf_life = abap_true.

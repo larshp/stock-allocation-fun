@@ -3729,7 +3729,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_deadline_age|last_comp_ddl_age_above_limit/,
+  /iv_max_last_comp_deadline_age|last_comp_ddl_age_above_limit/,
   "health evaluator must support latest-completed deadline-age threshold evaluation",
 );
 assert.match(
@@ -3739,7 +3739,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_demand_count|last_comp_demand_cnt_above_lim/,
+  /iv_max_last_comp_demand_count|last_comp_demand_cnt_above_lim/,
   "health evaluator must support latest-completed demand-count threshold evaluation",
 );
 assert.match(
@@ -3874,27 +3874,27 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_pct|last_comp_short_pct_above_lim/,
+  /iv_max_last_comp_shortage_pct|last_comp_short_pct_above_lim/,
   "health evaluator must support latest-completed shortage-percentage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_qty|last_comp_short_qty_above_lim/,
+  /iv_max_last_comp_shortage_qty|last_comp_short_qty_above_lim/,
   "health evaluator must support latest-completed shortage-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_allocated|last_comp_alloc_below_limit/,
+  /iv_min_last_comp_allocated|last_comp_alloc_below_limit/,
   "health evaluator must support latest-completed allocated-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_allocated|last_comp_alloc_above_limit/,
+  /iv_max_last_comp_allocated|last_comp_alloc_above_limit/,
   "health evaluator must support maximum latest-completed allocated-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_requested|last_comp_req_above_limit/,
+  /iv_max_last_comp_requested|last_comp_req_above_limit/,
   "health evaluator must support latest-completed requested-quantity threshold evaluation",
 );
 assert.match(
@@ -3979,7 +3979,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_avail_stock|last_comp_avail_stk_below_lim|iv_max_last_completed_avail_stock|last_comp_avail_stk_above_lim/,
+  /iv_min_last_comp_avail_stock|last_comp_avail_stk_below_lim|iv_max_last_comp_avail_stock|last_comp_avail_stk_above_lim/,
   "health evaluator must support latest-completed available-stock thresholds",
 );
 assert.match(
@@ -3989,7 +3989,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_full_line_rate|last_comp_full_ln_below_limit/,
+  /iv_min_last_comp_full_ln_rate|last_comp_full_ln_below_limit/,
   "health evaluator must support latest-completed full-line-rate threshold evaluation",
 );
 assert.match(
@@ -3999,7 +3999,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_full_line_rate|last_comp_full_ln_above_limit/,
+  /iv_max_last_comp_full_ln_rate|last_comp_full_ln_above_limit/,
   "health evaluator must support maximum latest-completed full-line-rate threshold evaluation",
 );
 assert.match(
@@ -4024,7 +4024,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_unalloc_line_rate|last_comp_unalloc_ln_above_lim/,
+  /iv_max_last_comp_unalloc_rate|last_comp_unalloc_ln_above_lim/,
   "health evaluator must support latest-completed unallocated-line-rate threshold evaluation",
 );
 assert.match(
@@ -4034,7 +4034,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_partial_line_rate|last_comp_part_ln_above_limit/,
+  /iv_max_last_comp_partial_rate|last_comp_part_ln_above_limit/,
   "health evaluator must support latest-completed partial-line-rate threshold evaluation",
 );
 assert.match(
@@ -4054,7 +4054,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_full_line_count|last_comp_full_cnt_below_limit/,
+  /iv_min_last_comp_full_ln_count|last_comp_full_cnt_below_limit/,
   "health evaluator must support latest-completed full-line-count threshold evaluation",
 );
 assert.match(
@@ -4074,7 +4074,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_alloc_lines|last_comp_alloc_cnt_below_lim/,
+  /iv_min_last_comp_alloc_lines|last_comp_alloc_cnt_below_lim/,
   "health evaluator must support latest-completed allocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4094,7 +4094,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_alloc_lines|last_comp_acnt_max_above_limit/,
+  /iv_max_last_comp_alloc_lines|last_comp_acnt_max_above_limit/,
   "health evaluator must support maximum latest-completed allocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4114,7 +4114,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_unalloc_line_count|last_comp_unalloc_cnt_over_lim/,
+  /iv_max_last_comp_unalloc_count|last_comp_unalloc_cnt_over_lim/,
   "health evaluator must support latest-completed unallocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4134,7 +4134,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_partial_line_count|last_comp_part_cnt_above_limit/,
+  /iv_max_last_comp_partial_count|last_comp_part_cnt_above_limit/,
   "health evaluator must support latest-completed partial-line-count threshold evaluation",
 );
 assert.match(
@@ -4154,7 +4154,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_line_count|last_comp_short_cnt_above_lim/,
+  /iv_max_last_comp_shortage_cnt|last_comp_short_cnt_above_lim/,
   "health evaluator must support latest-completed shortage-line-count threshold evaluation",
 );
 assert.match(
@@ -4174,7 +4174,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_requested|last_comp_req_below_limit/,
+  /iv_min_last_comp_requested|last_comp_req_below_limit/,
   "health evaluator must support a minimum latest-completed requested-quantity threshold",
 );
 assert.match(
@@ -4204,7 +4204,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_demand_count|last_comp_demand_cnt_below_lim/,
+  /iv_min_last_comp_demand_count|last_comp_demand_cnt_below_lim/,
   "health evaluator must support a minimum latest-completed demand-count threshold",
 );
 assert.match(
@@ -4299,7 +4299,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_require_last_completed_success|last_completed_success_breach/,
+  /iv_require_last_comp_success|last_completed_success_breach/,
   "health evaluator must expose latest-completed-success requirement state",
 );
 assert.match(
@@ -4314,7 +4314,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_success_streak|last_cmp_succ_streak_below_lim/,
+  /iv_min_last_comp_succ_streak|last_cmp_succ_streak_below_lim/,
   "health evaluator must expose minimum latest-completed-success-streak threshold state",
 );
 assert.match(
@@ -4339,7 +4339,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_non_success_streak|last_comp_non_succ_above_limit/,
+  /iv_max_last_comp_fail_streak|last_comp_non_succ_above_limit/,
   "health evaluator must expose maximum latest-completed-non-success-streak threshold state",
 );
 assert.match(

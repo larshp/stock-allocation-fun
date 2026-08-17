@@ -672,8 +672,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_status = 'P'.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_require_last_completed_success = abap_true ).
+      is_summary                   = ls_summary
+      iv_require_last_comp_success = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_success_required_on
@@ -691,8 +691,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     CLEAR ls_summary.
     ls_summary-total_runs = 1.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_require_last_completed_success = abap_true ).
+      is_summary                   = ls_summary
+      iv_require_last_comp_success = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_success_breach
       exp = abap_false ).
@@ -707,8 +707,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_success_streak = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_min_last_completed_success_streak = 3 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_succ_streak = 3 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_success_streak
@@ -732,8 +732,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     CLEAR ls_summary.
     ls_summary-total_runs = 1.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_min_last_completed_success_streak = 3 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_succ_streak = 3 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_cmp_succ_streak_below_lim
       exp = abap_false ).
@@ -748,8 +748,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_comp_non_success_streak = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_non_success_streak = 1 ).
+      is_summary                   = ls_summary
+      iv_max_last_comp_fail_streak = 1 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_non_success_streak
@@ -773,8 +773,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     CLEAR ls_summary.
     ls_summary-total_runs = 1.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_non_success_streak = 1 ).
+      is_summary                   = ls_summary
+      iv_max_last_comp_fail_streak = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_non_succ_above_limit
       exp = abap_false ).
@@ -1809,8 +1809,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 3.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_min_last_completed_demand_count = 5 ).
+      is_summary                    = ls_summary
+      iv_min_last_comp_demand_count = 5 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_cmp_demand_cnt_min_lim_on
@@ -1830,8 +1830,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-last_completed_demand = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_min_last_completed_demand_count = 5 ).
+      is_summary                    = ls_summary
+      iv_min_last_comp_demand_count = 5 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_demand_cnt_below_lim
       exp = abap_false ).
@@ -2535,15 +2535,15 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_avail_unit = 'EA'.
     ls_summary-last_completed_avail_ok = abap_true.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_last_age_available              = abap_true
-      iv_last_age_seconds                = 7200
-      iv_last_age_reference_date         = '20260813'
-      iv_last_age_reference_time         = '150000'
-      iv_max_last_age                    = 3600
-      iv_max_last_completed_deadline_age = 2
-      iv_min_last_completed_coverage     = 90
-      iv_max_last_completed_shortage_pct = 10 ).
+      is_summary                     = ls_summary
+      iv_last_age_available          = abap_true
+      iv_last_age_seconds            = 7200
+      iv_last_age_reference_date     = '20260813'
+      iv_last_age_reference_time     = '150000'
+      iv_max_last_age                = 3600
+      iv_max_last_comp_deadline_age  = 2
+      iv_min_last_completed_coverage = 90
+      iv_max_last_comp_shortage_pct  = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_age_available
@@ -2625,15 +2625,15 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_avail = 0.
     ls_summary-last_completed_avail_ok = abap_true.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_last_age_available              = abap_true
-      iv_last_age_seconds                = 7200
-      iv_last_age_reference_date         = '20260813'
-      iv_last_age_reference_time         = '150000'
-      iv_max_last_age                    = 3600
-      iv_max_last_completed_deadline_age = 2
-      iv_min_last_completed_coverage     = 90
-      iv_max_last_completed_shortage_pct = 10 ).
+      is_summary                     = ls_summary
+      iv_last_age_available          = abap_true
+      iv_last_age_seconds            = 7200
+      iv_last_age_reference_date     = '20260813'
+      iv_last_age_reference_time     = '150000'
+      iv_max_last_age                = 3600
+      iv_max_last_comp_deadline_age  = 2
+      iv_min_last_completed_coverage = 90
+      iv_max_last_comp_shortage_pct  = 10 ).
     cl_abap_unit_assert=>assert_true(
       ls_health-last_comp_avail_stock_avail ).
     cl_abap_unit_assert=>assert_equals(
@@ -2642,8 +2642,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_comp_deadline_age_avail = abap_false.
     ls_summary-last_comp_deadline_age_reason = 'no_deadline'.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_max_last_completed_deadline_age = 2 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_deadline_age = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_ddl_age_limit_on
       exp = abap_true ).
@@ -2656,15 +2656,15 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_comp_deadline_age_avail = abap_true.
     ls_summary-last_comp_deadline_age_reason = 'available'.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_last_age_available              = abap_true
-      iv_last_age_seconds                = 7200
-      iv_last_age_reference_date         = '20260813'
-      iv_last_age_reference_time         = '150000'
-      iv_max_last_age                    = 3600
-      iv_max_last_completed_deadline_age = 2
-      iv_min_last_completed_coverage     = 90
-      iv_max_last_completed_shortage_pct = 10 ).
+      is_summary                     = ls_summary
+      iv_last_age_available          = abap_true
+      iv_last_age_seconds            = 7200
+      iv_last_age_reference_date     = '20260813'
+      iv_last_age_reference_time     = '150000'
+      iv_max_last_age                = 3600
+      iv_max_last_comp_deadline_age  = 2
+      iv_min_last_completed_coverage = 90
+      iv_max_last_comp_shortage_pct  = 10 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_requested
       exp = 1 ).
@@ -2746,9 +2746,9 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_coverage = 50.
     ls_summary-last_completed_shortage = 1.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_min_last_completed_coverage     = 90
-      iv_max_last_completed_shortage_pct = 10 ).
+      is_summary                     = ls_summary
+      iv_min_last_completed_coverage = 90
+      iv_max_last_comp_shortage_pct  = 10 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_coverage_below_limit
       exp = abap_true ).
@@ -2762,10 +2762,10 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_requested = 0.
     ls_summary-last_completed_demand = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_last_age_available              = abap_false
-      iv_min_last_completed_coverage     = 90
-      iv_max_last_completed_shortage_pct = 10 ).
+      is_summary                     = ls_summary
+      iv_last_age_available          = abap_false
+      iv_min_last_completed_coverage = 90
+      iv_max_last_comp_shortage_pct  = 10 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_shortage_pct_avail
       exp = abap_false ).
@@ -2796,8 +2796,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 5.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_max_last_completed_demand_count = 4 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_demand_count = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_demand_cnt_limit_on
@@ -2817,8 +2817,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-last_completed_demand = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_max_last_completed_demand_count = 4 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_demand_count = 4 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_demand_cnt_above_lim
       exp = abap_false ).
@@ -2833,8 +2833,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_shortage = 5.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_max_last_completed_shortage_qty = 4 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_shortage_qty = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_short_qty_limit_on
@@ -2854,8 +2854,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-last_completed_shortage = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                         = ls_summary
-      iv_max_last_completed_shortage_qty = 4 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_shortage_qty = 4 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_short_qty_above_lim
       exp = abap_false ).
@@ -2871,8 +2871,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_allocated = 3.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_min_last_completed_allocated = 4 ).
+      is_summary                 = ls_summary
+      iv_min_last_comp_allocated = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_allocated_limit_on
@@ -2893,8 +2893,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_requested = 0.
     ls_summary-last_completed_allocated = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_min_last_completed_allocated = 4 ).
+      is_summary                 = ls_summary
+      iv_min_last_comp_allocated = 4 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_alloc_below_limit
       exp = abap_false ).
@@ -2909,8 +2909,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_requested = 10.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_max_last_completed_requested = 8 ).
+      is_summary                 = ls_summary
+      iv_max_last_comp_requested = 8 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_requested_limit_on
@@ -2930,8 +2930,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-last_completed_requested = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_max_last_completed_requested = 8 ).
+      is_summary                 = ls_summary
+      iv_max_last_comp_requested = 8 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_req_above_limit
       exp = abap_false ).
@@ -2947,8 +2947,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_requested = 3.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_min_last_completed_requested = 5 ).
+      is_summary                 = ls_summary
+      iv_min_last_comp_requested = 5 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_req_min_limit_on
@@ -2969,8 +2969,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_requested = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_min_last_completed_requested = 5 ).
+      is_summary                 = ls_summary
+      iv_min_last_comp_requested = 5 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_req_below_limit
       exp = abap_false ).
@@ -2986,8 +2986,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_allocated = 8.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_max_last_completed_allocated = 7 ).
+      is_summary                 = ls_summary
+      iv_max_last_comp_allocated = 7 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_alloc_max_limit_on
@@ -3008,8 +3008,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_requested = 0.
     ls_summary-last_completed_allocated = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                      = ls_summary
-      iv_max_last_completed_allocated = 7 ).
+      is_summary                 = ls_summary
+      iv_max_last_comp_allocated = 7 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_alloc_above_limit
       exp = abap_false ).
@@ -3066,9 +3066,9 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_avail_ok = abap_true.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_min_last_completed_avail_stock = 4
-      iv_max_last_completed_avail_stock = 2 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_avail_stock = 4
+      iv_max_last_comp_avail_stock = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_avail_stk_min_lim_on
@@ -3097,9 +3097,9 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-last_completed_avail_ok = abap_false.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_min_last_completed_avail_stock = 4
-      iv_max_last_completed_avail_stock = 2 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_avail_stock = 4
+      iv_max_last_comp_avail_stock = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_avail_stk_below_lim
       exp = abap_false ).
@@ -3118,8 +3118,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_full = 1.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_min_last_completed_full_line_rate = 50 ).
+      is_summary                    = ls_summary
+      iv_min_last_comp_full_ln_rate = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_line_rates_available
@@ -3143,8 +3143,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_full = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_min_last_completed_full_line_rate = 50 ).
+      is_summary                    = ls_summary
+      iv_min_last_comp_full_ln_rate = 50 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_full_ln_below_limit
       exp = abap_false ).
@@ -3160,8 +3160,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_full = 4.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_max_last_completed_full_line_rate = 95 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_full_ln_rate = 95 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_full_ln_max_limit_on
@@ -3182,8 +3182,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_full = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                           = ls_summary
-      iv_max_last_completed_full_line_rate = 95 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_full_ln_rate = 95 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_full_ln_above_limit
       exp = abap_false ).
@@ -3199,8 +3199,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_unalloc = 3.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_unalloc_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_max_last_comp_unalloc_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_unalloc_cnt_limit_on
@@ -3221,8 +3221,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_unalloc = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_unalloc_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_max_last_comp_unalloc_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_unalloc_cnt_over_lim
       exp = abap_false ).
@@ -3238,8 +3238,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_partial = 3.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_partial_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_max_last_comp_partial_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_partial_cnt_limit_on
@@ -3260,8 +3260,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_partial = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                               = ls_summary
-      iv_max_last_completed_partial_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_max_last_comp_partial_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_part_cnt_above_limit
       exp = abap_false ).
@@ -3278,8 +3278,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_unalloc = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                                = ls_summary
-      iv_max_last_completed_shortage_line_count = 2 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_shortage_cnt = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_short_cnt_limit_on
@@ -3301,8 +3301,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_partial = 0.
     ls_summary-last_completed_unalloc = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                                = ls_summary
-      iv_max_last_completed_shortage_line_count = 2 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_shortage_cnt = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_short_cnt_above_lim
       exp = abap_false ).
@@ -3318,8 +3318,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_unalloc = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                              = ls_summary
-      iv_max_last_completed_unalloc_line_rate = 25 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_unalloc_rate = 25 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_line_rates_available
@@ -3343,8 +3343,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_unalloc = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                              = ls_summary
-      iv_max_last_completed_unalloc_line_rate = 25 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_unalloc_rate = 25 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_unalloc_ln_above_lim
       exp = abap_false ).
@@ -3360,8 +3360,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_partial = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                              = ls_summary
-      iv_max_last_completed_partial_line_rate = 25 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_partial_rate = 25 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_line_rates_available
@@ -3385,8 +3385,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_partial = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                              = ls_summary
-      iv_max_last_completed_partial_line_rate = 25 ).
+      is_summary                    = ls_summary
+      iv_max_last_comp_partial_rate = 25 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_part_ln_above_limit
       exp = abap_false ).
@@ -3402,8 +3402,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_full = 1.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                            = ls_summary
-      iv_min_last_completed_full_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_min_last_comp_full_ln_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_line_rates_available
@@ -3427,8 +3427,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_demand = 0.
     ls_summary-last_completed_full = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                            = ls_summary
-      iv_min_last_completed_full_line_count = 2 ).
+      is_summary                     = ls_summary
+      iv_min_last_comp_full_ln_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_full_cnt_below_limit
       exp = abap_false ).
@@ -3445,8 +3445,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_partial = 1.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_min_last_completed_alloc_lines = 3 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_alloc_lines = 3 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_allocated_line_count
@@ -3471,8 +3471,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_full = 0.
     ls_summary-last_completed_partial = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_min_last_completed_alloc_lines = 3 ).
+      is_summary                   = ls_summary
+      iv_min_last_comp_alloc_lines = 3 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_alloc_cnt_below_lim
       exp = abap_false ).
@@ -3489,8 +3489,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_partial = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_max_last_completed_alloc_lines = 2 ).
+      is_summary                   = ls_summary
+      iv_max_last_comp_alloc_lines = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_allocated_line_count
@@ -3515,8 +3515,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_full = 0.
     ls_summary-last_completed_partial = 0.
     ls_health = zcl_stock_allocation_health=>evaluate(
-      is_summary                        = ls_summary
-      iv_max_last_completed_alloc_lines = 2 ).
+      is_summary                   = ls_summary
+      iv_max_last_comp_alloc_lines = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_acnt_max_above_limit
       exp = abap_false ).

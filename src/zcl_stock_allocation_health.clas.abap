@@ -416,77 +416,77 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
       END OF ty_health.
     CLASS-METHODS evaluate
       IMPORTING
-        is_summary                                TYPE zif_allocation_audit=>ty_summary
-        iv_stale_running_runs                     TYPE i OPTIONAL
-        iv_stale_scope_evaluated                  TYPE abap_bool OPTIONAL
-        iv_stale_threshold                        TYPE i DEFAULT 3600
-        iv_last_age_available                     TYPE abap_bool OPTIONAL
-        iv_last_age_seconds                       TYPE i OPTIONAL
-        iv_last_age_reason                        TYPE string OPTIONAL
-        iv_last_age_reference_date                TYPE d OPTIONAL
-        iv_last_age_reference_time                TYPE t OPTIONAL
-        iv_min_coverage                           TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_last_coverage                      TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_shortage_pct                       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_duration                      TYPE i OPTIONAL
-        iv_max_last_completed_duration            TYPE i OPTIONAL
-        iv_min_last_completed_duration            TYPE i OPTIONAL
-        iv_require_last_completed_success         TYPE abap_bool OPTIONAL
-        iv_min_last_completed_success_streak      TYPE i OPTIONAL
-        iv_max_last_completed_non_success_streak  TYPE i OPTIONAL
-        iv_max_average_duration                   TYPE i OPTIONAL
-        iv_max_completed_duration                 TYPE i OPTIONAL
-        iv_min_duration_count                     TYPE i OPTIONAL
-        iv_min_run_count                          TYPE i OPTIONAL
-        iv_min_deadline_count                     TYPE i OPTIONAL
-        iv_min_deadline_mix                       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_overdue_mix                        TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_current_deadline_mix               TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_future_deadline_mix                TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_warn_mixed_policies                    TYPE abap_bool OPTIONAL
-        iv_warn_mixed_units                       TYPE abap_bool OPTIONAL
-        iv_min_completion_rate                    TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_success_rate                       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_success_count                      TYPE i OPTIONAL
-        iv_max_error_rate                         TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_partial_rate                       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_full_line_rate                     TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_unalloc_line_rate                  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_partial_line_rate                  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_full_line_count                    TYPE i OPTIONAL
-        iv_max_demand_count                       TYPE i OPTIONAL
-        iv_max_running_count                      TYPE i OPTIONAL
-        iv_max_shortage_quantity                  TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_last_shortage_qty                  TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_last_shortage_pct                  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_last_completed_coverage            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_coverage            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_shortage_pct        TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_shortage_qty        TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_min_last_completed_requested           TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_last_completed_requested           TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_min_last_completed_allocated           TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_last_completed_allocated           TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_min_last_completed_avail_stock         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_last_completed_avail_stock         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_min_last_completed_full_line_rate      TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_full_line_rate      TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_unalloc_line_rate   TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_max_last_completed_partial_line_rate   TYPE zif_allocation_audit=>ty_coverage OPTIONAL
-        iv_min_last_completed_full_line_count     TYPE i OPTIONAL
-        iv_max_last_completed_unalloc_line_count  TYPE i OPTIONAL
-        iv_max_last_completed_partial_line_count  TYPE i OPTIONAL
-        iv_max_last_completed_shortage_line_count TYPE i OPTIONAL
-        iv_min_last_completed_alloc_lines         TYPE i OPTIONAL
-        iv_max_last_completed_alloc_lines         TYPE i OPTIONAL
-        iv_max_last_age                           TYPE i OPTIONAL
-        iv_max_last_completed_deadline_age        TYPE i OPTIONAL
-        iv_min_last_completed_demand_count        TYPE i OPTIONAL
-        iv_max_last_completed_demand_count        TYPE i OPTIONAL
-        iv_min_available_stock                    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
-        iv_max_available_stock                    TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        is_summary                     TYPE zif_allocation_audit=>ty_summary
+        iv_stale_running_runs          TYPE i OPTIONAL
+        iv_stale_scope_evaluated       TYPE abap_bool OPTIONAL
+        iv_stale_threshold             TYPE i DEFAULT 3600
+        iv_last_age_available          TYPE abap_bool OPTIONAL
+        iv_last_age_seconds            TYPE i OPTIONAL
+        iv_last_age_reason             TYPE string OPTIONAL
+        iv_last_age_reference_date     TYPE d OPTIONAL
+        iv_last_age_reference_time     TYPE t OPTIONAL
+        iv_min_coverage                TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_last_coverage           TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_shortage_pct            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_duration           TYPE i OPTIONAL
+        iv_max_last_completed_duration TYPE i OPTIONAL
+        iv_min_last_completed_duration TYPE i OPTIONAL
+        iv_require_last_comp_success   TYPE abap_bool OPTIONAL
+        iv_min_last_comp_succ_streak   TYPE i OPTIONAL
+        iv_max_last_comp_fail_streak   TYPE i OPTIONAL
+        iv_max_average_duration        TYPE i OPTIONAL
+        iv_max_completed_duration      TYPE i OPTIONAL
+        iv_min_duration_count          TYPE i OPTIONAL
+        iv_min_run_count               TYPE i OPTIONAL
+        iv_min_deadline_count          TYPE i OPTIONAL
+        iv_min_deadline_mix            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_overdue_mix             TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_current_deadline_mix    TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_future_deadline_mix     TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_warn_mixed_policies         TYPE abap_bool OPTIONAL
+        iv_warn_mixed_units            TYPE abap_bool OPTIONAL
+        iv_min_completion_rate         TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_success_rate            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_success_count           TYPE i OPTIONAL
+        iv_max_error_rate              TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_partial_rate            TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_full_line_rate          TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_unalloc_line_rate       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_partial_line_rate       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_full_line_count         TYPE i OPTIONAL
+        iv_max_demand_count            TYPE i OPTIONAL
+        iv_max_running_count           TYPE i OPTIONAL
+        iv_max_shortage_quantity       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_last_shortage_qty       TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_last_shortage_pct       TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_last_completed_coverage TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_completed_coverage TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_comp_shortage_pct  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_comp_shortage_qty  TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_last_comp_requested     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_last_comp_requested     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_last_comp_allocated     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_last_comp_allocated     TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_last_comp_avail_stock   TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_last_comp_avail_stock   TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_min_last_comp_full_ln_rate  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_comp_full_ln_rate  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_comp_unalloc_rate  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_max_last_comp_partial_rate  TYPE zif_allocation_audit=>ty_coverage OPTIONAL
+        iv_min_last_comp_full_ln_count TYPE i OPTIONAL
+        iv_max_last_comp_unalloc_count TYPE i OPTIONAL
+        iv_max_last_comp_partial_count TYPE i OPTIONAL
+        iv_max_last_comp_shortage_cnt  TYPE i OPTIONAL
+        iv_min_last_comp_alloc_lines   TYPE i OPTIONAL
+        iv_max_last_comp_alloc_lines   TYPE i OPTIONAL
+        iv_max_last_age                TYPE i OPTIONAL
+        iv_max_last_comp_deadline_age  TYPE i OPTIONAL
+        iv_min_last_comp_demand_count  TYPE i OPTIONAL
+        iv_max_last_comp_demand_count  TYPE i OPTIONAL
+        iv_min_available_stock         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
+        iv_max_available_stock         TYPE zif_stock_allocation=>ty_quantity OPTIONAL
       RETURNING
-      VALUE(rs_health)                            TYPE ty_health.
+      VALUE(rs_health)                 TYPE ty_health.
 
 ENDCLASS.
 
@@ -823,49 +823,49 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       AND is_summary-last_completed_duration
         < iv_min_last_completed_duration ).
     rs_health-last_comp_success_required_on = xsdbool(
-      iv_require_last_completed_success = abap_true ).
+      iv_require_last_comp_success = abap_true ).
     rs_health-last_completed_success_breach = xsdbool(
       rs_health-last_comp_success_required_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_status <> 'S' ).
     rs_health-last_comp_succ_streak_limit_on = xsdbool(
-      iv_min_last_completed_success_streak > 0 ).
+      iv_min_last_comp_succ_streak > 0 ).
     rs_health-last_comp_success_streak_limit =
-      iv_min_last_completed_success_streak.
+      iv_min_last_comp_succ_streak.
     rs_health-last_cmp_succ_streak_below_lim = xsdbool(
       rs_health-last_comp_succ_streak_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_success_streak
-        < iv_min_last_completed_success_streak ).
+        < iv_min_last_comp_succ_streak ).
     rs_health-last_comp_non_success_limit_on = xsdbool(
-      iv_max_last_completed_non_success_streak > 0 ).
+      iv_max_last_comp_fail_streak > 0 ).
     rs_health-last_comp_non_success_limit =
-      iv_max_last_completed_non_success_streak.
+      iv_max_last_comp_fail_streak.
     rs_health-last_comp_non_succ_above_limit = xsdbool(
       rs_health-last_comp_non_success_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_comp_non_success_streak
-        > iv_max_last_completed_non_success_streak ).
+        > iv_max_last_comp_fail_streak ).
     rs_health-last_comp_alloc_count_limit_on = xsdbool(
-      iv_min_last_completed_alloc_lines > 0 ).
+      iv_min_last_comp_alloc_lines > 0 ).
     rs_health-last_comp_alloc_count_limit =
-      iv_min_last_completed_alloc_lines.
+      iv_min_last_comp_alloc_lines.
     rs_health-last_comp_alloc_cnt_below_lim = xsdbool(
       rs_health-last_comp_alloc_count_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_demand > 0
       AND rs_health-last_comp_allocated_line_count
-        < iv_min_last_completed_alloc_lines ).
+        < iv_min_last_comp_alloc_lines ).
     rs_health-last_comp_alloc_cnt_max_lim_on = xsdbool(
-      iv_max_last_completed_alloc_lines > 0 ).
+      iv_max_last_comp_alloc_lines > 0 ).
     rs_health-last_comp_alloc_cnt_max_limit =
-      iv_max_last_completed_alloc_lines.
+      iv_max_last_comp_alloc_lines.
     rs_health-last_comp_acnt_max_above_limit = xsdbool(
       rs_health-last_comp_alloc_cnt_max_lim_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_demand > 0
       AND rs_health-last_comp_allocated_line_count
-        > iv_max_last_completed_alloc_lines ).
+        > iv_max_last_comp_alloc_lines ).
     rs_health-average_duration_limit_active = xsdbool(      iv_max_average_duration > 0 ).
     rs_health-average_duration_threshold = iv_max_average_duration.
     rs_health-average_duration_above_limit = xsdbool(
@@ -1046,151 +1046,151 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       AND rs_health-last_completed_coverage
         > iv_max_last_completed_coverage ).
     rs_health-last_comp_short_pct_limit_on = xsdbool(
-      iv_max_last_completed_shortage_pct > 0 ).
+      iv_max_last_comp_shortage_pct > 0 ).
     rs_health-last_comp_shortage_pct_limit =
-      iv_max_last_completed_shortage_pct.
+      iv_max_last_comp_shortage_pct.
     rs_health-last_comp_short_pct_above_lim = xsdbool(
       rs_health-last_comp_short_pct_limit_on = abap_true
       AND rs_health-last_comp_shortage_pct_avail = abap_true
-      AND rs_health-last_completed_shortage_pct > iv_max_last_completed_shortage_pct ).
+      AND rs_health-last_completed_shortage_pct > iv_max_last_comp_shortage_pct ).
     rs_health-last_comp_short_qty_limit_on = xsdbool(
-      iv_max_last_completed_shortage_qty > 0 ).
+      iv_max_last_comp_shortage_qty > 0 ).
     rs_health-last_comp_shortage_qty_limit =
-      iv_max_last_completed_shortage_qty.
+      iv_max_last_comp_shortage_qty.
     rs_health-last_comp_short_qty_above_lim = xsdbool(
       rs_health-last_comp_short_qty_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_shortage
-        > iv_max_last_completed_shortage_qty ).
+        > iv_max_last_comp_shortage_qty ).
     rs_health-last_comp_requested_limit_on = xsdbool(
-      iv_max_last_completed_requested > 0 ).
+      iv_max_last_comp_requested > 0 ).
     rs_health-last_comp_requested_limit =
-      iv_max_last_completed_requested.
+      iv_max_last_comp_requested.
     rs_health-last_comp_req_above_limit = xsdbool(
       rs_health-last_comp_requested_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_requested
-        > iv_max_last_completed_requested ).
+        > iv_max_last_comp_requested ).
     rs_health-last_comp_req_min_limit_on = xsdbool(
-      iv_min_last_completed_requested > 0 ).
+      iv_min_last_comp_requested > 0 ).
     rs_health-last_comp_requested_min_limit =
-      iv_min_last_completed_requested.
+      iv_min_last_comp_requested.
     rs_health-last_comp_req_below_limit = xsdbool(
       rs_health-last_comp_req_min_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_requested
-        < iv_min_last_completed_requested ).
+        < iv_min_last_comp_requested ).
     rs_health-last_comp_allocated_limit_on = xsdbool(
-      iv_min_last_completed_allocated > 0 ).
+      iv_min_last_comp_allocated > 0 ).
     rs_health-last_comp_allocated_limit =
-      iv_min_last_completed_allocated.
+      iv_min_last_comp_allocated.
     rs_health-last_comp_alloc_below_limit = xsdbool(
       rs_health-last_comp_allocated_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_allocated
-        < iv_min_last_completed_allocated ).
+        < iv_min_last_comp_allocated ).
     rs_health-last_comp_alloc_max_limit_on = xsdbool(
-      iv_max_last_completed_allocated > 0 ).
+      iv_max_last_comp_allocated > 0 ).
     rs_health-last_comp_allocated_max_limit =
-      iv_max_last_completed_allocated.
+      iv_max_last_comp_allocated.
     rs_health-last_comp_alloc_above_limit = xsdbool(
       rs_health-last_comp_alloc_max_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_allocated
-        > iv_max_last_completed_allocated ).
+        > iv_max_last_comp_allocated ).
     rs_health-last_comp_avail_stk_min_lim_on = xsdbool(
-      iv_min_last_completed_avail_stock > 0 ).
+      iv_min_last_comp_avail_stock > 0 ).
     rs_health-last_comp_avail_stk_min_limit =
-      iv_min_last_completed_avail_stock.
+      iv_min_last_comp_avail_stock.
     rs_health-last_comp_avail_stk_below_lim = xsdbool(
       rs_health-last_comp_avail_stk_min_lim_on = abap_true
       AND rs_health-last_comp_avail_stock_avail = abap_true
       AND rs_health-last_completed_available_stock
-        < iv_min_last_completed_avail_stock ).
+        < iv_min_last_comp_avail_stock ).
     rs_health-last_comp_avail_stk_max_lim_on = xsdbool(
-      iv_max_last_completed_avail_stock > 0 ).
+      iv_max_last_comp_avail_stock > 0 ).
     rs_health-last_comp_avail_stk_max_limit =
-      iv_max_last_completed_avail_stock.
+      iv_max_last_comp_avail_stock.
     rs_health-last_comp_avail_stk_above_lim = xsdbool(
       rs_health-last_comp_avail_stk_max_lim_on = abap_true
       AND rs_health-last_comp_avail_stock_avail = abap_true
       AND rs_health-last_completed_available_stock
-        > iv_max_last_completed_avail_stock ).
+        > iv_max_last_comp_avail_stock ).
     rs_health-last_comp_full_line_limit_on = xsdbool(
-      iv_min_last_completed_full_line_rate > 0 ).
+      iv_min_last_comp_full_ln_rate > 0 ).
     rs_health-last_comp_full_line_limit =
-      iv_min_last_completed_full_line_rate.
+      iv_min_last_comp_full_ln_rate.
     rs_health-last_comp_full_ln_below_limit = xsdbool(
       rs_health-last_comp_full_line_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_full_line_pct
-        < iv_min_last_completed_full_line_rate ).
+        < iv_min_last_comp_full_ln_rate ).
     rs_health-last_comp_full_ln_max_limit_on = xsdbool(
-      iv_max_last_completed_full_line_rate > 0 ).
+      iv_max_last_comp_full_ln_rate > 0 ).
     rs_health-last_comp_full_line_max_limit =
-      iv_max_last_completed_full_line_rate.
+      iv_max_last_comp_full_ln_rate.
     rs_health-last_comp_full_ln_above_limit = xsdbool(
       rs_health-last_comp_full_ln_max_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_full_line_pct
-        > iv_max_last_completed_full_line_rate ).
+        > iv_max_last_comp_full_ln_rate ).
     rs_health-last_comp_unalloc_ln_limit_on = xsdbool(
-      iv_max_last_completed_unalloc_line_rate > 0 ).
+      iv_max_last_comp_unalloc_rate > 0 ).
     rs_health-last_comp_unalloc_line_limit =
-      iv_max_last_completed_unalloc_line_rate.
+      iv_max_last_comp_unalloc_rate.
     rs_health-last_comp_unalloc_ln_above_lim = xsdbool(
       rs_health-last_comp_unalloc_ln_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_comp_unalloc_line_pct
-        > iv_max_last_completed_unalloc_line_rate ).
+        > iv_max_last_comp_unalloc_rate ).
     rs_health-last_comp_part_line_limit_on = xsdbool(
-      iv_max_last_completed_partial_line_rate > 0 ).
+      iv_max_last_comp_partial_rate > 0 ).
     rs_health-last_comp_partial_line_limit =
-      iv_max_last_completed_partial_line_rate.
+      iv_max_last_comp_partial_rate.
     rs_health-last_comp_part_ln_above_limit = xsdbool(
       rs_health-last_comp_part_line_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_comp_partial_line_pct
-        > iv_max_last_completed_partial_line_rate ).
+        > iv_max_last_comp_partial_rate ).
     rs_health-last_comp_full_count_limit_on = xsdbool(
-      iv_min_last_completed_full_line_count > 0 ).
+      iv_min_last_comp_full_ln_count > 0 ).
     rs_health-last_comp_full_count_limit =
-      iv_min_last_completed_full_line_count.
+      iv_min_last_comp_full_ln_count.
     rs_health-last_comp_full_cnt_below_limit = xsdbool(
       rs_health-last_comp_full_count_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
-      AND rs_health-last_completed_full < iv_min_last_completed_full_line_count ).
+      AND rs_health-last_completed_full < iv_min_last_comp_full_ln_count ).
     rs_health-last_comp_unalloc_cnt_limit_on = xsdbool(
-      iv_max_last_completed_unalloc_line_count > 0 ).
+      iv_max_last_comp_unalloc_count > 0 ).
     rs_health-last_comp_unalloc_count_limit =
-      iv_max_last_completed_unalloc_line_count.
+      iv_max_last_comp_unalloc_count.
     rs_health-last_comp_unalloc_cnt_over_lim = xsdbool(
       rs_health-last_comp_unalloc_cnt_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_unalloc
-        > iv_max_last_completed_unalloc_line_count ).
+        > iv_max_last_comp_unalloc_count ).
     rs_health-last_comp_partial_cnt_limit_on = xsdbool(
-      iv_max_last_completed_partial_line_count > 0 ).
+      iv_max_last_comp_partial_count > 0 ).
     rs_health-last_comp_partial_count_limit =
-      iv_max_last_completed_partial_line_count.
+      iv_max_last_comp_partial_count.
     rs_health-last_comp_part_cnt_above_limit = xsdbool(
       rs_health-last_comp_partial_cnt_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_partial
-        > iv_max_last_completed_partial_line_count ).
+        > iv_max_last_comp_partial_count ).
     rs_health-last_comp_short_cnt_limit_on = xsdbool(
-      iv_max_last_completed_shortage_line_count > 0 ).
+      iv_max_last_comp_shortage_cnt > 0 ).
     rs_health-last_comp_shortage_count_limit =
-      iv_max_last_completed_shortage_line_count.
+      iv_max_last_comp_shortage_cnt.
     rs_health-last_comp_short_cnt_above_lim = xsdbool(
       rs_health-last_comp_short_cnt_limit_on = abap_true
       AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_partial + rs_health-last_completed_unalloc
-        > iv_max_last_completed_shortage_line_count ).
+        > iv_max_last_comp_shortage_cnt ).
     rs_health-last_age_threshold_active = xsdbool(
       iv_max_last_age > 0 ).
     rs_health-last_age_threshold = iv_max_last_age.
@@ -1199,33 +1199,33 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       AND rs_health-last_age_available = abap_true
       AND rs_health-last_age_seconds > iv_max_last_age ).
     rs_health-last_comp_ddl_age_limit_on = xsdbool(
-      iv_max_last_completed_deadline_age > 0 ).
+      iv_max_last_comp_deadline_age > 0 ).
     rs_health-last_comp_deadline_age_limit =
-      iv_max_last_completed_deadline_age.
+      iv_max_last_comp_deadline_age.
     rs_health-last_comp_ddl_age_above_limit = xsdbool(
       rs_health-last_comp_ddl_age_limit_on = abap_true
       AND is_summary-last_comp_deadline_age_avail = abap_true
       AND is_summary-last_comp_deadline_age_days
-        > iv_max_last_completed_deadline_age ).
+        > iv_max_last_comp_deadline_age ).
     rs_health-last_comp_demand_cnt_limit_on = xsdbool(
-      iv_max_last_completed_demand_count > 0 ).
+      iv_max_last_comp_demand_count > 0 ).
     rs_health-last_comp_demand_count_limit =
-      iv_max_last_completed_demand_count.
+      iv_max_last_comp_demand_count.
     rs_health-last_comp_demand_cnt_above_lim = xsdbool(
       rs_health-last_comp_demand_cnt_limit_on = abap_true
       AND is_summary-last_completed_run_id IS NOT INITIAL
       AND is_summary-last_completed_demand
-        > iv_max_last_completed_demand_count ).
+        > iv_max_last_comp_demand_count ).
     rs_health-last_cmp_demand_cnt_min_lim_on = xsdbool(
-      iv_min_last_completed_demand_count > 0 ).
+      iv_min_last_comp_demand_count > 0 ).
     rs_health-last_comp_demand_cnt_min_limit =
-      iv_min_last_completed_demand_count.
+      iv_min_last_comp_demand_count.
     rs_health-last_comp_demand_cnt_below_lim = xsdbool(
       rs_health-last_cmp_demand_cnt_min_lim_on = abap_true
       AND is_summary-last_completed_run_id IS NOT INITIAL
       AND is_summary-last_completed_demand > 0
       AND is_summary-last_completed_demand
-        < iv_min_last_completed_demand_count ).
+        < iv_min_last_comp_demand_count ).
     rs_health-avail_stock_min_limit_active = xsdbool(
       iv_min_available_stock > 0 ).
     rs_health-avail_stock_min_threshold = iv_min_available_stock.

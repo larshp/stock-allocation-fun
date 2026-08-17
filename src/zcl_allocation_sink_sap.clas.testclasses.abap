@@ -2197,10 +2197,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_sales_document   = 'ORDER-DB01' ).
-      CATCH zcx_stock_allocation INTO DATA(lo_nonnumeric_sales_document_error).
+      CATCH zcx_stock_allocation INTO DATA(lo_nonnumeric_sde).
         lv_raised = abap_true.
         cl_abap_unit_assert=>assert_equals(
-          act = lo_nonnumeric_sales_document_error->message
+          act = lo_nonnumeric_sde->message
           exp = 'Allocation result sales document filter is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
@@ -2242,10 +2242,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           iv_plant            = '1000'
           iv_storage_location = '0001'
           iv_reservation_id   = 'RESBAD0001' ).
-      CATCH zcx_stock_allocation INTO DATA(lo_nonnumeric_reservation_error).
+      CATCH zcx_stock_allocation INTO DATA(lo_invalid_reservation_error).
         lv_raised = abap_true.
         cl_abap_unit_assert=>assert_equals(
-          act = lo_nonnumeric_reservation_error->message
+          act = lo_invalid_reservation_error->message
           exp = 'Allocation result reservation document filter is invalid' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).

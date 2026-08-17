@@ -879,7 +879,7 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true(
       ls_summary-last_completed_avail_ok ).
     cl_abap_unit_assert=>assert_true(
-      ls_summary-last_completed_policy_available ).
+      ls_summary-last_comp_policy_available ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_completed_movement_type
       exp = '201' ).
@@ -890,15 +890,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       act = ls_summary-last_completed_safety_stock
       exp = 3 ).
     cl_abap_unit_assert=>assert_true(
-      ls_summary-last_completed_horizon_available ).
+      ls_summary-last_comp_horizon_available ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-last_completed_requested_on_from
+      act = ls_summary-last_comp_requested_on_from
       exp = '20260801' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-last_completed_requested_on_to
       exp = '20260807' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-last_completed_requested_deadline
+      act = ls_summary-last_comp_requested_deadline
       exp = '20260807' ).
     cl_abap_unit_assert=>assert_not_initial(
       ls_summary-last_completed_finish_date ).
@@ -939,15 +939,15 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_deadline_age_to   = 1000
       iv_deadline_age_date = '20260810' ).
     cl_abap_unit_assert=>assert_true(
-      ls_summary-last_completed_deadline_age_available ).
+      ls_summary-last_comp_deadline_age_avail ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-last_completed_deadline_age_days
+      act = ls_summary-last_comp_deadline_age_days
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-last_completed_deadline_age_reason
+      act = ls_summary-last_comp_deadline_age_reason
       exp = 'available' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_summary-last_completed_deadline_urgency
+      act = ls_summary-last_comp_deadline_urgency
       exp = 'overdue' ).
   ENDMETHOD.
 

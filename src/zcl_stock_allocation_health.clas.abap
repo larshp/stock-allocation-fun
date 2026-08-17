@@ -616,7 +616,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_completed_success_streak =
       is_summary-last_completed_success_streak.
     rs_health-last_comp_non_success_streak =
-      is_summary-last_completed_non_success_streak.
+      is_summary-last_comp_non_success_streak.
     rs_health-last_completed_message = is_summary-last_completed_message.
     rs_health-last_completed_start_date =
       is_summary-last_completed_start_date.
@@ -630,7 +630,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       is_summary-last_completed_duration.
     rs_health-last_completed_unit = is_summary-last_completed_unit.
     rs_health-last_comp_policy_available =
-      is_summary-last_completed_policy_available.
+      is_summary-last_comp_policy_available.
     rs_health-last_completed_movement_type =
       is_summary-last_completed_movement_type.
     rs_health-last_completed_min_shelf_life =
@@ -638,19 +638,19 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_completed_safety_stock =
       is_summary-last_completed_safety_stock.
     rs_health-last_comp_horizon_available =
-      is_summary-last_completed_horizon_available.
+      is_summary-last_comp_horizon_available.
     rs_health-last_comp_requested_on_from =
-      is_summary-last_completed_requested_on_from.
+      is_summary-last_comp_requested_on_from.
     rs_health-last_completed_requested_on_to =
       is_summary-last_completed_requested_on_to.
     rs_health-last_comp_requested_deadline =
-      is_summary-last_completed_requested_deadline.
+      is_summary-last_comp_requested_deadline.
     rs_health-last_comp_deadline_age_avail =
-      is_summary-last_completed_deadline_age_available.
+      is_summary-last_comp_deadline_age_avail.
     rs_health-last_comp_deadline_age_days =
-      is_summary-last_completed_deadline_age_days.
+      is_summary-last_comp_deadline_age_days.
     rs_health-last_comp_deadline_age_reason =
-      is_summary-last_completed_deadline_age_reason.
+      is_summary-last_comp_deadline_age_reason.
     IF rs_health-last_comp_deadline_age_reason IS INITIAL.
       IF rs_health-last_comp_deadline_age_avail = abap_true.
         rs_health-last_comp_deadline_age_reason = 'available'.
@@ -660,11 +660,11 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         rs_health-last_comp_deadline_age_reason = 'no_deadline'.
       ENDIF.
     ENDIF.
-    IF is_summary-last_completed_deadline_urgency IS INITIAL.
+    IF is_summary-last_comp_deadline_urgency IS INITIAL.
       rs_health-last_comp_deadline_urgency = 'n/a'.
     ELSE.
       rs_health-last_comp_deadline_urgency =
-        is_summary-last_completed_deadline_urgency.
+        is_summary-last_comp_deadline_urgency.
     ENDIF.
     rs_health-last_completed_available_stock = is_summary-last_completed_avail.
     rs_health-last_comp_available_stock_unit =
@@ -844,7 +844,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_comp_non_succ_above_limit = xsdbool(
       rs_health-last_comp_non_success_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
-      AND is_summary-last_completed_non_success_streak
+      AND is_summary-last_comp_non_success_streak
         > iv_max_last_completed_non_success_streak ).
     rs_health-last_comp_alloc_count_limit_on = xsdbool(
       iv_min_last_completed_alloc_lines > 0 ).
@@ -1204,8 +1204,8 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_deadline_age.
     rs_health-last_comp_ddl_age_above_limit = xsdbool(
       rs_health-last_comp_ddl_age_limit_on = abap_true
-      AND is_summary-last_completed_deadline_age_available = abap_true
-      AND is_summary-last_completed_deadline_age_days
+      AND is_summary-last_comp_deadline_age_avail = abap_true
+      AND is_summary-last_comp_deadline_age_days
         > iv_max_last_completed_deadline_age ).
     rs_health-last_comp_demand_cnt_limit_on = xsdbool(
       iv_max_last_completed_demand_count > 0 ).

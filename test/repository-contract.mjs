@@ -3109,7 +3109,7 @@ assert.match(
 );
 assert.match(
   auditSource,
-  /last_completed_deadline_urgency\s*=\s*'n\/a'[\s\S]*last_completed_deadline_urgency\s*=\s*'overdue'[\s\S]*last_completed_deadline_urgency\s*=\s*'current_day'[\s\S]*last_completed_deadline_urgency\s*=\s*'future'/,
+  /last_comp_deadline_urgency\s*=\s*'n\/a'[\s\S]*last_comp_deadline_urgency\s*=\s*'overdue'[\s\S]*last_comp_deadline_urgency\s*=\s*'current_day'[\s\S]*last_comp_deadline_urgency\s*=\s*'future'/,
   "audit summaries must classify the latest completed signed deadline age",
 );
 assert.match(
@@ -3124,7 +3124,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /is_summary-last_completed_deadline_urgency|rs_health-last_comp_deadline_urgency/,
+  /is_summary-last_comp_deadline_urgency|rs_health-last_comp_deadline_urgency/,
   "health evaluator must consume the canonical latest-completed deadline urgency",
 );
 assert.match(
@@ -3764,7 +3764,7 @@ assert.match(
 );
 assert.match(
   auditSource,
-  /lt_completed_runs|last_completed_success_streak|last_completed_non_success_streak|SORT lt_completed_runs/,
+  /lt_completed_runs|last_completed_success_streak|last_comp_non_success_streak|SORT lt_completed_runs/,
   "audit summary must calculate completed run-quality streaks",
 );
 assert.match(
@@ -3809,32 +3809,32 @@ assert.match(
 );
 assert.match(
   auditInterfaceSource,
-  /last_completed_policy_available|last_completed_movement_type|last_completed_min_shelf_life|last_completed_safety_stock/,
+  /last_comp_policy_available|last_completed_movement_type|last_completed_min_shelf_life|last_completed_safety_stock/,
   "audit summary must expose latest completed policy context",
 );
 assert.match(
   auditSource,
-  /last_completed_policy_available\s*=\s*abap_true[\s\S]*last_completed_movement_type\s*=\s*<ls_run>-movement_type[\s\S]*last_completed_min_shelf_life\s*=\s*<ls_run>-min_shelf_life[\s\S]*last_completed_safety_stock\s*=\s*<ls_run>-safety_stock/,
+  /last_comp_policy_available\s*=\s*abap_true[\s\S]*last_completed_movement_type\s*=\s*<ls_run>-movement_type[\s\S]*last_completed_min_shelf_life\s*=\s*<ls_run>-min_shelf_life[\s\S]*last_completed_safety_stock\s*=\s*<ls_run>-safety_stock/,
   "audit implementation must derive latest completed policy context",
 );
 assert.match(
   auditInterfaceSource,
-  /last_completed_horizon_available|last_completed_requested_on_from|last_completed_requested_on_to|last_completed_requested_deadline/,
+  /last_comp_horizon_available|last_comp_requested_on_from|last_completed_requested_on_to|last_comp_requested_deadline/,
   "audit summary must expose latest completed requested horizon",
 );
 assert.match(
   auditSource,
-  /last_completed_horizon_available\s*=\s*abap_true[\s\S]*last_completed_requested_on_from\s*=\s*<ls_run>-requested_on_from[\s\S]*last_completed_requested_on_to\s*=\s*<ls_run>-requested_on_to[\s\S]*last_completed_requested_deadline\s*=\s*<ls_run>-requested_deadline/,
+  /last_comp_horizon_available\s*=\s*abap_true[\s\S]*last_comp_requested_on_from\s*=\s*<ls_run>-requested_on_from[\s\S]*last_completed_requested_on_to\s*=\s*<ls_run>-requested_on_to[\s\S]*last_comp_requested_deadline\s*=\s*<ls_run>-requested_deadline/,
   "audit implementation must derive latest completed requested horizon",
 );
 assert.match(
   auditInterfaceSource,
-  /last_completed_deadline_age_available|last_completed_deadline_age_days|last_completed_deadline_age_reason/,
+  /last_comp_deadline_age_avail|last_comp_deadline_age_days|last_comp_deadline_age_reason/,
   "audit summary must expose latest completed deadline age",
 );
 assert.match(
   auditSource,
-  /last_completed_deadline_age_available\s*=\s*abap_true[\s\S]*last_completed_deadline_age_days\s*=\s*lv_deadline_age_reference_date/,
+  /last_comp_deadline_age_avail\s*=\s*abap_true[\s\S]*last_comp_deadline_age_days\s*=\s*lv_deadline_age_reference_date/,
   "audit implementation must derive latest completed deadline age",
 );
 assert.match(
@@ -4354,7 +4354,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /last_comp_non_success_streak\s*=\s*is_summary-last_completed_non_success_streak/,
+  /last_comp_non_success_streak\s*=\s*is_summary-last_comp_non_success_streak/,
   "health evaluator must propagate latest-completed non-success streak telemetry",
 );
 assert.match(

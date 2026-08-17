@@ -745,7 +745,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
 
     ls_summary-total_runs = 3.
     ls_summary-last_completed_run_id = 'RUN-HEALTH-FAILURE-STREAK'.
-    ls_summary-last_completed_non_success_streak = 2.
+    ls_summary-last_comp_non_success_streak = 2.
 
     ls_health = zcl_stock_allocation_health=>evaluate(
       is_summary                               = ls_summary
@@ -2513,18 +2513,18 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     ls_summary-last_completed_message = 'completed diagnostic'.
     ls_summary-last_completed_start_date = '20260812'.
     ls_summary-last_completed_start_time = '110000'.
-    ls_summary-last_completed_policy_available = abap_true.
+    ls_summary-last_comp_policy_available = abap_true.
     ls_summary-last_completed_movement_type = '201'.
     ls_summary-last_completed_min_shelf_life = 5.
     ls_summary-last_completed_safety_stock = 3.
-    ls_summary-last_completed_horizon_available = abap_true.
-    ls_summary-last_completed_requested_on_from = '20260801'.
+    ls_summary-last_comp_horizon_available = abap_true.
+    ls_summary-last_comp_requested_on_from = '20260801'.
     ls_summary-last_completed_requested_on_to = '20260807'.
-    ls_summary-last_completed_requested_deadline = '20260807'.
-    ls_summary-last_completed_deadline_age_available = abap_true.
-    ls_summary-last_completed_deadline_age_reason = 'available'.
-    ls_summary-last_completed_deadline_age_days = 3.
-    ls_summary-last_completed_deadline_urgency = 'overdue'.
+    ls_summary-last_comp_requested_deadline = '20260807'.
+    ls_summary-last_comp_deadline_age_avail = abap_true.
+    ls_summary-last_comp_deadline_age_reason = 'available'.
+    ls_summary-last_comp_deadline_age_days = 3.
+    ls_summary-last_comp_deadline_urgency = 'overdue'.
     ls_summary-last_completed_duration = 45.
     ls_summary-last_completed_requested = 1.
     ls_summary-last_completed_allocated = 1.
@@ -2639,8 +2639,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_available_stock
       exp = 0 ).
-    ls_summary-last_completed_deadline_age_available = abap_false.
-    ls_summary-last_completed_deadline_age_reason = 'no_deadline'.
+    ls_summary-last_comp_deadline_age_avail = abap_false.
+    ls_summary-last_comp_deadline_age_reason = 'no_deadline'.
     ls_health = zcl_stock_allocation_health=>evaluate(
       is_summary                         = ls_summary
       iv_max_last_completed_deadline_age = 2 ).
@@ -2653,8 +2653,8 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_comp_deadline_age_reason
       exp = 'no_deadline' ).
-    ls_summary-last_completed_deadline_age_available = abap_true.
-    ls_summary-last_completed_deadline_age_reason = 'available'.
+    ls_summary-last_comp_deadline_age_avail = abap_true.
+    ls_summary-last_comp_deadline_age_reason = 'available'.
     ls_health = zcl_stock_allocation_health=>evaluate(
       is_summary                         = ls_summary
       iv_last_age_available              = abap_true

@@ -1722,14 +1722,14 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
               res_secs = lv_completed_duration ).
         ENDIF.
         rs_summary-last_completed_duration = lv_completed_duration.
-        rs_summary-last_completed_policy_available = abap_true.
+        rs_summary-last_comp_policy_available = abap_true.
         rs_summary-last_completed_movement_type = <ls_run>-movement_type.
         rs_summary-last_completed_min_shelf_life = <ls_run>-min_shelf_life.
         rs_summary-last_completed_safety_stock = <ls_run>-safety_stock.
-        rs_summary-last_completed_horizon_available = abap_true.
-        rs_summary-last_completed_requested_on_from = <ls_run>-requested_on_from.
+        rs_summary-last_comp_horizon_available = abap_true.
+        rs_summary-last_comp_requested_on_from = <ls_run>-requested_on_from.
         rs_summary-last_completed_requested_on_to = <ls_run>-requested_on_to.
-        rs_summary-last_completed_requested_deadline = <ls_run>-requested_deadline.
+        rs_summary-last_comp_requested_deadline = <ls_run>-requested_deadline.
         rs_summary-last_completed_avail = <ls_run>-available.
         rs_summary-last_completed_avail_unit = <ls_run>-unit.
         rs_summary-last_completed_avail_ok = abap_true.
@@ -1794,8 +1794,8 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ENDLOOP.
     LOOP AT lt_completed_runs ASSIGNING <ls_run>.
       IF <ls_run>-status <> 'S'.
-        rs_summary-last_completed_non_success_streak =
-          rs_summary-last_completed_non_success_streak + 1.
+        rs_summary-last_comp_non_success_streak =
+          rs_summary-last_comp_non_success_streak + 1.
       ELSE.
         EXIT.
       ENDIF.
@@ -1986,28 +1986,28 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     ELSE.
       rs_summary-last_deadline_urgency = 'future'.
     ENDIF.
-    IF rs_summary-last_completed_requested_deadline IS INITIAL.
-      rs_summary-last_completed_deadline_age_available = abap_false.
-      CLEAR rs_summary-last_completed_deadline_age_days.
+    IF rs_summary-last_comp_requested_deadline IS INITIAL.
+      rs_summary-last_comp_deadline_age_avail = abap_false.
+      CLEAR rs_summary-last_comp_deadline_age_days.
       IF rs_summary-last_completed_run_id IS INITIAL.
-        rs_summary-last_completed_deadline_age_reason = 'no_completed_run'.
+        rs_summary-last_comp_deadline_age_reason = 'no_completed_run'.
       ELSE.
-        rs_summary-last_completed_deadline_age_reason = 'no_deadline'.
+        rs_summary-last_comp_deadline_age_reason = 'no_deadline'.
       ENDIF.
     ELSE.
-      rs_summary-last_completed_deadline_age_available = abap_true.
-      rs_summary-last_completed_deadline_age_days = lv_deadline_age_reference_date
-        - rs_summary-last_completed_requested_deadline.
-      rs_summary-last_completed_deadline_age_reason = 'available'.
+      rs_summary-last_comp_deadline_age_avail = abap_true.
+      rs_summary-last_comp_deadline_age_days = lv_deadline_age_reference_date
+        - rs_summary-last_comp_requested_deadline.
+      rs_summary-last_comp_deadline_age_reason = 'available'.
     ENDIF.
-    IF rs_summary-last_completed_requested_deadline IS INITIAL.
-      rs_summary-last_completed_deadline_urgency = 'n/a'.
-    ELSEIF rs_summary-last_completed_deadline_age_days > 0.
-      rs_summary-last_completed_deadline_urgency = 'overdue'.
-    ELSEIF rs_summary-last_completed_deadline_age_days = 0.
-      rs_summary-last_completed_deadline_urgency = 'current_day'.
+    IF rs_summary-last_comp_requested_deadline IS INITIAL.
+      rs_summary-last_comp_deadline_urgency = 'n/a'.
+    ELSEIF rs_summary-last_comp_deadline_age_days > 0.
+      rs_summary-last_comp_deadline_urgency = 'overdue'.
+    ELSEIF rs_summary-last_comp_deadline_age_days = 0.
+      rs_summary-last_comp_deadline_urgency = 'current_day'.
     ELSE.
-      rs_summary-last_completed_deadline_urgency = 'future'.
+      rs_summary-last_comp_deadline_urgency = 'future'.
     ENDIF.
     IF rs_summary-earliest_requested_deadline IS NOT INITIAL.
       rs_summary-oldest_deadline_age_days = lv_deadline_age_reference_date

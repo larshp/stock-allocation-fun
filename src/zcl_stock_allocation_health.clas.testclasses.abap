@@ -229,7 +229,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-duration_metrics_available
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_reason
+      act = ls_health-last_comp_deadline_age_reason
       exp = 'no_completed_run' ).
     cl_abap_unit_assert=>assert_initial( ls_health-priority_mix_pct ).
     cl_abap_unit_assert=>assert_initial( ls_health-legacy_mix_pct ).
@@ -596,13 +596,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_duration = 20 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_threshold_active
+      act = ls_health-last_comp_duration_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_threshold
+      act = ls_health-last_comp_duration_limit
       exp = 20 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_above_threshold
+      act = ls_health-last_comp_duration_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -617,7 +617,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                     = ls_summary
       iv_max_last_completed_duration = 20 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_above_threshold
+      act = ls_health-last_comp_duration_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -636,13 +636,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_duration = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_min_threshold_active
+      act = ls_health-last_comp_dur_min_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_min_threshold
+      act = ls_health-last_comp_duration_min_limit
       exp = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_below_threshold
+      act = ls_health-last_comp_duration_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -657,7 +657,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                     = ls_summary
       iv_min_last_completed_duration = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_below_threshold
+      act = ls_health-last_comp_duration_below_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -676,7 +676,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_require_last_completed_success = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_success_required_active
+      act = ls_health-last_comp_success_required_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_success_breach
@@ -714,13 +714,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_completed_success_streak
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_success_streak_threshold_active
+      act = ls_health-last_comp_succ_streak_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_success_streak_threshold
+      act = ls_health-last_comp_success_streak_limit
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_success_streak_below_threshold
+      act = ls_health-last_cmp_succ_streak_below_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -735,7 +735,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                           = ls_summary
       iv_min_last_completed_success_streak = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_success_streak_below_threshold
+      act = ls_health-last_cmp_succ_streak_below_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -752,16 +752,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_non_success_streak = 1 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_non_success_streak
+      act = ls_health-last_comp_non_success_streak
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_non_success_threshold_active
+      act = ls_health-last_comp_non_success_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_non_success_threshold
+      act = ls_health-last_comp_non_success_limit
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_non_success_above_threshold
+      act = ls_health-last_comp_non_succ_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -776,7 +776,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                               = ls_summary
       iv_max_last_completed_non_success_streak = 1 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_non_success_above_threshold
+      act = ls_health-last_comp_non_succ_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -793,13 +793,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_average_duration = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-average_duration_threshold_active
+      act = ls_health-average_duration_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-average_duration_threshold
       exp = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-average_duration_above_threshold
+      act = ls_health-average_duration_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -819,7 +819,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_average_duration = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-average_duration_above_threshold
+      act = ls_health-average_duration_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -836,13 +836,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_completed_duration = 15 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-maximum_duration_threshold_active
+      act = ls_health-maximum_duration_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-maximum_duration_threshold
       exp = 15 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-maximum_duration_above_threshold
+      act = ls_health-maximum_duration_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -862,7 +862,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_completed_duration = 15 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-maximum_duration_above_threshold
+      act = ls_health-maximum_duration_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -878,7 +878,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_duration_count = 3 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-duration_count_threshold_active
+      act = ls_health-duration_count_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-duration_count_threshold
@@ -967,7 +967,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_deadline_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-deadline_count_threshold_active
+      act = ls_health-deadline_count_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-deadline_mix_pct
@@ -1094,13 +1094,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_current_deadline_mix = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-current_deadline_mix_threshold_active
+      act = ls_health-current_deadline_mix_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-current_deadline_mix_threshold
       exp = 50 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-current_deadline_mix_above_threshold
+      act = ls_health-curr_deadline_mix_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -1115,7 +1115,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_current_deadline_mix = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-current_deadline_mix_above_threshold
+      act = ls_health-curr_deadline_mix_above_limit
       exp = abap_false ).
     cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
   ENDMETHOD.
@@ -1134,13 +1134,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_future_deadline_mix = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-future_deadline_mix_threshold_active
+      act = ls_health-future_deadline_mix_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-future_deadline_mix_threshold
       exp = 50 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-future_deadline_mix_below_threshold
+      act = ls_health-fut_deadline_mix_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -1155,7 +1155,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_future_deadline_mix = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-future_deadline_mix_below_threshold
+      act = ls_health-fut_deadline_mix_below_limit
       exp = abap_false ).
     cl_abap_unit_assert=>assert_initial( ls_health-threshold_breach_count ).
   ENDMETHOD.
@@ -1259,7 +1259,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary = ls_summary ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-available_stock_context_available
+      act = ls_health-avail_stock_context_avail
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-available_stock_context
@@ -1277,7 +1277,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary = ls_summary ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-available_stock_context_available
+      act = ls_health-avail_stock_context_avail
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-mixed_available_stock
@@ -1298,7 +1298,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_available_stock = 10 ).
 
     cl_abap_unit_assert=>assert_true(
-      ls_health-avail_stock_min_threshold_active ).
+      ls_health-avail_stock_min_limit_active ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-avail_stock_min_threshold
       exp = 6 ).
@@ -1634,13 +1634,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_unalloc_line_rate = 30 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-unallocated_line_threshold_active
+      act = ls_health-unallocated_line_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-unallocated_line_threshold
       exp = 30 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-unallocated_line_above_threshold
+      act = ls_health-unallocated_line_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -1661,7 +1661,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_unalloc_line_rate = 30 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-unallocated_line_above_threshold
+      act = ls_health-unallocated_line_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -1813,13 +1813,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_demand_count = 5 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_min_threshold_active
+      act = ls_health-last_cmp_demand_cnt_min_lim_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_min_threshold
+      act = ls_health-last_comp_demand_cnt_min_limit
       exp = 5 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_below_threshold
+      act = ls_health-last_comp_demand_cnt_below_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -1833,7 +1833,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                         = ls_summary
       iv_min_last_completed_demand_count = 5 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_below_threshold
+      act = ls_health-last_comp_demand_cnt_below_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -1894,13 +1894,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_shortage_quantity = 20 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-shortage_quantity_threshold_active
+      act = ls_health-shortage_quantity_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-shortage_quantity_threshold
       exp = 20 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-shortage_quantity_above_threshold
+      act = ls_health-shortage_quantity_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breach_count
@@ -1921,7 +1921,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_shortage_quantity = 20 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-shortage_quantity_above_threshold
+      act = ls_health-shortage_quantity_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2472,13 +2472,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_shortage_pct = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_pct_threshold_active
+      act = ls_health-last_shortage_pct_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_shortage_pct_threshold
       exp = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_pct_above_threshold
+      act = ls_health-last_shortage_pct_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2493,7 +2493,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_shortage_pct = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_pct_above_threshold
+      act = ls_health-last_shortage_pct_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2570,7 +2570,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_completed_preview
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_duration_seconds
+      act = ls_health-last_comp_duration_seconds
       exp = 45 ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_message
@@ -2582,7 +2582,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_completed_start_time
       exp = '110000' ).
     cl_abap_unit_assert=>assert_true(
-      ls_health-last_completed_policy_available ).
+      ls_health-last_comp_policy_available ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_movement_type
       exp = '201' ).
@@ -2593,35 +2593,35 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_completed_safety_stock
       exp = 3 ).
     cl_abap_unit_assert=>assert_true(
-      ls_health-last_completed_horizon_available ).
+      ls_health-last_comp_horizon_available ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_on_from
+      act = ls_health-last_comp_requested_on_from
       exp = '20260801' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_requested_on_to
       exp = '20260807' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_deadline
+      act = ls_health-last_comp_requested_deadline
       exp = '20260807' ).
     cl_abap_unit_assert=>assert_true(
-      ls_health-last_completed_deadline_age_available ).
+      ls_health-last_comp_deadline_age_avail ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_reason
+      act = ls_health-last_comp_deadline_age_reason
       exp = 'available' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_days
+      act = ls_health-last_comp_deadline_age_days
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_urgency
+      act = ls_health-last_comp_deadline_urgency
       exp = 'overdue' ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_available_stock
       exp = 25 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_available_stock_unit
+      act = ls_health-last_comp_available_stock_unit
       exp = 'EA' ).
     cl_abap_unit_assert=>assert_true(
-      ls_health-last_completed_available_stock_available ).
+      ls_health-last_comp_avail_stock_avail ).
     ls_summary-last_completed_avail = 0.
     ls_summary-last_completed_avail_ok = abap_true.
     ls_health = zcl_stock_allocation_health=>evaluate(
@@ -2635,7 +2635,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_coverage     = 90
       iv_max_last_completed_shortage_pct = 10 ).
     cl_abap_unit_assert=>assert_true(
-      ls_health-last_completed_available_stock_available ).
+      ls_health-last_comp_avail_stock_avail ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_available_stock
       exp = 0 ).
@@ -2645,13 +2645,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                         = ls_summary
       iv_max_last_completed_deadline_age = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_threshold_active
+      act = ls_health-last_comp_ddl_age_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_above_threshold
+      act = ls_health-last_comp_ddl_age_above_limit
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_reason
+      act = ls_health-last_comp_deadline_age_reason
       exp = 'no_deadline' ).
     ls_summary-last_completed_deadline_age_available = abap_true.
     ls_summary-last_completed_deadline_age_reason = 'available'.
@@ -2678,13 +2678,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_completed_demand
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_available
+      act = ls_health-last_comp_shortage_pct_avail
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_shortage_pct
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_completed_full_line_pct
@@ -2699,25 +2699,25 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_age_above_threshold
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_threshold_active
+      act = ls_health-last_comp_ddl_age_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_threshold
+      act = ls_health-last_comp_deadline_age_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_deadline_age_above_threshold
+      act = ls_health-last_comp_ddl_age_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_threshold_active
+      act = ls_health-last_comp_coverage_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_below_threshold
+      act = ls_health-last_comp_coverage_below_limit
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_threshold_active
+      act = ls_health-last_comp_short_pct_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_above_threshold
+      act = ls_health-last_comp_short_pct_above_lim
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2750,10 +2750,10 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_coverage     = 90
       iv_max_last_completed_shortage_pct = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_below_threshold
+      act = ls_health-last_comp_coverage_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_above_threshold
+      act = ls_health-last_comp_short_pct_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2767,12 +2767,12 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_coverage     = 90
       iv_max_last_completed_shortage_pct = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_available
+      act = ls_health-last_comp_shortage_pct_avail
       exp = abap_false ).
     cl_abap_unit_assert=>assert_initial(
       ls_health-last_completed_shortage_pct ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_false ).
     cl_abap_unit_assert=>assert_initial(
       ls_health-last_completed_full_line_pct ).
@@ -2780,10 +2780,10 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       act = ls_health-last_age_reason
       exp = 'unavailable' ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_below_threshold
+      act = ls_health-last_comp_coverage_below_limit
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_pct_above_threshold
+      act = ls_health-last_comp_short_pct_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2800,13 +2800,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_demand_count = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_threshold_active
+      act = ls_health-last_comp_demand_cnt_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_threshold
+      act = ls_health-last_comp_demand_count_limit
       exp = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_above_threshold
+      act = ls_health-last_comp_demand_cnt_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2820,7 +2820,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                         = ls_summary
       iv_max_last_completed_demand_count = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_demand_count_above_threshold
+      act = ls_health-last_comp_demand_cnt_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2837,13 +2837,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_shortage_qty = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_qty_threshold_active
+      act = ls_health-last_comp_short_qty_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_qty_threshold
+      act = ls_health-last_comp_shortage_qty_limit
       exp = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_qty_above_threshold
+      act = ls_health-last_comp_short_qty_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2857,7 +2857,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                         = ls_summary
       iv_max_last_completed_shortage_qty = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_qty_above_threshold
+      act = ls_health-last_comp_short_qty_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2875,13 +2875,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_allocated = 4 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_threshold_active
+      act = ls_health-last_comp_allocated_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_threshold
+      act = ls_health-last_comp_allocated_limit
       exp = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_below_threshold
+      act = ls_health-last_comp_alloc_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2896,7 +2896,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                      = ls_summary
       iv_min_last_completed_allocated = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_below_threshold
+      act = ls_health-last_comp_alloc_below_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2913,13 +2913,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_requested = 8 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_threshold_active
+      act = ls_health-last_comp_requested_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_threshold
+      act = ls_health-last_comp_requested_limit
       exp = 8 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_above_threshold
+      act = ls_health-last_comp_req_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2933,7 +2933,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                      = ls_summary
       iv_max_last_completed_requested = 8 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_above_threshold
+      act = ls_health-last_comp_req_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2951,13 +2951,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_requested = 5 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_min_threshold_active
+      act = ls_health-last_comp_req_min_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_min_threshold
+      act = ls_health-last_comp_requested_min_limit
       exp = 5 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_below_threshold
+      act = ls_health-last_comp_req_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -2972,7 +2972,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                      = ls_summary
       iv_min_last_completed_requested = 5 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_requested_below_threshold
+      act = ls_health-last_comp_req_below_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -2990,13 +2990,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_allocated = 7 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_max_threshold_active
+      act = ls_health-last_comp_alloc_max_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_max_threshold
+      act = ls_health-last_comp_allocated_max_limit
       exp = 7 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_above_threshold
+      act = ls_health-last_comp_alloc_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3011,7 +3011,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                      = ls_summary
       iv_max_last_completed_allocated = 7 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_above_threshold
+      act = ls_health-last_comp_alloc_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3030,13 +3030,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_coverage = 95 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_max_threshold_active
+      act = ls_health-last_comp_cov_max_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_max_threshold
+      act = ls_health-last_comp_coverage_max_limit
       exp = 95 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_above_threshold
+      act = ls_health-last_comp_coverage_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3052,7 +3052,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                     = ls_summary
       iv_max_last_completed_coverage = 95 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_coverage_above_threshold
+      act = ls_health-last_comp_coverage_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3071,22 +3071,22 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_avail_stock = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_min_threshold_active
+      act = ls_health-last_comp_avail_stk_min_lim_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_min_threshold
+      act = ls_health-last_comp_avail_stk_min_limit
       exp = 4 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_below_threshold
+      act = ls_health-last_comp_avail_stk_below_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_max_threshold_active
+      act = ls_health-last_comp_avail_stk_max_lim_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_max_threshold
+      act = ls_health-last_comp_avail_stk_max_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_above_threshold
+      act = ls_health-last_comp_avail_stk_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3101,10 +3101,10 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_avail_stock = 4
       iv_max_last_completed_avail_stock = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_below_threshold
+      act = ls_health-last_comp_avail_stk_below_lim
       exp = abap_false ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_avail_stock_above_threshold
+      act = ls_health-last_comp_avail_stk_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3122,16 +3122,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_full_line_rate = 50 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_threshold_active
+      act = ls_health-last_comp_full_line_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_threshold
+      act = ls_health-last_comp_full_line_limit
       exp = 50 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_below_threshold
+      act = ls_health-last_comp_full_ln_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3146,7 +3146,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                           = ls_summary
       iv_min_last_completed_full_line_rate = 50 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_below_threshold
+      act = ls_health-last_comp_full_ln_below_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3164,13 +3164,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_full_line_rate = 95 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_max_threshold_active
+      act = ls_health-last_comp_full_ln_max_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_max_threshold
+      act = ls_health-last_comp_full_line_max_limit
       exp = 95 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_above_threshold
+      act = ls_health-last_comp_full_ln_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3185,7 +3185,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                           = ls_summary
       iv_max_last_completed_full_line_rate = 95 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_line_above_threshold
+      act = ls_health-last_comp_full_ln_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3203,13 +3203,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_unalloc_line_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_count_threshold_active
+      act = ls_health-last_comp_unalloc_cnt_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_count_threshold
+      act = ls_health-last_comp_unalloc_count_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_count_above_threshold
+      act = ls_health-last_comp_unalloc_cnt_over_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3224,7 +3224,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                               = ls_summary
       iv_max_last_completed_unalloc_line_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_count_above_threshold
+      act = ls_health-last_comp_unalloc_cnt_over_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3242,13 +3242,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_partial_line_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_count_threshold_active
+      act = ls_health-last_comp_partial_cnt_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_count_threshold
+      act = ls_health-last_comp_partial_count_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_count_above_threshold
+      act = ls_health-last_comp_part_cnt_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3263,7 +3263,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                               = ls_summary
       iv_max_last_completed_partial_line_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_count_above_threshold
+      act = ls_health-last_comp_part_cnt_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3282,13 +3282,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_shortage_line_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_count_threshold_active
+      act = ls_health-last_comp_short_cnt_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_count_threshold
+      act = ls_health-last_comp_shortage_count_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_count_above_threshold
+      act = ls_health-last_comp_short_cnt_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3304,7 +3304,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                                = ls_summary
       iv_max_last_completed_shortage_line_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_shortage_count_above_threshold
+      act = ls_health-last_comp_short_cnt_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3322,16 +3322,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_unalloc_line_rate = 25 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_line_threshold_active
+      act = ls_health-last_comp_unalloc_ln_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_line_threshold
+      act = ls_health-last_comp_unalloc_line_limit
       exp = 25 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_line_above_threshold
+      act = ls_health-last_comp_unalloc_ln_above_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3346,7 +3346,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                              = ls_summary
       iv_max_last_completed_unalloc_line_rate = 25 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_unalloc_line_above_threshold
+      act = ls_health-last_comp_unalloc_ln_above_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3364,16 +3364,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_partial_line_rate = 25 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_line_threshold_active
+      act = ls_health-last_comp_part_line_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_line_threshold
+      act = ls_health-last_comp_partial_line_limit
       exp = 25 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_line_above_threshold
+      act = ls_health-last_comp_part_ln_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3388,7 +3388,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                              = ls_summary
       iv_max_last_completed_partial_line_rate = 25 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_partial_line_above_threshold
+      act = ls_health-last_comp_part_ln_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3406,16 +3406,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_full_line_count = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_line_rates_available
+      act = ls_health-last_comp_line_rates_available
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_count_threshold_active
+      act = ls_health-last_comp_full_count_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_count_threshold
+      act = ls_health-last_comp_full_count_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_count_below_threshold
+      act = ls_health-last_comp_full_cnt_below_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3430,7 +3430,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                            = ls_summary
       iv_min_last_completed_full_line_count = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_full_count_below_threshold
+      act = ls_health-last_comp_full_cnt_below_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3449,16 +3449,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_min_last_completed_alloc_lines = 3 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_line_count
+      act = ls_health-last_comp_allocated_line_count
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_count_threshold_active
+      act = ls_health-last_comp_alloc_count_limit_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_count_threshold
+      act = ls_health-last_comp_alloc_count_limit
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_count_below_threshold
+      act = ls_health-last_comp_alloc_cnt_below_lim
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3474,7 +3474,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                        = ls_summary
       iv_min_last_completed_alloc_lines = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_count_below_threshold
+      act = ls_health-last_comp_alloc_cnt_below_lim
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3493,16 +3493,16 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_completed_alloc_lines = 2 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_allocated_line_count
+      act = ls_health-last_comp_allocated_line_count
       exp = 3 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_alloc_count_max_threshold_active
+      act = ls_health-last_comp_alloc_cnt_max_lim_on
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_alloc_count_max_threshold
+      act = ls_health-last_comp_alloc_cnt_max_limit
       exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_alloc_count_max_above_threshold
+      act = ls_health-last_comp_acnt_max_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3518,7 +3518,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       is_summary                        = ls_summary
       iv_max_last_completed_alloc_lines = 2 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_completed_alloc_count_max_above_threshold
+      act = ls_health-last_comp_acnt_max_above_limit
       exp = abap_false ).
   ENDMETHOD.
 
@@ -3575,13 +3575,13 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_shortage_qty = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_qty_threshold_active
+      act = ls_health-last_shortage_qty_limit_active
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-last_shortage_qty_threshold
       exp = 10 ).
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_qty_above_threshold
+      act = ls_health-last_shortage_qty_above_limit
       exp = abap_true ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_health-threshold_breaches
@@ -3596,7 +3596,7 @@ CLASS ltcl_stock_allocation_health IMPLEMENTATION.
       iv_max_last_shortage_qty = 10 ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_health-last_shortage_qty_above_threshold
+      act = ls_health-last_shortage_qty_above_limit
       exp = abap_false ).
   ENDMETHOD.
 

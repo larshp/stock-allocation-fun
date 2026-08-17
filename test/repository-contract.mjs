@@ -3124,7 +3124,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /is_summary-last_completed_deadline_urgency|rs_health-last_completed_deadline_urgency/,
+  /is_summary-last_completed_deadline_urgency|rs_health-last_comp_deadline_urgency/,
   "health evaluator must consume the canonical latest-completed deadline urgency",
 );
 assert.match(
@@ -3344,7 +3344,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /last_completed_shortage_pct_available|last_completed_shortage_pct|last_completed_line_rates_available/,
+  /last_comp_shortage_pct_avail|last_completed_shortage_pct|last_comp_line_rates_available/,
   "health evaluator must expose latest completed normalized rates",
 );
 assert.match(
@@ -3409,7 +3409,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /available_stock_context_available|available_stock_context|mixed_available_stock/,
+  /avail_stock_context_avail|available_stock_context|mixed_available_stock/,
   "health evaluator must expose available-stock context telemetry",
 );
 assert.match(
@@ -3509,12 +3509,12 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /unallocated_line_threshold_active|unallocated_line_threshold|unallocated_line_above_threshold/,
+  /unallocated_line_limit_active|unallocated_line_threshold|unallocated_line_above_limit/,
   "health evaluator must expose unallocated-line-rate threshold state",
 );
 assert.match(
   healthSource,
-  /iv_max_unalloc_line_rate|unallocated_line_above_threshold[\s\S]*demand_count > 0/,
+  /iv_max_unalloc_line_rate|unallocated_line_above_limit[\s\S]*demand_count > 0/,
   "health evaluator must apply a zero-demand-safe unallocated-line-rate threshold",
 );
 assert.match(
@@ -3584,12 +3584,12 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /shortage_quantity_threshold_active|shortage_quantity_threshold|shortage_quantity_above_threshold/,
+  /shortage_quantity_limit_active|shortage_quantity_threshold|shortage_quantity_above_limit/,
   "health evaluator must expose shortage-quantity threshold state",
 );
 assert.match(
   healthSource,
-  /iv_max_shortage_quantity|shortage_quantity_above_threshold[\s\S]*shortage_available = abap_true/,
+  /iv_max_shortage_quantity|shortage_quantity_above_limit[\s\S]*shortage_available = abap_true/,
   "health evaluator must apply a mixed-unit-safe shortage-quantity threshold",
 );
 assert.match(
@@ -3599,12 +3599,12 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /avail_stock_min_threshold_active|avail_stock_min_threshold|avail_stock_below_threshold/,
+  /avail_stock_min_limit_active|avail_stock_min_threshold|avail_stock_below_threshold/,
   "health evaluator must expose minimum available-stock threshold state",
 );
 assert.match(
   healthSource,
-  /iv_min_available_stock|avail_stock_below_threshold[\s\S]*available_stock_context_available = abap_true/,
+  /iv_min_available_stock|avail_stock_below_threshold[\s\S]*avail_stock_context_avail = abap_true/,
   "health evaluator must apply a comparable-context-safe minimum available-stock threshold",
 );
 assert.match(
@@ -3614,12 +3614,12 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /avail_stock_max_threshold_active|avail_stock_max_threshold|avail_stock_above_threshold/,
+  /avail_stock_max_limit_active|avail_stock_max_threshold|avail_stock_above_threshold/,
   "health evaluator must expose maximum available-stock threshold state",
 );
 assert.match(
   healthSource,
-  /iv_max_available_stock|avail_stock_above_threshold[\s\S]*available_stock_context_available = abap_true/,
+  /iv_max_available_stock|avail_stock_above_threshold[\s\S]*avail_stock_context_avail = abap_true/,
   "health evaluator must apply a comparable-context-safe maximum available-stock threshold",
 );
 assert.match(
@@ -3729,7 +3729,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_deadline_age|last_completed_deadline_age_above_threshold/,
+  /iv_max_last_completed_deadline_age|last_comp_ddl_age_above_limit/,
   "health evaluator must support latest-completed deadline-age threshold evaluation",
 );
 assert.match(
@@ -3739,7 +3739,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_demand_count|last_completed_demand_count_above_threshold/,
+  /iv_max_last_completed_demand_count|last_comp_demand_cnt_above_lim/,
   "health evaluator must support latest-completed demand-count threshold evaluation",
 );
 assert.match(
@@ -3839,7 +3839,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /last_completed_available_stock|last_completed_available_stock_available|last_completed_message|last_completed_start_date|last_completed_policy_available|last_completed_horizon_available|last_completed_deadline_age_available|last_completed_deadline_age_reason/,
+  /last_completed_available_stock|last_comp_avail_stock_avail|last_completed_message|last_completed_start_date|last_comp_policy_available|last_comp_horizon_available|last_comp_deadline_age_avail|last_comp_deadline_age_reason/,
   "health evaluator must expose latest completed available-stock context",
 );
 assert.match(
@@ -3854,47 +3854,47 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_shortage_qty|last_shortage_qty_above_threshold/,
+  /iv_max_last_shortage_qty|last_shortage_qty_above_limit/,
   "health evaluator must support latest-run shortage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_shortage_pct|last_shortage_pct_above_threshold/,
+  /iv_max_last_shortage_pct|last_shortage_pct_above_limit/,
   "health evaluator must support latest-run shortage-percentage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_coverage|last_completed_coverage_below_threshold/,
+  /iv_min_last_completed_coverage|last_comp_coverage_below_limit/,
   "health evaluator must support latest-completed coverage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_coverage|last_completed_coverage_above_threshold/,
+  /iv_max_last_completed_coverage|last_comp_coverage_above_limit/,
   "health evaluator must support maximum latest-completed coverage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_pct|last_completed_shortage_pct_above_threshold/,
+  /iv_max_last_completed_shortage_pct|last_comp_short_pct_above_lim/,
   "health evaluator must support latest-completed shortage-percentage threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_qty|last_completed_shortage_qty_above_threshold/,
+  /iv_max_last_completed_shortage_qty|last_comp_short_qty_above_lim/,
   "health evaluator must support latest-completed shortage-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_allocated|last_completed_allocated_below_threshold/,
+  /iv_min_last_completed_allocated|last_comp_alloc_below_limit/,
   "health evaluator must support latest-completed allocated-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_allocated|last_completed_allocated_above_threshold/,
+  /iv_max_last_completed_allocated|last_comp_alloc_above_limit/,
   "health evaluator must support maximum latest-completed allocated-quantity threshold evaluation",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_requested|last_completed_requested_above_threshold/,
+  /iv_max_last_completed_requested|last_comp_req_above_limit/,
   "health evaluator must support latest-completed requested-quantity threshold evaluation",
 );
 assert.match(
@@ -3914,12 +3914,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_coverage_max_threshold_active'[\s\S]*ls_health-last_completed_coverage_max_threshold_active/,
+  /iv_name\s*=\s*'last_completed_coverage_max_threshold_active'[\s\S]*ls_health-last_comp_cov_max_limit_on/,
   "health JSON must expose maximum latest-completed coverage threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_coverage_above_threshold'[\s\S]*ls_health-last_completed_coverage_above_threshold/,
+  /iv_name\s*=\s*'last_completed_coverage_above_threshold'[\s\S]*ls_health-last_comp_coverage_above_limit/,
   "health JSON must expose maximum latest-completed coverage breach state",
 );
 assert.match(
@@ -3939,12 +3939,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_threshold_active'[\s\S]*ls_health-last_completed_allocated_threshold_active/,
+  /iv_name\s*=\s*'last_completed_allocated_threshold_active'[\s\S]*ls_health-last_comp_allocated_limit_on/,
   "health JSON must expose latest-completed allocated-quantity threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_below_threshold'[\s\S]*ls_health-last_completed_allocated_below_threshold/,
+  /iv_name\s*=\s*'last_completed_allocated_below_threshold'[\s\S]*ls_health-last_comp_alloc_below_limit/,
   "health JSON must expose latest-completed allocated-quantity breach state",
 );
 assert.match(
@@ -3954,12 +3954,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_requested_threshold_active'[\s\S]*ls_health-last_completed_requested_threshold_active/,
+  /iv_name\s*=\s*'last_completed_requested_threshold_active'[\s\S]*ls_health-last_comp_requested_limit_on/,
   "health JSON must expose latest-completed requested-quantity threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_requested_above_threshold'[\s\S]*ls_health-last_completed_requested_above_threshold/,
+  /iv_name\s*=\s*'last_completed_requested_above_threshold'[\s\S]*ls_health-last_comp_req_above_limit/,
   "health JSON must expose latest-completed requested-quantity breach state",
 );
 assert.match(
@@ -3969,17 +3969,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_max_threshold_active'[\s\S]*ls_health-last_completed_allocated_max_threshold_active/,
+  /iv_name\s*=\s*'last_completed_allocated_max_threshold_active'[\s\S]*ls_health-last_comp_alloc_max_limit_on/,
   "health JSON must expose maximum latest-completed allocated-quantity threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_above_threshold'[\s\S]*ls_health-last_completed_allocated_above_threshold/,
+  /iv_name\s*=\s*'last_completed_allocated_above_threshold'[\s\S]*ls_health-last_comp_alloc_above_limit/,
   "health JSON must expose maximum latest-completed allocated-quantity breach state",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_avail_stock|last_completed_avail_stock_below_threshold|iv_max_last_completed_avail_stock|last_completed_avail_stock_above_threshold/,
+  /iv_min_last_completed_avail_stock|last_comp_avail_stk_below_lim|iv_max_last_completed_avail_stock|last_comp_avail_stk_above_lim/,
   "health evaluator must support latest-completed available-stock thresholds",
 );
 assert.match(
@@ -3989,7 +3989,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_full_line_rate|last_completed_full_line_below_threshold/,
+  /iv_min_last_completed_full_line_rate|last_comp_full_ln_below_limit/,
   "health evaluator must support latest-completed full-line-rate threshold evaluation",
 );
 assert.match(
@@ -3999,7 +3999,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_full_line_rate|last_completed_full_line_above_threshold/,
+  /iv_max_last_completed_full_line_rate|last_comp_full_ln_above_limit/,
   "health evaluator must support maximum latest-completed full-line-rate threshold evaluation",
 );
 assert.match(
@@ -4014,17 +4014,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_full_line_max_threshold_active'[\s\S]*ls_health-last_completed_full_line_max_threshold_active/,
+  /iv_name\s*=\s*'last_completed_full_line_max_threshold_active'[\s\S]*ls_health-last_comp_full_ln_max_limit_on/,
   "health JSON must expose maximum latest-completed full-line threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_full_line_above_threshold'[\s\S]*ls_health-last_completed_full_line_above_threshold/,
+  /iv_name\s*=\s*'last_completed_full_line_above_threshold'[\s\S]*ls_health-last_comp_full_ln_above_limit/,
   "health JSON must expose maximum latest-completed full-line breach state",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_unalloc_line_rate|last_completed_unalloc_line_above_threshold/,
+  /iv_max_last_completed_unalloc_line_rate|last_comp_unalloc_ln_above_lim/,
   "health evaluator must support latest-completed unallocated-line-rate threshold evaluation",
 );
 assert.match(
@@ -4034,7 +4034,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_partial_line_rate|last_completed_partial_line_above_threshold/,
+  /iv_max_last_completed_partial_line_rate|last_comp_part_ln_above_limit/,
   "health evaluator must support latest-completed partial-line-rate threshold evaluation",
 );
 assert.match(
@@ -4044,17 +4044,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_partial_line_threshold_active'[\s\S]*ls_health-last_completed_partial_line_threshold_active/,
+  /iv_name\s*=\s*'last_completed_partial_line_threshold_active'[\s\S]*ls_health-last_comp_part_line_limit_on/,
   "health JSON must expose latest-completed partial-line threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_partial_line_above_threshold'[\s\S]*ls_health-last_completed_partial_line_above_threshold/,
+  /iv_name\s*=\s*'last_completed_partial_line_above_threshold'[\s\S]*ls_health-last_comp_part_ln_above_limit/,
   "health JSON must expose latest-completed partial-line breach state",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_full_line_count|last_completed_full_count_below_threshold/,
+  /iv_min_last_completed_full_line_count|last_comp_full_cnt_below_limit/,
   "health evaluator must support latest-completed full-line-count threshold evaluation",
 );
 assert.match(
@@ -4064,17 +4064,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_full_count_threshold_active'[\s\S]*ls_health-last_completed_full_count_threshold_active/,
+  /iv_name\s*=\s*'last_completed_full_count_threshold_active'[\s\S]*ls_health-last_comp_full_count_limit_on/,
   "health JSON must expose latest-completed full-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_full_count_below_threshold'[\s\S]*ls_health-last_completed_full_count_below_threshold/,
+  /iv_name\s*=\s*'last_completed_full_count_below_threshold'[\s\S]*ls_health-last_comp_full_cnt_below_limit/,
   "health JSON must expose latest-completed full-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_alloc_lines|last_completed_allocated_count_below_threshold/,
+  /iv_min_last_completed_alloc_lines|last_comp_alloc_cnt_below_lim/,
   "health evaluator must support latest-completed allocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4084,17 +4084,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_count_threshold_active'[\s\S]*ls_health-last_completed_allocated_count_threshold_active/,
+  /iv_name\s*=\s*'last_completed_allocated_count_threshold_active'[\s\S]*ls_health-last_comp_alloc_count_limit_on/,
   "health JSON must expose latest-completed allocated-line-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_count_below_threshold'[\s\S]*ls_health-last_completed_allocated_count_below_threshold/,
+  /iv_name\s*=\s*'last_completed_allocated_count_below_threshold'[\s\S]*ls_health-last_comp_alloc_cnt_below_lim/,
   "health JSON must expose latest-completed allocated-line-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_alloc_lines|last_completed_alloc_count_max_above_threshold/,
+  /iv_max_last_completed_alloc_lines|last_comp_acnt_max_above_limit/,
   "health evaluator must support maximum latest-completed allocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4104,17 +4104,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_count_max_threshold_active'[\s\S]*ls_health-last_completed_alloc_count_max_threshold_active/,
+  /iv_name\s*=\s*'last_completed_allocated_count_max_threshold_active'[\s\S]*ls_health-last_comp_alloc_cnt_max_lim_on/,
   "health JSON must expose maximum latest-completed allocated-line-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_allocated_count_above_threshold'[\s\S]*ls_health-last_completed_alloc_count_max_above_threshold/,
+  /iv_name\s*=\s*'last_completed_allocated_count_above_threshold'[\s\S]*ls_health-last_comp_acnt_max_above_limit/,
   "health JSON must expose maximum latest-completed allocated-line-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_unalloc_line_count|last_completed_unalloc_count_above_threshold/,
+  /iv_max_last_completed_unalloc_line_count|last_comp_unalloc_cnt_over_lim/,
   "health evaluator must support latest-completed unallocated-line-count threshold evaluation",
 );
 assert.match(
@@ -4124,17 +4124,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_unalloc_count_threshold_active'[\s\S]*ls_health-last_completed_unalloc_count_threshold_active/,
+  /iv_name\s*=\s*'last_completed_unalloc_count_threshold_active'[\s\S]*ls_health-last_comp_unalloc_cnt_limit_on/,
   "health JSON must expose latest-completed unallocated-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_unalloc_count_above_threshold'[\s\S]*ls_health-last_completed_unalloc_count_above_threshold/,
+  /iv_name\s*=\s*'last_completed_unalloc_count_above_threshold'[\s\S]*ls_health-last_comp_unalloc_cnt_over_lim/,
   "health JSON must expose latest-completed unallocated-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_partial_line_count|last_completed_partial_count_above_threshold/,
+  /iv_max_last_completed_partial_line_count|last_comp_part_cnt_above_limit/,
   "health evaluator must support latest-completed partial-line-count threshold evaluation",
 );
 assert.match(
@@ -4144,17 +4144,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_partial_count_threshold_active'[\s\S]*ls_health-last_completed_partial_count_threshold_active/,
+  /iv_name\s*=\s*'last_completed_partial_count_threshold_active'[\s\S]*ls_health-last_comp_partial_cnt_limit_on/,
   "health JSON must expose latest-completed partial-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_partial_count_above_threshold'[\s\S]*ls_health-last_completed_partial_count_above_threshold/,
+  /iv_name\s*=\s*'last_completed_partial_count_above_threshold'[\s\S]*ls_health-last_comp_part_cnt_above_limit/,
   "health JSON must expose latest-completed partial-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_shortage_line_count|last_completed_shortage_count_above_threshold/,
+  /iv_max_last_completed_shortage_line_count|last_comp_short_cnt_above_lim/,
   "health evaluator must support latest-completed shortage-line-count threshold evaluation",
 );
 assert.match(
@@ -4164,17 +4164,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_shortage_count_threshold_active'[\s\S]*ls_health-last_completed_shortage_count_threshold_active/,
+  /iv_name\s*=\s*'last_completed_shortage_count_threshold_active'[\s\S]*ls_health-last_comp_short_cnt_limit_on/,
   "health JSON must expose latest-completed shortage-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_shortage_count_above_threshold'[\s\S]*ls_health-last_completed_shortage_count_above_threshold/,
+  /iv_name\s*=\s*'last_completed_shortage_count_above_threshold'[\s\S]*ls_health-last_comp_short_cnt_above_lim/,
   "health JSON must expose latest-completed shortage-count breach state",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_requested|last_completed_requested_below_threshold/,
+  /iv_min_last_completed_requested|last_comp_req_below_limit/,
   "health evaluator must support a minimum latest-completed requested-quantity threshold",
 );
 assert.match(
@@ -4184,12 +4184,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_requested_min_threshold_active'[\s\S]*ls_health-last_completed_requested_min_threshold_active/,
+  /iv_name\s*=\s*'last_completed_requested_min_threshold_active'[\s\S]*ls_health-last_comp_req_min_limit_on/,
   "health JSON must expose minimum latest-completed requested-quantity threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_requested_below_threshold'[\s\S]*ls_health-last_completed_requested_below_threshold/,
+  /iv_name\s*=\s*'last_completed_requested_below_threshold'[\s\S]*ls_health-last_comp_req_below_limit/,
   "health JSON must expose minimum latest-completed requested-quantity breach state",
 );
 assert.match(
@@ -4204,7 +4204,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_demand_count|last_completed_demand_count_below_threshold/,
+  /iv_min_last_completed_demand_count|last_comp_demand_cnt_below_lim/,
   "health evaluator must support a minimum latest-completed demand-count threshold",
 );
 assert.match(
@@ -4214,12 +4214,12 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_demand_count_min_threshold_active'[\s\S]*ls_health-last_completed_demand_count_min_threshold_active/,
+  /iv_name\s*=\s*'last_completed_demand_count_min_threshold_active'[\s\S]*ls_health-last_cmp_demand_cnt_min_lim_on/,
   "health JSON must expose minimum latest-completed demand-count threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_demand_count_below_threshold'[\s\S]*ls_health-last_completed_demand_count_below_threshold/,
+  /iv_name\s*=\s*'last_completed_demand_count_below_threshold'[\s\S]*ls_health-last_comp_demand_cnt_below_lim/,
   "health JSON must expose minimum latest-completed demand-count breach state",
 );
 assert.match(
@@ -4264,7 +4264,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_duration|last_completed_duration_above_threshold/,
+  /iv_max_last_completed_duration|last_comp_duration_above_limit/,
   "health evaluator must expose latest-completed-duration threshold state",
 );
 assert.match(
@@ -4274,17 +4274,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_duration_threshold_active'[\s\S]*ls_health-last_completed_duration_threshold_active/,
+  /iv_name\s*=\s*'last_completed_duration_threshold_active'[\s\S]*ls_health-last_comp_duration_limit_on/,
   "health JSON must expose latest-completed-duration threshold state",
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_duration_above_threshold'[\s\S]*ls_health-last_completed_duration_above_threshold/,
+  /iv_name\s*=\s*'last_completed_duration_above_threshold'[\s\S]*ls_health-last_comp_duration_above_limit/,
   "health JSON must expose latest-completed-duration breach state",
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_duration|last_completed_duration_below_threshold/,
+  /iv_min_last_completed_duration|last_comp_duration_below_limit/,
   "health evaluator must expose minimum latest-completed-duration threshold state",
 );
 assert.match(
@@ -4294,7 +4294,7 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_duration_below_threshold'[\s\S]*ls_health-last_completed_duration_below_threshold/,
+  /iv_name\s*=\s*'last_completed_duration_below_threshold'[\s\S]*ls_health-last_comp_duration_below_limit/,
   "health JSON must expose minimum latest-completed-duration breach state",
 );
 assert.match(
@@ -4314,7 +4314,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_min_last_completed_success_streak|last_completed_success_streak_below_threshold/,
+  /iv_min_last_completed_success_streak|last_cmp_succ_streak_below_lim/,
   "health evaluator must expose minimum latest-completed-success-streak threshold state",
 );
 assert.match(
@@ -4324,7 +4324,7 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_success_streak_below_threshold'[\s\S]*ls_health-last_completed_success_streak_below_threshold/,
+  /iv_name\s*=\s*'last_completed_success_streak_below_threshold'[\s\S]*ls_health-last_cmp_succ_streak_below_lim/,
   "health JSON must expose latest-completed-success-streak breach state",
 );
 assert.match(
@@ -4339,7 +4339,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /iv_max_last_completed_non_success_streak|last_completed_non_success_above_threshold/,
+  /iv_max_last_completed_non_success_streak|last_comp_non_succ_above_limit/,
   "health evaluator must expose maximum latest-completed-non-success-streak threshold state",
 );
 assert.match(
@@ -4349,17 +4349,17 @@ assert.match(
 );
 assert.match(
   healthReportSource,
-  /iv_name\s*=\s*'last_completed_non_success_streak_above_threshold'[\s\S]*ls_health-last_completed_non_success_above_threshold/,
+  /iv_name\s*=\s*'last_completed_non_success_streak_above_threshold'[\s\S]*ls_health-last_comp_non_succ_above_limit/,
   "health JSON must expose maximum latest-completed-non-success-streak breach state",
 );
 assert.match(
   healthSource,
-  /last_completed_non_success_streak\s*=\s*is_summary-last_completed_non_success_streak/,
+  /last_comp_non_success_streak\s*=\s*is_summary-last_completed_non_success_streak/,
   "health evaluator must propagate latest-completed non-success streak telemetry",
 );
 assert.match(
   healthSource,
-  /average_duration_above_threshold|average_duration_threshold_active|average_duration_threshold/,
+  /average_duration_above_limit|average_duration_limit_active|average_duration_threshold/,
   "health evaluator must expose average-duration threshold state",
 );
 assert.match(
@@ -4369,7 +4369,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /maximum_duration_above_threshold|maximum_duration_threshold_active|maximum_duration_threshold/,
+  /maximum_duration_above_limit|maximum_duration_limit_active|maximum_duration_threshold/,
   "health evaluator must expose maximum-duration threshold state",
 );
 assert.match(
@@ -4404,7 +4404,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /duration_count_threshold_active|duration_count_threshold|duration_count_below_threshold/,
+  /duration_count_limit_active|duration_count_threshold|duration_count_below_threshold/,
   "health evaluator must expose duration-count threshold state",
 );
 assert.match(
@@ -4434,7 +4434,7 @@ assert.match(
 );
 assert.match(
   healthSource,
-  /deadline_count_threshold_active|deadline_count_threshold|deadline_count_below_threshold/,
+  /deadline_count_limit_active|deadline_count_threshold|deadline_count_below_threshold/,
   "health evaluator must expose deadline-count threshold state",
 );
 assert.match(

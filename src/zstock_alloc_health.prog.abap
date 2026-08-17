@@ -2131,13 +2131,13 @@ START-OF-SELECTION.
       iv_value = ls_health-full_line_below_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'unallocated_line_threshold_active'
-      iv_value = ls_health-unallocated_line_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-unallocated_line_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'unallocated_line_threshold'
       iv_value = ls_health-unallocated_line_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'unallocated_line_above_threshold'
-      iv_value = ls_health-unallocated_line_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-unallocated_line_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'partial_line_threshold_active'
       iv_value = ls_health-partial_line_threshold_active ) TO lt_json_fields.
@@ -2176,211 +2176,211 @@ START-OF-SELECTION.
       iv_value = ls_health-running_count_above_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'shortage_quantity_threshold_active'
-      iv_value = ls_health-shortage_quantity_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-shortage_quantity_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'shortage_quantity_threshold'
       iv_value = ls_health-shortage_quantity_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'shortage_quantity_above_threshold'
-      iv_value = ls_health-shortage_quantity_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-shortage_quantity_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_shortage_quantity_threshold_active'
-      iv_value = ls_health-last_shortage_qty_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_shortage_qty_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_shortage_quantity_threshold'
       iv_value = ls_health-last_shortage_qty_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_shortage_quantity_above_threshold'
-      iv_value = ls_health-last_shortage_qty_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_shortage_qty_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_shortage_pct_threshold_active'
-      iv_value = ls_health-last_shortage_pct_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_shortage_pct_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_shortage_pct_threshold'
       iv_value = ls_health-last_shortage_pct_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_shortage_pct_above_threshold'
-      iv_value = ls_health-last_shortage_pct_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_shortage_pct_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_coverage_threshold_active'
-      iv_value = ls_health-last_completed_coverage_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_coverage_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_coverage_threshold'
-      iv_value = ls_health-last_completed_coverage_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_coverage_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_coverage_below_threshold'
-      iv_value = ls_health-last_completed_coverage_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_coverage_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_coverage_max_threshold_active'
-      iv_value = ls_health-last_completed_coverage_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_cov_max_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_coverage_max_threshold'
-      iv_value = ls_health-last_completed_coverage_max_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_coverage_max_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_coverage_above_threshold'
-      iv_value = ls_health-last_completed_coverage_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_coverage_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_pct_threshold_active'
-      iv_value = ls_health-last_completed_shortage_pct_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_pct_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_shortage_pct_threshold'
-      iv_value = ls_health-last_completed_shortage_pct_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_shortage_pct_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_pct_above_threshold'
-      iv_value = ls_health-last_completed_shortage_pct_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_pct_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_qty_threshold_active'
-      iv_value = ls_health-last_completed_shortage_qty_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_qty_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_shortage_qty_threshold'
-      iv_value = ls_health-last_completed_shortage_qty_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_shortage_qty_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_qty_above_threshold'
-      iv_value = ls_health-last_completed_shortage_qty_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_qty_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_threshold_active'
-      iv_value = ls_health-last_completed_allocated_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_allocated_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_allocated_threshold'
-      iv_value = ls_health-last_completed_allocated_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_allocated_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_below_threshold'
-      iv_value = ls_health-last_completed_allocated_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_requested_threshold_active'
-      iv_value = ls_health-last_completed_requested_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_requested_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_requested_threshold'
-      iv_value = ls_health-last_completed_requested_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_requested_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_requested_above_threshold'
-      iv_value = ls_health-last_completed_requested_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_req_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_requested_min_threshold_active'
-      iv_value = ls_health-last_completed_requested_min_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_req_min_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_requested_min_threshold'
-      iv_value = ls_health-last_completed_requested_min_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_requested_min_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_requested_below_threshold'
-      iv_value = ls_health-last_completed_requested_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_req_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_max_threshold_active'
-      iv_value = ls_health-last_completed_allocated_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_max_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_allocated_max_threshold'
-      iv_value = ls_health-last_completed_allocated_max_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_allocated_max_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_above_threshold'
-      iv_value = ls_health-last_completed_allocated_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_avail_stock_min_threshold_active'
-      iv_value = ls_health-last_completed_avail_stock_min_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_min_lim_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_avail_stock_min_threshold'
-      iv_value = ls_health-last_completed_avail_stock_min_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_min_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_avail_stock_below_threshold'
-      iv_value = ls_health-last_completed_avail_stock_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_below_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_avail_stock_max_threshold_active'
-      iv_value = ls_health-last_completed_avail_stock_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_max_lim_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_avail_stock_max_threshold'
-      iv_value = ls_health-last_completed_avail_stock_max_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_max_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_avail_stock_above_threshold'
-      iv_value = ls_health-last_completed_avail_stock_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_avail_stk_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_line_threshold_active'
-      iv_value = ls_health-last_completed_full_line_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_line_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_full_line_threshold'
-      iv_value = ls_health-last_completed_full_line_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_line_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_line_below_threshold'
-      iv_value = ls_health-last_completed_full_line_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_ln_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_line_max_threshold_active'
-      iv_value = ls_health-last_completed_full_line_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_ln_max_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_full_line_max_threshold'
-      iv_value = ls_health-last_completed_full_line_max_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_line_max_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_line_above_threshold'
-      iv_value = ls_health-last_completed_full_line_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_ln_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_unalloc_line_threshold_active'
-      iv_value = ls_health-last_completed_unalloc_line_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_ln_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_unalloc_line_threshold'
-      iv_value = ls_health-last_completed_unalloc_line_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_line_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_unalloc_line_above_threshold'
-      iv_value = ls_health-last_completed_unalloc_line_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_ln_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_partial_line_threshold_active'
-      iv_value = ls_health-last_completed_partial_line_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_part_line_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_partial_line_threshold'
-      iv_value = ls_health-last_completed_partial_line_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_partial_line_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_partial_line_above_threshold'
-      iv_value = ls_health-last_completed_partial_line_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_part_ln_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_count_threshold_active'
-      iv_value = ls_health-last_completed_full_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_count_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_full_count_threshold'
-      iv_value = ls_health-last_completed_full_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_full_count_below_threshold'
-      iv_value = ls_health-last_completed_full_count_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_full_cnt_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_count_threshold_active'
-      iv_value = ls_health-last_completed_allocated_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_count_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_allocated_count_threshold'
-      iv_value = ls_health-last_completed_allocated_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_count_below_threshold'
-      iv_value = ls_health-last_completed_allocated_count_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_cnt_below_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_count_max_threshold_active'
-      iv_value = ls_health-last_completed_alloc_count_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_cnt_max_lim_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_allocated_count_max_threshold'
-      iv_value = ls_health-last_completed_alloc_count_max_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_alloc_cnt_max_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_allocated_count_above_threshold'
-      iv_value = ls_health-last_completed_alloc_count_max_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_acnt_max_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_unalloc_count_threshold_active'
-      iv_value = ls_health-last_completed_unalloc_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_cnt_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_unalloc_count_threshold'
-      iv_value = ls_health-last_completed_unalloc_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_unalloc_count_above_threshold'
-      iv_value = ls_health-last_completed_unalloc_count_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_unalloc_cnt_over_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_partial_count_threshold_active'
-      iv_value = ls_health-last_completed_partial_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_partial_cnt_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_partial_count_threshold'
-      iv_value = ls_health-last_completed_partial_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_partial_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_partial_count_above_threshold'
-      iv_value = ls_health-last_completed_partial_count_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_part_cnt_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_count_threshold_active'
-      iv_value = ls_health-last_completed_shortage_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_cnt_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_shortage_count_threshold'
-      iv_value = ls_health-last_completed_shortage_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_shortage_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_shortage_count_above_threshold'
-      iv_value = ls_health-last_completed_shortage_count_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_short_cnt_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_age_threshold_active'
       iv_value = ls_health-last_age_threshold_active ) TO lt_json_fields.
@@ -2392,34 +2392,34 @@ START-OF-SELECTION.
       iv_value = ls_health-last_age_above_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_deadline_age_threshold_active'
-      iv_value = ls_health-last_completed_deadline_age_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_ddl_age_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_deadline_age_threshold'
-      iv_value = ls_health-last_completed_deadline_age_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_deadline_age_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_deadline_age_above_threshold'
-      iv_value = ls_health-last_completed_deadline_age_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_ddl_age_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_demand_count_threshold_active'
-      iv_value = ls_health-last_completed_demand_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_demand_cnt_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_demand_count_threshold'
-      iv_value = ls_health-last_completed_demand_count_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_demand_count_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_demand_count_above_threshold'
-      iv_value = ls_health-last_completed_demand_count_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_demand_cnt_above_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_demand_count_min_threshold_active'
-      iv_value = ls_health-last_completed_demand_count_min_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_cmp_demand_cnt_min_lim_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_demand_count_min_threshold'
-      iv_value = ls_health-last_completed_demand_count_min_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_demand_cnt_min_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_demand_count_below_threshold'
-      iv_value = ls_health-last_completed_demand_count_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_demand_cnt_below_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'available_stock_min_threshold_active'
-      iv_value = ls_health-avail_stock_min_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-avail_stock_min_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'available_stock_min_threshold'
       iv_value = ls_health-avail_stock_min_threshold ) TO lt_json_fields.
@@ -2428,7 +2428,7 @@ START-OF-SELECTION.
       iv_value = ls_health-avail_stock_below_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'available_stock_max_threshold_active'
-      iv_value = ls_health-avail_stock_max_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-avail_stock_max_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'available_stock_max_threshold'
       iv_value = ls_health-avail_stock_max_threshold ) TO lt_json_fields.
@@ -2729,7 +2729,7 @@ START-OF-SELECTION.
         iv_value = ls_health-last_completed_success_streak ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'last_completed_non_success_streak'
-        iv_value = ls_health-last_completed_non_success_streak ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_non_success_streak ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_message'
         iv_value = ls_health-last_completed_message ) TO lt_json_fields.
@@ -2747,14 +2747,14 @@ START-OF-SELECTION.
         iv_value = ls_health-last_completed_finish_time ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'last_completed_duration_seconds'
-        iv_value = ls_health-last_completed_duration_seconds ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_duration_seconds ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_unit'
         iv_value = ls_health-last_completed_unit ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_policy_available'
-        iv_value = ls_health-last_completed_policy_available ) TO lt_json_fields.
-      IF ls_health-last_completed_policy_available = abap_true.
+        iv_value = ls_health-last_comp_policy_available ) TO lt_json_fields.
+      IF ls_health-last_comp_policy_available = abap_true.
         APPEND zcl_stock_json=>property(
           iv_name  = 'last_completed_movement_type'
           iv_value = ls_health-last_completed_movement_type ) TO lt_json_fields.
@@ -2774,17 +2774,17 @@ START-OF-SELECTION.
       ENDIF.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_horizon_available'
-        iv_value = ls_health-last_completed_horizon_available ) TO lt_json_fields.
-      IF ls_health-last_completed_horizon_available = abap_true.
+        iv_value = ls_health-last_comp_horizon_available ) TO lt_json_fields.
+      IF ls_health-last_comp_horizon_available = abap_true.
         APPEND zcl_stock_json=>property(
           iv_name  = 'last_completed_requested_on_from'
-          iv_value = ls_health-last_completed_requested_on_from ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_requested_on_from ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'last_completed_requested_on_to'
           iv_value = ls_health-last_completed_requested_on_to ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'last_completed_requested_deadline'
-          iv_value = ls_health-last_completed_requested_deadline ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_requested_deadline ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>null_property(
           iv_name = 'last_completed_requested_on_from' ) TO lt_json_fields.
@@ -2795,31 +2795,31 @@ START-OF-SELECTION.
       ENDIF.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_deadline_age_available'
-        iv_value = ls_health-last_completed_deadline_age_available ) TO lt_json_fields.
-      IF ls_health-last_completed_deadline_age_available = abap_true.
+        iv_value = ls_health-last_comp_deadline_age_avail ) TO lt_json_fields.
+      IF ls_health-last_comp_deadline_age_avail = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_deadline_age_days'
-          iv_value = ls_health-last_completed_deadline_age_days ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_deadline_age_days ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>null_property(
           iv_name = 'last_completed_deadline_age_days' ) TO lt_json_fields.
       ENDIF.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_age_reason'
-        iv_value = ls_health-last_completed_deadline_age_reason ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_deadline_age_reason ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_urgency'
-        iv_value = ls_health-last_completed_deadline_urgency ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_deadline_urgency ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_available_stock_available'
-        iv_value = ls_health-last_completed_available_stock_available ) TO lt_json_fields.
-      IF ls_health-last_completed_available_stock_available = abap_true.
+        iv_value = ls_health-last_comp_avail_stock_avail ) TO lt_json_fields.
+      IF ls_health-last_comp_avail_stock_avail = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_available_stock'
           iv_value = ls_health-last_completed_available_stock ) TO lt_json_fields.
         APPEND zcl_stock_json=>property(
           iv_name  = 'last_completed_available_stock_unit'
-          iv_value = ls_health-last_completed_available_stock_unit ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_available_stock_unit ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>null_property(
           iv_name = 'last_completed_available_stock' ) TO lt_json_fields.
@@ -2852,14 +2852,14 @@ START-OF-SELECTION.
         iv_value = ls_health-last_completed_partial ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'last_completed_allocated_line_count'
-        iv_value = ls_health-last_completed_allocated_line_count ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_allocated_line_count ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'last_completed_unallocated_line_count'
         iv_value = ls_health-last_completed_unalloc ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_shortage_pct_available'
-        iv_value = ls_health-last_completed_shortage_pct_available ) TO lt_json_fields.
-      IF ls_health-last_completed_shortage_pct_available = abap_true.
+        iv_value = ls_health-last_comp_shortage_pct_avail ) TO lt_json_fields.
+      IF ls_health-last_comp_shortage_pct_avail = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_shortage_pct'
           iv_value = ls_health-last_completed_shortage_pct ) TO lt_json_fields.
@@ -2869,17 +2869,17 @@ START-OF-SELECTION.
       ENDIF.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_line_rates_available'
-        iv_value = ls_health-last_completed_line_rates_available ) TO lt_json_fields.
-      IF ls_health-last_completed_line_rates_available = abap_true.
+        iv_value = ls_health-last_comp_line_rates_available ) TO lt_json_fields.
+      IF ls_health-last_comp_line_rates_available = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_full_line_pct'
           iv_value = ls_health-last_completed_full_line_pct ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_partial_line_pct'
-          iv_value = ls_health-last_completed_partial_line_pct ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_partial_line_pct ) TO lt_json_fields.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'last_completed_unallocated_line_pct'
-          iv_value = ls_health-last_completed_unalloc_line_pct ) TO lt_json_fields.
+          iv_value = ls_health-last_comp_unalloc_line_pct ) TO lt_json_fields.
       ELSE.
         APPEND zcl_stock_json=>null_property(
           iv_name = 'last_completed_full_line_pct' ) TO lt_json_fields.
@@ -2938,10 +2938,10 @@ START-OF-SELECTION.
         iv_name = 'last_completed_deadline_age_days' ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_age_reason'
-        iv_value = ls_health-last_completed_deadline_age_reason ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_deadline_age_reason ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'last_completed_deadline_urgency'
-        iv_value = ls_health-last_completed_deadline_urgency ) TO lt_json_fields.
+        iv_value = ls_health-last_comp_deadline_urgency ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'last_completed_available_stock_available'
         iv_value = abap_false ) TO lt_json_fields.
@@ -3041,11 +3041,11 @@ START-OF-SELECTION.
       iv_value = ls_health-mixed_units ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'available_stock_context_available'
-      iv_value = ls_health-available_stock_context_available ) TO lt_json_fields.
+      iv_value = ls_health-avail_stock_context_avail ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'mixed_available_stock'
       iv_value = ls_health-mixed_available_stock ) TO lt_json_fields.
-    IF ls_health-available_stock_context_available = abap_true.
+    IF ls_health-avail_stock_context_avail = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'available_stock_context'
         iv_value = ls_health-available_stock_context ) TO lt_json_fields.
@@ -3402,67 +3402,67 @@ START-OF-SELECTION.
       iv_value = ls_health-duration_above_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_duration_threshold_active'
-      iv_value = ls_health-last_completed_duration_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_duration_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_duration_threshold'
-      iv_value = ls_health-last_completed_duration_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_duration_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_duration_above_threshold'
-      iv_value = ls_health-last_completed_duration_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_duration_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_duration_min_threshold_active'
-      iv_value = ls_health-last_completed_duration_min_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_dur_min_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_duration_min_threshold'
-      iv_value = ls_health-last_completed_duration_min_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_duration_min_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_duration_below_threshold'
-      iv_value = ls_health-last_completed_duration_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_duration_below_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_success_required_active'
-      iv_value = ls_health-last_completed_success_required_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_success_required_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_success_breach'
       iv_value = ls_health-last_completed_success_breach ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_success_streak_threshold_active'
-      iv_value = ls_health-last_completed_success_streak_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_succ_streak_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_success_streak_threshold'
-      iv_value = ls_health-last_completed_success_streak_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_success_streak_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_success_streak_below_threshold'
-      iv_value = ls_health-last_completed_success_streak_below_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_cmp_succ_streak_below_lim ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_non_success_streak_threshold_active'
-      iv_value = ls_health-last_completed_non_success_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_non_success_limit_on ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'last_completed_non_success_streak_threshold'
-      iv_value = ls_health-last_completed_non_success_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_non_success_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'last_completed_non_success_streak_above_threshold'
-      iv_value = ls_health-last_completed_non_success_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-last_comp_non_succ_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'average_duration_threshold_active'
-      iv_value = ls_health-average_duration_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-average_duration_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'average_duration_threshold'
       iv_value = ls_health-average_duration_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'average_duration_above_threshold'
-      iv_value = ls_health-average_duration_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-average_duration_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'maximum_duration_threshold_active'
-      iv_value = ls_health-maximum_duration_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-maximum_duration_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'maximum_duration_threshold'
       iv_value = ls_health-maximum_duration_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'maximum_duration_above_threshold'
-      iv_value = ls_health-maximum_duration_above_threshold ) TO lt_json_fields.
+      iv_value = ls_health-maximum_duration_above_limit ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'duration_count_threshold_active'
-      iv_value = ls_health-duration_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-duration_count_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'duration_count_threshold'
       iv_value = ls_health-duration_count_threshold ) TO lt_json_fields.
@@ -3480,7 +3480,7 @@ START-OF-SELECTION.
       iv_value = ls_health-run_count_below_threshold ) TO lt_json_fields.
     APPEND zcl_stock_json=>boolean_property(
       iv_name  = 'deadline_count_threshold_active'
-      iv_value = ls_health-deadline_count_threshold_active ) TO lt_json_fields.
+      iv_value = ls_health-deadline_count_limit_active ) TO lt_json_fields.
     APPEND zcl_stock_json=>number_property(
       iv_name  = 'deadline_count_threshold'
       iv_value = ls_health-deadline_count_threshold ) TO lt_json_fields.
@@ -4235,16 +4235,16 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_preview ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_status ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_success_streak ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_non_success_streak ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_non_success_streak ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_message ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_start_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_start_time ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_finish_date ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_finish_time ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_duration_seconds ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_duration_seconds ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_completed_unit ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_policy_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_policy_available = abap_true.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_policy_available ) TO lt_csv_fields.
+      IF ls_health-last_comp_policy_available = abap_true.
         APPEND zcl_stock_csv=>quote( ls_health-last_completed_movement_type ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_min_shelf_life ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_safety_stock ) TO lt_csv_fields.
@@ -4253,28 +4253,28 @@ START-OF-SELECTION.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       ENDIF.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_horizon_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_horizon_available = abap_true.
-        APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_on_from ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_horizon_available ) TO lt_csv_fields.
+      IF ls_health-last_comp_horizon_available = abap_true.
+        APPEND zcl_stock_csv=>quote( ls_health-last_comp_requested_on_from ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_on_to ) TO lt_csv_fields.
-        APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_deadline ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( ls_health-last_comp_requested_deadline ) TO lt_csv_fields.
       ELSE.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       ENDIF.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_age_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_deadline_age_available = abap_true.
-        APPEND zcl_stock_csv=>number( ls_health-last_completed_deadline_age_days ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_deadline_age_avail ) TO lt_csv_fields.
+      IF ls_health-last_comp_deadline_age_avail = abap_true.
+        APPEND zcl_stock_csv=>number( ls_health-last_comp_deadline_age_days ) TO lt_csv_fields.
       ELSE.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       ENDIF.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_age_reason ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_urgency ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_available_stock_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_available_stock_available = abap_true.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_deadline_age_reason ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_deadline_urgency ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_avail_stock_avail ) TO lt_csv_fields.
+      IF ls_health-last_comp_avail_stock_avail = abap_true.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_available_stock ) TO lt_csv_fields.
-        APPEND zcl_stock_csv=>quote( ls_health-last_completed_available_stock_unit ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( ls_health-last_comp_available_stock_unit ) TO lt_csv_fields.
       ELSE.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
@@ -4286,20 +4286,20 @@ START-OF-SELECTION.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_coverage ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_demand ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_full ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_allocated_line_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_allocated_line_count ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_partial ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>number( ls_health-last_completed_unalloc ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_pct_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_shortage_pct_available = abap_true.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_shortage_pct_avail ) TO lt_csv_fields.
+      IF ls_health-last_comp_shortage_pct_avail = abap_true.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_shortage_pct ) TO lt_csv_fields.
       ELSE.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
       ENDIF.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_line_rates_available ) TO lt_csv_fields.
-      IF ls_health-last_completed_line_rates_available = abap_true.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_line_rates_available ) TO lt_csv_fields.
+      IF ls_health-last_comp_line_rates_available = abap_true.
         APPEND zcl_stock_csv=>number( ls_health-last_completed_full_line_pct ) TO lt_csv_fields.
-        APPEND zcl_stock_csv=>number( ls_health-last_completed_partial_line_pct ) TO lt_csv_fields.
-        APPEND zcl_stock_csv=>number( ls_health-last_completed_unalloc_line_pct ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( ls_health-last_comp_partial_line_pct ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( ls_health-last_comp_unalloc_line_pct ) TO lt_csv_fields.
       ELSE.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
         APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
@@ -4372,9 +4372,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number( ls_health-minimum_shelf_life_context ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-safety_stock_context ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_units ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-available_stock_context_available ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-avail_stock_context_avail ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_available_stock ) TO lt_csv_fields.
-    IF ls_health-available_stock_context_available = abap_true.
+    IF ls_health-avail_stock_context_avail = abap_true.
       APPEND zcl_stock_csv=>number( ls_health-available_stock_context ) TO lt_csv_fields.
     ELSE.
       APPEND zcl_stock_csv=>quote( 'n/a' ) TO lt_csv_fields.
@@ -4557,33 +4557,33 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-duration_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-duration_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-duration_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_duration_threshold_active ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( ls_health-last_completed_duration_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_duration_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_duration_min_threshold_active ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( ls_health-last_completed_duration_min_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_duration_below_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_success_required_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_duration_limit_on ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-last_comp_duration_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_duration_above_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_dur_min_limit_on ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-last_comp_duration_min_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_duration_below_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_success_required_on ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-last_completed_success_breach ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_success_streak_threshold_active ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( ls_health-last_completed_success_streak_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_success_streak_below_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_non_success_threshold_active ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( ls_health-last_completed_non_success_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-last_completed_non_success_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-average_duration_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_succ_streak_limit_on ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-last_comp_success_streak_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_cmp_succ_streak_below_lim ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_non_success_limit_on ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( ls_health-last_comp_non_success_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-last_comp_non_succ_above_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-average_duration_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-average_duration_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-average_duration_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-maximum_duration_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-average_duration_above_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-maximum_duration_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-maximum_duration_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-maximum_duration_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-duration_count_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-maximum_duration_above_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-duration_count_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-duration_count_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-duration_count_below_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-run_count_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-run_count_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-run_count_below_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-deadline_count_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-deadline_count_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-deadline_count_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-deadline_count_below_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-deadline_mix_threshold_active ) TO lt_csv_fields.
@@ -4592,12 +4592,12 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-overdue_mix_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-overdue_mix_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-overdue_mix_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-current_deadline_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-current_deadline_mix_limit_on ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-current_deadline_mix_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-current_deadline_mix_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-future_deadline_mix_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-curr_deadline_mix_above_limit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-future_deadline_mix_limit_on ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-future_deadline_mix_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-future_deadline_mix_below_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-fut_deadline_mix_below_limit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_policy_warning_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_policy_breach ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-mixed_unit_warning_active ) TO lt_csv_fields.
@@ -4620,9 +4620,9 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-full_line_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-full_line_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-full_line_below_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-unallocated_line_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-unallocated_line_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-unallocated_line_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-unallocated_line_above_threshold ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-unallocated_line_above_limit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-partial_line_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-partial_line_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-partial_line_above_threshold ) TO lt_csv_fields.
@@ -4635,91 +4635,91 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( ls_health-running_count_threshold_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-running_count_threshold ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_health-running_count_above_threshold ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>quote( ls_health-shortage_quantity_threshold_active ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( ls_health-shortage_quantity_limit_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( ls_health-shortage_quantity_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-shortage_quantity_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_qty_threshold_active ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-shortage_quantity_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_qty_limit_active ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>number( ls_health-last_shortage_qty_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_qty_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_pct_threshold_active ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_qty_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_pct_limit_active ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>number( ls_health-last_shortage_pct_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_pct_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_coverage_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_coverage_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_coverage_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_coverage_max_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_coverage_max_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_coverage_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_pct_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_shortage_pct_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_pct_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_qty_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_shortage_qty_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_qty_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_allocated_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_requested_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_min_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_requested_min_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_requested_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_max_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_allocated_max_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_avail_stock_min_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_avail_stock_min_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_avail_stock_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_avail_stock_max_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_avail_stock_max_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_avail_stock_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_line_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_full_line_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_line_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_line_max_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_full_line_max_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_line_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_unalloc_line_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_unalloc_line_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_unalloc_line_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_partial_line_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_partial_line_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_partial_line_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_count_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_full_count_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_full_count_below_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_count_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_allocated_count_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_allocated_count_below_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_alloc_count_max_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_alloc_count_max_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_alloc_count_max_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_unalloc_count_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_unalloc_count_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_unalloc_count_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_partial_count_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_partial_count_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_partial_count_above_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_count_threshold_active ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>number( ls_health-last_completed_shortage_count_threshold ) TO lt_csv_fields.
-      APPEND zcl_stock_csv=>quote( ls_health-last_completed_shortage_count_above_threshold ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_shortage_pct_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_coverage_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_coverage_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_coverage_below_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_cov_max_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_coverage_max_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_coverage_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_pct_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_shortage_pct_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_pct_above_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_qty_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_shortage_qty_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_qty_above_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_allocated_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_allocated_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_below_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_requested_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_requested_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_req_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_req_min_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_requested_min_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_req_below_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_max_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_allocated_max_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_avail_stk_min_lim_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_avail_stk_min_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_avail_stk_below_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_avail_stk_max_lim_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_avail_stk_max_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_avail_stk_above_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_line_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_full_line_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_ln_below_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_ln_max_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_full_line_max_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_ln_above_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_unalloc_ln_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_unalloc_line_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_unalloc_ln_above_lim ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_part_line_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_partial_line_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_part_ln_above_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_count_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_full_count_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_full_cnt_below_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_count_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_alloc_count_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_cnt_below_lim ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_alloc_cnt_max_lim_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_alloc_cnt_max_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_acnt_max_above_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_unalloc_cnt_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_unalloc_count_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_unalloc_cnt_over_lim ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_partial_cnt_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_partial_count_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_part_cnt_above_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_cnt_limit_on ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( ls_health-last_comp_shortage_count_limit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( ls_health-last_comp_short_cnt_above_lim ) TO lt_csv_fields.
       APPEND zcl_stock_csv=>quote( ls_health-last_age_threshold_active ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>number( ls_health-last_age_threshold ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>quote( ls_health-last_age_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_age_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_deadline_age_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_deadline_age_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_demand_count_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_demand_count_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_demand_count_above_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_demand_count_min_threshold_active ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>number( ls_health-last_completed_demand_count_min_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-last_completed_demand_count_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-avail_stock_min_threshold_active ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_ddl_age_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_deadline_age_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_ddl_age_above_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_demand_cnt_limit_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_demand_count_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_demand_cnt_above_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_cmp_demand_cnt_min_lim_on ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>number( ls_health-last_comp_demand_cnt_min_limit ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-last_comp_demand_cnt_below_lim ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-avail_stock_min_limit_active ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>number( ls_health-avail_stock_min_threshold ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>quote( ls_health-avail_stock_below_threshold ) TO lt_csv_fields.
-     APPEND zcl_stock_csv=>quote( ls_health-avail_stock_max_threshold_active ) TO lt_csv_fields.
+     APPEND zcl_stock_csv=>quote( ls_health-avail_stock_max_limit_active ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>number( ls_health-avail_stock_max_threshold ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>quote( ls_health-avail_stock_above_threshold ) TO lt_csv_fields.
      APPEND zcl_stock_csv=>quote( ls_health-stale_threshold_active ) TO lt_csv_fields.
@@ -4902,9 +4902,9 @@ START-OF-SELECTION.
          / 'Mixed units:', ls_health-mixed_units,
          / 'Unit:', ls_health-unit.
   WRITE: / 'Available-stock context available:',
-           ls_health-available_stock_context_available,
+           ls_health-avail_stock_context_avail,
          / 'Mixed available stock:', ls_health-mixed_available_stock.
-  IF ls_health-available_stock_context_available = abap_true.
+  IF ls_health-avail_stock_context_avail = abap_true.
     WRITE: / 'Available-stock context:', ls_health-available_stock_context.
   ELSE.
     WRITE: / 'Available-stock context: n/a'.
@@ -4963,16 +4963,16 @@ START-OF-SELECTION.
            / 'Last completed safety stock:',
              ls_health-last_completed_safety_stock,
            / 'Last completed requested horizon:',
-             ls_health-last_completed_requested_on_from,
+             ls_health-last_comp_requested_on_from,
              ls_health-last_completed_requested_on_to,
            / 'Last completed requested deadline:',
-             ls_health-last_completed_requested_deadline,
+             ls_health-last_comp_requested_deadline,
            / 'Last completed strategy:', ls_health-last_completed_strategy,
            / 'Last completed finish:',
              ls_health-last_completed_finish_date,
              ls_health-last_completed_finish_time,
            / 'Last completed duration seconds:',
-             ls_health-last_completed_duration_seconds,
+             ls_health-last_comp_duration_seconds,
            / 'Last completed requested:', ls_health-last_completed_requested,
            / 'Last completed allocated:', ls_health-last_completed_allocated,
            / 'Last completed shortage:', ls_health-last_completed_shortage,
@@ -4982,37 +4982,37 @@ START-OF-SELECTION.
            / 'Last completed partial-line count:', ls_health-last_completed_partial,
            / 'Last completed unallocated-line count:',
              ls_health-last_completed_unalloc.
-    IF ls_health-last_completed_deadline_age_available = abap_true.
+    IF ls_health-last_comp_deadline_age_avail = abap_true.
       WRITE: / 'Last completed deadline age days:',
-        ls_health-last_completed_deadline_age_days.
+        ls_health-last_comp_deadline_age_days.
     ELSE.
       WRITE: / 'Last completed deadline age: n/a'.
     ENDIF.
     WRITE: / 'Last completed deadline age reason:',
-      ls_health-last_completed_deadline_age_reason.
+      ls_health-last_comp_deadline_age_reason.
     WRITE: / 'Last completed deadline urgency:',
-      ls_health-last_completed_deadline_urgency.
-    IF ls_health-last_completed_available_stock_available = abap_true.
+      ls_health-last_comp_deadline_urgency.
+    IF ls_health-last_comp_avail_stock_avail = abap_true.
       WRITE: / 'Last completed available stock:',
         ls_health-last_completed_available_stock,
         / 'Last completed available stock unit:',
-        ls_health-last_completed_available_stock_unit.
+        ls_health-last_comp_available_stock_unit.
     ELSE.
       WRITE: / 'Last completed available stock: n/a'.
     ENDIF.
-    IF ls_health-last_completed_shortage_pct_available = abap_true.
+    IF ls_health-last_comp_shortage_pct_avail = abap_true.
       WRITE: / 'Last completed shortage rate:',
         ls_health-last_completed_shortage_pct, '%'.
     ELSE.
       WRITE: / 'Last completed shortage rate: n/a'.
     ENDIF.
-    IF ls_health-last_completed_line_rates_available = abap_true.
+    IF ls_health-last_comp_line_rates_available = abap_true.
       WRITE: / 'Last completed full-line rate:',
         ls_health-last_completed_full_line_pct, '%',
         / 'Last completed partial-line rate:',
-        ls_health-last_completed_partial_line_pct, '%',
+        ls_health-last_comp_partial_line_pct, '%',
         / 'Last completed unallocated-line rate:',
-        ls_health-last_completed_unalloc_line_pct, '%'.
+        ls_health-last_comp_unalloc_line_pct, '%'.
     ELSE.
       WRITE: / 'Last completed line rates: n/a'.
     ENDIF.
@@ -5184,52 +5184,52 @@ START-OF-SELECTION.
          / 'Duration threshold:', ls_health-duration_threshold,
          / 'Duration threshold breached:', ls_health-duration_above_threshold,
          / 'Latest completed duration threshold active:',
-           ls_health-last_completed_duration_threshold_active,
+           ls_health-last_comp_duration_limit_on,
          / 'Latest completed duration threshold:',
-           ls_health-last_completed_duration_threshold, 'seconds',
+           ls_health-last_comp_duration_limit, 'seconds',
          / 'Latest completed duration threshold breached:',
-           ls_health-last_completed_duration_above_threshold,
+           ls_health-last_comp_duration_above_limit,
          / 'Latest completed duration minimum threshold active:',
-           ls_health-last_completed_duration_min_threshold_active,
+           ls_health-last_comp_dur_min_limit_on,
          / 'Latest completed duration minimum threshold:',
-           ls_health-last_completed_duration_min_threshold, 'seconds',
+           ls_health-last_comp_duration_min_limit, 'seconds',
          / 'Latest completed duration minimum threshold breached:',
-           ls_health-last_completed_duration_below_threshold,
+           ls_health-last_comp_duration_below_limit,
          / 'Latest completed success requirement active:',
-           ls_health-last_completed_success_required_active,
+           ls_health-last_comp_success_required_on,
          / 'Latest completed success requirement breached:',
            ls_health-last_completed_success_breach,
          / 'Latest completed success streak:',
            ls_health-last_completed_success_streak,
          / 'Latest completed success streak threshold active:',
-           ls_health-last_completed_success_streak_threshold_active,
+           ls_health-last_comp_succ_streak_limit_on,
          / 'Latest completed success streak threshold:',
-           ls_health-last_completed_success_streak_threshold,
+           ls_health-last_comp_success_streak_limit,
          / 'Latest completed success streak threshold breached:',
-           ls_health-last_completed_success_streak_below_threshold,
+           ls_health-last_cmp_succ_streak_below_lim,
          / 'Latest completed non-success streak:',
-           ls_health-last_completed_non_success_streak,
+           ls_health-last_comp_non_success_streak,
          / 'Latest completed non-success streak threshold active:',
-           ls_health-last_completed_non_success_threshold_active,
+           ls_health-last_comp_non_success_limit_on,
          / 'Latest completed non-success streak threshold:',
-           ls_health-last_completed_non_success_threshold,
+           ls_health-last_comp_non_success_limit,
          / 'Latest completed non-success streak threshold breached:',
-           ls_health-last_completed_non_success_above_threshold,
-         / 'Average duration threshold active:', ls_health-average_duration_threshold_active,
+           ls_health-last_comp_non_succ_above_limit,
+         / 'Average duration threshold active:', ls_health-average_duration_limit_active,
          / 'Average duration threshold:', ls_health-average_duration_threshold,
            'seconds',
-         / 'Average duration threshold breached:', ls_health-average_duration_above_threshold,
-         / 'Maximum duration threshold active:', ls_health-maximum_duration_threshold_active,
+         / 'Average duration threshold breached:', ls_health-average_duration_above_limit,
+         / 'Maximum duration threshold active:', ls_health-maximum_duration_limit_active,
          / 'Maximum duration threshold:', ls_health-maximum_duration_threshold,
            'seconds',
-         / 'Maximum duration threshold breached:', ls_health-maximum_duration_above_threshold,
-         / 'Duration-count threshold active:', ls_health-duration_count_threshold_active,
+         / 'Maximum duration threshold breached:', ls_health-maximum_duration_above_limit,
+         / 'Duration-count threshold active:', ls_health-duration_count_limit_active,
          / 'Duration-count threshold:', ls_health-duration_count_threshold,
          / 'Duration-count threshold breached:', ls_health-duration_count_below_threshold,
          / 'Run-count threshold active:', ls_health-run_count_threshold_active,
          / 'Run-count threshold:', ls_health-run_count_threshold,
          / 'Run-count threshold breached:', ls_health-run_count_below_threshold,
-         / 'Deadline-count threshold active:', ls_health-deadline_count_threshold_active,
+         / 'Deadline-count threshold active:', ls_health-deadline_count_limit_active,
          / 'Deadline-count threshold:', ls_health-deadline_count_threshold,
          / 'Deadline-count threshold breached:', ls_health-deadline_count_below_threshold,
          / 'Deadline-mix threshold active:', ls_health-deadline_mix_threshold_active,
@@ -5238,12 +5238,12 @@ START-OF-SELECTION.
          / 'Overdue-mix threshold active:', ls_health-overdue_mix_threshold_active,
          / 'Overdue-mix threshold:', ls_health-overdue_mix_threshold, '%',
          / 'Overdue-mix threshold breached:', ls_health-overdue_mix_above_threshold,
-         / 'Current-day deadline-mix threshold active:', ls_health-current_deadline_mix_threshold_active,
+         / 'Current-day deadline-mix threshold active:', ls_health-current_deadline_mix_limit_on,
          / 'Current-day deadline-mix threshold:', ls_health-current_deadline_mix_threshold, '%',
-         / 'Current-day deadline-mix threshold breached:', ls_health-current_deadline_mix_above_threshold,
-         / 'Future deadline-mix threshold active:', ls_health-future_deadline_mix_threshold_active,
+         / 'Current-day deadline-mix threshold breached:', ls_health-curr_deadline_mix_above_limit,
+         / 'Future deadline-mix threshold active:', ls_health-future_deadline_mix_limit_on,
          / 'Future deadline-mix threshold:', ls_health-future_deadline_mix_threshold, '%',
-         / 'Future deadline-mix threshold breached:', ls_health-future_deadline_mix_below_threshold,
+         / 'Future deadline-mix threshold breached:', ls_health-fut_deadline_mix_below_limit,
          / 'Mixed-policy warning active:', ls_health-mixed_policy_warning_active,
          / 'Mixed-policy warning breached:', ls_health-mixed_policy_breach,
          / 'Mixed-unit warning active:', ls_health-mixed_unit_warning_active,
@@ -5266,9 +5266,9 @@ START-OF-SELECTION.
          / 'Full-line threshold active:', ls_health-full_line_threshold_active,
          / 'Full-line threshold:', ls_health-full_line_threshold, '%',
          / 'Full-line threshold breached:', ls_health-full_line_below_threshold,
-         / 'Unallocated-line threshold active:', ls_health-unallocated_line_threshold_active,
+         / 'Unallocated-line threshold active:', ls_health-unallocated_line_limit_active,
          / 'Unallocated-line threshold:', ls_health-unallocated_line_threshold, '%',
-         / 'Unallocated-line threshold breached:', ls_health-unallocated_line_above_threshold,
+         / 'Unallocated-line threshold breached:', ls_health-unallocated_line_above_limit,
          / 'Partial-line threshold active:', ls_health-partial_line_threshold_active,
          / 'Partial-line threshold:', ls_health-partial_line_threshold, '%',
          / 'Partial-line threshold breached:', ls_health-partial_line_above_threshold,
@@ -5281,156 +5281,156 @@ START-OF-SELECTION.
          / 'Running-count threshold active:', ls_health-running_count_threshold_active,
          / 'Running-count threshold:', ls_health-running_count_threshold,
          / 'Running-count threshold breached:', ls_health-running_count_above_threshold,
-         / 'Shortage-quantity threshold active:', ls_health-shortage_quantity_threshold_active,
+         / 'Shortage-quantity threshold active:', ls_health-shortage_quantity_limit_active,
           / 'Shortage-quantity threshold:', ls_health-shortage_quantity_threshold,
-          / 'Shortage-quantity threshold breached:', ls_health-shortage_quantity_above_threshold,
-          / 'Latest shortage-quantity threshold active:', ls_health-last_shortage_qty_threshold_active,
+          / 'Shortage-quantity threshold breached:', ls_health-shortage_quantity_above_limit,
+          / 'Latest shortage-quantity threshold active:', ls_health-last_shortage_qty_limit_active,
           / 'Latest shortage-quantity threshold:', ls_health-last_shortage_qty_threshold,
-          / 'Latest shortage-quantity threshold breached:', ls_health-last_shortage_qty_above_threshold,
-         / 'Latest shortage-percentage threshold active:', ls_health-last_shortage_pct_threshold_active,
+          / 'Latest shortage-quantity threshold breached:', ls_health-last_shortage_qty_above_limit,
+         / 'Latest shortage-percentage threshold active:', ls_health-last_shortage_pct_limit_active,
          / 'Latest shortage-percentage threshold:', ls_health-last_shortage_pct_threshold, '%',
-         / 'Latest shortage-percentage threshold breached:', ls_health-last_shortage_pct_above_threshold,
-          / 'Latest completed coverage threshold active:', ls_health-last_completed_coverage_threshold_active,
-          / 'Latest completed coverage threshold:', ls_health-last_completed_coverage_threshold, '%',
-          / 'Latest completed coverage threshold breached:', ls_health-last_completed_coverage_below_threshold,
+         / 'Latest shortage-percentage threshold breached:', ls_health-last_shortage_pct_above_limit,
+          / 'Latest completed coverage threshold active:', ls_health-last_comp_coverage_limit_on,
+          / 'Latest completed coverage threshold:', ls_health-last_comp_coverage_limit, '%',
+          / 'Latest completed coverage threshold breached:', ls_health-last_comp_coverage_below_limit,
           / 'Latest completed coverage maximum threshold active:',
-            ls_health-last_completed_coverage_max_threshold_active,
+            ls_health-last_comp_cov_max_limit_on,
           / 'Latest completed coverage maximum threshold:',
-            ls_health-last_completed_coverage_max_threshold, '%',
+            ls_health-last_comp_coverage_max_limit, '%',
           / 'Latest completed coverage maximum threshold breached:',
-            ls_health-last_completed_coverage_above_threshold,
+            ls_health-last_comp_coverage_above_limit,
           / 'Latest completed shortage-percentage threshold active:',
-            ls_health-last_completed_shortage_pct_threshold_active,
-          / 'Latest completed shortage-percentage threshold:', ls_health-last_completed_shortage_pct_threshold, '%',
+            ls_health-last_comp_short_pct_limit_on,
+          / 'Latest completed shortage-percentage threshold:', ls_health-last_comp_shortage_pct_limit, '%',
           / 'Latest completed shortage-percentage threshold breached:',
-            ls_health-last_completed_shortage_pct_above_threshold,
+            ls_health-last_comp_short_pct_above_lim,
           / 'Latest completed shortage-quantity threshold active:',
-            ls_health-last_completed_shortage_qty_threshold_active,
+            ls_health-last_comp_short_qty_limit_on,
           / 'Latest completed shortage-quantity threshold:',
-            ls_health-last_completed_shortage_qty_threshold,
+            ls_health-last_comp_shortage_qty_limit,
           / 'Latest completed shortage-quantity threshold breached:',
-            ls_health-last_completed_shortage_qty_above_threshold,
+            ls_health-last_comp_short_qty_above_lim,
           / 'Latest completed allocated-quantity threshold active:',
-            ls_health-last_completed_allocated_threshold_active,
+            ls_health-last_comp_allocated_limit_on,
           / 'Latest completed allocated-quantity threshold:',
-            ls_health-last_completed_allocated_threshold,
+            ls_health-last_comp_allocated_limit,
           / 'Latest completed allocated-quantity threshold breached:',
-            ls_health-last_completed_allocated_below_threshold,
+            ls_health-last_comp_alloc_below_limit,
           / 'Latest completed requested-quantity threshold active:',
-            ls_health-last_completed_requested_threshold_active,
+            ls_health-last_comp_requested_limit_on,
           / 'Latest completed requested-quantity threshold:',
-            ls_health-last_completed_requested_threshold,
+            ls_health-last_comp_requested_limit,
           / 'Latest completed requested-quantity threshold breached:',
-            ls_health-last_completed_requested_above_threshold,
+            ls_health-last_comp_req_above_limit,
           / 'Latest completed requested-quantity minimum threshold active:',
-            ls_health-last_completed_requested_min_threshold_active,
+            ls_health-last_comp_req_min_limit_on,
           / 'Latest completed requested-quantity minimum threshold:',
-            ls_health-last_completed_requested_min_threshold,
+            ls_health-last_comp_requested_min_limit,
           / 'Latest completed requested-quantity minimum threshold breached:',
-            ls_health-last_completed_requested_below_threshold,
+            ls_health-last_comp_req_below_limit,
           / 'Latest completed allocated-quantity maximum threshold active:',
-            ls_health-last_completed_allocated_max_threshold_active,
+            ls_health-last_comp_alloc_max_limit_on,
           / 'Latest completed allocated-quantity maximum threshold:',
-            ls_health-last_completed_allocated_max_threshold,
+            ls_health-last_comp_allocated_max_limit,
           / 'Latest completed allocated-quantity maximum threshold breached:',
-            ls_health-last_completed_allocated_above_threshold,
+            ls_health-last_comp_alloc_above_limit,
           / 'Latest completed available-stock minimum threshold active:',
-            ls_health-last_completed_avail_stock_min_threshold_active,
+            ls_health-last_comp_avail_stk_min_lim_on,
           / 'Latest completed available-stock minimum threshold:',
-            ls_health-last_completed_avail_stock_min_threshold,
+            ls_health-last_comp_avail_stk_min_limit,
           / 'Latest completed available-stock minimum threshold breached:',
-            ls_health-last_completed_avail_stock_below_threshold,
+            ls_health-last_comp_avail_stk_below_lim,
           / 'Latest completed available-stock maximum threshold active:',
-            ls_health-last_completed_avail_stock_max_threshold_active,
+            ls_health-last_comp_avail_stk_max_lim_on,
           / 'Latest completed available-stock maximum threshold:',
-            ls_health-last_completed_avail_stock_max_threshold,
+            ls_health-last_comp_avail_stk_max_limit,
           / 'Latest completed available-stock maximum threshold breached:',
-            ls_health-last_completed_avail_stock_above_threshold,
+            ls_health-last_comp_avail_stk_above_lim,
           / 'Latest completed full-line threshold active:',
-            ls_health-last_completed_full_line_threshold_active,
+            ls_health-last_comp_full_line_limit_on,
           / 'Latest completed full-line threshold:',
-            ls_health-last_completed_full_line_threshold, '%',
+            ls_health-last_comp_full_line_limit, '%',
           / 'Latest completed full-line threshold breached:',
-            ls_health-last_completed_full_line_below_threshold,
+            ls_health-last_comp_full_ln_below_limit,
           / 'Latest completed full-line maximum threshold active:',
-            ls_health-last_completed_full_line_max_threshold_active,
+            ls_health-last_comp_full_ln_max_limit_on,
           / 'Latest completed full-line maximum threshold:',
-            ls_health-last_completed_full_line_max_threshold, '%',
+            ls_health-last_comp_full_line_max_limit, '%',
           / 'Latest completed full-line maximum threshold breached:',
-            ls_health-last_completed_full_line_above_threshold,
+            ls_health-last_comp_full_ln_above_limit,
           / 'Latest completed unallocated-line threshold active:',
-            ls_health-last_completed_unalloc_line_threshold_active,
+            ls_health-last_comp_unalloc_ln_limit_on,
           / 'Latest completed unallocated-line threshold:',
-            ls_health-last_completed_unalloc_line_threshold, '%',
+            ls_health-last_comp_unalloc_line_limit, '%',
           / 'Latest completed unallocated-line threshold breached:',
-            ls_health-last_completed_unalloc_line_above_threshold,
+            ls_health-last_comp_unalloc_ln_above_lim,
           / 'Latest completed partial-line threshold active:',
-            ls_health-last_completed_partial_line_threshold_active,
+            ls_health-last_comp_part_line_limit_on,
           / 'Latest completed partial-line threshold:',
-            ls_health-last_completed_partial_line_threshold, '%',
+            ls_health-last_comp_partial_line_limit, '%',
           / 'Latest completed partial-line threshold breached:',
-            ls_health-last_completed_partial_line_above_threshold,
+            ls_health-last_comp_part_ln_above_limit,
           / 'Latest completed full-count threshold active:',
-            ls_health-last_completed_full_count_threshold_active,
+            ls_health-last_comp_full_count_limit_on,
           / 'Latest completed full-count threshold:',
-            ls_health-last_completed_full_count_threshold,
+            ls_health-last_comp_full_count_limit,
           / 'Latest completed full-count threshold breached:',
-            ls_health-last_completed_full_count_below_threshold,
+            ls_health-last_comp_full_cnt_below_limit,
           / 'Latest completed allocated-line-count threshold active:',
-            ls_health-last_completed_allocated_count_threshold_active,
+            ls_health-last_comp_alloc_count_limit_on,
           / 'Latest completed allocated-line-count threshold:',
-            ls_health-last_completed_allocated_count_threshold,
+            ls_health-last_comp_alloc_count_limit,
           / 'Latest completed allocated-line-count threshold breached:',
-            ls_health-last_completed_allocated_count_below_threshold,
+            ls_health-last_comp_alloc_cnt_below_lim,
           / 'Latest completed allocated-line-count maximum threshold active:',
-            ls_health-last_completed_alloc_count_max_threshold_active,
+            ls_health-last_comp_alloc_cnt_max_lim_on,
           / 'Latest completed allocated-line-count maximum threshold:',
-            ls_health-last_completed_alloc_count_max_threshold,
+            ls_health-last_comp_alloc_cnt_max_limit,
           / 'Latest completed allocated-line-count maximum threshold breached:',
-            ls_health-last_completed_alloc_count_max_above_threshold,
+            ls_health-last_comp_acnt_max_above_limit,
           / 'Latest completed unallocated-count threshold active:',
-            ls_health-last_completed_unalloc_count_threshold_active,
+            ls_health-last_comp_unalloc_cnt_limit_on,
           / 'Latest completed unallocated-count threshold:',
-            ls_health-last_completed_unalloc_count_threshold,
+            ls_health-last_comp_unalloc_count_limit,
           / 'Latest completed unallocated-count threshold breached:',
-            ls_health-last_completed_unalloc_count_above_threshold,
+            ls_health-last_comp_unalloc_cnt_over_lim,
           / 'Latest completed partial-count threshold active:',
-            ls_health-last_completed_partial_count_threshold_active,
+            ls_health-last_comp_partial_cnt_limit_on,
           / 'Latest completed partial-count threshold:',
-            ls_health-last_completed_partial_count_threshold,
+            ls_health-last_comp_partial_count_limit,
           / 'Latest completed partial-count threshold breached:',
-            ls_health-last_completed_partial_count_above_threshold,
+            ls_health-last_comp_part_cnt_above_limit,
           / 'Latest completed shortage-count threshold active:',
-            ls_health-last_completed_shortage_count_threshold_active,
+            ls_health-last_comp_short_cnt_limit_on,
           / 'Latest completed shortage-count threshold:',
-            ls_health-last_completed_shortage_count_threshold,
+            ls_health-last_comp_shortage_count_limit,
           / 'Latest completed shortage-count threshold breached:',
-            ls_health-last_completed_shortage_count_above_threshold,
+            ls_health-last_comp_short_cnt_above_lim,
           / 'Latest completed-age threshold active:', ls_health-last_age_threshold_active,
           / 'Latest completed-age threshold:', ls_health-last_age_threshold, 'seconds',
           / 'Latest completed-age threshold breached:', ls_health-last_age_above_threshold,
           / 'Latest completed-deadline-age threshold active:',
-            ls_health-last_completed_deadline_age_threshold_active,
+            ls_health-last_comp_ddl_age_limit_on,
           / 'Latest completed-deadline-age threshold:',
-            ls_health-last_completed_deadline_age_threshold, 'days',
+            ls_health-last_comp_deadline_age_limit, 'days',
           / 'Latest completed-deadline-age threshold breached:',
-            ls_health-last_completed_deadline_age_above_threshold,
+            ls_health-last_comp_ddl_age_above_limit,
           / 'Latest completed-demand-count threshold active:',
-            ls_health-last_completed_demand_count_threshold_active,
+            ls_health-last_comp_demand_cnt_limit_on,
           / 'Latest completed-demand-count threshold:',
-            ls_health-last_completed_demand_count_threshold,
+            ls_health-last_comp_demand_count_limit,
           / 'Latest completed-demand-count threshold breached:',
-            ls_health-last_completed_demand_count_above_threshold,
+            ls_health-last_comp_demand_cnt_above_lim,
           / 'Latest completed-demand-count minimum threshold active:',
-            ls_health-last_completed_demand_count_min_threshold_active,
+            ls_health-last_cmp_demand_cnt_min_lim_on,
           / 'Latest completed-demand-count minimum threshold:',
-            ls_health-last_completed_demand_count_min_threshold,
+            ls_health-last_comp_demand_cnt_min_limit,
           / 'Latest completed-demand-count minimum threshold breached:',
-            ls_health-last_completed_demand_count_below_threshold,
-          / 'Available-stock minimum threshold active:', ls_health-avail_stock_min_threshold_active,
+            ls_health-last_comp_demand_cnt_below_lim,
+          / 'Available-stock minimum threshold active:', ls_health-avail_stock_min_limit_active,
           / 'Available-stock minimum threshold:', ls_health-avail_stock_min_threshold,
           / 'Available-stock minimum threshold breached:', ls_health-avail_stock_below_threshold,
-          / 'Available-stock maximum threshold active:', ls_health-avail_stock_max_threshold_active,
+          / 'Available-stock maximum threshold active:', ls_health-avail_stock_max_limit_active,
           / 'Available-stock maximum threshold:', ls_health-avail_stock_max_threshold,
           / 'Available-stock maximum threshold breached:', ls_health-avail_stock_above_threshold,
           / 'Stale threshold active:', ls_health-stale_threshold_active,

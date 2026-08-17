@@ -2,417 +2,417 @@ CLASS zcl_stock_allocation_health DEFINITION  PUBLIC  FINAL  CREATE PUBLIC.
   PUBLIC SECTION.
     TYPES ty_status TYPE c LENGTH 8.
     TYPES:      BEGIN OF ty_health,
-        status                                           TYPE ty_status,
-        message                                          TYPE zif_allocation_audit=>ty_message,
-        reason_code                                      TYPE c LENGTH 16,
-        total_runs                                       TYPE i,
-        preview_runs                                     TYPE i,
-        operational_runs                                 TYPE i,
-        preview_mix_pct                                  TYPE zif_allocation_audit=>ty_coverage,
-        operational_mix_pct                              TYPE zif_allocation_audit=>ty_coverage,
-        deadline_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        overdue_count                                    TYPE i,
-        current_deadline_count                           TYPE i,
-        future_deadline_count                            TYPE i,
-        overdue_mix_pct                                  TYPE zif_allocation_audit=>ty_coverage,
-        current_deadline_mix_pct                         TYPE zif_allocation_audit=>ty_coverage,
-        future_deadline_mix_pct                          TYPE zif_allocation_audit=>ty_coverage,
-        deadline_mix_threshold_active                    TYPE abap_bool,
-        deadline_mix_threshold                           TYPE zif_allocation_audit=>ty_coverage,
-        deadline_mix_below_threshold                     TYPE abap_bool,
-        overdue_mix_threshold_active                     TYPE abap_bool,
-        overdue_mix_threshold                            TYPE zif_allocation_audit=>ty_coverage,
-        overdue_mix_above_threshold                      TYPE abap_bool,
-        current_deadline_mix_threshold_active            TYPE abap_bool,
-        current_deadline_mix_threshold                   TYPE zif_allocation_audit=>ty_coverage,
-        current_deadline_mix_above_threshold             TYPE abap_bool,
-        future_deadline_mix_threshold_active             TYPE abap_bool,
-        future_deadline_mix_threshold                    TYPE zif_allocation_audit=>ty_coverage,
-        future_deadline_mix_below_threshold              TYPE abap_bool,
-        run_count_threshold_active                       TYPE abap_bool,
-        run_count_threshold                              TYPE i,
-        run_count_below_threshold                        TYPE abap_bool,
-        deadline_count_threshold_active                  TYPE abap_bool,
-        deadline_count_threshold                         TYPE i,
-        deadline_count_below_threshold                   TYPE abap_bool,
-        success_runs                                     TYPE i,
-        success_count_threshold_active                   TYPE abap_bool,
-        success_count_threshold                          TYPE i,
-        success_count_below_threshold                    TYPE abap_bool,
-        duration_count_threshold_active                  TYPE abap_bool,
-        duration_count_threshold                         TYPE i,
-        duration_count_below_threshold                   TYPE abap_bool,
-        completion_pct                                   TYPE zif_allocation_audit=>ty_coverage,
-        success_rate_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        partial_rate_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        error_rate_pct                                   TYPE zif_allocation_audit=>ty_coverage,
-        demand_count                                     TYPE i,
-        full_count                                       TYPE i,
-        partial_count                                    TYPE i,
-        unallocated_count                                TYPE i,
-        demand_count_threshold_active                    TYPE abap_bool,
-        demand_count_threshold                           TYPE i,
-        demand_count_above_threshold                     TYPE abap_bool,
-        running_count_threshold_active                   TYPE abap_bool,
-        running_count_threshold                          TYPE i,
-        running_count_above_threshold                    TYPE abap_bool,
-        shortage_quantity_threshold_active               TYPE abap_bool,
-        shortage_quantity_threshold                      TYPE zif_stock_allocation=>ty_quantity,
-        shortage_quantity_above_threshold                TYPE abap_bool,
-        full_line_pct                                    TYPE zif_allocation_audit=>ty_coverage,
-        partial_line_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        unallocated_line_pct                             TYPE zif_allocation_audit=>ty_coverage,
-        full_count_threshold_active                      TYPE abap_bool,
-        full_count_threshold                             TYPE i,
-        full_count_below_threshold                       TYPE abap_bool,
-        full_line_threshold_active                       TYPE abap_bool,
-        full_line_threshold                              TYPE zif_allocation_audit=>ty_coverage,
-        full_line_below_threshold                        TYPE abap_bool,
-        unallocated_line_threshold_active                TYPE abap_bool,
-        unallocated_line_threshold                       TYPE zif_allocation_audit=>ty_coverage,
-        unallocated_line_above_threshold                 TYPE abap_bool,
-        partial_line_threshold_active                    TYPE abap_bool,
-        partial_line_threshold                           TYPE zif_allocation_audit=>ty_coverage,
-        partial_line_above_threshold                     TYPE abap_bool,
-        priority_runs                                    TYPE i,
-        fifo_runs                                        TYPE i,
-        full_only_runs                                   TYPE i,
-        smallest_runs                                    TYPE i,
-        largest_runs                                     TYPE i,
-        best_runs                                        TYPE i,
-        running_runs                                     TYPE i,
-        stale_running_runs                               TYPE i,
-        stale_threshold_active                           TYPE abap_bool,
-        stale_threshold                                  TYPE i,
-        stale_above_threshold                            TYPE abap_bool,
-        error_runs                                       TYPE i,
-        partial_runs                                     TYPE i,
-        fair_runs                                        TYPE i,
-        weighted_runs                                    TYPE i,
-        adaptive_runs                                    TYPE i,
-        adaptive_priority_runs                           TYPE i,
-        adaptive_fair_runs                               TYPE i,
-        legacy_runs                                      TYPE i,
-        priority_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        fifo_mix_pct                                     TYPE zif_allocation_audit=>ty_coverage,
-        full_only_mix_pct                                TYPE zif_allocation_audit=>ty_coverage,
-        smallest_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        largest_mix_pct                                  TYPE zif_allocation_audit=>ty_coverage,
-        best_mix_pct                                     TYPE zif_allocation_audit=>ty_coverage,
-        fair_mix_pct                                     TYPE zif_allocation_audit=>ty_coverage,
-        weighted_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        adaptive_mix_pct                                 TYPE zif_allocation_audit=>ty_coverage,
-        legacy_mix_pct                                   TYPE zif_allocation_audit=>ty_coverage,
-        last_run_available                               TYPE abap_bool,
-        duration_metrics_available                       TYPE abap_bool,
-        last_duration_available                          TYPE abap_bool,
-        last_age_available                               TYPE abap_bool,
-        last_age_seconds                                 TYPE i,
-        last_age_reason                                  TYPE string,
-        last_age_reference_date                          TYPE d,
-        last_age_reference_time                          TYPE t,
-        last_completed_run_available                     TYPE abap_bool,
-        last_completed_run_id                            TYPE zif_allocation_audit=>ty_run_id,
-        last_completed_preview                           TYPE abap_bool,
-        last_completed_status                            TYPE zif_allocation_audit=>ty_run_status,
-        last_completed_success_streak                    TYPE i,
-        last_completed_non_success_streak                TYPE i,
-        last_completed_message                           TYPE zif_allocation_audit=>ty_message,
-        last_completed_start_date                        TYPE d,
-        last_completed_start_time                        TYPE t,
-        last_completed_finish_date                       TYPE d,
-        last_completed_finish_time                       TYPE t,
-        last_completed_duration_seconds                  TYPE i,
-        last_completed_unit                              TYPE string,
-        last_completed_policy_available                  TYPE abap_bool,
-        last_completed_movement_type                     TYPE string,
-        last_completed_min_shelf_life                    TYPE i,
-        last_completed_safety_stock                      TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_horizon_available                 TYPE abap_bool,
-        last_completed_requested_on_from                 TYPE d,
-        last_completed_requested_on_to                   TYPE d,
-        last_completed_requested_deadline                TYPE d,
-        last_completed_deadline_age_available            TYPE abap_bool,
-        last_completed_deadline_age_days                 TYPE i,
-        last_completed_deadline_age_reason               TYPE string,
-        last_completed_deadline_urgency                  TYPE string,
-        last_completed_available_stock                   TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_available_stock_unit              TYPE string,
-        last_completed_available_stock_available         TYPE abap_bool,
-        last_completed_strategy                          TYPE zif_allocation_audit=>ty_strategy,
-        last_completed_requested                         TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_allocated                         TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_shortage                          TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_coverage                          TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_demand                            TYPE i,
-        last_completed_full                              TYPE i,
-        last_completed_partial                           TYPE i,
-        last_completed_unalloc                           TYPE i,
-        last_completed_allocated_line_count              TYPE i,
-        last_completed_shortage_pct_available            TYPE abap_bool,
-        last_completed_shortage_pct                      TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_line_rates_available              TYPE abap_bool,
-        last_completed_full_line_pct                     TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_partial_line_pct                  TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_unalloc_line_pct                  TYPE zif_allocation_audit=>ty_coverage,
-        last_run_id                                      TYPE zif_allocation_audit=>ty_run_id,
-        last_preview                                     TYPE abap_bool,
-        last_available_stock                             TYPE zif_stock_allocation=>ty_quantity,
-        last_available_stock_unit                        TYPE string,
-        last_available_stock_available                   TYPE abap_bool,
-        last_requested_quantity                          TYPE zif_stock_allocation=>ty_quantity,
-        last_allocated_quantity                          TYPE zif_stock_allocation=>ty_quantity,
-        last_shortage_quantity                           TYPE zif_stock_allocation=>ty_quantity,
-        last_shortage_pct_available                      TYPE abap_bool,
-        last_shortage_pct                                TYPE zif_allocation_audit=>ty_coverage,
-        last_coverage_pct                                TYPE zif_allocation_audit=>ty_coverage,
-        last_demand_count                                TYPE i,
-        last_full_line_count                             TYPE i,
-        last_partial_line_count                          TYPE i,
-        last_unallocated_line_count                      TYPE i,
-        last_line_rates_available                        TYPE abap_bool,
-        last_full_line_pct                               TYPE zif_allocation_audit=>ty_coverage,
-        last_partial_line_pct                            TYPE zif_allocation_audit=>ty_coverage,
-        last_unallocated_line_pct                        TYPE zif_allocation_audit=>ty_coverage,
-        last_strategy                                    TYPE zif_allocation_audit=>ty_strategy,
-        last_status                                      TYPE zif_allocation_audit=>ty_run_status,
-        last_start_date                                  TYPE d,
-        last_start_time                                  TYPE t,
-        last_finish_date                                 TYPE d,
-        last_finish_time                                 TYPE t,
-        last_duration_seconds                            TYPE i,
-        average_duration_seconds                         TYPE zif_allocation_audit=>ty_duration,
-        minimum_duration_seconds                         TYPE i,
-        maximum_duration_seconds                         TYPE i,
-        completed_duration_runs                          TYPE i,
-        oldest_running_age_seconds                       TYPE i,
-        oldest_running_run_id                            TYPE zif_allocation_audit=>ty_run_id,
-        newest_running_age_seconds                       TYPE i,
-        newest_running_run_id                            TYPE zif_allocation_audit=>ty_run_id,
-        last_run_message                                 TYPE zif_allocation_audit=>ty_message,
-        unit                                             TYPE string,
-        available_stock_context                          TYPE zif_stock_allocation=>ty_quantity,
-        available_stock_context_available                TYPE abap_bool,
-        mixed_available_stock                            TYPE abap_bool,
-        avail_stock_min_threshold_active                 TYPE abap_bool,
-        avail_stock_min_threshold                        TYPE zif_stock_allocation=>ty_quantity,
-        avail_stock_below_threshold                      TYPE abap_bool,
-        avail_stock_max_threshold_active                 TYPE abap_bool,
-        avail_stock_max_threshold                        TYPE zif_stock_allocation=>ty_quantity,
-        avail_stock_above_threshold                      TYPE abap_bool,
-        policy_context_available                         TYPE abap_bool,
-        mixed_policies                                   TYPE abap_bool,
-        movement_type_context                            TYPE string,
-        minimum_shelf_life_context                       TYPE i,
-        safety_stock_context                             TYPE zif_stock_allocation=>ty_quantity,
-        mixed_units                                      TYPE abap_bool,
-        mixed_policy_warning_active                      TYPE abap_bool,
-        mixed_policy_breach                              TYPE abap_bool,
-        mixed_unit_warning_active                        TYPE abap_bool,
-        mixed_unit_breach                                TYPE abap_bool,
-        shortage_available                               TYPE abap_bool,
-        requested                                        TYPE zif_stock_allocation=>ty_quantity,
-        allocated                                        TYPE zif_stock_allocation=>ty_quantity,
-        shortage                                         TYPE zif_stock_allocation=>ty_quantity,
-        coverage_available                               TYPE abap_bool,
-        coverage                                         TYPE zif_allocation_audit=>ty_coverage,
-        priority_share_available                         TYPE abap_bool,
-        priority_requested                               TYPE zif_stock_allocation=>ty_quantity,
-        priority_allocated                               TYPE zif_stock_allocation=>ty_quantity,
-        priority_shortage                                TYPE zif_stock_allocation=>ty_quantity,
-        priority_coverage_available                      TYPE abap_bool,
-        priority_coverage                                TYPE zif_allocation_audit=>ty_coverage,
-        fifo_share_available                             TYPE abap_bool,
-        fifo_requested                                   TYPE zif_stock_allocation=>ty_quantity,
-        fifo_allocated                                   TYPE zif_stock_allocation=>ty_quantity,
-        fifo_shortage                                    TYPE zif_stock_allocation=>ty_quantity,
-        fifo_coverage_available                          TYPE abap_bool,
-        fifo_coverage                                    TYPE zif_allocation_audit=>ty_coverage,
-        full_only_share_available                        TYPE abap_bool,
-        full_only_requested                              TYPE zif_stock_allocation=>ty_quantity,
-        full_only_allocated                              TYPE zif_stock_allocation=>ty_quantity,
-        full_only_shortage                               TYPE zif_stock_allocation=>ty_quantity,
-        full_only_coverage_available                     TYPE abap_bool,
-        full_only_coverage                               TYPE zif_allocation_audit=>ty_coverage,
-        smallest_share_available                         TYPE abap_bool,
-        smallest_requested                               TYPE zif_stock_allocation=>ty_quantity,
-        smallest_allocated                               TYPE zif_stock_allocation=>ty_quantity,
-        smallest_shortage                                TYPE zif_stock_allocation=>ty_quantity,
-        smallest_coverage_available                      TYPE abap_bool,
-        smallest_coverage                                TYPE zif_allocation_audit=>ty_coverage,
-        largest_share_available                          TYPE abap_bool,
-        largest_requested                                TYPE zif_stock_allocation=>ty_quantity,
-        largest_allocated                                TYPE zif_stock_allocation=>ty_quantity,
-        largest_shortage                                 TYPE zif_stock_allocation=>ty_quantity,
-        largest_coverage_available                       TYPE abap_bool,
-        largest_coverage                                 TYPE zif_allocation_audit=>ty_coverage,
-        best_share_available                             TYPE abap_bool,
-        best_requested                                   TYPE zif_stock_allocation=>ty_quantity,
-        best_allocated                                   TYPE zif_stock_allocation=>ty_quantity,
-        best_shortage                                    TYPE zif_stock_allocation=>ty_quantity,
-        best_coverage_available                          TYPE abap_bool,
-        best_coverage                                    TYPE zif_allocation_audit=>ty_coverage,
-        coverage_threshold_active                        TYPE abap_bool,
-        coverage_threshold                               TYPE zif_allocation_audit=>ty_coverage,
-        coverage_below_threshold                         TYPE abap_bool,
-        last_coverage_threshold_active                   TYPE abap_bool,
-        last_coverage_threshold                          TYPE zif_allocation_audit=>ty_coverage,
-        last_coverage_below_threshold                    TYPE abap_bool,
-        last_shortage_qty_threshold_active               TYPE abap_bool,
-        last_shortage_qty_threshold                      TYPE zif_stock_allocation=>ty_quantity,
-        last_shortage_qty_above_threshold                TYPE abap_bool,
-        last_shortage_pct_threshold_active               TYPE abap_bool,
-        last_shortage_pct_threshold                      TYPE zif_allocation_audit=>ty_coverage,
-        last_shortage_pct_above_threshold                TYPE abap_bool,
-        last_completed_coverage_threshold_active         TYPE abap_bool,
-        last_completed_coverage_threshold                TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_coverage_below_threshold          TYPE abap_bool,
-        last_completed_coverage_max_threshold_active     TYPE abap_bool,
-        last_completed_coverage_max_threshold            TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_coverage_above_threshold          TYPE abap_bool,
-        last_completed_shortage_pct_threshold_active     TYPE abap_bool,
-        last_completed_shortage_pct_threshold            TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_shortage_pct_above_threshold      TYPE abap_bool,
-        last_completed_shortage_qty_threshold_active     TYPE abap_bool,
-        last_completed_shortage_qty_threshold            TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_shortage_qty_above_threshold      TYPE abap_bool,
-        last_completed_requested_threshold_active        TYPE abap_bool,
-        last_completed_requested_threshold               TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_requested_above_threshold         TYPE abap_bool,
-        last_completed_requested_min_threshold_active    TYPE abap_bool,
-        last_completed_requested_min_threshold           TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_requested_below_threshold         TYPE abap_bool,
-        last_completed_allocated_threshold_active        TYPE abap_bool,
-        last_completed_allocated_threshold               TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_allocated_below_threshold         TYPE abap_bool,
-        last_completed_allocated_max_threshold_active    TYPE abap_bool,
-        last_completed_allocated_max_threshold           TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_allocated_above_threshold         TYPE abap_bool,
-        last_completed_avail_stock_min_threshold_active  TYPE abap_bool,
-        last_completed_avail_stock_min_threshold         TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_avail_stock_below_threshold       TYPE abap_bool,
-        last_completed_avail_stock_max_threshold_active  TYPE abap_bool,
-        last_completed_avail_stock_max_threshold         TYPE zif_stock_allocation=>ty_quantity,
-        last_completed_avail_stock_above_threshold       TYPE abap_bool,
-        last_completed_full_line_threshold_active        TYPE abap_bool,
-        last_completed_full_line_threshold               TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_full_line_below_threshold         TYPE abap_bool,
-        last_completed_full_line_max_threshold_active    TYPE abap_bool,
-        last_completed_full_line_max_threshold           TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_full_line_above_threshold         TYPE abap_bool,
-        last_completed_unalloc_line_threshold_active     TYPE abap_bool,
-        last_completed_unalloc_line_threshold            TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_unalloc_line_above_threshold      TYPE abap_bool,
-        last_completed_partial_line_threshold_active     TYPE abap_bool,
-        last_completed_partial_line_threshold            TYPE zif_allocation_audit=>ty_coverage,
-        last_completed_partial_line_above_threshold      TYPE abap_bool,
-        last_completed_full_count_threshold_active       TYPE abap_bool,
-        last_completed_full_count_threshold              TYPE i,
-        last_completed_full_count_below_threshold        TYPE abap_bool,
-        last_completed_unalloc_count_threshold_active    TYPE abap_bool,
-        last_completed_unalloc_count_threshold           TYPE i,
-        last_completed_unalloc_count_above_threshold     TYPE abap_bool,
-        last_completed_partial_count_threshold_active    TYPE abap_bool,
-        last_completed_partial_count_threshold           TYPE i,
-        last_completed_partial_count_above_threshold     TYPE abap_bool,
-        last_completed_allocated_count_threshold_active  TYPE abap_bool,
-        last_completed_allocated_count_threshold         TYPE i,
-        last_completed_allocated_count_below_threshold   TYPE abap_bool,
-        last_completed_alloc_count_max_threshold_active  TYPE abap_bool,
-        last_completed_alloc_count_max_threshold         TYPE i,
-        last_completed_alloc_count_max_above_threshold   TYPE abap_bool,
-        last_completed_shortage_count_threshold_active   TYPE abap_bool,
-        last_completed_shortage_count_threshold          TYPE i,
-        last_completed_shortage_count_above_threshold    TYPE abap_bool,
-        last_age_threshold_active                        TYPE abap_bool,
-        last_age_threshold                               TYPE i,
-        last_age_above_threshold                         TYPE abap_bool,
-        last_completed_deadline_age_threshold_active     TYPE abap_bool,
-        last_completed_deadline_age_threshold            TYPE i,
-        last_completed_deadline_age_above_threshold      TYPE abap_bool,
-        last_completed_demand_count_threshold_active     TYPE abap_bool,
-        last_completed_demand_count_threshold            TYPE i,
-        last_completed_demand_count_above_threshold      TYPE abap_bool,
-        last_completed_demand_count_min_threshold_active TYPE abap_bool,
-        last_completed_demand_count_min_threshold        TYPE i,
-        last_completed_demand_count_below_threshold      TYPE abap_bool,
-        shortage_threshold_active                        TYPE abap_bool,
-        shortage_threshold                               TYPE zif_allocation_audit=>ty_coverage,
-        shortage_above_threshold                         TYPE abap_bool,
-        duration_threshold_active                        TYPE abap_bool,
-        duration_threshold                               TYPE i,
-        duration_above_threshold                         TYPE abap_bool,
-        last_completed_duration_threshold_active         TYPE abap_bool,
-        last_completed_duration_threshold                TYPE i,
-        last_completed_duration_above_threshold          TYPE abap_bool,
-        last_completed_duration_min_threshold_active     TYPE abap_bool,
-        last_completed_duration_min_threshold            TYPE i,
-        last_completed_duration_below_threshold          TYPE abap_bool,
-        last_completed_success_required_active           TYPE abap_bool,
-        last_completed_success_breach                    TYPE abap_bool,
-        last_completed_success_streak_threshold_active   TYPE abap_bool,
-        last_completed_success_streak_threshold          TYPE i,
-        last_completed_success_streak_below_threshold    TYPE abap_bool,
-        last_completed_non_success_threshold_active      TYPE abap_bool,
-        last_completed_non_success_threshold             TYPE i,
-        last_completed_non_success_above_threshold       TYPE abap_bool,
-        average_duration_threshold_active                TYPE abap_bool,
-        average_duration_threshold                       TYPE i,
-        average_duration_above_threshold                 TYPE abap_bool,
-        maximum_duration_threshold_active                TYPE abap_bool,
-        maximum_duration_threshold                       TYPE i,
-        maximum_duration_above_threshold                 TYPE abap_bool,
-        completion_threshold_active                      TYPE abap_bool,
-        completion_threshold                             TYPE zif_allocation_audit=>ty_coverage,
-        completion_below_threshold                       TYPE abap_bool,
-        success_threshold_active                         TYPE abap_bool,
-        success_threshold                                TYPE zif_allocation_audit=>ty_coverage,
-        success_below_threshold                          TYPE abap_bool,
-        error_threshold_active                           TYPE abap_bool,
-        error_threshold                                  TYPE zif_allocation_audit=>ty_coverage,
-        error_above_threshold                            TYPE abap_bool,
-        partial_threshold_active                         TYPE abap_bool,
-        partial_threshold                                TYPE zif_allocation_audit=>ty_coverage,
-        partial_above_threshold                          TYPE abap_bool,
-        threshold_breach_count                           TYPE i,
-        threshold_breaches                               TYPE string,
-        fair_share_available                             TYPE abap_bool,
-        fair_requested                                   TYPE zif_stock_allocation=>ty_quantity,
-        fair_allocated                                   TYPE zif_stock_allocation=>ty_quantity,
-        fair_shortage                                    TYPE zif_stock_allocation=>ty_quantity,
-        fair_coverage_available                          TYPE abap_bool,
-        fair_coverage                                    TYPE zif_allocation_audit=>ty_coverage,
-        weighted_share_available                         TYPE abap_bool,
-        weighted_requested                               TYPE zif_stock_allocation=>ty_quantity,
-        weighted_allocated                               TYPE zif_stock_allocation=>ty_quantity,
-        weighted_shortage                                TYPE zif_stock_allocation=>ty_quantity,
-        weighted_coverage_ok                             TYPE abap_bool,
-        weighted_coverage                                TYPE zif_allocation_audit=>ty_coverage,
-        adaptive_share_available                         TYPE abap_bool,
-        adaptive_requested                               TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_allocated                               TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_shortage                                TYPE zif_stock_allocation=>ty_quantity,
-        adaptive_coverage_ok                             TYPE abap_bool,
-        adaptive_coverage                                TYPE zif_allocation_audit=>ty_coverage,
-        legacy_share_available                           TYPE abap_bool,
-        legacy_requested                                 TYPE zif_stock_allocation=>ty_quantity,
-        legacy_allocated                                 TYPE zif_stock_allocation=>ty_quantity,
-        legacy_shortage                                  TYPE zif_stock_allocation=>ty_quantity,
-        legacy_coverage_available                        TYPE abap_bool,
-        legacy_coverage                                  TYPE zif_allocation_audit=>ty_coverage,
-        deadline_count                                   TYPE i,
-        last_requested_on_from                           TYPE d,
-        last_requested_on_to                             TYPE d,
-        last_requested_deadline                          TYPE d,
-        earliest_requested_deadline                      TYPE d,
-        latest_requested_deadline                        TYPE d,
-        last_deadline_age_days                           TYPE i,
-        oldest_deadline_age_days                         TYPE i,
-        newest_deadline_age_days                         TYPE i,
-        last_deadline_urgency                            TYPE string,
-        oldest_deadline_urgency                          TYPE string,
-        newest_deadline_urgency                          TYPE string,
-        deadline_age_reference_date                      TYPE d,
+        status                         TYPE ty_status,
+        message                        TYPE zif_allocation_audit=>ty_message,
+        reason_code                    TYPE c LENGTH 16,
+        total_runs                     TYPE i,
+        preview_runs                   TYPE i,
+        operational_runs               TYPE i,
+        preview_mix_pct                TYPE zif_allocation_audit=>ty_coverage,
+        operational_mix_pct            TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_pct               TYPE zif_allocation_audit=>ty_coverage,
+        overdue_count                  TYPE i,
+        current_deadline_count         TYPE i,
+        future_deadline_count          TYPE i,
+        overdue_mix_pct                TYPE zif_allocation_audit=>ty_coverage,
+        current_deadline_mix_pct       TYPE zif_allocation_audit=>ty_coverage,
+        future_deadline_mix_pct        TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_threshold_active  TYPE abap_bool,
+        deadline_mix_threshold         TYPE zif_allocation_audit=>ty_coverage,
+        deadline_mix_below_threshold   TYPE abap_bool,
+        overdue_mix_threshold_active   TYPE abap_bool,
+        overdue_mix_threshold          TYPE zif_allocation_audit=>ty_coverage,
+        overdue_mix_above_threshold    TYPE abap_bool,
+        current_deadline_mix_limit_on  TYPE abap_bool,
+        current_deadline_mix_threshold TYPE zif_allocation_audit=>ty_coverage,
+        curr_deadline_mix_above_limit  TYPE abap_bool,
+        future_deadline_mix_limit_on   TYPE abap_bool,
+        future_deadline_mix_threshold  TYPE zif_allocation_audit=>ty_coverage,
+        fut_deadline_mix_below_limit   TYPE abap_bool,
+        run_count_threshold_active     TYPE abap_bool,
+        run_count_threshold            TYPE i,
+        run_count_below_threshold      TYPE abap_bool,
+        deadline_count_limit_active    TYPE abap_bool,
+        deadline_count_threshold       TYPE i,
+        deadline_count_below_threshold TYPE abap_bool,
+        success_runs                   TYPE i,
+        success_count_threshold_active TYPE abap_bool,
+        success_count_threshold        TYPE i,
+        success_count_below_threshold  TYPE abap_bool,
+        duration_count_limit_active    TYPE abap_bool,
+        duration_count_threshold       TYPE i,
+        duration_count_below_threshold TYPE abap_bool,
+        completion_pct                 TYPE zif_allocation_audit=>ty_coverage,
+        success_rate_pct               TYPE zif_allocation_audit=>ty_coverage,
+        partial_rate_pct               TYPE zif_allocation_audit=>ty_coverage,
+        error_rate_pct                 TYPE zif_allocation_audit=>ty_coverage,
+        demand_count                   TYPE i,
+        full_count                     TYPE i,
+        partial_count                  TYPE i,
+        unallocated_count              TYPE i,
+        demand_count_threshold_active  TYPE abap_bool,
+        demand_count_threshold         TYPE i,
+        demand_count_above_threshold   TYPE abap_bool,
+        running_count_threshold_active TYPE abap_bool,
+        running_count_threshold        TYPE i,
+        running_count_above_threshold  TYPE abap_bool,
+        shortage_quantity_limit_active TYPE abap_bool,
+        shortage_quantity_threshold    TYPE zif_stock_allocation=>ty_quantity,
+        shortage_quantity_above_limit  TYPE abap_bool,
+        full_line_pct                  TYPE zif_allocation_audit=>ty_coverage,
+        partial_line_pct               TYPE zif_allocation_audit=>ty_coverage,
+        unallocated_line_pct           TYPE zif_allocation_audit=>ty_coverage,
+        full_count_threshold_active    TYPE abap_bool,
+        full_count_threshold           TYPE i,
+        full_count_below_threshold     TYPE abap_bool,
+        full_line_threshold_active     TYPE abap_bool,
+        full_line_threshold            TYPE zif_allocation_audit=>ty_coverage,
+        full_line_below_threshold      TYPE abap_bool,
+        unallocated_line_limit_active  TYPE abap_bool,
+        unallocated_line_threshold     TYPE zif_allocation_audit=>ty_coverage,
+        unallocated_line_above_limit   TYPE abap_bool,
+        partial_line_threshold_active  TYPE abap_bool,
+        partial_line_threshold         TYPE zif_allocation_audit=>ty_coverage,
+        partial_line_above_threshold   TYPE abap_bool,
+        priority_runs                  TYPE i,
+        fifo_runs                      TYPE i,
+        full_only_runs                 TYPE i,
+        smallest_runs                  TYPE i,
+        largest_runs                   TYPE i,
+        best_runs                      TYPE i,
+        running_runs                   TYPE i,
+        stale_running_runs             TYPE i,
+        stale_threshold_active         TYPE abap_bool,
+        stale_threshold                TYPE i,
+        stale_above_threshold          TYPE abap_bool,
+        error_runs                     TYPE i,
+        partial_runs                   TYPE i,
+        fair_runs                      TYPE i,
+        weighted_runs                  TYPE i,
+        adaptive_runs                  TYPE i,
+        adaptive_priority_runs         TYPE i,
+        adaptive_fair_runs             TYPE i,
+        legacy_runs                    TYPE i,
+        priority_mix_pct               TYPE zif_allocation_audit=>ty_coverage,
+        fifo_mix_pct                   TYPE zif_allocation_audit=>ty_coverage,
+        full_only_mix_pct              TYPE zif_allocation_audit=>ty_coverage,
+        smallest_mix_pct               TYPE zif_allocation_audit=>ty_coverage,
+        largest_mix_pct                TYPE zif_allocation_audit=>ty_coverage,
+        best_mix_pct                   TYPE zif_allocation_audit=>ty_coverage,
+        fair_mix_pct                   TYPE zif_allocation_audit=>ty_coverage,
+        weighted_mix_pct               TYPE zif_allocation_audit=>ty_coverage,
+        adaptive_mix_pct               TYPE zif_allocation_audit=>ty_coverage,
+        legacy_mix_pct                 TYPE zif_allocation_audit=>ty_coverage,
+        last_run_available             TYPE abap_bool,
+        duration_metrics_available     TYPE abap_bool,
+        last_duration_available        TYPE abap_bool,
+        last_age_available             TYPE abap_bool,
+        last_age_seconds               TYPE i,
+        last_age_reason                TYPE string,
+        last_age_reference_date        TYPE d,
+        last_age_reference_time        TYPE t,
+        last_completed_run_available   TYPE abap_bool,
+        last_completed_run_id          TYPE zif_allocation_audit=>ty_run_id,
+        last_completed_preview         TYPE abap_bool,
+        last_completed_status          TYPE zif_allocation_audit=>ty_run_status,
+        last_completed_success_streak  TYPE i,
+        last_comp_non_success_streak   TYPE i,
+        last_completed_message         TYPE zif_allocation_audit=>ty_message,
+        last_completed_start_date      TYPE d,
+        last_completed_start_time      TYPE t,
+        last_completed_finish_date     TYPE d,
+        last_completed_finish_time     TYPE t,
+        last_comp_duration_seconds     TYPE i,
+        last_completed_unit            TYPE string,
+        last_comp_policy_available     TYPE abap_bool,
+        last_completed_movement_type   TYPE string,
+        last_completed_min_shelf_life  TYPE i,
+        last_completed_safety_stock    TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_horizon_available    TYPE abap_bool,
+        last_comp_requested_on_from    TYPE d,
+        last_completed_requested_on_to TYPE d,
+        last_comp_requested_deadline   TYPE d,
+        last_comp_deadline_age_avail   TYPE abap_bool,
+        last_comp_deadline_age_days    TYPE i,
+        last_comp_deadline_age_reason  TYPE string,
+        last_comp_deadline_urgency     TYPE string,
+        last_completed_available_stock TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_available_stock_unit TYPE string,
+        last_comp_avail_stock_avail    TYPE abap_bool,
+        last_completed_strategy        TYPE zif_allocation_audit=>ty_strategy,
+        last_completed_requested       TYPE zif_stock_allocation=>ty_quantity,
+        last_completed_allocated       TYPE zif_stock_allocation=>ty_quantity,
+        last_completed_shortage        TYPE zif_stock_allocation=>ty_quantity,
+        last_completed_coverage        TYPE zif_allocation_audit=>ty_coverage,
+        last_completed_demand          TYPE i,
+        last_completed_full            TYPE i,
+        last_completed_partial         TYPE i,
+        last_completed_unalloc         TYPE i,
+        last_comp_allocated_line_count TYPE i,
+        last_comp_shortage_pct_avail   TYPE abap_bool,
+        last_completed_shortage_pct    TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_line_rates_available TYPE abap_bool,
+        last_completed_full_line_pct   TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_partial_line_pct     TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_unalloc_line_pct     TYPE zif_allocation_audit=>ty_coverage,
+        last_run_id                    TYPE zif_allocation_audit=>ty_run_id,
+        last_preview                   TYPE abap_bool,
+        last_available_stock           TYPE zif_stock_allocation=>ty_quantity,
+        last_available_stock_unit      TYPE string,
+        last_available_stock_available TYPE abap_bool,
+        last_requested_quantity        TYPE zif_stock_allocation=>ty_quantity,
+        last_allocated_quantity        TYPE zif_stock_allocation=>ty_quantity,
+        last_shortage_quantity         TYPE zif_stock_allocation=>ty_quantity,
+        last_shortage_pct_available    TYPE abap_bool,
+        last_shortage_pct              TYPE zif_allocation_audit=>ty_coverage,
+        last_coverage_pct              TYPE zif_allocation_audit=>ty_coverage,
+        last_demand_count              TYPE i,
+        last_full_line_count           TYPE i,
+        last_partial_line_count        TYPE i,
+        last_unallocated_line_count    TYPE i,
+        last_line_rates_available      TYPE abap_bool,
+        last_full_line_pct             TYPE zif_allocation_audit=>ty_coverage,
+        last_partial_line_pct          TYPE zif_allocation_audit=>ty_coverage,
+        last_unallocated_line_pct      TYPE zif_allocation_audit=>ty_coverage,
+        last_strategy                  TYPE zif_allocation_audit=>ty_strategy,
+        last_status                    TYPE zif_allocation_audit=>ty_run_status,
+        last_start_date                TYPE d,
+        last_start_time                TYPE t,
+        last_finish_date               TYPE d,
+        last_finish_time               TYPE t,
+        last_duration_seconds          TYPE i,
+        average_duration_seconds       TYPE zif_allocation_audit=>ty_duration,
+        minimum_duration_seconds       TYPE i,
+        maximum_duration_seconds       TYPE i,
+        completed_duration_runs        TYPE i,
+        oldest_running_age_seconds     TYPE i,
+        oldest_running_run_id          TYPE zif_allocation_audit=>ty_run_id,
+        newest_running_age_seconds     TYPE i,
+        newest_running_run_id          TYPE zif_allocation_audit=>ty_run_id,
+        last_run_message               TYPE zif_allocation_audit=>ty_message,
+        unit                           TYPE string,
+        available_stock_context        TYPE zif_stock_allocation=>ty_quantity,
+        avail_stock_context_avail      TYPE abap_bool,
+        mixed_available_stock          TYPE abap_bool,
+        avail_stock_min_limit_active   TYPE abap_bool,
+        avail_stock_min_threshold      TYPE zif_stock_allocation=>ty_quantity,
+        avail_stock_below_threshold    TYPE abap_bool,
+        avail_stock_max_limit_active   TYPE abap_bool,
+        avail_stock_max_threshold      TYPE zif_stock_allocation=>ty_quantity,
+        avail_stock_above_threshold    TYPE abap_bool,
+        policy_context_available       TYPE abap_bool,
+        mixed_policies                 TYPE abap_bool,
+        movement_type_context          TYPE string,
+        minimum_shelf_life_context     TYPE i,
+        safety_stock_context           TYPE zif_stock_allocation=>ty_quantity,
+        mixed_units                    TYPE abap_bool,
+        mixed_policy_warning_active    TYPE abap_bool,
+        mixed_policy_breach            TYPE abap_bool,
+        mixed_unit_warning_active      TYPE abap_bool,
+        mixed_unit_breach              TYPE abap_bool,
+        shortage_available             TYPE abap_bool,
+        requested                      TYPE zif_stock_allocation=>ty_quantity,
+        allocated                      TYPE zif_stock_allocation=>ty_quantity,
+        shortage                       TYPE zif_stock_allocation=>ty_quantity,
+        coverage_available             TYPE abap_bool,
+        coverage                       TYPE zif_allocation_audit=>ty_coverage,
+        priority_share_available       TYPE abap_bool,
+        priority_requested             TYPE zif_stock_allocation=>ty_quantity,
+        priority_allocated             TYPE zif_stock_allocation=>ty_quantity,
+        priority_shortage              TYPE zif_stock_allocation=>ty_quantity,
+        priority_coverage_available    TYPE abap_bool,
+        priority_coverage              TYPE zif_allocation_audit=>ty_coverage,
+        fifo_share_available           TYPE abap_bool,
+        fifo_requested                 TYPE zif_stock_allocation=>ty_quantity,
+        fifo_allocated                 TYPE zif_stock_allocation=>ty_quantity,
+        fifo_shortage                  TYPE zif_stock_allocation=>ty_quantity,
+        fifo_coverage_available        TYPE abap_bool,
+        fifo_coverage                  TYPE zif_allocation_audit=>ty_coverage,
+        full_only_share_available      TYPE abap_bool,
+        full_only_requested            TYPE zif_stock_allocation=>ty_quantity,
+        full_only_allocated            TYPE zif_stock_allocation=>ty_quantity,
+        full_only_shortage             TYPE zif_stock_allocation=>ty_quantity,
+        full_only_coverage_available   TYPE abap_bool,
+        full_only_coverage             TYPE zif_allocation_audit=>ty_coverage,
+        smallest_share_available       TYPE abap_bool,
+        smallest_requested             TYPE zif_stock_allocation=>ty_quantity,
+        smallest_allocated             TYPE zif_stock_allocation=>ty_quantity,
+        smallest_shortage              TYPE zif_stock_allocation=>ty_quantity,
+        smallest_coverage_available    TYPE abap_bool,
+        smallest_coverage              TYPE zif_allocation_audit=>ty_coverage,
+        largest_share_available        TYPE abap_bool,
+        largest_requested              TYPE zif_stock_allocation=>ty_quantity,
+        largest_allocated              TYPE zif_stock_allocation=>ty_quantity,
+        largest_shortage               TYPE zif_stock_allocation=>ty_quantity,
+        largest_coverage_available     TYPE abap_bool,
+        largest_coverage               TYPE zif_allocation_audit=>ty_coverage,
+        best_share_available           TYPE abap_bool,
+        best_requested                 TYPE zif_stock_allocation=>ty_quantity,
+        best_allocated                 TYPE zif_stock_allocation=>ty_quantity,
+        best_shortage                  TYPE zif_stock_allocation=>ty_quantity,
+        best_coverage_available        TYPE abap_bool,
+        best_coverage                  TYPE zif_allocation_audit=>ty_coverage,
+        coverage_threshold_active      TYPE abap_bool,
+        coverage_threshold             TYPE zif_allocation_audit=>ty_coverage,
+        coverage_below_threshold       TYPE abap_bool,
+        last_coverage_threshold_active TYPE abap_bool,
+        last_coverage_threshold        TYPE zif_allocation_audit=>ty_coverage,
+        last_coverage_below_threshold  TYPE abap_bool,
+        last_shortage_qty_limit_active TYPE abap_bool,
+        last_shortage_qty_threshold    TYPE zif_stock_allocation=>ty_quantity,
+        last_shortage_qty_above_limit  TYPE abap_bool,
+        last_shortage_pct_limit_active TYPE abap_bool,
+        last_shortage_pct_threshold    TYPE zif_allocation_audit=>ty_coverage,
+        last_shortage_pct_above_limit  TYPE abap_bool,
+        last_comp_coverage_limit_on    TYPE abap_bool,
+        last_comp_coverage_limit       TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_coverage_below_limit TYPE abap_bool,
+        last_comp_cov_max_limit_on     TYPE abap_bool,
+        last_comp_coverage_max_limit   TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_coverage_above_limit TYPE abap_bool,
+        last_comp_short_pct_limit_on   TYPE abap_bool,
+        last_comp_shortage_pct_limit   TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_short_pct_above_lim  TYPE abap_bool,
+        last_comp_short_qty_limit_on   TYPE abap_bool,
+        last_comp_shortage_qty_limit   TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_short_qty_above_lim  TYPE abap_bool,
+        last_comp_requested_limit_on   TYPE abap_bool,
+        last_comp_requested_limit      TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_req_above_limit      TYPE abap_bool,
+        last_comp_req_min_limit_on     TYPE abap_bool,
+        last_comp_requested_min_limit  TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_req_below_limit      TYPE abap_bool,
+        last_comp_allocated_limit_on   TYPE abap_bool,
+        last_comp_allocated_limit      TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_alloc_below_limit    TYPE abap_bool,
+        last_comp_alloc_max_limit_on   TYPE abap_bool,
+        last_comp_allocated_max_limit  TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_alloc_above_limit    TYPE abap_bool,
+        last_comp_avail_stk_min_lim_on TYPE abap_bool,
+        last_comp_avail_stk_min_limit  TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_avail_stk_below_lim  TYPE abap_bool,
+        last_comp_avail_stk_max_lim_on TYPE abap_bool,
+        last_comp_avail_stk_max_limit  TYPE zif_stock_allocation=>ty_quantity,
+        last_comp_avail_stk_above_lim  TYPE abap_bool,
+        last_comp_full_line_limit_on   TYPE abap_bool,
+        last_comp_full_line_limit      TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_full_ln_below_limit  TYPE abap_bool,
+        last_comp_full_ln_max_limit_on TYPE abap_bool,
+        last_comp_full_line_max_limit  TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_full_ln_above_limit  TYPE abap_bool,
+        last_comp_unalloc_ln_limit_on  TYPE abap_bool,
+        last_comp_unalloc_line_limit   TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_unalloc_ln_above_lim TYPE abap_bool,
+        last_comp_part_line_limit_on   TYPE abap_bool,
+        last_comp_partial_line_limit   TYPE zif_allocation_audit=>ty_coverage,
+        last_comp_part_ln_above_limit  TYPE abap_bool,
+        last_comp_full_count_limit_on  TYPE abap_bool,
+        last_comp_full_count_limit     TYPE i,
+        last_comp_full_cnt_below_limit TYPE abap_bool,
+        last_comp_unalloc_cnt_limit_on TYPE abap_bool,
+        last_comp_unalloc_count_limit  TYPE i,
+        last_comp_unalloc_cnt_over_lim TYPE abap_bool,
+        last_comp_partial_cnt_limit_on TYPE abap_bool,
+        last_comp_partial_count_limit  TYPE i,
+        last_comp_part_cnt_above_limit TYPE abap_bool,
+        last_comp_alloc_count_limit_on TYPE abap_bool,
+        last_comp_alloc_count_limit    TYPE i,
+        last_comp_alloc_cnt_below_lim  TYPE abap_bool,
+        last_comp_alloc_cnt_max_lim_on TYPE abap_bool,
+        last_comp_alloc_cnt_max_limit  TYPE i,
+        last_comp_acnt_max_above_limit TYPE abap_bool,
+        last_comp_short_cnt_limit_on   TYPE abap_bool,
+        last_comp_shortage_count_limit TYPE i,
+        last_comp_short_cnt_above_lim  TYPE abap_bool,
+        last_age_threshold_active      TYPE abap_bool,
+        last_age_threshold             TYPE i,
+        last_age_above_threshold       TYPE abap_bool,
+        last_comp_ddl_age_limit_on     TYPE abap_bool,
+        last_comp_deadline_age_limit   TYPE i,
+        last_comp_ddl_age_above_limit  TYPE abap_bool,
+        last_comp_demand_cnt_limit_on  TYPE abap_bool,
+        last_comp_demand_count_limit   TYPE i,
+        last_comp_demand_cnt_above_lim TYPE abap_bool,
+        last_cmp_demand_cnt_min_lim_on TYPE abap_bool,
+        last_comp_demand_cnt_min_limit TYPE i,
+        last_comp_demand_cnt_below_lim TYPE abap_bool,
+        shortage_threshold_active      TYPE abap_bool,
+        shortage_threshold             TYPE zif_allocation_audit=>ty_coverage,
+        shortage_above_threshold       TYPE abap_bool,
+        duration_threshold_active      TYPE abap_bool,
+        duration_threshold             TYPE i,
+        duration_above_threshold       TYPE abap_bool,
+        last_comp_duration_limit_on    TYPE abap_bool,
+        last_comp_duration_limit       TYPE i,
+        last_comp_duration_above_limit TYPE abap_bool,
+        last_comp_dur_min_limit_on     TYPE abap_bool,
+        last_comp_duration_min_limit   TYPE i,
+        last_comp_duration_below_limit TYPE abap_bool,
+        last_comp_success_required_on  TYPE abap_bool,
+        last_completed_success_breach  TYPE abap_bool,
+        last_comp_succ_streak_limit_on TYPE abap_bool,
+        last_comp_success_streak_limit TYPE i,
+        last_cmp_succ_streak_below_lim TYPE abap_bool,
+        last_comp_non_success_limit_on TYPE abap_bool,
+        last_comp_non_success_limit    TYPE i,
+        last_comp_non_succ_above_limit TYPE abap_bool,
+        average_duration_limit_active  TYPE abap_bool,
+        average_duration_threshold     TYPE i,
+        average_duration_above_limit   TYPE abap_bool,
+        maximum_duration_limit_active  TYPE abap_bool,
+        maximum_duration_threshold     TYPE i,
+        maximum_duration_above_limit   TYPE abap_bool,
+        completion_threshold_active    TYPE abap_bool,
+        completion_threshold           TYPE zif_allocation_audit=>ty_coverage,
+        completion_below_threshold     TYPE abap_bool,
+        success_threshold_active       TYPE abap_bool,
+        success_threshold              TYPE zif_allocation_audit=>ty_coverage,
+        success_below_threshold        TYPE abap_bool,
+        error_threshold_active         TYPE abap_bool,
+        error_threshold                TYPE zif_allocation_audit=>ty_coverage,
+        error_above_threshold          TYPE abap_bool,
+        partial_threshold_active       TYPE abap_bool,
+        partial_threshold              TYPE zif_allocation_audit=>ty_coverage,
+        partial_above_threshold        TYPE abap_bool,
+        threshold_breach_count         TYPE i,
+        threshold_breaches             TYPE string,
+        fair_share_available           TYPE abap_bool,
+        fair_requested                 TYPE zif_stock_allocation=>ty_quantity,
+        fair_allocated                 TYPE zif_stock_allocation=>ty_quantity,
+        fair_shortage                  TYPE zif_stock_allocation=>ty_quantity,
+        fair_coverage_available        TYPE abap_bool,
+        fair_coverage                  TYPE zif_allocation_audit=>ty_coverage,
+        weighted_share_available       TYPE abap_bool,
+        weighted_requested             TYPE zif_stock_allocation=>ty_quantity,
+        weighted_allocated             TYPE zif_stock_allocation=>ty_quantity,
+        weighted_shortage              TYPE zif_stock_allocation=>ty_quantity,
+        weighted_coverage_ok           TYPE abap_bool,
+        weighted_coverage              TYPE zif_allocation_audit=>ty_coverage,
+        adaptive_share_available       TYPE abap_bool,
+        adaptive_requested             TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_allocated             TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_shortage              TYPE zif_stock_allocation=>ty_quantity,
+        adaptive_coverage_ok           TYPE abap_bool,
+        adaptive_coverage              TYPE zif_allocation_audit=>ty_coverage,
+        legacy_share_available         TYPE abap_bool,
+        legacy_requested               TYPE zif_stock_allocation=>ty_quantity,
+        legacy_allocated               TYPE zif_stock_allocation=>ty_quantity,
+        legacy_shortage                TYPE zif_stock_allocation=>ty_quantity,
+        legacy_coverage_available      TYPE abap_bool,
+        legacy_coverage                TYPE zif_allocation_audit=>ty_coverage,
+        deadline_count                 TYPE i,
+        last_requested_on_from         TYPE d,
+        last_requested_on_to           TYPE d,
+        last_requested_deadline        TYPE d,
+        earliest_requested_deadline    TYPE d,
+        latest_requested_deadline      TYPE d,
+        last_deadline_age_days         TYPE i,
+        oldest_deadline_age_days       TYPE i,
+        newest_deadline_age_days       TYPE i,
+        last_deadline_urgency          TYPE string,
+        oldest_deadline_urgency        TYPE string,
+        newest_deadline_urgency        TYPE string,
+        deadline_age_reference_date    TYPE d,
       END OF ty_health.
     CLASS-METHODS evaluate
       IMPORTING
@@ -615,7 +615,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_completed_status = is_summary-last_completed_status.
     rs_health-last_completed_success_streak =
       is_summary-last_completed_success_streak.
-    rs_health-last_completed_non_success_streak =
+    rs_health-last_comp_non_success_streak =
       is_summary-last_completed_non_success_streak.
     rs_health-last_completed_message = is_summary-last_completed_message.
     rs_health-last_completed_start_date =
@@ -626,10 +626,10 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       is_summary-last_completed_finish_date.
     rs_health-last_completed_finish_time =
       is_summary-last_completed_finish_time.
-    rs_health-last_completed_duration_seconds =
+    rs_health-last_comp_duration_seconds =
       is_summary-last_completed_duration.
     rs_health-last_completed_unit = is_summary-last_completed_unit.
-    rs_health-last_completed_policy_available =
+    rs_health-last_comp_policy_available =
       is_summary-last_completed_policy_available.
     rs_health-last_completed_movement_type =
       is_summary-last_completed_movement_type.
@@ -637,39 +637,39 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       is_summary-last_completed_min_shelf_life.
     rs_health-last_completed_safety_stock =
       is_summary-last_completed_safety_stock.
-    rs_health-last_completed_horizon_available =
+    rs_health-last_comp_horizon_available =
       is_summary-last_completed_horizon_available.
-    rs_health-last_completed_requested_on_from =
+    rs_health-last_comp_requested_on_from =
       is_summary-last_completed_requested_on_from.
     rs_health-last_completed_requested_on_to =
       is_summary-last_completed_requested_on_to.
-    rs_health-last_completed_requested_deadline =
+    rs_health-last_comp_requested_deadline =
       is_summary-last_completed_requested_deadline.
-    rs_health-last_completed_deadline_age_available =
+    rs_health-last_comp_deadline_age_avail =
       is_summary-last_completed_deadline_age_available.
-    rs_health-last_completed_deadline_age_days =
+    rs_health-last_comp_deadline_age_days =
       is_summary-last_completed_deadline_age_days.
-    rs_health-last_completed_deadline_age_reason =
+    rs_health-last_comp_deadline_age_reason =
       is_summary-last_completed_deadline_age_reason.
-    IF rs_health-last_completed_deadline_age_reason IS INITIAL.
-      IF rs_health-last_completed_deadline_age_available = abap_true.
-        rs_health-last_completed_deadline_age_reason = 'available'.
+    IF rs_health-last_comp_deadline_age_reason IS INITIAL.
+      IF rs_health-last_comp_deadline_age_avail = abap_true.
+        rs_health-last_comp_deadline_age_reason = 'available'.
       ELSEIF is_summary-last_completed_run_id IS INITIAL.
-        rs_health-last_completed_deadline_age_reason = 'no_completed_run'.
+        rs_health-last_comp_deadline_age_reason = 'no_completed_run'.
       ELSE.
-        rs_health-last_completed_deadline_age_reason = 'no_deadline'.
+        rs_health-last_comp_deadline_age_reason = 'no_deadline'.
       ENDIF.
     ENDIF.
     IF is_summary-last_completed_deadline_urgency IS INITIAL.
-      rs_health-last_completed_deadline_urgency = 'n/a'.
+      rs_health-last_comp_deadline_urgency = 'n/a'.
     ELSE.
-      rs_health-last_completed_deadline_urgency =
+      rs_health-last_comp_deadline_urgency =
         is_summary-last_completed_deadline_urgency.
     ENDIF.
     rs_health-last_completed_available_stock = is_summary-last_completed_avail.
-    rs_health-last_completed_available_stock_unit =
+    rs_health-last_comp_available_stock_unit =
       is_summary-last_completed_avail_unit.
-    rs_health-last_completed_available_stock_available =
+    rs_health-last_comp_avail_stock_avail =
       is_summary-last_completed_avail_ok.
     rs_health-last_completed_strategy = is_summary-last_completed_strategy.
     rs_health-last_completed_requested = is_summary-last_completed_requested.
@@ -680,30 +680,30 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-last_completed_full = is_summary-last_completed_full.
     rs_health-last_completed_partial = is_summary-last_completed_partial.
     rs_health-last_completed_unalloc = is_summary-last_completed_unalloc.
-    rs_health-last_completed_allocated_line_count =
+    rs_health-last_comp_allocated_line_count =
       rs_health-last_completed_full + rs_health-last_completed_partial.
     IF rs_health-last_completed_run_available = abap_true
         AND rs_health-last_completed_requested > 0.
-      rs_health-last_completed_shortage_pct_available = abap_true.
+      rs_health-last_comp_shortage_pct_avail = abap_true.
       rs_health-last_completed_shortage_pct =
         rs_health-last_completed_shortage * 100
         / rs_health-last_completed_requested.
     ENDIF.
     IF rs_health-last_completed_run_available = abap_true
         AND rs_health-last_completed_demand > 0.
-      rs_health-last_completed_line_rates_available = abap_true.
+      rs_health-last_comp_line_rates_available = abap_true.
       rs_health-last_completed_full_line_pct =
         rs_health-last_completed_full * 100
         / rs_health-last_completed_demand.
-      rs_health-last_completed_partial_line_pct =
+      rs_health-last_comp_partial_line_pct =
         rs_health-last_completed_partial * 100
         / rs_health-last_completed_demand.
-      rs_health-last_completed_unalloc_line_pct =
+      rs_health-last_comp_unalloc_line_pct =
         rs_health-last_completed_unalloc * 100
         / rs_health-last_completed_demand.
     ENDIF.
     rs_health-available_stock_context = is_summary-available_context.
-    rs_health-available_stock_context_available =
+    rs_health-avail_stock_context_avail =
       is_summary-available_context_ok.
     rs_health-mixed_available_stock = is_summary-mixed_available.
       rs_health-last_duration_available = xsdbool(
@@ -803,86 +803,86 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-duration_threshold_active = abap_true
       AND rs_health-last_duration_available = abap_true
       AND is_summary-last_duration_seconds > iv_max_last_duration ).
-    rs_health-last_completed_duration_threshold_active = xsdbool(
+    rs_health-last_comp_duration_limit_on = xsdbool(
       iv_max_last_completed_duration > 0 ).
-    rs_health-last_completed_duration_threshold =
+    rs_health-last_comp_duration_limit =
       iv_max_last_completed_duration.
-    rs_health-last_completed_duration_above_threshold = xsdbool(
-      rs_health-last_completed_duration_threshold_active = abap_true
+    rs_health-last_comp_duration_above_limit = xsdbool(
+      rs_health-last_comp_duration_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_duration
         > iv_max_last_completed_duration ).
-    rs_health-last_completed_duration_min_threshold_active = xsdbool(
+    rs_health-last_comp_dur_min_limit_on = xsdbool(
       iv_min_last_completed_duration > 0 ).
-    rs_health-last_completed_duration_min_threshold =
+    rs_health-last_comp_duration_min_limit =
       iv_min_last_completed_duration.
-    rs_health-last_completed_duration_below_threshold = xsdbool(
-      rs_health-last_completed_duration_min_threshold_active = abap_true
+    rs_health-last_comp_duration_below_limit = xsdbool(
+      rs_health-last_comp_dur_min_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_duration > 0
       AND is_summary-last_completed_duration
         < iv_min_last_completed_duration ).
-    rs_health-last_completed_success_required_active = xsdbool(
+    rs_health-last_comp_success_required_on = xsdbool(
       iv_require_last_completed_success = abap_true ).
     rs_health-last_completed_success_breach = xsdbool(
-      rs_health-last_completed_success_required_active = abap_true
+      rs_health-last_comp_success_required_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_status <> 'S' ).
-    rs_health-last_completed_success_streak_threshold_active = xsdbool(
+    rs_health-last_comp_succ_streak_limit_on = xsdbool(
       iv_min_last_completed_success_streak > 0 ).
-    rs_health-last_completed_success_streak_threshold =
+    rs_health-last_comp_success_streak_limit =
       iv_min_last_completed_success_streak.
-    rs_health-last_completed_success_streak_below_threshold = xsdbool(
-      rs_health-last_completed_success_streak_threshold_active = abap_true
+    rs_health-last_cmp_succ_streak_below_lim = xsdbool(
+      rs_health-last_comp_succ_streak_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_success_streak
         < iv_min_last_completed_success_streak ).
-    rs_health-last_completed_non_success_threshold_active = xsdbool(
+    rs_health-last_comp_non_success_limit_on = xsdbool(
       iv_max_last_completed_non_success_streak > 0 ).
-    rs_health-last_completed_non_success_threshold =
+    rs_health-last_comp_non_success_limit =
       iv_max_last_completed_non_success_streak.
-    rs_health-last_completed_non_success_above_threshold = xsdbool(
-      rs_health-last_completed_non_success_threshold_active = abap_true
+    rs_health-last_comp_non_succ_above_limit = xsdbool(
+      rs_health-last_comp_non_success_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_non_success_streak
         > iv_max_last_completed_non_success_streak ).
-    rs_health-last_completed_allocated_count_threshold_active = xsdbool(
+    rs_health-last_comp_alloc_count_limit_on = xsdbool(
       iv_min_last_completed_alloc_lines > 0 ).
-    rs_health-last_completed_allocated_count_threshold =
+    rs_health-last_comp_alloc_count_limit =
       iv_min_last_completed_alloc_lines.
-    rs_health-last_completed_allocated_count_below_threshold = xsdbool(
-      rs_health-last_completed_allocated_count_threshold_active = abap_true
+    rs_health-last_comp_alloc_cnt_below_lim = xsdbool(
+      rs_health-last_comp_alloc_count_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_demand > 0
-      AND rs_health-last_completed_allocated_line_count
+      AND rs_health-last_comp_allocated_line_count
         < iv_min_last_completed_alloc_lines ).
-    rs_health-last_completed_alloc_count_max_threshold_active = xsdbool(
+    rs_health-last_comp_alloc_cnt_max_lim_on = xsdbool(
       iv_max_last_completed_alloc_lines > 0 ).
-    rs_health-last_completed_alloc_count_max_threshold =
+    rs_health-last_comp_alloc_cnt_max_limit =
       iv_max_last_completed_alloc_lines.
-    rs_health-last_completed_alloc_count_max_above_threshold = xsdbool(
-      rs_health-last_completed_alloc_count_max_threshold_active = abap_true
+    rs_health-last_comp_acnt_max_above_limit = xsdbool(
+      rs_health-last_comp_alloc_cnt_max_lim_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND is_summary-last_completed_demand > 0
-      AND rs_health-last_completed_allocated_line_count
+      AND rs_health-last_comp_allocated_line_count
         > iv_max_last_completed_alloc_lines ).
-    rs_health-average_duration_threshold_active = xsdbool(      iv_max_average_duration > 0 ).
+    rs_health-average_duration_limit_active = xsdbool(      iv_max_average_duration > 0 ).
     rs_health-average_duration_threshold = iv_max_average_duration.
-    rs_health-average_duration_above_threshold = xsdbool(
-      rs_health-average_duration_threshold_active = abap_true
+    rs_health-average_duration_above_limit = xsdbool(
+      rs_health-average_duration_limit_active = abap_true
       AND rs_health-duration_metrics_available = abap_true
       AND is_summary-average_duration_seconds > iv_max_average_duration ).
-    rs_health-maximum_duration_threshold_active = xsdbool(      iv_max_completed_duration > 0 ).
+    rs_health-maximum_duration_limit_active = xsdbool(      iv_max_completed_duration > 0 ).
     rs_health-maximum_duration_threshold = iv_max_completed_duration.
-    rs_health-maximum_duration_above_threshold = xsdbool(
-      rs_health-maximum_duration_threshold_active = abap_true
+    rs_health-maximum_duration_above_limit = xsdbool(
+      rs_health-maximum_duration_limit_active = abap_true
       AND rs_health-duration_metrics_available = abap_true
       AND is_summary-maximum_duration_seconds > iv_max_completed_duration ).
-    rs_health-duration_count_threshold_active = xsdbool(
+    rs_health-duration_count_limit_active = xsdbool(
       iv_min_duration_count > 0 ).
     rs_health-duration_count_threshold = iv_min_duration_count.
     rs_health-duration_count_below_threshold = xsdbool(
-      rs_health-duration_count_threshold_active = abap_true
+      rs_health-duration_count_limit_active = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-completed_duration_runs < iv_min_duration_count ).
     rs_health-run_count_threshold_active = xsdbool(
@@ -892,11 +892,11 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-run_count_threshold_active = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-total_runs < iv_min_run_count ).
-    rs_health-deadline_count_threshold_active = xsdbool(
+    rs_health-deadline_count_limit_active = xsdbool(
       iv_min_deadline_count > 0 ).
     rs_health-deadline_count_threshold = iv_min_deadline_count.
     rs_health-deadline_count_below_threshold = xsdbool(
-      rs_health-deadline_count_threshold_active = abap_true
+      rs_health-deadline_count_limit_active = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-deadline_count < iv_min_deadline_count ).
     rs_health-deadline_mix_threshold_active = xsdbool(
@@ -913,18 +913,18 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-overdue_mix_threshold_active = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-overdue_mix_pct > iv_max_overdue_mix ).
-    rs_health-current_deadline_mix_threshold_active = xsdbool(
+    rs_health-current_deadline_mix_limit_on = xsdbool(
       iv_max_current_deadline_mix > 0 ).
     rs_health-current_deadline_mix_threshold = iv_max_current_deadline_mix.
-    rs_health-current_deadline_mix_above_threshold = xsdbool(
-      rs_health-current_deadline_mix_threshold_active = abap_true
+    rs_health-curr_deadline_mix_above_limit = xsdbool(
+      rs_health-current_deadline_mix_limit_on = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-current_deadline_mix_pct > iv_max_current_deadline_mix ).
-    rs_health-future_deadline_mix_threshold_active = xsdbool(
+    rs_health-future_deadline_mix_limit_on = xsdbool(
       iv_min_future_deadline_mix > 0 ).
     rs_health-future_deadline_mix_threshold = iv_min_future_deadline_mix.
-    rs_health-future_deadline_mix_below_threshold = xsdbool(
-      rs_health-future_deadline_mix_threshold_active = abap_true
+    rs_health-fut_deadline_mix_below_limit = xsdbool(
+      rs_health-future_deadline_mix_limit_on = abap_true
       AND is_summary-total_runs > 0
       AND is_summary-future_deadline_mix_pct < iv_min_future_deadline_mix ).
     rs_health-mixed_policy_warning_active = xsdbool(
@@ -976,10 +976,10 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-full_line_threshold_active = abap_true
       AND is_summary-demand_count > 0
       AND rs_health-full_line_pct < iv_min_full_line_rate ).
-    rs_health-unallocated_line_threshold_active = xsdbool(      iv_max_unalloc_line_rate > 0 ).
+    rs_health-unallocated_line_limit_active = xsdbool(      iv_max_unalloc_line_rate > 0 ).
     rs_health-unallocated_line_threshold = iv_max_unalloc_line_rate.
-    rs_health-unallocated_line_above_threshold = xsdbool(
-      rs_health-unallocated_line_threshold_active = abap_true
+    rs_health-unallocated_line_above_limit = xsdbool(
+      rs_health-unallocated_line_limit_active = abap_true
       AND is_summary-demand_count > 0
       AND rs_health-unallocated_line_pct > iv_max_unalloc_line_rate ).
     rs_health-partial_line_threshold_active = xsdbool(      iv_max_partial_line_rate > 0 ).
@@ -1005,190 +1005,190 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
     rs_health-running_count_above_threshold = xsdbool(
       rs_health-running_count_threshold_active = abap_true
       AND is_summary-running_runs > iv_max_running_count ).
-    rs_health-shortage_quantity_threshold_active = xsdbool(
+    rs_health-shortage_quantity_limit_active = xsdbool(
       iv_max_shortage_quantity > 0 ).
     rs_health-shortage_quantity_threshold = iv_max_shortage_quantity.
-    rs_health-shortage_quantity_above_threshold = xsdbool(
-      rs_health-shortage_quantity_threshold_active = abap_true
+    rs_health-shortage_quantity_above_limit = xsdbool(
+      rs_health-shortage_quantity_limit_active = abap_true
       AND rs_health-shortage_available = abap_true
       AND is_summary-shortage > iv_max_shortage_quantity ).
-    rs_health-last_shortage_qty_threshold_active = xsdbool(
+    rs_health-last_shortage_qty_limit_active = xsdbool(
       iv_max_last_shortage_qty > 0 ).
     rs_health-last_shortage_qty_threshold = iv_max_last_shortage_qty.
-    rs_health-last_shortage_qty_above_threshold = xsdbool(
-      rs_health-last_shortage_qty_threshold_active = abap_true
+    rs_health-last_shortage_qty_above_limit = xsdbool(
+      rs_health-last_shortage_qty_limit_active = abap_true
       AND rs_health-last_run_available = abap_true
       AND is_summary-last_requested > 0
       AND is_summary-last_shortage > iv_max_last_shortage_qty ).
-    rs_health-last_shortage_pct_threshold_active = xsdbool(
+    rs_health-last_shortage_pct_limit_active = xsdbool(
       iv_max_last_shortage_pct > 0 ).
     rs_health-last_shortage_pct_threshold = iv_max_last_shortage_pct.
-    rs_health-last_shortage_pct_above_threshold = xsdbool(
-      rs_health-last_shortage_pct_threshold_active = abap_true
+    rs_health-last_shortage_pct_above_limit = xsdbool(
+      rs_health-last_shortage_pct_limit_active = abap_true
       AND rs_health-last_shortage_pct_available = abap_true
       AND rs_health-last_shortage_pct > iv_max_last_shortage_pct ).
-    rs_health-last_completed_coverage_threshold_active = xsdbool(
+    rs_health-last_comp_coverage_limit_on = xsdbool(
       iv_min_last_completed_coverage > 0 ).
-    rs_health-last_completed_coverage_threshold = iv_min_last_completed_coverage.
-    rs_health-last_completed_coverage_below_threshold = xsdbool(
-      rs_health-last_completed_coverage_threshold_active = abap_true
+    rs_health-last_comp_coverage_limit = iv_min_last_completed_coverage.
+    rs_health-last_comp_coverage_below_limit = xsdbool(
+      rs_health-last_comp_coverage_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_coverage < iv_min_last_completed_coverage ).
-    rs_health-last_completed_coverage_max_threshold_active = xsdbool(
+    rs_health-last_comp_cov_max_limit_on = xsdbool(
       iv_max_last_completed_coverage > 0 ).
-    rs_health-last_completed_coverage_max_threshold =
+    rs_health-last_comp_coverage_max_limit =
       iv_max_last_completed_coverage.
-    rs_health-last_completed_coverage_above_threshold = xsdbool(
-      rs_health-last_completed_coverage_max_threshold_active = abap_true
+    rs_health-last_comp_coverage_above_limit = xsdbool(
+      rs_health-last_comp_cov_max_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_coverage
         > iv_max_last_completed_coverage ).
-    rs_health-last_completed_shortage_pct_threshold_active = xsdbool(
+    rs_health-last_comp_short_pct_limit_on = xsdbool(
       iv_max_last_completed_shortage_pct > 0 ).
-    rs_health-last_completed_shortage_pct_threshold =
+    rs_health-last_comp_shortage_pct_limit =
       iv_max_last_completed_shortage_pct.
-    rs_health-last_completed_shortage_pct_above_threshold = xsdbool(
-      rs_health-last_completed_shortage_pct_threshold_active = abap_true
-      AND rs_health-last_completed_shortage_pct_available = abap_true
+    rs_health-last_comp_short_pct_above_lim = xsdbool(
+      rs_health-last_comp_short_pct_limit_on = abap_true
+      AND rs_health-last_comp_shortage_pct_avail = abap_true
       AND rs_health-last_completed_shortage_pct > iv_max_last_completed_shortage_pct ).
-    rs_health-last_completed_shortage_qty_threshold_active = xsdbool(
+    rs_health-last_comp_short_qty_limit_on = xsdbool(
       iv_max_last_completed_shortage_qty > 0 ).
-    rs_health-last_completed_shortage_qty_threshold =
+    rs_health-last_comp_shortage_qty_limit =
       iv_max_last_completed_shortage_qty.
-    rs_health-last_completed_shortage_qty_above_threshold = xsdbool(
-      rs_health-last_completed_shortage_qty_threshold_active = abap_true
+    rs_health-last_comp_short_qty_above_lim = xsdbool(
+      rs_health-last_comp_short_qty_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_shortage
         > iv_max_last_completed_shortage_qty ).
-    rs_health-last_completed_requested_threshold_active = xsdbool(
+    rs_health-last_comp_requested_limit_on = xsdbool(
       iv_max_last_completed_requested > 0 ).
-    rs_health-last_completed_requested_threshold =
+    rs_health-last_comp_requested_limit =
       iv_max_last_completed_requested.
-    rs_health-last_completed_requested_above_threshold = xsdbool(
-      rs_health-last_completed_requested_threshold_active = abap_true
+    rs_health-last_comp_req_above_limit = xsdbool(
+      rs_health-last_comp_requested_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_requested
         > iv_max_last_completed_requested ).
-    rs_health-last_completed_requested_min_threshold_active = xsdbool(
+    rs_health-last_comp_req_min_limit_on = xsdbool(
       iv_min_last_completed_requested > 0 ).
-    rs_health-last_completed_requested_min_threshold =
+    rs_health-last_comp_requested_min_limit =
       iv_min_last_completed_requested.
-    rs_health-last_completed_requested_below_threshold = xsdbool(
-      rs_health-last_completed_requested_min_threshold_active = abap_true
+    rs_health-last_comp_req_below_limit = xsdbool(
+      rs_health-last_comp_req_min_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_requested
         < iv_min_last_completed_requested ).
-    rs_health-last_completed_allocated_threshold_active = xsdbool(
+    rs_health-last_comp_allocated_limit_on = xsdbool(
       iv_min_last_completed_allocated > 0 ).
-    rs_health-last_completed_allocated_threshold =
+    rs_health-last_comp_allocated_limit =
       iv_min_last_completed_allocated.
-    rs_health-last_completed_allocated_below_threshold = xsdbool(
-      rs_health-last_completed_allocated_threshold_active = abap_true
+    rs_health-last_comp_alloc_below_limit = xsdbool(
+      rs_health-last_comp_allocated_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_allocated
         < iv_min_last_completed_allocated ).
-    rs_health-last_completed_allocated_max_threshold_active = xsdbool(
+    rs_health-last_comp_alloc_max_limit_on = xsdbool(
       iv_max_last_completed_allocated > 0 ).
-    rs_health-last_completed_allocated_max_threshold =
+    rs_health-last_comp_allocated_max_limit =
       iv_max_last_completed_allocated.
-    rs_health-last_completed_allocated_above_threshold = xsdbool(
-      rs_health-last_completed_allocated_max_threshold_active = abap_true
+    rs_health-last_comp_alloc_above_limit = xsdbool(
+      rs_health-last_comp_alloc_max_limit_on = abap_true
       AND rs_health-last_completed_run_available = abap_true
       AND rs_health-last_completed_requested > 0
       AND rs_health-last_completed_allocated
         > iv_max_last_completed_allocated ).
-    rs_health-last_completed_avail_stock_min_threshold_active = xsdbool(
+    rs_health-last_comp_avail_stk_min_lim_on = xsdbool(
       iv_min_last_completed_avail_stock > 0 ).
-    rs_health-last_completed_avail_stock_min_threshold =
+    rs_health-last_comp_avail_stk_min_limit =
       iv_min_last_completed_avail_stock.
-    rs_health-last_completed_avail_stock_below_threshold = xsdbool(
-      rs_health-last_completed_avail_stock_min_threshold_active = abap_true
-      AND rs_health-last_completed_available_stock_available = abap_true
+    rs_health-last_comp_avail_stk_below_lim = xsdbool(
+      rs_health-last_comp_avail_stk_min_lim_on = abap_true
+      AND rs_health-last_comp_avail_stock_avail = abap_true
       AND rs_health-last_completed_available_stock
         < iv_min_last_completed_avail_stock ).
-    rs_health-last_completed_avail_stock_max_threshold_active = xsdbool(
+    rs_health-last_comp_avail_stk_max_lim_on = xsdbool(
       iv_max_last_completed_avail_stock > 0 ).
-    rs_health-last_completed_avail_stock_max_threshold =
+    rs_health-last_comp_avail_stk_max_limit =
       iv_max_last_completed_avail_stock.
-    rs_health-last_completed_avail_stock_above_threshold = xsdbool(
-      rs_health-last_completed_avail_stock_max_threshold_active = abap_true
-      AND rs_health-last_completed_available_stock_available = abap_true
+    rs_health-last_comp_avail_stk_above_lim = xsdbool(
+      rs_health-last_comp_avail_stk_max_lim_on = abap_true
+      AND rs_health-last_comp_avail_stock_avail = abap_true
       AND rs_health-last_completed_available_stock
         > iv_max_last_completed_avail_stock ).
-    rs_health-last_completed_full_line_threshold_active = xsdbool(
+    rs_health-last_comp_full_line_limit_on = xsdbool(
       iv_min_last_completed_full_line_rate > 0 ).
-    rs_health-last_completed_full_line_threshold =
+    rs_health-last_comp_full_line_limit =
       iv_min_last_completed_full_line_rate.
-    rs_health-last_completed_full_line_below_threshold = xsdbool(
-      rs_health-last_completed_full_line_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_full_ln_below_limit = xsdbool(
+      rs_health-last_comp_full_line_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_full_line_pct
         < iv_min_last_completed_full_line_rate ).
-    rs_health-last_completed_full_line_max_threshold_active = xsdbool(
+    rs_health-last_comp_full_ln_max_limit_on = xsdbool(
       iv_max_last_completed_full_line_rate > 0 ).
-    rs_health-last_completed_full_line_max_threshold =
+    rs_health-last_comp_full_line_max_limit =
       iv_max_last_completed_full_line_rate.
-    rs_health-last_completed_full_line_above_threshold = xsdbool(
-      rs_health-last_completed_full_line_max_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_full_ln_above_limit = xsdbool(
+      rs_health-last_comp_full_ln_max_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_full_line_pct
         > iv_max_last_completed_full_line_rate ).
-    rs_health-last_completed_unalloc_line_threshold_active = xsdbool(
+    rs_health-last_comp_unalloc_ln_limit_on = xsdbool(
       iv_max_last_completed_unalloc_line_rate > 0 ).
-    rs_health-last_completed_unalloc_line_threshold =
+    rs_health-last_comp_unalloc_line_limit =
       iv_max_last_completed_unalloc_line_rate.
-    rs_health-last_completed_unalloc_line_above_threshold = xsdbool(
-      rs_health-last_completed_unalloc_line_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
-      AND rs_health-last_completed_unalloc_line_pct
+    rs_health-last_comp_unalloc_ln_above_lim = xsdbool(
+      rs_health-last_comp_unalloc_ln_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
+      AND rs_health-last_comp_unalloc_line_pct
         > iv_max_last_completed_unalloc_line_rate ).
-    rs_health-last_completed_partial_line_threshold_active = xsdbool(
+    rs_health-last_comp_part_line_limit_on = xsdbool(
       iv_max_last_completed_partial_line_rate > 0 ).
-    rs_health-last_completed_partial_line_threshold =
+    rs_health-last_comp_partial_line_limit =
       iv_max_last_completed_partial_line_rate.
-    rs_health-last_completed_partial_line_above_threshold = xsdbool(
-      rs_health-last_completed_partial_line_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
-      AND rs_health-last_completed_partial_line_pct
+    rs_health-last_comp_part_ln_above_limit = xsdbool(
+      rs_health-last_comp_part_line_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
+      AND rs_health-last_comp_partial_line_pct
         > iv_max_last_completed_partial_line_rate ).
-    rs_health-last_completed_full_count_threshold_active = xsdbool(
+    rs_health-last_comp_full_count_limit_on = xsdbool(
       iv_min_last_completed_full_line_count > 0 ).
-    rs_health-last_completed_full_count_threshold =
+    rs_health-last_comp_full_count_limit =
       iv_min_last_completed_full_line_count.
-    rs_health-last_completed_full_count_below_threshold = xsdbool(
-      rs_health-last_completed_full_count_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_full_cnt_below_limit = xsdbool(
+      rs_health-last_comp_full_count_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_full < iv_min_last_completed_full_line_count ).
-    rs_health-last_completed_unalloc_count_threshold_active = xsdbool(
+    rs_health-last_comp_unalloc_cnt_limit_on = xsdbool(
       iv_max_last_completed_unalloc_line_count > 0 ).
-    rs_health-last_completed_unalloc_count_threshold =
+    rs_health-last_comp_unalloc_count_limit =
       iv_max_last_completed_unalloc_line_count.
-    rs_health-last_completed_unalloc_count_above_threshold = xsdbool(
-      rs_health-last_completed_unalloc_count_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_unalloc_cnt_over_lim = xsdbool(
+      rs_health-last_comp_unalloc_cnt_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_unalloc
         > iv_max_last_completed_unalloc_line_count ).
-    rs_health-last_completed_partial_count_threshold_active = xsdbool(
+    rs_health-last_comp_partial_cnt_limit_on = xsdbool(
       iv_max_last_completed_partial_line_count > 0 ).
-    rs_health-last_completed_partial_count_threshold =
+    rs_health-last_comp_partial_count_limit =
       iv_max_last_completed_partial_line_count.
-    rs_health-last_completed_partial_count_above_threshold = xsdbool(
-      rs_health-last_completed_partial_count_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_part_cnt_above_limit = xsdbool(
+      rs_health-last_comp_partial_cnt_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_partial
         > iv_max_last_completed_partial_line_count ).
-    rs_health-last_completed_shortage_count_threshold_active = xsdbool(
+    rs_health-last_comp_short_cnt_limit_on = xsdbool(
       iv_max_last_completed_shortage_line_count > 0 ).
-    rs_health-last_completed_shortage_count_threshold =
+    rs_health-last_comp_shortage_count_limit =
       iv_max_last_completed_shortage_line_count.
-    rs_health-last_completed_shortage_count_above_threshold = xsdbool(
-      rs_health-last_completed_shortage_count_threshold_active = abap_true
-      AND rs_health-last_completed_line_rates_available = abap_true
+    rs_health-last_comp_short_cnt_above_lim = xsdbool(
+      rs_health-last_comp_short_cnt_limit_on = abap_true
+      AND rs_health-last_comp_line_rates_available = abap_true
       AND rs_health-last_completed_partial + rs_health-last_completed_unalloc
         > iv_max_last_completed_shortage_line_count ).
     rs_health-last_age_threshold_active = xsdbool(
@@ -1198,49 +1198,49 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-last_age_threshold_active = abap_true
       AND rs_health-last_age_available = abap_true
       AND rs_health-last_age_seconds > iv_max_last_age ).
-    rs_health-last_completed_deadline_age_threshold_active = xsdbool(
+    rs_health-last_comp_ddl_age_limit_on = xsdbool(
       iv_max_last_completed_deadline_age > 0 ).
-    rs_health-last_completed_deadline_age_threshold =
+    rs_health-last_comp_deadline_age_limit =
       iv_max_last_completed_deadline_age.
-    rs_health-last_completed_deadline_age_above_threshold = xsdbool(
-      rs_health-last_completed_deadline_age_threshold_active = abap_true
+    rs_health-last_comp_ddl_age_above_limit = xsdbool(
+      rs_health-last_comp_ddl_age_limit_on = abap_true
       AND is_summary-last_completed_deadline_age_available = abap_true
       AND is_summary-last_completed_deadline_age_days
         > iv_max_last_completed_deadline_age ).
-    rs_health-last_completed_demand_count_threshold_active = xsdbool(
+    rs_health-last_comp_demand_cnt_limit_on = xsdbool(
       iv_max_last_completed_demand_count > 0 ).
-    rs_health-last_completed_demand_count_threshold =
+    rs_health-last_comp_demand_count_limit =
       iv_max_last_completed_demand_count.
-    rs_health-last_completed_demand_count_above_threshold = xsdbool(
-      rs_health-last_completed_demand_count_threshold_active = abap_true
+    rs_health-last_comp_demand_cnt_above_lim = xsdbool(
+      rs_health-last_comp_demand_cnt_limit_on = abap_true
       AND is_summary-last_completed_run_id IS NOT INITIAL
       AND is_summary-last_completed_demand
         > iv_max_last_completed_demand_count ).
-    rs_health-last_completed_demand_count_min_threshold_active = xsdbool(
+    rs_health-last_cmp_demand_cnt_min_lim_on = xsdbool(
       iv_min_last_completed_demand_count > 0 ).
-    rs_health-last_completed_demand_count_min_threshold =
+    rs_health-last_comp_demand_cnt_min_limit =
       iv_min_last_completed_demand_count.
-    rs_health-last_completed_demand_count_below_threshold = xsdbool(
-      rs_health-last_completed_demand_count_min_threshold_active = abap_true
+    rs_health-last_comp_demand_cnt_below_lim = xsdbool(
+      rs_health-last_cmp_demand_cnt_min_lim_on = abap_true
       AND is_summary-last_completed_run_id IS NOT INITIAL
       AND is_summary-last_completed_demand > 0
       AND is_summary-last_completed_demand
         < iv_min_last_completed_demand_count ).
-    rs_health-avail_stock_min_threshold_active = xsdbool(
+    rs_health-avail_stock_min_limit_active = xsdbool(
       iv_min_available_stock > 0 ).
     rs_health-avail_stock_min_threshold = iv_min_available_stock.
     rs_health-avail_stock_below_threshold = xsdbool(
-      rs_health-avail_stock_min_threshold_active = abap_true
+      rs_health-avail_stock_min_limit_active = abap_true
       AND is_summary-total_runs > 0
-      AND rs_health-available_stock_context_available = abap_true
+      AND rs_health-avail_stock_context_avail = abap_true
       AND rs_health-available_stock_context < iv_min_available_stock ).
-    rs_health-avail_stock_max_threshold_active = xsdbool(
+    rs_health-avail_stock_max_limit_active = xsdbool(
       iv_max_available_stock > 0 ).
     rs_health-avail_stock_max_threshold = iv_max_available_stock.
     rs_health-avail_stock_above_threshold = xsdbool(
-      rs_health-avail_stock_max_threshold_active = abap_true
+      rs_health-avail_stock_max_limit_active = abap_true
       AND is_summary-total_runs > 0
-      AND rs_health-available_stock_context_available = abap_true
+      AND rs_health-avail_stock_context_avail = abap_true
       AND rs_health-available_stock_context > iv_max_available_stock ).
     IF rs_health-shortage_available = abap_true.
       rs_health-requested = is_summary-requested.
@@ -1376,7 +1376,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
         CONCATENATE rs_health-threshold_breaches 'duration'          INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_duration_above_threshold = abap_true.
+    IF rs_health-last_comp_duration_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_duration'.
@@ -1386,7 +1386,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_duration_below_threshold = abap_true.
+    IF rs_health-last_comp_duration_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_duration_min'.
@@ -1406,7 +1406,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_success_streak_below_threshold = abap_true.
+    IF rs_health-last_cmp_succ_streak_below_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_success_streak'.
@@ -1416,7 +1416,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_non_success_above_threshold = abap_true.
+    IF rs_health-last_comp_non_succ_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_non_success_streak'.
@@ -1426,7 +1426,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_allocated_count_below_threshold = abap_true.
+    IF rs_health-last_comp_alloc_cnt_below_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_allocated_count'.
@@ -1436,7 +1436,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_alloc_count_max_above_threshold = abap_true.
+    IF rs_health-last_comp_acnt_max_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_allocated_count_max'.
@@ -1446,7 +1446,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-average_duration_above_threshold = abap_true.
+    IF rs_health-average_duration_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'average_duration'.
@@ -1455,7 +1455,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-maximum_duration_above_threshold = abap_true.
+    IF rs_health-maximum_duration_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'maximum_duration'.
@@ -1509,7 +1509,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-current_deadline_mix_above_threshold = abap_true.
+    IF rs_health-curr_deadline_mix_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'current_deadline_mix'.
@@ -1518,7 +1518,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-future_deadline_mix_below_threshold = abap_true.
+    IF rs_health-fut_deadline_mix_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'future_deadline_mix'.
@@ -1581,7 +1581,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-shortage_quantity_above_threshold = abap_true.
+    IF rs_health-shortage_quantity_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'shortage_quantity'.
@@ -1599,7 +1599,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-unallocated_line_above_threshold = abap_true.
+    IF rs_health-unallocated_line_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'unallocated_line'.
@@ -1635,7 +1635,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_shortage_pct_above_threshold = abap_true.
+    IF rs_health-last_shortage_pct_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_shortage_pct'.
@@ -1653,7 +1653,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_deadline_age_above_threshold = abap_true.
+    IF rs_health-last_comp_ddl_age_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_deadline_age'.
@@ -1663,7 +1663,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_demand_count_above_threshold = abap_true.
+    IF rs_health-last_comp_demand_cnt_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_demand_count'.
@@ -1673,7 +1673,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_demand_count_below_threshold = abap_true.
+    IF rs_health-last_comp_demand_cnt_below_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_demand_count_min'.
@@ -1683,7 +1683,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_coverage_below_threshold = abap_true.
+    IF rs_health-last_comp_coverage_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_coverage'.
@@ -1692,7 +1692,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_shortage_pct_above_threshold = abap_true.
+    IF rs_health-last_comp_short_pct_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_shortage_pct'.
@@ -1702,7 +1702,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_shortage_qty_above_threshold = abap_true.
+    IF rs_health-last_comp_short_qty_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_shortage_quantity'.
@@ -1712,7 +1712,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_allocated_below_threshold = abap_true.
+    IF rs_health-last_comp_alloc_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_allocated'.
@@ -1722,7 +1722,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_requested_above_threshold = abap_true.
+    IF rs_health-last_comp_req_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_requested'.
@@ -1732,7 +1732,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_requested_below_threshold = abap_true.
+    IF rs_health-last_comp_req_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_requested_min'.
@@ -1742,7 +1742,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_allocated_above_threshold = abap_true.
+    IF rs_health-last_comp_alloc_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_allocated_max'.
@@ -1752,7 +1752,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_coverage_above_threshold = abap_true.
+    IF rs_health-last_comp_coverage_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_coverage_max'.
@@ -1762,7 +1762,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_avail_stock_below_threshold = abap_true.
+    IF rs_health-last_comp_avail_stk_below_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_available_stock_min'.
@@ -1772,7 +1772,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_avail_stock_above_threshold = abap_true.
+    IF rs_health-last_comp_avail_stk_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_available_stock_max'.
@@ -1782,7 +1782,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_full_line_below_threshold = abap_true.
+    IF rs_health-last_comp_full_ln_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_full_line'.
@@ -1792,7 +1792,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_full_line_above_threshold = abap_true.
+    IF rs_health-last_comp_full_ln_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_full_line_max'.
@@ -1802,7 +1802,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_unalloc_line_above_threshold = abap_true.
+    IF rs_health-last_comp_unalloc_ln_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_unallocated_line'.
@@ -1812,7 +1812,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_partial_line_above_threshold = abap_true.
+    IF rs_health-last_comp_part_ln_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_partial_line'.
@@ -1822,7 +1822,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_full_count_below_threshold = abap_true.
+    IF rs_health-last_comp_full_cnt_below_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_full_count'.
@@ -1832,7 +1832,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_unalloc_count_above_threshold = abap_true.
+    IF rs_health-last_comp_unalloc_cnt_over_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_unallocated_count'.
@@ -1842,7 +1842,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_partial_count_above_threshold = abap_true.
+    IF rs_health-last_comp_part_cnt_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_partial_count'.
@@ -1852,7 +1852,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_completed_shortage_count_above_threshold = abap_true.
+    IF rs_health-last_comp_short_cnt_above_lim = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_completed_shortage_count'.
@@ -1862,7 +1862,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
           INTO rs_health-threshold_breaches SEPARATED BY '|'.
       ENDIF.
     ENDIF.
-    IF rs_health-last_shortage_qty_above_threshold = abap_true.
+    IF rs_health-last_shortage_qty_above_limit = abap_true.
       rs_health-threshold_breach_count += 1.
       IF rs_health-threshold_breaches IS INITIAL.
         rs_health-threshold_breaches = 'last_shortage_quantity'.
@@ -1955,15 +1955,15 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Allocation shortage is above the configured maximum'.
-    ELSEIF rs_health-shortage_quantity_above_threshold = abap_true.
+    ELSEIF rs_health-shortage_quantity_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Allocation shortage quantity is above the configured maximum'.
-    ELSEIF rs_health-last_shortage_qty_above_threshold = abap_true.
+    ELSEIF rs_health-last_shortage_qty_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest allocation shortage quantity is above the configured maximum'.
-    ELSEIF rs_health-last_shortage_pct_above_threshold = abap_true.
+    ELSEIF rs_health-last_shortage_pct_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest allocation shortage percentage is above the configured maximum'.
@@ -1971,87 +1971,87 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation age is above the configured maximum'.
-    ELSEIF rs_health-last_completed_deadline_age_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_ddl_age_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed deadline age is above the configured maximum'.
-    ELSEIF rs_health-last_completed_demand_count_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_demand_cnt_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed demand count is above the configured maximum'.
-    ELSEIF rs_health-last_completed_demand_count_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_demand_cnt_below_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed demand count is below the configured minimum'.
-    ELSEIF rs_health-last_completed_coverage_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_coverage_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation coverage is below the configured minimum'.
-    ELSEIF rs_health-last_completed_shortage_pct_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_short_pct_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation shortage percentage is above the configured maximum'.
-    ELSEIF rs_health-last_completed_shortage_qty_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_short_qty_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation shortage quantity is above the configured maximum'.
-    ELSEIF rs_health-last_completed_allocated_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_alloc_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocated quantity is below the configured minimum'.
-    ELSEIF rs_health-last_completed_requested_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_req_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed requested quantity is above the configured maximum'.
-    ELSEIF rs_health-last_completed_requested_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_req_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed requested quantity is below the configured minimum'.
-    ELSEIF rs_health-last_completed_allocated_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_alloc_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocated quantity is above the configured maximum'.
-    ELSEIF rs_health-last_completed_coverage_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_coverage_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation coverage is above the configured maximum'.
-    ELSEIF rs_health-last_completed_avail_stock_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_avail_stk_below_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed available stock is below the configured minimum'.
-    ELSEIF rs_health-last_completed_avail_stock_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_avail_stk_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed available stock is above the configured maximum'.
-    ELSEIF rs_health-last_completed_full_line_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_full_ln_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed full-line rate is below the configured minimum'.
-    ELSEIF rs_health-last_completed_full_line_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_full_ln_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed full-line rate is above the configured maximum'.
-    ELSEIF rs_health-last_completed_unalloc_line_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_unalloc_ln_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed unallocated-line rate is above the configured maximum'.
-    ELSEIF rs_health-last_completed_partial_line_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_part_ln_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed partial-line rate is above the configured maximum'.
-    ELSEIF rs_health-last_completed_full_count_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_full_cnt_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed full-line count is below the configured minimum'.
-    ELSEIF rs_health-last_completed_unalloc_count_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_unalloc_cnt_over_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed unallocated-line count is above the configured maximum'.
-    ELSEIF rs_health-last_completed_partial_count_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_part_cnt_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed partial-line count is above the configured maximum'.
-    ELSEIF rs_health-last_completed_shortage_count_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_short_cnt_above_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed shortage-line count is above the configured maximum'.
@@ -2067,11 +2067,11 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest allocation duration is above the configured maximum'.
-    ELSEIF rs_health-last_completed_duration_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_duration_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation duration is above the configured maximum'.
-    ELSEIF rs_health-last_completed_duration_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_duration_below_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation duration is below the configured minimum'.
@@ -2079,27 +2079,27 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation did not succeed'.
-    ELSEIF rs_health-last_completed_success_streak_below_threshold = abap_true.
+    ELSEIF rs_health-last_cmp_succ_streak_below_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation success streak is below the configured minimum'.
-    ELSEIF rs_health-last_completed_non_success_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_non_succ_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocation non-success streak is above the configured maximum'.
-    ELSEIF rs_health-last_completed_allocated_count_below_threshold = abap_true.
+    ELSEIF rs_health-last_comp_alloc_cnt_below_lim = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocated line count is below the configured minimum'.
-    ELSEIF rs_health-last_completed_alloc_count_max_above_threshold = abap_true.
+    ELSEIF rs_health-last_comp_acnt_max_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Latest completed allocated line count is above the configured maximum'.
-    ELSEIF rs_health-average_duration_above_threshold = abap_true.
+    ELSEIF rs_health-average_duration_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Average allocation duration is above the configured maximum'.
-    ELSEIF rs_health-maximum_duration_above_threshold = abap_true.
+    ELSEIF rs_health-maximum_duration_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Maximum completed allocation duration is above the configured maximum'.
@@ -2148,7 +2148,7 @@ CLASS zcl_stock_allocation_health IMPLEMENTATION.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Full-line allocation rate is below the configured minimum'.
-    ELSEIF rs_health-unallocated_line_above_threshold = abap_true.
+    ELSEIF rs_health-unallocated_line_above_limit = abap_true.
       rs_health-status = 'WARNING'.
       rs_health-reason_code = 'THRESHOLD_BREACH'.
       rs_health-message = 'Unallocated-line rate is above the configured maximum'.

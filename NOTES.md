@@ -92,3 +92,25 @@ object in the repo — stubs included — is fully syntax checked.
 Guarded behaviour worth keeping: negative book stock (which `MARD` can carry)
 confirms nothing rather than producing negative confirmations, and `shortfall`
 is never negative.
+
+### Feature 3 — sales order demand (done)
+
+- `sap-stubs/vbak.tabl.xml`, `sap-stubs/vbap.tabl.xml`: sales document header
+  and item, cut down to the fields the allocation needs.
+- `src/zif_demand_reader.intf.abap`: where demand comes from is now swappable
+  too. Sales orders are the first source; stock transport orders and planned
+  independent requirements can be added behind the same interface.
+- `src/zcl_so_demand_reader.clas.abap`: joins `VBAP` to `VBAK` and returns open
+  demand only — items with a reason for rejection (`ABGRU`) and items of a
+  delivery-blocked order (`VBAK-LIFSK`) are filtered out in the `WHERE` clause
+  rather than in ABAP, so the database does the work.
+
+Mapping decisions:
+
+- The demand id is `VBELN` (10) followed by `POSNR` (6), which is exactly the
+  16 characters of `ty_demand_id`. It is built with offset writes rather than a
+  string template so a short document number can never shift the item number.
+- SAP's delivery priority `VBAP-LPRIO` is the allocation priority directly.
+  `LPRIO` is `NUMC 2`, so an item without a priority is `00` and would sort
+  *first*. That is the opposite of what "no priority set" should mean, so an
+  initial `LPRIO` is mapped to `99` and sorts last.

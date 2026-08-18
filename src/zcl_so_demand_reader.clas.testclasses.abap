@@ -28,24 +28,24 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     mo_cut = NEW zcl_so_demand_reader( ).
 
+    " every component is spelled out per row on purpose, see ANOMALIES.md
     lt_vbak = VALUE #(
-      mandt = sy-mandt
-      auart = 'TA'
-      vkorg = '1000'
-      ( vbeln = '0000004711' vdatu = '20260210' )
-      ( vbeln = '0000004712' vdatu = '20260115' )
-      ( vbeln = '0000004713' vdatu = '20260120' lifsk = '01' ) ).
+      ( mandt = sy-mandt vbeln = '0000004711' auart = 'TA' vkorg = '1000' vdatu = '20260210' )
+      ( mandt = sy-mandt vbeln = '0000004712' auart = 'TA' vkorg = '1000' vdatu = '20260115' )
+      ( mandt = sy-mandt vbeln = '0000004713' auart = 'TA' vkorg = '1000' vdatu = '20260120'
+        lifsk = '01' ) ).
 
     lt_vbap = VALUE #(
-      mandt = sy-mandt
-      matnr = c_matnr
-      werks = c_werks
-      vrkme = 'PC'
-      ( vbeln = '0000004711' posnr = '000010' kwmeng = '10' lprio = '02' )
-      ( vbeln = '0000004711' posnr = '000020' kwmeng = '5'  lprio = '01' abgru = '01' )
-      ( vbeln = '0000004712' posnr = '000010' kwmeng = '7'  lprio = '01' )
-      ( vbeln = '0000004713' posnr = '000010' kwmeng = '3'  lprio = '01' )
-      ( vbeln = '0000004712' posnr = '000020' kwmeng = '9'  lprio = '01' werks = '2000' ) ).
+      ( mandt = sy-mandt vbeln = '0000004711' posnr = '000010'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '10' lprio = '02' )
+      ( mandt = sy-mandt vbeln = '0000004711' posnr = '000020'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '5' lprio = '01' abgru = '01' )
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000010'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '7' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004713' posnr = '000010'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '3' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000020'
+        matnr = c_matnr werks = '2000' vrkme = 'PC' kwmeng = '9' lprio = '01' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -86,10 +86,10 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demand
       exp = VALUE zif_allocation=>ty_demand_tab(
-        matnr = c_matnr
-        werks = c_werks
-        ( demand_id = '0000004711000010' quantity = '10' req_date = '20260210' priority = '02' )
-        ( demand_id = '0000004712000010' quantity = '7'  req_date = '20260115' priority = '01' ) ) ).
+        ( demand_id = '0000004711000010' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260210' priority = '02' )
+        ( demand_id = '0000004712000010' matnr = c_matnr werks = c_werks
+          quantity = '7' req_date = '20260115' priority = '01' ) ) ).
 
   ENDMETHOD.
 

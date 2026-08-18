@@ -42,6 +42,64 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   is also not pulled in as a dependency of the CLI, so it has to be installed
   explicitly.
 
+## 2b. `VALUE` table constructor ignores a per-row override of a default
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Symptom:** in a table constructor with default assignments in front of the
+  rows, a row that assigns the same component again is ignored — the default
+  wins. Reduced case, no database involved:
+
+  ```abap
+  lt_probe = VALUE #(
+    a = 'DEF'
+    ( b = 'R1' )
+    ( b = 'R2' a = 'OVR' )
+    ( b = 'R3' ) ).
+  ```
+
+  Transpiled result: `1:DEF 2:DEF 3:DEF`. In ABAP row 2 must come out as `OVR`,
+  the row assignment overrides the default.
+- **How it surfaced:** a `VBAP` test fixture set `werks` as a default and
+  overrode it to a different plant on the last row, to prove the reader filters
+  by plant. The override was dropped, the row stayed in the selected plant, and
+  the reader looked like it was returning too many rows.
+- **Not caught by abaplint:** the syntax check accepts the construct, so nothing
+  warns about it.
+- **Workaround:** do not use default assignments in table constructors — spell
+  every component out on every row. Done in
+  `src/zcl_so_demand_reader.clas.testclasses.abap`.
+
+## 2c. `INTO TABLE @DATA()` produces no type for a join
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Symptom:** a `SELECT` with an `INNER JOIN` and an inline result table
+  transpiles to a target that throws as soon as it is touched:
+
+  ```js
+  let lt_item = (() => { throw new Error("Void type: SELECT_todo3") })();
+  ```
+
+  The `SELECT` against a single table infers its type fine; only the join form
+  fails. abaplint's syntax check passes, so this only shows up at runtime.
+- **Workaround:** declare the result structure and table type explicitly and
+  select `INTO TABLE @lt_item`. Done in `src/zcl_so_demand_reader.clas.abap` —
+  arguably the better ABAP anyway, since the join result is then a named type.
+
+## 2d. Join conditions keep ABAP tilde syntax in the generated SQL
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59, `@abaplint/database-sqlite` 2.13.40
+- **Symptom:** the left side of an `ON` condition is quoted properly but the
+  right side is passed through verbatim:
+
+  ```sql
+  ... INNER JOIN "vbak" AS header ON "header"."vbeln" = item~vbeln ...
+  ```
+
+- **Impact:** none today. The SQLite driver runs `replace(/~/g, ".")` over every
+  statement, so `item~vbeln` becomes `item.vbeln` before it reaches SQLite. The
+  transpiler output is nevertheless inconsistent, and a driver without that
+  substitution would get a syntax error.
+
 ## 3. The generated unit test runner stops at the first failure
 
 - **Versions:** `@abaplint/transpiler-cli` 2.13.59

@@ -402,3 +402,15 @@ open-abap answers every `AUTHORITY-CHECK` with "granted" and cannot be persuaded
 otherwise (ANOMALIES.md 2j), so the statement itself is covered but its refusal
 branch is not. Refusal is covered where it changes behaviour — at the service,
 against a double.
+
+### Feature 16 — installable, and checked on every push (done)
+
+`.abapgit.xml` makes the repository something abapGit can pull. The setting that
+matters is `STARTING_FOLDER = /src/`: only the custom `Z` objects are installed.
+`/sap-stubs/` is explicitly ignored, and must be — installing a stub `MARD` or a
+stub `BAPI_RESERVATION_CREATE1` into a real system would be a serious mistake,
+so the safeguard belongs in the descriptor rather than in a warning nobody
+reads.
+
+`.github/workflows/test.yml` runs `npm ci && npm test` on every push and pull
+request, which is the same lint, transpile and unit test loop used locally.

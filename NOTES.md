@@ -442,3 +442,28 @@ than a stopped run.
 The conversion is done with an explicitly typed variable rather than an inline
 `DATA()`, for the reason in ANOMALIES.md 2h. A test converts 3 boxes of 5/2 kg
 and expects `7.5`, which is what pins it.
+
+### Feature 18 — do not serve the same demand twice (done)
+
+The mirror image of feature 10, and just as wrong. Feature 10 stopped the
+*stock* being handed out twice. Nothing stopped the *demand* being served twice:
+
+> Run one: `D1` asks for 10, 10 is available, 10 is confirmed and reserved.
+> Run two: `MARD` still shows 10 because nothing has been withdrawn yet, less
+> the reservation of 10, so nothing is available. `D1` is still open in `VBAP`,
+> so it is read again as asking for 10 — and comes back with a shortfall of 10
+> even though it was fully served an hour ago.
+
+`ZCL_DEMAND_READER_NET` wraps any demand reader and takes off what earlier runs
+already confirmed for that demand line, from `ZSTOCK_ALLOC_RES`:
+
+- A line served in full drops out. It has nothing left to ask for, and leaving
+  it in with a zero quantity would only be noise in the report.
+- A line served in part asks for the remainder.
+- Only runs that actually produced a reservation count. A run that was recorded
+  but whose reservation was rejected has not served anything, and the demand is
+  still genuinely open. That is what the `RESERVATION` column added in feature 9
+  is for.
+
+Both nettings are decorators over the same two interfaces, which is why the
+engine, the strategies and the report needed no change for either.

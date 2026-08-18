@@ -20,7 +20,8 @@ START-OF-SELECTION.
   DATA(lo_report) = NEW zcl_allocation_report(
     NEW zcl_allocation_mass_run(
       io_service = zcl_allocation_service=>create_default( lo_strategy )
-      io_demand  = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) ) ).
+      io_demand  = NEW zcl_demand_reader_net(
+        NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) ) ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks = p_werks

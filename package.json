@@ -1,0 +1,19 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stock allocation solution in ABAP",
+  "scripts": {
+    "lint": "abaplint",
+    "transpile": "abap_transpile abaplint-transpile.json",
+    "unit": "node output/index.mjs",
+    "test": "npm run lint && npm run transpile && npm run unit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@abaplint/cli": "^2.120.26",
+    "@abaplint/database-sqlite": "^2.13.40",
+    "@abaplint/runtime": "^2.13.59",
+    "@abaplint/transpiler-cli": "^2.13.59"
+  }
+}

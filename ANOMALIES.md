@@ -218,6 +218,34 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
 - **Workaround:** `ORDER BY` the column and follow the `SELECT` with
   `DELETE ADJACENT DUPLICATES`. Done in `src/zcl_so_demand_reader.clas.abap`.
 
+## 2j. `AUTHORITY-CHECK` always grants, and cannot be made to refuse
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59, open-abap-core (main)
+- **Symptom:** `AUTHORITY-CHECK` transpiles to a call into a class the runtime
+  looks up by name:
+
+  ```js
+  if (abap.Classes['KERNEL_AUTHORITY_CHECK'] === undefined) throw new Error(...);
+  await abap.Classes['KERNEL_AUTHORITY_CHECK'].call({});
+  ```
+
+  open-abap-core ships that class and it sets `sy-subrc = 0` unconditionally, so
+  every check passes.
+- **Attempted workaround, did not work:** adding a project-local
+  `kernel_authority_check.clas.abap` that returns a switchable return code. The
+  core version wins; the local one is silently ignored, and — unlike the
+  duplicate `BAPIRET2` earlier — `errorOnDuplicateFilenames` did *not* report the
+  clash, so the only sign was the transpiled output still containing the core
+  body. The stub was removed again.
+- **Also worth knowing:** the transpiler passes no arguments to `call({})`, so
+  even a working kernel class could not see which authorization object or field
+  values were checked. A faithful stub is not possible today.
+- **What this repo does instead:** `ZCL_AUTHORITY_PLANT` keeps the real
+  `AUTHORITY-CHECK`, so it is syntax checked and executed, and a test covers the
+  granted path. What happens when a check *refuses* is covered at
+  `ZCL_ALLOCATION_SERVICE` against a `ZIF_ALLOCATION_AUTHORITY` double — which
+  is where refusing actually changes behaviour.
+
 ## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
 
 - **Versions:** `@abaplint/cli` 2.120.26

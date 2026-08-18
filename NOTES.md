@@ -381,3 +381,24 @@ asking the demand reader when it is empty, so the report always goes through the
 same path and the program does not branch on it. `ZCL_ALLOCATION_REPORT` prints
 one block per material and a footer counting how many were covered and how many
 failed — the number a person actually looks for after an overnight job.
+
+### Feature 15 — check the user may do this (done)
+
+Custom code that writes to SAP has to check authorizations, and nothing here did.
+
+- `ZIF_ALLOCATION_AUTHORITY` / `ZCL_AUTHORITY_PLANT`: `AUTHORITY-CHECK` on
+  `M_MATE_WRK` with activity `02` and the plant — the same object the standard
+  inventory transactions check.
+- The check sits in `ZCL_ALLOCATION_SERVICE->run`, as its first statement. That
+  is the object that writes to the database and creates reservations, so
+  guarding it means no caller can get around the check by going in a different
+  way. A test pins that a refused run writes nothing and reserves nothing.
+
+Behind an interface because the check has to be exercised in a test, and because
+a site that guards allocation with its own authorization object should be able
+to swap it without touching the service.
+
+open-abap answers every `AUTHORITY-CHECK` with "granted" and cannot be persuaded
+otherwise (ANOMALIES.md 2j), so the statement itself is covered but its refusal
+branch is not. Refusal is covered where it changes behaviour — at the service,
+against a double.

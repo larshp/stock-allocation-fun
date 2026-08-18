@@ -19,18 +19,21 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_store       | <p class="shorttext synchronized">Records the result</p>
     "! @parameter io_run_id      | <p class="shorttext synchronized">Identifies the run</p>
     "! @parameter io_reservation | <p class="shorttext synchronized">Earmarks the confirmed stock</p>
+    "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
     METHODS constructor
       IMPORTING
         io_engine      TYPE REF TO zcl_allocation_engine
         io_store       TYPE REF TO zif_allocation_store
         io_run_id      TYPE REF TO zif_run_id_supplier
-        io_reservation TYPE REF TO zif_reservation_writer.
+        io_reservation TYPE REF TO zif_reservation_writer
+        io_authority   TYPE REF TO zif_allocation_authority.
 
   PRIVATE SECTION.
     DATA mo_engine      TYPE REF TO zcl_allocation_engine.
     DATA mo_store       TYPE REF TO zif_allocation_store.
     DATA mo_run_id      TYPE REF TO zif_run_id_supplier.
     DATA mo_reservation TYPE REF TO zif_reservation_writer.
+    DATA mo_authority   TYPE REF TO zif_allocation_authority.
 
 ENDCLASS.
 
@@ -57,7 +60,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
-      io_reservation = NEW zcl_reservation_writer( ) ).
+      io_reservation = NEW zcl_reservation_writer( )
+      io_authority   = NEW zcl_authority_plant( ) ).
 
   ENDMETHOD.
 
@@ -67,10 +71,14 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     mo_store       = io_store.
     mo_run_id      = io_run_id.
     mo_reservation = io_reservation.
+    mo_authority   = io_authority.
 
   ENDMETHOD.
 
   METHOD zif_allocation_service~run.
+
+    " nothing is read, written or reserved before the user has been checked
+    mo_authority->check_plant( iv_werks ).
 
     " the result is written down before the stock is reserved. If the
     " reservation is then rejected there is still a record of what was decided,

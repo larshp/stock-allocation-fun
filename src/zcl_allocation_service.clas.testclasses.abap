@@ -129,6 +129,38 @@ CLASS lcl_reservation_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_authority_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_authority.
+
+    METHODS constructor
+      IMPORTING
+        iv_refuse TYPE abap_bool DEFAULT abap_false.
+
+  PRIVATE SECTION.
+    DATA mv_refuse TYPE abap_bool.
+
+ENDCLASS.
+
+
+CLASS lcl_authority_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mv_refuse = iv_refuse.
+  ENDMETHOD.
+
+  METHOD zif_allocation_authority~check_plant.
+    IF mv_refuse = abap_true.
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid   = zcx_allocation=>not_authorised
+        mv_werks = |{ iv_werks }| ).
+    ENDIF.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -150,6 +182,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
       IMPORTING
         iv_available      TYPE zif_allocation=>ty_quantity
         it_demand         TYPE zif_allocation=>ty_demand_tab
+        iv_refuse         TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -158,6 +191,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS confirmed_stock_is_reserved FOR TESTING RAISING cx_static_check.
     METHODS reservation_is_linked_to_run FOR TESTING RAISING cx_static_check.
     METHODS default_wiring_is_usable FOR TESTING.
+    METHODS unauthorised_plant_refused FOR TESTING.
 
 ENDCLASS.
 
@@ -181,7 +215,8 @@ CLASS ltcl_service IMPLEMENTATION.
         io_strategy      = NEW zcl_alloc_strategy_priority( ) )
       io_store       = mo_store
       io_run_id      = NEW lcl_run_id_double( c_run_id )
-      io_reservation = mo_reservation ).
+      io_reservation = mo_reservation
+      io_authority   = NEW lcl_authority_double( iv_refuse ) ).
 
   ENDMETHOD.
 
@@ -270,6 +305,31 @@ CLASS ltcl_service IMPLEMENTATION.
       act = lv_stored
       exp = c_reservation
       msg = 'the recorded run must say which reservation earmarked the stock' ).
+
+  ENDMETHOD.
+
+  METHOD unauthorised_plant_refused.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) )
+      iv_refuse    = abap_true ).
+
+    TRY.
+        lo_cut->run(
+          iv_matnr = c_matnr
+          iv_werks = c_werks ).
+        cl_abap_unit_assert=>fail( 'allocating without authorization must not be possible' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_store->read( c_run_id )
+      msg = 'a refused run must not have written anything' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_reservation->get_last_allocation( )
+      msg = 'a refused run must not have reserved anything' ).
 
   ENDMETHOD.
 

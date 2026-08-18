@@ -185,3 +185,22 @@ Notes on the store:
 - The run id is an input rather than something the store invents. Which id
   scheme to use is the caller's decision, and keeping it out means the store has
   no hidden state and the tests are deterministic.
+
+### Feature 7 — the service (done)
+
+`ZCL_ALLOCATION_SERVICE` is what an outside caller talks to. `run( iv_matnr,
+iv_werks )` takes an id, allocates, stores the result and hands back both the id
+and the confirmed quantities. It stores before it returns, so the caller can
+always look the run up again.
+
+- `ZIF_RUN_ID_SUPPLIER` / `ZCL_RUN_ID_UUID`: ids come from
+  `cl_system_uuid=>create_uuid_c22_static( )`, which fills
+  `ZSTOCK_ALLOC_RES-RUN_ID` exactly. Behind an interface, so a customer that
+  wants a number range instead swaps one class, and so the service tests get a
+  predictable id.
+- `create_default( )` wires the production objects together — MARD reader, sales
+  order reader, priority strategy, database store, UUID ids — so nothing outside
+  needs to know the object graph. Passing a strategy overrides just that part.
+
+Everything the service depends on is an interface except the engine itself,
+which is a plain class because it is pure orchestration with nothing to swap.

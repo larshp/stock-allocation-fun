@@ -69,3 +69,26 @@ object in the repo — stubs included — is fully syntax checked.
 - `src/zcl_stock_reader.clas.testclasses.abap`: seeds `MARD`, asserts the read.
   Each test class uses its own material number and cleans up in `teardown`, so
   no test depends on another.
+
+### Feature 2 — allocation engine (done)
+
+- `src/zif_allocation.intf.abap`: the shared vocabulary — quantity, demand,
+  allocation result. `ty_quantity` is `p LENGTH 7 DECIMALS 3`, the exact ABAP
+  representation of the `MARD` quantity fields, so nothing is converted on the
+  way in or out. No DDIC object is needed for it.
+- `src/zif_allocation_strategy.intf.abap`: one method, `allocate`, taking the
+  available quantity and the competing demand. Making this an interface is the
+  point of the design: "who gets the stock" is the part that differs per
+  business, and it can be swapped without touching the engine.
+- `src/zcl_alloc_strategy_priority.clas.abap`: the first strategy. Sorts by
+  priority, then requested date, then demand id, and serves each line in full
+  until the stock runs out. The tie-break on demand id keeps the result
+  deterministic, which matters because the tests compare whole tables.
+- `src/zcl_allocation_engine.clas.abap`: pools the stock of every storage
+  location in the plant and hands the total to the strategy. Both collaborators
+  are injected through the constructor, so the engine is tested against a local
+  double instead of the database.
+
+Guarded behaviour worth keeping: negative book stock (which `MARD` can carry)
+confirms nothing rather than producing negative confirmations, and `shortfall`
+is never negative.

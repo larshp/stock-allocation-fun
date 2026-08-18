@@ -57,13 +57,22 @@ CLASS lcl_idempotency_store DEFINITION FINAL.
 ENDCLASS.
 
 CLASS lcl_idempotency_store IMPLEMENTATION.
+  METHOD zif_idempotency_store~find.
+    IF line_exists( mt_documents[ request_id = iv_request_id ] ).
+      rs_record-is_found = abap_true.
+      rs_record-request_id = iv_request_id.
+      rs_record-document_id =
+        mt_documents[ request_id = iv_request_id ]-document_id.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_idempotency_store~claim.
-    IF line_exists( mt_claimed[ table_line = iv_request_id ] ).
+    IF line_exists( mt_claimed[ table_line = is_allocation-request_id ] ).
       rv_acquired = abap_false.
       RETURN.
     ENDIF.
 
-    INSERT iv_request_id INTO TABLE mt_claimed.
+    INSERT is_allocation-request_id INTO TABLE mt_claimed.
     rv_acquired = abap_true.
   ENDMETHOD.
 
@@ -137,6 +146,7 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS rejects_stale_stock FOR TESTING.
     METHODS rejects_lock_failure FOR TESTING.
     METHODS ignores_empty_batch FOR TESTING.
+    METHODS ignores_already_posted FOR TESTING.
 
     METHODS allocations
       IMPORTING
@@ -194,6 +204,21 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mt_documents[ request_id = 'REQUEST-2' ]-document_id
       exp = '0000000002' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-unit_of_measure
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-cost_center
+      exp = 'CC1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-sales_order_item
+      exp = '000010' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-asset_subnumber
+      exp = '0000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-network_activity
+      exp = '0010' ).
   ENDMETHOD.
 
   METHOD rolls_back_create_error.
@@ -276,6 +301,23 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_gateway->mv_rollback_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD ignores_already_posted.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-posting_status =
+      zcl_stock_allocator=>gc_posting_posted.
+    lt_allocations[ 1 ]-document_id = '0000000001'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claimed ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_acquire_count
       exp = 0 ).
   ENDMETHOD.
 
@@ -371,6 +413,14 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
         plant            = '1000'
         storage_location = '0001'
         movement_type    = '201'
+        cost_center      = 'CC1000'
+        sales_order      = '0000123456'
+        sales_order_item = '000010'
+        asset_number     = '000000123456'
+        asset_subnumber  = '0000'
+        network_id       = '000001234567'
+        network_activity = '0010'
+        unit_of_measure  = 'EA'
         requirement_date = '20260818'
         requested_qty    = 5
         allocated_qty    = 5

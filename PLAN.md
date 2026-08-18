@@ -26,6 +26,8 @@ best practices.
 - [x] Reject invalid and duplicate requests deterministically.
 - [x] Add simulation and injectable read/write integration ports.
 - [x] Read unrestricted and safety stock from SAP `MARD` and `MARC` tables.
+- [x] Protect one shared plant-level safety reserve across multiple storage
+      locations without deducting `MARC-EISBE` repeatedly.
 - [x] Rank equal-priority demand by earliest requirement date.
 - [x] Write successful allocations through a release-appropriate SAP standard
       reservation or order API, with commit/rollback and message handling.
@@ -39,3 +41,21 @@ best practices.
       `MARD`, held across recheck and reservation commit/rollback.
 - [x] Add an application entry point and operational logging suitable for the
       target SAP landscape.
+- [x] Retain append-only UUID-keyed audit history alongside current-state
+      operational records.
+- [x] Add configurable, authorization-checked audit-history retention with a
+      dry-run-first executable report.
+- [x] Add bounded, filterable CSV audit-history export for foreground use or
+      background spool processing.
+- [x] Carry the material base unit through allocation, revalidation,
+      reservation posting, audit persistence, and export.
+- [x] Convert material-specific alternative units to the base unit using cached
+      `MARM` numerator/denominator factors while retaining source values.
+- [x] Replay completed idempotent requests before allocation and reject request
+      IDs reused with a different payload.
+- [x] Validate and carry the standard consumption account assignments for
+      movement types 201 (cost center), 221 (WBS element), and 261 (order).
+- [x] Version persisted idempotency payloads and reject legacy or unsupported
+      records explicitly before stock reads or posting.
+- [x] Support the remaining standard consumption assignments for sales orders
+      (231), assets (241), sales cost centers (251), and networks (281).

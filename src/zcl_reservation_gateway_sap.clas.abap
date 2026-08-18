@@ -21,15 +21,25 @@ ENDCLASS.
 CLASS zcl_reservation_gateway_sap IMPLEMENTATION.
   METHOD zif_reservation_gateway~create_reservation.
     DATA(ls_header) = VALUE bapi2093_res_head(
-      res_date  = sy-datum
-      move_type = is_request-movement_type
-      plant     = is_request-plant ).
+      res_date    = sy-datum
+      move_type   = is_request-movement_type
+      plant       = is_request-plant
+      costcenter  = is_request-cost_center
+      orderid     = is_request-order_id
+      wbs_element = is_request-wbs_element
+      sales_ord   = is_request-sales_order
+      s_ord_item  = is_request-sales_order_item
+      asset_no    = is_request-asset_number
+      sub_number  = is_request-asset_subnumber
+      network     = is_request-network_id
+      activity    = is_request-network_activity ).
     DATA(lt_items) = VALUE ty_bapi_items(
       ( material  = is_request-material
         plant     = is_request-plant
         stge_loc  = is_request-storage_location
         req_date  = is_request-requirement_date
-        entry_qnt = is_request-quantity ) ).
+        entry_qnt = is_request-quantity
+        entry_uom = is_request-unit_of_measure ) ).
     DATA lt_return TYPE ty_bapi_messages.
 
     CALL FUNCTION 'BAPI_RESERVATION_CREATE1'

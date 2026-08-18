@@ -51,6 +51,8 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
 
   METHOD create_sap.
     DATA(lo_stock_reader) = NEW zcl_stock_reader_sap( ).
+    DATA(lo_factor_reader) = NEW zcl_unit_factor_reader_sap( ).
+    DATA(lo_unit_converter) = NEW zcl_unit_converter( lo_factor_reader ).
     DATA(lo_stock_rechecker) = NEW zcl_stock_rechecker_sap( lo_stock_reader ).
     DATA(lo_stock_lock) = NEW zcl_stock_lock_sap( ).
     DATA(lo_gateway) = NEW zcl_reservation_gateway_sap( ).
@@ -62,8 +64,11 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       io_stock_lock        = lo_stock_lock ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
       io_stock_reader      = lo_stock_reader
-      io_allocation_writer = lo_writer ).
-    DATA(lo_logger) = NEW zcl_allocation_logger_sap( ).
+      io_allocation_writer = lo_writer
+      io_unit_converter    = lo_unit_converter
+      io_idempotency_store = lo_idempotency_store ).
+    DATA(lo_log_store) = NEW zcl_allocation_log_store_sap( ).
+    DATA(lo_logger) = NEW zcl_allocation_logger_sap( lo_log_store ).
 
     ro_app = NEW #(
       io_service = lo_service

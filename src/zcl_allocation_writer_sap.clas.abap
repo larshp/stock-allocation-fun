@@ -50,19 +50,20 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_writer~save_allocations.
-    DATA(lv_has_work) = abap_false.
-    LOOP AT ct_allocations TRANSPORTING NO FIELDS
-      WHERE allocated_qty > 0.
-      lv_has_work = abap_true.
-      EXIT.
+    DATA lt_pending_allocations TYPE zcl_stock_allocator=>ty_allocations.
+    LOOP AT ct_allocations INTO DATA(ls_pending_allocation)
+      WHERE allocated_qty > 0
+        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
+      APPEND ls_pending_allocation TO lt_pending_allocations.
     ENDLOOP.
-    IF lv_has_work = abap_false.
+    IF lt_pending_allocations IS INITIAL.
       RETURN.
     ENDIF.
 
     LOOP AT ct_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
-      WHERE allocated_qty > 0.
-      IF mo_idempotency_store->claim( <ls_allocation>-request_id ) = abap_false.
+      WHERE allocated_qty > 0
+        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
+      IF mo_idempotency_store->claim( <ls_allocation> ) = abap_false.
         rollback_and_release( ).
         fail_all(
           EXPORTING
@@ -73,7 +74,7 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    DATA(ls_lock) = mo_stock_lock->acquire( ct_allocations ).
+    DATA(ls_lock) = mo_stock_lock->acquire( lt_pending_allocations ).
     IF ls_lock-acquired = abap_false.
       rollback_and_release( ).
       fail_all(
@@ -84,7 +85,7 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(ls_recheck) = mo_stock_rechecker->recheck( ct_allocations ).
+    DATA(ls_recheck) = mo_stock_rechecker->recheck( lt_pending_allocations ).
     IF ls_recheck-is_valid = abap_false.
       rollback_and_release( ).
       fail_all(
@@ -96,13 +97,24 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     ENDIF.
 
     LOOP AT ct_allocations ASSIGNING <ls_allocation>
-      WHERE allocated_qty > 0.
+      WHERE allocated_qty > 0
+        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       DATA(ls_request) = VALUE zif_reservation_gateway=>ty_request(
         request_id       = <ls_allocation>-request_id
         material         = <ls_allocation>-material
         plant            = <ls_allocation>-plant
         storage_location = <ls_allocation>-storage_location
         movement_type    = <ls_allocation>-movement_type
+        cost_center      = <ls_allocation>-cost_center
+        order_id         = <ls_allocation>-order_id
+        wbs_element      = <ls_allocation>-wbs_element
+        sales_order      = <ls_allocation>-sales_order
+        sales_order_item = <ls_allocation>-sales_order_item
+        asset_number     = <ls_allocation>-asset_number
+        asset_subnumber  = <ls_allocation>-asset_subnumber
+        network_id       = <ls_allocation>-network_id
+        network_activity = <ls_allocation>-network_activity
+        unit_of_measure  = <ls_allocation>-unit_of_measure
         requirement_date = <ls_allocation>-requirement_date
         quantity         = <ls_allocation>-allocated_qty ).
 
@@ -157,7 +169,8 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     mo_stock_lock->release( ).
 
     LOOP AT ct_allocations ASSIGNING <ls_allocation>
-      WHERE allocated_qty > 0.
+      WHERE allocated_qty > 0
+        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       <ls_allocation>-posting_status =
         zcl_stock_allocator=>gc_posting_posted.
       CLEAR <ls_allocation>-posting_message.
@@ -188,7 +201,8 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
 
   METHOD fail_all.
     LOOP AT ct_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
-      WHERE allocated_qty > 0.
+      WHERE allocated_qty > 0
+        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       <ls_allocation>-posting_status =
         zcl_stock_allocator=>gc_posting_failed.
       <ls_allocation>-posting_message = iv_message.

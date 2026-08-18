@@ -6,24 +6,24 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the report</p>
     "!
-    "! @parameter io_service | <p class="shorttext synchronized">Service that does the allocating</p>
+    "! @parameter io_mass_run | <p class="shorttext synchronized">Does the allocating</p>
     METHODS constructor
       IMPORTING
-        io_service TYPE REF TO zif_allocation_service.
+        io_mass_run TYPE REF TO zcl_allocation_mass_run.
 
     "! <p class="shorttext synchronized">Run an allocation and lay the outcome out as text</p>
     "!
     "! Returns the lines rather than writing them, so what the user ends up
-    "! reading can be asserted in a test. A rejected run comes back as a line
-    "! saying so instead of an exception; the report has nowhere to throw to.
+    "! reading can be asserted in a test. A material that was rejected shows the
+    "! reason in place of its figures; the run as a whole still comes back.
     "!
-    "! @parameter iv_matnr | <p class="shorttext synchronized">Material number</p>
     "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter it_matnr | <p class="shorttext synchronized">Materials, everything waiting if empty</p>
     "! @parameter rt_line  | <p class="shorttext synchronized">Lines to display</p>
     METHODS run
       IMPORTING
-        iv_matnr       TYPE mard-matnr
         iv_werks       TYPE mard-werks
+        it_matnr       TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -32,7 +32,13 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_width_id  TYPE i VALUE 18.
     CONSTANTS c_width_qty TYPE i VALUE 14.
 
-    DATA mo_service TYPE REF TO zif_allocation_service.
+    DATA mo_mass_run TYPE REF TO zcl_allocation_mass_run.
+
+    METHODS lines_for_run
+      IMPORTING
+        is_run         TYPE zif_allocation_service=>ty_run
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
 
     METHODS format_row
       IMPORTING
@@ -49,28 +55,46 @@ ENDCLASS.
 CLASS zcl_allocation_report IMPLEMENTATION.
 
   METHOD constructor.
-    mo_service = io_service.
+    mo_mass_run = io_mass_run.
   ENDMETHOD.
 
   METHOD run.
+
+    DATA lv_failed TYPE i.
+
+    DATA(lt_outcome) = mo_mass_run->run(
+      iv_werks = iv_werks
+      it_matnr = it_matnr ).
+
+    APPEND |Plant { iv_werks }| TO rt_line.
+
+    LOOP AT lt_outcome INTO DATA(ls_outcome).
+
+      APPEND || TO rt_line.
+      APPEND |Material { ls_outcome-matnr }| TO rt_line.
+
+      IF ls_outcome-failed = abap_true.
+        lv_failed = lv_failed + 1.
+        APPEND |Allocation failed: { ls_outcome-reason }| TO rt_line.
+      ELSE.
+        APPEND LINES OF lines_for_run( ls_outcome-run ) TO rt_line.
+      ENDIF.
+
+    ENDLOOP.
+
+    APPEND || TO rt_line.
+    APPEND |{ lines( lt_outcome ) } materials, { lv_failed } failed| TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD lines_for_run.
 
     DATA lv_requested TYPE zif_allocation=>ty_quantity.
     DATA lv_confirmed TYPE zif_allocation=>ty_quantity.
     DATA lv_shortfall TYPE zif_allocation=>ty_quantity.
 
-    TRY.
-        DATA(ls_run) = mo_service->run(
-          iv_matnr = iv_matnr
-          iv_werks = iv_werks ).
-      CATCH zcx_allocation INTO DATA(lx_error).
-        APPEND |Allocation failed: { lx_error->get_text( ) }| TO rt_line.
-        RETURN.
-    ENDTRY.
-
-    APPEND |Material    { iv_matnr } plant { iv_werks }| TO rt_line.
-    APPEND |Run         { ls_run-run_id }| TO rt_line.
-    APPEND |Reservation { ls_run-reservation }| TO rt_line.
-    APPEND || TO rt_line.
+    APPEND |Run         { is_run-run_id }| TO rt_line.
+    APPEND |Reservation { is_run-reservation }| TO rt_line.
 
     APPEND format_row(
       iv_id        = `Demand`
@@ -78,7 +102,7 @@ CLASS zcl_allocation_report IMPLEMENTATION.
       iv_confirmed = `Confirmed`
       iv_shortfall = `Shortfall` ) TO rt_line.
 
-    LOOP AT ls_run-allocation INTO DATA(ls_allocation).
+    LOOP AT is_run-allocation INTO DATA(ls_allocation).
       lv_requested = lv_requested + ls_allocation-requested.
       lv_confirmed = lv_confirmed + ls_allocation-confirmed.
       lv_shortfall = lv_shortfall + ls_allocation-shortfall.

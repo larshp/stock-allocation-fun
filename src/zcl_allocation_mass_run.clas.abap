@@ -28,10 +28,12 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! single blocked material must not cost a night's worth of allocations.
     "!
     "! @parameter iv_werks   | <p class="shorttext synchronized">Plant</p>
+    "! @parameter it_matnr   | <p class="shorttext synchronized">Materials to cover, everything waiting if empty</p>
     "! @parameter rt_outcome | <p class="shorttext synchronized">One line per material, in material order</p>
     METHODS run
       IMPORTING
         iv_werks          TYPE mard-werks
+        it_matnr          TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
       RETURNING
         VALUE(rt_outcome) TYPE ty_outcome_tab.
 
@@ -54,8 +56,14 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
   METHOD run.
 
     DATA ls_outcome TYPE ty_outcome.
+    DATA lt_matnr   TYPE zif_demand_reader=>ty_matnr_tab.
 
-    LOOP AT mo_demand->materials_with_demand( iv_werks ) INTO DATA(lv_matnr).
+    lt_matnr = it_matnr.
+    IF lt_matnr IS INITIAL.
+      lt_matnr = mo_demand->materials_with_demand( iv_werks ).
+    ENDIF.
+
+    LOOP AT lt_matnr INTO DATA(lv_matnr).
 
       CLEAR ls_outcome.
       ls_outcome-matnr = lv_matnr.

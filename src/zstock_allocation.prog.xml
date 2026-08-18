@@ -25,8 +25,8 @@
     <item>
      <ID>S</ID>
      <KEY>P_MATNR</KEY>
-     <ENTRY>Material</ENTRY>
-     <LENGTH>8</LENGTH>
+     <ENTRY>Material, all if empty</ENTRY>
+     <LENGTH>22</LENGTH>
     </item>
     <item>
      <ID>S</ID>

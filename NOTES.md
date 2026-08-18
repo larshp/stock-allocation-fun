@@ -369,3 +369,15 @@ of a result, so the whole run can be read afterwards and the failures picked out
 `SELECT DISTINCT` turned out to be dropped by the transpiler (ANOMALIES.md 2i),
 which showed up as a material with two open orders being allocated twice.
 Deduplication now happens in ABAP.
+
+### Feature 14 — the report covers the plant (done)
+
+`ZSTOCK_ALLOCATION` now asks for a plant and, optionally, a material. Leaving
+the material empty allocates everything in the plant that is waiting. The
+material parameter lost `OBLIGATORY`; the plant kept it.
+
+`ZCL_ALLOCATION_MASS_RUN->run` takes an optional material list and falls back to
+asking the demand reader when it is empty, so the report always goes through the
+same path and the program does not branch on it. `ZCL_ALLOCATION_REPORT` prints
+one block per material and a footer counting how many were covered and how many
+failed — the number a person actually looks for after an overnight job.

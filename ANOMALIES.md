@@ -162,7 +162,40 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   module bodies. Moot for this repo, since 2f already keeps the stub function
   group out of the transpiled output.
 
-## 3. The generated unit test runner stops at the first failure
+## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
+
+- **Versions:** `@abaplint/cli` 2.120.26
+- **Symptom:** a `SELECT` that groups and then sorts fails to parse:
+
+  ```abap
+  SELECT lgort,
+         SUM( bdmng ) AS requirement,
+         SUM( enmng ) AS withdrawn
+    FROM resb
+    WHERE matnr = @iv_matnr
+    GROUP BY lgort
+    ORDER BY lgort
+    INTO TABLE @lt_reserved.
+  ```
+
+  ```
+  Add ORDER BY (select_add_order_by) [E]
+  Identifiers should be lower case: "ORDER" (keyword_case) [E]
+  ```
+
+  `ORDER` is reported as an *identifier*, so the clause was never recognised as
+  `ORDER BY`. Deleting the `GROUP BY` line makes the same `ORDER BY ... INTO
+  TABLE` parse cleanly, which pins the problem on the combination. The clause
+  order is the one ABAP specifies: `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`,
+  `INTO`.
+- **Trap:** dropping the `GROUP BY` to silence it produces an aggregate next to
+  a plain column, which abaplint then accepts but a real SAP system rejects.
+- **Workaround:** select the reservation rows and add the open quantities up in
+  ABAP instead of in SQL. Done in `src/zcl_stock_reader_net.clas.abap`. For the
+  handful of open reservations one material has, the difference is not worth
+  writing SQL that cannot be checked.
+
+## 4. The generated unit test runner stops at the first failure
 
 - **Versions:** `@abaplint/transpiler-cli` 2.13.59
 - **Symptom:** `output/index.mjs` runs test methods in a plain loop with no

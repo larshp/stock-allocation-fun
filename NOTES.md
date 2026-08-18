@@ -273,3 +273,29 @@ Linking a run that was never saved raises rather than silently updating nothing.
 
 `ZCL_ALLOCATION_ENGINE` stays the entry point for working out an allocation
 without recording or reserving anything.
+
+### Feature 10 — do not allocate the same stock twice (done)
+
+Up to here the available quantity came straight from `MARD`. That is book
+stock, not available stock: once feature 8 started creating reservations, a
+second run would have handed out the very same quantity again. Nothing in the
+suite caught it, because every test started from an empty `RESB`.
+
+`ZCL_STOCK_READER_NET` is a decorator around `ZIF_STOCK_READER`. It asks the
+wrapped reader for the book stock, then subtracts what is already reserved:
+
+- Open quantity is `BDMNG - ENMNG`, so a reservation that has already been
+  partly withdrawn only ties up the remainder — the withdrawn part has left
+  `MARD` already and must not be counted twice.
+- Items flagged `XLOEK` reserve nothing.
+- The result never goes below zero. Over-reserved stock reads as nothing
+  available, not as a negative that would then be handed out as a credit.
+
+It is a decorator rather than a change to `ZCL_STOCK_READER` because the two
+questions really are separate — "what does the book say" and "what is still
+free" — and a site that reserves through some other mechanism can leave the
+wrapper off. `create_default( )` wires it on.
+
+Reservations are not tied to the storage location the stock will come from, so
+the deduction is consumed in storage location order. The plant total is what the
+engine works with, and that comes out right.

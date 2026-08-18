@@ -1,0 +1,38 @@
+{
+  "global": {
+    "files": "/{src,sap_stubs}/**/*.*",
+    "skipGeneratedFunctionGroups": true,
+    "skipGeneratedGatewayClasses": true,
+    "skipGeneratedPersistentClasses": true,
+    "errorOnDuplicateFilenames": true
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "files": "/src/**/*.*",
+      "folder": "/open-abap-core"
+    }
+  ],
+  "syntax": {
+    "version": "open-abap",
+    "errorNamespace": "^(Z|Y|LCL_|LIF_|TY_)"
+  },
+  "rules": {
+    "align_parameters": true,
+    "align_type_expressions": true,
+    "allowed_object_naming": true,
+    "check_syntax": true,
+    "easy_to_find_messages": true,
+    "keyword_case": {
+      "style": "upper"
+    },
+    "line_length": {
+      "length": 120
+    },
+    "local_testclass_consistency": true,
+    "max_one_method_parameter_per_line": true,
+    "modify_only_own_db_tables": true,
+    "parser_error": true,
+    "unknown_types": true
+  }
+}

@@ -1,11 +1,41 @@
-make a stock allocation solution in ABAP, add one feature at a time, keep improving it. It must integrate into existing SAP system and follow best practices for ABAP development.
+# Implementation plan
 
-use abaplint and transpiler for testing, record bugs and issues in ANOMALIES.md
+Build a stock allocation solution in ABAP one production-capable feature at a
+time. It must integrate into an existing SAP system and follow ABAP development
+best practices.
 
-open-abap does not include the business logic needed, add SAP standard stubs in a separate directory and include it in linting and transpiling. This includes stuff like reading stock and writing stock, reading and writing orders, etc via SAP standard APIs. Eg. database table MARD carries available stock, add it to the stubs for reading stock. All custom code starting with Z must be in the src folder.
+## Engineering constraints
 
-keep your notes and progrss in NOTES.md
+- Keep all custom objects beginning with `Z` in `src/`.
+- Keep local SAP standard API and DDIC stubs in `sap_stubs/` and include that
+  directory in linting and transpilation.
+- Use `open-abap/open-abap-core` as a dependency in both configurations.
+- Run abaplint and transpiled ABAP Unit tests for every feature.
+- Record implementation progress in `NOTES.md` and defects or risks in
+  `ANOMALIES.md`.
+- Enable `modify_only_own_db_tables`, `align_type_expressions`,
+  `easy_to_find_messages`, `max_one_method_parameter_per_line`,
+  `align_parameters`, `local_testclass_consistency`, `allowed_object_naming`,
+  and `line_length`.
 
-these abaplint rules also be enabled: modify_only_own_db_tables + align_type_expressions + easy_to_find_messages + max_one_method_parameter_per_line + align_parameters + local_testclass_consistency + allowed_object_naming + line_length
+## Roadmap
 
-use https://github.com/open-abap/open-abap-core as a dependency in abaplint and the transpiler configurations
+- [x] Establish abaplint, transpiler, open-abap-core, and ABAP Unit tooling.
+- [x] Allocate by priority across material/plant/storage-location stock pools.
+- [x] Support safety stock, partial fulfillment, and all-or-nothing requests.
+- [x] Reject invalid and duplicate requests deterministically.
+- [x] Add simulation and injectable read/write integration ports.
+- [x] Read unrestricted and safety stock from SAP `MARD` and `MARC` tables.
+- [x] Rank equal-priority demand by earliest requirement date.
+- [x] Write successful allocations through a release-appropriate SAP standard
+      reservation or order API, with commit/rollback and message handling.
+- [x] Add idempotency persistence so a request cannot be posted twice across
+      processes or retries.
+- [x] Add a minimum fulfillment threshold for partial allocations.
+- [x] Add selectable ordering strategies beyond priority and requirement date.
+- [x] Recheck aggregate availability after idempotency claims and immediately
+      before reservation posting.
+- [x] Serialize stock pools with an exclusive SAP enqueue lock rooted on
+      `MARD`, held across recheck and reservation commit/rollback.
+- [x] Add an application entry point and operational logging suitable for the
+      target SAP landscape.

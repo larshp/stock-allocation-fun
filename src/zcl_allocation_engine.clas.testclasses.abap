@@ -72,6 +72,14 @@ CLASS lcl_demand_reader_double IMPLEMENTATION.
     mt_demand = it_demand.
   ENDMETHOD.
 
+  METHOD zif_demand_reader~materials_with_demand.
+    LOOP AT mt_demand INTO DATA(ls_demand).
+      IF NOT line_exists( rt_matnr[ table_line = ls_demand-matnr ] ).
+        APPEND ls_demand-matnr TO rt_matnr.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_demand_reader~read_open_demand.
     mv_call_cnt = mv_call_cnt + 1.
     rt_demand = mt_demand.

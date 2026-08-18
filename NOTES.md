@@ -348,3 +348,24 @@ This step also turned up the nastiest tool defect so far — an inline
 result (ANOMALIES.md 2h). It was only caught because this feature's tests used
 a fractional quantity. Quantities here carry three decimals, so test data
 should use them.
+
+### Feature 13 — allocate a whole plant (done)
+
+Allocating one material at a time is not how this gets used. A nightly job
+covers everything in the plant that is waiting.
+
+- `ZIF_DEMAND_READER` gained `materials_with_demand( iv_werks )`, filtered
+  exactly like `read_open_demand` so a material only appears if it would
+  actually get demand lines. Asking the demand source is right: it is the thing
+  that knows what open demand looks like.
+- `ZCL_ALLOCATION_MASS_RUN` runs the service per material and returns one
+  outcome line each.
+
+The point of the class is what it does with failure: **one material failing does
+not stop the rest**. This runs unattended, and a single blocked material must not
+cost a night's worth of allocations. The outcome line carries the reason instead
+of a result, so the whole run can be read afterwards and the failures picked out.
+
+`SELECT DISTINCT` turned out to be dropped by the transpiler (ANOMALIES.md 2i),
+which showed up as a material with two open orders being allocated twice.
+Deduplication now happens in ABAP.

@@ -193,6 +193,31 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
 - **Workaround:** declare the variable with an explicit type whenever the right
   hand side does arithmetic. Done in `src/zcl_deduct_reservations.clas.abap`.
 
+## 2i. `SELECT DISTINCT` loses the DISTINCT
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Severity:** silent — the statement runs and returns the wrong number of rows.
+- **Symptom:**
+
+  ```abap
+  SELECT DISTINCT item~matnr AS matnr
+    FROM vbap AS item
+    INNER JOIN vbak AS header ON header~vbeln = item~vbeln
+    ...
+  ```
+
+  becomes
+
+  ```sql
+  SELECT "item"."matnr"AS matnr  FROM "vbap" AS item INNER JOIN ...
+  ```
+
+  The `DISTINCT` keyword is simply not emitted, so a material with demand on two
+  orders comes back twice. (The missing space in `"matnr"AS` is cosmetic —
+  SQLite accepts it.)
+- **Workaround:** `ORDER BY` the column and follow the `SELECT` with
+  `DELETE ADJACENT DUPLICATES`. Done in `src/zcl_so_demand_reader.clas.abap`.
+
 ## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
 
 - **Versions:** `@abaplint/cli` 2.120.26

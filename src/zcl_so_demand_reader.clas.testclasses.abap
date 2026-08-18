@@ -3,8 +3,10 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
 
   PRIVATE SECTION.
-    CONSTANTS c_matnr TYPE vbap-matnr VALUE 'SO-DEMAND-01'.
-    CONSTANTS c_werks TYPE vbap-werks VALUE '1000'.
+    CONSTANTS c_matnr     TYPE vbap-matnr VALUE 'SO-DEMAND-01'.
+    CONSTANTS c_matnr_2   TYPE vbap-matnr VALUE 'SO-DEMAND-02'.
+    CONSTANTS c_matnr_blk TYPE vbap-matnr VALUE 'SO-DEMAND-03'.
+    CONSTANTS c_werks     TYPE vbap-werks VALUE '1000'.
 
     DATA mo_cut TYPE REF TO zif_demand_reader.
 
@@ -15,6 +17,9 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS skips_blocked_headers FOR TESTING.
     METHODS skips_other_plants FOR TESTING.
     METHODS missing_lprio_sorts_last FOR TESTING.
+    METHODS lists_materials_with_demand FOR TESTING.
+    METHODS each_material_listed_once FOR TESTING.
+    METHODS blocked_material_not_listed FOR TESTING.
 
 ENDCLASS.
 
@@ -45,7 +50,11 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt vbeln = '0000004713' posnr = '000010'
         matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '3' lprio = '01' )
       ( mandt = sy-mandt vbeln = '0000004712' posnr = '000020'
-        matnr = c_matnr werks = '2000' vrkme = 'PC' kwmeng = '9' lprio = '01' ) ).
+        matnr = c_matnr werks = '2000' vrkme = 'PC' kwmeng = '9' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000040'
+        matnr = c_matnr_2 werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004713' posnr = '000020'
+        matnr = c_matnr_blk werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -63,7 +72,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
   METHOD teardown.
 
-    DELETE FROM vbap WHERE matnr = @c_matnr.
+    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -135,6 +144,37 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
         act = ls_demand-werks
         exp = c_werks ).
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD lists_materials_with_demand.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->materials_with_demand( c_werks )
+      exp = VALUE zif_demand_reader=>ty_matnr_tab( ( c_matnr ) ( c_matnr_2 ) ) ).
+
+  ENDMETHOD.
+
+  METHOD each_material_listed_once.
+
+    DATA(lt_matnr) = mo_cut->materials_with_demand( c_werks ).
+
+    " c_matnr is on two open items of two different orders
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( VALUE zif_demand_reader=>ty_matnr_tab(
+        FOR lv_matnr IN lt_matnr WHERE ( table_line = c_matnr ) ( lv_matnr ) ) )
+      exp = 1
+      msg = 'a material must be allocated once per run, not once per order' ).
+
+  ENDMETHOD.
+
+  METHOD blocked_material_not_listed.
+
+    DATA(lt_matnr) = mo_cut->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_blk ] ) )
+      msg = 'a material whose only order is delivery blocked has nothing to allocate' ).
 
   ENDMETHOD.
 

@@ -75,6 +75,28 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_demand_reader~materials_with_demand.
+
+    " a material with demand on several orders comes back once per item. The
+    " duplicates are removed here rather than with SELECT DISTINCT, which the
+    " transpiler drops from the statement, see ANOMALIES.md.
+    SELECT item~matnr AS matnr
+      FROM vbap AS item
+      INNER JOIN vbak AS header ON header~vbeln = item~vbeln
+      WHERE item~werks = @iv_werks
+        AND item~abgru = @space
+        AND header~lifsk = @space
+      ORDER BY item~matnr
+      INTO TABLE @rt_matnr.
+    IF sy-subrc <> 0.
+      CLEAR rt_matnr.
+      RETURN.
+    ENDIF.
+
+    DELETE ADJACENT DUPLICATES FROM rt_matnr.
+
+  ENDMETHOD.
+
   METHOD build_demand_id.
 
     rv_demand_id+0(10) = iv_vbeln.

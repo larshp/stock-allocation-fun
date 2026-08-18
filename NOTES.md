@@ -159,3 +159,29 @@ confirmed quantities must add up to exactly what was available.
 Both strategies now also treat a negative requested quantity as no demand at
 all: it confirms nothing, its shortfall is zero rather than negative, and it
 does not consume or dilute the stock available to the other lines.
+
+### Feature 6 — persist the result (done)
+
+An allocation is only useful if the answer survives the run.
+
+- `src/zstock_alloc_res.tabl.xml`: the result table, keyed by run and demand
+  line, with `CREATED_BY` / `CREATED_AT` so a run can be traced back.
+- `src/zstock_alloc.msag.xml`: message class, and `src/zcx_allocation.clas.abap`
+  the exception that carries it. The T100 constant pattern is what
+  `easy_to_find_messages` wants — the message class and number are literals in
+  the source, so a message can be traced to its `RAISE` with a plain search.
+- `src/zif_allocation_store.intf.abap` / `src/zcl_allocation_store.clas.abap`:
+  `save` and `read`.
+
+Notes on the store:
+
+- `save` deletes the run before inserting it, so re-running an allocation
+  replaces the previous answer instead of accumulating duplicates. A `DELETE`
+  that finds nothing reports `sy-subrc = 4`, which is the normal first-save case
+  and is explicitly *not* treated as an error — only anything else is.
+- This is the one place custom code writes to the database, and it writes to its
+  own `Z` table. `modify_only_own_db_tables` is live over `src/` with no
+  exemption, so it is checked rather than assumed.
+- The run id is an input rather than something the store invents. Which id
+  scheme to use is the caller's decision, and keeping it out means the store has
+  no hidden state and the tests are deterministic.

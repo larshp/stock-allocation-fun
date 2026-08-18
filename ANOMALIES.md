@@ -100,6 +100,26 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   transpiler output is nevertheless inconsistent, and a driver without that
   substitution would get a syntax error.
 
+## 2e. Host expressions `@( ... )` are copied into the SQL verbatim
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59, `@abaplint/database-sqlite` 2.13.40
+- **Symptom:** a `WHERE` clause using a host expression rather than a host
+  variable reaches the database untouched:
+
+  ```abap
+  WHERE demand_id = @( CONV zstock_alloc_res-demand_id( 'D1' ) )
+  ```
+
+  ```sql
+  ... AND "demand_id" = @( CONV zstock_alloc_res-demand_id( 'D1' ) ) UP TO 1 ROWS
+  ```
+
+  which fails at runtime with `unrecognized token: "@"`. Host *variables*
+  (`@lv_x`, `@c_x`) are substituted correctly; only the expression form is
+  passed through. abaplint's syntax check accepts it.
+- **Workaround:** assign to a variable or constant first and use a plain host
+  variable. Done in `src/zcl_allocation_store.clas.testclasses.abap`.
+
 ## 3. The generated unit test runner stops at the first failure
 
 - **Versions:** `@abaplint/transpiler-cli` 2.13.59

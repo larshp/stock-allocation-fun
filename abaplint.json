@@ -924,7 +924,7 @@
     "no_public_attributes": {
       "exclude": [],
       "severity": "Error",
-      "allowReadOnly": false,
+      "allowReadOnly": true,
       "ignoreTestClasses": false
     },
     "no_yoda_conditions": {

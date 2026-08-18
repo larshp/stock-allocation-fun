@@ -3,7 +3,16 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_demand_reader.
 
+    "! <p class="shorttext synchronized">Wire up the reader</p>
+    "!
+    "! @parameter io_converter | <p class="shorttext synchronized">Turns sales units into base units</p>
+    METHODS constructor
+      IMPORTING
+        io_converter TYPE REF TO zif_unit_converter.
+
   PRIVATE SECTION.
+
+    DATA mo_converter TYPE REF TO zif_unit_converter.
 
     "! One open sales order item joined with the header data the allocation
     "! needs. Declared explicitly rather than inferred with INTO TABLE @DATA(),
@@ -15,6 +24,7 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
         matnr  TYPE vbap-matnr,
         werks  TYPE vbap-werks,
         kwmeng TYPE vbap-kwmeng,
+        vrkme  TYPE vbap-vrkme,
         lprio  TYPE vbap-lprio,
         vdatu  TYPE vbak-vdatu,
       END OF ty_item.
@@ -36,6 +46,10 @@ ENDCLASS.
 
 CLASS zcl_so_demand_reader IMPLEMENTATION.
 
+  METHOD constructor.
+    mo_converter = io_converter.
+  ENDMETHOD.
+
   METHOD zif_demand_reader~read_open_demand.
 
     DATA lt_item TYPE ty_item_tab.
@@ -45,6 +59,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
            item~matnr,
            item~werks,
            item~kwmeng,
+           item~vrkme,
            item~lprio,
            header~vdatu
       FROM vbap AS item
@@ -60,13 +75,21 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
     ENDIF.
 
     LOOP AT lt_item INTO DATA(ls_item).
+
+      " the order is in sales units, the stock is in base units. Comparing them
+      " without converting would allocate a carton against a piece.
+      DATA(lv_quantity) = mo_converter->to_base(
+        iv_matnr    = ls_item-matnr
+        iv_quantity = CONV #( ls_item-kwmeng )
+        iv_uom      = ls_item-vrkme ).
+
       APPEND VALUE #(
         demand_id = build_demand_id(
           iv_vbeln = ls_item-vbeln
           iv_posnr = ls_item-posnr )
         matnr     = ls_item-matnr
         werks     = ls_item-werks
-        quantity  = ls_item-kwmeng
+        quantity  = lv_quantity
         req_date  = ls_item-vdatu
         priority  = COND #( WHEN ls_item-lprio IS INITIAL
                             THEN c_lowest_priority

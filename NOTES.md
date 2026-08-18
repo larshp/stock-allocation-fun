@@ -414,3 +414,31 @@ reads.
 
 `.github/workflows/test.yml` runs `npm ci && npm test` on every push and pull
 request, which is the same lint, transpile and unit test loop used locally.
+
+### Feature 17 — units of measure (done)
+
+A real bug, not a new capability. `MARD` keeps stock in the material's **base**
+unit. `VBAP-KWMENG` is in the **sales** unit, `VBAP-VRKME`. Everything up to
+here compared the two numbers directly, so an order for 3 cartons of 12 was
+competing for 3 pieces of stock, and would have been confirmed in full off
+almost nothing.
+
+- `sap-stubs/mara.tabl.xml`, `sap-stubs/marm.tabl.xml`: the base unit and the
+  conversion factors.
+- `ZIF_UNIT_CONVERTER` / `ZCL_UNIT_CONVERTER`: `to_base` reads `MARA-MEINS`, and
+  for any other unit scales by `MARM-UMREZ / UMREN`.
+- `ZCL_SO_DEMAND_READER` converts every item as it reads it, so everything
+  downstream — engine, strategies, store, reservation — works in base units and
+  needs no knowledge of this at all.
+
+**A missing conversion is an error, not a factor of one.** Treating an
+unconvertible quantity as if it were already in base units is exactly the bug
+being fixed, so `to_base` raises when the material master is missing, the unit is
+not defined for the material, or the denominator is zero. `read_open_demand` and
+`allocate_open_demand` gained `RAISING zcx_allocation` to let that through, and
+the mass run already turns a failing material into a reported outcome rather
+than a stopped run.
+
+The conversion is done with an explicitly typed variable rather than an inline
+`DATA()`, for the reason in ANOMALIES.md 2h. A test converts 3 boxes of 5/2 kg
+and expects `7.5`, which is what pins it.

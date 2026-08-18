@@ -12,14 +12,15 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
 
     METHODS setup.
     METHODS teardown.
-    METHODS reads_open_items FOR TESTING.
-    METHODS skips_rejected_items FOR TESTING.
-    METHODS skips_blocked_headers FOR TESTING.
-    METHODS skips_other_plants FOR TESTING.
-    METHODS missing_lprio_sorts_last FOR TESTING.
+    METHODS reads_open_items FOR TESTING RAISING cx_static_check.
+    METHODS skips_rejected_items FOR TESTING RAISING cx_static_check.
+    METHODS skips_blocked_headers FOR TESTING RAISING cx_static_check.
+    METHODS skips_other_plants FOR TESTING RAISING cx_static_check.
+    METHODS missing_lprio_sorts_last FOR TESTING RAISING cx_static_check.
     METHODS lists_materials_with_demand FOR TESTING.
     METHODS each_material_listed_once FOR TESTING.
     METHODS blocked_material_not_listed FOR TESTING.
+    METHODS sales_unit_becomes_base_unit FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -30,8 +31,32 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     DATA lt_vbak TYPE STANDARD TABLE OF vbak WITH EMPTY KEY.
     DATA lt_vbap TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_marm TYPE STANDARD TABLE OF marm WITH EMPTY KEY.
 
-    mo_cut = NEW zcl_so_demand_reader( ).
+    mo_cut = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ).
+
+    " the orders below are in PC, which is also the base unit, except for the
+    " one item in CAR that proves the conversion happens
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_2 mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_blk mtart = 'FERT' meins = 'PC' ) ).
+
+    lt_marm = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ).
+
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'material master fixture could not be inserted' ).
+
+    INSERT marm FROM TABLE @lt_marm.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'unit of measure fixture could not be inserted' ).
 
     " every component is spelled out per row on purpose, see ANOMALIES.md
     lt_vbak = VALUE #(
@@ -83,6 +108,15 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = sy-subrc
       exp = 0
       msg = 'VBAK fixture could not be removed' ).
+
+    DELETE FROM marm WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'material master fixture could not be removed' ).
 
   ENDMETHOD.
 
@@ -175,6 +209,29 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_blk ] ) )
       msg = 'a material whose only order is delivery blocked has nothing to allocate' ).
+
+  ENDMETHOD.
+
+  METHOD sales_unit_becomes_base_unit.
+
+    DATA lt_extra TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+
+    lt_extra = VALUE #(
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000050'
+        matnr = c_matnr werks = c_werks vrkme = 'CAR' kwmeng = '3' lprio = '01' ) ).
+    INSERT vbap FROM TABLE @lt_extra.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004712000050' ]-quantity
+      exp = '36'
+      msg = 'three cartons of twelve compete for thirty six pieces of stock' ).
 
   ENDMETHOD.
 

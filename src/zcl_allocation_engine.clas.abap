@@ -17,13 +17,16 @@ CLASS zcl_allocation_engine DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter iv_matnr      | <p class="shorttext synchronized">Material number</p>
     "! @parameter iv_werks      | <p class="shorttext synchronized">Plant</p>
-    "! @parameter rt_allocation | <p class="shorttext synchronized">Confirmed quantity per demand line</p>
+    "! @parameter rt_allocation  | <p class="shorttext synchronized">Confirmed quantity per demand line</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Open demand could not be read</p>
     METHODS allocate_open_demand
       IMPORTING
         iv_matnr             TYPE mard-matnr
         iv_werks             TYPE mard-werks
       RETURNING
-        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
+      RAISING
+        zcx_allocation.
 
     "! <p class="shorttext synchronized">Allocate the stock of one material to the given demand</p>
     "!

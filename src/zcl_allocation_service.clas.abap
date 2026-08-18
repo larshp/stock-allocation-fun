@@ -56,7 +56,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           it_deduction = VALUE #(
             ( NEW zcl_deduct_reservations( ) )
             ( NEW zcl_deduct_safety_stock( ) ) ) )
-        io_demand_reader = NEW zcl_so_demand_reader( )
+        io_demand_reader = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )

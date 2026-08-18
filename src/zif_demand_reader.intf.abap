@@ -22,12 +22,15 @@ INTERFACE zif_demand_reader PUBLIC.
   "!
   "! @parameter iv_matnr  | <p class="shorttext synchronized">Material number</p>
   "! @parameter iv_werks  | <p class="shorttext synchronized">Plant</p>
-  "! @parameter rt_demand | <p class="shorttext synchronized">Open demand</p>
+  "! @parameter rt_demand      | <p class="shorttext synchronized">Open demand</p>
+  "! @raising   zcx_allocation | <p class="shorttext synchronized">Demand could not be read</p>
   METHODS read_open_demand
     IMPORTING
       iv_matnr         TYPE mard-matnr
       iv_werks         TYPE mard-werks
     RETURNING
-      VALUE(rt_demand) TYPE zif_allocation=>ty_demand_tab.
+      VALUE(rt_demand) TYPE zif_allocation=>ty_demand_tab
+    RAISING
+      zcx_allocation.
 
 ENDINTERFACE.

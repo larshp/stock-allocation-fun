@@ -112,7 +112,7 @@ CLASS ltcl_engine DEFINITION FINAL FOR TESTING
     METHODS pools_stock_of_all_lgort FOR TESTING.
     METHODS passes_selection_to_reader FOR TESTING.
     METHODS no_stock_confirms_nothing FOR TESTING.
-    METHODS open_demand_comes_from_reader FOR TESTING.
+    METHODS open_demand_comes_from_reader FOR TESTING RAISING cx_static_check.
     METHODS explicit_demand_skips_reader FOR TESTING.
 
 ENDCLASS.

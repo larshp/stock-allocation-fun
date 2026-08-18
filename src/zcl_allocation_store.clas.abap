@@ -56,6 +56,19 @@ CLASS zcl_allocation_store IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_allocation_store~record_reservation.
+
+    UPDATE zstock_alloc_res
+      SET reservation = @iv_reservation
+      WHERE run_id = @iv_run_id.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid    = zcx_allocation=>save_failed
+        mv_run_id = |{ iv_run_id }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
   METHOD zif_allocation_store~read.
 
     SELECT demand_id,

@@ -19,6 +19,21 @@ INTERFACE zif_allocation_store PUBLIC.
     RAISING
       zcx_allocation.
 
+  "! <p class="shorttext synchronized">Link a recorded run to the reservation it produced</p>
+  "!
+  "! Kept apart from SAVE because the reservation only exists after the result
+  "! has been written down.
+  "!
+  "! @parameter iv_run_id      | <p class="shorttext synchronized">Allocation run</p>
+  "! @parameter iv_reservation | <p class="shorttext synchronized">Number of the reservation</p>
+  "! @raising   zcx_allocation | <p class="shorttext synchronized">Link could not be stored</p>
+  METHODS record_reservation
+    IMPORTING
+      iv_run_id      TYPE zstock_alloc_res-run_id
+      iv_reservation TYPE zstock_alloc_res-reservation
+    RAISING
+      zcx_allocation.
+
   "! <p class="shorttext synchronized">Read back the outcome of an allocation run</p>
   "!
   "! @parameter iv_run_id     | <p class="shorttext synchronized">Allocation run</p>

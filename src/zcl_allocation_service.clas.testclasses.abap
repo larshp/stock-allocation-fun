@@ -83,6 +83,44 @@ CLASS lcl_run_id_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_reservation_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_reservation_writer.
+
+    METHODS constructor
+      IMPORTING
+        iv_reservation TYPE rkpf-rsnum.
+
+    METHODS get_last_allocation
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
+
+  PRIVATE SECTION.
+    DATA mv_reservation TYPE rkpf-rsnum.
+    DATA mt_last        TYPE zif_allocation=>ty_allocation_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_reservation_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mv_reservation = iv_reservation.
+  ENDMETHOD.
+
+  METHOD zif_reservation_writer~reserve.
+    mt_last = it_allocation.
+    rv_reservation = mv_reservation.
+  ENDMETHOD.
+
+  METHOD get_last_allocation.
+    rt_allocation = mt_last.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -92,7 +130,11 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     CONSTANTS c_matnr  TYPE mard-matnr VALUE 'SERVICE-TEST-01'.
     CONSTANTS c_werks  TYPE mard-werks VALUE '1000'.
 
-    DATA mo_store TYPE REF TO zif_allocation_store.
+    CONSTANTS c_reservation TYPE rkpf-rsnum VALUE '0000009001'.
+    CONSTANTS c_demand_id   TYPE zstock_alloc_res-demand_id VALUE 'D1'.
+
+    DATA mo_store       TYPE REF TO zif_allocation_store.
+    DATA mo_reservation TYPE REF TO lcl_reservation_double.
 
     METHODS teardown.
 
@@ -105,6 +147,8 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
 
     METHODS run_returns_the_allocation FOR TESTING RAISING cx_static_check.
     METHODS run_is_recorded FOR TESTING RAISING cx_static_check.
+    METHODS confirmed_stock_is_reserved FOR TESTING RAISING cx_static_check.
+    METHODS reservation_is_linked_to_run FOR TESTING RAISING cx_static_check.
     METHODS default_wiring_is_usable FOR TESTING.
 
 ENDCLASS.
@@ -119,15 +163,17 @@ CLASS ltcl_service IMPLEMENTATION.
 
   METHOD service_with.
 
-    mo_store = NEW zcl_allocation_store( ).
+    mo_store       = NEW zcl_allocation_store( ).
+    mo_reservation = NEW #( c_reservation ).
 
     ro_service = NEW #(
-      io_engine = NEW zcl_allocation_engine(
+      io_engine      = NEW zcl_allocation_engine(
         io_stock_reader  = NEW lcl_stock_reader_double( iv_available )
         io_demand_reader = NEW lcl_demand_reader_double( it_demand )
         io_strategy      = NEW zcl_alloc_strategy_priority( ) )
-      io_store  = mo_store
-      io_run_id = NEW lcl_run_id_double( c_run_id ) ).
+      io_store       = mo_store
+      io_run_id      = NEW lcl_run_id_double( c_run_id )
+      io_reservation = mo_reservation ).
 
   ENDMETHOD.
 
@@ -170,6 +216,52 @@ CLASS ltcl_service IMPLEMENTATION.
       act = mo_store->read( ls_run-run_id )
       exp = ls_run-allocation
       msg = 'what the caller is handed must be what was written down' ).
+
+  ENDMETHOD.
+
+  METHOD confirmed_stock_is_reserved.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) ) ).
+
+    DATA(ls_run) = lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_run-reservation
+      exp = c_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation->get_last_allocation( )
+      exp = ls_run-allocation
+      msg = 'what was confirmed must be what gets earmarked' ).
+
+  ENDMETHOD.
+
+  METHOD reservation_is_linked_to_run.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) ) ).
+
+    DATA(ls_run) = lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    SELECT SINGLE reservation
+      FROM zstock_alloc_res
+      WHERE run_id = @ls_run-run_id
+        AND demand_id = @c_demand_id
+      INTO @DATA(lv_stored).
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stored
+      exp = c_reservation
+      msg = 'the recorded run must say which reservation earmarked the stock' ).
 
   ENDMETHOD.
 

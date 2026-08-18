@@ -252,3 +252,24 @@ invalid JavaScript (ANOMALIES.md 2f). The writer's tests therefore replace
 modules that do not exist in the transpiled output. The `CALL FUNCTION` itself
 is executed, and the tests assert what the BAPI was handed, not just what came
 back.
+
+### Feature 9 — one run, end to end (done)
+
+`ZCL_ALLOCATION_SERVICE->run( )` now does the whole job: allocate, record,
+reserve, and link the record to the reservation. `ZSTOCK_ALLOC_RES` gained a
+`RESERVATION` column and the store a `record_reservation` method.
+
+The order is deliberate — **record first, reserve second**:
+
+- If the reservation is rejected, there is still a record of what was decided.
+  It can be looked up by run id and retried.
+- The other way round, a failure between reserving and recording would leave
+  stock earmarked in SAP with nothing in the custom tables pointing at it, which
+  nobody would find.
+
+`record_reservation` is a separate call rather than a parameter of `save`
+because the reservation number does not exist yet when the result is written.
+Linking a run that was never saved raises rather than silently updating nothing.
+
+`ZCL_ALLOCATION_ENGINE` stays the entry point for working out an allocation
+without recording or reserving anything.

@@ -22,6 +22,7 @@ CLASS ltcl_priority DEFINITION FINAL FOR TESTING
     METHODS earlier_date_wins_within_prio FOR TESTING.
     METHODS no_stock_confirms_nothing FOR TESTING.
     METHODS negative_stock_confirms_zero FOR TESTING.
+    METHODS negative_demand_is_no_demand FOR TESTING.
     METHODS no_demand_gives_empty_result FOR TESTING.
 
 ENDCLASS.
@@ -137,6 +138,29 @@ CLASS ltcl_priority IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-shortfall
       exp = '7' ).
+
+  ENDMETHOD.
+
+  METHOD negative_demand_is_no_demand.
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '100'
+      it_demand    = VALUE #(
+        ( demand( iv_id = 'CREDIT' iv_quantity = '-3' ) )
+        ( demand( iv_id = 'NORMAL' iv_quantity = '4' iv_priority = '02' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'CREDIT' ]-confirmed
+      exp = 0
+      msg = 'a negative requirement must not confirm anything' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'CREDIT' ]-shortfall
+      exp = 0
+      msg = 'shortfall must never be negative' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'NORMAL' ]-confirmed
+      exp = '4'
+      msg = 'a negative requirement must not eat into the available stock' ).
 
   ENDMETHOD.
 

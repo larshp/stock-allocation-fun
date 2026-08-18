@@ -128,3 +128,34 @@ entry points:
 
 All three collaborators are constructor-injected, so the engine tests run
 entirely against local doubles and need no database.
+
+### Feature 5 — fair share strategy (done)
+
+`ZCL_ALLOC_STRATEGY_FAIRSHARE` cuts every line back by the same proportion
+instead of serving the top of the queue in full. Same interface, so it drops
+straight into the engine.
+
+The interesting part is the arithmetic. Quantities carry three decimals, and a
+proportional split rarely lands on a whole thousandth, so two things had to be
+true at once: nobody may be confirmed more than the pool holds, and the
+confirmed quantities must add up to exactly what was available.
+
+- Everything is scaled to whole thousandths and divided with `DIV`, which
+  truncates. Ordinary `/` rounds, and rounding up can hand out stock that is
+  not there.
+- Each line's share is derived from the **running** total rather than computed
+  per line. A per-line calculation loses up to a thousandth on every line and
+  the losses accumulate; deriving from the running total means each rounding
+  error is corrected by the next line. `10` split over three lines of `10`
+  gives `3.333 / 3.333 / 3.334`, which adds back up to `10.000` exactly, and
+  `1` split over seven lines still totals exactly `1`.
+- The leftover thousandth therefore lands on the line that sorts last, i.e. the
+  lowest priority. Sorting is the same as the priority strategy, so the outcome
+  is deterministic.
+- The intermediate type is `p LENGTH 16` (31 digits) because the running total
+  is multiplied by the available quantity before dividing. `int8` would
+  overflow on large quantities.
+
+Both strategies now also treat a negative requested quantity as no demand at
+all: it confirms nothing, its shortfall is zero rather than negative, and it
+does not consume or dilute the stock available to the other lines.

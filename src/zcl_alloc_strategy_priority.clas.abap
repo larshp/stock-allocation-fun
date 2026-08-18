@@ -32,7 +32,9 @@ CLASS zcl_alloc_strategy_priority IMPLEMENTATION.
         demand_id = ls_demand-demand_id
         requested = ls_demand-quantity
         confirmed = lv_confirmed
-        shortfall = ls_demand-quantity - lv_confirmed ) TO rt_allocation.
+        shortfall = COND #( WHEN ls_demand-quantity > lv_confirmed
+                            THEN ls_demand-quantity - lv_confirmed
+                            ELSE 0 ) ) TO rt_allocation.
 
       lv_remaining = lv_remaining - lv_confirmed.
 

@@ -4176,7 +4176,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       act = lv_status
       exp = 'E' ).
     DELETE FROM zstockalloc
-      WHERE allocation_run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id.
     DELETE FROM zstockalloc_run
       WHERE run_id = @lv_run_id.
   ENDMETHOD.
@@ -4247,7 +4247,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     ENDIF.
     cl_abap_unit_assert=>assert_true( lv_cleanup_message_seen ).
     DELETE FROM zstockalloc
-      WHERE allocation_run_id = @lv_run_id.
+      WHERE run_id = @lv_run_id.
     DELETE FROM zstockalloc_run
       WHERE run_id = @lv_run_id.
   ENDMETHOD.

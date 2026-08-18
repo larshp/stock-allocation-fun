@@ -143,7 +143,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
         iv_available      TYPE zif_allocation=>ty_quantity
         it_demand         TYPE zif_allocation=>ty_demand_tab
       RETURNING
-        VALUE(ro_service) TYPE REF TO zcl_allocation_service.
+        VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
     METHODS run_returns_the_allocation FOR TESTING RAISING cx_static_check.
     METHODS run_is_recorded FOR TESTING RAISING cx_static_check.
@@ -166,7 +166,7 @@ CLASS ltcl_service IMPLEMENTATION.
     mo_store       = NEW zcl_allocation_store( ).
     mo_reservation = NEW #( c_reservation ).
 
-    ro_service = NEW #(
+    ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
         io_stock_reader  = NEW lcl_stock_reader_double( iv_available )
         io_demand_reader = NEW lcl_demand_reader_double( it_demand )

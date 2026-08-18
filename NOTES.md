@@ -299,3 +299,23 @@ wrapper off. `create_default( )` wires it on.
 Reservations are not tied to the storage location the stock will come from, so
 the deduction is consumed in storage location order. The plant total is what the
 engine works with, and that comes out right.
+
+### Feature 11 — something a user can actually run (done)
+
+`ZSTOCK_ALLOCATION` is an executable program with material, plant and a "fair
+share instead of priority" checkbox on the selection screen. It builds the
+service through `create_default( )`, asks `ZCL_ALLOCATION_REPORT` for the lines
+and writes them.
+
+`ZCL_ALLOCATION_REPORT` returns the lines instead of writing them. `WRITE` output
+cannot be asserted, a table of strings can — so the column layout, the totals
+and the failure message are all covered by tests. The program itself is then
+thin enough that there is nothing left in it worth testing, which also keeps it
+under the 10 statement cap `reduce_procedural_code` puts on procedural code.
+
+A rejected run comes back as a line saying so rather than as an exception. A
+report has nowhere to throw to, and a short dump is not an error message.
+
+`ZIF_ALLOCATION_SERVICE` was extracted in the same step. The report is the first
+caller from outside, and it should depend on the same kind of seam everything
+else does — and it lets the report tests run without a database.

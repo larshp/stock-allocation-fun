@@ -120,6 +120,48 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
 - **Workaround:** assign to a variable or constant first and use a plain host
   variable. Done in `src/zcl_allocation_store.clas.testclasses.abap`.
 
+## 2f. A function module parameter named RETURN produces invalid JavaScript
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59, node 22.18.0
+- **Symptom:** the whole test run dies on import with
+
+  ```
+  output/bapi_reservation.fugr.mjs:16
+    let return = INPUT.tables?.return;
+        ^^^
+  SyntaxError: Unexpected strict mode reserved word
+  ```
+
+- **Cause:** the transpiler knows `return` is a reserved word — `return` is in
+  its `DEFAULT_KEYWORDS` set, and every *usage* is emitted correctly as
+  `$return.set(...)`. Only the *declaration* line skips the escaping. The two
+  halves disagree, so the module cannot parse.
+- **Why it matters here:** every SAP BAPI has a `RETURN` table parameter. As
+  long as this stands, no faithful BAPI stub can be transpiled.
+- **Workaround:** keep the function group faithful and lint it, but exclude it
+  from transpiling (`exclude_filter` in `abaplint-transpile.json`), and let the
+  unit tests replace the BAPI with a function module double from
+  `cl_function_test_environment`. The custom `CALL FUNCTION` is still checked
+  against the real signature by abaplint and still executed by the tests.
+  Renaming the parameter was rejected: the point of the stub is that the custom
+  code compiles unchanged against a real SAP system.
+
+## 2g. Inline declarations inside a function module are never declared
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Symptom:** `DATA(ls_result) = ...` in a function module body transpiles to a
+  use of `ls_result` with no `let ls_result` anywhere in the module:
+
+  ```js
+  ls_result.set((await abap.Classes['CL_STUB_RESERVATION'].create({...})));
+  ```
+
+  which is a `ReferenceError` the moment the function module runs. The same
+  construct inside a class method is declared correctly.
+- **Workaround:** declare explicitly with `DATA ls_result TYPE ...` in function
+  module bodies. Moot for this repo, since 2f already keeps the stub function
+  group out of the transpiled output.
+
 ## 3. The generated unit test runner stops at the first failure
 
 - **Versions:** `@abaplint/transpiler-cli` 2.13.59

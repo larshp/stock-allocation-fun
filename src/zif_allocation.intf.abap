@@ -25,10 +25,12 @@ INTERFACE zif_allocation PUBLIC.
   TYPES ty_demand_tab TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 
   "! What a single demand line was awarded. SHORTFALL is REQUESTED minus
-  "! CONFIRMED and is never negative.
+  "! CONFIRMED and is never negative. REQ_DATE is carried over from the demand
+  "! so the answer says not only how much was confirmed but when it is needed.
   TYPES:
     BEGIN OF ty_allocation,
       demand_id TYPE ty_demand_id,
+      req_date  TYPE d,
       requested TYPE ty_quantity,
       confirmed TYPE ty_quantity,
       shortfall TYPE ty_quantity,

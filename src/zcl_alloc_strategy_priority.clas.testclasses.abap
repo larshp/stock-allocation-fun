@@ -55,8 +55,8 @@ CLASS ltcl_priority IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'D1' requested = '30' confirmed = '30' shortfall = 0 )
-        ( demand_id = 'D2' requested = '20' confirmed = '20' shortfall = 0 ) ) ).
+        ( demand_id = 'D1' req_date = '20260101' requested = '30' confirmed = '30' shortfall = 0 )
+        ( demand_id = 'D2' req_date = '20260101' requested = '20' confirmed = '20' shortfall = 0 ) ) ).
 
   ENDMETHOD.
 
@@ -71,8 +71,8 @@ CLASS ltcl_priority IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'HIGH' requested = '10' confirmed = '10' shortfall = 0 )
-        ( demand_id = 'LOW'  requested = '10' confirmed = 0    shortfall = '10' ) ) ).
+        ( demand_id = 'HIGH' req_date = '20260101' requested = '10' confirmed = '10' shortfall = 0 )
+        ( demand_id = 'LOW'  req_date = '20260101' requested = '10' confirmed = 0    shortfall = '10' ) ) ).
 
   ENDMETHOD.
 
@@ -87,8 +87,8 @@ CLASS ltcl_priority IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'D1' requested = '10' confirmed = '10' shortfall = 0 )
-        ( demand_id = 'D2' requested = '10' confirmed = '2'  shortfall = '8' ) ) ).
+        ( demand_id = 'D1' req_date = '20260101' requested = '10' confirmed = '10' shortfall = 0 )
+        ( demand_id = 'D2' req_date = '20260101' requested = '10' confirmed = '2'  shortfall = '8' ) ) ).
 
   ENDMETHOD.
 
@@ -121,7 +121,7 @@ CLASS ltcl_priority IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'D1' requested = '7' confirmed = 0 shortfall = '7' ) ) ).
+        ( demand_id = 'D1' req_date = '20260101' requested = '7' confirmed = 0 shortfall = '7' ) ) ).
 
   ENDMETHOD.
 

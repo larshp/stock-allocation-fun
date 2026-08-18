@@ -39,6 +39,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         demand_id  = ls_allocation-demand_id
         matnr      = iv_matnr
         werks      = iv_werks
+        req_date   = ls_allocation-req_date
         requested  = ls_allocation-requested
         confirmed  = ls_allocation-confirmed
         shortfall  = ls_allocation-shortfall
@@ -58,6 +59,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
   METHOD zif_allocation_store~read.
 
     SELECT demand_id,
+           req_date,
            requested,
            confirmed,
            shortfall

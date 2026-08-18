@@ -67,8 +67,8 @@ CLASS ltcl_fairshare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'D1' requested = '30' confirmed = '30' shortfall = 0 )
-        ( demand_id = 'D2' requested = '20' confirmed = '20' shortfall = 0 ) ) ).
+        ( demand_id = 'D1' req_date = '20260101' requested = '30' confirmed = '30' shortfall = 0 )
+        ( demand_id = 'D2' req_date = '20260101' requested = '20' confirmed = '20' shortfall = 0 ) ) ).
 
   ENDMETHOD.
 
@@ -84,8 +84,8 @@ CLASS ltcl_fairshare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'LARGE' requested = '15' confirmed = '7.5' shortfall = '7.5' )
-        ( demand_id = 'SMALL' requested = '5'  confirmed = '2.5' shortfall = '2.5' ) ) ).
+        ( demand_id = 'LARGE' req_date = '20260101' requested = '15' confirmed = '7.5' shortfall = '7.5' )
+        ( demand_id = 'SMALL' req_date = '20260101' requested = '5'  confirmed = '2.5' shortfall = '2.5' ) ) ).
 
   ENDMETHOD.
 
@@ -103,9 +103,9 @@ CLASS ltcl_fairshare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'A' requested = '10' confirmed = '3.333' shortfall = '6.667' )
-        ( demand_id = 'B' requested = '10' confirmed = '3.333' shortfall = '6.667' )
-        ( demand_id = 'C' requested = '10' confirmed = '3.334' shortfall = '6.666' ) ) ).
+        ( demand_id = 'A' req_date = '20260101' requested = '10' confirmed = '3.333' shortfall = '6.667' )
+        ( demand_id = 'B' req_date = '20260101' requested = '10' confirmed = '3.333' shortfall = '6.667' )
+        ( demand_id = 'C' req_date = '20260101' requested = '10' confirmed = '3.334' shortfall = '6.666' ) ) ).
 
   ENDMETHOD.
 
@@ -158,7 +158,7 @@ CLASS ltcl_fairshare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'A' requested = '7' confirmed = 0 shortfall = '7' ) ) ).
+        ( demand_id = 'A' req_date = '20260101' requested = '7' confirmed = 0 shortfall = '7' ) ) ).
 
   ENDMETHOD.
 
@@ -171,7 +171,7 @@ CLASS ltcl_fairshare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result
       exp = VALUE zif_allocation=>ty_allocation_tab(
-        ( demand_id = 'A' requested = 0 confirmed = 0 shortfall = 0 ) ) ).
+        ( demand_id = 'A' req_date = '20260101' requested = 0 confirmed = 0 shortfall = 0 ) ) ).
 
   ENDMETHOD.
 

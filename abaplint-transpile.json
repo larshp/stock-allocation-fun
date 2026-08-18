@@ -20,5 +20,8 @@
       "filename": "../test/setup.mjs",
       "preFunction": "setupDatabase"
     }
-  }
+  },
+  "exclude_filter": [
+    "bapi_reservation\\.fugr\\."
+  ]
 }

@@ -204,3 +204,51 @@ always look the run up again.
 
 Everything the service depends on is an interface except the engine itself,
 which is a plain class because it is pure orchestration with nothing to swap.
+
+### Feature 8 — reserve the confirmed stock (done)
+
+Recording the answer is not the same as acting on it. A confirmed quantity is
+only worth something if the stock is actually earmarked, which in SAP means a
+reservation.
+
+New stubs, all under SAP standard names:
+
+- `resb.tabl.xml`, `rkpf.tabl.xml`: reservation item and header.
+- `bapi2093_res_head.tabl.xml`, `bapi2093_res_item.tabl.xml`: the BAPI
+  structures. `BAPIRET2` is *not* stubbed — open-abap-core already ships it, and
+  a second copy trips `errorOnDuplicateFilenames`.
+- `bapi_reservation.fugr.*`: the function group holding
+  `BAPI_RESERVATION_CREATE1`, with the real signature so that the custom
+  `CALL FUNCTION` is syntax checked against what a real system offers.
+- `cl_stub_reservation.clas.abap`: the behaviour behind the function module —
+  rejects an empty item table, hands out the next reservation number, writes
+  `RKPF` and `RESB`. It exists because `reduce_procedural_code` caps a function
+  module at 10 statements, which is the right rule: SAP's own BAPIs delegate to
+  classes too. It is stub-internal, not part of the API the custom code sees.
+
+Custom side:
+
+- `ZIF_RESERVATION_WRITER` / `ZCL_RESERVATION_WRITER`: one reservation item per
+  line that actually got something. Lines confirmed at zero are skipped, and if
+  nothing was confirmed the BAPI is not called at all rather than being sent an
+  empty reservation. `RETURN` messages of type `E` or `A` raise
+  `ZCX_ALLOCATION`; warnings do not.
+- The movement type is a constructor parameter, defaulting to `311`. Which
+  movement type an allocation reserves under is Customizing, not something this
+  code should decide for a customer.
+- `ENTRY_UOM` is deliberately left empty so the BAPI falls back to the material's
+  base unit of measure, which is where the quantity came from.
+
+The requirement date needed to travel from the demand to the reservation, so
+`ty_allocation` gained `req_date` and `ZSTOCK_ALLOC_RES` a `REQ_DATE` column.
+An allocation answer that cannot say *when* the stock is needed is incomplete
+anyway — reservations, and any report on the result, both want it.
+
+**Testing the BAPI call.** The stub function group is linted but excluded from
+transpiling, because a function module parameter named `RETURN` transpiles to
+invalid JavaScript (ANOMALIES.md 2f). The writer's tests therefore replace
+`BAPI_RESERVATION_CREATE1` with a function module double from
+`cl_function_test_environment`, which open-abap-core supports for function
+modules that do not exist in the transpiled output. The `CALL FUNCTION` itself
+is executed, and the tests assert what the BAPI was handed, not just what came
+back.

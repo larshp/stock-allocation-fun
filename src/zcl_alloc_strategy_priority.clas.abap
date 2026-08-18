@@ -30,6 +30,7 @@ CLASS zcl_alloc_strategy_priority IMPLEMENTATION.
 
       APPEND VALUE #(
         demand_id = ls_demand-demand_id
+        req_date  = ls_demand-req_date
         requested = ls_demand-quantity
         confirmed = lv_confirmed
         shortfall = COND #( WHEN ls_demand-quantity > lv_confirmed

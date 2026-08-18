@@ -319,3 +319,32 @@ report has nowhere to throw to, and a short dump is not an error message.
 `ZIF_ALLOCATION_SERVICE` was extracted in the same step. The report is the first
 caller from outside, and it should depend on the same kind of seam everything
 else does — and it lets the report tests run without a database.
+
+### Feature 12 — safety stock, and netting made composable (done)
+
+Safety stock (`MARC-EISBE`) is what the plant deliberately keeps back. It sits
+in `MARD` like any other stock, so until now it was being handed out.
+
+That is a second reason to hold stock back, after reservations, so the netting
+became an interface instead of a hard-coded rule:
+
+- `ZIF_STOCK_DEDUCTION` — "how much of this material in this plant is not up for
+  allocation".
+- `ZCL_DEDUCT_RESERVATIONS` — the `RESB` logic, moved out of the decorator.
+- `ZCL_DEDUCT_SAFETY_STOCK` — `MARC-EISBE`, new.
+- `ZCL_STOCK_READER_NET` now takes a list of deductions, adds them up and takes
+  the total off. It no longer knows *why* anything is held back.
+
+A site with its own rule — quality inspection stock, consignment, a
+customer-specific set-aside — writes one small class and adds it to the list.
+`create_default( )` wires both of the above.
+
+`MARC` is stubbed with the fields the deduction needs. A material with no plant
+data holds nothing back rather than failing: `MARC` missing is a master data
+problem, not a reason to refuse to allocate.
+
+This step also turned up the nastiest tool defect so far — an inline
+`DATA(x) = a - b` over packed fields silently loses the decimals and rounds the
+result (ANOMALIES.md 2h). It was only caught because this feature's tests used
+a fractional quantity. Quantities here carry three decimals, so test data
+should use them.

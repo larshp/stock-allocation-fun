@@ -48,7 +48,11 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
-        io_stock_reader  = NEW zcl_stock_reader_net( NEW zcl_stock_reader( ) )
+        io_stock_reader  = NEW zcl_stock_reader_net(
+          io_stock     = NEW zcl_stock_reader( )
+          it_deduction = VALUE #(
+            ( NEW zcl_deduct_reservations( ) )
+            ( NEW zcl_deduct_safety_stock( ) ) ) )
         io_demand_reader = NEW zcl_so_demand_reader( )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )

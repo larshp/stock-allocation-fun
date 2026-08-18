@@ -162,6 +162,37 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   module bodies. Moot for this repo, since 2f already keeps the stub function
   group out of the transpiled output.
 
+## 2h. Inline declarations drop the decimal places of a packed expression
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Severity:** the worst one found so far — it silently changes numbers.
+- **Symptom:** given two fields of type `p LENGTH 7 DECIMALS 3`,
+
+  ```abap
+  DATA(lv_open) = ls_reserved-requirement - ls_reserved-withdrawn.
+  ```
+
+  transpiles to
+
+  ```js
+  let lv_open = new abap.types.Packed({length: 8, decimals: 0});
+  ```
+
+  The decimals are gone, so `2.5 - 0` lands in the variable as `3`. Nothing
+  fails; the quantity is just wrong from then on. Reserving `2.5` of something
+  held back `3`.
+- **Where it hides:** only inline declarations *from an arithmetic expression*
+  are affected. `DATA(x) = some_packed_field.`, `DATA(x) = method( )` and
+  `DATA(x) = CONV|COND|REDUCE type( ... )` all keep the right type — checked
+  across every packed variable in this repo, and this was the only one.
+- **How it was caught:** a test that added up `4 + 2.5 + 1` and expected `7.5`.
+  The same code shipped one commit earlier with the same defect and the tests
+  passed, because every quantity in them was a whole number. Fractional test
+  data is not a nicety here — quantities carry three decimals, so the tests
+  should too.
+- **Workaround:** declare the variable with an explicit type whenever the right
+  hand side does arithmetic. Done in `src/zcl_deduct_reservations.clas.abap`.
+
 ## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
 
 - **Versions:** `@abaplint/cli` 2.120.26

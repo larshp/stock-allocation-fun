@@ -1,0 +1,1285 @@
+# Progress notes
+
+- Added opt-in `ZSTOCK_ALLOCATE-p_recon` preview reconciliation: persisted allocation snapshots are validated and existing cross-unit reservations are converted/capped before preview allocation, while reservation and snapshot writes remain disabled. Allocation output now reports whether reconciliation was evaluated, the inspected snapshot-row count, the distinct represented allocation-unit count, and the deducted cross-unit quantity; contracts advance to schema `58`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` reconciliation telemetry: stock output now reports the persisted allocation-row count alongside converted existing allocation quantity, advancing stock schemas to `16`/`17` for ordinary/metadata JSON and CSV.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` staged quantity telemetry: `net_available_quantity` now exposes stock after existing allocations and before the retained safety-stock floor, advancing stock schemas to `17`/`18`.
+- Added zero-safe `ZSTOCK_ALLOC_STOCK-p_net` utilization telemetry: `existing_allocated_pct` now reports the percentage of gross output stock consumed by persisted allocations, with typed JSON `null` and untyped/CSV/human `n/a` when unavailable, advancing stock schemas to `18`/`19`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` distinct-run provenance: `existing_allocation_run_count` now counts the persisted allocation runs contributing snapshot rows, advancing stock schemas to `19`/`20`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` allocated-row telemetry: `existing_allocated_row_count` now distinguishes positive allocation rows from all inspected snapshot rows, advancing stock schemas to `20`/`21`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` allocation-unit provenance: `existing_allocation_unit_count` now counts distinct nonblank units represented by inspected snapshot rows, advancing stock schemas to `21`/`22`.
+- Added zero-safe `ZSTOCK_ALLOC_STOCK-p_net` remaining-capacity telemetry: `net_allocatable_pct` now reports the post-allocation, post-safety-stock quantity as a percentage of gross output stock, advancing stock schemas to `22`/`23`.
+- Added explicit `ZSTOCK_ALLOC_STOCK-p_net` mixed-unit provenance: `existing_allocation_units_mixed` now flags when inspected snapshots contain more than one nonblank allocation unit, advancing stock schemas to `23`/`24`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` overflow provenance: `existing_allocations_overflow` now flags when positive persisted allocations exceed gross stock and the deducted quantity is capped, advancing stock schemas to `24`/`25`.
+- Added `ZSTOCK_ALLOC_STOCK-p_net` overflow magnitude: `existing_allocations_overflow_quantity` now reports the converted excess beyond gross stock, advancing stock schemas to `25`/`26`.
+- Added opt-in `ZSTOCK_ALLOC_STOCK-p_net` reconciliation against persisted allocation snapshots; existing allocations are converted into the output unit, deducted before the retained safety-stock floor, and surfaced with net quantity/status provenance, advancing stock schemas to `15`/`16`.
+- Added output-unit-aware `ZSTOCK_ALLOC_STOCK-p_amin`/`p_amax` bounds for post-safety-stock `allocatable_quantity`; typed filter provenance, gross-versus-usable range statuses, and eligibility reasons now distinguish usable-stock bounds, advancing stock schemas to `13`/`14`.
+- Added explicit zero-stock classification to `ZSTOCK_ALLOC_STOCK`: known material with no output quantity now reports `no_available_stock`, distinct from positive stock exhausted by retained safety stock (`no_allocatable_stock`); stock schemas advance to `11`/`12`.
+- Added optional `ZSTOCK_ALLOC_STOCK-p_saf` retained safety-stock policy; stock now calculates converted-unit `allocatable_quantity`, exposes safety-stock evaluation/status telemetry, fails closed with `safety_stock_not_evaluated` or `no_allocatable_stock`, and publishes typed filter provenance. Stock schemas advance to `10` for ordinary/typed JSON and CSV and `11` for metadata JSON.
+- Added typed `ZSTOCK_ALLOC_STOCK` `filter_values` provenance for target unit, quantity bounds, shelf-life policy, and effective expiration reference; inactive numeric filters are null and stock schemas advance to `9` for ordinary/typed JSON and CSV and `10` for metadata JSON.
+- Synchronized direct-write JSON success contracts with their CSV counterparts: goods issue, reservation create/cancel, and sales-order update now expose `status` and `message`; ordinary/typed JSON advances to schema `2`, metadata JSON to schema `3`, and CSV remains schema `1`.
+- Added sales-order update JSON `p_meta` output with execution provenance, canonical sales-document/order-type/item/schedule-line scope, requested quantity filter, and the update result nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the order-update metadata schema to `2` while ordinary JSON/typed JSON and CSV remain schema `1`.
+- Added reservation-cancellation JSON `p_meta` output with execution provenance, reservation/plant scope, movement-type request filter, and the cancellation result nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the cancellation metadata schema to `2` while ordinary JSON/typed JSON and CSV remain schema `1`.
+- Added reservation-creation JSON `p_meta` output with execution provenance, material/plant/storage-location/movement/unit/batch scope, quantity/required-date request filters, and the created reservation document nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the reservation metadata schema to `2` while ordinary JSON/typed JSON and CSV remain schema `1`.
+- Added goods-issue JSON `p_meta` output with execution provenance, material/plant/storage-location/movement/unit/batch scope, requested quantity, and the posted document result nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the goods-issue metadata schema to `2` while ordinary JSON/typed JSON and CSV remain schema `1`.
+- Added conversion JSON `p_meta` output with generation provenance, material scope, canonical quantity/from-unit/to-unit request, and the existing conversion result nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the conversion metadata schema to `2` while ordinary JSON/typed JSON and CSV remain schema `1`.
+- Added stock JSON `p_meta` output with generation provenance, stock scope, applied output/range filters, and the existing availability result nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the stock metadata schema to `5` while ordinary JSON/typed JSON and CSV remain schema `4`.
+- Added purge JSON `p_meta` output for both preview and execution, wrapping schema/generation provenance, retention scope, normalized filter values, and the existing result; JSON schemas advance to preview `30` and execution `31` while CSV contracts remain `26`/`27`.
+- Added health JSON `p_meta` output with schema/generation provenance, evaluation scope, normalized population filters, and the existing health summary nested under `summary`; metadata requires JSON and advances the health schema to `130`.
+- Added allocation JSON `p_meta` output with schema/generation provenance, execution scope, applied filters, and the existing summary nested under `summary`; metadata requires JSON, is mutually exclusive with typed JSON, and advances the allocation schema to `55`.
+
+- Extended `ZSTOCK_ALLOCATE-p_durg` with a validated post-run audit-summary selector; allocation now propagates normalized urgency to summary and exact-run reads, publishes `deadline_urgency_filter`, and advances the allocation schema to `54`.
+- Extended `ZSTOCK_ALLOC_PURGE-p_durg` with shared urgency-scoped retention preview and execution; both paths classify effective deadlines as `overdue`, `current_day`, `future`, or `n/a`, publish normalized filter provenance, and advance schemas to preview CSV/JSON `26`/`28` and execution CSV/JSON `27`/`29`.
+- Extended `ZSTOCK_ALLOC_COMPARE` with common `p_durg` and independent `p_odurg`/`p_ndurg` originating-run urgency selection for both snapshots; common and side-specific selectors are mutually exclusive, provenance is normalized, and schemas advance to `111`.
+- Extended `ZSTOCK_ALLOC_HEALTH-p_durg` with shared originating-run urgency selection; health now scopes summary and stale-run populations to `overdue`, `current_day`, `future`, or `n/a`, preserves normalized provenance, and advances schema to `129`.
+- Extended `p_durg` to `ZSTOCK_ALLOC_RESULT`, applying urgency selection to originating audit runs and snapshot reads while preserving filter provenance; result schemas advance to detail `43` and summary `53`.
+- Extended shared deadline-urgency filtering to `ZSTOCK_ALLOC_WATCH-p_durg`; watch now preserves page totals and pagination while publishing normalized urgency provenance, advancing schemas to CSV `71` and JSON/NDJSON `75`.
+- Added shared case-insensitive deadline-urgency filtering to audit history reads and exposed it through `ZSTOCK_ALLOC_HISTORY-p_durg`; accepted values are `overdue`, `current_day`, `future`, and `n/a`, with normalized filter provenance and history schemas advancing to detail `30` and summary `51`.
+- Added optional case-insensitive `ZSTOCK_ALLOC_COMPARE-p_dtr` filtering for `deadline_urgency_transition`, with normalized filter provenance and versioned mismatch diagnostics; comparison schema advances to `109`.
+- Added `deadline_urgency_transition` to `ZSTOCK_ALLOC_COMPARE` summary and detail human, CSV, JSON, metadata, and NDJSON output; it classifies old-to-new run deadline movement as `more_urgent`, `less_urgent`, `unchanged`, or `n/a`, and comparison schema advances to `108`.
+- Promoted `last_deadline_urgency`, `oldest_deadline_urgency`, `newest_deadline_urgency`, and `last_completed_deadline_urgency` into the canonical `ZIF_ALLOCATION_AUDIT=>TY_SUMMARY`; allocation and health now consume shared audit classification instead of repeating signed-age logic.
+- Promoted watch summary `oldest_deadline_urgency` and `newest_deadline_urgency` into the shared `ZCL_STOCK_ALLOCATION_WATCH=>TY_UNIT_SUMMARY` aggregator; the report now consumes canonical urgency classification and ABAP Unit covers overdue, current-day, future, mixed, and empty summaries.
+- Added page-scoped oldest/newest signed deadline ages and urgency categories to `ZSTOCK_ALLOC_RESULT` summary human, CSV, typed/untyped JSON, metadata, and NDJSON aggregate output; values are `overdue`, `current_day`, `future`, or `n/a`, result detail remains schema `42`, and the summary schema advances to `52`.
+- Added `oldest_deadline_urgency` and `newest_deadline_urgency` to `ZSTOCK_ALLOC_WATCH` summary human, CSV, JSON, and NDJSON/metadata aggregate output; values are `overdue`, `current_day`, `future`, or `n/a`, and watch schemas advance to CSV `70` and JSON/NDJSON `74`.
+- Added `oldest_deadline_urgency` and `newest_deadline_urgency` to `ZSTOCK_ALLOC_HISTORY` summary human, CSV, typed/untyped JSON, and metadata output; values are `overdue`, `current_day`, `future`, or `n/a`, and the summary schema advances to `50`.
+- Extended allocation and health deadline telemetry with `oldest_deadline_urgency` and `newest_deadline_urgency` beside the signed age bounds; values are `overdue`, `current_day`, `future`, or `n/a`, allocation advances to schema `53`, and health advances to schema `128`.
+- Added `last_deadline_urgency` to `ZSTOCK_ALLOCATE` human, CSV, and typed/untyped JSON summary output; it classifies the signed latest effective deadline age as `overdue`, `current_day`, `future`, or `n/a`, and the allocation schema advances to `52`.
+- Added `last_deadline_urgency` and `last_completed_deadline_urgency` to `ZSTOCK_ALLOC_HEALTH` evaluator, human, CSV, and JSON output; values are `overdue`, `current_day`, `future`, or `n/a`, and the health schema advances to `127`.
+- Added side-aware row-level `old_deadline_urgency` and `new_deadline_urgency` to `ZSTOCK_ALLOC_COMPARE` detail human, CSV, JSON, metadata, and NDJSON output; values are `overdue`, `current_day`, `future`, or `n/a`, and comparison schema advances to `106`.
+- Added row-level `deadline_urgency` to `ZSTOCK_ALLOC_HISTORY` detail human, CSV, JSON, metadata, and NDJSON output and to `ZSTOCK_ALLOC_WATCH` alert output; values are `overdue`, `current_day`, `future`, or `n/a`, and schemas advance to history detail `29`, watch CSV `69`, and watch JSON/NDJSON `73`.
+- Added row-level `deadline_urgency` to `ZSTOCK_ALLOC_RESULT` detail human, CSV, JSON, metadata, and NDJSON output; the value is derived from the selected originating audit deadline relative to the reported reference date, and result detail schema advances to `42` while summary remains `51`.
+- Synchronized the health CSV schema with its JSON/error contract and added generated date/time provenance to health human, CSV, and JSON output; health machine-readable schema advances to `126`.
+- Added generated date/time provenance to watch CSV, JSON, NDJSON, and metadata-envelope output; watch schemas advance to CSV `68` and JSON/NDJSON `72`.
+- Added watch JSON metadata envelopes (`p_meta`) with row counts, limits, scope, aggregate context, filter provenance, and returned rows; watch JSON/NDJSON schema advances to `71` while CSV remains `67`.
+- Added a zero-safe minimum future-deadline-mix warning threshold (`p_fdmmin`) to `ZSTOCK_ALLOC_HEALTH`; evaluator, threshold-breach telemetry, human/CSV/JSON output, and selection metadata advance the health schema to `125`.
+- Added a zero-safe maximum current-day deadline-mix warning threshold (`p_cdmmax`) to `ZSTOCK_ALLOC_HEALTH`; evaluator, threshold-breach telemetry, human/CSV/JSON output, and selection metadata advance the health schema to `124`.
+- Added a zero-safe minimum deadline-mix warning threshold (`p_dmmin`) to `ZSTOCK_ALLOC_HEALTH`; evaluator, threshold-breach telemetry, human/CSV/JSON output, and selection metadata advance the health schema to `123`.
+- Added a zero-safe maximum overdue-deadline mix warning threshold (`p_odmax`) to `ZSTOCK_ALLOC_HEALTH`; evaluator, threshold-breach telemetry, human/CSV/JSON output, and selection metadata advance the health schema to `122`.
+- Added new-minus-old deadline-bearing and overdue/current-day/future count deltas plus percentage-point urgency-mix deltas to `ZSTOCK_ALLOC_COMPARE` page-scoped summary CSV, contextual JSON, and human output; comparison schema advances to `105`.
+- Added page-scoped old/new deadline-bearing counts and zero-safe overdue, current-day, and future deadline counts and mix percentages to `ZSTOCK_ALLOC_COMPARE` summary CSV, contextual JSON, and human output; added rows count only on the new side and removed rows only on the old side; comparison schema advances to `104`.
+- Added canonical overdue, current-day, and future deadline counts plus zero-safe urgency mix percentages to `ZSTOCK_ALLOC_HEALTH` human, CSV, and JSON output; health schema advances to `121`.
+- Added canonical overdue, current-day, and future deadline counts plus zero-safe urgency mix percentages to audit-backed `ZSTOCK_ALLOCATE` summaries across human, CSV, and typed/untyped JSON output; allocation schemas advance to `51`.
+- Added page-scoped overdue, current-day, and future deadline counts plus zero-safe urgency mix percentages to `ZSTOCK_ALLOC_WATCH` summaries across human, CSV, JSON, and NDJSON output; watch CSV schema advances to `67` and JSON/NDJSON schema to `70`.
+- Added page-scoped overdue, current-day, and future deadline counts plus zero-safe urgency mix percentages to `ZSTOCK_ALLOC_HISTORY` summaries across human, CSV, typed/untyped JSON, and metadata output; detail remains schema `28` and summary advances to `49`.
+- Added page-scoped overdue, current-day, and future deadline counts plus zero-safe urgency mix percentages to `ZSTOCK_ALLOC_RESULT` summaries across human, CSV, typed/untyped JSON, and metadata output; result detail remains schema `41` and summary advances to `51`.
+- Added originating-run deadline-bearing result-line counts and zero-safe `deadline_mix_pct` to `ZSTOCK_ALLOC_RESULT` summaries across human, CSV, typed/untyped JSON, and metadata output; result detail remains schema `41` and summary advances to `50`.
+- Added canonical zero-safe `deadline_mix_pct` to `ZSTOCK_ALLOCATE` summaries across human, CSV, typed/untyped JSON, and schema-versioned errors; allocation contracts advance to schema `50`.
+- Added zero-safe `deadline_mix_pct` to `ZSTOCK_ALLOC_WATCH` summary human, CSV, JSON, and NDJSON output; watch CSV schema advances to `66` and JSON/NDJSON schema to `69`.
+- Promoted zero-safe `deadline_mix_pct` into the canonical `zif_allocation_audit=>ty_summary` contract; health now consumes the shared audit calculation.
+- Added zero-safe `deadline_mix_pct` to `ZSTOCK_ALLOC_HEALTH` human, CSV, and JSON output; health schema advances to `120`.
+- Added zero-safe `deadline_mix_pct` to `ZSTOCK_ALLOC_HISTORY` summary human, CSV, typed/untyped JSON, and metadata output; history detail remains schema `28` and summary advances to `48`.
+- Added per-alert full/partial/unallocated line counts and zero-safe mix percentages to `ZSTOCK_ALLOC_WATCH` human, CSV, JSON, and NDJSON detail output; watch CSV schema advances to `65` and JSON/NDJSON schema to `68`.
+- Added page-scoped full/partial/unallocated line counts and zero-safe mix percentages to `ZSTOCK_ALLOC_WATCH` summaries; watch CSV schema advances to `64` and JSON/NDJSON schema to `67`.
+- Added page-scoped `full_mix_pct`, `partial_mix_pct`, and `unallocated_mix_pct` to `ZSTOCK_ALLOC_HISTORY` summaries across human, CSV, typed/untyped JSON, and metadata output; history detail remains schema `28` and summary advances to `47`.
+- Added zero-safe total and returned-page status-transition share percentages to `ZSTOCK_ALLOC_COMPARE`; comparison CSV, JSON, metadata, and human output advances to schema `103`.
+- Added returned-page comparison status-transition counters `returned_status_changed_rows`, `returned_status_improved_rows`, and `returned_status_regressed_rows`; comparison CSV, JSON, metadata, and human output advances to schema `102` while total matching-row counters remain available.
+- Added comparison summary `status_changed_rows`, `status_improved_rows`, and `status_regressed_rows` counters for common rows whose allocation status changes; CSV, JSON, metadata, and human comparison output advances to schema `101`.
+- Added old-to-new full, partial, and unallocated snapshot mix deltas to `ZSTOCK_ALLOC_COMPARE` contexts across human, CSV, typed/untyped JSON, metadata, and NDJSON output; comparison contextual schema advances to `100`.
+- Added old/new snapshot full, partial, and unallocated status mix percentages to `ZSTOCK_ALLOC_COMPARE` reconciliation context across human, CSV, typed/untyped JSON, metadata, and NDJSON output; comparison contextual schema advances to `99`.
+- Added page-scoped `reserved_lines`, `unreserved_lines`, `reserved_mix_pct`, and `unreserved_mix_pct` to `ZSTOCK_ALLOC_RESULT` summaries across human, CSV, typed/untyped JSON, and metadata output; result detail remains schema `41` and summary advances to `49`.
+- Added persisted preview provenance to `ZSTOCK_ALLOC_RESULT` detail rows across human, CSV, typed/untyped JSON, and metadata output; result detail advances to schema `41` while summary remains `47`.
+- Added page-scoped preview/operational counts and mix percentages to `ZSTOCK_ALLOC_RESULT` summaries across human, CSV, typed/untyped JSON, and metadata output; result detail remains schema `41` and summary advances to `48`.
+- Added page-scoped allocation-status mix percentages to `ZSTOCK_ALLOC_RESULT` summaries across human, CSV, typed/untyped JSON, and metadata output; result detail remains schema `41` and summary advances to `47`.
+- Added page-scoped preview and operational mix percentages to `ZSTOCK_ALLOC_HISTORY` summaries across human, CSV, typed/untyped JSON, and metadata output; history detail remains schema `28` and summary advances to `46`.
+- Added page-scoped preview and operational mix percentages to `ZSTOCK_ALLOC_WATCH` summaries, alongside composition counts; watch schemas advance to CSV `63` and JSON/NDJSON `66`.
+- Added preview and operational population mix percentages to `ZSTOCK_ALLOC_HEALTH` alongside the existing run-type counts; health schema advances to `119` with zero-safe percentages for empty selections.
+- Exposed persisted per-alert preview provenance in `ZSTOCK_ALLOC_WATCH` human, CSV, JSON, typed JSON, and NDJSON detail output; watch schemas advance to CSV `62` and JSON/NDJSON `65`.
+- Added persisted per-run preview provenance to `ZSTOCK_ALLOC_HISTORY` human, CSV, typed/untyped JSON, and metadata detail output; history detail schema advances to `28` while summary remains `45`.
+- Added page-scoped `preview_runs` and `operational_runs` composition counts to `ZSTOCK_ALLOC_HISTORY` summaries across human, CSV, typed/untyped JSON, and metadata output; history summary schema advances to `45`.
+- Added page-scoped `preview_runs` and `operational_runs` composition counts to `ZSTOCK_ALLOC_WATCH` summaries, with preview provenance retained on each alert; watch schemas advance to CSV `61` and JSON/NDJSON `64`.
+- Added explicit latest-run and latest-completed preview flags to audit summaries and health human/CSV/JSON output; health schema advances to `117`.
+- Added selected-population `preview_runs` and `operational_runs` counts to audit summaries and health human/CSV/JSON output; health schema advances to `118`.
+- Extended stock output thresholds with optional `p_max`; schema advances to `4`, inverted/negative ranges are rejected, and converted stock reports below-minimum, above-maximum, within-range, or not-evaluated state.
+- Added an optional output-unit-aware stock minimum threshold via `p_min`; stock schema advances to `3` and reports active/evaluated/below-minimum state after conversion.
+- Added optional stock-report target-unit conversion via `p_meins`, preserving base/output quantity provenance with schemas advancing to `2` and reusing the authorized unit-conversion adapter.
+- Added standard `p_rid` as a compatible alias for watch run-ID substring filtering; legacy `p_runq` remains supported, ambiguous dual input is rejected, and watch contracts advance to CSV `60` and JSON/NDJSON `63`.
+- Added exact and substring run-ID provenance filters `p_runid`/`p_rid` to `ZSTOCK_ALLOC_HEALTH`, propagated them through both summary reads and all output modes, advanced the health schema to `116`, and added XML/repository-contract coverage.
+- Reconciled the current watch documentation with its executable finish-date contract: README now lists `p_ffrom`/`p_fto` and schemas `59`/`62` alongside the existing lifecycle bounds; historical release-note references remain unchanged.
+- Added inclusive audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_WATCH`, propagating them through canonical audit reads and human/CSV/JSON/NDJSON provenance; watch schemas advance to CSV `59` and JSON/NDJSON `62`, with contract coverage.
+- Added inclusive originating audit lifecycle finish-date bounds `p_ffrom`/`p_fto` to `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; the bounds reach latest, exact-run, context, and sink reads, appear in human/CSV/JSON/NDJSON provenance, advance result schemas to detail `40` and summary `46`, and are covered by sink and repository contracts.
+- Added common and old/new side-specific audit lifecycle start-date windows to `ZSTOCK_ALLOC_COMPARE`; effective bounds reach originating-run and snapshot reads, are exposed across human/CSV/JSON/NDJSON/typed provenance, advance comparison contextual schemas to `97`, and include common-versus-side validation and contract coverage.
+- Added inclusive originating audit lifecycle start-date bounds `p_sfrom`/`p_sto` to `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; the bounds reach latest, exact-run, and sink reads, appear in human/CSV/JSON/NDJSON provenance, advance result schemas to detail `39` and summary `45`, and are covered by sink and repository contracts.
+- Added inclusive audit lifecycle start-date bounds `p_from`/`p_to` to `ZSTOCK_ALLOC_WATCH`, propagating them through canonical audit reads and human/CSV/JSON/NDJSON provenance; watch schemas advance to CSV `58` and JSON/NDJSON `61`, with contract coverage.
+- Added an inclusive purge audit-start upper bound `p_to` to pair with `p_from`; the filter reaches preview and execution reads, provenance in human/CSV/JSON output, schemas advance to CSV `25`/`26` and JSON `27`/`28`, and ABAP Unit/contracts cover the bounded window.
+- Added purge cap-effect telemetry: preview and execution now expose `capped_audit_runs`, counting finalized unprotected runs matched after `p_max` was reached; the audit API returns the same count, schemas advance to CSV `24`/`25` and JSON `26`/`27`, and regression/contracts cover the value.
+- Reconciled the health report documentation with its current JSON error envelope: README now records schema `115`, and repository-contract coverage prevents the error reference from drifting from the successful health schema.
+- Corrected capped purge accounting so `p_max` limits only unprotected finalized runs; preview and execution continue scanning later candidates and report running, unknown, and reservation-protected rows even after the deletion cap is reached.
+- Made capped purge selection deterministic: preview and execution now sort eligible candidates by start date, start time, and run ID before applying `iv_max_runs`, so repeated capped retention requests select the same oldest runs; ABAP Unit and repository-contract coverage protect the ordering invariant.
+- Added bounded purge retention with `ZSTOCK_ALLOC_PURGE-p_max` and `iv_max_runs`; positive values cap finalized runs selected in both preview and execution, while zero preserves unlimited behavior. Max-run filter provenance is exported, purge contracts advance to CSV `23`/`24` and JSON `25`/`26`, and ABAP Unit covers cap, remaining-row, and negative-value behavior.
+- Propagated preview provenance into rejection audits: validation, source, and post-calculation failures from preview allocations now persist `PREVIEW = X`, so `p_prev = P` does not miss failed simulations; ABAP Unit and repository-contract coverage protect the API and service propagation.
+- Corrected the SAP integration checklist so custom-table delete authorization is scoped to snapshot replacement and retention only; direct reservation cancellation uses the reservation authorization boundary and does not delete `ZSTOCKALLOC` rows.
+- Tightened `BAPI_RESERVATION_CREATE1` stub fidelity to require the standard reservation header `CREATED_BY` identity in addition to movement/date and item fields; repository-contract coverage protects the communication-structure boundary.
+- Added an SAP-system integration checklist covering abapGit import scope, custom DDIC activation, standard table/BAPI prerequisites, authorization objects and activities, report activation, preview/execute safety, and the boundary between local stubs and target-system validation; repository-contract coverage protects the checklist anchors.
+- Centralized the SAP movement-type zero sentinel (`000`) and rejected it across reservation/goods-issue writers, cancellation, allocation service, audit, snapshot, result, and comparison boundaries; direct writer regressions are covered by ABAP Unit and repository-contract checks.
+- Unified terminal failure behavior across all SAP writer test doubles: sales-order changes and reservation deletion now return immediately after BAPI error or invalid return status, with repository-contract coverage protecting the state boundary.
+- Made reservation and goods-movement SAP test doubles fail closed for explicit BAPI error and invalid-status returns: they now preserve the return/rollback fixture but do not fabricate reservation or material-document identifiers; repository-contract coverage enforces terminal error branches.
+- Tightened reservation and goods-movement BAPI payloads: movement types must be nonzero three-digit SAP numeric keys and quantities must be finite and positive; repository-contract checks protect both writer boundaries.
+- Strengthened `BAPI_SALESORDER_CHANGE` stub fidelity: the schedule payload now requires nonzero SAP-sized numeric document/item/schedule keys, a finite positive quantity, and matching keys between schedule rows and their update flags; repository-contract coverage protects the correlation boundary.
+- Added calendar-date fidelity to the reservation and goods-movement SAP API stubs: header and required dates must be real eight-digit SAP dates, including leap-day validation, rather than merely nonblank strings; repository-contract coverage protects the shared validator and each payload boundary.
+- Tightened `MD_CONVERT_MATERIAL_UNIT` stub fidelity: material, source unit, target unit, finite quantity, and nonnegative input are now required before conversion behavior is simulated, matching `ZCL_UNIT_CONVERSION_SAP`'s pre-FM validation; repository-contract coverage protects the boundary.
+- Tightened SAP lock-FM stub fidelity: `ENQUEUE_EZSTOCKALLOC` and `DEQUEUE_EZSTOCKALLOC` now require material, plant, and storage-location scope before returning success; repository-contract coverage protects the same required scope enforced by `ZCL_STOCK_ALLOCATION_LOCK_SAP`.
+- Added fail-closed payload fidelity to the SAP reservation-delete test double: `BAPI_RESERVATION_DELETE` now requires a nonzero ten-digit numeric reservation document and returns an error before any transaction-fault fixture can be activated; repository-contract coverage protects the boundary.
+- Made SAP writer test doubles fail closed: incomplete `BAPI_RESERVATION_CREATE1` and `BAPI_GOODSMVT_CREATE` payloads now return their BAPI error without fabricating a reservation or material-document identifier; repository-contract checks enforce the rejection-before-document ordering.
+- Extended SAP API-stub payload fidelity to `BAPI_SALESORDER_CHANGE`: the harness now requires a sales document, update intent, exactly one schedule row and matching update row, positive requested quantity, and the expected update flags before it can represent a successful order change; repository-contract coverage protects that boundary.
+- Extended SAP API-stub payload fidelity to `BAPI_GOODSMVT_CREATE`: the harness now requires the posting/document dates, goods-movement code, exactly one item, material/scope keys, positive quantity, movement type, and unit before it can return a material document; repository-contract coverage protects that boundary.
+- Hardened the reservation SAP API test double: `BAPI_RESERVATION_CREATE1` now models required header/item fields and returns an error for incomplete payloads, with repository-contract coverage protecting the stub from regressing to unconditional success.
+- Strengthened SAP DDIC descriptor fidelity checks: every standard-table stub now has validated field identity, position, datatype, and positive length metadata; date/unit lengths and quantity decimals/reference-unit metadata are checked before the transpiled SQL harness consumes the stub.
+- Made SAP DDIC stub coverage self-updating for qualified Open SQL: repository-contract now resolves every production `alias~field` reference to its `FROM`/`JOIN` table alias and verifies that the field is declared in the matching standard-table descriptor, in addition to the explicit unqualified-field contract.
+- Hardened the public comparison boundary: old and new snapshots now reject negative or inconsistent requested/allocated/shortage metrics, invalid priorities, and unknown or status-inconsistent allocation states before comparison ratios and change classification run.
+- Strengthened SAP DDIC stub integration checks: repository-contract now verifies every stock/order field consumed by production SQL is declared in the corresponding standard-table stub, preventing a stub from drifting into a false integration model while retaining the client-key checks.
+- Added default audit-transaction integration regressions: rejection and finalization now exercise the real SAP transaction adapter against returned-error and unknown-status commit fixtures, proving audit commit failures preserve the adapter diagnostic and roll back the pending database changes.
+- Extended rollback-status regressions across every direct SAP writer: reservation creation/cancellation, goods issue, and sales-order changes now execute both returned-error and unknown-status rollback fixtures, proving that each adapter preserves the diagnostic instead of relying only on the explicit transaction adapter test.
+- Hardened SAP transaction rollbacks: the allocation transaction adapter and every reservation, goods-movement, and sales-order rollback path now inspect `BAPI_TRANSACTION_ROLLBACK`'s returned `BAPIRET2` status, reject error/unknown statuses even when `sy-subrc` is zero, preserve the returned diagnostic, and expose regression fixtures for direct and compensating rollback failures.
+- Hardened SAP transaction commits: the allocation transaction adapter and reservation, goods-movement, and sales-order BAPI writers now inspect `BAPI_TRANSACTION_COMMIT`'s returned `BAPIRET2` status, reject error/unknown statuses even when `sy-subrc` is zero, preserve the returned diagnostic, and roll back. Stub-backed ABAP Unit regressions and repository-contract checks cover the boundary.
+- Closed a repository-contract blind spot in production SQL ownership checks: ABAP `INSERT dbtab FROM ...` statements are now discovered alongside `DELETE`, `UPDATE`, and `MODIFY`, so a future standard-table write cannot bypass the custom-table boundary.
+- Hardened the audit derived-deadline contract: retained error runs with malformed raw horizons now expose an initial `requested_deadline`, preventing summary and report consumers from performing date arithmetic on diagnostic input.
+- Hardened audit history reads: error runs that retain malformed diagnostic horizons are now preserved for ordinary reads but excluded from overdue, deadline, deadline-age, and deadline-age sort paths before date arithmetic.
+- Hardened audit purge horizon reads: preview and execution now validate persisted requested-date bounds before selecting deadlines or subtracting deadline ages, while error runs with invalid diagnostic input remain purgeable without deadline filtering.
+- Hardened allocation-result reads: originating audit run dates and clock times are now validated before deadline filtering, duration filtering, or duration sorting can perform arithmetic.
+- Hardened allocation-result filter boundaries: caller-supplied overdue, deadline, requested-delivery, and reservation dates now reject impossible calendar values before comparisons or date arithmetic.
+- Hardened comparison running-age reads: malformed start dates/times and half-populated finish timestamps now produce unavailable age data before timestamp arithmetic.
+- Hardened audit purge candidate reads: preview and execution now reject malformed persisted start/finish timestamps and inversions before duration filtering can perform arithmetic.
+- Tightened injected stock-provider postconditions: no-batch availability results now reject batch-only existence, restriction, or expiration metadata before allocation, with ABAP Unit and repository-contract coverage.
+- Extended calendar-date validation beyond SAP source rows: malformed requested-date bounds now fail at the allocation service, order source, and audit-run APIs; snapshot demand/reservation dates and persisted run references are rejected before writes or reads, while rejected diagnostic runs retain their original invalid selection bounds.
+- Hardened the direct SAP reservation adapter: impossible non-initial required dates are rejected before authority checks and `BAPI_RESERVATION_CREATE1`, with ABAP Unit and repository-contract coverage.
+- Hardened injected snapshot postconditions: malformed existing demand or reservation dates are rejected before reservation reuse, cancellation, or persistence, matching the SAP sink contract.
+- Hardened audit date filters: history, summary, purge preview, purge execution, and running-age inputs now reject impossible calendar dates before comparisons or date arithmetic.
+- Added shared SAP clock-time validation: malformed `TIMS` values are rejected from persisted audit runs and ignored for running-age calculations before timestamp arithmetic.
+- Added shared SAP calendar-date validation: malformed non-initial `MCHA-VFDAT` and `VBEP-EDATU` values now fail closed before shelf-life, delivery compatibility, or requested-horizon filtering; service-side provider dates are checked too, with leap-year/date-boundary tests, a bad-date fixture, and repository-contract coverage.
+- Hardened every production SAP function-module boundary: BAPI operations and transaction commit/rollback calls now map classic `OTHERS` exceptions into the existing rollback/error paths; the SAP stub models thrown classic exceptions, ABAP Unit covers adapter and transaction failures, and repository-contract checks every production call.
+- Tightened stock-read authorization to least privilege: non-batch reads require `MARD`, batch reads require `MCHB`/`MCHA`, and both paths retain `MARA`/`MARC`; repository-contract coverage protects parity between authorization and SQL access.
+- Hardened SAP schedule-demand validation: the order reader now selects rows with negative requested or confirmed quantities even when they are not otherwise open, validates those corrupt rows before filtering fulfilled schedules, and covers the fail-closed path with a fixture, ABAP Unit test, and repository contract.
+- Added dependency reproducibility coverage: repository-contract now checks that the package manifest, lockfile root, and resolved `open-abap-core` entry use the same pinned archive consumed by both tool configurations and CI.
+- Hardened classic SAP function-module error handling: material-unit conversion and allocation enqueue/dequeue calls now map `OTHERS` to `sy-subrc` before the existing typed error handling; lint and repository contracts protect the integration boundary.
+- Hardened source placement for metadata: repository-contract now rejects Z/Y-namespaced abapGit class, interface, program, or table XML outside `src/`, matching the existing ABAP source-placement guard.
+- Strengthened direct-write boundary coverage: repository-contract now requires reservation create/cancel, goods issue, and sales-order update reports to stop without `p_exec`, inject their SAP authority ports, and retain adapter commit/rollback checks; this protects the operator-report safeguards during future additions.
+- Versioned CSV errors: every production report now emits `schema_version` in CSV error headers and rows, with preview/detail/summary schemas matching the corresponding success contract; repository-contract and CSV helper tests reject legacy envelopes.
+- Hardened custom-table isolation: repository-contract now requires every `src/*.tabl.xml` object to remain in the `Z` namespace, declare `CLIDEP=X`, and expose keyed `MANDT` for client-safe persistence.
+- Hardened source placement: repository-contract now scans repository ABAP files and rejects Z-namespaced reports, classes, or interfaces outside `src/`, preserving the separation from SAP-standard stubs.
+- Corrected comparison schema documentation: schema `36` is now explicitly historical, while the current comparison CSV/contextual JSON contract remains schema `95`; repository-contract guards against the stale active-schema wording.
+- Added CI verification: `.github/workflows/verify.yml` runs `npm ci` and the complete `npm test` pipeline on pushes and pull requests, keeping lint, transpilation, ABAP Unit, and repository contracts enforced remotely.
+- Versioned result JSON errors: `ZSTOCK_ALLOC_RESULT` now selects schema `43` for summary errors and `37` for detail/metadata/NDJSON errors across validation, authorization, and read paths; repository-contract and documentation coverage enforce the mode-aware contract.
+- Versioned comparison JSON errors: `ZSTOCK_ALLOC_COMPARE` now uses schema `95` for validation, authorization, and read failures, matching the current contextual JSON contract; repository-contract coverage protects all 102 error paths.
+- Hardened the JSON error contract: repository-contract now rejects legacy unversioned JSON errors in every production report and requires schema-aware errors wherever JSON is emitted; helper ABAP Unit cases also verify quote escaping in schema and run-ID envelopes.
+- Hardened SAP table-stub isolation: repository-contract now requires every standard-table descriptor to expose `MANDT` as a key and rejects custom `Z*` table identities from `sap_stubs/`, preserving client-safe integration fixtures.
+- Hardened database-write ownership: repository-contract now discovers production `DELETE FROM`, `UPDATE`, and database-style `MODIFY` statements and requires every target to use the custom `Z` namespace, complementing abaplint's `modify_only_own_db_tables` rule.
+- Versioned history JSON errors: `ZSTOCK_ALLOC_HISTORY` now selects schema `43` for summary errors and `26` for detail/metadata/NDJSON errors across validation, authorization, and read paths; repository-contract and documentation coverage enforce the mode-aware contract.
+- Versioned watch JSON errors: `ZSTOCK_ALLOC_WATCH` now emits schema `59` for mode, validation, and audit-read failures, with repository-contract and documentation coverage matching JSON/NDJSON success contexts.
+- Versioned health JSON errors: `ZSTOCK_ALLOC_HEALTH` now emits schema `28` for validation and audit-read failures, with repository-contract and documentation coverage matching its successful JSON contract.
+- Versioned purge JSON errors: `ZSTOCK_ALLOC_PURGE` now selects schema `22` for preview and `23` for execution before emitting validation, authorization, preview, or execution failures; repository-contract and documentation coverage protect parity with the success envelopes.
+- Versioned primary allocation JSON errors: `ZSTOCK_ALLOCATE` now uses schema `34` for validation, authorization, allocation, and summary failures, while preserving the existing `run_id` correlation when a run exists; the shared helper, ABAP Unit, repository-contract, and documentation coverage now include the run-aware envelope.
+- Versioned direct SAP operator JSON errors: the shared JSON helper now emits `mode`, numeric `schema_version`, and `message`, and all six direct stock/conversion/reservation/goods-issue/sales-order reports use schema `1` for validation and adapter-failure envelopes; ABAP Unit, repository-contract, and full-suite coverage were added.
+- Hardened SAP stock master-data integrity: an existing material with storage stock but no selected-plant `MARC` row is now rejected before allocation, while an absent MARA material remains a not-found result; fixture, ABAP Unit, repository-contract, and documentation coverage were added.
+- Reconciled current README capability/schema wording with executable contracts: the SAP stock boundary now lists MARC alongside MARA/MARD, and the current result summary schema is consistently documented as `43`.
+- Closed the matching authorization gap for the new MARC read: the default stock source-read authority now checks `S_TABU_NAM` activity `03` for `MARC`, with repository-contract coverage and current authorization documentation.
+- Closed the plant-specific material deletion gap: `MARC-LVORM` is now represented in the SAP stub, read by `ZCL_STOCK_SOURCE_SAP`, rejected when malformed or set, and covered by fixture, ABAP Unit, and repository-contract checks.
+- Reconciled current README schema wording with the implemented contracts: stock, conversion, reservation-cancel, and allocation success JSON documentation now covers both typed and untyped outputs.
+- Closed the SAP order-source delivery-block gap: the `VBAP-LIFSP` item delivery-block field is now modeled in the standard stub, read by the order source, excluded before demand mapping, and covered by a blocked-item fixture and repository contract.
+- Extended purge JSON schema parity: `ZSTOCK_ALLOC_PURGE` now emits preview schema `22` and execution schema `23` in untyped JSON as well as typed JSON, with repository-contract and documentation coverage.
+- Extended JSON schema parity to the primary `ZSTOCK_ALLOCATE` success response: untyped JSON now emits schema `34` alongside typed JSON, with repository-contract coverage and documentation updated.
+- Standardized direct SAP operator-report JSON contracts: stock, conversion, reservation create/cancel, goods issue, and sales-order update now emit `schema_version: 1` in untyped success envelopes as well as typed JSON; repository-contract coverage protects the parity.
+- Closed the reservation-identity exception at the persistence boundary: injected snapshots, persisted snapshot reads/writes, and reservation result filters now reject nonnumeric as well as short or all-zero ten-character values; valid test doubles use numeric reservation keys and malformed regressions remain explicit.
+- Enforced the documented SAP sales-document contract end to end: order reads, allocation-service demand/reconciliation validation, snapshot writes, and result filters now reject exact-length nonnumeric identities; valid fixtures use ten-digit document keys and the regression suite preserves malformed-key coverage.
+- Added `ZSTOCK_ALLOC_CONVERT`, a read-only material-unit conversion diagnostic. It canonicalizes both unit inputs, delegates conversion and authority checks to the SAP adapter, and exposes source/converted quantities in human, CSV, JSON, and typed JSON output.
+- Added `ZSTOCK_ALLOC_RESERVE`, the guarded counterpart to reservation cancellation. It requires explicit execution, canonicalizes the requested unit, delegates reservation creation and BAPI transaction handling to the SAP adapter, and exposes the returned reservation document plus request context in human, CSV, JSON, and typed JSON output.
+- Added `ZSTOCK_ALLOC_RES_CANCEL`, an explicit-execution reservation-cancellation report over the authorized SAP reservation adapter. It preserves the reservation document, plant, movement type, status, and diagnostic in human, CSV, JSON, and typed JSON output, including rollback diagnostics from the BAPI boundary.
+- Added `ZSTOCK_ALLOC_STOCK`, a read-only operator report over the SAP stock-source boundary. It exposes material/plant/storage-location/batch availability, material and batch-master provenance, deletion-safe stock semantics, and batch expiration/restriction context in human, CSV, JSON, and typed JSON output.
+- Closed a report-boundary provenance gap: `ZSTOCK_ALLOCATE`, `ZSTOCK_ALLOC_GOODS_ISSUE`, and `ZSTOCK_ALLOC_ORDER_UPDATE` now normalize lowercase unit/order-type input before the SAP call and echo the canonical values in preview, CSV, JSON, and human output.
+- Extended report-boundary unit canonicalization to history, result, watch, and purge filters; lowercase unit input is normalized before audit/snapshot reads and machine-readable provenance.
+- Canonicalized history lifecycle status and result lifecycle/status, sales-document-type, order-unit, and reservation-unit filters before reads and exports, matching comparison/report filter behavior.
+- Canonicalized comparison old/new sales-document-type filters before snapshot reads and comparison provenance, completing case normalization for the report's SAP code filters.
+- Normalized comparison `p_chg` before uppercase validation, so lowercase change-type input follows the same case-insensitive filter contract as the other comparison codes.
+- Documentation follow-up: reconciled remaining current-report schema references in `README.md` with executable contracts: allocation `34`, history `26`/`43`, result `37`/`43`, and watch `56`/`59`; historical release-note text remains unchanged.
+- Tightened audit count reconciliation so finalized runs cannot persist or expose fewer full/partial/unallocated outcomes than their persisted demand count; added finalization and read-validation regression coverage.
+
+- Aligned the service reservation-provider postcondition with the SAP BAPI adapter: returned reservation documents must be exact ten-character numeric, nonzero SAP keys. Added invalid-ID regression coverage before snapshot persistence and cleanup.
+
+- Hardened service-side existing-snapshot reconciliation to require complete reservation provenance for allocated rows, matching the SAP sink contract; a malformed injected snapshot is rejection-audited before side effects.
+
+- Extended service-side existing-snapshot validation to reject short or all-zero sales documents before reconciliation, with a focused injected-provider regression.
+
+- Hardened the service stock-provider postcondition: material, batch-management, batch-existence, and restriction flags must be canonical booleans; malformed flags are rejection-audited before demand reads.
+
+- Added service-side positive-demand order-unit validation so injected demand cannot bypass unit conversion or persist quantities without source-unit provenance.
+
+- Added service-side positive-demand requested-date validation so injected demand cannot bypass the SAP order-source date contract and silently receive a today-based reservation date.
+
+- Added conditional sales-order identity validation: when a demand carries a sales document, its document type, item, and schedule-line keys must also be present at both service and snapshot-write boundaries; generic order IDs remain supported.
+
+- Canonicalized injected existing-snapshot allocation, status, order, and reservation-unit metadata before reconciliation, matching SAP result-read behavior and preserving reservation reuse.
+
+- Canonicalized injected stock-provider units before comparing them with the requested allocation unit, preventing avoidable conversion calls for lowercase SAP-style unit keys.
+
+- Canonicalized sales-document types across SAP order reads, injected service demands/snapshots, comparison normalization, snapshot filters/persistence, and direct sales-order writes; added lowercase source and persisted-row regressions.
+
+- Replaced the reservation-cancel adapter's literal ten-character check with the shared SAP document-length constant and guarded that dependency in the repository contract.
+
+- Tightened `ZSTOCK_ALLOC_COMPARE` common/old/new reservation-movement filter validation to require exactly three numeric characters, matching the shared SAP movement-type contract.
+
+- Canonicalized injected demand `order_unit` values at the service boundary, matching SAP source and snapshot behavior and preventing lowercase units from triggering avoidable conversions.
+
+- Hardened audit finalization so successful runs cannot persist diagnostic messages that would fail the read-side run contract; a regression verifies the running row remains unchanged after rejection.
+
+- Aligned the allocation service with the audit lifecycle contract by clearing informational messages for successful and successful-preview runs; partial and error diagnostics remain persisted.
+
+- Tightened goods-movement fiscal-year validation to require exact logical length four plus numeric and nonzero content, with stub-backed rollback regression coverage.
+
+- Hardened SAP document identity validation to require exact logical length ten in addition to numeric and nonzero checks, covering order reads/updates, reservation creation, goods-movement output, service demand validation, and snapshot persistence.
+
+- Tightened the shared SAP movement-type contract to exact logical length three plus numeric content, with short-key regressions across service, BAPI, audit, snapshot, and read-filter paths.
+
+- Hardened snapshot provenance validation against inverted persisted requested-delivery horizons. The SAP allocation sink now rejects reversed run bounds before snapshot writes or reads can use the run.
+
+- Hardened the SAP order source's `VBAP-LOEKZ` boundary. It now validates canonical blank/`X` deletion flags before skipping deleted items, with a malformed-flag fixture and ABAP Unit regression.
+
+- Hardened all direct BAPI write adapters against unknown nonblank return statuses. Reservation create/cancel, goods movement, and sales-order schedule updates now reject noncanonical `RETURN-TYPE` values before commit, with stub-driven regression coverage for each path.
+
+- Hardened the allocator postcondition boundary: injected allocators may not populate service-owned run ID, strategy, or allocation-unit metadata before reservation or snapshot persistence; a focused regression test confirms rejection before side effects.
+
+- Reconciled the public strategy documentation with the nine-strategy implementation (`P`, `F`, `N`, `S`, `L`, `B`, `E`, `A`, `W`) across allocation, result, history, watch, and purge guidance; added the fair-share, adaptive, and weighted behavior to the allocation contract text.
+
+- Closed the remaining service-side snapshot reconciliation gap: injected persisted demand rows with negative priorities are now rejected before reservation reuse, matching the allocator and SAP snapshot-sink boundary checks; regression coverage protects the rejection path.
+
+- Hardened demand validation for SAP delivery priority. All allocators, the service boundary, and allocation-snapshot persistence now reject negative priorities; end-to-end tests verify rejection auditing before side effects.
+
+- Made the nine-strategy contract authoritative in the README (`P`, `F`, `N`, `S`, `L`, `B`, `E`, `A`, `W`) and added a repository-contract assertion so future strategy changes cannot silently leave the documented surface behind.
+
+- Improved fair-share and weighted fair-share precision handling. After proportional grants are rounded to the persisted `0.001` quantity precision, deterministic residual-unit redistribution now consumes any remaining representable stock without exceeding demand; ABAP Unit coverage protects exact residual consumption for both strategies.
+
+- Split weighted strategy `W` from ordinary fair-share in history and result summaries. History/result summary exports now expose weighted run/line counts plus weighted requested, allocated, shortage, and coverage fields; both summary schemas advance to `43`.
+
+- Added distinct weighted fair-share run counts and unit-safe requested/allocated/shortage/coverage analytics to the audit summary and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schemas advance to `9`.
+
+- Added exact-run adaptive branch provenance to result summaries: `adaptive_branch` reports `priority`, `fair-share`, or `n/a` across human, CSV, JSON, and metadata output; result summary schemas advance to `42`.
+- Added weighted fair-share strategy `W`, distributing scarce stock by normalized priority weight while preserving demand caps and fractional residual safety; `W` has dedicated audit/allocation/health run and quantity/coverage analytics.
+- Extended `ZSTOCK_ALLOC_HEALTH` with `adaptive_priority_runs` and `adaptive_fair_runs` so operational health output shows the adaptive branch mix; health JSON/CSV schemas advance to `8`.
+- Extended `ZSTOCK_ALLOC_WATCH` alerts and summaries with adaptive branch provenance and page-scoped priority/fair-share branch counts; watch schemas advance to CSV `54` and JSON/NDJSON `57`.
+
+- Added adaptive strategy `A` through the allocator, service, audit, sink, allocation, history, result, watch, purge, and compare paths. It selects priority allocation when the pool covers all demand and deterministic fair-share allocation when stock is scarce; history/result summary schemas advance to `41` with adaptive counts and quantity/coverage analytics.
+
+- Extended fair-share analytics through `ZSTOCK_ALLOC_HISTORY` and `ZSTOCK_ALLOC_RESULT`: human, CSV, typed JSON, and untyped JSON summaries now expose fair-share run/line counts plus requested, allocated, shortage, and coverage totals. History and result summary schemas advance to `41`; mixed allocation units remain explicitly non-additive.
+
+- Added the `E` fair-share allocation strategy to the service, allocation report, audit summary, sink validation, history/result/watch/purge/compare report paths, and machine-readable strategy context. The deterministic water-filling allocator caps each demand, preserves fractional residual stock, and has ABAP Unit coverage for fairness, caps, residual safety, and duplicate keys.
+
+- Added `ZSTOCK_ALLOC_HEALTH`, a read-only operational health report with healthy/warning/critical scope status, stale-run detection, shortage and safety-stock checks, requested-horizon filtering, material/plant/batch/unit scope, and human/CSV/JSON output. Mixed-unit totals are suppressed rather than summed.
+
+- Extended `ZSTOCK_ALLOC_HEALTH` with fair-share run counts and unit-safe fair-share requested/allocated/shortage/coverage metrics. Health JSON/CSV schemas advance to `2`; mixed-unit scopes return unavailable/null fair-share quantities instead of cross-unit totals.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_strat` strategy scoping. Health checks can now target priority, FIFO, full-only, smallest, largest, best-fit, fair-share, or adaptive runs, with the selected strategy preserved in human, CSV, and JSON output; health schemas advance to `3`.
+
+- Added configurable `ZSTOCK_ALLOC_HEALTH-p_cov` minimum-coverage alerting. A positive threshold marks unit-safe scopes below the requested coverage as `WARNING` and exposes `coverage_threshold_active`/`coverage_below_threshold`; health JSON/CSV schemas advance to `4`, while mixed-unit scopes never trigger quantity-based threshold checks.
+
+- Added configurable `ZSTOCK_ALLOC_HEALTH-p_spct` maximum-shortage-percentage alerting. A positive threshold marks unit-safe scopes above the permitted shortage as `WARNING` and exposes `shortage_threshold_active`/`shortage_above_threshold`; health JSON/CSV schemas advance to `5`.
+
+- Extended `ZSTOCK_ALLOC_HEALTH` with adaptive run counts and unit-safe adaptive requested/allocated/shortage/coverage metrics. Health JSON/CSV schemas advance to `6`; mixed-unit scopes expose adaptive quantities as unavailable rather than summing across units.
+
+- Added stable `ZSTOCK_ALLOC_HEALTH` reason codes for no runs, errors/stale work, threshold breaches, backlog, and healthy scopes; health JSON/CSV schemas advance to `7`.
+
+- Added adaptive branch explainability to audit summaries, allocation output, and history summaries: `adaptive_priority_runs` counts fully covered adaptive runs and `adaptive_fair_runs` counts scarce-stock fair-share runs; allocation schemas advance to `33` and history summary schemas to `42`.
+
+- Added the zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_RESULT` (`p_safon`, `p_saf`, `p_safto`) through the allocation-sink run-selection boundary, including latest and exact-run reads. Result schemas advance to detail/summary `37`/`39`; CSV and typed filter provenance carry the selected bounds.
+
+- Added the same zero-safe persisted safety-stock range to `ZSTOCK_ALLOC_WATCH` (`p_safon`, `p_saf`, `p_safto`) through canonical audit selection. Watch export schemas advance to CSV `53` and JSON/NDJSON `56`, with bounds present in CSV, JSON, NDJSON, and typed filter provenance.
+
+- Added an explicit zero-safe persisted safety-stock range filter to `ZSTOCK_ALLOC_HISTORY` (`p_safon`, `p_saf`, `p_safto`). The validated closed range is propagated through canonical audit `get_runs`/`get_summary` reads and exported in CSV/JSON filter provenance; history schemas advance to detail/summary `26`/`39`.
+
+- Extended stale-run watch machine-readable contracts to CSV `52` and JSON/NDJSON `55`. Alert rows now expose persisted safety stock, while summary contexts report one value, `mixed`, or `n/a`; human, CSV, typed JSON, and NDJSON paths are aligned.
+
+- Extended history machine-readable contracts to detail/summary schemas `25`/`38`. CSV, typed JSON, metadata JSON, and NDJSON now expose persisted safety-stock policy per run and `safety_stock_context` for summaries, including numeric/null behavior for mixed policies.
+
+- Extended result machine-readable detail/summary contracts to schemas `36`/`38`. CSV, typed JSON, metadata JSON, and NDJSON now carry exact originating-run `audit_safety_stock` alongside movement type and minimum shelf-life policy; documentation and report contracts cover every export branch.
+
+- Added an optional `ZSTOCK_ALLOCATE-p_safstk` safety-stock floor. The service validates nonnegative input, subtracts the floor after existing allocation reservations and unit conversion, persists the policy on `ZSTOCKALLOC_RUN`, includes it in summary policy context, and exports it in allocation CSV/JSON/human output with schema `30`; ABAP Unit and repository-contract coverage are included.
+
+- Invalid negative safety-stock requests remain auditable: the service rejects them before stock reads, while the audit rejection path retains the attempted value and diagnostic message instead of discarding the error row.
+
+- Extended human-readable history summaries/details and exact-run result context with persisted safety-stock values while keeping existing machine-readable history/result schemas stable.
+
+- Extended comparison schema `95` with old/new persisted safety-stock values and a deterministic `safety_stock` audit-metadata change reason across CSV, JSON, NDJSON, human output, and ABAP Unit coverage.
+
+- Added `VBAP-LOEKZ` deletion filtering to the SAP order reader, its local DDIC stub, and fixtures, preventing deleted sales-order items from becoming open demand.
+
+- Corrected SAP batch-source semantics: `MCHA` now establishes batch existence, so a valid batch with no `MCHB` storage-stock row returns zero available quantity instead of a false missing-batch error; regression fixture and ABAP Unit coverage added.
+
+- Defaulted the allocation-service result sink to `ZCL_ALLOCATION_SINK_SAP` for production callers that omit it; preview mode remains side-effect free and injected sinks remain supported.
+
+- Updated the allocation-service constructor so omitted reservation and unit-conversion ports resolve to SAP adapters in production, while injected doubles remain supported; repository-contract coverage protects both defaults.
+
+- Added automatic SAP table-stub discovery across all production SQL sources; every non-Z `FROM`/`JOIN` dependency must now have a matching table descriptor and identity in `sap_stubs`.
+
+- Extended the repository contract to discover every production `CALL FUNCTION` dependency and require a matching installed function-module implementation in the SAP stub harness.
+
+- Added abapGit metadata for the four SAP authorization boundary classes/interfaces and strengthened the repository contract to require matching metadata, serializer type, and object identity for every global class, interface, and executable program.
+
+- Strengthened the executable-report contract: every report now has XML program identity matching its ABAP name and nonempty SAP selection text for every declared parameter, in addition to ordered parameter/XML parity.
+
+- Extended comparison schema `94` with common `p_rageto` and side-specific `p_oragto`/`p_nragto` maximum reservation-age bounds. The effective inclusive age windows now reach both old/new snapshot reads, with validation and human/CSV/typed JSON provenance covered by the report contract.
+
+- Added a maximum reservation-age bound `ZSTOCK_ALLOC_RESULT-p_rageto`. The sink now applies inclusive minimum/maximum reservation-age windows before pagination, validates negative/reversed bounds, and exports the maximum bound; result detail/summary schemas advance to `35`/`37` with ABAP Unit and contract coverage.
+
+- Hardened allocation transaction boundaries. The service now commits the running audit record before reservation/snapshot side effects, exposes an injectable rollback operation backed by `BAPI_TRANSACTION_ROLLBACK`, and rolls back failed snapshot persistence before finalizing the error row; regression and repository-contract tests cover the orchestration and SAP adapter.
+
+- Hardened audit retention persistence. Purge now treats unexpected snapshot-delete return codes as failures, verifies each selected run header is absent after deletion, rolls back multi-row purge work before raising, and preserves rollback diagnostics; the normal purge suite and repository contract cover the boundary.
+
+- Added an injectable/default unit-conversion read-authority port. `ZCL_UNIT_CONVERSION_SAP` now checks activity `03` for `MARA` and `MARM` before calling `MD_CONVERT_MATERIAL_UNIT`; the `MARM` SAP stub, authorization regression, and repository contract are included.
+
+- Added injectable `S_TABU_NAM` activity-03 authorization to the direct SAP stock and sales-order readers. Default source authorization now covers `MARA`/`MARD` and, only for batch reads, `MCHB`/`MCHA`, plus `VBAK`/`VBAP`/`VBEP`; the allocation report shares one source-read port across both readers, and regression/repository-contract tests prevent callers from bypassing the boundary.
+
+- Added run-level reservation protection to purge preview and execution. Any finalized audit run with a nonblank snapshot `reservation_id` is retained so the SAP reservation cannot be orphaned; protected counts and CSV/JSON schemas now use `20`/`21` and `22`/`23`, with ABAP Unit and contract coverage.
+
+- Added `records_incomplete_cleanup` to the allocation-service ABAP Unit suite. A deterministic reservation double now proves that a failed cleanup persists partial audit status and preserves the cleanup diagnostic; the transaction-failure fixture also cleans its temporary snapshot rows and now includes the missing `VBAK` header.
+
+- Added `test/repository-contract.mjs` to continuously verify the SAP standard stub inventory, exact `sap_stubs` inclusion in abaplint/transpiler, installed `open-abap-core` source paths, Z-prefixed custom-object boundaries, required lint rules, BAPI-stub installation, and default test-pipeline wiring.
+
+- Added common `p_avf`/`p_avt` and independent old/new `p_oavf`/`p_oavt`/`p_navf`/`p_navt` available-stock ranges to `ZSTOCK_ALLOC_COMPARE`. Effective bounds now constrain both sink snapshots and audit-run resolution, with validation, typed/filter provenance, XML contract coverage, and comparison schema `93`.
+
+- Added purge audit-duration bounds `p_tfrom`/`p_tto` to preview and execution. Completed-run duration filtering now reaches both retention API paths with validation, typed/filter provenance, XML contract coverage, and schemas `19`/`20` for CSV plus `21`/`22` for JSON.
+
+- Added common and old/new audit-duration bounds to `ZSTOCK_ALLOC_COMPARE`; completed-run ranges now constrain both sink snapshots and audit resolution with typed provenance, and comparison contracts advance to schema `92`.
+
+- Added result-report originating audit-duration bounds `p_tfrom`/`p_tto`; only completed runs in the inclusive seconds range are selected, with sink validation, all export provenance, and result contracts advanced to detail/summary schemas `34`/`36`.
+
+- Added result-report available-stock bounds `p_avf`/`p_avt` and propagated them through originating-run selection, snapshot reads, and every export provenance path; result contracts advance to detail/summary schemas `33`/`35`.
+
+- Added result-report demand-count bounds `p_dfrom`/`p_dto` and propagated them through audit latest/exact-run resolution and snapshot reads. The sink validates nonnegative ordered ranges, all output modes expose numeric filter provenance, and result contracts advance to detail/summary schemas `32`/`34`.
+
+- Generalized the metadata contract guard to all eight executable reports. It now enforces matching, unique, declaration-ordered parameters and XML keys across the entire report surface; this corrected `ZSTOCK_ALLOC_RESULT` metadata ordering and removed duplicate deadline keys.
+
+- Tightened independent batch scope validation so `ZSTOCK_ALLOC_COMPARE` requires either common `p_charg` or both `p_obatch` and `p_nbatch`; a one-sided batch filter can no longer produce an asymmetric, implicit unfiltered read.
+
+- Corrected plant scope selection so `ZSTOCK_ALLOC_COMPARE` can actually run with only `p_owerks` and `p_nwerks`; common `p_werks` is now optional and the existing common-or-complete-pair validation remains authoritative.
+
+- Added `test/compare-contract.mjs` to the default `npm test` pipeline. It verifies the comparison selection-screen/XML parameter contract in declaration order, rejects duplicate keys, checks all four schema markers against the documented schema `91`, and protects the new independent plant/material/storage-location/batch parameters from metadata drift. Corrected the two existing XML ordering mismatches exposed by the guard.
+
+- Added independent old/new plant filters to `ZSTOCK_ALLOC_COMPARE`: `p_owerks` and `p_nwerks`, alongside common `p_werks`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective plants reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `91`.
+
+- Added independent old/new material filters to `ZSTOCK_ALLOC_COMPARE`: `p_omatnr` and `p_nmatnr`, alongside common `p_matnr`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective materials reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `90`.
+
+- Added independent old/new storage-location filters to `ZSTOCK_ALLOC_COMPARE`: `p_olgort` and `p_nlgort`, alongside common `p_lgort`. Common-plus-side combinations are rejected; when side-specific scope is used, both sides are required, effective locations reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `89`.
+
+- Added independent old/new batch filters to `ZSTOCK_ALLOC_COMPARE`: `p_obatch` and `p_nbatch`, alongside common `p_charg`. Common-plus-side combinations are rejected, effective batches reach audit and snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `88`.
+
+- Added common and independent old/new reservation-ID filters to `ZSTOCK_ALLOC_COMPARE`: `p_resid`, `p_oresid`, and `p_nresid`. Common-plus-side combinations are rejected, effective reservation IDs reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `87`.
+
+- Added common and independent old/new order-ID filters to `ZSTOCK_ALLOC_COMPARE`: `p_order`, `p_oorder`, and `p_norder`. Common-plus-side combinations are rejected, effective order IDs reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `86`.
+
+- Added common and independent old/new order-unit filters to `ZSTOCK_ALLOC_COMPARE`: `p_ordun`, `p_oordun`, and `p_nordun`. Common-plus-side combinations are rejected, effective order units reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `85`.
+
+- Added common and independent old/new schedule-line filters to `ZSTOCK_ALLOC_COMPARE`: `p_etenr`, `p_oetenr`, and `p_netenr`. Common-plus-side combinations are rejected, effective schedule lines reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `84`.
+
+- Added common and independent old/new sales-item filters to `ZSTOCK_ALLOC_COMPARE`: `p_posnr`, `p_oposnr`, and `p_nposnr`. Common-plus-side combinations are rejected, effective items reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `83`.
+
+- Added common and independent old/new sales-document-type filters to `ZSTOCK_ALLOC_COMPARE`: `p_auart`, `p_oauart`, and `p_nauart`. Common-plus-side combinations are rejected, effective types reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `82`.
+
+- Added common and independent old/new shortage-only comparison filters: `p_bklg`, `p_obklg`, and `p_nbklg`. Effective flags now reach both snapshot reads, common-plus-side combinations are rejected, provenance covers every output shape, and comparison contracts advance to schema `75`.
+- Added common and independent old/new shortage quantity ranges to `ZSTOCK_ALLOC_COMPARE`: `p_shf`/`p_sht`, `p_oshf`/`p_osht`, and `p_nshf`/`p_nsht`. Negative or reversed bounds and common-plus-side combinations are rejected, effective ranges reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `76`.
+- Added common and independent old/new coverage and shortage-percentage ranges to `ZSTOCK_ALLOC_COMPARE`: `p_covf`/`p_covt`, `p_ocovf`/`p_ocovt`, `p_ncovf`/`p_ncovt`, `p_spf`/`p_spt`, `p_ospf`/`p_ospt`, and `p_nspf`/`p_nspt`. Bounds are constrained to 0..100, common-plus-side combinations are rejected, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `77`.
+- Added common and independent old/new requested- and allocated-quantity ranges to `ZSTOCK_ALLOC_COMPARE`: `p_qf`/`p_qt`, `p_oqf`/`p_oqt`, `p_nqf`/`p_nqt`, `p_af`/`p_at`, `p_oaf`/`p_oat`, and `p_naf`/`p_nat`. Nonnegative ordered bounds and common-plus-side conflicts are validated, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `78`.
+- Added common and independent old/new priority ranges to `ZSTOCK_ALLOC_COMPARE`: `p_priof`/`p_priot`, `p_opf`/`p_opt`, and `p_npf`/`p_npt`. Nonnegative ordered bounds and common-plus-side conflicts are validated, effective predicates reach both sink reads, numeric provenance covers every output shape, and comparison contracts advance to schema `79`.
+- Added common and independent old/new snapshot requested-date ranges to `ZSTOCK_ALLOC_COMPARE`: `p_sdf`/`p_sdt`, `p_osdf`/`p_osdt`, and `p_nsdf`/`p_nsdt`. Reversed and common-plus-side ranges are rejected, effective dates reach both snapshot reads independently of audit requested-horizon filters, provenance covers every output shape, and comparison contracts advance to schema `80`.
+- Added common and independent old/new sales-document filters to `ZSTOCK_ALLOC_COMPARE`: `p_vbeln`, `p_ovbeln`, and `p_nvbeln`. Common-plus-side combinations are rejected, effective document identities reach both snapshot reads, provenance covers every output shape, and comparison contracts advance to schema `81`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_big` and `p_done` quantity ordering. Requested and allocated quantities use the effective new snapshot for added/changed rows and the old snapshot for removals, with deterministic shortage/date/key ties; comparison contracts advance to schema `74`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_rdate` reservation-date ordering. Added/changed rows use the new reservation date, removals use the old date, undated rows sort last, pagination remains post-sort, and comparison contracts advance to schema `73`.
+- Added common and independent old/new reservation-age filters to `ZSTOCK_ALLOC_COMPARE`: `p_rage`, `p_orage`, and `p_nrage`. Nonnegative ages now reach both snapshot reads, negative and common-plus-side values are rejected, provenance is typed numerically across output shapes, and contracts advance to schema `72`.
+- Added common and independent old/new reservation-date windows to `ZSTOCK_ALLOC_COMPARE`: `p_rfrom`/`p_rto`, `p_orfrom`/`p_orto`, and `p_nrfrom`/`p_nrto`. Inclusive posting-date filters now reach both snapshot reads, reversed and common-plus-side ranges are rejected, provenance covers all output shapes, and contracts advance to schema `71`.
+- Added common and independent old/new reservation-state switches to `ZSTOCK_ALLOC_COMPARE`: `p_rsv`/`p_unrsv`, `p_orsv`/`p_nrsv`, and `p_oursv`/`p_nursv`. Conflicting states and common-plus-side combinations are rejected, effective filters reach both snapshot reads, provenance covers all output shapes, and contracts advance to schema `70`.
+- Added common `ZSTOCK_ALLOC_COMPARE-p_runit` and independent `p_orunit`/`p_nrunit` reservation-unit filters. Old and new snapshot reads now apply effective reservation units, common/side conflict validation is explicit, provenance covers all comparison output shapes, and contracts advance to schema `69`.
+- Added common `ZSTOCK_ALLOC_COMPARE-p_rmov` and independent `p_ormov`/`p_nrmov` reservation-movement filters. Old and new snapshot reads now apply their effective reservation movement type, numeric and common/side conflict validation are explicit, provenance covers all comparison output shapes, and contracts advance to schema `68`.
+- Added independent `ZSTOCK_ALLOC_COMPARE-p_ounit`/`p_nunit` allocation-unit filters. Old and new snapshot and audit reads now use side-specific effective units, common `p_meins` remains supported, unit conflicts are rejected, provenance is emitted across comparison output shapes, and comparison contracts advance to schema `67`.
+- Added purge `p_msg`/`p_monly` persisted audit-message filters. Preview and execution now select diagnostic-bearing runs case-insensitively, preserve linked-snapshot safety, expose message provenance, and advance purge contracts to JSON `15`/`16` and CSV `13`/`14` for preview/execution.
+- Added independent `ZSTOCK_ALLOC_COMPARE-p_omsg`/`p_nmsg` and `p_omonly`/`p_nmonly` originating audit-message filters. Old and new run resolution and snapshot reads now apply case-insensitive message predicates independently, expose filter provenance in every comparison output, and advance comparison contracts to schema `57`.
+- Added `ZSTOCK_ALLOC_RESULT-p_msg`/`p_monly` persisted audit-message filters. Case-insensitive message matching and nonblank-message selection constrain `p_latest`, exact audit context, and snapshot reads, expose provenance across output modes, and advance result contracts to detail `31` / summary `33`.
+- Added `ZSTOCK_ALLOC_RESULT-p_due` originating-deadline ordering. Result rows now sort by the earliest effective requested deadline from the persisted audit run, keep no-deadline rows last, retain deterministic shortage/date/unit/priority/run/order ties, and advance detail/summary contracts to `30`/`32`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_oast`/`p_nast` originating audit-lifecycle filters. Old and new audit statuses are validated independently, constrain both run resolution and snapshot reads, appear in every output shape, and advance comparison contextual contracts to schema `56`.
+- Added `ZSTOCK_ALLOC_RESULT-p_astat` persisted audit-lifecycle filtering. Result reads now distinguish audit `R`/`S`/`P`/`E` status from snapshot-line `p_stat`, apply the filter to `p_latest`, expose audit-status provenance in human and machine-readable output, and advance result contracts to detail schema `29` and summary schema `31`.
+- Added `ZSTOCK_ALLOC_RESULT-p_tdur` audit-duration ordering. Result rows now prioritize rows from the slowest completed originating audit runs, keep running or unavailable durations last, and result contracts advance to detail schema `28` and summary schema `30`.
+- Added `ZSTOCK_ALLOC_RESULT-p_dcnt` demand-count ordering. Result rows now prioritize rows from persisted audit runs affecting the most demand lines, then shortage and deterministic date/unit/priority/run/order ties; result contracts advance to detail schema `27` and summary schema `29`.
+- Added `ZSTOCK_ALLOC_HISTORY-p_dcnt` demand-count ordering. History now prioritizes runs affecting the most demand lines, then shortage and deterministic start/run-ID ties; history contracts advance to detail schema `24` and summary schema `37`.
+- Added `ZSTOCK_ALLOC_WATCH-p_dcnt` demand-count ordering. Alerts now prioritize runs affecting the most demand lines, then shortage and deterministic age/start/run-ID ties; watch contracts advance to CSV schema `51` and JSON/NDJSON schema `54`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_sreg` allocation-status-regression ordering. Comparable rows rank full-to-unallocated ahead of lesser regressions, stable outcomes, and improvements; rows without both statuses remain last, pagination occurs after sorting, and comparison contracts advance to schema `55`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_ost`/`p_nst` old/new allocation-status filters. They accept `F`/`P`/`U` case-insensitively, exclude missing sides when a filter is active, expose filter provenance in all comparison context shapes, and advance the comparison contracts to schema `54`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_qd` requested-quantity-delta ordering. Added demand sorts by positive new quantity, removals by negative old quantity, unchanged rows sort at zero, pagination occurs after sorting, and comparison contracts advance to schema `53`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_spw` shortage-percentage-deterioration ordering. Comparable rows sort by descending new-minus-old shortage percentage, non-comparable rows remain last, pagination occurs after sorting, and comparison contracts advance to schema `52`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_cw` coverage-deterioration ordering. Comparable rows sort by descending old-minus-new coverage percentage, with non-comparable added/removed or zero-request rows last; pagination occurs after sorting and comparison contracts advance to schema `51`.
+- Fixed `ZSTOCK_ALLOC_COMPARE` `p_sum` + `p_meta` JSON nesting to serialize the assembled summary fields instead of an uninitialized summary string; the new schema `50` summary percentage fields are now present in both nested and flat summary shapes.
+- Added aggregate coverage and shortage-percentage metrics plus new-minus-old deltas to `ZSTOCK_ALLOC_COMPARE` `p_sum`. The formulas use the pre-pagination matching population, suppress all quantity percentages for mixed units, and preserve `n/a`/JSON `null` for zero-request or unavailable values; comparison contextual contracts advance to schema `50`.
+- Added new-minus-old snapshot coverage and shortage-percentage deltas to comparison detail rows. Deltas are available only when both snapshot sides have positive requested quantities and retain `n/a`/JSON `null` unavailable semantics; contextual comparison contracts advance to schema `49`.
+- Added row-level snapshot coverage and shortage-percentage fields to comparison detail rows across CSV, JSON, typed JSON, NDJSON, and human output. The shared change contract now exposes availability-aware `old_snapshot_coverage_pct`, `new_snapshot_coverage_pct`, `old_snapshot_shortage_pct`, and `new_snapshot_shortage_pct`; contextual comparison contracts advance to schema `48`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_spct` shortage-percentage-first ordering. Added/changed rows use new shortage/requested percentage, removals use the old snapshot, zero-request rows sort last, and contextual contracts advance to schema `47`.
+- Added derived `shortage_pct` comparison change reasons and `p_reason=shortage_pct` filtering. The reason is zero-safe and only marks a changed shortage/requested ratio or an applicability transition; comparison contextual contracts advance to schema `46`.
+- Added derived `coverage` comparison change reasons and `p_reason=coverage` filtering. A reason is emitted only when zero-safe allocated/requested coverage changes or becomes applicable/unavailable; comparison contextual contracts advance to schema `45`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_wors` shortage-worsening change sorting. Rows are ranked by `delta_shortage` descending, then current shortage and deterministic date/type/key ties; comparison contextual contracts advance to schema `44`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_cov` coverage-first change sorting. Added/changed rows use current coverage, removals use old coverage, zero-request rows sort last, and pagination is applied after sorting; comparison contextual contracts advance to schema `43`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_due` requested-date-first change sorting. Added/changed rows use new snapshot dates, removals use old dates, undated rows sort last, and pagination is applied after sorting; comparison contextual contracts advance to schema `42`.
+- Added `ZSTOCK_ALLOC_COMPARE-p_shrt` shortage-first change sorting. Added/changed rows use new shortage, removed rows use old shortage, and offset/limit are applied after sorting; comparison contextual contracts advance to schema `41` with `sort_mode` provenance.
+- Declared `RAISING zcx_stock_allocation` on ABAP Unit test methods that intentionally invoke raising production APIs, allowing the stricter `uncaught_exception` lint rule to remain enabled without configuration exclusions.
+
+## 2026-08-04
+
+- Added `ZSTOCK_ALLOC_WATCH-p_dage` deadline-age-first ordering, placing the most overdue effective deadlines first and no-deadline alerts last with deterministic shortage/age/run-ID tie-breakers; watch contracts advance to CSV schema `50` and JSON/NDJSON schema `53`.
+- Added `ZSTOCK_ALLOC_HISTORY-p_dage` deadline-age-first ordering with explicit no-deadline placement and deterministic deadline/shortage/start/run-ID tie-breakers; history contracts advance to detail schema `23` and summary schema `36`.
+- Added `ZSTOCK_ALLOC_RESULT-p_dage` sorting by originating audit-run deadline age, keeping no-deadline rows last with deterministic deadline/shortage/request/order tie-breakers; result contracts advance to detail schema `26` and summary schema `28`.
+- Added signed effective-deadline age filters (`p_dagef`/`p_daget`/`p_daged`) to `ZSTOCK_ALLOC_COMPARE`. Old and new audit-run resolution plus snapshot reads now apply the same inclusive age predicate, and comparison CSV/JSON provenance advances to contextual schema `40`.
+- Refined result `audit_deadline_age_days` JSON serialization so typed and metadata contexts emit a numeric value or `null`, while regular JSON retains the readable signed text and no-deadline `n/a` behavior.
+- Added signed last/oldest/newest deadline-age telemetry to `ZSTOCK_ALLOCATE` human, CSV, typed JSON, and default JSON success output; typed JSON emits numeric values or `null`, regular JSON uses readable signed text, and allocation success contracts advance to schema `28`.
+- Promoted last/oldest/newest signed deadline ages into the canonical audit `ty_summary` read model, using the SAP system date as the reference and adding regression assertions; allocation output now consumes the shared summary values.
+- Added `deadline_age_reference_date` to the audit summary and allocation success exports so signed ages carry explicit SAP system-date provenance; allocation success contracts advance to schema `29`.
+- Added `deadline_age_reference_date` to watch detail and summary human, CSV, JSON, and NDJSON exports; watch contracts advance to CSV schema `47` and JSON/NDJSON schema `50`.
+- Added `deadline_age_reference_date` to history detail and summary human, CSV, JSON, and NDJSON/metadata exports; history contracts advance to detail schema `21` and summary schema `34`.
+- Added `deadline_age_reference_date` to result detail, summary, exact-run, metadata, NDJSON, CSV, JSON, and human exports; result contracts advance to detail schema `24` and summary schema `26`.
+- Added `deadline_age_reference_date` to comparison contextual/detail CSV, JSON, and human exports; comparison contracts advance to schema `39`.
+- Corrected result CSV summary/detail rows without an exact audit run to emit the full audit context column count, including `audit_deadline_age_days` and `deadline_age_reference_date` as `n/a`/the selected reference date.
+- Hardened audit summary age calculation by capturing the SAP system date once per summary call and using that same value for all signed ages and the exposed `deadline_age_reference_date`.
+- Promoted `deadline_age_reference_date` into the stale-watch alert and unit-summary domain models, with ABAP Unit coverage; watch report output keeps the existing contract while summary consumers receive the provenance directly.
+- Added a watch-summary consistency guard: mixed or missing alert reference dates are marked with `deadline_age_mixed` and the summary date is cleared rather than treating the first date as authoritative.
+- Exposed watch `deadline_age_mixed` in human, CSV, JSON, and NDJSON detail/summary contexts; watch contracts advance to CSV schema `48` and JSON/NDJSON schema `51`.
+- Added signed effective-deadline age bounds (`p_dagef`/`p_daget`) and an optional reference date (`p_daged`) to the canonical audit read API and `ZSTOCK_ALLOC_HISTORY`; history contracts advance to detail schema `22` and summary schema `35`, with filter provenance in human, CSV, JSON, metadata, and NDJSON output.
+
+## 2026-08-03
+
+- Extended history detail rows with signed `deadline_age_days` and page summaries with oldest/newest deadline-age bounds using the selected overdue as-of date or system date; no-deadline values remain `n/a`/`null`. History contracts advance to detail schema `20` and summary schema `33`.
+- Extended comparison context and row exports with old/new signed deadline ages and a `deadline_age_delta_days` (new minus old), using the selected overdue as-of date or system date; comparison schemas advance to `38`.
+- Extended result audit context with signed `audit_deadline_age_days` relative to the selected overdue as-of date or system date, across human, CSV, JSON, metadata, and NDJSON output; result schemas advance to detail `23` and summary `25`.
+- Added signed deadline-age telemetry to stale-run watch alerts: positive `deadline_age_days` means overdue days, zero means due on the selected reference date, and negative values mean days remaining; watch summaries expose oldest and newest deadline-age bounds, with `n/a`/`null` when no alert has a deadline. Watch contracts advance to CSV schema `46` and JSON/NDJSON schema `49`, with ABAP Unit coverage for signed aggregation.
+
+## 2026-08-02
+
+- Added service-level preview-flag validation so only initial or `X` values are accepted; malformed values now produce a durable rejection before execution-side dependencies or writes.
+- Added service-level movement-type validation so only numeric SAP movement types reach authorization, stock, reservation, and goods-movement boundaries; malformed values now produce a durable rejection before side effects.
+- Extended movement-type validation to direct goods-movement and reservation adapters, including reservation cancellation, so public BAPI ports reject malformed values before authorization or SAP calls.
+- Extended movement-type validation to audit run/rejection persistence and allocation snapshot validation, preventing malformed direct writes while retaining blank movement types for legacy audit history.
+- Added explicit numeric validation for sales-order item and schedule-line keys before `BAPI_SALESORDER_CHANGE`, with direct-adapter regression coverage.
+- Added malformed movement-filter validation to audit history/purge and allocation-result reads, preventing invalid `p_mvt`/`p_rmov` values from silently returning empty populations.
+- Normalized lowercase unit inputs to uppercase SAP unit keys in material conversion, goods-issue, and reservation BAPI adapters, with lowercase integration coverage.
+- Normalized lowercase unit filters in audit history/summary and allocation-result reads, matching stored uppercase allocation, order, and reservation units without changing persisted values.
+- Normalized lowercase unit filters in purge preview and execution SQL selection, extending case-insensitive unit behavior across all audit retention paths.
+- Canonicalized allocation-service unit input once at the orchestration boundary, forwarding uppercase units to stock conversion, demand processing, reservations, audit, and snapshot persistence; lowercase end-to-end coverage verifies uppercase stored provenance.
+- Canonicalized SAP stock base-unit and sales-order demand-unit outputs at their read adapters, with lowercase DDIC fixture coverage proving downstream allocation receives stable uppercase unit keys.
+- Canonicalized direct audit start/rejection writes and allocation-snapshot persistence units before validation, run-reference checks, deletion, and database writes, with lowercase direct-call coverage.
+- Normalized allocation, order, and reservation units on a local demand copy before snapshot validation and persistence, preventing mixed-case direct payloads from leaking into result history.
+- Normalized old and new snapshot demand units in the comparison domain before keying and field comparison, preserving stable diffs for legacy mixed-case snapshots.
+- Added service-level strategy validation before locking, stock reads, allocation, or reservations; valid strategy input is canonicalized before audit persistence and invalid input is regression-tested.
+- Normalized direct audit lifecycle writes case-insensitively: `start_run` canonicalizes strategy and `finish_run` canonicalizes final status before validation and persistence.
+- Normalized direct purge preview and execution status filters case-insensitively, with lowercase regression coverage for both retention paths.
+- Added direct SAP demand validation for open schedule lines with an initial requested-delivery date, preventing allocation from silently treating undated demand as due today.
+- Normalized direct allocation-result `status` and `strategy` filters case-insensitively before validation and snapshot filtering, with regression coverage for lowercase calls.
+- Normalized direct audit `status` and `strategy` filters case-insensitively before validation and selection, with regression coverage through `get_runs` and `get_summary`.
+- Added direct order-source validation for reversed requested-delivery windows so `zif_order_source` returns the same diagnostic as the allocation service instead of silently returning no demands.
+- Added deletion-mark protection to the SAP stock source for MARA, MARD, MCHB, and MCHA, with local DDIC stub fields and regression coverage for material, storage-stock, batch-stock, and batch-master flags.
+- Exposed aggregate demand-line count in `ZSTOCK_ALLOCATE` human, CSV, typed JSON, and default JSON success output; allocation success contracts advance to schema `24` while preserving the existing summary API and history export metric.
+- Exposed explicit snapshot `demand_count` in `ZSTOCK_ALLOC_RESULT` summary human, CSV, typed JSON, and metadata/default JSON output; result summary contracts advance to schema `18` while detail contracts remain at `16`.
+- Added aggregate stale-alert `demand_count` to `ZSTOCK_ALLOC_WATCH` human, summary CSV, JSON, and NDJSON contexts; summary CSV advances to schema `36` and watch JSON/NDJSON to schema `38`.
+- Centralized stale-alert demand-count aggregation in `zcl_stock_allocation_watch=>summarize_units` and added ABAP Unit coverage for single- and mixed-unit populations.
+- Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to history and the audit read API; filter provenance is exported and negative shelf-life bounds are rejected.
+- Added exact movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to stale-run watch, passing them through audit reads and exposing their provenance; watch JSON/NDJSON advance to schema `37`, detail CSV to `36`, and summary CSV to `35`.
+- Added originating allocation movement-type (`p_mvt`) and minimum-shelf-life (`p_shelf`) filters to the result sink and `ZSTOCK_ALLOC_RESULT`; reservation movement type remains independently filterable through `p_rmov`, and result detail/summary schemas advance to `15`/`16`.
+- Extended result human, CSV, JSON, and NDJSON exports with explicit `movement_type_filter` and `minimum_shelf_life_filter` values; result detail/summary schemas advance to `16`/`17`.
+- Added abapGit selection texts for `p_mvt` and `p_shelf` in result, history, and stale-watch program descriptors so the policy filters are available on SAP selection screens.
+- Added comparison policy guards `p_mvt` and `p_shelf` for exact old/new audit-run resolution, with policy-filter diagnostics, filter provenance, typed values, and contextual schema `29`.
+- Added explicit comparison `movement_type_filter` and `minimum_shelf_life_filter` fields to CSV and contextual JSON envelopes; comparison contracts advance to schema `30`.
+- Added explicit history `movement_type_filter` and `minimum_shelf_life_filter` values to CSV and typed/metadata JSON, including `filter_values` policy entries; history detail/summary schemas advance to `12`/`23`.
+- Exposed aggregate demand-line count in history human, summary CSV, typed JSON, and metadata summary output; history summary contracts advance to schema `24` while detail contracts remain at `12`.
+- Added policy-scoped purge preview and execution with optional `p_mvt`/`p_shelf` filters, matching audit policy fields and protecting nonmatching history; purge exports now expose stable optional-filter provenance and typed `filter_values`, advancing CSV to `4`/`5` and typed JSON to `5`/`6` for preview/execution.
+- Added finalized-run status filtering (`p_stat`/`iv_status`) to purge preview and execution; only `S`, `P`, and `E` are accepted, running rows remain protected, and purge contracts advance to CSV `5`/`6` and typed JSON `6`/`7`.
+- Added per-status eligible counts to purge previews (`success`, `partial`, and `error`) across human, CSV, and JSON output; preview contracts advance to CSV schema `6` and typed JSON schema `7`.
+- Added per-status deleted counts to purge execution API and reports; execution contracts advance to CSV schema `7` and typed JSON schema `8`.
+- Hardened purge safety so only recognized finalized statuses (`S`, `P`, `E`) are eligible; unknown lifecycle rows are preserved and covered by regression tests.
+- Added exact run-ID purge scoping (`p_runid`/`iv_run_id`) across preview, execution, provenance, selection metadata, and regression coverage; purge contracts advance to CSV `7`/`8` and typed JSON `8`/`9`.
+- Pushed exact retention run-ID predicates into the SAP candidate reads, using explicit initial/non-initial query branches so both exact scopes and unfiltered previews preserve their original semantics under Open SQL and the transpiled test harness.
+- Revalidated and restored the exact retention predicate branches for both purge preview and execution after adding case-insensitive substring scoping; exact `iv_run_id` now constrains both candidate reads before message, policy, deadline, and lifecycle filtering.
+- Added `protected_unknown_runs` to purge previews so unknown lifecycle rows are visible as protected rather than silently absent; preview CSV advances to schema `8` and typed preview JSON to schema `9`.
+- Extended purge execution results with `protected_running_runs` and `protected_unknown_runs`, preserving the audit trail of rows intentionally left untouched; execution CSV advances to schema `9` and typed execution JSON to schema `10`.
+- Standardized audit run-ID fragment filtering as case-insensitive across history, result, and stale-run watch consumers, with regression coverage for lower-case fragments.
+- Extended the direct audit `get_summary` API with exact run-ID, case-insensitive run-ID fragment, and lifecycle-status filters, reusing the canonical `get_runs` population and adding regression coverage for exact and lower-case fragment selection.
+- Standardized result-sink run-ID fragment matching as case-insensitive, aligning direct detail reads with result latest-run selection and adding lower-case fragment regression coverage.
+- Added diagnostic-message substring and message-presence filters to direct audit summaries, matching `get_runs` semantics and covering case-insensitive failure isolation.
+- Added requested-delivery horizon filters to direct audit summaries, keeping summary populations aligned with planning-window history reads.
+- Added start-date and finish-date windows to direct audit summaries, allowing lifecycle-period operations to reuse the canonical history filtering semantics.
+- Added duration-range filters to direct audit summaries, enabling slow-run and latency-window analysis through the shared validated read contract.
+- Added available-stock, derived-requested-quantity, and demand-count bounds to direct audit summaries, completing the run-size and capacity filters already available through `get_runs`.
+- Added stale-running and maximum-running-age bounds to direct audit summaries, allowing aggregate operational views to isolate active runs by live age.
+- Added aggregate `demand_count` to `ty_summary`, so direct audit-summary consumers can see the total demand-line population represented by their selected runs.
+- Added coverage and shortage-percentage bounds to direct audit summaries, enabling quality/risk-focused run populations with zero-request exclusion and shared ratio validation.
+- Added shortage and allocated-quantity bounds to direct audit summaries, enabling absolute impact-focused run populations through the shared nonnegative range validation.
+- Extended `zif_allocation_audit=>ty_summary` with machine-readable movement-type and minimum-shelf-life policy context, including explicit availability and mixed-policy flags; added a mixed-policy ABAP Unit regression test.
+- Added movement-type and minimum-shelf-life policy context to history summaries; a page reports one policy, `mixed`, or `n/a` across human, CSV, typed JSON, and metadata summary output, advancing history summary schemas to `22`.
+- Extended stale-run watch alerts with persisted movement type and minimum shelf-life policy in human, CSV, JSON, and NDJSON detail output; watch detail CSV advances to schema `35` and watch JSON/NDJSON to schema `36` (summary CSV remains `34`).
+- Extended `ZSTOCK_ALLOC_RESULT` exact-run provenance with persisted movement type and minimum shelf-life policy across human, CSV, typed JSON, and metadata output; result detail schemas advance to `14` and summary schemas to `15`.
+- Persisted movement type and minimum shelf-life policy on `ZSTOCKALLOC_RUN`; history detail output now exposes both fields (detail schema `11`), comparison context advances to schema `28`, and audit metadata reasons classify movement-type and shelf-life changes.
+- Extended `ZSTOCK_ALLOCATE` provenance output with movement type, minimum shelf-life days, and the entered requested-date filter in human, CSV, and JSON summaries; allocation CSV and typed JSON schemas are now version `23`.
+- Preserved movement type, minimum shelf-life policy, and even reversed requested-date inputs on rejected audit rows; rejection auditing no longer rejects the invalid input it is meant to diagnose.
+- Added comparison contextual `filters_applied` and stable `filters` provenance metadata to human, CSV, and JSON output; comparison contextual schemas advance to version `27`, while row-only JSON and NDJSON remain unchanged.
+- Added watch `filters_applied` and stable `filters` provenance metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `35`, while watch CSV schemas advance to version `34`.
+- Added explicit material, plant, storage-location, batch, and requested-unit scope fields to watch human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `34`, while watch CSV schemas advance to version `33`.
+- Added comparison contextual `page_count` and `last_offset` pagination metadata to human, CSV, and JSON output; comparison contextual schemas advance to version `26`.
+- Added watch `page_count` and `last_offset` pagination metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `33`, while watch CSV schemas advance to version `32`.
+- Added watch `next_offset`, `has_previous`, `previous_offset`, and `page_number` navigation metadata to human, CSV, JSON, and NDJSON output; watch JSON/NDJSON schemas advance to version `32`, while watch CSV schemas advance to version `31`.
+- Added typed watch `filter_values` JSON/NDJSON objects for numeric bounds, stale threshold, age, offset, and limit; watch JSON/NDJSON schemas advance to version `31`, while watch CSV remains version `30`.
+- Added boolean `typed: true` markers to typed comparison rows and contextual JSON envelopes; comparison contextual schemas advance to version `25`, while default row output remains unchanged.
+- Added comparison contextual `filter_values` provenance for pagination, exposing numeric `offset` and `max_rows` (`null` when unbounded) in JSON and as a quoted JSON object in CSV; comparison contextual schemas advance to version `21`, while row-only JSON and NDJSON remain unchanged.
+- Added material, plant, storage-location, batch, and unit scope to comparison contextual human, CSV, and JSON outputs; comparison contextual schemas advance to version `22`, while row-only JSON and NDJSON remain unchanged.
+- Added comparison contextual `has_more` and nullable `next_offset` pagination metadata for direct page navigation; comparison contextual schemas advance to version `23`, while row-only JSON and NDJSON remain unchanged.
+- Added comparison contextual `has_previous`, nullable `previous_offset`, and nullable `page_number` pagination metadata for backward/page-label navigation; comparison contextual schemas advance to version `24`, while row-only JSON and NDJSON remain unchanged.
+
+## 2026-08-01
+
+- Added optional shortage bounds (`p_shf`/`p_sht`), demand-count bounds (`p_dfrom`/`p_dto`), available-stock bounds (`p_avf`/`p_avt`), requested-quantity bounds (`p_qf`/`p_qt`), and allocated-quantity bounds (`p_af`/`p_at`) to `ZSTOCK_ALLOC_WATCH`, using the validated audit read ranges and exporting the filters in human, CSV, JSON, and NDJSON output; watch contracts advance to schema version `22`.
+- Added optional shortage-percentage bounds (`p_spf`/`p_spt`) to `ZSTOCK_ALLOC_WATCH`, reusing the validated audit range and zero-request exclusion semantics; filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `23`.
+- Added `p_spct` shortage-percentage-first ordering to `ZSTOCK_ALLOC_WATCH`, with applicable percentages first, deterministic shortage/age/time/run-ID ties, detail `shortage_pct` output, and watch schema version `24`.
+- Added case-insensitive run-ID substring filtering (`p_runq`) to `ZSTOCK_ALLOC_WATCH`, combinable with exact `p_runid`; filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `25`.
+- Added `p_legacy` blank-strategy filtering to `ZSTOCK_ALLOC_WATCH`, mutually exclusive with `p_strat`; boolean filter provenance is exported in human, CSV, JSON, and NDJSON output and watch contracts advance to schema version `26`.
+- Added mixed-unit safeguards to `ZSTOCK_ALLOC_WATCH`; summaries now expose `unit` and `mixed_units`, and suppress non-comparable quantity, coverage, and shortage-percentage totals as `n/a`/JSON `null`. Watch contracts advance to schema version `30`.
+- Added aggregate quantity, coverage, and shortage-percentage context to every watch NDJSON line so streaming consumers receive the same page summary as regular JSON. Watch contracts advance to schema version `29`.
+- Added aggregate `shortage_pct` to watch human, CSV-summary, and JSON-summary output, calculated from returned requested and shortage totals with `n/a`/`null` for zero-request pages. Watch contracts advance to schema version `28`.
+- Added opt-in `p_typed` JSON output to `ZSTOCK_ALLOC_WATCH`; numeric filter bounds become JSON numbers, blank numeric bounds become `null`, and the default string-valued contract remains unchanged. Watch contracts advance to schema version `27`.
+
+- Added an optional maximum running-age filter (`p_age_to`/`iv_running_age_to`) to audit history, complementing the existing stale minimum; bounds are validated, the shared direct-read contract is covered by ABAP Unit, and reversed age windows are rejected.
+
+- Added explicit DDIC reference table/field metadata for all custom `QUAN` fields: result quantities reference `ZSTOCKALLOC-ALLOCATION_UNIT`, and audit quantities reference `ZSTOCKALLOC_RUN-UNIT`.
+- Pinned Open ABAP Core as a local npm development dependency and configured lint/transpilation to use it, removing the live GitHub clone requirement from every test run.
+- Renamed five authority classes and one retention interface whose names exceeded SAP's 30-character global object limit, updating all source and abapGit metadata references.
+- Added abapGit program metadata for all six executable stock-allocation reports, including report titles and selection-screen text elements.
+- Added abapGit metadata companions for all 19 global classes and 17 interfaces, including exception-category metadata and unit-test flags for classes with test includes.
+
+## 2026-07-31
+
+- Added `ZSTOCKALLOC-REQUESTED_ON` persistence and result-report output so allocation snapshots retain the originating schedule-line delivery date used for prioritization, shelf-life validation, reservation reuse, and reservation creation.
+- Established the first vertical slice on the current branch: typed allocation contracts, a deterministic priority allocator, SAP stock and order readers, and a persistence sink.
+- Added explicit SAP table stubs for MARD, VBAP, and VBEP so Open ABAP can parse the integration SQL without pretending those tables are application-owned.
+- Added the custom ZSTOCKALLOC persistence table and kept all database writes inside the Z-prefixed application boundary.
+- Added ABAP Unit coverage for priority ordering, deterministic tie-breaking, and invalid negative stock.
+- Added a service-level ABAP Unit test with injected stock, order, and sink doubles; the business orchestration is now verified without SAP database state.
+- Added the abapGit XML wrapper and built-in datatype definitions to the standard stubs after the transpiler exposed the required DDIC shape.
+- Completed the SAP persistence adapter with a guarded `MODIFY ZSTOCKALLOC` write and added a database-backed ABAP Unit test for it.
+- Added a SQLite setup hook for the generated test runner so database-backed adapter tests initialize the same transpiled DDIC schema before execution.
+- Added a reservation boundary using `BAPI_RESERVATION_CREATE1` and `BAPI_TRANSACTION_COMMIT`, with explicit storage location, movement type, unit, and quantity inputs.
+- Integrated reservation posting into the allocation service: allocated quantity is reserved once per run, the returned document is attached to each allocated demand, and `ZSTOCKALLOC` persists it.
+- Added the `ZSTOCK_ALLOCATE` report entry point with material, plant, and storage-location selection parameters.
+- Added the VBAK standard stub and header join so the order source only allocates sales-order demand (`VBTYP = 'C'`); the test fixture includes an excluded quotation.
+- Corrected the VBEP stub key to include `ETENR` and covered multiple schedule lines for one sales order.
+- Added typed BAPI return-message handling so reservation errors are raised before the commit call, even when the function module leaves `sy-subrc` at zero.
+- Added stock-source adapter coverage with explicit client filtering; the SQLite fixture proves a different client’s MARD quantity is ignored.
+- Applied explicit client isolation to VBAP/VBAK/VBEP joins and verified another client’s duplicate order is excluded.
+- Changed the persistence adapter to replace the current client/material/plant allocation snapshot, removing stale order rows on subsequent runs.
+- Added an end-to-end SAP-facing service test covering MARD/VBAK/VBAP/VBEP reads, allocation, reservation posting, and ZSTOCKALLOC persistence.
+- Added storage location to the allocation sink contract and ZSTOCKALLOC key so snapshots for separate LGORT values remain isolated.
+- Added an explicit reservation required date; the service derives the earliest date among allocated demands instead of defaulting every reservation to today.
+- Added commit-failure coverage for the reservation adapter in addition to BAPI `RETURN` error coverage.
+- Added early service validation for missing allocation runtime inputs before any stock or order source is called.
+- Added dependency-boundary validation so incomplete service construction raises the domain exception instead of a null-reference runtime failure.
+- Cleared stale reservation identifiers during allocation so reused demand structures cannot persist a document on an unallocated line.
+- Aligned the reservation adapter's local structures with the SAP BAPI2093 header/item field layout and supplied both classic and long-material fields.
+- Switched reservation orchestration to one reservation document per allocated demand and added compensation through `BAPI_RESERVATION_DELETE` when a later line fails.
+- Added sink-failure compensation so successfully created reservations are canceled when allocation-result persistence fails.
+- Added allocation-snapshot reads so unchanged allocated lines reuse their existing reservation documents on repeat runs; changed or removed lines are canceled before the new snapshot is saved.
+- Persisted the reservation required date, movement type, and unit so reuse is safe when any reservation-defining runtime input changes.
+- Extended the SAP vertical-slice test to execute the same allocation twice and verify reservation IDs remain stable.
+- Extended the vertical slice again to verify a changed movement type creates replacement reservations.
+- Added an explicit, opt-in stock-write boundary through `BAPI_GOODSMVT_CREATE`; the adapter posts one goods-issue item, validates `BAPIRET2`, reads `GOODSMVT_HEADRET`, and commits only after a material document is returned.
+- Kept the goods-movement BAPI stub separate from application code and covered success, BAPI error, and commit failure paths.
+- Added explicit `BAPI_TRANSACTION_ROLLBACK` calls on reservation and goods-movement BAPI errors or commit failures.
+- Added an opt-in sales-order sink for changing one schedule line's requested quantity through `BAPI_SALESORDER_CHANGE`, including `SCHEDULE_LINESX` update flags and rollback handling.
+- Kept order mutation separate from allocation orchestration so a caller must explicitly request a sales-order change.
+- Added an injectable sales-order mutation authorization boundary using `V_VBAK_AAT` for activity `02` and the supplied sales document type.
+- Added SAP sales document type (`VBAK-AUART`) to the demand model and `ZSTOCKALLOC` snapshot so authorized order mutations retain their exact document context.
+- Added source validation that rejects positive open demand when `VBAK-AUART` is missing, before unit normalization or reservation side effects.
+- Added `ZSTOCK_ALLOC_ORDER_UPDATE` as an explicit `P_EXEC`-guarded report for authorized sales-order schedule-line quantity changes.
+- Added `ZSTOCK_ALLOC_GOODS_ISSUE` as an explicit `P_EXEC`-guarded report for authorized goods issues through `BAPI_GOODSMVT_CREATE`.
+- Added read-only `ZSTOCK_ALLOC_RESULT` output for per-demand allocation status, quantities, sales-document context, and reservation IDs.
+- Added snapshot run-ID propagation to read-only allocation results so each demand row can be reconciled to `ZSTOCKALLOC_RUN`.
+- Added explicit commit-failure messages for reservation, reservation cancellation, goods movement, and sales-order BAPI writes.
+- Strengthened the SAP FM stubs to reject incomplete goods-movement and schedule-line payloads, making the adapter tests validate required key and checkbox fields.
+- Added `ZSTOCKALLOC_RUN` and an injected audit port; allocation runs are recorded as running, successful, failed, or partially cleaned up with available, allocated, shortage, and demand-count summaries.
+- Switched audit run IDs to Open ABAP Core's `CL_SYSTEM_UUID` C32 generator after a timestamp-based implementation collided under same-second repeated runs.
+- Added a typed `get_runs` history query to the audit port and covered filtering by client/material/plant/storage location.
+- Added an explicit retention operation that deletes only completed/failed audit rows older than a supplied date and never removes rows still marked `R`unning.
+- Added typed run summaries aggregating counts and allocated/shortage quantities for operational reporting.
+- Added typed demand allocation statuses: `F` fully allocated, `P` partially allocated, and `U` unallocated; the status is recalculated and persisted with each snapshot row.
+- Preserved originating sales document, item, and schedule-line keys in the demand model and `ZSTOCKALLOC`, so later order updates can correlate directly to `VBAP/VBEP` lines instead of parsing the composite order ID.
+- Added `VBAP-VRKME` order-unit propagation; the original sales unit is persisted in `ZSTOCKALLOC` while demand is normalized before allocation when conversion is needed.
+- Replaced mismatch rejection with a typed `MD_CONVERT_MATERIAL_UNIT` adapter: demand quantities are normalized to the configured allocation/reservation unit before prioritization, while the original sales unit remains persisted for traceability.
+- Classified successful allocation runs with a nonzero shortage as partial (`P`) audit runs; fully satisfied runs remain successful (`S`).
+- Extended the stock-source contract with the SAP stock unit (`MARA-MEINS`) and convert `MARD-LABST` into the configured reservation unit before allocation, preventing alternate-unit capacity overstatement.
+- Added optional batch scoping: batch stock is read from `MCHB-CLABS`, passed to reservation and goods-movement adapters, and included in allocation/audit keys and report input so different batches cannot reuse or overwrite each other’s snapshots.
+- Added `MARA-XCHPF` propagation and a fail-fast guard: batch-managed materials cannot fall back to aggregate MARD stock or empty-batch reservations.
+- Added selected-batch shelf-life validation from `MCHA-VFDAT`; expired batches are rejected before demand reads, reservations, or persistence.
+- Added `MCHA-ZUSTD` propagation and restricted-batch rejection so quality-blocked batches cannot be allocated or reserved.
+- Added canonical boolean validation for `MARA-XCHPF` and `MCHA-ZUSTD`; malformed batch-management or restriction indicators now fail at the stock-source boundary.
+- Added persisted audit count reconciliation: read validation rejects outcome-count totals above the recorded demand count.
+- Added finalization-time audit count reconciliation so invalid outcome totals cannot be persisted in the first place.
+- Added mandatory allocation-unit validation for persisted snapshot reads, closing the matching-blank-unit provenance path.
+- Added canonical deletion-flag validation for stock, material, and batch-master reads; malformed `LVORM` values now fail before allocation.
+- Added open-demand quantity validation for `VBEP-WMENG` and `VBEP-BMENG`; negative schedule quantities now fail before demand mapping.
+- Added delivery-date shelf-life validation: a batch must remain valid through every open demand’s requested date, not merely on the allocation run date.
+- Persisted the configured allocation/reservation unit with each `ZSTOCKALLOC_RUN` record so audit quantities remain interpretable after conversion.
+- Added explicit batch existence and batch-management validation: unknown batches and batch inputs for non-batch-managed materials now fail before allocation side effects.
+- Added the audit run UUID to each `ZSTOCKALLOC` snapshot row, allowing persisted allocation results to be traced directly to their `ZSTOCKALLOC_RUN` record.
+- Added explicit material existence propagation from `MARA`; missing materials now fail before allocation side effects instead of being treated as zero stock.
+- Persisted `ZSTOCKALLOC-ALLOCATION_UNIT` alongside normalized requested, allocated, and shortage quantities so even unallocated lines retain unit context.
+- Added an injectable allocation lock and SAP `ENQUEUE_EZSTOCKALLOC`/`DEQUEUE_EZSTOCKALLOC` adapter; stock reads, reservation reconciliation, and snapshot persistence now execute under one serialized critical section when the report supplies the lock.
+- Added SAP demand validation for missing sales units: positive open schedule lines with blank `VBAP-VRKME` are rejected before unit normalization or reservation.
+- Added base-unit validation for material master data: `MARA-MEINS` must be present before stock can enter the allocation flow.
+- Added one-shot rejection auditing: pre-side-effect material, unit, batch, and delivery-date validation failures now produce completed `E` rows in `ZSTOCKALLOC_RUN` with an explanatory message.
+- Added optional allocation-unit filtering to audit history and summaries so quantities from different units are not mixed when operators query a specific unit.
+- Extended audit retention with the same optional unit scope, preserving unrelated-unit history while continuing to protect `R`unning rows.
+- Enhanced `ZSTOCK_ALLOCATE` output to display unit-scoped run counts, allocated quantity, shortage, and the last audit run ID alongside remaining stock.
+- Added `ZSTOCK_ALLOCATE-P_TEST` preview mode: allocation calculation and audit complete, while reservation and snapshot side effects are skipped.
+- Closed the reservation-create commit-failure gap: a failed `BAPI_TRANSACTION_COMMIT` now explicitly invokes `BAPI_TRANSACTION_ROLLBACK` before raising.
+- Extended audit summaries with the last run status and message so report consumers can distinguish successful, partial, preview, and rejected outcomes.
+- Added an optional minimum remaining batch shelf-life policy; the service and `ZSTOCK_ALLOCATE-P_SHELF` reject selected batches whose expiration date is too near, before demand, reservation, or snapshot side effects.
+- Made `ZSTOCKALLOC-ALLOCATION_UNIT` part of the snapshot key and scoped sink reads/deletes by unit, preventing an EA allocation from overwriting a parallel BOX allocation for the same demand.
+- Added explicit completion messages to normal audit runs, distinguishing fully completed allocations from shortage-bearing partial allocations in report output.
+- Added `ZSTOCK_ALLOC_PURGE` as an explicit-`P_EXEC` operational entry point for unit- and batch-scoped audit retention; without the checkbox it performs no deletion.
+- Added a future-date guard to `ZSTOCK_ALLOC_PURGE` so an accidental cutoff cannot remove all completed history.
+- Added an injectable reservation movement-type authorization boundary using SAP object `M_MRES_BWA`; the report supplies the SAP adapter and unauthorized attempts are rejection-audited before stock reads or side effects.
+- Added `VBAK-LIFSK` and `VBEP-LIFSP` filtering so header- and schedule-line-delivery-blocked sales-order schedule lines never enter allocation.
+- Added read-only `ZSTOCK_ALLOC_HISTORY` output for scoped audit run status, quantities, timestamps, and diagnostic messages.
+- Added `S_TABU_NAM` delete authorization enforcement for `ZSTOCKALLOC_RUN` in `ZSTOCK_ALLOC_PURGE`, before the retention API is called.
+- Added injectable goods-movement authorization boundaries to `ZCL_STOCK_MOVEMENT_SAP`: `M_MSEG_BWA` checks movement type, `M_MSEG_WWA` checks plant, and `M_MSEG_LGO` checks storage location before `BAPI_GOODSMVT_CREATE`.
+- Added injectable `M_MRES_BWA` movement-type and `M_MRES_WWA` plant authorization checks to `ZCL_STOCK_RESERVATION_SAP`, protecting direct reservation-adapter callers as well as the allocation service.
+- Added rejection audit records when the SAP order source rejects demand validation, preserving a diagnostic `E` run before reservation or snapshot side effects.
+- Added rejection audit records for stock and demand unit-conversion failures, preserving the failed conversion context before any reservations or snapshots.
+- Added rejection audit records for allocation-calculation and existing-snapshot read failures, keeping pre-side-effect service errors visible to operators.
+- Added rejection audit records for enqueue/lock-acquisition failures before stock reads or side effects.
+- Changed audit finalization failures from swallowed exceptions to surfaced service failures, preventing callers from mistaking an unfinished `R`unning audit row for a completed allocation.
+- Added rejection audit records for available-stock read failures before demand retrieval or allocation.
+- Distinguished reservation-side allocation failures from snapshot-persistence failures in the completed audit message; reservation failures now report `Reservation failed`.
+- Added an explicit `Reservation cleanup incomplete` audit message when compensation cannot remove created reservations; snapshot-write cleanup failures identify the same manual-reconciliation risk.
+- Preserved compensation and snapshot-write exception messages in audit history, so partial or rejected runs include the actionable failure detail from the failing dependency.
+- Preserved audit-finalization exception messages through the allocation service, so callers receive the audit persistence diagnostic when finalization itself fails.
+- Added explicit messages for SAP audit validation, run creation, rejection persistence, and finalization failures.
+- Updated history and retention reports to show audit exception diagnostics when SAP audit operations fail.
+- Added explicit diagnostics for reservation, goods-movement, sales-order, retention, and allocation-lock authorization or lifecycle failures.
+- Added optional `P_STAT` filtering to `ZSTOCK_ALLOC_HISTORY` so operators can focus on successful, partial, running, or rejected runs within the existing material/unit scope.
+- Added optional inclusive `P_FROM`/`P_TO` start-date filtering to `ZSTOCK_ALLOC_HISTORY`, including a guard against reversed date windows.
+- Added explicit `P_STAT` validation so history operators can only request persisted run statuses `R`, `S`, `P`, or `E`.
+- Moved history date-window filtering into the audit `GET_RUNS` contract, with API-level reversed-range validation and coverage for empty windows and invalid ranges.
+- Moved history status filtering into the audit `GET_RUNS` contract, with API-level validation for the persisted `R`, `S`, `P`, and `E` status domain.
+- Ordered `GET_RUNS` results newest-first by start date, time, and run ID for deterministic history and operator output.
+- Extended `ZSTOCK_ALLOC_HISTORY` output with available stock and demand count so operators can explain each run's allocation and shortage from the report alone.
+- Made preview mode independent of reservation-write authorization; a preview still reads, calculates, locks, and audits, but does not require `M_MRES_BWA` because no reservation write is attempted.
+- Made preview construction independent of reservation and snapshot-sink ports; it now skips snapshot reads and needs only stock, demand, allocation, and audit dependencies.
+- Added a SAP vertical preview test using the real stock/order readers and confirmed `ZSTOCKALLOC` row counts remain unchanged.
+- Added graceful `ZSTOCK_ALLOCATE` failure output: service exceptions now display the latest audited status/message when available instead of escaping as an unhandled report error.
+- Added graceful failure output to `ZSTOCK_ALLOC_HISTORY` and `ZSTOCK_ALLOC_PURGE`; audit read/retention exceptions now stop with an operator message rather than escaping as report errors.
+- Preserved the first error text from reservation BAPI `RETURN` rows in `ZCX_STOCK_ALLOCATION`; reservation audits now expose the SAP rejection message when available.
+- Preserved the first error text from goods-movement and sales-order BAPI `RETURN` rows in the same exception object for direct adapter callers.
+- Added guarded rejection auditing for invalid runtime inputs, negative shelf-life configuration, and missing service dependencies when the audit port itself is available.
+- Added `npm test` and expanded `npm run verify` so the standard project check executes the generated ABAP Unit harness as well as lint/transpilation.
+- Kept report imports out of the Open ABAP runtime bootstrap because selection-screen statements are SAP-runtime features; the report remains included in lint/transpile input.
+- Added service-boundary validation for injected open-demand records: missing demand keys and non-positive quantities are rejection-audited before allocation, reservations, or snapshot persistence.
+- Added a post-conversion demand invariant: unit-conversion providers may not turn positive open demand into zero or negative quantity, and converter exception text is retained in the rejection audit when supplied.
+- Hardened lock lifecycle reporting: successful allocations now downgrade their audit run to partial with a diagnostic when SAP dequeue fails, while the original lock error still reaches the caller; added enqueue/dequeue adapter coverage.
+- Added cross-unit reservation reconciliation: non-current-unit snapshot allocations are converted into the requested unit and deducted from available stock, while their reservations and snapshots remain untouched; the sink can now read all unit snapshots for this purpose.
+- Added explicit SAP `S_TABU_NAM` activity `03` read authorization for `ZSTOCKALLOC_RUN` audit history and `ZSTOCKALLOC` allocation results; allocation, history, and result reports fail cleanly when the corresponding read permission is missing.
+- Preserved dependency exception messages through the allocation service for authorization, lock acquisition, stock/order reads, unit conversion, snapshot reads, and allocator failures, while retaining default diagnostics when a dependency raises blank text.
+- Hardened the SAP allocation sink with pre-delete input validation, duplicate demand-key detection, and explicit persistence diagnostics; rejected direct sink input no longer deletes the prior unit snapshot.
+- Moved audit-retention validation into the public SAP audit API: incomplete scopes and future cutoffs are rejected before any delete, protecting direct callers as well as the purge report.
+- Added audit lifecycle write validation: direct `START_RUN` callers must provide a complete scope and non-negative metrics, while `FINISH_RUN` accepts only final statuses `S`, `P`, or `E` with non-negative metrics.
+- Tightened allocation snapshot validation so `ZSTOCKALLOC` only accepts positive requested quantities and allocator statuses `F`, `P`, or `U`; invalid rows are rejected before replacing the current unit snapshot.
+- Preserved allocation-result sink diagnostics in `ZSTOCK_ALLOC_RESULT`, so operators see the adapter's actionable failure message when result reads fail.
+- Added required-scope validation to direct allocation-result reads, matching the write boundary and preventing incomplete result queries.
+- Added operation-specific diagnostics to direct reservation, goods-movement, sales-order, and unit-conversion adapter validation and blank BAPI-failure paths; nonblank converter diagnostics now flow unchanged into service audit rows.
+- Added explicit diagnostics to the SAP order-demand reader and core allocator; incomplete demand scope, missing source fields, invalid stock, duplicate keys, and non-positive demand now fail before allocation mutation.
+- Added a conversion postcondition: a successful material-unit conversion may not turn positive input into zero or negative output; the SAP stub and direct adapter test cover this response.
+- Added fallback diagnostics around reservation, goods-movement, and sales-order authority ports; direct callers now receive operation-specific messages when an authority implementation raises blank text.
+- Added required-scope validation to the SAP stock reader, while preserving the not-found result for valid material/plant/storage queries.
+- Reworked snapshot replacement to build the fully validated `ZSTOCKALLOC` row set before deleting the current unit and persist the replacement with one bulk `MODIFY` operation.
+- Added required material/plant/storage scope validation to audit history reads, so `GET_RUNS` and summaries cannot silently query an incomplete scope.
+- Added injectable custom-table write authorization: `ZSTOCKALLOC_RUN` writes require `S_TABU_NAM` activity `02`, snapshot writes require the same for `ZSTOCKALLOC`, and purge APIs can enforce the existing activity `06` retention authority internally; `ZSTOCK_ALLOCATE` now checks and wires these boundaries.
+- Moved read authorization into the SAP audit and snapshot adapters as injectable ports; allocation, history, and result reports now pass the same `S_TABU_NAM` read boundary down to every database reader.
+- Hardened audit lifecycle transitions so only `R`unning rows can be finalized; repeated `FINISH_RUN` calls now fail without overwriting the original result.
+- Required every persisted audit rejection to carry a noninitial diagnostic message, while allowing incomplete scope fields needed to describe rejected runtime input.
+- Corrected the SAP reservation authorization object to `M_MRES_BWA`; reservation creation checks activity `01`, cancellation checks activity `06`, the cancellation API carries its movement type, and non-preview allocation preflights both permissions before entering the critical section.
+- Corrected the goods-issue authorization scope to SAP's goods-movement objects: movement type uses `M_MSEG_BWA`, plant uses `M_MSEG_WWA`, and storage location uses `M_MSEG_LGO` before the BAPI call.
+- Added reservation-plant authorization with `M_MRES_WWA` for both activity `01` creation and activity `06` cancellation; the service and reservation adapter now pass plant scope through every reservation lifecycle call.
+- Wrapped audit run creation in the service boundary so blank `START_RUN` failures receive `Audit run start failed` before the caller sees them; reservation and snapshot writes remain untouched when audit persistence cannot start.
+- Wrapped audit finalization in the service boundary so blank `FINISH_RUN` failures receive `Audit finalization failed` while nonblank audit diagnostics remain unchanged.
+- Added fallback diagnostics to direct audit and result-snapshot authority ports; blank injected failures now become operation-specific read, write, or retention authorization messages and are covered by adapter tests.
+- Tightened direct snapshot integrity: each row must satisfy `requested = allocated + shortage`, and statuses `F`, `P`, and `U` now enforce their corresponding quantity shape before replacement.
+- Made audit finalization an atomic status transition: the database update now succeeds only while the row is still `R`unning, preventing concurrent direct callers from overwriting a finalized outcome.
+- Added a service-level allocator postcondition: requested/allocated/shortage quantities, status shapes, and remaining stock must be internally consistent before audit, reservation, or snapshot processing continues.
+- Added a service-level snapshot-read postcondition: persisted rows must have valid demand keys, quantities, allocation statuses, and reservation identifiers before they can affect cross-unit stock reconciliation or reservation reuse.
+- Tightened snapshot persistence so every allocated result row carries a reservation document ID; unallocated rows remain valid without one.
+- Extended reservation correlation validation to require the reservation date, movement type, and unit needed for later cancellation and reconciliation.
+- Required non-success audit finalizations (`P` and `E`) to carry a diagnostic message; successful `S` runs may remain message-free.
+- Hardened the main allocation report's post-success summary read so an audit backend failure reports the completed allocation and remaining quantity instead of escaping as an unhandled report exception.
+- Centralized allocation snapshot row validation in the SAP sink and applied it to reads as well as writes, so direct result readers reject corrupted persisted rows instead of exposing them.
+- Required allocation snapshot reads and service reconciliation to retain the noninitial `RUN_ID` correlation, preventing orphaned result rows from being reported or reused.
+- Closed fail-open direct-call paths: SAP audit, snapshot, reservation, goods-movement, and sales-order adapters now instantiate their standard authority ports when callers omit injections, and the allocation service defaults to the SAP lock and reservation authority.
+- Tightened audit finalization so allocated quantity cannot exceed the run's recorded available stock and successful runs cannot carry shortage; partial status remains available for shortages and cleanup uncertainty.
+- Reordered normal and preview audit finalization after successful lock release, allowing a dequeue failure to be recorded as a partial run instead of trying to overwrite an already-finalized success.
+- Preserved the contextual lock-release diagnostic in the service exception as well as the partial audit row.
+- Combined lock-release failures with the original reservation or persistence failure when cleanup itself cannot release the allocation lock.
+- Protected reservation and snapshot-failure audit finalization: if finalization fails, the original failure remains visible and the allocation lock is still released or reported as an additional cleanup diagnostic.
+- Preserved rollback-failure diagnostics from SAP BAPI error and commit paths in reservation, goods-movement, and sales-order adapters.
+- Bound audit finalization to the `AVAILABLE` value recorded at run start, preventing direct callers from rewriting the stock baseline while finalizing.
+- Enforced one run provenance per allocation unit when reading snapshots, while allowing separate run IDs for the different units used in cross-unit reconciliation.
+- Enforced unique reservation IDs for positive allocation rows during snapshot persistence, reads, and service reconciliation.
+- Added per-unit duplicate demand-key validation to service-side snapshot reconciliation; duplicate rows from an injected or corrupted provider are rejected before reservation reuse.
+- Added duplicate open-demand key validation before allocation; repeated order-source rows are rejected before unit conversion, reservations, or snapshot writes.
+- Added SAP order-source output validation for nonzero sales item/schedule identities and positive requested quantities.
+- Added SAP stock-source output validation for nonnegative quantities and a noninitial material base unit when the material exists.
+- Added a reservation postcondition at the service boundary: a provider that returns no reservation document is treated as a failed reservation, audited, and prevented from reaching snapshot persistence.
+- Preserved reservation and snapshot-persistence diagnostics in the service exception returned to callers after compensation and audit finalization, including cleanup-incomplete context.
+- Made service validation failures return the same actionable diagnostic that is written to the rejection audit instead of a blank exception.
+- Added service-boundary validation for negative stock returned by an injected stock provider, matching the SAP stock adapter contract and preventing invalid quantities from reaching allocation.
+- Added a stock-conversion postcondition at the service boundary, rejecting non-positive quantities returned by an injected unit converter before allocation side effects.
+- Added an audit-start postcondition requiring a noninitial run ID, with lock cleanup coverage when an injected audit provider returns success without a correlation key.
+- Added reservation-unit consistency validation so allocated snapshots cannot correlate a reservation in a unit different from their allocation unit.
+- Added allocator-output identity validation so injected allocators must preserve every original demand key and row count before reservations begin.
+- Added allocator-input immutability checks for source-order metadata and converted requested quantities, preventing internally consistent but semantically altered allocations.
+- Added snapshot reservation-metadata exclusivity: unallocated rows must not retain reservation identifiers or lifecycle fields.
+- Added cancellation-authority preflight for legacy reservation movement types before recalculation can create new reservations.
+- Added nonnegative-metric validation to direct audit rejection writes.
+- Added SAP batch-master completeness validation for batch-managed stock reads.
+- Reordered replacement cleanup so old reservations are canceled only after the new snapshot persists; persistence failures now leave the previous snapshot/reservation pair intact.
+- Added partial-run coverage for a persisted replacement whose old reservation cleanup fails.
+- Added audit-read validation so corrupted persisted runs cannot enter histories or summaries; impossible metrics and lifecycle/status combinations now fail with a controlled diagnostic.
+- Extended audit-read validation to reject finalized runs whose finish timestamp precedes their start timestamp.
+- Tightened the SAP unit-conversion boundary to reject negative converted quantities even when the input quantity is zero.
+- Tightened unit conversion further so zero input must produce exactly zero output.
+- Added direct SAP transaction-adapter coverage for commit failure and rollback-failure diagnostics.
+- Wired one transaction-port instance through the allocation report's service and audit adapters.
+- Retention now removes allocation snapshots linked to the exact audit runs it purges, preventing reusable orphaned results.
+- Added an explicit allocation transaction port; successful snapshot replacements commit before superseded-reservation cleanup, while commit failures use the existing compensation and audit-error path.
+- Extended the transaction boundary to retention, so linked audit and snapshot deletions commit together and purge commit failures remain visible to callers.
+- Made rejection and finalized audit rows durable through the transaction port while leaving `R` start rows pending until the run outcome is known.
+- Ordered retention cleanup to remove linked snapshots before audit rows within the same LUW, reducing the chance of a partially retired run if cleanup fails.
+- Clarified `ZSTOCK_ALLOC_RESULT` output so normalized requested/allocated/shortage quantities are labeled with `ALLOCATION_UNIT`, while the originating `ORDER_UNIT` remains visible as separate traceability context.
+- Extended the goods-issue result contract to preserve both `GOODSMVT_HEADRET-MAT_DOC` and `DOC_YEAR`, and made `ZSTOCK_ALLOC_GOODS_ISSUE` print the complete material-document identity.
+- Tightened purge authorization so linked `ZSTOCKALLOC` snapshots require the same explicit `S_TABU_NAM` activity `06` permission as `ZSTOCKALLOC_RUN` audit rows before retention deletes either table.
+- Added an explicit result-delete authorization port: allocation now preflights and enforces `S_TABU_NAM` activity `06` for stale `ZSTOCKALLOC` replacement rows, alongside activity `02` change authorization.
+- Preserved table-specific retention authorization diagnostics in `ZSTOCK_ALLOC_PURGE` instead of replacing them with a generic missing-permission message.
+- Preserved the primary allocation exception in `ZSTOCK_ALLOCATE` when its fallback audit-summary read also fails, so report output no longer hides the original authorization, lock, or dependency diagnostic.
+- Extended `ZSTOCK_ALLOC_HISTORY` to display both start and finish timestamps, allowing operators to distinguish active runs from finalized outcomes and inspect lifecycle duration.
+- Extended `ZSTOCK_ALLOC_RESULT` to display reservation date, movement type, and unit beside each reservation ID, making the persisted cancellation/reuse correlation visible to operators.
+- Made unit-omitted audit summaries safe: when runs contain multiple allocation units, the summary now sets `MIXED_UNITS` and clears allocated/shortage totals instead of adding incomparable quantities.
+- Extended audit summaries and `ZSTOCK_ALLOCATE` output with the last run's finish date/time, completing lifecycle visibility alongside the existing start timestamp.
+- Added snapshot-to-audit referential validation: `ZSTOCKALLOC` writes now require an existing active `ZSTOCKALLOC_RUN` with the exact same material/plant/storage/batch/unit scope.
+- Extended snapshot referential validation to reads, rejecting orphaned or cross-scope result rows while allowing active and finalized audit lifecycle states.
+- Added audit-status validation to snapshot reads so a result cannot be served from a run with an unknown lifecycle state.
+- Tightened direct snapshot payload validation: blank allocation units are filled from the requested scope, while conflicting nonblank allocation units are rejected before replacement.
+- Tightened direct snapshot payload provenance: blank run IDs are filled from the requested scope, while conflicting nonblank run IDs are rejected before replacement.
+- Tightened direct snapshot run validation: corrupt nonblank run strategies are rejected, and nonblank payload strategies must match the persisted run while blank legacy strategies remain supported.
+- Added snapshot requested-date validation: demand date ranges must stay within a persisted audit run's requested-delivery window on both write and read, while runs with blank windows remain backward-compatible.
+- Consolidated snapshot read run-reference checks by run and allocation unit, validating the complete returned requested-date range once before retaining row-level demand and provenance checks.
+- Normalized allocation strategies during direct snapshot comparison so lowercase and uppercase strategy values do not create false changes.
+- Made snapshot provenance validation order-independent: every allocation unit is now checked against one run ID even when result sorting interleaves units.
+- Normalized watch alert units before summary aggregation so case-only unit differences are not reported as mixed populations.
+- Canonicalized persisted audit run units to uppercase during reads, keeping summaries consistent with case-insensitive unit filters and write paths.
+- Added optional run-ID and allocation-status filters to the result sink and `ZSTOCK_ALLOC_RESULT`, allowing operators to reconcile one persisted audit run or focus on full, partial, or unallocated lines without mixing parallel result snapshots.
+- Added an optional exact order-ID result filter and printed the persisted order key in `ZSTOCK_ALLOC_RESULT`, completing the report's direct reconciliation path from audit run to demand line.
+- Added inclusive requested-delivery-date filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with API-level reversed-range validation for planning-horizon queries.
+- Added filtered-result outcome counts to `ZSTOCK_ALLOC_RESULT`, reporting full, partial, and unallocated line totals before the detailed reconciliation rows.
+- Persisted demand priority in `ZSTOCKALLOC` and displayed it in `ZSTOCK_ALLOC_RESULT`, preserving the allocator's ordering rationale for post-run analysis.
+- Added inclusive priority-range filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with API-level reversed-range validation.
+- Made the result report's unit filter optional, enabling cross-unit snapshot inspection while retaining the normalized allocation unit on every displayed row.
+- Added persisted full, partial, and unallocated line counts to `ZSTOCKALLOC_RUN`; the allocation service records them and allocation/history reports display them with the existing run quantities.
+- Added optional reservation-document filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, allowing a SAP reservation ID to be traced directly to its allocation demand.
+- Added an optional `ZSTOCK_ALLOCATE-P_UNTIL` requested-delivery cutoff, filtered SAP open demand through that date, and persisted the cutoff on every `ZSTOCKALLOC_RUN` outcome, including rejected runs, for audit reproducibility.
+- Added an exact requested-cutoff filter to the audit API and `ZSTOCK_ALLOC_HISTORY`, allowing runs for one planning horizon to be reconciled directly.
+- Added an exact run-ID filter to the audit API and `ZSTOCK_ALLOC_HISTORY`, allowing one lifecycle record to be inspected directly.
+- Added filtered-population lifecycle and demand-outcome totals to `ZSTOCK_ALLOC_HISTORY` before its detailed run rows.
+- Added persisted audit run context to exact-`p_runid` `ZSTOCK_ALLOC_RESULT` output, including the requested-delivery window and lifecycle timestamps.
+- Added unit-safe requested/allocated/shortage totals to `ZSTOCK_ALLOC_RESULT`; cross-unit filtered views now report that quantity aggregation is omitted.
+- Added inclusive reservation-posting-date filtering to the result sink and `ZSTOCK_ALLOC_RESULT`, with reversed-range validation.
+- Added read-only purge previews that count eligible audit runs and linked snapshots before `ZSTOCK_ALLOC_PURGE` execution.
+- Extended purge previews to report older running audit rows separately, making the protected-row behavior visible before execution.
+- Pushed the optional requested-delivery horizon into the SAP open-demand SQL predicate while retaining defensive post-read filtering.
+- Added unit-safe available/allocated/shortage totals to `ZSTOCK_ALLOC_HISTORY`; mixed-unit filtered populations explicitly suppress quantity aggregation.
+- Added an inclusive requested-date allocation window with `P_FROM`/`P_UNTIL`, persisted both bounds on audit runs, and rejected reversed windows before side effects.
+- Added the same reversed-window validation to direct audit start/rejection calls and persisted audit-row reads.
+- Added unit-safe allocation coverage percentages to the history and result report summaries; mixed-unit populations continue to omit quantity-derived totals.
+- Added exact-run result reconciliation: an unfiltered `p_runid` view compares snapshot and audit demand outcome counts plus allocated/shortage quantities and reports `OK` or `MISMATCH`; narrower filtered views omit the comparison.
+- Added the persisted requested-window lower-bound filter `p_reqf` to `ZSTOCK_ALLOC_HISTORY`, including API and report-level reversed-range validation.
+- Exact `p_runid` result inspection now retains audit lifecycle/reconciliation output even when no snapshot rows exist; unfiltered empty result queries still exit immediately.
+- Exact-run result context now includes persisted audit counters and the diagnostic message, and reports when the supplied run ID is absent from the scoped audit history.
+- Added optional reservation movement-type filtering (`p_rmov`) to result reads, preserving direct visibility of the persisted movement type used for reconciliation.
+- Added optional reservation-unit filtering (`p_runit`) to result reads, separating persisted SAP reservation units from normalized allocation units during reconciliation.
+- Added direct sales-document/item/schedule-line result filters (`p_vbeln`, `p_posnr`, `p_etenr`) for exact SAP demand-key traceability.
+- Added sales-document-type filtering (`p_auart`) so result queries can distinguish persisted document categories as well as document numbers.
+- Added original sales-order-unit filtering (`p_ounit`) to separate source order units from normalized allocation and reservation units.
+- Added finish-date range filtering (`p_ffrom`/`p_fto`) to audit history; running rows are excluded whenever a completion window is requested.
+- Added reserved-only result filtering (`p_rsv`) for isolating snapshot rows with a persisted reservation ID.
+- Added inclusive shortage-quantity filtering (`p_shf`/`p_sht`) with API-level nonnegative and reversed-range validation.
+- Added inclusive allocated-quantity filtering (`p_af`/`p_at`) to audit history with API-level nonnegative and reversed-range validation.
+- Added inclusive requested-quantity filtering (`p_qf`/`p_qt`) with matching API-level validation and persisted-row coverage.
+- Added inclusive allocated-quantity filtering (`p_af`/`p_at`) to result rows with matching nonnegative and reversed-range validation.
+- Added inclusive derived requested-quantity filtering (`p_qf`/`p_qt`) to audit history using persisted allocated plus shortage totals, with matching nonnegative and reversed-range validation.
+- Added inclusive demand-count filtering (`p_dfrom`/`p_dto`) to audit history with nonnegative and reversed-range validation.
+- Added inclusive available-stock filtering (`p_avf`/`p_avt`) to audit history with nonnegative and reversed-range validation.
+- Added shortage-first audit-history ordering (`p_shrt`) with deterministic start-time and run-ID tie-breakers while preserving newest-first default ordering.
+- Added typed allocation-coverage filtering (`p_covf`/`p_covt`) to audit history; bounds are restricted to 0–100 and zero-request runs are excluded when coverage is requested.
+- Added matching result-line allocation-coverage filtering (`p_covf`/`p_covt`) with 0–100 validation and zero-request exclusion.
+- Added coverage-first result ordering (`p_cov`) with shortage, requested-date, unit, priority, and order-key tie-breakers; priority sorting remains highest precedence.
+- Added coverage-first audit-history ordering (`p_cov`) with shortage and newest-start tie-breakers; coverage ordering takes precedence over shortage ordering.
+- Added calculated per-run and per-result Coverage columns to the read-only reports, displaying `n/a` for zero-request rows.
+- Added `p_sum` summary-only mode to history and result reports, retaining totals and exact-run reconciliation context while suppressing detail rows.
+- Added positive `p_max` result-row limiting after filter/sort, with capped exact-run views excluded from reconciliation.
+- Added matching audit-history `p_max` limiting after filter/sort with negative-limit validation.
+- Added largest-demand-first result ordering (`p_big`) by requested quantity with shortage/date/unit/priority tie-breakers.
+- Added most-allocated-first result ordering (`p_done`) by allocated quantity with requested/shortage/date/unit/priority tie-breakers.
+- Added reservation-date-first result ordering (`p_rdate`) with deterministic unit, priority, and order-key tie-breakers; unreserved rows sort first.
+- Added shortage-status-first result ordering (`p_sstat`) with unallocated, partial, and full risk ordering plus deterministic shortage/date/unit/priority/order-key ties.
+- Added validated `p_skip` pagination offsets to history and result reads, applied after filtering/sorting and before `p_max`; paged exact-run result views omit reconciliation.
+- Added stale-reservation age filtering (`p_rage`) to result reads, excluding unreserved rows and validating nonnegative age input.
+- Added semicolon-delimited result export (`p_csv`) with stable detail header, coverage, and reservation provenance fields.
+- Added matching semicolon-delimited audit-history export (`p_csv`) with scope, horizon, quantities, coverage, lifecycle, outcome counts, and timestamps.
+- Added positive-shortage backlog filtering (`p_bklg`) for combined partial/unallocated result follow-up, excluding those views from reconciliation.
+- Added overdue requested-delivery filtering (`p_ovrd`) for result follow-up, excluding blank/today/future dates and exact-run reconciliation.
+- Added mutually exclusive unreserved-result filtering (`p_unrsv`) alongside reserved-only filtering for reservation follow-up.
+- Added persisted audit diagnostic messages to history CSV and JSON exports.
+- Added compact JSON summary objects when `p_sum` is combined with result or history `p_json` output, including mixed-unit safeguards.
+- Added elapsed `duration_seconds` to history human, CSV, and JSON detail outputs, with `n/a` for running rows.
+- Added inclusive elapsed-duration filtering (`p_tfrom`/`p_tto`) to audit history, excluding running rows from duration-bounded queries and validating nonnegative, non-reversed bounds.
+- Added slowest-first audit-history ordering (`p_tdur`) using elapsed duration with deterministic start-time and run-ID tie-breakers.
+- Added risk-status-first audit-history ordering (`p_sstat`) grouping error, partial, running, and successful runs with deterministic shortage and start-time ties.
+- Added stale-running audit detection (`p_stale`) using elapsed seconds from the current time, with nonnegative threshold validation.
+- Added case-insensitive diagnostic-message substring filtering (`p_msg`) to audit history for direct failure and cleanup follow-up.
+- Added `p_monly` audit-history filtering for runs with any persisted diagnostic message, combinable with message substring search.
+- Added shared CSV quoting for result and history exports, including delimiter-safe fields, doubled embedded quotes, and line-break preservation.
+- Added shared locale-independent CSV number formatting for result and history exports, using period decimal separators and no thousands grouping while preserving `n/a` for unavailable values.
+- Added stable one-row purge CSV preview/execution summaries with retention scope, numeric counts, and `n/a` for non-applicable mode-specific values.
+- Added opt-in typed JSON retention counts to purge preview and execution summaries while preserving default JSON strings.
+- Added stable one-row allocation CSV preview/execution summaries with scope, quantities, run counters, lifecycle context, and diagnostics.
+- Added opt-in typed JSON numbers to the allocation summary report for remaining quantity, totals, counters, and line outcomes while preserving default JSON strings.
+- Added status-bearing CSV output to the sales-order update report, covering not-executed, success, and error outcomes.
+- Added opt-in typed JSON quantity output to the sales-order update report while preserving the default JSON string contract.
+- Added status-bearing CSV output to the goods-issue report, covering not-executed, success, and error outcomes with material-document identity.
+- Added opt-in typed JSON quantity and document-year output to the goods-issue report while preserving default JSON strings.
+- Added self-describing `schema_version` and `typed` markers to all opt-in typed action-report JSON responses.
+- Added generated date/time traceability fields to typed action-report JSON responses.
+- Extended self-describing typed JSON markers to direct result/history summaries and detail rows.
+- Added shared CSV error envelopes (`mode;status;message`) for allocation and purge failures so CSV mode never mixes human-readable diagnostics with machine output.
+- Extended shared CSV error envelopes to result and history validation, authorization, and retrieval failures; empty successful reads still emit their normal CSV headers.
+- Added explicit early negative `p_max` validation to result and history reports, keeping CSV, JSON, human, and backend contracts aligned.
+- Added result-report JSON array export (`p_json`) with stable detail properties and mutual exclusion with CSV mode.
+- Added opt-in result JSON metadata wrapping (`p_meta`) with row count and pagination fields while retaining the default array contract.
+- Added matching opt-in history JSON metadata wrapping (`p_meta`) with row count and pagination fields while retaining the default array contract.
+- Enriched both JSON metadata wrappers with material/plant/storage/batch/run scope fields for self-describing pages.
+- Extended result JSON metadata for exact `p_runid` views with persisted audit lifecycle status, diagnostic message, outcome counters, and quantity metrics.
+- Added machine-readable exact-run reconciliation outcomes to result JSON metadata, distinguishing matching, mismatched, filtered, and unavailable contexts.
+- Extended history JSON metadata for exact `p_runid` views with persisted audit lifecycle status, diagnostic message, outcome counters, and quantity metrics.
+- Added audit start/finish timestamps to exact-run JSON metadata for direct lifecycle-age and completion analysis.
+- Added numeric JSON property formatting for opt-in metadata pagination fields and audit metrics while preserving the existing detail-row encoding.
+- Added `has_more` pagination metadata to result and history JSON detail wrappers, using one lookahead row while preserving the requested page size.
+- Added numeric `next_offset` pagination metadata to both detail wrappers for direct follow-up page requests.
+- Made opt-in result/history metadata wrappers consistent for empty pages; legacy JSON arrays remain unchanged.
+- Hardened JSON number formatting against SAP user locale separators by removing grouping and normalizing the decimal separator.
+- Added opt-in metadata envelopes for result/history JSON summary mode, nesting the existing compact summary beside scope and pagination fields without changing the default contract.
+- Added explicit validation requiring `p_json` whenever `p_meta` is selected, preventing silently ignored metadata requests.
+- Typed numeric counts, quantities, and coverage inside opt-in nested summary objects while preserving legacy summary JSON encoding.
+- Added per-row `numeric` sub-objects to opt-in result/history metadata detail pages for machine-readable metrics without changing flat row compatibility.
+- Added numeric `schema_version` markers to all opt-in result/history metadata envelopes for forward-compatible clients.
+- Added JSON `null` formatting for non-applicable numeric row metrics in opt-in metadata detail output.
+- Added generated date/time fields to all opt-in result/history metadata envelopes for response traceability.
+- Added summary-only CSV output to result and history reports when `p_sum` is selected, with stable one-row schemas and mixed-unit safeguards.
+- Added generated date/time fields to result and history summary CSV rows for export traceability.
+- Added generated date/time fields to normal action-report CSV rows for allocation, purge, sales-order update, and goods issue exports.
+- Added generated date/time fields to result and history detail CSV rows for paginated export traceability.
+- Added numeric `schema_version` `1` to successful action and summary CSV schemas, and version `2` detail CSV schemas after adding page context; CSV error envelopes remain unchanged.
+- Added sort, filter, offset, limit, and page-navigation context to result/history detail CSV rows, making every exported page self-describing like the summary CSV contract.
+- Added page context and generated date/time to typed result/history JSON summaries and detail rows; all typed read-only JSON contracts now use `schema_version` `2`.
+- Preserved both primary allocation and fallback audit-summary diagnostics in `ZSTOCK_ALLOCATE` JSON/CSV failure output.
+- Added material/plant/storage/batch scope to typed result/history summary JSON so standalone typed responses are self-describing.
+- Added material/plant/storage/batch scope to result detail CSV and typed detail JSON rows for standalone page exports; history detail CSV already carried that scope.
+- Extended result default JSON detail rows with the same material/plant/storage/batch scope while preserving one common row shape for typed and untyped output.
+- Added generated date/time to typed result/history detail JSON rows to match the documented schema-2 contract.
+- Added sort, filter, offset, limit, and page-navigation context to result/history summary CSV rows so page-scoped aggregates are self-describing.
+- Added a consistent `mode` marker to allocation JSON success responses, distinguishing preview from execute output.
+- Added explicit `mixed_units` booleans to result/history summary JSON and CSV outputs while retaining `unit=mixed` and `n/a` totals.
+- Added escaped `filters` string arrays to result/history JSON metadata envelopes so clients can identify active query filters directly.
+- Added `p_latest` to the history report for one newest matching run, with offset validation and machine-readable filter metadata.
+- Added pipe-delimited active filter names to result/history summary CSV rows for parity with JSON metadata.
+- Added `p_latest` to the result report so operators can inspect the newest matching run without copying an audit ID.
+- Made result `p_latest` selection honor the requested-delivery horizon when `p_from`/`p_to` are supplied.
+- Extended generated date/time traceability to default action JSON success responses; typed markers and error envelopes remain unchanged.
+- Added exact-run audit lifecycle context to opt-in result/history summary envelopes for parity with detail metadata.
+- Added effective `sort` descriptors to all opt-in result/history metadata envelopes for deterministic client pagination.
+- Added `filters_applied` booleans to opt-in result/history metadata so clients can distinguish broad-scope and narrowed reads.
+- Added one-based `page_number` metadata for bounded result/history pages, with `null` for unbounded reads.
+- Added `has_previous` and `previous_offset` metadata for direct backward navigation through bounded pages.
+- Added opt-in `p_typed` JSON row mode to result/history reports for direct numeric fields without metadata wrapping.
+- Added matching audit-history JSON array export (`p_json`) with stable run properties and mutual exclusion with CSV mode.
+- Added abapGit class metadata for the shared CSV and JSON helper classes so the new report capabilities are deployable SAP objects.
+- Added allocation-report JSON summary output (`p_json`) for successful and preview runs, preserving scope, quantities, counters, lifecycle timestamps, status, and diagnostics.
+- Added purge-report JSON preview and execution output (`p_json`) with retention scope and eligible/protected/deleted counts.
+- Added shared JSON error envelopes and wired purge validation, authorization, preview, and execution failures to return valid machine-readable errors.
+- Extended JSON error envelopes to `ZSTOCK_ALLOCATE` authorization, allocation, and summary failure paths.
+- Extended JSON error envelopes to result/history authorization and read failures.
+- Added JSON success/error output to the authorized goods-issue and sales-order update reports.
+- Added JSON error envelopes for all history-report filter and horizon validation failures.
+- Added optional priority-ordered result reads (`p_pri`) so reconciliation output can follow allocator decision order.
+- Added global requested-delivery-date ordering (`p_date`) with allocation-unit, priority, and order-key tie-breakers; priority sorting takes precedence when both controls are selected.
+- Added shortage-first result ordering (`p_shrt`) with requested-date and priority tie-breakers for backlog triage.
+- Added the deleted linked-snapshot count to the retention API and `ZSTOCK_ALLOC_PURGE` execution JSON/CSV/human output; typed execution JSON and execution CSV now use schema version `2`.
+- Added `total_rows` before offset/limit to result/history read-port pagination context, typed and metadata JSON envelopes, and CSV summary/detail exports; summary CSV schemas are now version `2`.
+- Added derived bounded `page_count` to result/history pagination context, with `null`/`n/a` for unbounded reads and human-readable `Page X of Y` output.
+- Added bounded `last_offset` navigation to result/history pagination context, with schema version `3` exports and `null`/`n/a` for unbounded reads.
+- Added opt-in `p_ndjson` streaming exports to result/history JSON modes, preserving regular or typed row objects as one JSON object per line.
+- Added case-insensitive run-ID fragment filtering (`p_rid`/`iv_run_id_contains`) to result/history reports and both direct read ports, including latest-run selection.
+- Optimized large result/history offsets with bounded internal-table range deletion while preserving pre-pagination `total_rows` and page contents.
+- Optimized exact run-ID reads by applying the run ID in the SAP audit and snapshot SELECT predicates; fragment and compound filters retain the broader read path.
+- Added `run_id_contains` values to result/history metadata scope so fragment-filtered JSON pages expose the complete run-ID query context.
+- Hardened audit finalization so partial (`P`) runs require a positive shortage, matching the service outcome semantics and persisted-row validation.
+- Added explicit requested quantity to `ZSTOCK_ALLOCATE` human/CSV/JSON success output; allocation CSV and typed JSON schemas are now version `2`.
+- Added explicit `requested` quantity to the typed audit summary API, with the same mixed-unit suppression as allocated and shortage totals.
+- Exposed the generated audit run ID from the allocation service after `START_RUN`, preserving correlation for callers when later side effects fail.
+- Added correlated allocation `run_id` to post-start `ZSTOCK_ALLOCATE` JSON, CSV, and human error output while preserving pre-start error envelopes.
+- Added the exact current `run_id` to successful allocation output, separate from the independently queried `last_run_id` summary field for concurrency-safe correlation.
+- Refreshed successful allocation lifecycle metadata from the exact current audit run, with summary values retained as a safe fallback if that contextual read is unavailable.
+- Completed allocation error-output parity by retaining the correlated run ID in the human fallback path when audit summary retrieval fails.
+- Added derived `requested` quantity to individual audit run API records, calculated as allocated plus shortage after read validation.
+- Added a production-selectable FIFO allocator (`p_strat = F`) while preserving priority-first as the default; success exports identify the normalized strategy and use schema version `5` for CSV/typed JSON.
+- Added a full-only allocator (`p_strat = N`) that skips oversized lines without consuming stock, allowing later complete demands to be fulfilled.
+- Persisted the selected allocation strategy on audit runs and exposed it through run history and summary results, while allowing blank strategy values for legacy rows; valid strategies are now `P`, `F`, `N`, and `S`.
+- Added `ZSTOCK_ALLOC_HISTORY-p_strat` filtering with normalized uppercase validation and metadata filter reporting.
+- Added the persisted strategy to history detail CSV/JSON rows and advanced the history output schema version to `6`.
+- Added strategy context to history summary CSV/JSON (`P`, `F`, `N`, `S`, or `mixed`) and covered strategy-filtered summaries in audit tests.
+- Added per-strategy run counters to the audit summary contract, including a legacy-blank bucket.
+- Exposed the per-strategy counters in `ZSTOCK_ALLOCATE` human, CSV, and JSON success output and advanced its success schema version to `5`.
+- Added `audit_strategy` to exact-run result JSON context and advanced result CSV/JSON success schemas to `4`.
+- Added per-strategy run counts to history summary CSV/JSON outputs and advanced history schemas to `6`.
+- Added the smallest-demand-first allocator (`p_strat = S`) with deterministic tie-breakers, persisted strategy validation, dedicated analytics, and allocation/history schema updates.
+- Pushed exact strategy filtering into both audit history SQL paths while retaining post-read filtering for defensive consistency.
+- Added strategy context and a strategy column to human-readable history output.
+- Added `ZSTOCK_ALLOC_HISTORY-p_legacy` to isolate legacy blank-strategy runs, with conflict validation against `p_strat`.
+- Labeled blank persisted strategies as `LEGACY` in human-readable history while preserving blank CSV/JSON values for compatibility.
+- Added the same explicit `LEGACY` label to human-readable exact-run result context.
+- Added strategy-aware `ZSTOCK_ALLOC_RESULT` filtering through the snapshot sink, including legacy blank-strategy selection and strategy-aware latest-run resolution.
+- Enriched result rows with the persisted allocation strategy across human, CSV, JSON, NDJSON, and metadata output; advanced result schemas to version `5`.
+- Added per-strategy result-line counters (`P`, `F`, `N`, `S`, and legacy blank) to human and summary exports; advanced result schemas to version `6`.
+- Added result-summary `strategy_context` (`P`, `F`, `N`, `S`, `legacy`, `mixed`, or `n/a`) across human, CSV, JSON, and metadata outputs; advanced result schemas to version `7`.
+- Added unit-safe per-strategy requested/allocated/shortage totals to result summaries, suppressing all strategy quantity totals for mixed-unit pages; advanced result schemas to version `8`.
+- Made history summary strategy context derive from the returned page in CSV, JSON, and human output, including `legacy` and `n/a` labels for blank-strategy and empty pages.
+- Added human-readable history per-strategy run counts to match the CSV and JSON summary contracts.
+- Made empty history `p_sum` requests emit zero-count summaries with `n/a` strategy context instead of an empty detail response.
+- Made empty result `p_sum` requests emit zero-count summaries with `n/a` strategy context instead of an empty detail response, keeping both read reports symmetric.
+- Added a deterministic largest-demand-first allocator (`p_strat = L`) with priority/date/order tie-breakers and dedicated unit tests.
+- Persisted `L` strategy support through audit validation, allocation selection, history/result filtering, per-strategy counters, and typed/CSV summary quantities.
+- Advanced allocation, history, and result export schemas to versions `6`, `7`, and `9` respectively because the new largest-strategy counters and totals extend their machine-readable columns/properties.
+- Added `iv_legacy_strategy` to the direct audit `get_summary` API, matching `get_runs` filtering and validating conflicts with an explicit strategy.
+- Added unit-safe per-strategy requested/allocated/shortage totals to the audit summary API, with all per-strategy quantity fields suppressed for mixed-unit populations.
+- Exposed the audit summary's unit-safe per-strategy requested/allocated/shortage totals in `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `7`.
+- Added the same unit-safe per-strategy requested/allocated/shortage totals to `ZSTOCK_ALLOC_HISTORY` summary human, CSV, JSON, and typed JSON output; history detail schemas remain version `7`, while summary schemas are now version `8`.
+- Added `last_strategy` to successful `ZSTOCK_ALLOCATE` human, CSV, and JSON output beside `last_run_id`; allocation success schemas are now version `8`.
+- Added zero-safe per-strategy coverage percentages to the audit summary API and allocation success human, CSV, and JSON output; allocation success schemas are now version `9`.
+- Propagated aggregate unit-safe coverage to `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `10`, and typed JSON now matches the documented schema version.
+- Made direct audit summaries choose the same deterministic latest run as `GET_RUNS`, using the run ID as a tie-breaker when start timestamps match, with regression coverage.
+- Added `last_duration_seconds` to the audit summary API and `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; allocation success schemas are now version `11`.
+- Added `minimum_duration_seconds` and `maximum_duration_seconds` alongside `average_duration_seconds` and its `completed_duration_runs` denominator to the audit summary API and `ZSTOCK_ALLOCATE` human, CSV, and JSON success output; completed runs are measured while running rows are excluded, and allocation success schemas are now version `14`.
+- Propagated page-scoped `minimum_duration_seconds` and `maximum_duration_seconds` alongside `average_duration_seconds` and `completed_duration_runs` to `ZSTOCK_ALLOC_HISTORY` summary CSV, JSON, and human output; history summary schemas are now version `12`, while detail schemas remain `7`.
+- Added unit-independent `completion_pct` to the audit summary API, allocation success output, and page-scoped history summaries; it measures finalized (`S`, `P`, or `E`) runs against all selected runs, and allocation/history summary schemas advance to `15`/`13`.
+- Added finalized-run `success_rate_pct` to the audit summary API, allocation success output, and page-scoped history summaries; it measures successful (`S`) runs against finalized runs only, and allocation/history summary schemas advance to `16`/`14`.
+- Added finalized-run `partial_rate_pct` and `error_rate_pct` to complete the outcome mix; they partition finalized runs alongside `success_rate_pct`, and allocation/history summary schemas advance to `17`/`15`.
+- Added unit-safe aggregate `shortage_pct` beside `coverage` to the audit summary API, allocation success output, and history summaries; mixed-unit and zero-request populations remain unavailable, and allocation/history summary schemas advance to `18`/`16`.
+- Added exact-run `audit_duration_seconds` to result JSON metadata and human context, using JSON `null` for running audits; aligned result detail and summary schema markers to version `10`.
+- Added per-strategy coverage percentages to result and history summaries; result summary schemas are now version `10`, while history detail schemas remain `7` and summary schemas are now `9`.
+- Added aggregate `shortage_pct` to result summary CSV, JSON, metadata, and human output; result detail schemas remain `10`, while result summary schemas are now `11`.
+- Added row-level `shortage_pct` to result detail CSV, JSON, metadata, and human output; result detail schemas are now `11` and result summary schemas are now `12`, with `null`/`n/a` preserved for zero-request rows.
+- Added row-level `shortage_pct` to history detail CSV, JSON, metadata, and human output; history detail schemas are now `8`, while summary schemas remain `16`, with `null`/`n/a` preserved for zero-request rows.
+- Added validated shortage-percentage range filters to result/history reports (`p_spf`/`p_spt`) and their direct read ports; active filter metadata now identifies `shortage_percentage`, while zero-request rows remain non-applicable.
+- Added shortage-percentage-first ordering (`p_spct`) to result/history reports and their direct read ports, with deterministic shortage/date/scope tie-breakers.
+- Aligned result `p_latest` selection with its aggregate coverage and shortage-percentage bounds so the chosen audit run satisfies the same percentage criteria as the returned snapshot view.
+- Added early result-report coverage-bound validation across CSV, JSON, and human modes, matching history behavior before latest-run or snapshot reads occur.
+- Added `ZSTOCK_ALLOC_COMPARE` with a reusable comparison contract/class, read-authorized old/new snapshot loading, added/removed/changed/unchanged classifications, quantity deltas, and CSV/JSON/typed JSON output.
+- Added comparison change-type filtering (`p_chg`), offset/limit pagination (`p_skip`/`p_max`), and optional JSON page metadata (`p_meta` with filtered `total_rows`) to `ZSTOCK_ALLOC_COMPARE`.
+- Added old/new run IDs, active change-type filter, and unchanged-row flag to comparison JSON metadata so paged responses retain their comparison context.
+- Added comparison summary mode (`p_sum`) with added/removed/changed/unchanged counts and old/new/delta quantity totals calculated before pagination, available in human, CSV, and JSON output.
+- Added comparison `p_ndjson` streaming output with the same regular/typed row contract as array JSON; it requires JSON and is mutually exclusive with metadata and summary modes.
+- Added mixed-unit safeguards to comparison summaries; parallel-unit pages now expose `mixed_units` and suppress non-comparable quantity totals in CSV/JSON/human output.
+- Added authorized old/new audit lifecycle context (status, strategy, start/finish dates, and diagnostics) to comparison CSV, human, summary JSON, and metadata JSON outputs while preserving plain row-array and NDJSON shapes.
+- Extended comparison change rows to detect and export persisted source-document, schedule-line, order-unit, allocation-strategy, and reservation-date/movement/unit mutations in addition to quantity and reservation-ID changes.
+- Added deterministic `change_reasons` labels to comparison rows, with `added`/`removed` classifications and pipe-delimited changed-field names for `C` rows.
+- Added validated `p_reason`/`iv_reason` filtering to comparison rows, preserving filtered `total_rows` and exposing the active reason in contextual output metadata.
+- Added old/new snapshot-to-audit reconciliation to `ZSTOCK_ALLOC_COMPARE`; contextual CSV, JSON metadata, summary, and human output now expose `OK`/`MISMATCH` status and snapshot row counts after checking line outcomes and allocated/shortage totals against each audit run.
+- Added `p_guard` to `ZSTOCK_ALLOC_COMPARE` so integrations can fail closed when either compared snapshot does not reconcile to its persisted audit counters and quantities.
+- Improved comparison read diagnostics so a missing old or new audit run reports which run context was not found instead of returning a blank generic exception.
+- Completed comparison reconciliation by checking snapshot requested totals against the audit run, and exposed old/new snapshot requested totals in contextual exports.
+- Aligned exact-run `ZSTOCK_ALLOC_RESULT` reconciliation with the comparison contract so JSON and human output also reject requested-total drift.
+- Added exact-run result `reconciliation_fields` diagnostics, identifying mismatched audit metrics in JSON metadata and human output.
+- Added snapshot-side reconciliation metrics to comparison context and exact-run result output, including outcome counts and requested/allocated/shortage totals.
+- Added audit-side unit, outcome counters, and requested/allocated/shortage totals to comparison summary/detail CSV, JSON metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 6` alongside persisted lifecycle times, generated response date/time, duration, requested-delivery horizon, and available-stock baselines, while row-only plain JSON and NDJSON shapes remain unchanged.
+- Added audit-side coverage and shortage-percentage fields to comparison summary/detail CSV, JSON metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 7`, using numeric typed JSON when requested is positive and `null`/`n/a` for zero-request runs.
+- Added explicit audit-unit comparability and run-to-run allocated/shortage plus coverage/shortage-percentage deltas to comparison contextual outputs; schema advances to numeric `schema_version: 8`, with incompatible-unit or unavailable ratio deltas represented as typed `null` and regular `n/a`.
+- Added audit requested/available-stock deltas and an audit requested-delivery-horizon change indicator to comparison contextual outputs; schema advances to numeric `schema_version: 9`, preserving typed `null` and regular `n/a` for incompatible-unit deltas.
+- Added audit status-changed and strategy-changed indicators to comparison contextual outputs; schema advances to numeric `schema_version: 10` across CSV, JSON metadata, and human context.
+- Added audit running-state change and finished-run duration delta fields to comparison contextual outputs; schema advances to numeric `schema_version: 11`, with typed `null` and regular `n/a` while either run is unfinished.
+- Added audit start-time and finish-time deltas to comparison contextual outputs; schema advances to numeric `schema_version: 12`, with typed `null` and regular `n/a` when either corresponding timestamp is missing.
+- Added an audit reconciliation-status change indicator to comparison contextual outputs; schema advances to numeric `schema_version: 13` across CSV, JSON metadata, and human context.
+- Added direct audit demand/full/partial/unallocated outcome-counter deltas to comparison contextual outputs; schema advances to numeric `schema_version: 14` across CSV, JSON metadata, and human context.
+- Added combined `audit_reconciliation_ok` health context to comparison outputs; schema advances to numeric `schema_version: 15`, while per-run reconciliation statuses and transition diagnostics remain available.
+- Added aggregate `audit_metadata_changed` alert context covering lifecycle, strategy, unit, horizon, timestamps, and diagnostics; schema advances to numeric `schema_version: 16`.
+- Added pipe-delimited `audit_metadata_change_reasons` categories beside the aggregate metadata alert; schema advances to numeric `schema_version: 17`.
+- Added direct `audit_reconciliation_transition` classifications (`both_ok`, `recovered`, `regressed`, `both_mismatch`, or `unavailable`) to comparison context; schema advances to numeric `schema_version: 18`.
+- Extracted reconciliation transition classification into the comparison interface and covered all transition states with ABAP Unit tests; the compare report now consumes the tested API.
+- Reconciliation now reports `status` explicitly when a snapshot row has an unknown allocation status, instead of silently leaving the row out of the outcome counters.
+- Direct comparison and reconciliation normalize outcome status codes case-insensitively, matching the existing unit and strategy normalization at those API boundaries.
+- Reconciliation now validates each snapshot row's requested, allocated, shortage, and outcome-status relationship and reports `snapshot` when aggregate values could otherwise hide malformed line data.
+- Reconciliation now reports `unit` when snapshot rows do not belong to the audit run's configured allocation unit; blank legacy audit units remain nonrestrictive.
+- Direct audit metadata reasons and running-age calculation now normalize status, strategy, and unit codes before comparison.
+- Running-age regression coverage now verifies a lowercase persisted running status remains reportable.
+- The canonical audit running-age API now applies the same case-insensitive running-status handling as comparison helpers.
+- Direct allocation-snapshot writes now canonicalize allocation outcome statuses on the local demand copy, so lowercase `f`, `p`, and `u` callers persist the same uppercase codes as service-generated results.
+- Allocation-result reads now canonicalize persisted outcome and unit codes before filtering and validation, keeping legacy lowercase snapshot rows readable and returning stable uppercase codes.
+- Audit history reads now canonicalize persisted status and strategy codes before validation; strategy-scoped reads no longer lose legacy rows that use lowercase valid codes.
+- Result reads now normalize persisted audit run status, strategy, and unit fields before referential validation, and apply strategy filters after normalization so lowercase legacy run metadata remains queryable.
+- Audit purge preview and execution now classify legacy lowercase run statuses and units case-insensitively from one shared candidate population, and remove all snapshots linked to each selected run ID.
+- Extracted audit metadata reason generation into the comparison interface, preserving deterministic category ordering and covering unchanged and all-category changes with ABAP Unit tests.
+- Added tested live running-age calculation to the comparison interface and exposed old/new ages plus a safe delta in comparison CSV, JSON, metadata, and human context; comparison contextual schemas advance to numeric `schema_version: 19`, with typed `null` and regular `n/a` when a run is not active or timestamps are unusable.
+- Added tested `audit_running_age_trend` classification (`older`, `younger`, `unchanged`, or `unavailable`) to comparison contextual outputs; schemas advance to numeric `schema_version: 20` so consumers can use an explicit direction without interpreting the numeric age delta.
+- Centralized active-audit running-age calculation in the audit interface; allocation summaries, comparison, history, and result reports now share the same valid-running/timestamp semantics and unit-tested behavior.
+- Added optional reference date/time inputs to the audit running-age API, preserving system-clock defaults while enabling deterministic replay and exact elapsed-time regression tests.
+- Added newest active-run age and run ID beside the oldest active-run telemetry in the audit summary, allocation summary, and history summary; allocation schemas advance to `22` and history summary schemas to `20`.
+- Added `ZSTOCK_ALLOC_WATCH`, an oldest-first stale-running allocation monitor with a configurable age threshold, alert limit, canonical running-age calculation, and human/CSV/JSON output.
+- Extended `ZSTOCK_ALLOC_WATCH` with optional normalized strategy filtering (`p_strat = P/F/N/S/L/B/E/A/W`) so operators can isolate stale runs by allocator behavior without post-filtering the alert feed.
+- Added the applied watch strategy filter to human, CSV, and JSON output; the watch machine-readable contract advances to schema version `2` so empty alert feeds remain self-describing.
+- Added an optional minimum-shortage filter (`p_shf`) to `ZSTOCK_ALLOC_WATCH`; filter provenance is exported in all modes and the machine-readable contract advances to schema version `3`.
+- Added an optional maximum-coverage filter (`p_covt`) to `ZSTOCK_ALLOC_WATCH`; zero-request runs are excluded for non-applicable coverage and the machine-readable contract advances to schema version `4`.
+- Added `p_shrt` shortage-first ordering to `ZSTOCK_ALLOC_WATCH`, with deterministic age/time/run-ID tie-breakers and exported `sort_mode`; the machine-readable contract advances to schema version `5`.
+- Added page-scoped alert count, quantity, coverage, and age-range aggregates to watch JSON/human output; `p_sum` now emits a compact aggregate CSV row using schema version `6` while detail CSV remains version `5`.
+- Aligned watch `p_sum` across human, CSV, and JSON modes so all three suppress detail alerts and retain only the aggregate summary.
+- Added exact active-run targeting (`p_runid`) to `ZSTOCK_ALLOC_WATCH`, including filter provenance in every output mode; watch contracts advance to schema version `7`.
+- Added pre-limit `candidate_count` and boolean `limited` truncation metadata to `ZSTOCK_ALLOC_WATCH` human, CSV, and JSON outputs; watch contracts advance to schema version `8`.
+- Added one-based post-sort alert `rank` to watch detail output so capped consumers can process a deterministic returned order; watch contracts advance to schema version `9`.
+- Added case-insensitive server-side diagnostic-message substring filtering (`p_msg`) with exported filter provenance; watch contracts advance to schema version `10`.
+- Added `p_monly` diagnostic-presence filtering through the audit read port with boolean filter provenance; watch contracts advance to schema version `11`.
+- Added per-alert `coverage_pct` to watch human, CSV, and JSON detail output, using `n/a`/`null` for zero-request alerts; watch contracts advance to schema version `12`.
+- Added `p_ndjson` streaming watch output with self-describing one-object-per-line alerts and summary-mode exclusion; watch contracts advance to schema version `13`.
+- Added validated `p_skip` offset pagination with `has_more`, global ranks, and offset-aware watch ordering tests; watch contracts advance to schema version `14`.
+- Added minimum coverage filtering (`p_covf`) and inclusive coverage-range validation/provenance beside `p_covt`; watch contracts advance to schema version `15`.
+- Added optional maximum running-age filtering (`p_age_to`) to bound stale-watch windows and exported the age-range provenance; watch contracts advance to schema version `16`.
+- Added coverage-first watch ordering (`p_cov`) with non-applicable zero-request alerts sorted after applicable coverage values, deterministic ties, and ABAP Unit coverage; watch contracts advance to schema version `17`.
+- Added newest-first watch ordering (`p_new`) with explicit precedence and deterministic start-time ties; watch contracts advance to schema version `18`.
+- Added selectable best-fit allocation (`p_strat = B`) with deterministic exact-fit/lookahead selection, audit counters, per-strategy summary totals, and schema updates through allocation, history, and result exports.
+- Added live `running_age_seconds` to history detail CSV, JSON, metadata, and human output; finalized rows retain non-applicable `n/a`/`null`, and detail schemas advance to `9`.
+- Added summary-level `oldest_running_age_seconds` to history CSV, JSON, metadata, and human output; history summary schemas advance to `17`.
+- Propagated `oldest_running_age_seconds` into the audit summary API and `ZSTOCK_ALLOCATE` CSV, JSON, and human output; allocation success schemas advance to `19`, with regression coverage for active-run age.
+- Added `oldest_running_run_id` beside the live age metric across history and allocation summaries, making stalled-run follow-up direct; history/allocation schemas advance to `18`/`20`.
+- Added exact-running-audit `audit_running_age_seconds` to result detail CSV, typed/metadata JSON, and human context; result detail schemas advance to `12`, while finalized or non-exact rows remain non-applicable.
+- Added typed/metadata history JSON `filter_values` objects with numeric quantity, count, duration, age, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. History detail/summary contracts advance to schema versions `10`/`21`.
+- Added typed/metadata result JSON `filter_values` objects with numeric priority, reservation-age, quantity, coverage, and shortage-percentage bounds; blank bounds serialize as `null`. Result detail/summary contracts advance to schema versions `13`/`14`.
+- Added requested-delivery horizon filters (`p_reqf`/`p_until`) to `ZSTOCK_ALLOC_WATCH`, carrying the persisted `requested_on_from`/`requested_on_to` dates through human, CSV, JSON, typed JSON, and NDJSON alert output; watch contracts advance to CSV schema `37` and JSON/NDJSON schema `39`.
+- Added `p_due` requested-delivery urgency ordering to `ZSTOCK_ALLOC_WATCH`; horizon-bearing alerts sort earliest-first with shortage/age/run-ID tie-breakers and horizon-less alerts last. Watch contracts advance to CSV schema `38` and JSON/NDJSON schema `40`.
+- Added matching `p_due` requested-delivery ordering to `ZSTOCK_ALLOC_HISTORY` and the audit read port, with horizon-less runs last and deterministic shortage/start/run-ID ties; history detail/summary contracts advance to schemas `13`/`25`. Added missing watch selection-screen text-pool entries for `p_reqf`, `p_until`, and `p_due`.
+- Corrected `p_due` ordering for one-sided requested-delivery horizons: watch and history now use the lower bound when present, otherwise the upper bound, so upper-bound-only runs join the same earliest-effective-date ordering.
+- Added overdue requested-horizon filtering (`p_ovrd`) to the audit read port, `ZSTOCK_ALLOC_WATCH`, and `ZSTOCK_ALLOC_HISTORY`. A run is overdue when its delivery deadline (`requested_on_to`, otherwise `requested_on_from`) is before the SAP system date; today, future, and horizon-less runs are excluded. Watch schemas advance to CSV `39` and JSON/NDJSON `41`; history schemas advance to detail `14` and summary `26`.
+- Added `p_ovrd` to `ZSTOCK_ALLOC_COMPARE`, filtering both old and new snapshot populations to requested dates before today. The filtered comparison exposes `overdue_only` in human, CSV, JSON, and NDJSON context; comparison schemas advance to `31`, and `p_guard` is rejected because a partial population cannot provide exact reconciliation.
+- Compare `p_ovrd` keeps filtered snapshot metrics while reporting both reconciliation statuses as `FILTERED` with `filtered` fields; the reconciliation transition is consequently `unavailable` instead of a misleading full-run mismatch.
+- Comparison typed JSON `filter_values` now includes the boolean `overdue_only` value; comparison CSV/contextual JSON contracts advance to schema `32`.
+- `ZSTOCK_ALLOC_RESULT` now exposes `p_ovrd` explicitly as `overdue_only` in human, CSV, JSON, NDJSON, and typed `filter_values` provenance; result detail/summary schemas advance to `17`/`19`.
+- Watch and history typed/metadata `filter_values` now expose boolean `requested_overdue_only`; watch JSON/NDJSON advances to schema `42`, and history detail/summary advance to `15`/`27`.
+- Overdue read APIs now accept optional `iv_overdue_date` as an as-of boundary for deterministic replay; omitted values retain the SAP system date, and both snapshot and audit tests cover boundary expansion.
+- `ZSTOCK_ALLOC_WATCH` and `ZSTOCK_ALLOC_HISTORY` now expose `p_odate` to evaluate overdue horizons as of an operator-supplied date; the value is propagated through filtering, human/CSV/JSON/NDJSON provenance, and typed `filter_values`, advancing watch to schemas `40`/`43` and history to `16`/`28`.
+- `ZSTOCK_ALLOC_RESULT` and `ZSTOCK_ALLOC_COMPARE` now expose the same optional `p_odate` boundary for overdue snapshot lines; result detail/summary schemas advance to `18`/`20`, and comparison CSV/contextual JSON schemas advance to `33` with typed and contextual as-of provenance.
+- Result `p_latest` selection now applies the overdue predicate and its `p_odate` boundary while resolving the newest matching audit run, so the selected run and filtered snapshot population use the same overdue policy.
+- Added `requested_deadline` to the audit run read model, using `requested_on_to` with a fallback to `requested_on_from`; watch/history detail outputs now expose the exact effective deadline in human, CSV, JSON, and NDJSON, advancing watch to CSV/JSON `41`/`44` and history detail to `17`.
+- Added `last_requested_deadline` to the audit summary and allocation summary outputs. It records the effective requested horizon deadline for the selected/latest run, is present in human/CSV/JSON output, and advances the allocation schemas to `25`.
+- Added earliest/latest effective requested deadlines to the audit summary and page-scoped history summaries. History human, CSV, and JSON summary outputs now expose the represented deadline range; history summary schemas advance to `29`.
+- Propagated the effective requested-deadline range into allocation human, CSV, and JSON summaries. Allocation schemas advance to `26`, and the CSV field order now matches its declared deadline columns.
+- Added effective `audit_requested_deadline` to result detail rows, exact-run metadata, summaries, CSV, JSON, and human context; result detail/summary schemas advance to `19`/`21`.
+- Added old/new effective requested deadlines to comparison CSV, contextual JSON, NDJSON, and human output; comparison contracts advance to schema `34`.
+- Added earliest/latest effective requested deadlines to page-scoped watch summaries; watch contracts advance to CSV/JSON/NDJSON schemas `42`/`45`.
+- Repeated the watch page deadline range in NDJSON aggregate context and refreshed the primary watch contract documentation to the current schemas.
+- Centralized watch deadline-range aggregation in the watch summary API and covered earliest/latest values with unit tests.
+- Extended the watch summary API to own page quantity totals and oldest/newest alert ages; the report now consumes one canonical aggregate model with regression coverage.
+- Made watch summary quantity totals unit-safe at the API boundary by clearing non-comparable totals for mixed-unit pages; added regression assertions.
+- Corrected the current result-contract documentation to match the verified detail/summary schemas `19`/`21`.
+- Added page `deadline_count` to watch human, CSV, JSON, and NDJSON aggregate contexts; watch contracts advance to CSV/JSON/NDJSON schemas `43`/`46`.
+- Added `deadline_count` to the audit summary API and propagated it to allocation and history summaries; allocation schemas advance to `27`, and history summary schemas advance to `30` while detail remains `17`.
+- Added the canonical requested-deadline-only audit filter and exposed it as watch parameter `p_dead`; watch CSV advances to schema `44` and JSON/NDJSON to `47`.
+- Carried `p_dead` into `ZSTOCK_ALLOC_HISTORY`; history detail/summary schemas advance to `18`/`31`, including CSV, JSON, metadata, NDJSON, and typed filter provenance.
+- Carried `p_dead` into `ZSTOCK_ALLOC_RESULT` latest/exact audit selection and all result export provenance; result detail/summary schemas advance to `20`/`22`.
+- Carried `p_dead` into `ZSTOCK_ALLOC_COMPARE` snapshot and audit reads, including typed/contextual filter provenance; comparison CSV/contextual JSON schemas advance to `35`.
+- Added deadline-bearing selection to `ZSTOCK_ALLOC_PURGE`; purge preview/execution schemas advance to CSV `9`/`10` and typed JSON `10`/`11`.
+- Added overdue-only purge selection with an optional as-of date; purge schemas advance to CSV `10`/`11` and typed JSON `11`/`12`.
+- Added exact requested-horizon selection to `ZSTOCK_ALLOC_PURGE`; purge schemas advance to CSV `11`/`12` and typed JSON `12`/`13`.
+- Added exact persisted requested-horizon guards (`p_reqf`/`p_until`) to `ZSTOCK_ALLOC_COMPARE`; comparison contracts advance to schema `36` with horizon provenance.
+- Added exact persisted requested-horizon filters (`p_reqf`/`p_until`) to the result sink and `ZSTOCK_ALLOC_RESULT`, distinct from snapshot-row `p_from`/`p_to`; result schemas advance to detail `21` and summary `23`.
+- Added effective requested-deadline range filters (`p_deadf`/`p_deadt`) to the audit API and `ZSTOCK_ALLOC_HISTORY`; one-sided runs use `requested_on_from`, reversed bounds are rejected, and history detail/summary contracts advance to schemas `19`/`32`.
+- Extended `ZSTOCK_ALLOC_WATCH` with the same effective requested-deadline range filters (`p_deadf`/`p_deadt`) as history; watch contracts advance to CSV schema `45` and JSON/NDJSON schema `48`.
+- Added effective requested-deadline range filters (`p_deadf`/`p_deadt`) to audit purge preview/execution, with validation, provenance, and schema updates to CSV `12`/`13` and typed JSON `13`/`14`.
+- Extended `ZSTOCK_ALLOC_COMPARE` with effective deadline-range guards (`p_deadf`/`p_deadt`) for both audit-run selections and all comparison provenance; contextual schemas advance to `37`.
+- Extended the result sink and `ZSTOCK_ALLOC_RESULT` with effective originating-run deadline-range filters (`p_deadf`/`p_deadt`), including validation, row selection, provenance, and schema updates to detail `22`/summary `24`.
+- Added signed originating-run deadline-age filters (`p_dagef`/`p_daget`/`p_daged`) to the allocation result sink and report. Age filtering uses the persisted effective deadline, excludes rows without one, validates reversed/date-only input, and advances result contracts to detail `25`/summary `27` with CSV and typed JSON provenance.
+- Added signed effective-deadline age filters (`p_dagef`/`p_daget`/`p_daged`) to purge preview and execution. Retention now applies the same inclusive signed-age predicate before selecting runs and linked snapshots, with validation and provenance; purge contracts advance to typed JSON schemas `14`/`15` and matching CSV filter columns.
+- Added purge `p_rid` case-insensitive run-ID substring scoping alongside exact `p_runid`. Preview and execution now expose both run-ID predicates, and purge contracts advance to typed JSON `16`/`17` and CSV `14`/`15`.
+- Added purge `p_from` audit-start lower-bound scoping alongside the exclusive `p_date` cutoff. Preview and execution now support bounded retention windows, validate empty windows, expose start-date provenance, and advance purge contracts to CSV `15`/`16` and typed JSON `17`/`18`.
+- Replaced the rejected optional host-variable `OR` form for purge `p_from` with separate unbounded and bounded candidate `SELECT` branches; preview and execution now push the inclusive start-date lower bound into compatible SQL while retaining the defensive candidate check.
+- Added inclusive purge finish-date bounds `p_ffrom`/`p_fto` and matching audit API parameters. Preview and execution now select only persisted completed rows within the finish window, exclude blank-finish running rows when active, validate reversed ranges, expose filter provenance, and advance purge contracts to CSV `16`/`17` and typed JSON `18`/`19`.
+- Added persisted allocation-strategy filtering `p_strat`/`iv_strategy` to purge preview and execution. Valid strategies are `P`, `F`, `N`, `S`, `L`, and `B`; candidate metadata is normalized case-insensitively, strategy provenance is emitted in all report modes, and purge contracts advance to CSV `17`/`18` and typed JSON `19`/`20`.
+- Added purge `p_legacy`/`iv_legacy_strategy` filtering for blank-strategy historical runs. It conflicts with explicit strategy selection, is propagated through preview/execution and all report modes, and advances purge contracts to CSV `18`/`19` and typed JSON `20`/`21`.
+- Added independent comparison strategy filters `p_ostr`/`p_nstr` for old/new persisted audit and snapshot reads. Valid strategies are `P`, `F`, `N`, `S`, `L`, and `B`; filter provenance is emitted across comparison modes and contextual schemas advance to `58`.
+- Added independent comparison legacy-strategy switches `p_oleg`/`p_nleg` for old/new blank-strategy audit and snapshot reads. They are mutually exclusive with the corresponding explicit strategy filters, are propagated to both read services, and are emitted in all comparison provenance paths; comparison schemas advance to `59`.
+- Added independent comparison requested-horizon filters `p_oreqf`/`p_oreqt` and `p_nreqf`/`p_nreqt`. They select old/new persisted audit windows separately, reject reversed or mixed common/side-specific bounds, and are emitted in all comparison provenance paths; comparison schemas advance to `60`.
+- Added independent comparison deadline-only switches `p_odead`/`p_ndead`. They select old/new deadline-bearing audit and snapshot populations separately, reject mixing with common `p_dead`, and are emitted in all comparison provenance paths; comparison schemas advance to `61`.
+- Added independent comparison deadline-range filters `p_odeadf`/`p_odeadt` and `p_ndeadf`/`p_ndeadt`. They select old/new effective requested-deadline windows separately, reject reversed or mixed common/side-specific ranges, and are emitted in all comparison provenance paths; comparison schemas advance to `62`.
+- Added independent comparison deadline-age filters `p_oagef`/`p_oaget` and `p_nagef`/`p_naget`. They select old/new signed age windows separately while retaining the shared `p_daged` reference date, reject reversed or mixed common/side-specific ranges, and are emitted in all comparison provenance paths; comparison schemas advance to `63`.
+- Added independent comparison overdue switches `p_oovrd`/`p_novrd`. They select old/new overdue audit and snapshot populations separately using the shared `p_odate` reference date, reject mixing with common `p_ovrd`, and are emitted in all comparison provenance paths; comparison schemas advance to `64`.
+- Added independent comparison movement filters `p_omvt`/`p_nmvt`. They constrain old/new originating audit policy movement types separately, reject mixing with common `p_mvt`, and are emitted in all comparison provenance paths; comparison schemas advance to `65`.
+- Added independent comparison shelf-life filters `p_oshelf`/`p_nshelf`. They constrain old/new nonnegative minimum-shelf-life policies separately, reject mixing with common `p_shelf`, and are emitted in all comparison provenance paths; comparison schemas advance to `66`.
+- Added `ZCL_STOCK_ALLOCATION_HEALTH`, a reusable operational health evaluator that classifies empty scopes, backlog/partial outcomes, stale running work, and audit errors while suppressing mixed-unit quantity comparisons.
+- Added `ZSTOCK_ALLOC_HEALTH` with SAP audit read authorization, stale-threshold monitoring, and human/CSV/JSON output for operational dashboards and job monitoring.
+- Extended `ZSTOCK_ALLOC_HEALTH` with safety-stock range and requested-delivery horizon filters so health checks can target the same policy slices as allocation and history reads.
+- Added unit coverage for healthy, backlog warning, stale critical, and mixed-unit safety behavior; lint, transpilation, ABAP unit tests, report-contract, comparison-contract, and repository-contract checks pass.
+- Added `ZCL_STOCK_ALLOCATOR_FAIR` and selectable `p_strat = E` fair-share allocation. It uses deterministic priority/date/order ordering plus capped water-filling rounds so small demands finish without allowing one large demand to consume the whole pool; audit and result/history strategy validation now accepts `E`.
+- Added fair-share allocator unit coverage for equal distribution, capped small demands, and duplicate demand keys. Lint, transpilation, ABAP unit tests, comparison-contract, and repository-contract checks pass.
+- Hardened fair-share residual handling so three-decimal rounding cannot over-allocate the final stock remainder; added a fractional-residual regression test.
+- Added fair-share run counters, unit-safe quantities, and coverage to the audit summary API and allocation report exports; allocation CSV/JSON schema version is now `31`.
+- Added weighted-strategy telemetry to `ZSTOCK_ALLOC_WATCH`: summary outputs now report page-scoped `weighted_strategy_runs` plus weighted requested/allocated/shortage/coverage aggregates, while each alert exposes boolean `weighted_strategy`; watch schemas advance to CSV `56` and JSON/NDJSON `59`.
+- Fixed mixed-unit audit summary safety for weighted telemetry by clearing weighted requested/allocated/shortage totals whenever the summary spans incompatible units; added regression assertions alongside the existing mixed-unit coverage checks.
+- Corrected the order-sink ABAP Unit invalid-key regression to use a zero NUMC key rather than an incompatible signed literal. Lint, transpilation, ABAP Unit, comparison-contract, and repository-contract checks pass.
+- Fixed health monitoring's zero-stale-result handling with an explicit `iv_stale_scope_evaluated` flag, preventing false stale alerts when the filtered stale query returns no rows; added evaluator and repository-wiring regression coverage.
+- Added `p_legacy` to `ZSTOCK_ALLOC_HEALTH` so health checks can target blank-strategy legacy runs consistently with history, watch, result, and purge; the filter is conflict-checked, propagated to both audit reads, exported in all modes, and advances health JSON/CSV schema to `10`.
+- Added overdue requested-horizon filtering (`p_ovrd`/`p_odate`) to `ZSTOCK_ALLOC_HEALTH`; it uses `requested_on_to` with `requested_on_from` fallback, defaults the as-of date to the SAP system date, exports `overdue_only`/`requested_overdue_as_of`, and advances the health JSON/CSV schema to `11`.
+- Added requested-deadline-only filtering (`p_dead`) to `ZSTOCK_ALLOC_HEALTH`; it propagates the canonical effective-deadline predicate to both audit reads, exports `requested_deadline_only`, and advances the health JSON/CSV schema to `12`.
+- Added inclusive effective requested-deadline bounds (`p_deadf`/`p_deadt`) to `ZSTOCK_ALLOC_HEALTH`; reversed ranges are rejected, both audit reads receive the bounds, range provenance is exported, and the health JSON/CSV schema advances to `13`.
+- Added signed effective deadline-age filtering (`p_dagef`/`p_daget`/`p_daged`) to `ZSTOCK_ALLOC_HEALTH`; reversed ranges and as-of dates without bounds are rejected, the SAP date is the default reference, age provenance reaches both audit reads and all output modes, and the health JSON/CSV schema advances to `14`.
+- Promoted selected-population deadline telemetry through `ZSTOCK_ALLOC_HEALTH`: deadline count, effective deadline range, signed last/oldest/newest ages, and the exact age reference date now flow through the evaluator and all output modes; health JSON/CSV schema advances to `15`.
+- Added `p_stat` audit-lifecycle filtering (`R`/`S`/`P`/`E`) to `ZSTOCK_ALLOC_HEALTH`; the normalized status reaches both audit reads, is exported as `status_filter`, and advances health JSON/CSV schema to `16`.
+- Added diagnostic message scoping (`p_msg` substring and `p_monly` nonblank-only) to `ZSTOCK_ALLOC_HEALTH`; both filters reach normal/stale audit reads, are exported as `message_filter`/`message_only`, and advance health JSON/CSV schema to `17`.
+- Added inclusive originating demand-count bounds (`p_dfrom`/`p_dto`) to `ZSTOCK_ALLOC_HEALTH`; audit validation and both reads receive the bounds, demand-count provenance is exported, and health JSON/CSV schema advances to `18`.
+- Added inclusive persisted available-stock bounds (`p_avf`/`p_avt`) to `ZSTOCK_ALLOC_HEALTH`; audit validation and both reads receive the bounds, available-stock provenance is exported, and health JSON/CSV schema advances to `19`.
+- Added inclusive persisted requested-quantity bounds (`p_qf`/`p_qt`) to `ZSTOCK_ALLOC_HEALTH`; audit validation and both reads receive the bounds, requested-quantity provenance is exported, and health JSON/CSV schema advances to `20`.
+- Added inclusive persisted allocated-quantity bounds (`p_af`/`p_at`) to `ZSTOCK_ALLOC_HEALTH`; audit validation and both reads receive the bounds, allocated-quantity provenance is exported, and health JSON/CSV schema advances to `21`.
+- Added inclusive persisted shortage-quantity bounds (`p_shf`/`p_sht`) to `ZSTOCK_ALLOC_HEALTH`; audit validation and both reads receive the bounds, shortage-quantity provenance is exported, and health JSON/CSV schema advances to `22`.
+- Added inclusive shortage-percentage bounds (`p_spf`/`p_spt`) to `ZSTOCK_ALLOC_HEALTH`; the 0-through-100 population range is kept separate from the `p_spct` warning threshold, both reads receive the bounds, shortage-percentage provenance is exported, and health JSON/CSV schema advances to `23`.
+- Added inclusive coverage-percentage bounds (`p_covf`/`p_covt`) to `ZSTOCK_ALLOC_HEALTH`; the 0-through-100 population range is kept separate from the `p_cov` warning threshold, both reads receive the bounds, coverage-percentage provenance is exported, and health JSON/CSV schema advances to `24`.
+- Added nonnegative inclusive completed-audit-duration bounds (`p_tfrom`/`p_tto`) to `ZSTOCK_ALLOC_HEALTH`; running audits are excluded when duration filtering is active, canonical audit validation rejects invalid/reversed ranges, duration provenance reaches both reads and all output modes, and health JSON/CSV schema advances to `25`.
+- Added an inclusive persisted audit start-date window (`p_from`/`p_to`) to `ZSTOCK_ALLOC_HEALTH`; canonical audit validation rejects reversed ranges, both reads receive the bounds, start-date provenance is exported in every mode, and health JSON/CSV schema advances to `26`.
+- Added an inclusive persisted audit finish-date window (`p_ffrom`/`p_fto`) to `ZSTOCK_ALLOC_HEALTH`; canonical audit validation rejects reversed ranges and excludes unfinished audits when active, both reads receive the bounds, finish-date provenance is exported in every mode, and health JSON/CSV schema advances to `27`.
+- Added maximum running-audit age filtering (`p_age_to`) to `ZSTOCK_ALLOC_HEALTH`; the bound is propagated to both reads alongside `p_stale`, canonical validation rejects negative or too-low upper ages, running-age provenance is exported, and health JSON/CSV schema advances to `28`.
+- Hardened the SAP delivery-priority contract to the source field's representable internal range 0 through 99. All allocators, the service boundary, and allocation-snapshot persistence now reject out-of-range priorities before weighted arithmetic or snapshot mutation; direct weighted and service-level regressions cover the upper bound.
+- Hardened service-side persisted-snapshot reconciliation: unknown nonblank allocation strategies from an injected snapshot provider are now rejected before reservation reuse, cancellation, or replacement writes; regression coverage confirms the side-effect boundary.
+- Hardened service-side snapshot reconciliation to reject nonnumeric persisted reservation movement types before cancellation authorization or reservation reuse; malformed injected snapshot coverage protects the side-effect boundary.
+- Hardened the SAP reservation adapter to require 10-digit numeric reservation documents on cancellation and from BAPI creation responses; stub-backed regressions prevent malformed IDs from reaching authorization, deletion, or persistence.
+- Hardened SAP goods-issue posting to reject nonnumeric material documents returned by `BAPI_GOODSMVT_CREATE` before commit; the SAP stub and ABAP Unit regression verify rollback and diagnostic preservation.
+- Hardened the direct sales-order schedule-line adapter to reject nonnumeric sales-document keys before authorization or `BAPI_SALESORDER_CHANGE`; numeric stub fixtures preserve coverage for BAPI and transaction failures.
+- Hardened SAP document identity validation to reject the all-zero `0000000000` sentinel for sales-order changes, reservation creation/cancellation, and goods-issue posting; each adapter has a focused regression.
+- Capped cross-unit historical-reservation reconciliation at available stock, preventing packed-decimal overflow from unrelated reservations after the stock is already fully reserved; added a two-large-snapshot service regression.
+- Extended the shared 0–99 delivery-priority contract to allocation-result read filters; negative and above-range filter endpoints now fail before authorization or database reads.
+- Extended reservation identity validation through snapshot persistence and reconciliation; the all-zero `0000000000` sentinel is rejected before database writes, cancellation authorization, or reservation reuse.
+- Hardened goods-movement output identity to reject zero fiscal years alongside material-document validation; the SAP stub covers the zero-year response and verifies rollback before commit.
+- Extended document-sentinel validation to sales-order reads, service demand validation, and allocation-snapshot persistence; all-zero sales documents now fail before allocation or snapshot side effects.
+- Prevented reservation-cancellation ID truncation by validating the 10-character logical length before copying the public 20-character ID into SAP's reservation field; added an overlength regression.
+- Hardened audit-run read validation to reject negative minimum shelf-life and safety-stock policy values, preventing corrupt persisted policy metadata from reaching reports and health views.
+- Extended the same run-metadata guard to allocation-snapshot persistence; corrupt movement or policy fields can no longer authorize new snapshots under an active run.
+- Hardened reservation identity shape end to end at snapshot and reconciliation boundaries; every nonblank reservation ID must use the shared ten-character numeric, nonzero SAP document contract. Added sink and service regressions plus repository-contract coverage.
+- Hardened result-read identity filters: sales-document filters require a nonzero ten-character key, and numeric reservation filters require the same shape. Added focused sink regressions and repository-contract coverage so malformed filters fail before the result query.
+- Reconciled stale current-schema references in `README.md` with the executable contracts: result `37`/`43`, history `26`/`43`, and watch `56`/`59`; historical release notes remain unchanged.
+2026-08-11: Continued the SAP integration checklist audit by documenting the exact activity values enforced by reservation create/cancel and goods-movement authority adapters, with a repository-contract guard.
+- Added successful-run counts to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH` JSON, CSV, and human output; health export schema advances to `29` so operators can distinguish completed successful runs from total and partial activity.
+- Added completion, success, partial, and error rate telemetry to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `30` and reuses the canonical audit-summary rates.
+- Added legacy-strategy run counts and unit-safe requested/allocated/shortage/coverage telemetry to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `31`.
+- Added priority, FIFO, full-only, smallest, largest, and best-fit strategy counts to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `32`.
+- Added unit-safe requested/allocated/shortage/coverage telemetry for priority, FIFO, full-only, smallest, largest, and best-fit strategies to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `33`.
+- Added latest-run identity/status/timestamps, duration aggregates, and running-age identities to `ZCL_STOCK_ALLOCATION_HEALTH` and `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `34`.
+- Added unit-independent strategy mix percentages for priority, FIFO, full-only, smallest, largest, best-fit, fair-share, weighted, adaptive, and legacy runs; health JSON/CSV schema advances to `35`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_durmax` latest-completed-duration warning threshold with availability-aware breach state; health JSON/CSV schema advances to `36`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_succ` minimum success-rate warning threshold with no-run-safe breach state; health JSON/CSV schema advances to `37`.
+- Added deterministic aggregate threshold-breach count/list telemetry (`coverage`, `shortage`, `duration`, `success`) to `ZSTOCK_ALLOC_HEALTH`; health JSON/CSV schema advances to `38`.
+- Added optional `ZSTOCK_ALLOCATE-p_shg`/`p_shmax` maximum-shortage guard; exceeded caps record a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `35`.
+- Added optional `ZSTOCK_ALLOCATE-p_covg`/`p_covmin` minimum-coverage guard; below-threshold aggregate coverage records a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `36`.
+- Added optional `ZSTOCK_ALLOCATE-p_fullg`/`p_fmin` minimum full-line guard; below-threshold fully allocated demand-line percentage records a rejected audit row before reservation or snapshot writes, and allocation JSON/CSV schema advances to `37`.
+- Added optional `ZSTOCK_ALLOCATE-p_dg`/`p_dmax` maximum-demand guard; scopes exceeding the nonnegative open-demand-line cap record a rejected audit row before allocation side effects, and allocation JSON/CSV schema advances to `38`.
+- Added optional `ZSTOCK_ALLOCATE-p_qg`/`p_qmax` maximum-requested-quantity guard; aggregate demand is checked after unit conversion in the normalized allocation unit, rejected scopes are audited before allocation side effects, and allocation JSON/CSV schema advances to `39`.
+- Added optional `ZSTOCK_ALLOCATE-p_ag`/`p_amax` maximum-allocated-quantity guard; calculated allocation is capped before reservations or snapshot writes, rejected scopes are audited, and allocation JSON/CSV schema advances to `40`.
+- Added optional `ZSTOCK_ALLOCATE-p_lg`/`p_lmax` maximum-allocated-line guard; predicted fully or partially allocated demand lines are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `41`.
+- Added optional `ZSTOCK_ALLOCATE-p_spg`/`p_spmax` maximum-shortage-percentage guard; aggregate shortage percentage is capped from 0 through 100 before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `42`.
+- Added optional `ZSTOCK_ALLOCATE-p_ug`/`p_umax` maximum-unallocated-line guard; unallocated demand lines are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `43`.
+- Added optional `ZSTOCK_ALLOCATE-p_pg`/`p_pmax` maximum-partial-line guard; partial allocations are capped before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `44`.
+- Added optional `ZSTOCK_ALLOCATE-p_mg`/`p_mmin` minimum-allocated-quantity guard; insufficient calculated allocation is rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `45`.
+- Added optional `ZSTOCK_ALLOCATE-p_slg`/`p_slmax` maximum-shortage-line guard; scopes with too many partial or unallocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `46`.
+- Added optional `ZSTOCK_ALLOCATE-p_ilg`/`p_imin` minimum-allocated-line guard; scopes with too few fully or partially allocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `47`.
+- Added optional `ZSTOCK_ALLOCATE-p_flg`/`p_flmin` minimum-full-line-count guard; scopes with too few completely allocated demand lines are rejected before audit start, reservations, or snapshot writes, and allocation JSON/CSV schema advances to `48`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_errmax` maximum-error-rate warning threshold; health evaluation and human/CSV/JSON output now expose error-threshold state and append `error` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `39`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_prtmax` maximum partial-run-rate warning threshold; health evaluation and human/CSV/JSON output now expose partial-threshold state and append `partial` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `40`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cmin` minimum completion-rate warning threshold; health evaluation and human/CSV/JSON output now expose completion-threshold state and append `completion` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `41`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_avgmax` maximum average-duration warning threshold; health evaluation and human/CSV/JSON output now expose sustained-latency threshold state and append `average_duration` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `42`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_maxdur` maximum completed-duration warning threshold; health evaluation and human/CSV/JSON output now expose tail-latency threshold state and append `maximum_duration` to aggregate threshold-breach telemetry, advancing health JSON/CSV schema to `43`.
+- Added optional `ZSTOCK_ALLOCATE-p_mflg`/`p_mflmax` maximum-full-line-count guard; calculated scopes over the threshold are rejected before audit, reservation, or snapshot side effects, with allocation JSON/CSV schema advancing to `49`.
+- Added health line-outcome telemetry for aggregate demand, full, partial, and unallocated counts; `ZSTOCK_ALLOC_HEALTH` JSON/CSV schema advances to `44`.
+- Added zero-demand-safe full, partial, and unallocated demand-line percentages to `ZSTOCK_ALLOC_HEALTH`; JSON/CSV schema advances to `45`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_flmin` minimum-full-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `46`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_ulmax` maximum-unallocated-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `47`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_plmax` maximum-partial-line-rate warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `48`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_flcnt` minimum-full-line-count warning threshold; zero-demand populations do not breach it, and health JSON/CSV schema advances to `49`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_dmax` maximum-demand-count warning threshold; oversized selected populations now append `demand_count` breach provenance, and health JSON/CSV schema advances to `50`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_shmax` maximum-shortage-quantity warning threshold; mixed-unit populations never breach it, shortage-quantity breach provenance is exported, and health JSON/CSV schema advances to `51`.
+- Added stale-running threshold state to `ZSTOCK_ALLOC_HEALTH`; `p_stale` provenance and active/breached state are exported in human, CSV, and JSON output, advancing health schema to `52`.
+- Added configured coverage and shortage-percentage threshold values to health JSON, CSV, and human output alongside their active/breached state; health schema advances to `53`.
+- Added selected material, plant, storage-location, batch, movement-type, and unit filter provenance to ZSTOCK_ALLOC_HEALTH human, CSV, and JSON output; health schema advances to `54`.
+- Added minimum shelf-life, safety-stock range, and requested-delivery horizon provenance to ZSTOCK_ALLOC_HEALTH human, CSV, and JSON output; health schema advances to `55`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_rmax` maximum-running-count warning threshold; active-run populations above the nonnegative cap now report deterministic `running_count` breach provenance, and health schema advances to `56`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_sucnt` minimum-successful-run-count warning threshold; selected populations below the nonnegative floor now report deterministic `success_count` breach provenance, and health schema advances to `57`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_durcnt` minimum-duration-sample-count warning threshold; selected populations with too few completed duration observations now report deterministic `duration_count` breach provenance, and health schema advances to `58`.
+- Added actual movement-type, shelf-life, safety-stock, and mixed-policy context to `ZSTOCK_ALLOC_HEALTH`; selected-population policy provenance is now exported in all report modes, advancing health schema to `59`.
+- Added explicit `mixed_units` telemetry to `ZSTOCK_ALLOC_HEALTH`; quantity suppression is now distinguishable from empty metrics in every report mode, advancing health schema to `60`.
+- Added latest-run requested-delivery horizon context (`last_requested_on_from`, `last_requested_on_to`, and `last_requested_deadline`) to `ZSTOCK_ALLOC_HEALTH`, advancing health schema to `61`.
+- Added opt-in `ZSTOCK_ALLOC_HEALTH-p_pmix` mixed-policy warning; selected populations with mixed movement-type, shelf-life, or safety-stock context now report deterministic `mixed_policies` breach provenance, advancing health schema to `62`.
+- Added opt-in `ZSTOCK_ALLOC_HEALTH-p_umix` mixed-unit warning; selected populations with mixed allocation units now report deterministic `mixed_units` breach provenance, advancing health schema to `63`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_runcnt` minimum-total-run-count warning; selected populations below the configured run-volume floor now report deterministic `run_count` breach provenance, advancing health schema to `64`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_dcmin` minimum-deadline-bearing-run-count warning; selected populations with too few effective requested-delivery horizons now report deterministic `deadline_count` breach provenance, advancing health schema to `65`.
+- Added available-stock context telemetry to audit summaries and health JSON/CSV/human output; a consistent persisted baseline is reported while mixed-unit or mixed-value populations are explicitly marked unavailable, advancing health schema to `66`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_avmin`/`p_avmax` available-stock warning thresholds; comparable persisted baselines now report below/above-range breach provenance while mixed or empty populations remain neutral, advancing health schema to `67`.
+- Added latest-run available-stock context to audit summaries and health output, including the persisted unit and explicit availability state, advancing health schema to `68`.
+- Added latest-run result context to audit summaries and health output, including requested, allocated, shortage, coverage, and line-outcome metrics, advancing health schema to `69`; README current-schema references now match the report contract.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lcov` minimum latest-run coverage warning; no-request latest runs remain neutral, breach provenance is exported in all output modes, and health schema advances to `70`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lshmax` maximum latest-run shortage-quantity warning; the comparison uses the latest persisted run's unit, no-request latest runs remain neutral, and health schema advances to `71`.
+- Added zero-demand-safe latest-run full/partial/unallocated line-rate telemetry to health output, advancing schema to `72`.
+- Added zero-request-safe latest-run shortage-percentage telemetry to health output, advancing schema to `73`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lspct` maximum latest-run shortage-percentage warning, advancing health schema to `74`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_lage` maximum latest-completed-age warning with explicit unavailable state, advancing health schema to `75`.
+- Added explicit latest-completed-run identity and timestamp context for health freshness, allowing `p_lage` to evaluate the newest completed result while a newer run is still running; health schema advances to `76`.
+- Added latest-completed allocation outcome telemetry for health, including quantities, coverage, and line counts, advancing health schema to `77`.
+- Added zero-safe latest-completed shortage and line-rate telemetry with explicit availability flags, advancing health schema to `78`.
+- Added zero-safe latest-completed coverage and shortage-rate warning thresholds (`p_ccov`/`p_cspct`), advancing health schema to `79`.
+- Added explicit latest-completed-age reason telemetry (`last_age_reason`) for unavailable, invalid, future, and available timestamps, advancing health schema to `80`.
+- Added exact latest-completed-age calculation reference date/time telemetry, advancing health schema to `81`.
+- Added latest-completed persisted available-stock context with explicit availability and unit, advancing health schema to `82`.
+- Added latest-completed persisted diagnostic message context, advancing health schema to `83`.
+- Added latest-completed persisted start date/time context, advancing health schema to `84`.
+- Added latest-completed persisted allocation-policy context, advancing health schema to `85`.
+- Added latest-completed persisted requested-delivery horizon context, advancing health schema to `86`.
+- Added zero-safe latest-completed deadline age telemetry tied to the selected deadline reference date, advancing health schema to `87`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdag` maximum latest-completed deadline-age warning threshold in days; runs without a completed requested deadline remain neutral, advancing health schema to `88`.
+- Added explicit latest-completed deadline-age reason telemetry (`available`, `no_deadline`, or `no_completed_run`), advancing health schema to `89`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdmax` maximum latest-completed demand-count warning threshold, advancing health schema to `90`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cshmax` maximum latest-completed shortage-quantity warning threshold and completed-threshold warning status mapping, advancing health schema to `91`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cavmin`/`p_cavmax` latest-completed available-stock bounds with availability-aware warning state, advancing health schema to `92`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflmin` minimum latest-completed full-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `93`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_culmax` maximum latest-completed unallocated-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `94`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cplmax` maximum latest-completed partial-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `95`.
+
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflcnt` minimum latest-completed full-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `96`.
+- Added JSON threshold-state provenance for latest-completed partial-line rate and full-line count, advancing health schema to `97`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_camin` minimum latest-completed allocated-quantity warning threshold with zero-request-safe semantics, advancing health schema to `98`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_crqmax` maximum latest-completed requested-quantity warning threshold with zero-request-safe semantics, advancing health schema to `99`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_caqmax` maximum latest-completed allocated-quantity warning threshold with zero-request-safe semantics, advancing health schema to `100`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_ccvmax` maximum latest-completed coverage warning threshold with zero-request-safe semantics, advancing health schema to `101`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cflmax` maximum latest-completed full-line-rate warning threshold with zero-demand-safe semantics, advancing health schema to `102`.
+- Added validation rejecting inverted active latest-completed coverage and full-line-rate threshold pairs while retaining schema `102` error envelopes.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_culcnt` maximum latest-completed unallocated-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `103`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cplcnt` maximum latest-completed partial-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `104`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_crqmin` minimum latest-completed requested-quantity warning threshold with zero-request-safe semantics, advancing health schema to `105`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdmin` minimum latest-completed demand-count warning threshold with zero-demand-safe semantics, advancing health schema to `106`.
+- Added validation rejecting inverted active `p_crqmin`/`p_crqmax` and `p_cdmin`/`p_cdmax` bounds while retaining health schema `106`.
+- Added validation rejecting inverted active `p_camin`/`p_caqmax` bounds while retaining health schema `106`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cshcnt` maximum latest-completed shortage-line-count warning threshold with zero-demand-safe semantics, advancing health schema to `107`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdurmx` maximum latest-completed-duration warning threshold with zero-completed-run-safe semantics, advancing health schema to `108`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cdurmn` minimum latest-completed-duration warning threshold with zero-duration-safe semantics, advancing health schema to `109`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_csucc` latest-completed-success requirement with no-completed-run-safe semantics, advancing health schema to `110`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cstrk` minimum latest-completed success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `111`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cfail` maximum latest-completed non-success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `112`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cacnt` minimum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics, advancing health schema to `113`.
+- Added optional `ZSTOCK_ALLOC_HEALTH-p_cacmax` maximum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics and min/max validation, advancing health schema to `114`.
+- Added persisted `ZSTOCKALLOC_RUN-PREVIEW` provenance. Allocation-service previews now pass the marker through `start_run`, audit reads return it on `ty_run`, and invalid direct audit flags are rejected.
+- Added `ZSTOCK_ALLOC_HISTORY-p_prev` preview/operational run-type filtering (`P`/`O`) with audit API propagation, filter provenance, and history schema updates to JSON `27`/`44` and matching CSV contracts.
+- Added `ZSTOCK_ALLOC_HEALTH-p_prev` preview/operational run-type filtering (`P`/`O`) so operational health can exclude simulation audits; both health audit reads carry the scope and health schema advances to `115`.
+- Added `ZSTOCK_ALLOC_WATCH-p_prev` preview/operational run-type filtering (`P`/`O`) so stale-run monitoring can exclude simulation audits; watch schemas advance to CSV `57` and JSON/NDJSON `60`.
+- Added `ZSTOCK_ALLOC_RESULT-p_prev` preview/operational run-type filtering (`P`/`O`) through latest-run selection, exact audit context, and snapshot reads; result schemas advance to detail `38` and summary `44`.
+- Extended `ZSTOCK_ALLOC_COMPARE` with common `p_prev` and side-specific `p_oprev`/`p_nprev` preview-versus-operational run-type filters. Effective old/new provenance now reaches both audit and allocation-snapshot reads, and comparison CSV/JSON/NDJSON/human metadata exposes the requested filters plus selected run preview flags; comparison schema advanced to `96`.
+- Added purge provenance scoping: `ZSTOCK_ALLOC_PURGE-p_prev` and the retention API now select preview (`P`) or operational (`O`) runs before candidate protection/deletion. Filter provenance is emitted in human/CSV/JSON output, with schemas advancing to CSV `21`/`22` and JSON `23`/`24`; ABAP Unit covers preview-only and operational-only cleanup.
+- Added common and old/new side-specific audit lifecycle finish-date windows to ZSTOCK_ALLOC_COMPARE; effective bounds reach originating-run and snapshot reads, are exposed across human/CSV/JSON/NDJSON/typed provenance, advance comparison contextual schemas to 98, and include common-versus-side validation and contract coverage.

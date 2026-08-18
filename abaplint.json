@@ -1,0 +1,43 @@
+{
+  "global": {
+    "files": [
+      "/src/**/*.*",
+      "/sap_stubs/**/*.*"
+    ],
+    "useApackDependencies": false
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": "/node_modules/open-abap-core",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "syntax": {
+    "version": "v758",
+    "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)"
+  },
+  "rules": {
+    "align_type_expressions": true,
+    "align_parameters": true,
+    "easy_to_find_messages": true,
+    "local_testclass_consistency": true,
+    "uncaught_exception": true,
+    "no_mandt_in_database_operations": true,
+    "strict_sql": true,
+    "line_length": true,
+    "allowed_object_naming": true,
+    "parser_error": true,
+    "max_one_method_parameter_per_line": true,
+    "modify_only_own_db_tables": true,
+    "xml_consistency": true,
+    "check_syntax": true,
+    "object_naming": {
+      "exclude": [
+        ".*sap_stubs.*"
+      ]
+    },
+    "no_public_attributes": true,
+    "sql_escape_host_variables": true
+  }
+}

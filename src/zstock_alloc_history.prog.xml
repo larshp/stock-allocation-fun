@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <PROGDIR>
+    <NAME>ZSTOCK_ALLOC_HISTORY</NAME>
+    <DBAPL>S</DBAPL>
+    <SUBC>1</SUBC>
+    <FIXPT>X</FIXPT>
+    <UCCHECK>X</UCCHECK>
+   </PROGDIR>
+   <TPOOL>
+    <item>
+     <ID>R</ID>
+     <ENTRY>Stock allocation run history</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MATNR</KEY>
+     <ENTRY>Material</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_WERKS</KEY>
+     <ENTRY>Plant</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_LGORT</KEY>
+     <ENTRY>Storage location</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CHARG</KEY>
+     <ENTRY>Batch</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MVT</KEY>
+     <ENTRY>Movement type</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHELF</KEY>
+     <ENTRY>Minimum shelf-life days</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAFON</KEY>
+     <ENTRY>Enable safety-stock range</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAF</KEY>
+     <ENTRY>Minimum safety stock</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SAFTO</KEY>
+     <ENTRY>Maximum safety stock</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_REQF</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNTIL</KEY>
+     <ENTRY>Requested through</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OVRD</KEY>
+     <ENTRY>Overdue requested horizon only</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ODATE</KEY>
+     <ENTRY>Overdue as-of date</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEAD</KEY>
+     <ENTRY>Requested deadline only</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEADF</KEY>
+     <ENTRY>Requested deadline from</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEADT</KEY>
+     <ENTRY>Requested deadline to</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGEF</KEY>
+     <ENTRY>Deadline age from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGET</KEY>
+     <ENTRY>Deadline age to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGED</KEY>
+     <ENTRY>Deadline age as-of date</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DURG</KEY>
+     <ENTRY>Deadline urgency</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Run ID</ENTRY>
+    <LENGTH>38</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MEINS</KEY>
+     <ENTRY>Unit</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STAT</KEY>
+    <ENTRY>Status</ENTRY>
+    <LENGTH>14</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STRAT</KEY>
+     <ENTRY>Alloc strategy (P/F/N/S/L/B/E/A/W)</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_LEGACY</KEY>
+     <ENTRY>Legacy blank strategy only</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FROM</KEY>
+     <ENTRY>From date</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TO</KEY>
+     <ENTRY>To date</ENTRY>
+     <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FFROM</KEY>
+     <ENTRY>Finished from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FTO</KEY>
+     <ENTRY>Finished to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHF</KEY>
+     <ENTRY>Shortage from</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHT</KEY>
+     <ENTRY>Shortage to</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AF</KEY>
+     <ENTRY>Allocated from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AT</KEY>
+     <ENTRY>Allocated to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AVF</KEY>
+     <ENTRY>Available from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AVT</KEY>
+     <ENTRY>Available to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QF</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QT</KEY>
+     <ENTRY>Requested to</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DFROM</KEY>
+     <ENTRY>Demand count from</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DTO</KEY>
+     <ENTRY>Demand count to</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TFROM</KEY>
+     <ENTRY>Duration seconds from</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TTO</KEY>
+     <ENTRY>Duration seconds to</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STALE</KEY>
+     <ENTRY>Stale running seconds</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AGE_TO</KEY>
+     <ENTRY>Maximum running age seconds</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHRT</KEY>
+     <ENTRY>Shortage-first order</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVF</KEY>
+     <ENTRY>Coverage from (%)</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVT</KEY>
+     <ENTRY>Coverage to (%)</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPF</KEY>
+     <ENTRY>Shortage percentage from (%)</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPT</KEY>
+     <ENTRY>Shortage percentage to (%)</ENTRY>
+     <LENGTH>33</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COV</KEY>
+     <ENTRY>Coverage-first order</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPCT</KEY>
+     <ENTRY>Shortage percentage first</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DCNT</KEY>
+     <ENTRY>Demand count first</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGE</KEY>
+     <ENTRY>Deadline age first</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Requested date first</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SSTAT</KEY>
+     <ENTRY>Risk status first</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TDUR</KEY>
+     <ENTRY>Slowest duration first</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SUM</KEY>
+     <ENTRY>Summary only</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_LATEST</KEY>
+     <ENTRY>Latest matching run only</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MAX</KEY>
+     <ENTRY>Maximum runs</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SKIP</KEY>
+     <ENTRY>Rows to skip</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Message contains</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Rows with message only</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CSV</KEY>
+     <ENTRY>CSV run output</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON run output</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_META</KEY>
+    <ENTRY>JSON metadata wrapper</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TYPED</KEY>
+    <ENTRY>Typed JSON row fields</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDJSON</KEY>
+    <ENTRY>NDJSON run output</ENTRY>
+    <LENGTH>17</LENGTH>
+   </item>
+   </TPOOL>
+  </asx:values>
+ </asx:abap>
+</abapGit>

@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <PROGDIR>
+    <NAME>ZSTOCK_ALLOC_PURGE</NAME>
+    <DBAPL>S</DBAPL>
+    <SUBC>1</SUBC>
+    <FIXPT>X</FIXPT>
+    <UCCHECK>X</UCCHECK>
+   </PROGDIR>
+   <TPOOL>
+    <item>
+     <ID>R</ID>
+     <ENTRY>Purge stock allocation history</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MATNR</KEY>
+     <ENTRY>Material</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_WERKS</KEY>
+     <ENTRY>Plant</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_LGORT</KEY>
+     <ENTRY>Storage location</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CHARG</KEY>
+     <ENTRY>Batch</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Exact audit run ID</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>18</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MVT</KEY>
+     <ENTRY>Allocation movement type</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHELF</KEY>
+     <ENTRY>Minimum shelf-life days</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STAT</KEY>
+   <ENTRY>Final run status</ENTRY>
+   <LENGTH>18</LENGTH>
+  </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MAX</KEY>
+    <ENTRY>Maximum runs to purge (0 unlimited)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_STRAT</KEY>
+   <ENTRY>Allocation strategy</ENTRY>
+   <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LEGACY</KEY>
+    <ENTRY>Legacy strategy only</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Audit message contains</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Message only</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEAD</KEY>
+     <ENTRY>Requested deadline only</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DEADF</KEY>
+     <ENTRY>Requested deadline from</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DEADT</KEY>
+    <ENTRY>Requested deadline to</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DAGEF</KEY>
+    <ENTRY>Deadline age from</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DAGET</KEY>
+    <ENTRY>Deadline age to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DAGED</KEY>
+    <ENTRY>Deadline age as-of date</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DURG</KEY>
+    <ENTRY>Deadline urgency filter</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TFROM</KEY>
+    <ENTRY>Audit duration from</ENTRY>
+    <LENGTH>19</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TTO</KEY>
+    <ENTRY>Audit duration to</ENTRY>
+    <LENGTH>17</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OVRD</KEY>
+     <ENTRY>Overdue requested dates only</ENTRY>
+     <LENGTH>31</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ODATE</KEY>
+     <ENTRY>Overdue as-of date</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_REQF</KEY>
+     <ENTRY>Requested horizon from</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNTIL</KEY>
+     <ENTRY>Requested horizon to</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MEINS</KEY>
+     <ENTRY>Unit</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+   <KEY>P_FROM</KEY>
+   <ENTRY>Audit start date from</ENTRY>
+   <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TO</KEY>
+    <ENTRY>Audit start date to</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_FFROM</KEY>
+    <ENTRY>Audit finish date from</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_FTO</KEY>
+    <ENTRY>Audit finish date to</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_DATE</KEY>
+     <ENTRY>Cutoff date</ENTRY>
+     <LENGTH>19</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_EXEC</KEY>
+     <ENTRY>Execute</ENTRY>
+     <LENGTH>15</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON output</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CSV</KEY>
+     <ENTRY>CSV output</ENTRY>
+     <LENGTH>17</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_META</KEY>
+     <ENTRY>JSON metadata envelope</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TYPED</KEY>
+     <ENTRY>Typed JSON output</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+   </TPOOL>
+  </asx:values>
+ </asx:abap>
+</abapGit>

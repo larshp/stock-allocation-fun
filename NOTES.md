@@ -114,3 +114,17 @@ Mapping decisions:
   `LPRIO` is `NUMC 2`, so an item without a priority is `00` and would sort
   *first*. That is the opposite of what "no priority set" should mean, so an
   initial `LPRIO` is mapped to `99` and sorts last.
+
+### Feature 4 — end to end allocation (done)
+
+`ZCL_ALLOCATION_ENGINE` now takes a `ZIF_DEMAND_READER` as well, and offers two
+entry points:
+
+- `allocate_open_demand( iv_matnr, iv_werks )` — answers "who gets what" for the
+  demand that is really on the books. This is the production path.
+- `allocate( iv_matnr, iv_werks, it_demand )` — the same calculation against a
+  demand list the caller supplies, for simulation and what-if. It deliberately
+  never touches the demand reader, which is pinned by a test.
+
+All three collaborators are constructor-injected, so the engine tests run
+entirely against local doubles and need no database.

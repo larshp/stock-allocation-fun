@@ -46,43 +46,96 @@ CLASS lcl_stock_reader_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_demand_reader_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
+    METHODS get_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_demand   TYPE zif_allocation=>ty_demand_tab.
+    DATA mv_call_cnt TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_reader_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_demand = it_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+    mv_call_cnt = mv_call_cnt + 1.
+    rt_demand = mt_demand.
+  ENDMETHOD.
+
+  METHOD get_call_count.
+    rv_count = mv_call_cnt.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_engine DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
 
   PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'MAT-1'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+
+    DATA mo_stock  TYPE REF TO lcl_stock_reader_double.
+    DATA mo_demand TYPE REF TO lcl_demand_reader_double.
+    DATA mo_cut    TYPE REF TO zcl_allocation_engine.
+
+    METHODS given
+      IMPORTING
+        it_stock  TYPE zif_stock_reader=>ty_stock_line_tab
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
     METHODS pools_stock_of_all_lgort FOR TESTING.
     METHODS passes_selection_to_reader FOR TESTING.
     METHODS no_stock_confirms_nothing FOR TESTING.
-
-    METHODS given_stock
-      IMPORTING
-        it_stock         TYPE zif_stock_reader=>ty_stock_line_tab
-      RETURNING
-        VALUE(ro_double) TYPE REF TO lcl_stock_reader_double.
+    METHODS open_demand_comes_from_reader FOR TESTING.
+    METHODS explicit_demand_skips_reader FOR TESTING.
 
 ENDCLASS.
 
 
 CLASS ltcl_engine IMPLEMENTATION.
 
-  METHOD given_stock.
-    ro_double = NEW #( it_stock ).
+  METHOD given.
+
+    mo_stock  = NEW #( it_stock ).
+    mo_demand = NEW #( it_demand ).
+    mo_cut    = NEW #(
+      io_stock_reader  = mo_stock
+      io_demand_reader = mo_demand
+      io_strategy      = NEW zcl_alloc_strategy_priority( ) ).
+
   ENDMETHOD.
 
   METHOD pools_stock_of_all_lgort.
 
-    DATA(lo_engine) = NEW zcl_allocation_engine(
-      io_stock_reader = given_stock( VALUE #(
-        ( matnr = 'MAT-1' werks = '1000' lgort = '0001' available = '4' )
-        ( matnr = 'MAT-1' werks = '1000' lgort = '0002' available = '6' ) ) )
-      io_strategy     = NEW zcl_alloc_strategy_priority( ) ).
+    given(
+      it_stock  = VALUE #(
+        ( matnr = c_matnr werks = c_werks lgort = '0001' available = '4' )
+        ( matnr = c_matnr werks = c_werks lgort = '0002' available = '6' ) )
+      it_demand = VALUE #( ) ).
 
-    DATA(lt_result) = lo_engine->allocate(
-      iv_matnr  = 'MAT-1'
-      iv_werks  = '1000'
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
       it_demand = VALUE #(
-        ( demand_id = 'D1' matnr = 'MAT-1' werks = '1000' quantity = '10' priority = '01' ) ) ).
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '10' priority = '01' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-confirmed
@@ -93,37 +146,35 @@ CLASS ltcl_engine IMPLEMENTATION.
 
   METHOD passes_selection_to_reader.
 
-    DATA(lo_double) = given_stock( VALUE #( ) ).
+    given(
+      it_stock  = VALUE #( )
+      it_demand = VALUE #( ) ).
 
-    DATA(lo_engine) = NEW zcl_allocation_engine(
-      io_stock_reader = lo_double
-      io_strategy     = NEW zcl_alloc_strategy_priority( ) ).
-
-    lo_engine->allocate(
+    mo_cut->allocate(
       iv_matnr  = 'MAT-2'
       iv_werks  = '2000'
       it_demand = VALUE #( ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lo_double->get_last_matnr( )
+      act = mo_stock->get_last_matnr( )
       exp = 'MAT-2' ).
     cl_abap_unit_assert=>assert_equals(
-      act = lo_double->get_last_werks( )
+      act = mo_stock->get_last_werks( )
       exp = '2000' ).
 
   ENDMETHOD.
 
   METHOD no_stock_confirms_nothing.
 
-    DATA(lo_engine) = NEW zcl_allocation_engine(
-      io_stock_reader = given_stock( VALUE #( ) )
-      io_strategy     = NEW zcl_alloc_strategy_priority( ) ).
+    given(
+      it_stock  = VALUE #( )
+      it_demand = VALUE #( ) ).
 
-    DATA(lt_result) = lo_engine->allocate(
-      iv_matnr  = 'MAT-1'
-      iv_werks  = '1000'
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
       it_demand = VALUE #(
-        ( demand_id = 'D1' matnr = 'MAT-1' werks = '1000' quantity = '3' priority = '01' ) ) ).
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '3' priority = '01' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-confirmed
@@ -131,6 +182,60 @@ CLASS ltcl_engine IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-shortfall
       exp = '3' ).
+
+  ENDMETHOD.
+
+  METHOD open_demand_comes_from_reader.
+
+    given(
+      it_stock  = VALUE #(
+        ( matnr = c_matnr werks = c_werks lgort = '0001' available = '8' ) )
+      it_demand = VALUE #(
+        ( demand_id = 'FROM-READER' matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    DATA(lt_result) = mo_cut->allocate_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-demand_id
+      exp = 'FROM-READER' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_demand->get_call_count( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD explicit_demand_skips_reader.
+
+    given(
+      it_stock  = VALUE #(
+        ( matnr = c_matnr werks = c_werks lgort = '0001' available = '8' ) )
+      it_demand = VALUE #(
+        ( demand_id = 'FROM-READER' matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'SIMULATED' matnr = c_matnr werks = c_werks
+          quantity = '2' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-demand_id
+      exp = 'SIMULATED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_demand->get_call_count( )
+      exp = 0
+      msg = 'a simulation must not go looking for the real demand' ).
 
   ENDMETHOD.
 

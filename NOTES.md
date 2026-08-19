@@ -530,3 +530,22 @@ look up. Three decisions worth stating:
 
 `P_TEST` defaults to **on**. Someone who runs this program without reading the
 selection screen should get a preview, not a night of reservations.
+
+### Feature 22 — a cancelled reservation reopens the demand (done)
+
+The two nettings disagreed with each other, and the disagreement only shows up
+after somebody intervenes.
+
+`ZCL_DEDUCT_RESERVATIONS` reads `RESB` live, so deleting a reservation
+immediately frees the stock again. `ZCL_DEMAND_READER_NET` read only
+`ZSTOCK_ALLOC_RES`, which still said the demand had been served. Delete a
+reservation — because the order changed, or somebody re-planned — and the stock
+came back while the demand stayed permanently netted off. That line would never
+be served again.
+
+`already_allocated` now only counts a recorded run while its reservation still
+exists in `RESB` and is not flagged for deletion. Both nettings are anchored on
+the same live data, so they can no longer drift apart.
+
+Two cases are tested because they are different in the database and identical in
+consequence: a reservation flagged `XLOEK`, and one that is not in `RESB` at all.

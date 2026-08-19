@@ -18,10 +18,13 @@ CLASS zcl_demand_reader_net DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES:
       BEGIN OF ty_allocated,
-        demand_id TYPE zstock_alloc_res-demand_id,
-        confirmed TYPE zstock_alloc_res-confirmed,
+        demand_id   TYPE zstock_alloc_res-demand_id,
+        reservation TYPE zstock_alloc_res-reservation,
+        confirmed   TYPE zstock_alloc_res-confirmed,
       END OF ty_allocated.
     TYPES ty_allocated_tab TYPE STANDARD TABLE OF ty_allocated WITH EMPTY KEY.
+
+    TYPES ty_reservation_tab TYPE STANDARD TABLE OF resb-rsnum WITH EMPTY KEY.
 
     DATA mo_demand TYPE REF TO zif_demand_reader.
 
@@ -31,6 +34,13 @@ CLASS zcl_demand_reader_net DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks            TYPE mard-werks
       RETURNING
         VALUE(rt_allocated) TYPE ty_allocated_tab.
+
+    METHODS live_reservations
+      IMPORTING
+        iv_matnr              TYPE mard-matnr
+        iv_werks              TYPE mard-werks
+      RETURNING
+        VALUE(rt_reservation) TYPE ty_reservation_tab.
 
     METHODS covered
       IMPORTING
@@ -84,17 +94,51 @@ CLASS zcl_demand_reader_net IMPLEMENTATION.
 
   METHOD already_allocated.
 
+    DATA lt_recorded TYPE ty_allocated_tab.
+
     SELECT demand_id,
+           reservation,
            confirmed
       FROM zstock_alloc_res
       WHERE matnr = @iv_matnr
         AND werks = @iv_werks
         AND reservation <> @c_no_reservation
       ORDER BY demand_id
-      INTO TABLE @rt_allocated.
+      INTO TABLE @lt_recorded.
     IF sy-subrc <> 0.
-      CLEAR rt_allocated.
+      RETURN.
     ENDIF.
+
+    " a recorded run only counts while its reservation is still there. If
+    " somebody deleted it, the stock became free again and so did the demand:
+    " counting it as served would starve the line forever.
+    DATA(lt_live) = live_reservations(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+    LOOP AT lt_recorded INTO DATA(ls_recorded).
+      IF line_exists( lt_live[ table_line = ls_recorded-reservation ] ).
+        APPEND ls_recorded TO rt_allocated.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD live_reservations.
+
+    SELECT rsnum
+      FROM resb
+      WHERE matnr = @iv_matnr
+        AND werks = @iv_werks
+        AND xloek = @space
+      ORDER BY rsnum
+      INTO TABLE @rt_reservation.
+    IF sy-subrc <> 0.
+      CLEAR rt_reservation.
+      RETURN.
+    ENDIF.
+
+    DELETE ADJACENT DUPLICATES FROM rt_reservation.
 
   ENDMETHOD.
 

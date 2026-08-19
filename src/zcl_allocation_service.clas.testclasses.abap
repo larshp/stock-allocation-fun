@@ -504,6 +504,7 @@ CLASS ltcl_default_sources DEFINITION FINAL FOR TESTING
     METHODS teardown.
     METHODS a_transfer_gets_the_stock FOR TESTING RAISING cx_static_check.
     METHODS a_transfer_is_covered FOR TESTING.
+    METHODS only_named_location_counts FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -578,6 +579,29 @@ CLASS ltcl_default_sources IMPLEMENTATION.
       act = ls_run-allocation[ demand_id = 'PSTOWIRE001000100001' ]-confirmed
       exp = '4'
       msg = 'a stock transport order must reach the allocation as demand' ).
+
+  ENDMETHOD.
+
+  METHOD only_named_location_counts.
+
+    " the stock sits in 0001, and the run is told to use 0002 only
+    DATA(ls_elsewhere) = zcl_allocation_service=>create_default( iv_lgort = '0002' )->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_elsewhere-allocation[ 1 ]-confirmed
+      exp = 0
+      msg = 'stock outside the named location may not be given away' ).
+
+    DATA(ls_here) = zcl_allocation_service=>create_default( iv_lgort = '0001' )->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_here-allocation[ 1 ]-confirmed
+      exp = '4'
+      msg = 'and the stock in it still is' ).
 
   ENDMETHOD.
 

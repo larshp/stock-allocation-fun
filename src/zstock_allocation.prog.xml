@@ -30,6 +30,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_LGORT</KEY>
+     <ENTRY>Storage location, all if empty</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material, all if empty</ENTRY>
      <LENGTH>22</LENGTH>

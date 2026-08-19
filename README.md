@@ -16,8 +16,9 @@ waiting for stock it
 
 1. checks the user may allocate in the plant (`AUTHORITY-CHECK` on
    `M_MATE_WRK`) and locks the material for the run,
-2. reads the book stock from `MARD` and takes off what is not up for
-   allocation — open reservations and the plant's safety stock,
+2. reads the book stock from `MARD`, keeps only the storage locations that may
+   be allocated, and takes off what is not up for allocation — open
+   reservations and the plant's safety stock,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what
@@ -76,6 +77,7 @@ whole object graph:
 | -------------------------- | -------------------------------------------------- |
 | `ZIF_ALLOCATION_STRATEGY`  | who gets the stock when there is not enough        |
 | `ZIF_STOCK_DEDUCTION`      | what counts as unavailable, one class per reason   |
+| `ZIF_STOCK_READER`         | where the book stock comes from                     |
 | `ZIF_DEMAND_READER`        | where demand comes from, one class per source       |
 | `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |
 | `ZIF_RESERVATION_WRITER`   | how confirmed stock is earmarked                   |

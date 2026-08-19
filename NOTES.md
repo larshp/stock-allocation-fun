@@ -844,3 +844,36 @@ and by material and unit. Notes on the shape of it:
 
 `create_default_demand( )` hands the same converter to both demand readers, so
 sales orders and transfers of the same material share what has been read.
+
+### Feature 30 — allocate only from the storage locations that may be used (done)
+
+The engine pools the stock of every storage location in the plant, and there was
+no way to say that some of it is not up for allocation. Plants routinely have
+locations whose stock must not be given away: returns waiting to be inspected, a
+shipping area holding goods that are already picked, a location a customer owns.
+
+`ZCL_STOCK_IN_LOCATIONS` wraps a `ZIF_STOCK_READER` and keeps only the lines of
+the locations it was given. Three decisions:
+
+- **An empty list is no restriction, not nothing allowed.** A plant that has not
+  said which locations to use means all of them, which is what every existing
+  installation would expect after upgrading. The opposite default would silently
+  allocate nothing.
+- It is a **list, not a rule read from the master data.** `MARD-DISKZ` looks
+  tempting — it is SAP's own "storage location excluded from MRP" — but that is a
+  *planning* indicator and does not say anything about availability, so acting on
+  it would be inventing policy. Which locations may be allocated is a decision
+  about the plant, so the decision is an input.
+- It sits **innermost**, right around the `MARD` reader and inside the netting of
+  feature 12, so the deductions come off what is left after the filter. Worth
+  being explicit about the consequence: reservations and safety stock are plant
+  totals and are not tied to a location, so restricting to one location and then
+  taking off the whole plant's reservations under-allocates rather than
+  over-allocates. That is the safe direction, and it is the same simplification
+  feature 10 already documents.
+
+`ZSTOCK_ALLOCATION` gained one storage location on the selection screen, which
+`create_default( )` turns into a one entry list; a caller wiring the classes
+itself can name as many as it likes. A test goes through the real default wiring
+and shows the same stock being confirmed when its location is named and refused
+when another one is.

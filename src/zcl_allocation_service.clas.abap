@@ -7,11 +7,13 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_strategy      | <p class="shorttext synchronized">Distribution rule, priority by default</p>
     "! @parameter iv_horizon_days  | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
+    "! @parameter iv_lgort         | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
         iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
+        iv_lgort          TYPE mard-lgort OPTIONAL
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -68,6 +70,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
   METHOD create_default.
 
     DATA lo_strategy TYPE REF TO zif_allocation_strategy.
+    DATA lt_lgort    TYPE zcl_stock_in_locations=>ty_lgort_tab.
+
+    " the report offers one location, the class takes as many as a caller
+    " wiring it itself wants to name
+    IF iv_lgort IS NOT INITIAL.
+      APPEND iv_lgort TO lt_lgort.
+    ENDIF.
 
     lo_strategy = io_strategy.
     IF lo_strategy IS NOT BOUND.
@@ -81,7 +90,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
         io_stock_reader  = NEW zcl_stock_reader_net(
-          io_stock     = NEW zcl_stock_reader( )
+          io_stock     = NEW zcl_stock_in_locations(
+            io_stock = NEW zcl_stock_reader( )
+            it_lgort = lt_lgort )
           it_deduction = VALUE #(
             ( NEW zcl_deduct_reservations( ) )
             ( NEW zcl_deduct_safety_stock( ) ) ) )

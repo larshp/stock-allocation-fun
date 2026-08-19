@@ -1,7 +1,7 @@
 # stock-allocation-fun
 
 A stock allocation solution written in ABAP: it works out who gets the stock
-that is actually available, records the decision and reserves it in SAP.
+that is genuinely available, records the decision and reserves it in SAP.
 
 Built to install into an existing SAP system with
 [abapGit](https://abapgit.org), and developed against
@@ -14,12 +14,23 @@ tests run without a SAP system.
 `ZSTOCK_ALLOCATION` takes a plant and, optionally, a material. For each material
 waiting for stock it
 
-1. reads the book stock from `MARD` and takes off what is not up for allocation
-   — open reservations and the plant's safety stock,
-2. reads the open sales order demand from `VBAK`/`VBAP`,
-3. distributes what is left, either by delivery priority or as a fair share,
-4. records the outcome in `ZSTOCK_ALLOC_RES`,
-5. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`.
+1. checks the user may allocate in the plant (`AUTHORITY-CHECK` on
+   `M_MATE_WRK`) and locks the material for the run,
+2. reads the book stock from `MARD` and takes off what is not up for
+   allocation — open reservations and the plant's safety stock,
+3. reads the open sales order demand from `VBAK`/`VBAP`, converts it from sales
+   units to base units, drops anything beyond the horizon, and takes off what
+   earlier runs already reserved for the same line,
+4. distributes what is left, either by delivery priority or as a fair share,
+5. records the outcome in `ZSTOCK_ALLOC_RES`,
+6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and
+   links the reservation back onto the recorded run.
+
+One material failing does not stop the rest of the run; the report says which
+ones failed and why.
+
+**The selection screen defaults to a test run.** A test run does the whole
+calculation and shows the result without recording or reserving anything.
 
 ## Installing into SAP
 
@@ -45,6 +56,24 @@ npm test
 
 The same three steps run on every push, see
 [.github/workflows/test.yml](.github/workflows/test.yml).
+
+## Where the seams are
+
+Everything a customer is likely to want to change sits behind an interface, and
+`ZCL_ALLOCATION_SERVICE=>create_default( )` is the only place that knows the
+whole object graph:
+
+| Interface                  | Swap it to change                                  |
+| -------------------------- | -------------------------------------------------- |
+| `ZIF_ALLOCATION_STRATEGY`  | who gets the stock when there is not enough        |
+| `ZIF_STOCK_DEDUCTION`      | what counts as unavailable, one class per reason   |
+| `ZIF_DEMAND_READER`        | where demand comes from                            |
+| `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |
+| `ZIF_RESERVATION_WRITER`   | how confirmed stock is earmarked                   |
+| `ZIF_ALLOCATION_AUTHORITY` | which authorization object guards a run            |
+| `ZIF_ALLOCATION_LOCK`      | how concurrent runs are kept apart                 |
+| `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |
+| `ZIF_ALLOCATION_STORE`     | where the result is recorded                       |
 
 ## Layout
 

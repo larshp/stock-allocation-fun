@@ -24,6 +24,8 @@ CLASS ltcl_unit_converter DEFINITION FINAL FOR TESTING
     METHODS unknown_unit_is_refused FOR TESTING.
     METHODS unknown_material_is_refused FOR TESTING.
     METHODS zero_denominator_is_refused FOR TESTING.
+    METHODS master_data_is_read_once FOR TESTING RAISING cx_static_check.
+    METHODS another_converter_reads_again FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -158,6 +160,67 @@ CLASS ltcl_unit_converter IMPLEMENTATION.
           iv_quantity = '3'
           iv_uom      = 'CAR' ).
         cl_abap_unit_assert=>fail( 'broken master data must be reported, not divided by' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD master_data_is_read_once.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->to_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '1'
+        iv_uom      = 'CAR' )
+      exp = '12' ).
+
+    " taking the master data away is how a test can tell whether it is read
+    " again: a converter that still answers has not gone back to the database
+    DELETE FROM marm WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_subrc( ).
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->to_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '2'
+        iv_uom      = 'CAR' )
+      exp = '24'
+      msg = 'the material master is read once, not once per quantity' ).
+
+  ENDMETHOD.
+
+  METHOD another_converter_reads_again.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->to_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '1'
+        iv_uom      = 'CAR' )
+      exp = '12' ).
+
+    DELETE FROM marm WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " the buffer belongs to the instance, so it lasts as long as a run and no
+    " longer. Nothing is remembered across runs, or between programs.
+    TRY.
+        NEW zcl_unit_converter( )->zif_unit_converter~to_base(
+          iv_matnr    = c_matnr
+          iv_quantity = '1'
+          iv_uom      = 'CAR' ).
+        cl_abap_unit_assert=>fail( 'a fresh converter must read the master data itself' ).
       CATCH zcx_allocation.
     ENDTRY.
 

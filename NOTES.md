@@ -817,3 +817,30 @@ shortfall rather than as stock handed out twice. A site that cares can convert
 `ZSTOCK_ALLOC_RES` by appending `0000` to the ids of runs whose items have no
 schedule lines; there is no general conversion, because the old id genuinely does
 not say which schedule line was served.
+
+### Feature 29 — the material master is read once, not once per quantity (done)
+
+Feature 28 turned one conversion per order item into one per schedule line, and
+`ZCL_UNIT_CONVERTER` went to the database twice for every one of them —
+`MARA` for the base unit and `MARM` for the factor, with the same answer every
+time. A nightly run over a plant does that thousands of times for a handful of
+distinct materials.
+
+The converter now keeps what it has read in two sorted tables, keyed by material
+and by material and unit. Notes on the shape of it:
+
+- The buffer is **on the instance**, not static. It therefore lasts exactly as
+  long as the object that owns it, which is one run, and nothing is carried
+  between runs or between programs — the trap with a static buffer is a report
+  that answers from master data somebody changed an hour ago. A test pins this by
+  taking the master data away and showing that a *fresh* converter refuses while
+  the one that has already read it still answers.
+- **Nothing that failed is buffered.** A missing material, a unit that is not
+  defined and a zero denominator all still raise every time they are asked. They
+  are master data errors, and a run must not turn one into a cached answer.
+- Reading the same master data twice inside one run and getting two different
+  answers would be worse than reading it once: the second half of an allocation
+  would be worked out against a different base unit than the first.
+
+`create_default_demand( )` hands the same converter to both demand readers, so
+sales orders and transfers of the same material share what has been read.

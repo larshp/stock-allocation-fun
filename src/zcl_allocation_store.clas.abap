@@ -40,6 +40,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         matnr      = iv_matnr
         werks      = iv_werks
         req_date   = ls_allocation-req_date
+        avail_date = ls_allocation-avail_date
         requested  = ls_allocation-requested
         confirmed  = ls_allocation-confirmed
         shortfall  = ls_allocation-shortfall
@@ -100,6 +101,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         reservation TYPE zstock_alloc_res-reservation,
         demand_id   TYPE zstock_alloc_res-demand_id,
         req_date    TYPE zstock_alloc_res-req_date,
+        avail_date  TYPE zstock_alloc_res-avail_date,
         requested   TYPE zstock_alloc_res-requested,
         confirmed   TYPE zstock_alloc_res-confirmed,
         shortfall   TYPE zstock_alloc_res-shortfall,
@@ -117,6 +119,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
            reservation,
            demand_id,
            req_date,
+           avail_date,
            requested,
            confirmed,
            shortfall,
@@ -151,6 +154,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         reservation = ls_row-reservation
         demand_id   = ls_row-demand_id
         req_date    = ls_row-req_date
+        avail_date  = ls_row-avail_date
         requested   = ls_row-requested
         confirmed   = ls_row-confirmed
         shortfall   = ls_row-shortfall ) TO rt_recorded.
@@ -176,6 +180,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
 
     SELECT demand_id,
            req_date,
+           avail_date,
            requested,
            confirmed,
            shortfall

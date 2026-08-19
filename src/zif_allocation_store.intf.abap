@@ -20,6 +20,7 @@ INTERFACE zif_allocation_store PUBLIC.
       reservation TYPE zstock_alloc_res-reservation,
       demand_id   TYPE zstock_alloc_res-demand_id,
       req_date    TYPE zstock_alloc_res-req_date,
+      avail_date  TYPE zstock_alloc_res-avail_date,
       requested   TYPE zstock_alloc_res-requested,
       confirmed   TYPE zstock_alloc_res-confirmed,
       shortfall   TYPE zstock_alloc_res-shortfall,

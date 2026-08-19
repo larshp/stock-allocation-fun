@@ -101,6 +101,7 @@ CLASS ltcl_allocation_report DEFINITION FINAL FOR TESTING
     METHODS rejected_material_shows_reason FOR TESTING.
     METHODS footer_counts_the_failures FOR TESTING.
     METHODS simulation_is_labelled FOR TESTING.
+    METHODS the_day_it_is_there_is_shown FOR TESTING.
 
 ENDCLASS.
 
@@ -138,6 +139,32 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 3 ]
       exp = |*{ c_matnr }*| ).
+
+  ENDMETHOD.
+
+  METHOD the_day_it_is_there_is_shown.
+
+    DATA(lt_line) = report_of(
+      is_run   = VALUE #(
+        run_id     = 'RUN-0001'
+        allocation = VALUE #(
+          ( demand_id = 'D1' requested = '10' confirmed = '10' shortfall = 0
+            avail_date = '20260301' )
+          ( demand_id = 'D2' requested = '5' confirmed = '5' shortfall = 0 )
+          ( demand_id = 'D3' requested = '5' confirmed = 0 shortfall = '5' ) ) )
+      it_matnr = VALUE #( ( c_matnr ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 7 ]
+      exp = '*D1*2026-03-01*'
+      msg = 'a line waiting for a receipt says the day it is covered' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 8 ]
+      exp = '*D2*now*'
+      msg = 'a line off the shelf is there now' ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( lt_line[ 9 ] CS 'now' )
+      msg = 'a line that got nothing is there on no day at all' ).
 
   ENDMETHOD.
 

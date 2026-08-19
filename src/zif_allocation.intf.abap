@@ -37,13 +37,20 @@ INTERFACE zif_allocation PUBLIC.
   "! What a single demand line was awarded. SHORTFALL is REQUESTED minus
   "! CONFIRMED and is never negative. REQ_DATE is carried over from the demand
   "! so the answer says not only how much was confirmed but when it is needed.
+  "!
+  "! AVAIL_DATE is the day the confirmed quantity is there in full: the last of
+  "! the supply that had to arrive for it. It is initial when the whole line
+  "! comes off stock that is on the shelf already, and never later than
+  "! REQ_DATE, because a requirement is not served from stock that arrives
+  "! after it is wanted.
   TYPES:
     BEGIN OF ty_allocation,
-      demand_id TYPE ty_demand_id,
-      req_date  TYPE d,
-      requested TYPE ty_quantity,
-      confirmed TYPE ty_quantity,
-      shortfall TYPE ty_quantity,
+      demand_id  TYPE ty_demand_id,
+      req_date   TYPE d,
+      avail_date TYPE d,
+      requested  TYPE ty_quantity,
+      confirmed  TYPE ty_quantity,
+      shortfall  TYPE ty_quantity,
     END OF ty_allocation.
   TYPES ty_allocation_tab TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
 

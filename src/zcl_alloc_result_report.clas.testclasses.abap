@@ -55,7 +55,8 @@ CLASS ltcl_result_report DEFINITION FINAL FOR TESTING
         iv_requested  TYPE zstock_alloc_res-requested
         iv_confirmed  TYPE zstock_alloc_res-confirmed
         iv_created_at TYPE zstock_alloc_res-created_at
-        iv_rsnum      TYPE zstock_alloc_res-reservation DEFAULT '0000004711'.
+        iv_rsnum      TYPE zstock_alloc_res-reservation DEFAULT '0000004711'
+        iv_avail_date TYPE zstock_alloc_res-avail_date OPTIONAL.
 
     METHODS lines_of
       IMPORTING
@@ -74,6 +75,8 @@ CLASS ltcl_result_report DEFINITION FINAL FOR TESTING
     METHODS one_material_can_be_asked FOR TESTING RAISING cx_static_check.
     METHODS nothing_recorded_says_so FOR TESTING RAISING cx_static_check.
     METHODS refused_plant_shows_nothing FOR TESTING.
+    METHODS stock_on_hand_reads_as_now FOR TESTING RAISING cx_static_check.
+    METHODS a_dated_line_says_the_day FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -106,6 +109,7 @@ CLASS ltcl_result_report IMPLEMENTATION.
         matnr       = iv_matnr
         werks       = c_werks
         req_date    = '20260201'
+        avail_date  = iv_avail_date
         requested   = iv_requested
         confirmed   = iv_confirmed
         shortfall   = iv_requested - iv_confirmed
@@ -150,6 +154,43 @@ CLASS ltcl_result_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 7 ]
       exp = '*D1*10.000*4.000*6.000*' ).
+
+  ENDMETHOD.
+
+  METHOD stock_on_hand_reads_as_now.
+
+    given_run(
+      iv_run_id     = 'DISPLAY-RUN-000010'
+      iv_demand_id  = 'D1'
+      iv_requested  = '10'
+      iv_confirmed  = '10'
+      iv_created_at = '20260210120000' ).
+
+    DATA(lt_line) = lines_of( ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 7 ]
+      exp = '*D1*10.000*10.000*0.000*now*'
+      msg = 'a line off the shelf is there now, and should say so' ).
+
+  ENDMETHOD.
+
+  METHOD a_dated_line_says_the_day.
+
+    given_run(
+      iv_run_id     = 'DISPLAY-RUN-000011'
+      iv_demand_id  = 'D1'
+      iv_requested  = '10'
+      iv_confirmed  = '10'
+      iv_created_at = '20260210120000'
+      iv_avail_date = '20260301' ).
+
+    DATA(lt_line) = lines_of( ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 7 ]
+      exp = '*D1*10.000*10.000*0.000*2026-03-01*'
+      msg = 'a line waiting for a receipt says the day it is covered' ).
 
   ENDMETHOD.
 

@@ -1074,3 +1074,38 @@ Decisions worth stating:
 The result is unchanged in shape: one line per demand line, confirmed and
 short. What it does not yet say is *when* a confirmed line can be served, which
 now matters, because it is no longer always "now".
+
+### Feature 35 — say when a confirmed line is covered (done)
+
+Feature 34 ended by saying what it had left undone: a line could now be
+confirmed out of a receipt that has not landed, and the answer looked exactly
+like one confirmed out of stock on the shelf. "Confirmed 10" is a different
+sentence when the 10 arrive in three weeks, and a planner cannot tell the two
+apart. So the answer carries the day.
+
+`ty_allocation` gained `AVAIL_DATE`, `ZSTOCK_ALLOC_RES` a column for it, and
+both reports a column. The engine already knew the day each part of a
+confirmation came from; it only had to keep it.
+
+- **It is the latest day that contributed**, not the earliest. A line covered 4
+  off the shelf, 3 on the 1st and 3 on the 10th is not there until the 10th —
+  the day it is complete is the day it can ship.
+- **Initial means "already there"**, the same convention `ty_supply` uses, and
+  it is what a line served entirely from stock gets. The reports write it as
+  `now`; the raw date field stays empty rather than being stamped with the run
+  date, so re-reading an old run does not claim the stock was there on a day
+  nobody checked.
+- **A line that was confirmed nothing has no day at all**, and the reports leave
+  the column empty rather than printing `now` for stock it never got.
+- `AVAIL_DATE` is never later than `REQ_DATE`, because feature 34 does not serve
+  a line from supply arriving after it is wanted. That makes the column a
+  promise a planner can act on rather than a warning to chase.
+
+The strategies were not touched. They answer with the date field initial, and
+the engine — the only part that knows which day of supply paid for what — fills
+it in when it composes the result. That is the same split as `REQUESTED`: the
+strategy says how much, the engine says what it means.
+
+The reservation still carries `REQ_DATE`, not this. A reservation says when the
+goods are *wanted*, which is what SAP schedules against; when they turn up is
+the allocation's own bookkeeping.

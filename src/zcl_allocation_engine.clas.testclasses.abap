@@ -133,6 +133,10 @@ CLASS ltcl_engine DEFINITION FINAL FOR TESTING
     METHODS undated_line_waits_for_nothing FOR TESTING RAISING cx_static_check.
     METHODS every_line_answered_once FOR TESTING RAISING cx_static_check.
     METHODS receipt_left_over_serves_later FOR TESTING RAISING cx_static_check.
+    METHODS stock_is_available_at_once FOR TESTING RAISING cx_static_check.
+    METHODS receipt_dates_the_line FOR TESTING RAISING cx_static_check.
+    METHODS the_last_day_dates_the_line FOR TESTING RAISING cx_static_check.
+    METHODS nothing_confirmed_has_no_date FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -445,6 +449,89 @@ CLASS ltcl_engine IMPLEMENTATION.
         iv_demand_id  = 'D2' )
       exp = '4'
       msg = 'one receipt covers everything wanted after it arrives' ).
+
+  ENDMETHOD.
+
+  METHOD stock_is_available_at_once.
+
+    given(
+      it_supply = on_hand( '10' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result[ 1 ]-avail_date
+      msg = 'a line served off the shelf is there already, it waits for nothing' ).
+
+  ENDMETHOD.
+
+  METHOD receipt_dates_the_line.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-avail_date
+      exp = '20260301'
+      msg = 'a line confirmed from a receipt is only there once the receipt is' ).
+
+  ENDMETHOD.
+
+  METHOD the_last_day_dates_the_line.
+
+    given(
+      it_supply = VALUE #(
+        ( quantity = '4' )
+        ( avail_date = '20260301' quantity = '3' )
+        ( avail_date = '20260310' quantity = '3' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-avail_date
+      exp = '20260310'
+      msg = 'the line is only complete when the last of its supply has arrived' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_confirmed_has_no_date.
+
+    given(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-avail_date ).
 
   ENDMETHOD.
 

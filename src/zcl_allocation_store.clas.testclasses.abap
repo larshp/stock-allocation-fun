@@ -41,6 +41,7 @@ CLASS ltcl_allocation_store DEFINITION FINAL FOR TESTING
     METHODS other_plant_is_not_listed FOR TESTING RAISING cx_static_check.
     METHODS deleted_run_reads_empty FOR TESTING RAISING cx_static_check.
     METHODS unknown_run_cannot_be_deleted FOR TESTING.
+    METHODS the_day_it_is_there_is_kept FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -90,6 +91,29 @@ CLASS ltcl_allocation_store IMPLEMENTATION.
       exp = VALUE zif_allocation=>ty_allocation_tab(
         ( demand_id = 'D1' requested = '10' confirmed = '4' shortfall = '6' )
         ( demand_id = 'D2' requested = '5'  confirmed = '5' shortfall = 0 ) ) ).
+
+  ENDMETHOD.
+
+  METHOD the_day_it_is_there_is_kept.
+
+    mo_cut->save(
+      iv_run_id     = c_run_id
+      iv_matnr      = c_matnr
+      iv_werks      = c_werks
+      it_allocation = VALUE #(
+        ( demand_id = 'D1' req_date = '20260315' avail_date = '20260301'
+          requested = '10' confirmed = '10' shortfall = 0 )
+        ( demand_id = 'D2' req_date = '20260315'
+          requested = '5' confirmed = '5' shortfall = 0 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->read( c_run_id )
+      exp = VALUE zif_allocation=>ty_allocation_tab(
+        ( demand_id = 'D1' req_date = '20260315' avail_date = '20260301'
+          requested = '10' confirmed = '10' shortfall = 0 )
+        ( demand_id = 'D2' req_date = '20260315'
+          requested = '5' confirmed = '5' shortfall = 0 ) )
+      msg = 'when a confirmed line is there is part of what was decided' ).
 
   ENDMETHOD.
 

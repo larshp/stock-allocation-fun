@@ -60,8 +60,9 @@ CLASS zcl_allocation_engine DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! What one day of supply confirmed for one demand line.
     TYPES:
       BEGIN OF ty_confirmed,
-        demand_id TYPE zif_allocation=>ty_demand_id,
-        quantity  TYPE zif_allocation=>ty_quantity,
+        demand_id  TYPE zif_allocation=>ty_demand_id,
+        avail_date TYPE d,
+        quantity   TYPE zif_allocation=>ty_quantity,
       END OF ty_confirmed.
     TYPES ty_confirmed_tab TYPE STANDARD TABLE OF ty_confirmed WITH EMPTY KEY.
 
@@ -88,6 +89,13 @@ CLASS zcl_allocation_engine DEFINITION PUBLIC FINAL CREATE PUBLIC.
         it_confirmed       TYPE ty_confirmed_tab
       RETURNING
         VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
+    METHODS available_from
+      IMPORTING
+        iv_demand_id   TYPE zif_allocation=>ty_demand_id
+        it_confirmed   TYPE ty_confirmed_tab
+      RETURNING
+        VALUE(rv_date) TYPE d.
 
     METHODS answer
       IMPORTING
@@ -166,8 +174,9 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
         ENDIF.
 
         APPEND VALUE #(
-          demand_id = ls_answer-demand_id
-          quantity  = ls_answer-confirmed ) TO lt_confirmed.
+          demand_id  = ls_answer-demand_id
+          avail_date = ls_supply-avail_date
+          quantity   = ls_answer-confirmed ) TO lt_confirmed.
 
         lv_pool = lv_pool - ls_answer-confirmed.
 
@@ -238,6 +247,20 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD available_from.
+
+    " the line is there in full on the day the last of its supply arrives, so
+    " the latest of the days that contributed is the answer. A line served
+    " entirely off the shelf keeps the initial date, which says "already".
+    LOOP AT it_confirmed INTO DATA(ls_confirmed)
+        WHERE demand_id = iv_demand_id.
+      IF ls_confirmed-avail_date > rv_date.
+        rv_date = ls_confirmed-avail_date.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
   METHOD answer.
 
     DATA lt_served TYPE ty_demand_id_tab.
@@ -263,13 +286,16 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
         it_confirmed = it_confirmed ).
 
       APPEND VALUE #(
-        demand_id = lv_demand_id
-        req_date  = ls_line-req_date
-        requested = ls_line-quantity
-        confirmed = lv_confirmed
-        shortfall = COND #( WHEN ls_line-quantity > lv_confirmed
-                            THEN ls_line-quantity - lv_confirmed
-                            ELSE 0 ) ) TO rt_allocation.
+        demand_id  = lv_demand_id
+        req_date   = ls_line-req_date
+        avail_date = available_from(
+          iv_demand_id = lv_demand_id
+          it_confirmed = it_confirmed )
+        requested  = ls_line-quantity
+        confirmed  = lv_confirmed
+        shortfall  = COND #( WHEN ls_line-quantity > lv_confirmed
+                             THEN ls_line-quantity - lv_confirmed
+                             ELSE 0 ) ) TO rt_allocation.
 
     ENDLOOP.
 

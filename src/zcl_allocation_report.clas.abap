@@ -49,8 +49,16 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_requested   TYPE string
         iv_confirmed   TYPE string
         iv_shortfall   TYPE string
+        iv_available   TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
+
+    METHODS available_text
+      IMPORTING
+        iv_avail_date  TYPE d
+        iv_confirmed   TYPE zif_allocation=>ty_quantity
+      RETURNING
+        VALUE(rv_text) TYPE string.
 
 ENDCLASS.
 
@@ -111,7 +119,8 @@ CLASS zcl_allocation_report IMPLEMENTATION.
       iv_id        = `Demand`
       iv_requested = `Requested`
       iv_confirmed = `Confirmed`
-      iv_shortfall = `Shortfall` ) TO rt_line.
+      iv_shortfall = `Shortfall`
+      iv_available = `Available` ) TO rt_line.
 
     LOOP AT is_run-allocation INTO DATA(ls_allocation).
       lv_requested = lv_requested + ls_allocation-requested.
@@ -121,14 +130,18 @@ CLASS zcl_allocation_report IMPLEMENTATION.
         iv_id        = |{ ls_allocation-demand_id }|
         iv_requested = |{ ls_allocation-requested }|
         iv_confirmed = |{ ls_allocation-confirmed }|
-        iv_shortfall = |{ ls_allocation-shortfall }| ) TO rt_line.
+        iv_shortfall = |{ ls_allocation-shortfall }|
+        iv_available = available_text(
+          iv_avail_date = ls_allocation-avail_date
+          iv_confirmed  = ls_allocation-confirmed ) ) TO rt_line.
     ENDLOOP.
 
     APPEND format_row(
       iv_id        = `Total`
       iv_requested = |{ lv_requested }|
       iv_confirmed = |{ lv_confirmed }|
-      iv_shortfall = |{ lv_shortfall }| ) TO rt_line.
+      iv_shortfall = |{ lv_shortfall }|
+      iv_available = `` ) TO rt_line.
 
   ENDMETHOD.
 
@@ -137,7 +150,25 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     rv_line = |{ iv_id WIDTH = c_width_id }|
            && |{ iv_requested WIDTH = c_width_qty ALIGN = RIGHT }|
            && |{ iv_confirmed WIDTH = c_width_qty ALIGN = RIGHT }|
-           && |{ iv_shortfall WIDTH = c_width_qty ALIGN = RIGHT }|.
+           && |{ iv_shortfall WIDTH = c_width_qty ALIGN = RIGHT }|
+           && |{ iv_available WIDTH = c_width_qty ALIGN = RIGHT }|.
+
+  ENDMETHOD.
+
+  METHOD available_text.
+
+    " a line that got nothing has no day it is there on, and one served off the
+    " shelf is there already. The rest say the day the last of their supply
+    " arrives, written so it reads as a date rather than eight digits.
+    IF iv_confirmed <= 0.
+      RETURN.
+    ENDIF.
+    IF iv_avail_date IS INITIAL.
+      rv_text = `now`.
+      RETURN.
+    ENDIF.
+
+    rv_text = |{ iv_avail_date+0(4) }-{ iv_avail_date+4(2) }-{ iv_avail_date+6(2) }|.
 
   ENDMETHOD.
 

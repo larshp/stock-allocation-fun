@@ -36,6 +36,10 @@ waiting for stock it
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and
    links the reservation back onto the recorded run.
 
+Every answered line says how much was confirmed, how much is short, and the day
+the confirmed quantity is there — `now` when it comes off the shelf, otherwise
+the day the last of its supply arrives.
+
 One material failing does not stop the rest of the run; the report says which
 ones failed and why.
 

@@ -26,6 +26,17 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS deliveries_of_an_item_add_up FOR TESTING RAISING cx_static_check.
     METHODS other_reference_is_ignored FOR TESTING RAISING cx_static_check.
     METHODS complete_delivery_is_flagged FOR TESTING RAISING cx_static_check.
+    METHODS each_schedule_line_apart FOR TESTING RAISING cx_static_check.
+    METHODS delivered_covers_earliest FOR TESTING RAISING cx_static_check.
+    METHODS no_schedule_uses_order_date FOR TESTING RAISING cx_static_check.
+
+    "! A schedule line of order 0000004712 item 000010, whose order quantity is
+    "! 7 and whose header asks for 15 January.
+    METHODS given_schedule_line
+      IMPORTING
+        iv_etenr TYPE vbep-etenr
+        iv_edatu TYPE vbep-edatu
+        iv_wmeng TYPE vbep-wmeng.
 
     METHODS given_delivery
       IMPORTING
@@ -126,6 +137,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
+    DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713' ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
     DELETE FROM marm WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
@@ -146,9 +160,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demand
       exp = VALUE zif_allocation=>ty_demand_tab(
-        ( demand_id = '0000004711000010' matnr = c_matnr werks = c_werks
+        ( demand_id = '00000047110000100000' matnr = c_matnr werks = c_werks
           quantity = '10' req_date = '20260210' priority = '02' )
-        ( demand_id = '0000004712000010' matnr = c_matnr werks = c_werks
+        ( demand_id = '00000047120000100000' matnr = c_matnr werks = c_werks
           quantity = '7' req_date = '20260115' priority = '01' ) ) ).
 
   ENDMETHOD.
@@ -163,7 +177,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     LOOP AT lt_demand INTO DATA(ls_demand).
       cl_abap_unit_assert=>assert_differs(
         act = ls_demand-demand_id
-        exp = '0000004711000020'
+        exp = '00000047110000200000'
         msg = 'item with a reason for rejection must not be returned' ).
     ENDLOOP.
 
@@ -178,7 +192,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     LOOP AT lt_demand INTO DATA(ls_demand).
       cl_abap_unit_assert=>assert_differs(
         act = ls_demand-demand_id
-        exp = '0000004713000010'
+        exp = '00000047130000100000'
         msg = 'item of a delivery blocked order must not be returned' ).
     ENDLOOP.
 
@@ -246,7 +260,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004712000050' ]-quantity
+      act = lt_demand[ demand_id = '00000047120000500000' ]-quantity
       exp = '36'
       msg = 'three cartons of twelve compete for thirty six pieces of stock' ).
 
@@ -284,7 +298,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004711000010' ]-quantity
+      act = lt_demand[ demand_id = '00000047110000100000' ]-quantity
       exp = '7.5'
       msg = 'what has been delivered is no longer waiting for stock' ).
 
@@ -306,7 +320,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demand
       exp = VALUE zif_allocation=>ty_demand_tab(
-        ( demand_id = '0000004712000010' matnr = c_matnr werks = c_werks
+        ( demand_id = '00000047120000100000' matnr = c_matnr werks = c_werks
           quantity = '7' req_date = '20260115' priority = '01' ) )
       msg = 'an item delivered in full has nothing left to ask for' ).
 
@@ -333,7 +347,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004712000010' ]-quantity
+      act = lt_demand[ demand_id = '00000047120000100000' ]-quantity
       exp = '2.5'
       msg = 'an item delivered in several goes is netted by all of them' ).
 
@@ -356,7 +370,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004711000010' ]-quantity
+      act = lt_demand[ demand_id = '00000047110000100000' ]-quantity
       exp = '10'
       msg = 'only a delivery of this sales order item may net it off' ).
 
@@ -380,13 +394,113 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004712000060' ]-complete
+      act = lt_demand[ demand_id = '00000047120000600000' ]-complete
       exp = abap_true
       msg = 'KZTLF = C means the customer takes the item in one delivery' ).
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004712000010' ]-complete
+      act = lt_demand[ demand_id = '00000047120000100000' ]-complete
       exp = abap_false
       msg = 'an item without the indicator may ship in parts' ).
+
+  ENDMETHOD.
+
+  METHOD given_schedule_line.
+
+    DATA lt_vbep TYPE STANDARD TABLE OF vbep WITH EMPTY KEY.
+
+    lt_vbep = VALUE #(
+      ( mandt = sy-mandt
+        vbeln = '0000004712'
+        posnr = '000010'
+        etenr = iv_etenr
+        edatu = iv_edatu
+        wmeng = iv_wmeng ) ).
+
+    INSERT vbep FROM TABLE @lt_vbep.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'VBEP fixture could not be inserted' ).
+
+  ENDMETHOD.
+
+  METHOD each_schedule_line_apart.
+
+    given_schedule_line(
+      iv_etenr = '0001'
+      iv_edatu = '20260120'
+      iv_wmeng = '4' ).
+    given_schedule_line(
+      iv_etenr = '0002'
+      iv_edatu = '20260220'
+      iv_wmeng = '3' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100001' ]-quantity
+      exp = '4'
+      msg = 'a quantity wanted on a date is one requirement' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100001' ]-req_date
+      exp = '20260120'
+      msg = 'and it is wanted on its own date, not the date of the order' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100002' ]-quantity
+      exp = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100002' ]-req_date
+      exp = '20260220'
+      msg = 'a line due in a month must not compete as if it were due now' ).
+
+  ENDMETHOD.
+
+  METHOD delivered_covers_earliest.
+
+    given_schedule_line(
+      iv_etenr = '0001'
+      iv_edatu = '20260120'
+      iv_wmeng = '4' ).
+    given_schedule_line(
+      iv_etenr = '0002'
+      iv_edatu = '20260220'
+      iv_wmeng = '3' ).
+
+    " five of the seven have gone out already
+    given_delivery(
+      iv_vbeln = '0080000010'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004712'
+      iv_vgpos = '000010'
+      iv_lgmng = '5' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_demand[ demand_id = '00000047120000100001' ] ) )
+      msg = 'the goods leave in date order, so the first line is served first' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100002' ]-quantity
+      exp = '2'
+      msg = 'and what is left of the delivery comes off the next line' ).
+
+  ENDMETHOD.
+
+  METHOD no_schedule_uses_order_date.
+
+    " order 0000004711 item 000010 has no schedule line of its own
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047110000100000' ]-req_date
+      exp = '20260210'
+      msg = 'an item with no schedule line is wanted when the order asks' ).
 
   ENDMETHOD.
 
@@ -407,7 +521,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ demand_id = '0000004712000030' ]-priority
+      act = lt_demand[ demand_id = '00000047120000300000' ]-priority
       exp = '99'
       msg = 'an item without delivery priority must not jump the queue' ).
 

@@ -42,20 +42,12 @@ CLASS zcl_sto_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
       BEGIN OF ty_schedule,
         ebeln TYPE eket-ebeln,
         ebelp TYPE eket-ebelp,
+        etenr TYPE eket-etenr,
         eindt TYPE eket-eindt,
         menge TYPE eket-menge,
         wamng TYPE eket-wamng,
       END OF ty_schedule.
     TYPES ty_schedule_tab TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
-
-    "! What is left to send for one item, and when the earliest part of it is
-    "! due.
-    TYPES:
-      BEGIN OF ty_open,
-        quantity TYPE ekpo-menge,
-        req_date TYPE d,
-        found    TYPE abap_bool,
-      END OF ty_open.
 
     DATA mo_converter TYPE REF TO zif_unit_converter.
     DATA mv_priority  TYPE zif_allocation=>ty_priority.
@@ -73,17 +65,18 @@ CLASS zcl_sto_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rt_schedule) TYPE ty_schedule_tab.
 
-    METHODS still_to_send
+    METHODS schedules_of
       IMPORTING
-        is_item        TYPE ty_item
-        it_schedule    TYPE ty_schedule_tab
+        is_item            TYPE ty_item
+        it_schedule        TYPE ty_schedule_tab
       RETURNING
-        VALUE(rs_open) TYPE ty_open.
+        VALUE(rt_schedule) TYPE ty_schedule_tab.
 
     METHODS build_demand_id
       IMPORTING
         iv_ebeln            TYPE ekpo-ebeln
         iv_ebelp            TYPE ekpo-ebelp
+        iv_etenr            TYPE eket-etenr
       RETURNING
         VALUE(rv_demand_id) TYPE zif_allocation=>ty_demand_id.
 
@@ -101,6 +94,9 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
 
   METHOD zif_demand_reader~read_open_demand.
 
+    " typed explicitly, see ANOMALIES.md
+    DATA lv_open TYPE ekpo-menge.
+
     DATA(lt_item)     = read_items(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
@@ -108,28 +104,37 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
 
     LOOP AT lt_item INTO DATA(ls_item).
 
-      DATA(ls_open) = still_to_send(
+      DATA(lt_line) = schedules_of(
         is_item     = ls_item
         it_schedule = lt_schedule ).
-      IF ls_open-quantity <= 0.
-        CONTINUE.
-      ENDIF.
 
-      " the order is in the purchase order unit, the stock is in base units
-      DATA(lv_quantity) = mo_converter->to_base(
-        iv_matnr    = ls_item-matnr
-        iv_quantity = CONV #( ls_open-quantity )
-        iv_uom      = ls_item-meins ).
+      LOOP AT lt_line INTO DATA(ls_line).
 
-      APPEND VALUE #(
-        demand_id = build_demand_id(
-          iv_ebeln = ls_item-ebeln
-          iv_ebelp = ls_item-ebelp )
-        matnr     = ls_item-matnr
-        werks     = iv_werks
-        quantity  = lv_quantity
-        req_date  = ls_open-req_date
-        priority  = mv_priority ) TO rt_demand.
+        " a schedule line that has been issued in full, or over-issued, has
+        " nothing left to send
+        lv_open = ls_line-menge - ls_line-wamng.
+        IF lv_open <= 0.
+          CONTINUE.
+        ENDIF.
+
+        " the order is in the purchase order unit, the stock is in base units
+        DATA(lv_quantity) = mo_converter->to_base(
+          iv_matnr    = ls_item-matnr
+          iv_quantity = CONV #( lv_open )
+          iv_uom      = ls_item-meins ).
+
+        APPEND VALUE #(
+          demand_id = build_demand_id(
+            iv_ebeln = ls_line-ebeln
+            iv_ebelp = ls_line-ebelp
+            iv_etenr = ls_line-etenr )
+          matnr     = ls_item-matnr
+          werks     = iv_werks
+          quantity  = lv_quantity
+          req_date  = ls_line-eindt
+          priority  = mv_priority ) TO rt_demand.
+
+      ENDLOOP.
 
     ENDLOOP.
 
@@ -189,6 +194,7 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
     " decided against the item list, which is filtered on the supplying plant.
     SELECT sched~ebeln,
            sched~ebelp,
+           sched~etenr,
            sched~eindt,
            sched~menge,
            sched~wamng
@@ -206,45 +212,37 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD still_to_send.
-
-    DATA lv_open TYPE ekpo-menge.
+  METHOD schedules_of.
 
     LOOP AT it_schedule INTO DATA(ls_schedule)
         WHERE ebeln = is_item-ebeln
           AND ebelp = is_item-ebelp.
-
-      rs_open-found = abap_true.
-
-      " a line that has been issued in full, or over-issued, has nothing left
-      lv_open = ls_schedule-menge - ls_schedule-wamng.
-      IF lv_open <= 0.
-        CONTINUE.
-      ENDIF.
-
-      rs_open-quantity = rs_open-quantity + lv_open.
-
-      " the earliest date something is still due is when the item is needed
-      IF rs_open-req_date IS INITIAL OR ls_schedule-eindt < rs_open-req_date.
-        rs_open-req_date = ls_schedule-eindt.
-      ENDIF.
-
+      APPEND ls_schedule TO rt_schedule.
     ENDLOOP.
 
     " an item without schedule lines has no committed date, but it has been
-    " ordered: taking it as nothing would silently lose real demand
-    IF rs_open-found = abap_false.
-      rs_open-quantity = is_item-menge.
-      CLEAR rs_open-req_date.
+    " ordered: taking it as nothing would silently lose real demand, and no
+    " date already means as soon as possible to the horizon filter
+    IF rt_schedule IS INITIAL.
+      APPEND VALUE #(
+        ebeln = is_item-ebeln
+        ebelp = is_item-ebelp
+        etenr = '0000'
+        menge = is_item-menge
+        wamng = 0 ) TO rt_schedule.
+      RETURN.
     ENDIF.
+
+    SORT rt_schedule BY eindt ASCENDING etenr ASCENDING.
 
   ENDMETHOD.
 
   METHOD build_demand_id.
 
-    rv_demand_id+0(1)  = c_source_marker.
-    rv_demand_id+1(10) = iv_ebeln.
-    rv_demand_id+11(5) = iv_ebelp.
+    rv_demand_id+0(1)   = c_source_marker.
+    rv_demand_id+1(10)  = iv_ebeln.
+    rv_demand_id+11(5)  = iv_ebelp.
+    rv_demand_id+16(4)  = iv_etenr.
 
   ENDMETHOD.
 

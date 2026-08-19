@@ -575,7 +575,7 @@ CLASS ltcl_default_sources IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = ls_run-allocation[ demand_id = 'PSTOWIRE00100010' ]-confirmed
+      act = ls_run-allocation[ demand_id = 'PSTOWIRE001000100001' ]-confirmed
       exp = '4'
       msg = 'a stock transport order must reach the allocation as demand' ).
 

@@ -31,12 +31,24 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_item.
     TYPES ty_item_tab TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
 
+    "! A schedule line of such an item: a quantity wanted on a date.
+    TYPES:
+      BEGIN OF ty_schedule,
+        vbeln TYPE vbep-vbeln,
+        posnr TYPE vbep-posnr,
+        etenr TYPE vbep-etenr,
+        edatu TYPE vbep-edatu,
+        wmeng TYPE vbep-wmeng,
+      END OF ty_schedule.
+    TYPES ty_schedule_tab TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
+
     "! What one delivery item has already taken off a sales order item, in the
     "! base unit of measure.
     TYPES:
       BEGIN OF ty_delivered,
-        demand_id TYPE zif_allocation=>ty_demand_id,
-        quantity  TYPE zif_allocation=>ty_quantity,
+        vbeln    TYPE vbap-vbeln,
+        posnr    TYPE vbap-posnr,
+        quantity TYPE zif_allocation=>ty_quantity,
       END OF ty_delivered.
     TYPES ty_delivered_tab TYPE STANDARD TABLE OF ty_delivered WITH EMPTY KEY.
 
@@ -56,8 +68,30 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         iv_vbeln            TYPE vbap-vbeln
         iv_posnr            TYPE vbap-posnr
+        iv_etenr            TYPE vbep-etenr
       RETURNING
         VALUE(rv_demand_id) TYPE zif_allocation=>ty_demand_id.
+
+    METHODS read_items
+      IMPORTING
+        iv_matnr       TYPE mard-matnr
+        iv_werks       TYPE mard-werks
+      RETURNING
+        VALUE(rt_item) TYPE ty_item_tab.
+
+    METHODS read_schedules
+      IMPORTING
+        iv_matnr           TYPE mard-matnr
+        iv_werks           TYPE mard-werks
+      RETURNING
+        VALUE(rt_schedule) TYPE ty_schedule_tab.
+
+    METHODS schedules_of
+      IMPORTING
+        is_item            TYPE ty_item
+        it_schedule        TYPE ty_schedule_tab
+      RETURNING
+        VALUE(rt_schedule) TYPE ty_schedule_tab.
 
     METHODS read_deliveries
       IMPORTING
@@ -69,7 +103,8 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS delivered
       IMPORTING
         it_delivered       TYPE ty_delivered_tab
-        iv_demand_id       TYPE zif_allocation=>ty_demand_id
+        iv_vbeln           TYPE vbap-vbeln
+        iv_posnr           TYPE vbap-posnr
       RETURNING
         VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
 
@@ -84,68 +119,71 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   METHOD zif_demand_reader~read_open_demand.
 
-    DATA lt_item TYPE ty_item_tab.
     " typed explicitly, see ANOMALIES.md
-    DATA lv_open TYPE zif_allocation=>ty_quantity.
+    DATA lv_open      TYPE zif_allocation=>ty_quantity.
+    DATA lv_delivered TYPE zif_allocation=>ty_quantity.
 
-    SELECT item~vbeln,
-           item~posnr,
-           item~matnr,
-           item~werks,
-           item~kwmeng,
-           item~vrkme,
-           item~lprio,
-           item~kztlf,
-           header~vdatu
-      FROM vbap AS item
-      INNER JOIN vbak AS header ON header~vbeln = item~vbeln
-      WHERE item~matnr = @iv_matnr
-        AND item~werks = @iv_werks
-        AND item~abgru = @space
-        AND header~lifsk = @space
-      ORDER BY item~vbeln, item~posnr
-      INTO TABLE @lt_item.
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
+    DATA(lt_item)      = read_items(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+    DATA(lt_schedule)  = read_schedules(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
     DATA(lt_delivered) = read_deliveries(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
 
     LOOP AT lt_item INTO DATA(ls_item).
 
-      DATA(lv_demand_id) = build_demand_id(
-        iv_vbeln = ls_item-vbeln
-        iv_posnr = ls_item-posnr ).
-
-      " the order is in sales units, the stock is in base units. Comparing them
-      " without converting would allocate a carton against a piece.
-      DATA(lv_quantity) = mo_converter->to_base(
-        iv_matnr    = ls_item-matnr
-        iv_quantity = CONV #( ls_item-kwmeng )
-        iv_uom      = ls_item-vrkme ).
-
-      " KWMENG is the whole order quantity, including the part that has left
-      " the plant already. What is still open is what has not been delivered.
-      lv_open = lv_quantity - delivered(
+      lv_delivered = delivered(
         it_delivered = lt_delivered
-        iv_demand_id = lv_demand_id ).
+        iv_vbeln     = ls_item-vbeln
+        iv_posnr     = ls_item-posnr ).
 
-      IF lv_open <= 0.
-        CONTINUE.
-      ENDIF.
+      DATA(lt_line) = schedules_of(
+        is_item     = ls_item
+        it_schedule = lt_schedule ).
 
-      APPEND VALUE #(
-        demand_id = lv_demand_id
-        matnr     = ls_item-matnr
-        werks     = ls_item-werks
-        quantity  = lv_open
-        req_date  = ls_item-vdatu
-        priority  = COND #( WHEN ls_item-lprio IS INITIAL
-                            THEN c_lowest_priority
-                            ELSE ls_item-lprio )
-        complete  = xsdbool( ls_item-kztlf = c_complete_delivery ) ) TO rt_demand.
+      LOOP AT lt_line INTO DATA(ls_line).
+
+        " the order is in sales units, the stock is in base units. Comparing
+        " them without converting would allocate a carton against a piece.
+        lv_open = mo_converter->to_base(
+          iv_matnr    = ls_item-matnr
+          iv_quantity = CONV #( ls_line-wmeng )
+          iv_uom      = ls_item-vrkme ).
+
+        IF lv_open <= 0.
+          CONTINUE.
+        ENDIF.
+
+        " what has been delivered is counted against the earliest schedule
+        " lines, which is the order the goods actually leave in
+        IF lv_delivered > 0.
+          IF lv_delivered >= lv_open.
+            lv_delivered = lv_delivered - lv_open.
+            CONTINUE.
+          ENDIF.
+          lv_open = lv_open - lv_delivered.
+          CLEAR lv_delivered.
+        ENDIF.
+
+        APPEND VALUE #(
+          demand_id = build_demand_id(
+            iv_vbeln = ls_line-vbeln
+            iv_posnr = ls_line-posnr
+            iv_etenr = ls_line-etenr )
+          matnr     = ls_item-matnr
+          werks     = ls_item-werks
+          quantity  = lv_open
+          req_date  = ls_line-edatu
+          priority  = COND #( WHEN ls_item-lprio IS INITIAL
+                              THEN c_lowest_priority
+                              ELSE ls_item-lprio )
+          complete  = xsdbool( ls_item-kztlf = c_complete_delivery ) ) TO rt_demand.
+
+      ENDLOOP.
+
     ENDLOOP.
 
   ENDMETHOD.
@@ -172,10 +210,77 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD build_demand_id.
+  METHOD read_items.
 
-    rv_demand_id+0(10) = iv_vbeln.
-    rv_demand_id+10(6) = iv_posnr.
+    SELECT item~vbeln,
+           item~posnr,
+           item~matnr,
+           item~werks,
+           item~kwmeng,
+           item~vrkme,
+           item~lprio,
+           item~kztlf,
+           header~vdatu
+      FROM vbap AS item
+      INNER JOIN vbak AS header ON header~vbeln = item~vbeln
+      WHERE item~matnr = @iv_matnr
+        AND item~werks = @iv_werks
+        AND item~abgru = @space
+        AND header~lifsk = @space
+      ORDER BY item~vbeln, item~posnr
+      INTO TABLE @rt_item.
+    IF sy-subrc <> 0.
+      CLEAR rt_item.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD read_schedules.
+
+    " VBEP carries no material, so it is joined to VBAP to stay selective
+    SELECT sched~vbeln,
+           sched~posnr,
+           sched~etenr,
+           sched~edatu,
+           sched~wmeng
+      FROM vbep AS sched
+      INNER JOIN vbap AS item ON item~vbeln = sched~vbeln
+                             AND item~posnr = sched~posnr
+      WHERE item~matnr = @iv_matnr
+        AND item~werks = @iv_werks
+        AND item~abgru = @space
+      ORDER BY sched~vbeln, sched~posnr, sched~etenr
+      INTO TABLE @rt_schedule.
+    IF sy-subrc <> 0.
+      CLEAR rt_schedule.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD schedules_of.
+
+    LOOP AT it_schedule INTO DATA(ls_schedule)
+        WHERE vbeln = is_item-vbeln
+          AND posnr = is_item-posnr.
+      APPEND ls_schedule TO rt_schedule.
+    ENDLOOP.
+
+    " an item with no schedule line of its own is one requirement for the whole
+    " order quantity, on the date the order asks for. Ignoring it would lose
+    " real demand, and a schedule line is only where a date gets more precise.
+    IF rt_schedule IS INITIAL.
+      APPEND VALUE #(
+        vbeln = is_item-vbeln
+        posnr = is_item-posnr
+        etenr = '0000'
+        edatu = is_item-vdatu
+        wmeng = is_item-kwmeng ) TO rt_schedule.
+      RETURN.
+    ENDIF.
+
+    " earliest first, which is both the order the goods leave in and the order
+    " the delivered quantity has to be counted against
+    SORT rt_schedule BY edatu ASCENDING etenr ASCENDING.
 
   ENDMETHOD.
 
@@ -206,10 +311,9 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
     LOOP AT lt_row INTO DATA(ls_row).
       APPEND VALUE #(
-        demand_id = build_demand_id(
-          iv_vbeln = CONV #( ls_row-vgbel )
-          iv_posnr = CONV #( ls_row-vgpos ) )
-        quantity  = ls_row-lgmng ) TO rt_delivered.
+        vbeln    = ls_row-vgbel
+        posnr    = ls_row-vgpos
+        quantity = ls_row-lgmng ) TO rt_delivered.
     ENDLOOP.
 
   ENDMETHOD.
@@ -219,11 +323,21 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
     " an order item can be delivered in several goes, so the deliveries of one
     " item add up. A cancelled delivery item is gone from LIPS, not negative,
     " and a quantity that is not positive takes nothing off.
-    LOOP AT it_delivered INTO DATA(ls_delivered) WHERE demand_id = iv_demand_id.
+    LOOP AT it_delivered INTO DATA(ls_delivered)
+        WHERE vbeln = iv_vbeln
+          AND posnr = iv_posnr.
       IF ls_delivered-quantity > 0.
         rv_quantity = rv_quantity + ls_delivered-quantity.
       ENDIF.
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD build_demand_id.
+
+    rv_demand_id+0(10)  = iv_vbeln.
+    rv_demand_id+10(6)  = iv_posnr.
+    rv_demand_id+16(4)  = iv_etenr.
 
   ENDMETHOD.
 

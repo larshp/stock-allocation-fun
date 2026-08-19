@@ -5,9 +5,14 @@ INTERFACE zif_allocation PUBLIC.
   "! database and the allocation logic without conversion.
   TYPES ty_quantity TYPE p LENGTH 7 DECIMALS 3.
 
-  "! Identifies the requirement a demand line originates from, for sales order
-  "! demand this is the document number followed by the item number.
-  TYPES ty_demand_id TYPE c LENGTH 16.
+  "! Identifies the requirement a demand line originates from, down to the
+  "! schedule line, because that is the level a quantity is wanted on a date.
+  "!
+  "! Sales order demand is document (10), item (6), schedule line (4). Stock
+  "! transport order demand is marked with a leading letter, then document (10),
+  "! item (5), schedule line (4), so that two documents from different number
+  "! ranges carrying the same number cannot be taken for each other.
+  TYPES ty_demand_id TYPE c LENGTH 24.
 
   "! Order in which demand is served, 01 first.
   TYPES ty_priority TYPE n LENGTH 2.

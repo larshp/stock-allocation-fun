@@ -110,6 +110,7 @@ Mapping decisions:
 - The demand id is `VBELN` (10) followed by `POSNR` (6), which is exactly the
   16 characters of `ty_demand_id`. It is built with offset writes rather than a
   string template so a short document number can never shift the item number.
+  (Feature 28 takes the id down to the schedule line and widens it to 24.)
 - SAP's delivery priority `VBAP-LPRIO` is the allocation priority directly.
   `LPRIO` is `NUMC 2`, so an item without a priority is `00` and would sort
   *first*. That is the opposite of what "no priority set" should mean, so an
@@ -760,3 +761,59 @@ been left out of a plant wide run. Two tests go through the real default wiring
 against real fixtures — one that a transfer is confirmed, one that it is covered
 by the plant list — because the classes were all correct in isolation and the
 wiring is what would have been wrong.
+
+### Feature 28 — a requirement is a schedule line, not a document item (done)
+
+Up to here a sales order item was one requirement, for its whole quantity, on
+`VBAK-VDATU` — the date the *order* asks for. Both halves of that are wrong:
+
+- The date an item is wanted lives on its **schedule lines** (`VBEP-EDATU`), and
+  items of one order routinely have different ones. Using the header date made
+  the horizon (feature 20) and the date tie-break in both strategies work off a
+  number that was often not the item's date at all.
+- An item asking for 4 in January and 3 in March is **two** requirements. As one
+  line of 7 it either competes entirely inside a 30 day horizon or not at all,
+  and either answer is wrong.
+
+So `ty_demand_id` grew from 16 to 24 characters and now goes down to the schedule
+line, and both readers return one demand line per schedule line:
+
+| Source                | Demand id                                     |
+| --------------------- | --------------------------------------------- |
+| Sales order           | `VBELN`(10) `POSNR`(6) `ETENR`(4)             |
+| Stock transport order | `'P'` `EBELN`(10) `EBELP`(5) `ETENR`(4)       |
+
+`ZSTOCK_ALLOC_RES-DEMAND_ID` grew with it, and the report's first column with
+that. The offsets are fixed and written out, so a short document number can never
+shift the item or the schedule line, the same reason feature 3 used offset writes
+rather than a string template.
+
+Decisions worth stating:
+
+- **An item with no schedule lines is still one requirement**, for the whole
+  order quantity, on the order's date, with schedule line `0000`. That is the old
+  behaviour, kept as the fallback rather than dropped: `VBEP` missing is a
+  master data oddity, not a reason to lose demand. The same holds for a purchase
+  order item without `EKET` lines.
+- **Delivered quantity is counted against the earliest schedule lines first.**
+  `LIPS` records what has been delivered per *item*, not per schedule line, and
+  the goods leave in date order — so an item of 4 + 3 with 5 delivered has
+  nothing left on the January line and 2 on the March line. Spreading the
+  delivered quantity evenly, or against the last line, would leave a requirement
+  open in the past and satisfy one in the future.
+- The schedule lines of an item are sorted **by date, then by counter**, and the
+  delivered quantity is consumed in that order. Schedule line counters are
+  normally in date order, but nothing guarantees it, and the rule that matters is
+  the date.
+- `VBEP` carries no material, so it is joined to `VBAP` to stay selective, the
+  same shape as `EKET` to `EKPO` in feature 27.
+
+One consequence to be honest about: demand ids recorded by an earlier version are
+16 characters and will not match the new ones, so the demand netting of
+feature 18 will not recognise those runs. The effect is bounded — the *stock* is
+still held back by the reservations those runs created (feature 10), so the
+demand reads as open but there is nothing free to serve it, which shows up as a
+shortfall rather than as stock handed out twice. A site that cares can convert
+`ZSTOCK_ALLOC_RES` by appending `0000` to the ids of runs whose items have no
+schedule lines; there is no general conversion, because the old id genuinely does
+not say which schedule line was served.

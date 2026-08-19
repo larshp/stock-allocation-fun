@@ -39,8 +39,8 @@ CLASS ltcl_sto_demand_reader DEFINITION FINAL FOR TESTING
     METHODS reads_an_open_transfer FOR TESTING RAISING cx_static_check.
     METHODS issued_part_is_off_demand FOR TESTING RAISING cx_static_check.
     METHODS fully_issued_drops_out FOR TESTING RAISING cx_static_check.
-    METHODS schedule_lines_add_up FOR TESTING RAISING cx_static_check.
-    METHODS earliest_date_is_the_date FOR TESTING RAISING cx_static_check.
+    METHODS each_schedule_line_apart FOR TESTING RAISING cx_static_check.
+    METHODS a_line_carries_its_own_date FOR TESTING RAISING cx_static_check.
     METHODS unscheduled_item_still_counts FOR TESTING RAISING cx_static_check.
     METHODS other_supplying_plant_is_out FOR TESTING RAISING cx_static_check.
     METHODS deleted_item_is_out FOR TESTING RAISING cx_static_check.
@@ -181,7 +181,7 @@ CLASS ltcl_sto_demand_reader IMPLEMENTATION.
         iv_matnr = c_matnr
         iv_werks = c_werks )
       exp = VALUE zif_allocation=>ty_demand_tab(
-        ( demand_id = 'PSTO-00000100010' matnr = c_matnr werks = c_werks
+        ( demand_id = 'PSTO-000001000100001' matnr = c_matnr werks = c_werks
           quantity = '10' req_date = '20260201'
           priority = zcl_sto_demand_reader=>c_default_priority ) )
       msg = 'a transfer out of the plant competes for the plant stock' ).
@@ -221,7 +221,7 @@ CLASS ltcl_sto_demand_reader IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD schedule_lines_add_up.
+  METHOD each_schedule_line_apart.
 
     given_transfer(
       iv_ebeln = 'STO-000004'
@@ -239,13 +239,19 @@ CLASS ltcl_sto_demand_reader IMPLEMENTATION.
       iv_werks = c_werks ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = lt_demand[ 1 ]-quantity
-      exp = '14.5'
-      msg = 'every schedule line of the item is still to be sent' ).
+      act = lines( lt_demand )
+      exp = 2
+      msg = 'two quantities wanted on two dates are two requirements' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = 'PSTO-000004000100001' ]-quantity
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = 'PSTO-000004000100002' ]-quantity
+      exp = '4.5' ).
 
   ENDMETHOD.
 
-  METHOD earliest_date_is_the_date.
+  METHOD a_line_carries_its_own_date.
 
     given_transfer(
       iv_ebeln = 'STO-000005'
@@ -265,7 +271,11 @@ CLASS ltcl_sto_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_demand[ 1 ]-req_date
       exp = '20260210'
-      msg = 'the item is needed when the first part of it is due' ).
+      msg = 'the earliest line comes first, and asks for its own date' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ 2 ]-req_date
+      exp = '20260401'
+      msg = 'the far one is a requirement of its own, not part of the near one' ).
 
   ENDMETHOD.
 

@@ -197,7 +197,7 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
       is_run   = VALUE #(
         run_id     = 'RUN-0001'
         allocation = VALUE #(
-          ( demand_id = '0000004711000010' requested = '1000' confirmed = '1' shortfall = '999' ) ) )
+          ( demand_id = '00000047110000100001' requested = '1000' confirmed = '1' shortfall = '999' ) ) )
       it_matnr = VALUE #( ( c_matnr ) ) ).
 
     cl_abap_unit_assert=>assert_equals(

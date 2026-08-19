@@ -31,7 +31,7 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    CONSTANTS c_width_id  TYPE i VALUE 18.
+    CONSTANTS c_width_id  TYPE i VALUE 26.
     CONSTANTS c_width_qty TYPE i VALUE 14.
 
     DATA mo_mass_run TYPE REF TO zcl_allocation_mass_run.

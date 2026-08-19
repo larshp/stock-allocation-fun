@@ -32,6 +32,12 @@
      <MSGNR>004</MSGNR>
      <TEXT>No conversion to the base unit of measure for &amp;1</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>Material &amp;1 in plant &amp;2 is already being allocated</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

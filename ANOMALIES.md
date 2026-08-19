@@ -246,6 +246,46 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   `ZCL_ALLOCATION_SERVICE` against a `ZIF_ALLOCATION_AUTHORITY` double — which
   is where refusing actually changes behaviour.
 
+## 2k. `CLEANUP` blocks are transpiled away
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.59
+- **Severity:** silent, and it removes exactly the code that exists to run when
+  something has already gone wrong.
+- **Symptom:**
+
+  ```abap
+  TRY.
+      rs_run = allocate_and_record( ... ).
+    CLEANUP.
+      mo_lock->release( ... ).
+  ENDTRY.
+  ```
+
+  becomes
+
+  ```js
+  try {
+    rs_run.set((await this.#allocate_and_record({...})));
+  } finally {
+    // Transpiler todo: CLEANUP ignored
+  }
+  ```
+
+  The `finally` is emitted, the body is not. A lock taken before the `TRY` is
+  never given back when the run fails, and nothing reports it — the exception
+  propagates as expected and the leak is invisible.
+- **Workaround:** `CATCH` the exception, do the cleanup, and re-raise:
+
+  ```abap
+    CATCH zcx_allocation INTO DATA(lx_error).
+      mo_lock->release( ... ).
+      RAISE EXCEPTION lx_error.
+  ```
+
+  Done in `src/zcl_allocation_service.clas.abap`. A test asserts that a run
+  which fails halfway still lets go of the material — without it this would have
+  shipped.
+
 ## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
 
 - **Versions:** `@abaplint/cli` 2.120.26

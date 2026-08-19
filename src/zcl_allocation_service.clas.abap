@@ -20,13 +20,15 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_run_id      | <p class="shorttext synchronized">Identifies the run</p>
     "! @parameter io_reservation | <p class="shorttext synchronized">Earmarks the confirmed stock</p>
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
+    "! @parameter io_lock        | <p class="shorttext synchronized">Keeps two runs off the same material</p>
     METHODS constructor
       IMPORTING
         io_engine      TYPE REF TO zcl_allocation_engine
         io_store       TYPE REF TO zif_allocation_store
         io_run_id      TYPE REF TO zif_run_id_supplier
         io_reservation TYPE REF TO zif_reservation_writer
-        io_authority   TYPE REF TO zif_allocation_authority.
+        io_authority   TYPE REF TO zif_allocation_authority
+        io_lock        TYPE REF TO zif_allocation_lock.
 
   PRIVATE SECTION.
     DATA mo_engine      TYPE REF TO zcl_allocation_engine.
@@ -34,6 +36,16 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_run_id      TYPE REF TO zif_run_id_supplier.
     DATA mo_reservation TYPE REF TO zif_reservation_writer.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
+    DATA mo_lock        TYPE REF TO zif_allocation_lock.
+
+    METHODS allocate_and_record
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+        iv_werks      TYPE mard-werks
+      RETURNING
+        VALUE(rs_run) TYPE zif_allocation_service=>ty_run
+      RAISING
+        zcx_allocation.
 
 ENDCLASS.
 
@@ -62,7 +74,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
       io_reservation = NEW zcl_reservation_writer( )
-      io_authority   = NEW zcl_authority_plant( ) ).
+      io_authority   = NEW zcl_authority_plant( )
+      io_lock        = NEW zcl_lock_material( ) ).
 
   ENDMETHOD.
 
@@ -73,6 +86,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     mo_run_id      = io_run_id.
     mo_reservation = io_reservation.
     mo_authority   = io_authority.
+    mo_lock        = io_lock.
 
   ENDMETHOD.
 
@@ -80,6 +94,33 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     " nothing is read, written or reserved before the user has been checked
     mo_authority->check_plant( iv_werks ).
+
+    " and nothing is read before this run owns the material, otherwise a
+    " second run would work from the same available stock and give it away too
+    mo_lock->acquire(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+    " CATCH and re-raise rather than CLEANUP: the transpiler drops the body of
+    " a CLEANUP block, so the lock would never come back. See ANOMALIES.md.
+    TRY.
+        rs_run = allocate_and_record(
+          iv_matnr = iv_matnr
+          iv_werks = iv_werks ).
+      CATCH zcx_allocation INTO DATA(lx_error).
+        mo_lock->release(
+          iv_matnr = iv_matnr
+          iv_werks = iv_werks ).
+        RAISE EXCEPTION lx_error.
+    ENDTRY.
+
+    mo_lock->release(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+  ENDMETHOD.
+
+  METHOD allocate_and_record.
 
     " the result is written down before the stock is reserved. If the
     " reservation is then rejected there is still a record of what was decided,

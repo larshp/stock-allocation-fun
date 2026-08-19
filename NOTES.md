@@ -467,3 +467,28 @@ already confirmed for that demand line, from `ZSTOCK_ALLOC_RES`:
 
 Both nettings are decorators over the same two interfaces, which is why the
 engine, the strategies and the report needed no change for either.
+
+### Feature 19 — one run at a time per material (done)
+
+Two runs on the same material at the same time would each read the same
+available stock and each give it away. The nettings do not help: both runs read
+before either writes.
+
+- `src/ezstock_alloc.enqu.xml`: the lock object, on `MARC` by material and
+  plant. It lives in `/src/` because a real system needs it to generate the
+  enqueue function modules.
+- `sap-stubs/ezstock_alloc.fugr.*`: stubs of exactly those generated function
+  modules, so the custom `CALL FUNCTION` is checked against the real signature
+  and can be executed in tests. `CL_STUB_ENQUEUE` plays the enqueue server.
+- `ZIF_ALLOCATION_LOCK` / `ZCL_LOCK_MATERIAL`: `ENQUEUE_EZSTOCK_ALLOC` in mode
+  `E`, scope `1` — the lock belongs to this work process and there is no update
+  task to hand it to.
+- `ZCL_ALLOCATION_SERVICE->run` takes the lock after the authorization check and
+  before anything is read, and gives it back on both the success and the failure
+  path.
+
+The failure path is the part worth the test. The obvious way to write it is
+`CLEANUP`, and the transpiler silently drops the body of a `CLEANUP` block
+(ANOMALIES.md 2k) — the lock would simply never come back and nothing would say
+so. It is written as `CATCH`, release, re-raise instead, and a test runs a
+failing allocation and checks the material was let go.

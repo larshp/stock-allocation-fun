@@ -47,6 +47,16 @@ CLASS zcx_allocation DEFINITION
         attr4 TYPE scx_attrname VALUE '',
       END OF no_conversion.
 
+    CONSTANTS:
+      BEGIN OF locked,
+        msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
+        msgno TYPE symsgno VALUE '005',
+        attr1 TYPE scx_attrname VALUE 'MV_MESSAGE',
+        attr2 TYPE scx_attrname VALUE 'MV_WERKS',
+        attr3 TYPE scx_attrname VALUE '',
+        attr4 TYPE scx_attrname VALUE '',
+      END OF locked.
+
     DATA mv_run_id  TYPE string READ-ONLY.
     DATA mv_message TYPE string READ-ONLY.
     DATA mv_werks   TYPE string READ-ONLY.

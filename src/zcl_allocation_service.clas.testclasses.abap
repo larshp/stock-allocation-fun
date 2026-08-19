@@ -98,7 +98,8 @@ CLASS lcl_reservation_double DEFINITION FINAL.
 
     METHODS constructor
       IMPORTING
-        iv_reservation TYPE rkpf-rsnum.
+        iv_reservation TYPE rkpf-rsnum
+        iv_fail        TYPE abap_bool DEFAULT abap_false.
 
     METHODS get_last_allocation
       RETURNING
@@ -106,6 +107,7 @@ CLASS lcl_reservation_double DEFINITION FINAL.
 
   PRIVATE SECTION.
     DATA mv_reservation TYPE rkpf-rsnum.
+    DATA mv_fail        TYPE abap_bool.
     DATA mt_last        TYPE zif_allocation=>ty_allocation_tab.
 
 ENDCLASS.
@@ -115,9 +117,15 @@ CLASS lcl_reservation_double IMPLEMENTATION.
 
   METHOD constructor.
     mv_reservation = iv_reservation.
+    mv_fail        = iv_fail.
   ENDMETHOD.
 
   METHOD zif_reservation_writer~reserve.
+    IF mv_fail = abap_true.
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid     = zcx_allocation=>reserve_failed
+        mv_message = `stock is blocked` ).
+    ENDIF.
     mt_last = it_allocation.
     rv_reservation = mv_reservation.
   ENDMETHOD.
@@ -161,6 +169,38 @@ CLASS lcl_authority_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_lock_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_lock.
+
+    METHODS get_held
+      RETURNING
+        VALUE(rv_held) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mv_held TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_lock_double IMPLEMENTATION.
+
+  METHOD zif_allocation_lock~acquire.
+    mv_held = mv_held + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_lock~release.
+    mv_held = mv_held - 1.
+  ENDMETHOD.
+
+  METHOD get_held.
+    rv_held = mv_held.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -175,6 +215,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
 
     DATA mo_store       TYPE REF TO zif_allocation_store.
     DATA mo_reservation TYPE REF TO lcl_reservation_double.
+    DATA mo_lock        TYPE REF TO lcl_lock_double.
 
     METHODS teardown.
 
@@ -183,6 +224,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
         iv_available      TYPE zif_allocation=>ty_quantity
         it_demand         TYPE zif_allocation=>ty_demand_tab
         iv_refuse         TYPE abap_bool DEFAULT abap_false
+        iv_fail_reserve   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -192,6 +234,8 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS reservation_is_linked_to_run FOR TESTING RAISING cx_static_check.
     METHODS default_wiring_is_usable FOR TESTING.
     METHODS unauthorised_plant_refused FOR TESTING.
+    METHODS lock_is_given_back FOR TESTING RAISING cx_static_check.
+    METHODS lock_is_given_back_on_error FOR TESTING.
 
 ENDCLASS.
 
@@ -206,7 +250,10 @@ CLASS ltcl_service IMPLEMENTATION.
   METHOD service_with.
 
     mo_store       = NEW zcl_allocation_store( ).
-    mo_reservation = NEW #( c_reservation ).
+    mo_reservation = NEW #(
+      iv_reservation = c_reservation
+      iv_fail        = iv_fail_reserve ).
+    mo_lock        = NEW #( ).
 
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
@@ -216,7 +263,8 @@ CLASS ltcl_service IMPLEMENTATION.
       io_store       = mo_store
       io_run_id      = NEW lcl_run_id_double( c_run_id )
       io_reservation = mo_reservation
-      io_authority   = NEW lcl_authority_double( iv_refuse ) ).
+      io_authority   = NEW lcl_authority_double( iv_refuse )
+      io_lock        = mo_lock ).
 
   ENDMETHOD.
 
@@ -330,6 +378,47 @@ CLASS ltcl_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = mo_reservation->get_last_allocation( )
       msg = 'a refused run must not have reserved anything' ).
+
+  ENDMETHOD.
+
+  METHOD lock_is_given_back.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) ) ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->get_held( )
+      exp = 0
+      msg = 'a finished run must not keep the material to itself' ).
+
+  ENDMETHOD.
+
+  METHOD lock_is_given_back_on_error.
+
+    DATA(lo_cut) = service_with(
+      iv_available    = '7'
+      it_demand       = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) )
+      iv_fail_reserve = abap_true ).
+
+    TRY.
+        lo_cut->run(
+          iv_matnr = c_matnr
+          iv_werks = c_werks ).
+        cl_abap_unit_assert=>fail( 'the rejected reservation should have come through' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->get_held( )
+      exp = 0
+      msg = 'a run that failed halfway must still let go of the material' ).
 
   ENDMETHOD.
 

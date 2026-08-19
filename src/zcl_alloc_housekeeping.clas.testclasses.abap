@@ -30,6 +30,47 @@ CLASS lcl_authority_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_commit_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_unit_of_work.
+
+    METHODS get_commits
+      RETURNING
+        VALUE(rv_commits) TYPE i.
+
+    METHODS get_rollbacks
+      RETURNING
+        VALUE(rv_rollbacks) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mv_commits   TYPE i.
+    DATA mv_rollbacks TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_commit_double IMPLEMENTATION.
+
+  METHOD zif_unit_of_work~commit.
+    mv_commits = mv_commits + 1.
+  ENDMETHOD.
+
+  METHOD zif_unit_of_work~rollback.
+    mv_rollbacks = mv_rollbacks + 1.
+  ENDMETHOD.
+
+  METHOD get_commits.
+    rv_commits = mv_commits.
+  ENDMETHOD.
+
+  METHOD get_rollbacks.
+    rv_rollbacks = mv_rollbacks.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -43,7 +84,8 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
     "! Well before any cut-off the tests work with.
     CONSTANTS c_long_ago TYPE zstock_alloc_res-created_at VALUE '20200101120000'.
 
-    DATA mo_cut TYPE REF TO zcl_alloc_housekeeping.
+    DATA mo_cut    TYPE REF TO zcl_alloc_housekeeping.
+    DATA mo_commit TYPE REF TO lcl_commit_double.
 
     METHODS setup.
     METHODS teardown.
@@ -82,6 +124,7 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
     METHODS test_run_deletes_nothing FOR TESTING RAISING cx_static_check.
     METHODS other_plant_is_untouched FOR TESTING RAISING cx_static_check.
     METHODS refused_run_deletes_nothing FOR TESTING.
+    METHODS each_removal_is_committed FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -90,10 +133,13 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
 
   METHOD setup.
 
+    mo_commit = NEW #( ).
+
     mo_cut = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
-      io_authority   = NEW lcl_authority_double( ) ).
+      io_authority   = NEW lcl_authority_double( )
+      io_commit      = mo_commit ).
 
   ENDMETHOD.
 
@@ -321,6 +367,26 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD each_removal_is_committed.
+
+    given_run( 'HOUSEKEEP-RUN-000010' ).
+    given_run( 'HOUSEKEEP-RUN-000011' ).
+
+    DATA(ls_outcome) = remove( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_outcome-deleted
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 2
+      msg = 'a reorg stopped half way leaves the runs it did remove removed' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_rollbacks( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
   METHOD refused_run_deletes_nothing.
 
     given_run( 'HOUSEKEEP-RUN-000009' ).
@@ -328,7 +394,8 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
     DATA(lo_cut) = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
-      io_authority   = NEW lcl_authority_double( abap_true ) ).
+      io_authority   = NEW lcl_authority_double( abap_true )
+      io_commit      = NEW lcl_commit_double( ) ).
 
     TRY.
         lo_cut->run(

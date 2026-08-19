@@ -201,6 +201,47 @@ CLASS lcl_lock_double IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_commit_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_unit_of_work.
+
+    METHODS get_commits
+      RETURNING
+        VALUE(rv_commits) TYPE i.
+
+    METHODS get_rollbacks
+      RETURNING
+        VALUE(rv_rollbacks) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mv_commits   TYPE i.
+    DATA mv_rollbacks TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_commit_double IMPLEMENTATION.
+
+  METHOD zif_unit_of_work~commit.
+    mv_commits = mv_commits + 1.
+  ENDMETHOD.
+
+  METHOD zif_unit_of_work~rollback.
+    mv_rollbacks = mv_rollbacks + 1.
+  ENDMETHOD.
+
+  METHOD get_commits.
+    rv_commits = mv_commits.
+  ENDMETHOD.
+
+  METHOD get_rollbacks.
+    rv_rollbacks = mv_rollbacks.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -216,6 +257,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     DATA mo_store       TYPE REF TO zif_allocation_store.
     DATA mo_reservation TYPE REF TO lcl_reservation_double.
     DATA mo_lock        TYPE REF TO lcl_lock_double.
+    DATA mo_commit      TYPE REF TO lcl_commit_double.
 
     METHODS teardown.
 
@@ -238,6 +280,9 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS simulation_checks_authority FOR TESTING.
     METHODS lock_is_given_back FOR TESTING RAISING cx_static_check.
     METHODS lock_is_given_back_on_error FOR TESTING.
+    METHODS a_run_is_committed FOR TESTING RAISING cx_static_check.
+    METHODS the_record_survives_a_refusal FOR TESTING.
+    METHODS a_simulation_commits_nothing FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -256,6 +301,7 @@ CLASS ltcl_service IMPLEMENTATION.
       iv_reservation = c_reservation
       iv_fail        = iv_fail_reserve ).
     mo_lock        = NEW #( ).
+    mo_commit      = NEW #( ).
 
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
@@ -266,7 +312,8 @@ CLASS ltcl_service IMPLEMENTATION.
       io_run_id      = NEW lcl_run_id_double( c_run_id )
       io_reservation = mo_reservation
       io_authority   = NEW lcl_authority_double( iv_refuse )
-      io_lock        = mo_lock ).
+      io_lock        = mo_lock
+      io_commit      = mo_commit ).
 
   ENDMETHOD.
 
@@ -445,6 +492,75 @@ CLASS ltcl_service IMPLEMENTATION.
       act = mo_lock->get_held( )
       exp = 0
       msg = 'a finished run must not keep the material to itself' ).
+
+  ENDMETHOD.
+
+  METHOD a_run_is_committed.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 2
+      msg = 'the decision and the reservation are two units of work, both durable' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_rollbacks( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD the_record_survives_a_refusal.
+
+    DATA(lo_cut) = service_with(
+      iv_available    = '7'
+      it_demand       = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_fail_reserve = abap_true ).
+
+    TRY.
+        lo_cut->run(
+          iv_matnr = c_matnr
+          iv_werks = c_werks ).
+        cl_abap_unit_assert=>fail( 'a rejected reservation is an error' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 1
+      msg = 'the decision was committed before the reservation was attempted' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_rollbacks( )
+      exp = 1
+      msg = 'and what the failed half wrote is thrown away' ).
+
+  ENDMETHOD.
+
+  METHOD a_simulation_commits_nothing.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    lo_cut->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 0
+      msg = 'a simulation has nothing to commit, and must not commit anything else either' ).
 
   ENDMETHOD.
 

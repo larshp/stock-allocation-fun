@@ -23,11 +23,13 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_store       | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_reservation | <p class="shorttext synchronized">Tells which reservations are still there</p>
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
+    "! @parameter io_commit      | <p class="shorttext synchronized">Makes each removal durable</p>
     METHODS constructor
       IMPORTING
         io_store       TYPE REF TO zif_allocation_store
         io_reservation TYPE REF TO zif_reservation_reader
-        io_authority   TYPE REF TO zif_allocation_authority.
+        io_authority   TYPE REF TO zif_allocation_authority
+        io_commit      TYPE REF TO zif_unit_of_work.
 
     "! <p class="shorttext synchronized">Remove recorded runs that are not doing any work</p>
     "!
@@ -74,6 +76,7 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_store       TYPE REF TO zif_allocation_store.
     DATA mo_reservation TYPE REF TO zif_reservation_reader.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
+    DATA mo_commit      TYPE REF TO zif_unit_of_work.
 
     METHODS cutoff
       IMPORTING
@@ -104,7 +107,8 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     ro_housekeeping = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
-      io_authority   = NEW zcl_authority_plant( ) ).
+      io_authority   = NEW zcl_authority_plant( )
+      io_commit      = NEW zcl_unit_of_work( ) ).
 
   ENDMETHOD.
 
@@ -113,6 +117,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     mo_store       = io_store.
     mo_reservation = io_reservation.
     mo_authority   = io_authority.
+    mo_commit      = io_commit.
 
   ENDMETHOD.
 
@@ -139,8 +144,12 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " one run at a time, each committed on its own: a reorg of a plant with a
+      " year of history behind it is a long job, and one that is stopped half
+      " way should leave the runs it did remove removed
       IF iv_test = abap_false.
         mo_store->delete_run( ls_run-run_id ).
+        mo_commit->commit( ).
       ENDIF.
 
       rs_outcome-deleted = rs_outcome-deleted + 1.

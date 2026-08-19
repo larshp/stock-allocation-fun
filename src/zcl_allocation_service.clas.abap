@@ -41,6 +41,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_reservation | <p class="shorttext synchronized">Earmarks the confirmed stock</p>
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
     "! @parameter io_lock        | <p class="shorttext synchronized">Keeps two runs off the same material</p>
+    "! @parameter io_commit      | <p class="shorttext synchronized">Makes what the run wrote durable</p>
     METHODS constructor
       IMPORTING
         io_engine      TYPE REF TO zcl_allocation_engine
@@ -48,7 +49,8 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_run_id      TYPE REF TO zif_run_id_supplier
         io_reservation TYPE REF TO zif_reservation_writer
         io_authority   TYPE REF TO zif_allocation_authority
-        io_lock        TYPE REF TO zif_allocation_lock.
+        io_lock        TYPE REF TO zif_allocation_lock
+        io_commit      TYPE REF TO zif_unit_of_work.
 
   PRIVATE SECTION.
     DATA mo_engine      TYPE REF TO zcl_allocation_engine.
@@ -57,6 +59,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_reservation TYPE REF TO zif_reservation_writer.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
     DATA mo_lock        TYPE REF TO zif_allocation_lock.
+    DATA mo_commit      TYPE REF TO zif_unit_of_work.
 
     METHODS allocate_and_record
       IMPORTING
@@ -125,7 +128,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_run_id      = NEW zcl_run_id_uuid( )
       io_reservation = NEW zcl_reservation_writer( )
       io_authority   = NEW zcl_authority_plant( )
-      io_lock        = NEW zcl_lock_material( ) ).
+      io_lock        = NEW zcl_lock_material( )
+      io_commit      = NEW zcl_unit_of_work( ) ).
 
   ENDMETHOD.
 
@@ -152,6 +156,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     mo_reservation = io_reservation.
     mo_authority   = io_authority.
     mo_lock        = io_lock.
+    mo_commit      = io_commit.
 
   ENDMETHOD.
 
@@ -173,6 +178,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           iv_matnr = iv_matnr
           iv_werks = iv_werks ).
       CATCH zcx_allocation INTO DATA(lx_error).
+        " whatever this run had written is half an answer, and the next run
+        " would read it as a whole one
+        mo_commit->rollback( ).
         mo_lock->release(
           iv_matnr = iv_matnr
           iv_werks = iv_werks ).
@@ -215,6 +223,12 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       iv_werks      = iv_werks
       it_allocation = rs_run-allocation ).
 
+    " ... and the record is committed before the stock is reserved, for the same
+    " reason. A reservation that is then rejected leaves a run somebody can look
+    " up and retry, rather than nothing at all. The record on its own holds no
+    " stock back: the netting only counts a run whose reservation is live.
+    mo_commit->commit( ).
+
     rs_run-reservation = mo_reservation->reserve(
       iv_matnr      = iv_matnr
       iv_werks      = iv_werks
@@ -225,6 +239,10 @@ CLASS zcl_allocation_service IMPLEMENTATION.
         iv_run_id      = rs_run-run_id
         iv_reservation = rs_run-reservation ).
     ENDIF.
+
+    " the reservation and the link to it are one unit: a reservation nothing
+    " points at is stock held back that no run admits to holding
+    mo_commit->commit( ).
 
   ENDMETHOD.
 

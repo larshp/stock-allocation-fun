@@ -44,6 +44,12 @@
      <MSGNR>006</MSGNR>
      <TEXT>Allocation run &amp;1 could not be deleted</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>007</MSGNR>
+     <TEXT>Allocation could not be committed: &amp;1</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

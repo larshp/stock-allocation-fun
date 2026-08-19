@@ -1146,3 +1146,56 @@ transportable with the rest of the configuration.
 Not done, and deliberately: a maintenance view. `SE11` can generate one for the
 table in a minute and the generated objects belong to the system that generates
 them, not in a repository that has to install cleanly with abapGit.
+
+### Feature 37 — a run is a unit of work (done)
+
+Nothing in the solution had ever committed anything. `INSERT zstock_alloc_res`
+and `BAPI_RESERVATION_CREATE1` both sat in the caller's LUW waiting for
+somebody else to make them real, and what made them real was the implicit
+commit at the end of the report. That is not an integration into an SAP system,
+it is a program that happens to work when run interactively.
+
+Three things were wrong with it, and all three are the same thing:
+
+1. **A BAPI is committed the way SAP says to commit it.** `BAPI_RESERVATION_CREATE1`
+   puts its work on the update task; `BAPI_TRANSACTION_COMMIT` is what runs it.
+2. **A plant wide run reads what it has already written.** The open reservation
+   deduction and the demand netting both read the database, so material two of
+   a run has to see the reservation material one created. Without a commit that
+   waits, it does not — and the same stock is offered twice in one job.
+3. **A job that dies half way leaves whatever it had written.** Whether that is
+   an answer or half of one was, until now, up to chance.
+
+`ZIF_UNIT_OF_WORK` / `ZCL_UNIT_OF_WORK` wrap the two transaction BAPIs, the
+service commits, and `ZCL_ALLOC_HOUSEKEEPING` commits each removal.
+
+- **`WAIT = 'X'`.** Point 2 is the whole reason: the commit returns only once the
+  update has been written, so the next material of the same job reads a
+  database that includes this one. It costs a round trip per material and buys
+  a plant wide run that cannot give the same stock away twice.
+- **Two commits per material, not one.** The recorded decision is committed
+  before the reservation is attempted, which is what makes feature 9's promise
+  true at last: a rejected reservation leaves a run somebody can look up and
+  retry. It holds no stock back on its own — the netting only counts a run whose
+  reservation is live (feature 26) — so the intermediate state is safe. The
+  reservation and the link to it are then the second unit: a reservation nothing
+  points at would be stock held back that no run admits to holding.
+- **A failed run rolls back.** What it managed to write is half an answer, and
+  the next run would read it as a whole one. The rollback goes where the lock is
+  given back, in the `CATCH`, because the transpiler drops `CLEANUP` blocks
+  (ANOMALIES.md 2k).
+- **A simulation commits nothing.** It writes nothing, and calling a commit
+  anyway would make somebody else's uncommitted work durable — a report that
+  changes nothing must not be the thing that saves your unrelated changes.
+- **The lock stays scope 1**, and the reason is now interesting rather than
+  incidental: handing the lock to the update task would release it at the run's
+  own commit, which happens *before* the run is over. The run keeps the lock
+  across its commit and gives it back itself.
+- **Housekeeping commits per run**, so a reorg of a plant with a year of history
+  that is stopped half way keeps the removals it managed.
+
+`sap-stubs/bapi_transaction.fugr.*` joins the reservation stub in
+`exclude_filter` for the same reason it is there: both have a parameter called
+`RETURN` and the transpiler cannot declare it (ANOMALIES.md 2f). The unit tests
+double both BAPIs with `cl_function_test_environment`, so the calls are still
+checked against the real signatures by abaplint and still executed by a test.

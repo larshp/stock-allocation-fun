@@ -8,9 +8,11 @@ CLASS zcl_lock_material DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Exclusive, and not cumulative.
     CONSTANTS c_mode TYPE enqmode VALUE 'E'.
 
-    "! The lock lives in the current work process only. The allocation is
-    "! finished before COMMIT WORK is relevant, so there is nothing to hand to
-    "! the update task.
+    "! The lock lives in the current work process only, and the run gives it
+    "! back itself. Handing it to the update task instead would release it at
+    "! the run's own commit, which comes before the run is over: the reservation
+    "! is created, committed, and only then is the material free again. The
+    "! commit waits for the update, so nothing of the run outlives the lock.
     CONSTANTS c_scope_dialog TYPE ddenqscope VALUE '1'.
 
 ENDCLASS.

@@ -58,6 +58,16 @@ CLASS zcx_allocation DEFINITION
       END OF delete_failed.
 
     CONSTANTS:
+      BEGIN OF commit_failed,
+        msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
+        msgno TYPE symsgno VALUE '007',
+        attr1 TYPE scx_attrname VALUE 'MV_MESSAGE',
+        attr2 TYPE scx_attrname VALUE '',
+        attr3 TYPE scx_attrname VALUE '',
+        attr4 TYPE scx_attrname VALUE '',
+      END OF commit_failed.
+
+    CONSTANTS:
       BEGIN OF locked,
         msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
         msgno TYPE symsgno VALUE '005',

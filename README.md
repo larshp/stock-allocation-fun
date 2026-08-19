@@ -32,9 +32,13 @@ waiting for stock it
    as a fair share, optionally holding every customer to a share of the pool,
    and giving an item that may only ship complete either all of it or none of
    it,
-5. records the outcome in `ZSTOCK_ALLOC_RES`,
-6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and
-   links the reservation back onto the recorded run.
+5. records the outcome in `ZSTOCK_ALLOC_RES` and commits it,
+6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`, links
+   the reservation back onto the recorded run and commits that.
+
+Each material is its own unit of work, committed through
+`BAPI_TRANSACTION_COMMIT` and waited for, so the next material sees what this
+one decided and a job that dies half way leaves whole answers behind.
 
 Every answered line says how much was confirmed, how much is short, and the day
 the confirmed quantity is there — `now` when it comes off the shelf, otherwise
@@ -109,6 +113,7 @@ nothing else has to:
 | `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |
 | `ZIF_ALLOCATION_STORE`     | where the result is recorded                       |
 | `ZIF_ALLOC_CONFIG`         | where a plant's settings come from                 |
+| `ZIF_UNIT_OF_WORK`         | what makes a run durable, and what undoes it       |
 
 ## Layout
 

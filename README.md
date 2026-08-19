@@ -34,6 +34,12 @@ ones failed and why.
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 
+`ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes
+recorded runs that are past the retention time **and** are no longer holding
+anything back — a run whose reservation was rejected, deleted or is otherwise
+gone. A run whose reservation is still there stays, because the demand netting
+reads it. It defaults to a test run too.
+
 ## Installing into SAP
 
 Pull the repository with abapGit. `.abapgit.xml` sets the starting folder to
@@ -72,6 +78,7 @@ whole object graph:
 | `ZIF_DEMAND_READER`        | where demand comes from                            |
 | `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |
 | `ZIF_RESERVATION_WRITER`   | how confirmed stock is earmarked                   |
+| `ZIF_RESERVATION_READER`   | when an earlier reservation stops counting         |
 | `ZIF_ALLOCATION_AUTHORITY` | which authorization object guards a run            |
 | `ZIF_ALLOCATION_LOCK`      | how concurrent runs are kept apart                 |
 | `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |

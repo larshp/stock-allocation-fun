@@ -5,10 +5,12 @@ CLASS zcl_demand_reader_net DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wrap a demand reader with what it has already been given</p>
     "!
-    "! @parameter io_demand | <p class="shorttext synchronized">Reader of the open demand</p>
+    "! @parameter io_demand      | <p class="shorttext synchronized">Reader of the open demand</p>
+    "! @parameter io_reservation | <p class="shorttext synchronized">Tells which reservations are still there</p>
     METHODS constructor
       IMPORTING
-        io_demand TYPE REF TO zif_demand_reader.
+        io_demand      TYPE REF TO zif_demand_reader
+        io_reservation TYPE REF TO zif_reservation_reader.
 
   PRIVATE SECTION.
 
@@ -24,9 +26,8 @@ CLASS zcl_demand_reader_net DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_allocated.
     TYPES ty_allocated_tab TYPE STANDARD TABLE OF ty_allocated WITH EMPTY KEY.
 
-    TYPES ty_reservation_tab TYPE STANDARD TABLE OF resb-rsnum WITH EMPTY KEY.
-
-    DATA mo_demand TYPE REF TO zif_demand_reader.
+    DATA mo_demand      TYPE REF TO zif_demand_reader.
+    DATA mo_reservation TYPE REF TO zif_reservation_reader.
 
     METHODS already_allocated
       IMPORTING
@@ -34,13 +35,6 @@ CLASS zcl_demand_reader_net DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks            TYPE mard-werks
       RETURNING
         VALUE(rt_allocated) TYPE ty_allocated_tab.
-
-    METHODS live_reservations
-      IMPORTING
-        iv_matnr              TYPE mard-matnr
-        iv_werks              TYPE mard-werks
-      RETURNING
-        VALUE(rt_reservation) TYPE ty_reservation_tab.
 
     METHODS covered
       IMPORTING
@@ -55,7 +49,10 @@ ENDCLASS.
 CLASS zcl_demand_reader_net IMPLEMENTATION.
 
   METHOD constructor.
-    mo_demand = io_demand.
+
+    mo_demand      = io_demand.
+    mo_reservation = io_reservation.
+
   ENDMETHOD.
 
   METHOD zif_demand_reader~materials_with_demand.
@@ -112,7 +109,7 @@ CLASS zcl_demand_reader_net IMPLEMENTATION.
     " a recorded run only counts while its reservation is still there. If
     " somebody deleted it, the stock became free again and so did the demand:
     " counting it as served would starve the line forever.
-    DATA(lt_live) = live_reservations(
+    DATA(lt_live) = mo_reservation->live_reservations(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
 
@@ -121,24 +118,6 @@ CLASS zcl_demand_reader_net IMPLEMENTATION.
         APPEND ls_recorded TO rt_allocated.
       ENDIF.
     ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD live_reservations.
-
-    SELECT rsnum
-      FROM resb
-      WHERE matnr = @iv_matnr
-        AND werks = @iv_werks
-        AND xloek = @space
-      ORDER BY rsnum
-      INTO TABLE @rt_reservation.
-    IF sy-subrc <> 0.
-      CLEAR rt_reservation.
-      RETURN.
-    ENDIF.
-
-    DELETE ADJACENT DUPLICATES FROM rt_reservation.
 
   ENDMETHOD.
 

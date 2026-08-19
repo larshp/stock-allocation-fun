@@ -75,9 +75,10 @@ CLASS zcl_allocation_service IMPLEMENTATION.
             ( NEW zcl_deduct_reservations( ) )
             ( NEW zcl_deduct_safety_stock( ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
-          NEW zcl_demand_within_horizon(
+          io_demand      = NEW zcl_demand_within_horizon(
             io_demand = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
-            iv_days   = iv_horizon_days ) )
+            iv_days   = iv_horizon_days )
+          io_reservation = NEW zcl_reservation_reader( ) )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )

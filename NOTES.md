@@ -659,3 +659,50 @@ order the material list comes out. An all-or-nothing rule spanning runs cannot
 be decided inside one run, so pretending to support it would be worse than
 leaving it out.
 
+### Feature 26 — housekeeping, and one place that knows what a live reservation is (done)
+
+Feature 23 left `ZSTOCK_ALLOC_RES` growing by a row per demand line per run,
+forever, and said why the obvious fix is wrong: the demand netting reads that
+table, so deleting a run whose reservation is still live would reopen demand that
+has already been served. The rule that *is* safe follows from what the netting
+actually counts:
+
+> A recorded run is doing work exactly while its reservation is still there. A
+> run that never got a reservation, or whose reservation has been deleted, is
+> already ignored by the netting — deleting it changes no future allocation.
+
+`ZCL_ALLOC_HOUSEKEEPING->run( iv_werks, iv_keep_days, iv_test )` deletes exactly
+those, and only once they are older than the retention time. `ZSTOCK_ALLOC_REORG`
+is the program, and like the allocation report it **defaults to a test run** and
+then says how many runs it would have removed.
+
+- The retention time is what keeps a **rejected reservation** retriable: feature 9
+  writes the result before reserving precisely so a failed reservation can be
+  looked up, and deleting that record the same night would defeat it. Nothing
+  recorded today is ever removed, whatever the parameter says — a negative number
+  of days is clamped rather than trusted.
+- The cut-off is worked out in **UTC**, because `CREATED_AT` is written with
+  `GET TIME STAMP`, which is UTC. Comparing a local midnight against UTC stamps
+  would silently shift the boundary by the time zone offset.
+- Housekeeping **checks authorization** on the plant, with the same object a run
+  checks. Removing the record of an allocation is a change to the plant's data.
+- It works **per run**, not per row. A run covers one material in one plant, so
+  every row of it answers "is this still holding anything" the same way, and a
+  run of three demand lines is one decision and one `DELETE`.
+
+The interesting part is what this forced. "Is this reservation still there" was a
+private method of `ZCL_DEMAND_READER_NET`, and housekeeping needs the same
+question answered the same way — feature 22 exists precisely because two places
+disagreed about it. So it moved out into `ZIF_RESERVATION_READER` /
+`ZCL_RESERVATION_READER`, and the netting decorator now takes one. Two callers,
+one `SELECT`, no room for drift. The netting gained a constructor parameter,
+which is the price of it.
+
+What is still not cleaned up, and why it is fine: a run whose reservation exists
+but has been **fully withdrawn** is kept forever by this rule. The goods have
+gone, so the reservation holds no stock any more, but the record is what stops the
+demand being served twice. Since feature 24 the delivered quantity nets the demand
+off anyway, so such a line is no longer open on the order — meaning the record is
+belt and braces rather than load bearing. Deleting it would need the withdrawal
+to be checked against the order, which is a bigger question than housekeeping.
+

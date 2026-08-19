@@ -69,6 +69,39 @@ CLASS zcl_allocation_store IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_allocation_store~runs_recorded_before.
+
+    SELECT run_id,
+           matnr,
+           werks,
+           reservation
+      FROM zstock_alloc_res
+      WHERE werks = @iv_werks
+        AND created_at < @iv_created_at
+      ORDER BY run_id
+      INTO TABLE @rt_run.
+    IF sy-subrc <> 0.
+      CLEAR rt_run.
+      RETURN.
+    ENDIF.
+
+    " the table holds one row per demand line and a run covers one material in
+    " one plant, so every row of a run answers this the same way
+    DELETE ADJACENT DUPLICATES FROM rt_run COMPARING run_id.
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~delete_run.
+
+    DELETE FROM zstock_alloc_res WHERE run_id = @iv_run_id.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid    = zcx_allocation=>delete_failed
+        mv_run_id = |{ iv_run_id }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
   METHOD zif_allocation_store~read.
 
     SELECT demand_id,

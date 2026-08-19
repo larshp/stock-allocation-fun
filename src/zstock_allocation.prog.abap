@@ -25,7 +25,8 @@ START-OF-SELECTION.
         io_strategy     = lo_strategy
         iv_horizon_days = p_horiz )
       io_demand  = NEW zcl_demand_reader_net(
-        NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) ) ) ).
+        io_demand      = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
+        io_reservation = NEW zcl_reservation_reader( ) ) ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

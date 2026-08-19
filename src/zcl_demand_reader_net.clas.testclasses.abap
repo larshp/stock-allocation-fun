@@ -166,7 +166,9 @@ CLASS ltcl_demand_reader_net IMPLEMENTATION.
         req_date  = '20260101'
         priority  = '01' ) ) ).
 
-    rt_demand = NEW zcl_demand_reader_net( lo_inner )->zif_demand_reader~read_open_demand(
+    rt_demand = NEW zcl_demand_reader_net(
+      io_demand      = lo_inner
+      io_reservation = NEW zcl_reservation_reader( ) )->zif_demand_reader~read_open_demand(
       iv_matnr = c_matnr
       iv_werks = c_werks ).
 
@@ -305,7 +307,9 @@ CLASS ltcl_demand_reader_net IMPLEMENTATION.
       it_matnr  = VALUE #( ( 'MAT-1' ) ( 'MAT-2' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      act = NEW zcl_demand_reader_net( lo_inner )->zif_demand_reader~materials_with_demand( c_werks )
+      act = NEW zcl_demand_reader_net(
+        io_demand      = lo_inner
+        io_reservation = NEW zcl_reservation_reader( ) )->zif_demand_reader~materials_with_demand( c_werks )
       exp = VALUE zif_demand_reader=>ty_matnr_tab( ( 'MAT-1' ) ( 'MAT-2' ) ) ).
 
   ENDMETHOD.

@@ -63,6 +63,10 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       lo_strategy = NEW zcl_alloc_strategy_priority( ).
     ENDIF.
 
+    " which lines may be served in part is a property of the demand, not of the
+    " distribution rule, so this wraps whatever strategy is in use
+    lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
         io_stock_reader  = NEW zcl_stock_reader_net(

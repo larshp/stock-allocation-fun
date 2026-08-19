@@ -12,7 +12,9 @@ INTERFACE zif_allocation PUBLIC.
   "! Order in which demand is served, 01 first.
   TYPES ty_priority TYPE n LENGTH 2.
 
-  "! A single requirement competing for stock.
+  "! A single requirement competing for stock. COMPLETE means the line is only
+  "! worth serving in full: a part of it ships nothing, so confirming a part of
+  "! it would tie up stock that cannot leave.
   TYPES:
     BEGIN OF ty_demand,
       demand_id TYPE ty_demand_id,
@@ -21,6 +23,7 @@ INTERFACE zif_allocation PUBLIC.
       quantity  TYPE ty_quantity,
       req_date  TYPE d,
       priority  TYPE ty_priority,
+      complete  TYPE abap_bool,
     END OF ty_demand.
   TYPES ty_demand_tab TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 

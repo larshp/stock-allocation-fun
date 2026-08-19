@@ -25,6 +25,7 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS fully_delivered_drops_out FOR TESTING RAISING cx_static_check.
     METHODS deliveries_of_an_item_add_up FOR TESTING RAISING cx_static_check.
     METHODS other_reference_is_ignored FOR TESTING RAISING cx_static_check.
+    METHODS complete_delivery_is_flagged FOR TESTING RAISING cx_static_check.
 
     METHODS given_delivery
       IMPORTING
@@ -358,6 +359,34 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand[ demand_id = '0000004711000010' ]-quantity
       exp = '10'
       msg = 'only a delivery of this sales order item may net it off' ).
+
+  ENDMETHOD.
+
+  METHOD complete_delivery_is_flagged.
+
+    DATA lt_extra TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+
+    lt_extra = VALUE #(
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000060'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '4' lprio = '01'
+        kztlf = 'C' ) ).
+    INSERT vbap FROM TABLE @lt_extra.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004712000060' ]-complete
+      exp = abap_true
+      msg = 'KZTLF = C means the customer takes the item in one delivery' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004712000010' ]-complete
+      exp = abap_false
+      msg = 'an item without the indicator may ship in parts' ).
 
   ENDMETHOD.
 

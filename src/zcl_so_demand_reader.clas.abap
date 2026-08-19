@@ -26,6 +26,7 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
         kwmeng TYPE vbap-kwmeng,
         vrkme  TYPE vbap-vrkme,
         lprio  TYPE vbap-lprio,
+        kztlf  TYPE vbap-kztlf,
         vdatu  TYPE vbak-vdatu,
       END OF ty_item.
     TYPES ty_item_tab TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
@@ -46,6 +47,10 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Reference document category of a delivery item created from a sales
     "! order, LIPS-VGTYP.
     CONSTANTS c_reference_is_order TYPE lips-vgtyp VALUE 'C'.
+
+    "! VBAP-KZTLF: the customer takes this item in one delivery or not at all.
+    "! Every other value allows the item to ship in parts.
+    CONSTANTS c_complete_delivery TYPE vbap-kztlf VALUE 'C'.
 
     METHODS build_demand_id
       IMPORTING
@@ -90,6 +95,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
            item~kwmeng,
            item~vrkme,
            item~lprio,
+           item~kztlf,
            header~vdatu
       FROM vbap AS item
       INNER JOIN vbak AS header ON header~vbeln = item~vbeln
@@ -138,7 +144,8 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         req_date  = ls_item-vdatu
         priority  = COND #( WHEN ls_item-lprio IS INITIAL
                             THEN c_lowest_priority
-                            ELSE ls_item-lprio ) ) TO rt_demand.
+                            ELSE ls_item-lprio )
+        complete  = xsdbool( ls_item-kztlf = c_complete_delivery ) ) TO rt_demand.
     ENDLOOP.
 
   ENDMETHOD.

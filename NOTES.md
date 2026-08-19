@@ -615,3 +615,47 @@ then comes back with nothing costs an empty run and reserves nothing. This was
 already true of the netting decorator from feature 18, which passes the material
 list straight through; now it is written down.
 
+### Feature 25 — a complete delivery line takes all of it or none (done)
+
+`VBAP-KZTLF = 'C'` says the customer takes the item in one delivery. Confirming
+6 of 10 for such an item is worse than confirming nothing: the 6 cannot ship, so
+the stock sits reserved against a line that will not move, while a line that
+*could* have shipped goes short. Every allocation up to here did exactly that.
+
+- `ty_demand` gained `COMPLETE`, and `ZCL_SO_DEMAND_READER` sets it from `KZTLF`.
+- `ZCL_ALLOC_ALL_OR_NOTHING` wraps any `ZIF_ALLOCATION_STRATEGY`: it lets the
+  strategy distribute the stock, and if a complete-delivery line came back
+  holding a part of what it asked for, that line is dropped and the whole
+  quantity offered again to the rest. It repeats until no such line is left.
+
+Why a decorator around the strategy rather than a rule inside each strategy:
+which lines may be served in part is a property of the **demand**, not of the
+distribution rule, and both strategies need it. `create_default( )` therefore
+wraps whatever strategy it was given, including one passed in from outside.
+
+The details that took thought:
+
+- **One line is dropped per pass, not all of them at once.** Dropping every
+  partially served line together over-corrects: freeing one line's stock is
+  often enough to complete another. The loop is bounded by the number of demand
+  lines, so it terminates, and the worst case is a pass per line.
+- **Which line goes first.** The one furthest from complete — it frees the most
+  and is the least likely to fit however much is freed later. On a tie, the line
+  the strategy served *last* goes, which is the one the strategy favoured least.
+  That is what makes the fair share case come out right: two equally short lines
+  tie, the lower priority one is dropped, and the higher priority one is then
+  confirmed in full.
+- A line that got **nothing** is not a partial line and needs no second pass.
+  Neither is a line confirmed in full. Only `0 < confirmed < requested` is.
+- The dropped lines are answered too, with `CONFIRMED = 0` and the **whole**
+  quantity as shortfall. The strategy contract is one allocation line per demand
+  line, and a test pins that a dropped line is answered exactly once.
+
+Not implemented, and deliberately: `VBAK-AUTLF`, complete delivery for the whole
+**order**. Honouring it means all items of the order must be confirmable
+together, and the items of one order are generally different materials — which
+this solution allocates in separate runs, under separate locks, in whatever
+order the material list comes out. An all-or-nothing rule spanning runs cannot
+be decided inside one run, so pretending to support it would be worse than
+leaving it out.
+

@@ -74,9 +74,10 @@ The same three steps run on every push, see
 
 ## Where the seams are
 
-Everything a customer is likely to want to change sits behind an interface, and
-`ZCL_ALLOCATION_SERVICE=>create_default( )` is the only place that knows the
-whole object graph:
+Everything a customer is likely to want to change sits behind an interface.
+`ZCL_ALLOCATION_SERVICE=>create_default( )` knows the object graph of one run and
+`ZCL_ALLOCATION_MASS_RUN=>create_default( )` the graph of a plant wide one;
+nothing else has to:
 
 | Interface                  | Swap it to change                                  |
 | -------------------------- | -------------------------------------------------- |

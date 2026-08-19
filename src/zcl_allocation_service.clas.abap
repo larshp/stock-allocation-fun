@@ -25,8 +25,11 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! plant, so both compete in the same run. Public because a plant wide run
     "! needs the same list of sources to know which materials to cover.
     "!
-    "! @parameter ro_demand | <p class="shorttext synchronized">Reader over every source</p>
+    "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter ro_demand    | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_demand
+      IMPORTING
+        io_converter     TYPE REF TO zif_unit_converter OPTIONAL
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -96,19 +99,25 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " distribution rule, so this wraps whatever strategy is in use
     lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
 
+    " one converter serves the whole run: it buffers the material master, and
+    " both the demand and the supply side ask it the same questions
+    DATA(lo_converter) = NEW zcl_unit_converter( ).
+
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
-        io_stock_reader  = NEW zcl_stock_reader_net(
-          io_stock     = NEW zcl_stock_in_locations(
-            io_stock = NEW zcl_stock_reader( )
-            it_lgort = lt_lgort )
-          it_deduction = VALUE #(
-            ( NEW zcl_deduct_reservations( ) )
-            ( NEW zcl_deduct_deliveries( ) )
-            ( NEW zcl_deduct_safety_stock( ) ) ) )
+        io_supply_reader = NEW zcl_supply_sources( VALUE #(
+          ( NEW zcl_supply_on_hand( NEW zcl_stock_reader_net(
+            io_stock     = NEW zcl_stock_in_locations(
+              io_stock = NEW zcl_stock_reader( )
+              it_lgort = lt_lgort )
+            it_deduction = VALUE #(
+              ( NEW zcl_deduct_reservations( ) )
+              ( NEW zcl_deduct_deliveries( ) )
+              ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
+          ( NEW zcl_supply_receipts( lo_converter ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
-            io_demand = create_default_demand( )
+            io_demand = create_default_demand( lo_converter )
             iv_days   = iv_horizon_days )
           io_reservation = NEW zcl_reservation_reader( ) )
         io_strategy      = lo_strategy )
@@ -122,8 +131,12 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD create_default_demand.
 
-    " one converter serves both readers: it holds no state of its own
-    DATA(lo_converter) = NEW zcl_unit_converter( ).
+    " one converter serves both readers, and the caller may hand in the one the
+    " rest of its run uses so the material master is read once for all of them
+    DATA(lo_converter) = io_converter.
+    IF lo_converter IS NOT BOUND.
+      lo_converter = NEW zcl_unit_converter( ).
+    ENDIF.
 
     ro_demand = NEW zcl_demand_sources( VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )

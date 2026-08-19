@@ -1010,3 +1010,67 @@ direction to err in. The delivery half clears itself at the goods issue. The
 reservation half is the open end of feature 26 — a reservation whose goods left
 on another document stays open — and closing it means matching reservations to
 the demand they were written for, which is a feature of its own.
+
+### Feature 34 — stock on its way is supply too (done)
+
+Everything up to here allocated what was on the shelf this morning. A line
+wanted in six weeks competed for it against a line wanted tomorrow, and the
+container arriving next Tuesday did not exist. Both halves of that are wrong in
+the same way: allocation is a question about a **timeline**, and the solution
+only knew about one instant of it.
+
+- `ZIF_SUPPLY_READER` answers "what is there to give away, and from when" as a
+  list of quantities per availability date.
+- `ZCL_SUPPLY_ON_HAND` wraps the stock reader — including all the deductions —
+  and reports the plant total as one element.
+- `ZCL_SUPPLY_RECEIPTS` reads open purchasing documents arriving in the plant,
+  schedule line by schedule line, less what has already been received.
+- `ZCL_SUPPLY_SOURCES` composes them, exactly as `ZCL_DEMAND_SOURCES` does on
+  the other side.
+- `ZCL_ALLOCATION_ENGINE` walks the supply in date order instead of adding it
+  all up.
+
+The engine's loop is the feature. Each day of supply is offered, through the
+same strategy as ever, to the demand that can still wait for it; what nobody
+takes stays in the pool for the next day, and a line served in part comes back
+for the rest of it. That keeps the strategy seam untouched — priority, fair
+share, the customer cap and the complete delivery rule all work per day of
+supply and needed no change.
+
+Decisions worth stating:
+
+- **Stock on the shelf carries no date at all**, not today's. Dating it today
+  would make an overdue line unservable from stock that is physically there,
+  because the rule below would say the stock "arrives" after the line was
+  wanted. What is on the shelf has been there since before any requirement was
+  raised, and the initial date says exactly that, and sorts first.
+- **A receipt can only serve demand wanted on or after it arrives.** The other
+  way round is a promise that cannot be kept: confirming a line for the 1st out
+  of a container landing on the 10th tells a planner the goods are covered when
+  they are not. Such a line comes back as short instead, which is the answer
+  somebody can act on. SAP's own ATP would give it a later *confirmation date*
+  rather than nothing — that is feature 35.
+- **A requirement without a date is wanted now**, so only stock on hand can
+  serve it. Same rule, no special case: an undated line and an overdue line are
+  in the same position.
+- **Everything arriving on one day is one pool.** Two receipts landing on the
+  same date, offered one after the other, would let fair share split what it
+  would otherwise have handed out whole, and would give the complete delivery
+  rule two chances to drop a line that one pool would have covered.
+- **A receipt with no date is not supply.** A purchasing item with no schedule
+  line has nothing saying when it arrives, and the only way to place it on the
+  timeline would be to call it available now — promising stock nobody has
+  committed to a day. It is left out. Note the demand readers do the opposite
+  with an undated requirement and keep it: both choices err towards confirming
+  less, which is the direction to err in.
+- **A returns item brings nothing in**, so `EKPO-RETPO` items are excluded, and
+  `EKPO-WERKS` is the plant filter — the receiving plant, where the STO demand
+  reader filters on `EKKO-RESWK`, the supplying one. A stock transport order is
+  therefore read from both ends: demand in the plant it leaves, supply in the
+  plant it arrives at, which is what it is.
+- **What has been received is not read twice.** `EKET-WEMNG` is off the
+  receipt, because that part of it is in `MARD` and comes back as stock on hand.
+
+The result is unchanged in shape: one line per demand line, confirmed and
+short. What it does not yet say is *when* a confirmed line can be served, which
+now matters, because it is no longer always "now".

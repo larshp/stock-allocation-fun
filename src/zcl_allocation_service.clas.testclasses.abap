@@ -259,7 +259,7 @@ CLASS ltcl_service IMPLEMENTATION.
 
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
-        io_stock_reader  = NEW lcl_stock_reader_double( iv_available )
+        io_supply_reader = NEW zcl_supply_on_hand( NEW lcl_stock_reader_double( iv_available ) )
         io_demand_reader = NEW lcl_demand_reader_double( it_demand )
         io_strategy      = NEW zcl_alloc_strategy_priority( ) )
       io_store       = mo_store

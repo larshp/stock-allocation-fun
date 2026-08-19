@@ -100,6 +100,17 @@
      <MASK>  DEC</MASK>
      <DDTEXT>Quantity Issued</DDTEXT>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>WEMNG</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>P</INTTYPE>
+     <INTLEN>000007</INTLEN>
+     <DATATYPE>DEC</DATATYPE>
+     <LENG>000013</LENG>
+     <DECIMALS>000003</DECIMALS>
+     <MASK>  DEC</MASK>
+     <DDTEXT>Quantity of Goods Received</DDTEXT>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

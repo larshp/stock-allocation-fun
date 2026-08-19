@@ -16,18 +16,22 @@ waiting for stock it
 
 1. checks the user may allocate in the plant (`AUTHORITY-CHECK` on
    `M_MATE_WRK`) and locks the material for the run,
-2. reads the book stock from `MARD`, keeps only the storage locations that may
-   be allocated, and takes off what is not up for allocation — open
-   reservations, stock on deliveries that are waiting for their goods issue,
-   and the plant's safety stock,
+2. works out what there is to give away and from when: the book stock from
+   `MARD`, restricted to the storage locations that may be allocated and less
+   what is not up for allocation — open reservations, stock on deliveries that
+   are waiting for their goods issue, and the plant's safety stock — plus the
+   receipts still to come in on open purchasing documents from
+   `EKKO`/`EKPO`/`EKET`, each on the day it arrives,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what
    earlier runs already reserved for the same line, and drops anything beyond
    the horizon,
-4. distributes what is left, either by delivery priority or as a fair share,
-   optionally holding every customer to a share of the pool, and giving an item
-   that may only ship complete either all of it or none of it,
+4. walks the supply in the order it becomes available and distributes each day
+   of it over the demand that can wait for it, either by delivery priority or
+   as a fair share, optionally holding every customer to a share of the pool,
+   and giving an item that may only ship complete either all of it or none of
+   it,
 5. records the outcome in `ZSTOCK_ALLOC_RES`,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and
    links the reservation back onto the recorded run.
@@ -84,6 +88,7 @@ nothing else has to:
 | -------------------------- | -------------------------------------------------- |
 | `ZIF_ALLOCATION_STRATEGY`  | who gets the stock when there is not enough        |
 | `ZIF_STOCK_DEDUCTION`      | what counts as unavailable, one class per reason   |
+| `ZIF_SUPPLY_READER`        | what there is to give away, one class per source   |
 | `ZIF_STOCK_READER`         | where the book stock comes from                     |
 | `ZIF_DEMAND_READER`        | where demand comes from, one class per source       |
 | `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |

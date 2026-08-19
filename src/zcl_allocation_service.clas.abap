@@ -124,6 +124,19 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_allocation_service~simulate.
+
+    " a simulation still asks whether the user may allocate here: it answers
+    " the same question as a real run and should not answer it for a plant the
+    " user cannot see
+    mo_authority->check_plant( iv_werks ).
+
+    rs_run-allocation = mo_engine->allocate_open_demand(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+  ENDMETHOD.
+
   METHOD allocate_and_record.
 
     " the result is written down before the stock is reserved. If the

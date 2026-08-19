@@ -4,6 +4,7 @@ PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_fair AS CHECKBOX.
 PARAMETERS p_horiz TYPE i DEFAULT 0.
+PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
 
@@ -27,8 +28,9 @@ START-OF-SELECTION.
         NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) ) ) ).
 
   DATA(lt_line) = lo_report->run(
-    iv_werks = p_werks
-    it_matnr = lt_matnr ).
+    iv_werks    = p_werks
+    it_matnr    = lt_matnr
+    iv_simulate = p_test ).
 
   LOOP AT lt_line INTO DATA(lv_line).
     WRITE / lv_line.

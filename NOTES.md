@@ -510,3 +510,23 @@ edges are deliberate and tested:
 The default is no horizon at all. How far ahead to commit stock is a business
 decision, not something this code should invent, so it is a parameter on
 `create_default( )` and on the selection screen rather than a number baked in.
+
+### Feature 21 — test run (done)
+
+Every SAP report that changes something offers a test run, and this one changes
+rather a lot: it writes a result table and creates reservations.
+
+`ZIF_ALLOCATION_SERVICE->simulate` does the same calculation as `run` and stops
+there. `RUN_ID` and `RESERVATION` come back initial because there is nothing to
+look up. Three decisions worth stating:
+
+- It **still checks authorization**. A simulation answers the same question as a
+  real run and should not answer it for a plant the user cannot see.
+- It **does not take the lock**. A test run that blocked the real one would be
+  worse than a test run working from slightly stale numbers.
+- The report **says so on the first line**, and prints no run id or reservation,
+  so nobody mistakes a test run for a real one. A test loops over every output
+  line to make sure no run id leaks into a simulated report.
+
+`P_TEST` defaults to **on**. Someone who runs this program without reading the
+selection screen should get a preview, not a night of reservations.

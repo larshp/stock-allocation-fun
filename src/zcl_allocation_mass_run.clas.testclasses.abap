@@ -57,6 +57,14 @@ CLASS lcl_service_double IMPLEMENTATION.
     mv_fails_for = iv_fails_for.
   ENDMETHOD.
 
+  METHOD zif_allocation_service~simulate.
+    rs_run = zif_allocation_service~run(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+    CLEAR rs_run-run_id.
+    CLEAR rs_run-reservation.
+  ENDMETHOD.
+
   METHOD zif_allocation_service~run.
 
     APPEND iv_matnr TO mt_seen.
@@ -94,6 +102,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
       IMPORTING
         it_matnr          TYPE zif_demand_reader=>ty_matnr_tab
         iv_fails_for      TYPE mard-matnr OPTIONAL
+        iv_simulate       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_outcome) TYPE zcl_allocation_mass_run=>ty_outcome_tab.
 
@@ -101,6 +110,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
     METHODS nothing_waiting_does_nothing FOR TESTING.
     METHODS one_failure_does_not_stop_run FOR TESTING.
     METHODS failure_carries_the_reason FOR TESTING.
+    METHODS simulation_changes_nothing FOR TESTING.
 
 ENDCLASS.
 
@@ -116,7 +126,9 @@ CLASS ltcl_mass_run IMPLEMENTATION.
 
     rt_outcome = NEW zcl_allocation_mass_run(
       io_service = mo_service
-      io_demand  = lo_demand )->run( c_werks ).
+      io_demand  = lo_demand )->run(
+        iv_werks    = c_werks
+        iv_simulate = iv_simulate ).
 
   ENDMETHOD.
 
@@ -156,6 +168,24 @@ CLASS ltcl_mass_run IMPLEMENTATION.
       act = lt_outcome[ 3 ]-run-run_id
       exp = 'RUN-MAT-3'
       msg = 'the materials after the failure must still be allocated' ).
+
+  ENDMETHOD.
+
+  METHOD simulation_changes_nothing.
+
+    DATA(lt_outcome) = mass_run_over(
+      it_matnr    = VALUE #( ( 'MAT-1' ) )
+      iv_simulate = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_outcome )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_outcome[ 1 ]-run-allocation
+      msg = 'a simulation must still say who would get what' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_outcome[ 1 ]-run-run_id
+      msg = 'a simulation has no run to look up, because nothing was recorded' ).
 
   ENDMETHOD.
 

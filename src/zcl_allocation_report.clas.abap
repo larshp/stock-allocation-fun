@@ -18,12 +18,14 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! reason in place of its figures; the run as a whole still comes back.
     "!
     "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
-    "! @parameter it_matnr | <p class="shorttext synchronized">Materials, everything waiting if empty</p>
-    "! @parameter rt_line  | <p class="shorttext synchronized">Lines to display</p>
+    "! @parameter it_matnr    | <p class="shorttext synchronized">Materials, everything waiting if empty</p>
+    "! @parameter iv_simulate | <p class="shorttext synchronized">Work it out but change nothing</p>
+    "! @parameter rt_line     | <p class="shorttext synchronized">Lines to display</p>
     METHODS run
       IMPORTING
         iv_werks       TYPE mard-werks
         it_matnr       TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
+        iv_simulate    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -37,6 +39,7 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS lines_for_run
       IMPORTING
         is_run         TYPE zif_allocation_service=>ty_run
+        iv_simulate    TYPE abap_bool
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -63,10 +66,14 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     DATA lv_failed TYPE i.
 
     DATA(lt_outcome) = mo_mass_run->run(
-      iv_werks = iv_werks
-      it_matnr = it_matnr ).
+      iv_werks    = iv_werks
+      it_matnr    = it_matnr
+      iv_simulate = iv_simulate ).
 
     APPEND |Plant { iv_werks }| TO rt_line.
+    IF iv_simulate = abap_true.
+      APPEND `Simulation, nothing was recorded and no stock was reserved` TO rt_line.
+    ENDIF.
 
     LOOP AT lt_outcome INTO DATA(ls_outcome).
 
@@ -77,7 +84,9 @@ CLASS zcl_allocation_report IMPLEMENTATION.
         lv_failed = lv_failed + 1.
         APPEND |Allocation failed: { ls_outcome-reason }| TO rt_line.
       ELSE.
-        APPEND LINES OF lines_for_run( ls_outcome-run ) TO rt_line.
+        APPEND LINES OF lines_for_run(
+          is_run      = ls_outcome-run
+          iv_simulate = iv_simulate ) TO rt_line.
       ENDIF.
 
     ENDLOOP.
@@ -93,8 +102,10 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     DATA lv_confirmed TYPE zif_allocation=>ty_quantity.
     DATA lv_shortfall TYPE zif_allocation=>ty_quantity.
 
-    APPEND |Run         { is_run-run_id }| TO rt_line.
-    APPEND |Reservation { is_run-reservation }| TO rt_line.
+    IF iv_simulate = abap_false.
+      APPEND |Run         { is_run-run_id }| TO rt_line.
+      APPEND |Reservation { is_run-reservation }| TO rt_line.
+    ENDIF.
 
     APPEND format_row(
       iv_id        = `Demand`

@@ -22,6 +22,14 @@ CLASS lcl_service_double IMPLEMENTATION.
     mv_fails_for = iv_fails_for.
   ENDMETHOD.
 
+  METHOD zif_allocation_service~simulate.
+    rs_run = zif_allocation_service~run(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+    CLEAR rs_run-run_id.
+    CLEAR rs_run-reservation.
+  ENDMETHOD.
+
   METHOD zif_allocation_service~run.
     IF iv_matnr = mv_fails_for.
       RAISE EXCEPTION NEW zcx_allocation(
@@ -80,6 +88,7 @@ CLASS ltcl_allocation_report DEFINITION FINAL FOR TESTING
         is_run         TYPE zif_allocation_service=>ty_run
         it_matnr       TYPE zif_demand_reader=>ty_matnr_tab
         iv_fails_for   TYPE mard-matnr OPTIONAL
+        iv_simulate    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_line) TYPE zcl_allocation_report=>ty_line_tab.
 
@@ -91,6 +100,7 @@ CLASS ltcl_allocation_report DEFINITION FINAL FOR TESTING
     METHODS every_material_gets_a_block FOR TESTING.
     METHODS rejected_material_shows_reason FOR TESTING.
     METHODS footer_counts_the_failures FOR TESTING.
+    METHODS simulation_is_labelled FOR TESTING.
 
 ENDCLASS.
 
@@ -110,7 +120,9 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
     rt_line = NEW zcl_allocation_report(
       NEW zcl_allocation_mass_run(
         io_service = lo_service
-        io_demand  = lo_demand ) )->run( c_werks ).
+        io_demand  = lo_demand ) )->run(
+          iv_werks    = c_werks
+          iv_simulate = iv_simulate ).
 
   ENDMETHOD.
 
@@ -221,6 +233,29 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
       act = lt_line[ 4 ]
       exp = 'Allocation failed:*stock is blocked*'
       msg = 'the user must be told why a material got nothing' ).
+
+  ENDMETHOD.
+
+  METHOD simulation_is_labelled.
+
+    DATA(lt_line) = report_of(
+      is_run      = VALUE #(
+        run_id     = 'RUN-0001'
+        allocation = VALUE #(
+          ( demand_id = 'D1' requested = '10' confirmed = '4' shortfall = '6' ) ) )
+      it_matnr    = VALUE #( ( c_matnr ) )
+      iv_simulate = abap_true ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 2 ]
+      exp = 'Simulation*'
+      msg = 'a reader must not mistake a test run for a real one' ).
+    LOOP AT lt_line INTO DATA(lv_line).
+      cl_abap_unit_assert=>assert_char_np(
+        act = lv_line
+        exp = '*RUN-0001*'
+        msg = 'a simulation has no run id, nothing was recorded' ).
+    ENDLOOP.
 
   ENDMETHOD.
 

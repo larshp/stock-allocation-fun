@@ -234,6 +234,8 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS reservation_is_linked_to_run FOR TESTING RAISING cx_static_check.
     METHODS default_wiring_is_usable FOR TESTING.
     METHODS unauthorised_plant_refused FOR TESTING.
+    METHODS simulation_records_nothing FOR TESTING RAISING cx_static_check.
+    METHODS simulation_checks_authority FOR TESTING.
     METHODS lock_is_given_back FOR TESTING RAISING cx_static_check.
     METHODS lock_is_given_back_on_error FOR TESTING.
 
@@ -378,6 +380,53 @@ CLASS ltcl_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = mo_reservation->get_last_allocation( )
       msg = 'a refused run must not have reserved anything' ).
+
+  ENDMETHOD.
+
+  METHOD simulation_records_nothing.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) ) ).
+
+    DATA(ls_run) = lo_cut->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_run-allocation[ 1 ]-confirmed
+      exp = '5'
+      msg = 'a simulation must still work out who would get what' ).
+    cl_abap_unit_assert=>assert_initial( ls_run-run_id ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_store->read( c_run_id )
+      msg = 'a simulation must not write anything down' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_reservation->get_last_allocation( )
+      msg = 'a simulation must not earmark any stock' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->get_held( )
+      exp = 0
+      msg = 'a simulation must not block the real run' ).
+
+  ENDMETHOD.
+
+  METHOD simulation_checks_authority.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '5' priority = '01' ) )
+      iv_refuse    = abap_true ).
+
+    TRY.
+        lo_cut->simulate(
+          iv_matnr = c_matnr
+          iv_werks = c_werks ).
+        cl_abap_unit_assert=>fail( 'a simulation needs the same authorization' ).
+      CATCH zcx_allocation.
+    ENDTRY.
 
   ENDMETHOD.
 

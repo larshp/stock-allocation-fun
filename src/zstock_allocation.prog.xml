@@ -36,6 +36,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_TEST</KEY>
+     <ENTRY>Test run, change nothing</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
      <LENGTH>5</LENGTH>

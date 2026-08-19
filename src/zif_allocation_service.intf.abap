@@ -24,4 +24,24 @@ INTERFACE zif_allocation_service PUBLIC.
     RAISING
       zcx_allocation.
 
+  "! <p class="shorttext synchronized">Work the allocation out without acting on it</p>
+  "!
+  "! Same calculation as RUN, but nothing is recorded and no stock is
+  "! reserved, so RUN_ID and RESERVATION come back initial. The material is not
+  "! locked either: a simulation that blocks the real run would be worse than a
+  "! simulation that reads slightly stale numbers.
+  "!
+  "! @parameter iv_matnr       | <p class="shorttext synchronized">Material number</p>
+  "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
+  "! @parameter rs_run         | <p class="shorttext synchronized">What the run would have confirmed</p>
+  "! @raising   zcx_allocation | <p class="shorttext synchronized">Allocation could not be worked out</p>
+  METHODS simulate
+    IMPORTING
+      iv_matnr      TYPE mard-matnr
+      iv_werks      TYPE mard-werks
+    RETURNING
+      VALUE(rs_run) TYPE ty_run
+    RAISING
+      zcx_allocation.
+
 ENDINTERFACE.

@@ -28,12 +28,14 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! single blocked material must not cost a night's worth of allocations.
     "!
     "! @parameter iv_werks   | <p class="shorttext synchronized">Plant</p>
-    "! @parameter it_matnr   | <p class="shorttext synchronized">Materials to cover, everything waiting if empty</p>
-    "! @parameter rt_outcome | <p class="shorttext synchronized">One line per material, in material order</p>
+    "! @parameter it_matnr    | <p class="shorttext synchronized">Materials to cover, everything waiting if empty</p>
+    "! @parameter iv_simulate | <p class="shorttext synchronized">Work it out but change nothing</p>
+    "! @parameter rt_outcome  | <p class="shorttext synchronized">One line per material, in material order</p>
     METHODS run
       IMPORTING
         iv_werks          TYPE mard-werks
         it_matnr          TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
+        iv_simulate       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_outcome) TYPE ty_outcome_tab.
 
@@ -69,9 +71,15 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
       ls_outcome-matnr = lv_matnr.
 
       TRY.
-          ls_outcome-run = mo_service->run(
-            iv_matnr = lv_matnr
-            iv_werks = iv_werks ).
+          IF iv_simulate = abap_true.
+            ls_outcome-run = mo_service->simulate(
+              iv_matnr = lv_matnr
+              iv_werks = iv_werks ).
+          ELSE.
+            ls_outcome-run = mo_service->run(
+              iv_matnr = lv_matnr
+              iv_werks = iv_werks ).
+          ENDIF.
         CATCH zcx_allocation INTO DATA(lx_error).
           ls_outcome-failed = abap_true.
           ls_outcome-reason = lx_error->get_text( ).

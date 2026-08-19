@@ -286,7 +286,20 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   which fails halfway still lets go of the material — without it this would have
   shipped.
 
-## 3. abaplint rejects `GROUP BY` followed by `ORDER BY`
+## 3. Secondary index fields are not checked
+
+- **Versions:** `@abaplint/cli` 2.120.26
+- **Symptom:** a `DD17V` entry naming a field that does not exist on the table
+  passes without a word. Replacing `MATNR` with `NOSUCHFIELD` in the index of
+  `ZSTOCK_ALLOC_RES` still gives `0 issues found`.
+- **Impact:** low but worth knowing. `check_ddic` covers the field list of a
+  table but not its indexes, so a typo in an index would reach the system and
+  fail on activation rather than in CI. The transpiler does not create indexes
+  either, so the tests say nothing about them.
+- **What this repo does:** the index on `ZSTOCK_ALLOC_RES` is written by hand
+  and reviewed by hand. Nothing in the pipeline confirms it.
+
+## 4. abaplint rejects `GROUP BY` followed by `ORDER BY`
 
 - **Versions:** `@abaplint/cli` 2.120.26
 - **Symptom:** a `SELECT` that groups and then sorts fails to parse:
@@ -319,7 +332,7 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   handful of open reservations one material has, the difference is not worth
   writing SQL that cannot be checked.
 
-## 4. The generated unit test runner stops at the first failure
+## 5. The generated unit test runner stops at the first failure
 
 - **Versions:** `@abaplint/transpiler-cli` 2.13.59
 - **Symptom:** `output/index.mjs` runs test methods in a plain loop with no

@@ -549,3 +549,24 @@ the same live data, so they can no longer drift apart.
 
 Two cases are tested because they are different in the database and identical in
 consequence: a reservation flagged `XLOEK`, and one that is not in `RESB` at all.
+
+### Feature 23 — an index for the access path (done)
+
+`ZSTOCK_ALLOC_RES` is keyed by run and demand line, which is right for reading a
+run back. Both nettings read it by **material and plant** instead, and that table
+grows by one row per demand line per run and is never pruned. On a plant running
+this nightly that is a full table scan that gets slower every night.
+
+Secondary index `MAT` on client, material and plant.
+
+Worth being clear about what is *not* verified: abaplint's `check_ddic` covers a
+table's field list but not its indexes — an index naming a field that does not
+exist passes without a word (ANOMALIES.md 3) — and the transpiler does not create
+indexes at all, so no test says anything about this. It is written and reviewed
+by hand.
+
+The table growing forever is a real limitation and is deliberately left alone.
+Housekeeping cannot simply delete old runs: the demand netting reads them, so
+deleting a run whose reservation is still live would reopen demand that has
+already been served. Anything safe here has to key off the reservation being
+closed, and that is a feature of its own rather than a line in this one.

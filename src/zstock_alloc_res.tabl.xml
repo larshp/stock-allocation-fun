@@ -150,6 +150,35 @@
      <DDTEXT>UTC Time Stamp</DDTEXT>
     </DD03P>
    </DD03P_TABLE>
+   <DD12V>
+    <item>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <DDLANGUAGE>E</DDLANGUAGE>
+     <DDTEXT>Material and Plant</DDTEXT>
+     <UNIQUEFLAG> </UNIQUEFLAG>
+    </item>
+   </DD12V>
+   <DD17V>
+    <item>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0001</POSITION>
+     <FIELDNAME>MANDT</FIELDNAME>
+    </item>
+    <item>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0002</POSITION>
+     <FIELDNAME>MATNR</FIELDNAME>
+    </item>
+    <item>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0003</POSITION>
+     <FIELDNAME>WERKS</FIELDNAME>
+    </item>
+   </DD17V>
   </asx:values>
  </asx:abap>
 </abapGit>

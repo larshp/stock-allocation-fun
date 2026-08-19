@@ -489,3 +489,107 @@ CLASS ltcl_service IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+CLASS ltcl_default_sources DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'WIRED-STO-01'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+    CONSTANTS c_ebeln TYPE ekko-ebeln VALUE 'STOWIRE001'.
+
+    METHODS setup.
+    METHODS teardown.
+    METHODS a_transfer_gets_the_stock FOR TESTING RAISING cx_static_check.
+    METHODS a_transfer_is_covered FOR TESTING.
+
+ENDCLASS.
+
+
+CLASS ltcl_default_sources IMPLEMENTATION.
+
+  METHOD setup.
+
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_mard TYPE STANDARD TABLE OF mard WITH EMPTY KEY.
+    DATA lt_ekko TYPE STANDARD TABLE OF ekko WITH EMPTY KEY.
+    DATA lt_ekpo TYPE STANDARD TABLE OF ekpo WITH EMPTY KEY.
+    DATA lt_eket TYPE STANDARD TABLE OF eket WITH EMPTY KEY.
+
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_mard = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr werks = c_werks lgort = '0001' labst = '10' ) ).
+    INSERT mard FROM TABLE @lt_mard.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_ekko = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln bsart = 'UB' reswk = c_werks ) ).
+    INSERT ekko FROM TABLE @lt_ekko.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_ekpo = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' matnr = c_matnr
+        werks = '2000' menge = '4' meins = 'PC' ) ).
+    INSERT ekpo FROM TABLE @lt_ekpo.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_eket = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' etenr = '0001'
+        eindt = '20260201' menge = '4' wamng = 0 ) ).
+    INSERT eket FROM TABLE @lt_eket.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM eket WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM ekpo WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM ekko WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM mard WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD a_transfer_gets_the_stock.
+
+    " nothing is a sales order here: without the transport order source the
+    " whole run would find no demand at all
+    DATA(ls_run) = zcl_allocation_service=>create_default( )->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_run-allocation[ demand_id = 'PSTOWIRE00100010' ]-confirmed
+      exp = '4'
+      msg = 'a stock transport order must reach the allocation as demand' ).
+
+  ENDMETHOD.
+
+  METHOD a_transfer_is_covered.
+
+    DATA(lo_demand) = zcl_allocation_service=>create_default_demand( ).
+    DATA(lt_matnr)  = lo_demand->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr ] ) )
+      msg = 'a plant wide run must cover a material only a transfer is waiting for' ).
+
+  ENDMETHOD.
+
+ENDCLASS.

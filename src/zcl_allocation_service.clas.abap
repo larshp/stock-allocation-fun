@@ -15,6 +15,17 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
+    "! <p class="shorttext synchronized">Every source of demand on a plant, as one reader</p>
+    "!
+    "! Sales orders and stock transport orders both take stock out of the
+    "! plant, so both compete in the same run. Public because a plant wide run
+    "! needs the same list of sources to know which materials to cover.
+    "!
+    "! @parameter ro_demand | <p class="shorttext synchronized">Reader over every source</p>
+    CLASS-METHODS create_default_demand
+      RETURNING
+        VALUE(ro_demand) TYPE REF TO zif_demand_reader.
+
     "! <p class="shorttext synchronized">Wire up the service</p>
     "!
     "! @parameter io_engine      | <p class="shorttext synchronized">Calculates the allocation</p>
@@ -76,7 +87,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
             ( NEW zcl_deduct_safety_stock( ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
-            io_demand = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
+            io_demand = create_default_demand( )
             iv_days   = iv_horizon_days )
           io_reservation = NEW zcl_reservation_reader( ) )
         io_strategy      = lo_strategy )
@@ -85,6 +96,17 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_reservation = NEW zcl_reservation_writer( )
       io_authority   = NEW zcl_authority_plant( )
       io_lock        = NEW zcl_lock_material( ) ).
+
+  ENDMETHOD.
+
+  METHOD create_default_demand.
+
+    " one converter serves both readers: it holds no state of its own
+    DATA(lo_converter) = NEW zcl_unit_converter( ).
+
+    ro_demand = NEW zcl_demand_sources( VALUE #(
+      ( NEW zcl_so_demand_reader( lo_converter ) )
+      ( NEW zcl_sto_demand_reader( lo_converter ) ) ) ).
 
   ENDMETHOD.
 

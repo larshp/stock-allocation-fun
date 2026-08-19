@@ -20,13 +20,9 @@ START-OF-SELECTION.
   ENDIF.
 
   DATA(lo_report) = NEW zcl_allocation_report(
-    NEW zcl_allocation_mass_run(
-      io_service = zcl_allocation_service=>create_default(
-        io_strategy     = lo_strategy
-        iv_horizon_days = p_horiz )
-      io_demand  = NEW zcl_demand_reader_net(
-        io_demand      = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
-        io_reservation = NEW zcl_reservation_reader( ) ) ) ).
+    zcl_allocation_mass_run=>create_default(
+      io_strategy     = lo_strategy
+      iv_horizon_days = p_horiz ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

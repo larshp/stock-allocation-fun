@@ -706,3 +706,57 @@ off anyway, so such a line is no longer open on the order — meaning the record
 belt and braces rather than load bearing. Deleting it would need the withdrawal
 to be checked against the order, which is a bigger question than housekeeping.
 
+### Feature 27 — stock transport orders compete too (done)
+
+Feature 3 claimed the demand seam would take another source: "stock transport
+orders and planned independent requirements can be added behind the same
+interface". Nothing had ever tested that claim, and until it was tried the
+solution was quietly wrong for any plant that supplies another one — a transfer
+takes stock out of the plant exactly like a customer order, and it was invisible.
+
+- `sap-stubs/ekko.tabl.xml`, `ekpo.tabl.xml`, `eket.tabl.xml`: purchasing
+  document header, item and schedule lines.
+- `ZCL_STO_DEMAND_READER`: open transfers out of the plant.
+- `ZCL_DEMAND_SOURCES`: several `ZIF_DEMAND_READER`s read as one list. Stock is
+  one pool, so everything competing for it has to reach the strategy together.
+
+What the reader had to get right:
+
+- **The supplying plant is on the header** (`EKKO-RESWK`), and that is the plant
+  whose stock the transfer consumes. `EKPO-WERKS` is the *receiving* plant and is
+  deliberately not what is filtered on — filtering on it would allocate the
+  wrong plant's stock, which is the one mistake here that would be silent.
+- **Open quantity comes from the schedule lines**, `EKET-MENGE - EKET-WAMNG`.
+  `WAMNG` is the quantity already issued, so a transfer half sent asks for the
+  remainder, exactly as feature 24 does for deliveries. An item flagged
+  `ELIKZ` (delivery completed) or `LOEKZ` is closed whatever the quantities say.
+- **An item with no schedule lines still counts**, at its full order quantity and
+  with no date. Taking it as nothing would silently lose real demand, and "no
+  committed date" already means "as soon as possible" to the horizon filter
+  (feature 20).
+- `EKET` carries no material or plant, so it is joined to `EKPO` to stay
+  selective, and which of those lines belong to a transfer *out of this plant* is
+  decided against the item list. Two two-table joins rather than one three-table
+  join, which is the shape the transpiler is known to handle.
+- **A transfer has no delivery priority.** SAP has no field for it, so where
+  internal transfers rank against customer orders is a constructor parameter,
+  defaulting to the middle of the range: ahead of an order with no priority set,
+  behind an urgent one. Inventing a priority from the document would be making
+  the business decision on the customer's behalf.
+- **The demand id is marked.** A sales order line is `VBELN` + `POSNR`; a
+  transfer line is `'P'` + `EBELN` + `EBELP`, which is the same 16 characters. Two
+  documents from different number ranges can carry the same number, and an
+  unmarked id would let a transfer net off a sales order line in
+  `ZSTOCK_ALLOC_RES`. The marker is a letter, so it cannot collide with the
+  all-digit sales order form.
+
+The wiring moved as well. `ZCL_ALLOCATION_SERVICE=>create_default_demand( )` is
+now the one place that knows which sources exist, and
+`ZCL_ALLOCATION_MASS_RUN=>create_default( )` builds the whole plant wide run, so
+`ZSTOCK_ALLOCATION` no longer assembles half an object graph of its own. That
+mattered rather than being tidiness: the program built its own demand reader for
+the material list, and a material that only a transfer is waiting for would have
+been left out of a plant wide run. Two tests go through the real default wiring
+against real fixtures — one that a transfer is confirmed, one that it is covered
+by the plant list — because the classes were all correct in isolation and the
+wiring is what would have been wrong.

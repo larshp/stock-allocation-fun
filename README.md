@@ -18,8 +18,9 @@ waiting for stock it
    `M_MATE_WRK`) and locks the material for the run,
 2. reads the book stock from `MARD` and takes off what is not up for
    allocation — open reservations and the plant's safety stock,
-3. reads the open sales order demand from `VBAK`/`VBAP`, converts it from sales
-   units to base units, takes off what has already been delivered and what
+3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
+   orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
+   it to base units, takes off what has already been delivered or sent and what
    earlier runs already reserved for the same line, and drops anything beyond
    the horizon,
 4. distributes what is left, either by delivery priority or as a fair share,
@@ -75,7 +76,7 @@ whole object graph:
 | -------------------------- | -------------------------------------------------- |
 | `ZIF_ALLOCATION_STRATEGY`  | who gets the stock when there is not enough        |
 | `ZIF_STOCK_DEDUCTION`      | what counts as unavailable, one class per reason   |
-| `ZIF_DEMAND_READER`        | where demand comes from                            |
+| `ZIF_DEMAND_READER`        | where demand comes from, one class per source       |
 | `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |
 | `ZIF_RESERVATION_WRITER`   | how confirmed stock is earmarked                   |
 | `ZIF_RESERVATION_READER`   | when an earlier reservation stops counting         |

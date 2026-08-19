@@ -877,3 +877,40 @@ the locations it was given. Three decisions:
 itself can name as many as it likes. A test goes through the real default wiring
 and shows the same stock being confirmed when its location is named and refused
 when another one is.
+
+### Feature 31 — look at what was decided (done)
+
+`ZSTOCK_ALLOC_RES` was write-mostly: the run wrote it, the demand netting read it
+back, and nobody could look at it. After a night's run a planner wants to know
+what the plant got and what is still short, and `SE16` is not an answer.
+
+- `ZIF_ALLOCATION_STORE->latest_per_material( )` reads the plant's recorded
+  lines and keeps, per material, only the lines of its **newest** run. A material
+  is allocated again and again, and only the last answer still stands.
+- `ZCL_ALLOC_RESULT_REPORT` lays that out — a block per material headed by the
+  run and reservation that decided it, the same four columns the allocation
+  report uses, and totals over the whole display. `ZSTOCK_ALLOC_DISPLAY` is the
+  program, with a "only lines that are short" checkbox, which is the list
+  somebody chasing a backorder actually wants.
+- It **allocates nothing and changes nothing**, so it can be run at any time,
+  and it does not take the lock.
+
+Two decisions worth stating:
+
+- The newest run per material is picked **in ABAP, not in SQL**. It is a maximum
+  per material, which a `WHERE` clause cannot express, and `GROUP BY` with
+  `ORDER BY` does not parse (ANOMALIES.md 4). The rows of one plant are what
+  housekeeping keeps bounded, so reading them and picking here is honest.
+- The display checks authorization for **activity 03**, not 02.
+  `ZCL_AUTHORITY_PLANT` took the activity as a constructor parameter for it:
+  somebody who may see the answer need not be allowed to work it out again, and
+  the interface stayed as it was — which activity to ask for is a property of the
+  implementation, not of the seam.
+
+A testing lesson, paid for by a failing assertion: ABAP's `CS` **ignores case and
+trailing blanks**, so counting the lines that contain `'Material '` also counted
+the heading "last recorded run per material", and counting `'SHORT'` also counted
+the column heading "Shortfall". Assertions over rendered text have to name
+something that cannot occur by accident. The test class also uses a plant of its
+own rather than 1000: a display that reads a whole plant would otherwise depend
+on what every other test class left behind.

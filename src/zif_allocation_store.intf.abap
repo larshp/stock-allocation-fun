@@ -11,6 +11,21 @@ INTERFACE zif_allocation_store PUBLIC.
     END OF ty_run_head.
   TYPES ty_run_head_tab TYPE STANDARD TABLE OF ty_run_head WITH EMPTY KEY.
 
+  "! One recorded demand line, with the run it belongs to. What a display of
+  "! the result reads: the figures plus enough of the run to trace them back.
+  TYPES:
+    BEGIN OF ty_recorded,
+      matnr       TYPE zstock_alloc_res-matnr,
+      run_id      TYPE zstock_alloc_res-run_id,
+      reservation TYPE zstock_alloc_res-reservation,
+      demand_id   TYPE zstock_alloc_res-demand_id,
+      req_date    TYPE zstock_alloc_res-req_date,
+      requested   TYPE zstock_alloc_res-requested,
+      confirmed   TYPE zstock_alloc_res-confirmed,
+      shortfall   TYPE zstock_alloc_res-shortfall,
+    END OF ty_recorded.
+  TYPES ty_recorded_tab TYPE STANDARD TABLE OF ty_recorded WITH EMPTY KEY.
+
   "! <p class="shorttext synchronized">Record the outcome of an allocation run</p>
   "!
   "! Saving the same run twice replaces the earlier result rather than adding
@@ -69,6 +84,22 @@ INTERFACE zif_allocation_store PUBLIC.
       iv_created_at TYPE zstock_alloc_res-created_at
     RETURNING
       VALUE(rt_run) TYPE ty_run_head_tab.
+
+  "! <p class="shorttext synchronized">What the last run decided, per material</p>
+  "!
+  "! A material is allocated again and again, and only the newest answer for it
+  "! still stands, so that is the one returned. Lines come back in material and
+  "! demand order, which is the order a person reads them in.
+  "!
+  "! @parameter iv_werks     | <p class="shorttext synchronized">Plant</p>
+  "! @parameter iv_matnr     | <p class="shorttext synchronized">Material, every one if empty</p>
+  "! @parameter rt_recorded  | <p class="shorttext synchronized">Recorded lines of the newest run each</p>
+  METHODS latest_per_material
+    IMPORTING
+      iv_werks           TYPE mard-werks
+      iv_matnr           TYPE mard-matnr OPTIONAL
+    RETURNING
+      VALUE(rt_recorded) TYPE ty_recorded_tab.
 
   "! <p class="shorttext synchronized">Remove a recorded run</p>
   "!

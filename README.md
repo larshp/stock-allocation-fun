@@ -36,6 +36,10 @@ ones failed and why.
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 
+`ZSTOCK_ALLOC_DISPLAY` shows what the last run decided for a plant, per
+material, and can be narrowed to the lines that did not get everything. It reads
+the recorded result and changes nothing.
+
 `ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes
 recorded runs that are past the retention time **and** are no longer holding
 anything back — a run whose reservation was rejected, deleted or is otherwise

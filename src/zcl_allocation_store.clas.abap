@@ -91,6 +91,76 @@ CLASS zcl_allocation_store IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_allocation_store~latest_per_material.
+
+    TYPES:
+      BEGIN OF ty_row,
+        matnr       TYPE zstock_alloc_res-matnr,
+        run_id      TYPE zstock_alloc_res-run_id,
+        reservation TYPE zstock_alloc_res-reservation,
+        demand_id   TYPE zstock_alloc_res-demand_id,
+        req_date    TYPE zstock_alloc_res-req_date,
+        requested   TYPE zstock_alloc_res-requested,
+        confirmed   TYPE zstock_alloc_res-confirmed,
+        shortfall   TYPE zstock_alloc_res-shortfall,
+        created_at  TYPE zstock_alloc_res-created_at,
+      END OF ty_row.
+    DATA lt_row    TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+    DATA lv_matnr  TYPE zstock_alloc_res-matnr.
+    DATA lv_run_id TYPE zstock_alloc_res-run_id.
+
+    " read by plant and pick the newest run per material here rather than in
+    " SQL: the pick is a maximum per material, which the WHERE clause cannot
+    " express, and the rows of a plant are what housekeeping keeps bounded
+    SELECT matnr,
+           run_id,
+           reservation,
+           demand_id,
+           req_date,
+           requested,
+           confirmed,
+           shortfall,
+           created_at
+      FROM zstock_alloc_res
+      WHERE werks = @iv_werks
+      ORDER BY matnr, created_at DESCENDING, demand_id
+      INTO TABLE @lt_row.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    IF iv_matnr IS NOT INITIAL.
+      DELETE lt_row WHERE matnr <> iv_matnr.
+    ENDIF.
+
+    LOOP AT lt_row INTO DATA(ls_row).
+
+      " the first row of a material is its newest run, and only that run's
+      " lines still say anything about the material
+      IF ls_row-matnr <> lv_matnr.
+        lv_matnr  = ls_row-matnr.
+        lv_run_id = ls_row-run_id.
+      ENDIF.
+      IF ls_row-run_id <> lv_run_id.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #(
+        matnr       = ls_row-matnr
+        run_id      = ls_row-run_id
+        reservation = ls_row-reservation
+        demand_id   = ls_row-demand_id
+        req_date    = ls_row-req_date
+        requested   = ls_row-requested
+        confirmed   = ls_row-confirmed
+        shortfall   = ls_row-shortfall ) TO rt_recorded.
+
+    ENDLOOP.
+
+    SORT rt_recorded BY matnr ASCENDING demand_id ASCENDING.
+
+  ENDMETHOD.
+
   METHOD zif_allocation_store~delete_run.
 
     DELETE FROM zstock_alloc_res WHERE run_id = @iv_run_id.

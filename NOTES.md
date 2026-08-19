@@ -958,3 +958,55 @@ than a quota table. SAP's own product allocation keeps quotas per customer,
 material and period in its own tables and is the richer mechanism; this is a
 deliberately simple version of the same idea, behind the strategy seam, so a site
 that needs the real thing writes one class and swaps it in.
+
+### Feature 33 — a delivery that has not left still holds its stock (done)
+
+The hole feature 24 opened and did not close. Once a delivery exists, that part
+of the order stops being open demand — the note there says so in as many words:
+"it is on a document of its own with its own requirement". Nothing represented
+that requirement. The goods issue has not been posted, so the stock is still in
+`MARD`, and the order that asked for it no longer competes for it. Every run
+handed that stock to somebody else, and the picker then found the shelf empty.
+
+- `sap-stubs/likp.tabl.xml`: delivery headers, and `LIPS` gained `WBSTA`.
+- `ZCL_DEDUCT_DELIVERIES`, a `ZIF_STOCK_DEDUCTION` like the other two, holds
+  back what is on deliveries waiting for their goods issue.
+
+The seam from feature 12 paid for itself here: one class, one reason, added to
+the list in `create_default( )`. Nothing else changed.
+
+Decisions worth stating:
+
+- **Only outbound deliveries** (`LIKP-VBTYP = 'J'`). `LIPS` also carries inbound
+  deliveries against purchase orders (`'7'`) and returns from customers (`'T'`),
+  both of which bring stock *into* the plant. Holding those back would deduct
+  goods that have not arrived from stock that is there — the sign is the wrong
+  way round. This is what the `LIKP` stub is for; the item alone cannot say
+  which direction it points.
+- **`WBSTA <> 'C'`, not `WBSTA = 'A'`.** A posted goods issue has already taken
+  the stock out of `MARD`, and only that releases the commitment. Every other
+  value — including a status that is not set yet — means the goods are still
+  there and spoken for. A test pins the blank case, because that is the value a
+  reader is most likely to get wrong.
+- **`LGMNG`, the delivery quantity in the base unit**, the same field and the
+  same reasoning as feature 24. Nothing here has to convert anything.
+- It reads deliveries **per plant, not per storage location**, like the other
+  two deductions. `ZIF_STOCK_DEDUCTION` has no storage location in its
+  signature, and feature 30 restricts which locations are pooled *before* the
+  deductions come off the total. A run restricted to one location can therefore
+  hold back a delivery picked from another. Making that exact means the
+  interface has to carry the locations, which is a change to every deduction —
+  worth doing when a site actually runs location-restricted allocations, and
+  written down here so the next person does not have to rediscover it.
+
+Where it can hold too much back, and why that is the right way to be wrong: a
+sales order line this solution reserved (feature 10) and that has since been
+delivered is counted twice — once as an open reservation in `RESB`, once as an
+open delivery item. The delivery is not created *against* the reservation, so
+nothing links them, and only a withdrawal posted against the reservation raises
+`RESB-ENMNG`. Both deductions are of stock that is genuinely spoken for, so the
+error is holding stock back rather than promising it twice, which is the
+direction to err in. The delivery half clears itself at the goods issue. The
+reservation half is the open end of feature 26 — a reservation whose goods left
+on another document stays open — and closing it means matching reservations to
+the demand they were written for, which is a feature of its own.

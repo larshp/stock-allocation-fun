@@ -18,7 +18,8 @@ waiting for stock it
    `M_MATE_WRK`) and locks the material for the run,
 2. reads the book stock from `MARD`, keeps only the storage locations that may
    be allocated, and takes off what is not up for allocation — open
-   reservations and the plant's safety stock,
+   reservations, stock on deliveries that are waiting for their goods issue,
+   and the plant's safety stock,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what

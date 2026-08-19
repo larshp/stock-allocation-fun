@@ -104,6 +104,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
             it_lgort = lt_lgort )
           it_deduction = VALUE #(
             ( NEW zcl_deduct_reservations( ) )
+            ( NEW zcl_deduct_deliveries( ) )
             ( NEW zcl_deduct_safety_stock( ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(

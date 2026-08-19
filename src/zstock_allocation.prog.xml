@@ -18,6 +18,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_CFG</KEY>
+     <ENTRY>Settings come from the plant</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_CAP</KEY>
      <ENTRY>Max percent per customer, 0 none</ENTRY>
      <LENGTH>32</LENGTH>

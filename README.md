@@ -50,6 +50,12 @@ calculation and shows the result without recording or reserving anything.
 material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
+`ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
+storage location, customer cap and how long a recorded run is kept. Both
+programs read it by default, so a scheduled job only has to be told the plant;
+unticking **Settings come from the plant** hands the selection screen back to
+somebody trying something out. A plant with no row gets the defaults.
+
 `ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes
 recorded runs that are past the retention time **and** are no longer holding
 anything back — a run whose reservation was rejected, deleted or is otherwise
@@ -102,6 +108,7 @@ nothing else has to:
 | `ZIF_ALLOCATION_LOCK`      | how concurrent runs are kept apart                 |
 | `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |
 | `ZIF_ALLOCATION_STORE`     | where the result is recorded                       |
+| `ZIF_ALLOC_CONFIG`         | where a plant's settings come from                 |
 
 ## Layout
 

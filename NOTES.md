@@ -1109,3 +1109,40 @@ strategy says how much, the engine says what it means.
 The reservation still carries `REQ_DATE`, not this. A reservation says when the
 goods are *wanted*, which is what SAP schedules against; when they turn up is
 the allocation's own bookkeeping.
+
+### Feature 36 — a plant's settings live in Customizing (done)
+
+Everything the run does differently per site — priority or fair share, how far
+ahead to look, which storage location, the customer cap, how long a recorded run
+is kept — was on two selection screens and nowhere else. A nightly job carried
+them in a variant per plant, which is a copy of the same decision in as many
+places as there are plants, invisible to anybody reading the system and not
+transportable with the rest of the configuration.
+
+`ZSTOCK_ALLOC_CFG` is one row per plant, delivery class `C`, and
+`ZCL_ALLOC_CONFIG` reads it behind `ZIF_ALLOC_CONFIG`. Both programs default to
+**Settings come from the plant**; unticking it hands the screen back.
+
+- **A plant with no row is not an error.** It gets the defaults, which are the
+  ones the parameters had before this existed, so nothing changes for a site
+  that never configures anything. Customizing then only has to say what differs
+  from the default, which is what Customizing is for.
+- **A setting that cannot be honoured is corrected, not obeyed.** A negative
+  horizon is no horizon, a negative cap is no cap, and a cap above 100 percent
+  is 100 — a share of the pool cannot be more than the pool. A nightly run must
+  not stop because somebody typed a minus, and a fixed-value domain on the
+  field is the DDIC's half of the same job.
+- **Zero retention days is a real answer**, meaning keep nothing beyond today,
+  so the 90 day default only applies to a plant with no row at all. The
+  distinction only exists because the field is a number where zero is a value:
+  the strategy and the storage location have no such ambiguity.
+- **The keep days are read here but clamped in housekeeping**, which owns that
+  rule and already had it. Two places would be two rules.
+- **The programs stay glue.** They read the settings and pass them to the same
+  factory as before, so nothing in the object graph knows a configuration table
+  exists. Tests cover `ZCL_ALLOC_CONFIG`; the programs have no logic left worth
+  testing.
+
+Not done, and deliberately: a maintenance view. `SE11` can generate one for the
+table in a minute and the generated objects belong to the system that generates
+them, not in a repository that has to install cleanly with abapGit.

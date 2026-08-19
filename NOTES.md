@@ -492,3 +492,21 @@ The failure path is the part worth the test. The obvious way to write it is
 (ANOMALIES.md 2k) — the lock would simply never come back and nothing would say
 so. It is written as `CATCH`, release, re-raise instead, and a test runs a
 failing allocation and checks the material was let go.
+
+### Feature 20 — allocation horizon (done)
+
+Without a horizon, an order due in eight months competes on equal terms with one
+due next week. The priority strategy sorts by date so the near one wins the tie,
+but the far one still consumes stock once it sorts ahead on priority.
+
+`ZCL_DEMAND_WITHIN_HORIZON` drops demand due beyond `sy-datum + n` days. Two
+edges are deliberate and tested:
+
+- A requirement **in the past** stays. Overdue is the most urgent thing there is,
+  not something outside the window.
+- A requirement **without a date** stays. It is wanted as soon as possible, and
+  dropping it would silently starve it forever.
+
+The default is no horizon at all. How far ahead to commit stock is a business
+decision, not something this code should invent, so it is a parameter on
+`create_default( )` and on the selection screen rather than a number baked in.

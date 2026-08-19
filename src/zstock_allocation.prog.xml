@@ -24,6 +24,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_HORIZ</KEY>
+     <ENTRY>Horizon in days, 0 for no limit</ENTRY>
+     <LENGTH>31</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material, all if empty</ENTRY>
      <LENGTH>22</LENGTH>

@@ -3,6 +3,7 @@ REPORT zstock_allocation.
 PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_fair AS CHECKBOX.
+PARAMETERS p_horiz TYPE i DEFAULT 0.
 
 START-OF-SELECTION.
 
@@ -19,7 +20,9 @@ START-OF-SELECTION.
 
   DATA(lo_report) = NEW zcl_allocation_report(
     NEW zcl_allocation_mass_run(
-      io_service = zcl_allocation_service=>create_default( lo_strategy )
+      io_service = zcl_allocation_service=>create_default(
+        io_strategy     = lo_strategy
+        iv_horizon_days = p_horiz )
       io_demand  = NEW zcl_demand_reader_net(
         NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) ) ) ).
 

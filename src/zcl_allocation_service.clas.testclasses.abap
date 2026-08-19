@@ -429,8 +429,13 @@ CLASS ltcl_service IMPLEMENTATION.
       msg = 'a plain system must get a working service without wiring it itself' ).
 
     cl_abap_unit_assert=>assert_bound(
-      act = zcl_allocation_service=>create_default( NEW zcl_alloc_strategy_fairshare( ) )
+      act = zcl_allocation_service=>create_default(
+        io_strategy = NEW zcl_alloc_strategy_fairshare( ) )
       msg = 'the strategy must be exchangeable from outside' ).
+
+    cl_abap_unit_assert=>assert_bound(
+      act = zcl_allocation_service=>create_default( iv_horizon_days = 30 )
+      msg = 'the horizon must be settable from outside' ).
 
   ENDMETHOD.
 

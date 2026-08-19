@@ -5,11 +5,13 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Service wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter io_strategy | <p class="shorttext synchronized">Distribution rule, priority by default</p>
-    "! @parameter ro_service  | <p class="shorttext synchronized">Ready to use service</p>
+    "! @parameter io_strategy      | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter iv_horizon_days  | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
+    "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
+        iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -69,7 +71,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
             ( NEW zcl_deduct_reservations( ) )
             ( NEW zcl_deduct_safety_stock( ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
-          NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) ) )
+          NEW zcl_demand_within_horizon(
+            io_demand = NEW zcl_so_demand_reader( NEW zcl_unit_converter( ) )
+            iv_days   = iv_horizon_days ) )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )

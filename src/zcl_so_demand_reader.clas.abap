@@ -27,6 +27,7 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
         vrkme  TYPE vbap-vrkme,
         lprio  TYPE vbap-lprio,
         kztlf  TYPE vbap-kztlf,
+        kunnr  TYPE vbak-kunnr,
         vdatu  TYPE vbak-vdatu,
       END OF ty_item.
     TYPES ty_item_tab TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
@@ -180,7 +181,8 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
           priority  = COND #( WHEN ls_item-lprio IS INITIAL
                               THEN c_lowest_priority
                               ELSE ls_item-lprio )
-          complete  = xsdbool( ls_item-kztlf = c_complete_delivery ) ) TO rt_demand.
+          complete  = xsdbool( ls_item-kztlf = c_complete_delivery )
+          customer  = ls_item-kunnr ) TO rt_demand.
 
       ENDLOOP.
 
@@ -220,6 +222,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
            item~vrkme,
            item~lprio,
            item~kztlf,
+           header~kunnr,
            header~vdatu
       FROM vbap AS item
       INNER JOIN vbak AS header ON header~vbeln = item~vbeln

@@ -914,3 +914,47 @@ the column heading "Shortfall". Assertions over rendered text have to name
 something that cannot occur by accident. The test class also uses a plant of its
 own rather than 1000: a display that reads a whole plant would otherwise depend
 on what every other test class left behind.
+
+### Feature 32 — no single customer takes the whole pool (done)
+
+One large order can take everything a plant has, whichever strategy is in use:
+priority serves it first because it is urgent, and fair share gives it most of
+the stock because it asked for most. Neither is what a business wants when the
+order is one customer's and there are twenty others waiting.
+
+`ZCL_ALLOC_CUSTOMER_CAP` wraps any strategy and offers it at most a share of what
+is available per customer. `ty_demand` gained `CUSTOMER`, which
+`ZCL_SO_DEMAND_READER` fills from `VBAK-KUNNR`.
+
+- **Within its share a customer is served in the order the strategies serve
+  demand**, so what it loses is its least urgent lines, whole. The first version
+  scaled a customer's lines proportionally and a test caught what that means: a
+  customer with two lines of 50 and a share of 50 ended up with 25 and 25, two
+  half lines that may well both be unshippable, instead of one line served in
+  full. Cutting back from the far end needs no division either, so nothing is
+  truncated.
+- **The share of the pool is truncated to whole thousandths**, with `DIV`: a
+  percentage of what is available must never come out above it. Same reasoning as
+  feature 5, and a test pins a third of ten at `3.300`.
+- **The answer is about the demand as it stands.** The strategy is handed a
+  reduced demand, so the decorator puts the real requested quantity back into the
+  result and works out the shortfall against it. Otherwise a line held back by
+  the cap would look fully served, and the shortfall a planner chases would be
+  hidden by the very rule that caused it.
+- **A requirement with no customer is not part of anybody's share.** A stock
+  transport order has no customer, and lumping every requirement without one
+  together would cap them as if they were the same party.
+- A line held back entirely stays in the demand with nothing to ask for, so the
+  strategy still answers it and every demand line is still answered exactly once.
+
+Where it sits matters: **inside** the complete delivery rule of feature 25. A line
+that may only ship in full and is held back by its customer's share can never
+ship, so the rule outside sees it fall short of the whole quantity and drops it,
+freeing the stock for somebody who can use it. The other order would confirm a
+part of a line that cannot leave.
+
+It is **off by default** (`0` percent means no cap), and it is a percentage rather
+than a quota table. SAP's own product allocation keeps quotas per customer,
+material and period in its own tables and is the richer mechanism; this is a
+deliberately simple version of the same idea, behind the strategy seam, so a site
+that needs the real thing writes one class and swaps it in.

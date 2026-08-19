@@ -18,6 +18,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_CAP</KEY>
+     <ENTRY>Max percent per customer, 0 none</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_FAIR</KEY>
      <ENTRY>Fair share instead of priority</ENTRY>
      <LENGTH>30</LENGTH>

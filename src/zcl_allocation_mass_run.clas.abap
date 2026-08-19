@@ -18,12 +18,14 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
     "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
     "! @parameter iv_lgort        | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
+    "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter ro_mass_run     | <p class="shorttext synchronized">Ready to use plant wide run</p>
     CLASS-METHODS create_default
       IMPORTING
         io_strategy        TYPE REF TO zif_allocation_strategy OPTIONAL
         iv_horizon_days    TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
         iv_lgort           TYPE mard-lgort OPTIONAL
+        iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
       RETURNING
         VALUE(ro_mass_run) TYPE REF TO zcl_allocation_mass_run.
 
@@ -71,7 +73,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
       io_service = zcl_allocation_service=>create_default(
         io_strategy     = io_strategy
         iv_horizon_days = iv_horizon_days
-        iv_lgort        = iv_lgort )
+        iv_lgort        = iv_lgort
+        iv_cap_percent  = iv_cap_percent )
       io_demand  = zcl_allocation_service=>create_default_demand( ) ).
 
   ENDMETHOD.

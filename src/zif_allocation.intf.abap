@@ -19,7 +19,8 @@ INTERFACE zif_allocation PUBLIC.
 
   "! A single requirement competing for stock. COMPLETE means the line is only
   "! worth serving in full: a part of it ships nothing, so confirming a part of
-  "! it would tie up stock that cannot leave.
+  "! it would tie up stock that cannot leave. CUSTOMER is who is waiting, where
+  "! there is one: a stock transport order has none.
   TYPES:
     BEGIN OF ty_demand,
       demand_id TYPE ty_demand_id,
@@ -29,6 +30,7 @@ INTERFACE zif_allocation PUBLIC.
       req_date  TYPE d,
       priority  TYPE ty_priority,
       complete  TYPE abap_bool,
+      customer  TYPE vbak-kunnr,
     END OF ty_demand.
   TYPES ty_demand_tab TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 

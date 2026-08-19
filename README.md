@@ -25,7 +25,8 @@ waiting for stock it
    earlier runs already reserved for the same line, and drops anything beyond
    the horizon,
 4. distributes what is left, either by delivery priority or as a fair share,
-   giving an item that may only ship complete either all of it or none of it,
+   optionally holding every customer to a share of the pool, and giving an item
+   that may only ship complete either all of it or none of it,
 5. records the outcome in `ZSTOCK_ALLOC_RES`,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and
    links the reservation back onto the recorded run.

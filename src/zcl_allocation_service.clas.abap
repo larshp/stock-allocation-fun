@@ -8,12 +8,14 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_strategy      | <p class="shorttext synchronized">Distribution rule, priority by default</p>
     "! @parameter iv_horizon_days  | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
     "! @parameter iv_lgort         | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
+    "! @parameter iv_cap_percent   | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
         iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
         iv_lgort          TYPE mard-lgort OPTIONAL
+        iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -82,6 +84,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     IF lo_strategy IS NOT BOUND.
       lo_strategy = NEW zcl_alloc_strategy_priority( ).
     ENDIF.
+
+    " the cap goes inside the complete delivery rule on purpose: a line that may
+    " only ship in full and is held back by its customer's share can never ship,
+    " so the rule outside sees it fall short of the whole quantity and drops it
+    lo_strategy = NEW zcl_alloc_customer_cap(
+      io_strategy = lo_strategy
+      iv_percent  = iv_cap_percent ).
 
     " which lines may be served in part is a property of the demand, not of the
     " distribution rule, so this wraps whatever strategy is in use

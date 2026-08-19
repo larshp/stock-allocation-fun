@@ -5,6 +5,7 @@ PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_fair AS CHECKBOX.
 PARAMETERS p_horiz TYPE i DEFAULT 0.
 PARAMETERS p_lgort TYPE mard-lgort.
+PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
@@ -24,7 +25,8 @@ START-OF-SELECTION.
     zcl_allocation_mass_run=>create_default(
       io_strategy     = lo_strategy
       iv_horizon_days = p_horiz
-      iv_lgort        = p_lgort ) ).
+      iv_lgort        = p_lgort
+      iv_cap_percent  = p_cap ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

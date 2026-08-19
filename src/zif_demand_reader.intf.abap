@@ -4,8 +4,11 @@ INTERFACE zif_demand_reader PUBLIC.
 
   "! <p class="shorttext synchronized">Materials in a plant that are waiting for stock</p>
   "!
-  "! What a run over a whole plant has to cover. Same filtering as
-  "! READ_OPEN_DEMAND, so a material only appears if it would get demand lines.
+  "! What a run over a whole plant has to cover. This is the candidate list:
+  "! a material is left out when it plainly has nothing waiting, but whether
+  "! anything is really left to serve is decided by READ_OPEN_DEMAND. A
+  "! material whose demand has all been delivered or served can still be
+  "! listed, and then comes back with no demand lines.
   "!
   "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
   "! @parameter rt_matnr | <p class="shorttext synchronized">Material numbers, no duplicates</p>

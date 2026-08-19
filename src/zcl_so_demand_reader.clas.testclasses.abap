@@ -21,6 +21,19 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS each_material_listed_once FOR TESTING.
     METHODS blocked_material_not_listed FOR TESTING.
     METHODS sales_unit_becomes_base_unit FOR TESTING RAISING cx_static_check.
+    METHODS delivered_part_is_off_demand FOR TESTING RAISING cx_static_check.
+    METHODS fully_delivered_drops_out FOR TESTING RAISING cx_static_check.
+    METHODS deliveries_of_an_item_add_up FOR TESTING RAISING cx_static_check.
+    METHODS other_reference_is_ignored FOR TESTING RAISING cx_static_check.
+
+    METHODS given_delivery
+      IMPORTING
+        iv_vbeln TYPE lips-vbeln
+        iv_posnr TYPE lips-posnr
+        iv_vgbel TYPE lips-vgbel
+        iv_vgpos TYPE lips-vgpos
+        iv_lgmng TYPE lips-lgmng
+        iv_vgtyp TYPE lips-vgtyp DEFAULT 'C'.
 
 ENDCLASS.
 
@@ -108,6 +121,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = sy-subrc
       exp = 0
       msg = 'VBAK fixture could not be removed' ).
+
+    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM marm WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
@@ -232,6 +248,116 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand[ demand_id = '0000004712000050' ]-quantity
       exp = '36'
       msg = 'three cartons of twelve compete for thirty six pieces of stock' ).
+
+  ENDMETHOD.
+
+  METHOD given_delivery.
+
+    DATA lt_lips TYPE STANDARD TABLE OF lips WITH EMPTY KEY.
+
+    lt_lips = VALUE #(
+      ( mandt = sy-mandt vbeln = iv_vbeln posnr = iv_posnr
+        matnr = c_matnr werks = c_werks vgtyp = iv_vgtyp
+        vgbel = iv_vgbel vgpos = iv_vgpos
+        lgmng = iv_lgmng meins = 'PC' ) ).
+
+    INSERT lips FROM TABLE @lt_lips.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0
+      msg = 'LIPS fixture could not be inserted' ).
+
+  ENDMETHOD.
+
+  METHOD delivered_part_is_off_demand.
+
+    given_delivery(
+      iv_vbeln = '0080000001'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004711'
+      iv_vgpos = '000010'
+      iv_lgmng = '2.5' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004711000010' ]-quantity
+      exp = '7.5'
+      msg = 'what has been delivered is no longer waiting for stock' ).
+
+  ENDMETHOD.
+
+  METHOD fully_delivered_drops_out.
+
+    given_delivery(
+      iv_vbeln = '0080000002'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004711'
+      iv_vgpos = '000010'
+      iv_lgmng = '10' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand
+      exp = VALUE zif_allocation=>ty_demand_tab(
+        ( demand_id = '0000004712000010' matnr = c_matnr werks = c_werks
+          quantity = '7' req_date = '20260115' priority = '01' ) )
+      msg = 'an item delivered in full has nothing left to ask for' ).
+
+  ENDMETHOD.
+
+  METHOD deliveries_of_an_item_add_up.
+
+    given_delivery(
+      iv_vbeln = '0080000003'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004712'
+      iv_vgpos = '000010'
+      iv_lgmng = '3' ).
+
+    given_delivery(
+      iv_vbeln = '0080000004'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004712'
+      iv_vgpos = '000010'
+      iv_lgmng = '1.5' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004712000010' ]-quantity
+      exp = '2.5'
+      msg = 'an item delivered in several goes is netted by all of them' ).
+
+  ENDMETHOD.
+
+  METHOD other_reference_is_ignored.
+
+    " same numbers, but the delivery item was created from something that is
+    " not a sales order, so it says nothing about this order item
+    given_delivery(
+      iv_vbeln = '0080000005'
+      iv_posnr = '000010'
+      iv_vgbel = '0000004711'
+      iv_vgpos = '000010'
+      iv_lgmng = '4'
+      iv_vgtyp = 'V' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '0000004711000010' ]-quantity
+      exp = '10'
+      msg = 'only a delivery of this sales order item may net it off' ).
 
   ENDMETHOD.
 

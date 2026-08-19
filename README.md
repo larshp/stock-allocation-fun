@@ -19,8 +19,9 @@ waiting for stock it
 2. reads the book stock from `MARD` and takes off what is not up for
    allocation — open reservations and the plant's safety stock,
 3. reads the open sales order demand from `VBAK`/`VBAP`, converts it from sales
-   units to base units, drops anything beyond the horizon, and takes off what
-   earlier runs already reserved for the same line,
+   units to base units, takes off what has already been delivered and what
+   earlier runs already reserved for the same line, and drops anything beyond
+   the horizon,
 4. distributes what is left, either by delivery priority or as a fair share,
 5. records the outcome in `ZSTOCK_ALLOC_RES`,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1` and

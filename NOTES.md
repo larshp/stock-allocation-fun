@@ -570,3 +570,48 @@ Housekeeping cannot simply delete old runs: the demand netting reads them, so
 deleting a run whose reservation is still live would reopen demand that has
 already been served. Anything safe here has to key off the reservation being
 closed, and that is a feature of its own rather than a line in this one.
+
+### Feature 24 — what has been delivered is no longer demand (done)
+
+The third one in the family of features 10 and 18, and the last obvious one.
+`VBAP-KWMENG` is the **cumulative** order quantity: it does not go down when the
+goods leave. So an order for 10 that was delivered in full a month ago was still
+read as 10 units of open demand, and would compete for — and win — stock it has
+no claim on any more.
+
+Feature 18 does not cover this. It nets off what *this solution* confirmed and
+reserved; a delivery made straight from the sales order, which is the normal
+case for anything allocated before this was installed or delivered without a
+reservation, is invisible to it.
+
+- `sap-stubs/lips.tabl.xml`: delivery items, with the reference to the sales
+  order item they were created from.
+- `ZCL_SO_DEMAND_READER` takes the delivered quantity off each item, and an item
+  delivered in full drops out of the demand entirely.
+
+Decisions worth stating:
+
+- The netting uses **`LIPS-LGMNG`, the delivered quantity in the base unit of
+  measure**, not `LFIMG` in the sales unit. Both sides of the subtraction are
+  then in the unit everything downstream works in, and nothing depends on the
+  delivery having been created in the same sales unit as the order.
+- Only delivery items whose predecessor is a **sales order** count
+  (`LIPS-VGTYP = 'C'`). `VGBEL`/`VGPOS` can equally point at a purchase order or
+  a stock transport order, and a document number that happens to collide must
+  not net off demand that was never delivered.
+- It is **delivered**, not **goods issued**. Once a delivery exists, that part of
+  the order is no longer waiting for stock — it is on a document of its own with
+  its own requirement. Waiting for the goods issue would hand the same stock out
+  twice in the window between the two.
+- A delivery quantity that is not positive takes nothing off, the same guard the
+  other two nettings have.
+
+`materials_with_demand` is deliberately *not* netted the same way: deciding
+whether a material has anything left would mean converting every item in the
+plant to base units, which is the expensive part of reading demand and can fail
+on master data. The interface now says what it really is — a candidate list,
+where the definitive filter is `read_open_demand`. A material that is listed and
+then comes back with nothing costs an empty run and reserves nothing. This was
+already true of the netting decorator from feature 18, which passes the material
+list straight through; now it is written down.
+

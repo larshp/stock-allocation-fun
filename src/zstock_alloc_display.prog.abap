@@ -2,6 +2,7 @@ REPORT zstock_alloc_display.
 
 PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
+PARAMETERS p_dispo TYPE marc-dispo.
 PARAMETERS p_short AS CHECKBOX.
 
 START-OF-SELECTION.
@@ -10,7 +11,8 @@ START-OF-SELECTION.
       DATA(lt_line) = zcl_alloc_result_report=>create_default( )->run(
         iv_werks      = p_werks
         iv_matnr      = p_matnr
-        iv_short_only = p_short ).
+        iv_short_only = p_short
+        iv_dispo      = p_dispo ).
     CATCH zcx_allocation INTO DATA(lx_error).
       lt_line = VALUE #( ( lx_error->get_text( ) ) ).
   ENDTRY.

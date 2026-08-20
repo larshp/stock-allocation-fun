@@ -18,6 +18,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DISPO</KEY>
+     <ENTRY>MRP controller, all if empty</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TOP</KEY>
      <ENTRY>Most lines to show, 0 for all</ENTRY>
      <LENGTH>29</LENGTH>

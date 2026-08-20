@@ -24,6 +24,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_DISPO</KEY>
+     <ENTRY>MRP controller, all if empty</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_SHORT</KEY>
      <ENTRY>Only lines that are short</ENTRY>
      <LENGTH>25</LENGTH>

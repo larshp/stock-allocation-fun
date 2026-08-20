@@ -29,6 +29,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_matnr       | <p class="shorttext synchronized">Material, every one if empty</p>
     "! @parameter iv_short_only  | <p class="shorttext synchronized">Only lines that did not get everything</p>
+    "! @parameter iv_dispo       | <p class="shorttext synchronized">MRP controller, every one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be displayed</p>
     METHODS run
@@ -36,6 +37,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks       TYPE mard-werks
         iv_matnr       TYPE mard-matnr OPTIONAL
         iv_short_only  TYPE abap_bool DEFAULT abap_false
+        iv_dispo       TYPE marc-dispo OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -94,6 +96,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
   METHOD run.
 
     DATA lv_matnr     TYPE mard-matnr.
+    DATA lt_dispo     TYPE zcl_alloc_owned_by=>ty_dispo_tab.
     DATA lv_requested TYPE zif_allocation=>ty_quantity.
     DATA lv_confirmed TYPE zif_allocation=>ty_quantity.
     DATA lv_shortfall TYPE zif_allocation=>ty_quantity.
@@ -103,6 +106,16 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
     DATA(lt_recorded) = mo_store->latest_per_material(
       iv_werks = iv_werks
       iv_matnr = iv_matnr ).
+
+    " a planner asking for their own materials means the ones they look after,
+    " which is a question about the material master rather than about the run
+    IF iv_dispo IS NOT INITIAL.
+      APPEND iv_dispo TO lt_dispo.
+    ENDIF.
+
+    DATA(lt_owned) = zcl_alloc_owned_by=>materials(
+      iv_werks = iv_werks
+      it_dispo = lt_dispo ).
 
     APPEND |Plant { iv_werks }, last recorded run per material| TO rt_line.
 
@@ -114,6 +127,13 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
     LOOP AT lt_recorded INTO DATA(ls_recorded).
 
       IF iv_short_only = abap_true AND ls_recorded-shortfall <= 0.
+        CONTINUE.
+      ENDIF.
+
+      IF zcl_alloc_owned_by=>is_owned(
+          iv_matnr = ls_recorded-matnr
+          it_owned = lt_owned
+          it_dispo = lt_dispo ) = abap_false.
         CONTINUE.
       ENDIF.
 

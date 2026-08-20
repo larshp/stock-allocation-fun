@@ -30,6 +30,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_until       | <p class="shorttext synchronized">Only lines wanted by this day, all if empty</p>
     "! @parameter iv_top         | <p class="shorttext synchronized">Most lines to show, all if zero</p>
+    "! @parameter iv_dispo       | <p class="shorttext synchronized">MRP controller, every one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be displayed</p>
     METHODS run
@@ -37,6 +38,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks       TYPE mard-werks
         iv_until       TYPE d OPTIONAL
         iv_top         TYPE i DEFAULT 0
+        iv_dispo       TYPE marc-dispo OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -60,6 +62,8 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         it_recorded        TYPE zif_allocation_store=>ty_recorded_tab
         iv_until           TYPE d
+        iv_werks           TYPE mard-werks
+        iv_dispo           TYPE marc-dispo
       RETURNING
         VALUE(rt_recorded) TYPE zif_allocation_store=>ty_recorded_tab.
 
@@ -108,7 +112,9 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
 
     DATA(lt_short) = short_lines(
       it_recorded = mo_store->latest_per_material( iv_werks )
-      iv_until    = iv_until ).
+      iv_until    = iv_until
+      iv_werks    = iv_werks
+      iv_dispo    = iv_dispo ).
 
     APPEND |Plant { iv_werks }, what is short| TO rt_line.
 
@@ -152,7 +158,25 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
 
   METHOD short_lines.
 
+    DATA lt_dispo TYPE zcl_alloc_owned_by=>ty_dispo_tab.
+
+    " a planner asking for their own materials means the ones they look after
+    IF iv_dispo IS NOT INITIAL.
+      APPEND iv_dispo TO lt_dispo.
+    ENDIF.
+
+    DATA(lt_owned) = zcl_alloc_owned_by=>materials(
+      iv_werks = iv_werks
+      it_dispo = lt_dispo ).
+
     LOOP AT it_recorded INTO DATA(ls_recorded).
+
+      IF zcl_alloc_owned_by=>is_owned(
+          iv_matnr = ls_recorded-matnr
+          it_owned = lt_owned
+          it_dispo = lt_dispo ) = abap_false.
+        CONTINUE.
+      ENDIF.
 
       IF ls_recorded-shortfall <= 0.
         CONTINUE.

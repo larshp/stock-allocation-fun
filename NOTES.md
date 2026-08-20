@@ -2031,3 +2031,29 @@ Two more messages: the settings under the opening line, and a closing summary.
   planner starts with in the morning.
 - **A test run still keeps no diary**, and a run with nothing to say about its
   settings writes no settings line rather than an empty one.
+
+### Feature 62 — a planner's own materials, in the reports too (done)
+
+Feature 44 let a *run* cover one MRP controller. The two reports a planner
+actually opens could not be narrowed the same way, so somebody responsible for
+two hundred materials in a plant of five thousand read five thousand.
+
+Both now take a controller, and the lookup they share came out of the run's
+decorator into `ZCL_ALLOC_OWNED_BY`.
+
+- **One question, one place.** The run, the display and the shortage list all
+  mean the same thing by "this planner's materials", so they ask the same
+  class. Before this the run had the `SELECT` in a private method of a demand
+  decorator, which is not somewhere a report can reach without becoming a
+  demand decorator.
+- **An empty list is no restriction**, everywhere, which is why `IS_OWNED`
+  takes the list of controllers as well as the list it produced: without it,
+  "nobody asked" and "nobody owns anything" would look the same to a caller,
+  and the reports would show nothing at all.
+- **Deleted materials are dropped in the shared place**, so a material flagged
+  in the plant disappears from the run and from the reports for the same
+  reason and by the same rule.
+- **The filter is applied to the recorded lines**, not to the store query. The
+  store answers what the last run decided; which of those a planner wants to
+  see is a question about the material master, and putting it in the store
+  would have taught the store about `MARC`.

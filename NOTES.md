@@ -2111,3 +2111,29 @@ and the granularity was wrong.
   the message field on the answer line does.
 - **Nothing to promise is still not a failure**, the same rule feature 46 set.
   An empty quantity with no message means the plant has none.
+
+### Feature 65 — what the other rule would have done (done)
+
+A plant chooses between priority and fair share once, in Customizing, and then
+lives with it. Nobody ever sees the other answer, so the choice is made on a
+feeling about how the business ought to behave rather than on what it would
+cost — and the two rules can differ enormously on the same stock without
+differing at all in the total they hand out.
+
+`ZSTOCK_ALLOC_TRY` runs both over the same material and puts the answers next
+to each other.
+
+- **The demand is read once and both rules are given the same of it.** Reading
+  it twice would let an order arriving between the two reads look like a
+  difference between the rules, which is exactly the mistake this report exists
+  to prevent somebody making by hand.
+- **The wrapping is the same on both sides.** The customer cap, the whole units
+  rule and the complete delivery rule go around each strategy in the order the
+  run puts them in, so what is compared is the rule and not the decorators.
+- **The totals are usually equal, and that is the point.** Both rules hand out
+  the same stock; what differs is who ends up with a line they can ship, so the
+  footer counts the lines served in full under each. That number is the choice.
+- **The cap and the whole units rule are on the screen**, because a plant
+  weighing up fair share is usually weighing it up together with them.
+- **It changes nothing** and asks for display authority, like every other
+  question-shaped program here.

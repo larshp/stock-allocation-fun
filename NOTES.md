@@ -1256,3 +1256,39 @@ Nothing else changed. The engine already walks whatever the supply sources hand
 it in date order, so a production order competes with a purchase order and with
 the shelf without knowing the others exist — which is what the composition was
 for.
+
+### Feature 39 — a blocked line takes no stock (done)
+
+The run has excluded delivery blocked *orders* since feature 3, because
+`VBAK-LIFSK` was the field that happened to be there. A delivery block is not
+only a header field: it sits on the header, on the item (`VBAP-LIFSP`) and on a
+single schedule line (`VBEP-LIFSP`), and the two lower ones were being read as
+ordinary demand. A blocked line then took stock off the pool, kept it out of
+the reservation of a line that could actually ship, and reported a confirmed
+quantity for goods nobody was going to send.
+
+Wherever the block sits, it says the same thing, and now it is treated the same
+way.
+
+- **The item block is a `WHERE` clause**, in both `READ_ITEMS` and
+  `MATERIALS_WITH_DEMAND` — a material whose only item is blocked has nothing
+  to allocate, so a plant wide run should not pick it up at all and write an
+  empty result for it.
+- **The schedule line block is not a `WHERE` clause**, and that is the only
+  interesting part of this feature. Feature 28 gave an item with no schedule
+  lines a synthetic one for the whole order quantity, on the order's date.
+  Filtering blocked lines out in the `SELECT` would make an item whose every
+  line is blocked look like an item with no lines, and it would come back
+  asking for its full quantity — the opposite of what the block says. So the
+  lines are read as they are, the "does this item have schedule lines" question
+  is answered first, and the blocked ones are dropped afterwards.
+- **A block on one date says nothing about the others.** An item with a blocked
+  line in March and an open line in January keeps the January line: the block
+  is on a quantity on a day, not on the item.
+- **What has been delivered is still netted against the earliest lines**,
+  blocked or not, which is feature 24's rule and unchanged. Goods that have
+  already gone out went out before the block existed.
+
+Nothing was added: two fields in the `WHERE` clauses, one loop, and two columns
+in the stubs. The reason it is worth a feature of its own is that all three
+blocks were one rule pretending to be one field.

@@ -40,6 +40,7 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
         etenr TYPE vbep-etenr,
         edatu TYPE vbep-edatu,
         wmeng TYPE vbep-wmeng,
+        lifsp TYPE vbep-lifsp,
       END OF ty_schedule.
     TYPES ty_schedule_tab TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
 
@@ -200,6 +201,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
       INNER JOIN vbak AS header ON header~vbeln = item~vbeln
       WHERE item~werks = @iv_werks
         AND item~abgru = @space
+        AND item~lifsp = @space
         AND header~lifsk = @space
       ORDER BY item~matnr
       INTO TABLE @rt_matnr.
@@ -214,6 +216,10 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   METHOD read_items.
 
+    " a delivery block can sit on the header, on the item or on a single
+    " schedule line, and wherever it sits it says the goods are not to leave.
+    " Two of the three are answered here; the third is answered per line, in
+    " SCHEDULES_OF.
     SELECT item~vbeln,
            item~posnr,
            item~matnr,
@@ -229,6 +235,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
       WHERE item~matnr = @iv_matnr
         AND item~werks = @iv_werks
         AND item~abgru = @space
+        AND item~lifsp = @space
         AND header~lifsk = @space
       ORDER BY item~vbeln, item~posnr
       INTO TABLE @rt_item.
@@ -241,11 +248,15 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
   METHOD read_schedules.
 
     " VBEP carries no material, so it is joined to VBAP to stay selective
+    " a blocked schedule line is read like any other and dropped afterwards:
+    " whether an item has schedule lines at all decides how it is read, and
+    " that question has to be answered before the blocked ones are taken out
     SELECT sched~vbeln,
            sched~posnr,
            sched~etenr,
            sched~edatu,
-           sched~wmeng
+           sched~wmeng,
+           sched~lifsp
       FROM vbep AS sched
       INNER JOIN vbap AS item ON item~vbeln = sched~vbeln
                              AND item~posnr = sched~posnr
@@ -262,16 +273,18 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   METHOD schedules_of.
 
+    DATA lt_line TYPE ty_schedule_tab.
+
     LOOP AT it_schedule INTO DATA(ls_schedule)
         WHERE vbeln = is_item-vbeln
           AND posnr = is_item-posnr.
-      APPEND ls_schedule TO rt_schedule.
+      APPEND ls_schedule TO lt_line.
     ENDLOOP.
 
     " an item with no schedule line of its own is one requirement for the whole
     " order quantity, on the date the order asks for. Ignoring it would lose
     " real demand, and a schedule line is only where a date gets more precise.
-    IF rt_schedule IS INITIAL.
+    IF lt_line IS INITIAL.
       APPEND VALUE #(
         vbeln = is_item-vbeln
         posnr = is_item-posnr
@@ -280,6 +293,17 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         wmeng = is_item-kwmeng ) TO rt_schedule.
       RETURN.
     ENDIF.
+
+    " a blocked schedule line is not going to ship, so it takes no stock. The
+    " item keeps whatever else it has: a block on one date says nothing about
+    " the others. An item whose every line is blocked falls out here rather
+    " than through the branch above, which would have handed it the whole
+    " order quantity back.
+    LOOP AT lt_line INTO ls_schedule.
+      IF ls_schedule-lifsp IS INITIAL.
+        APPEND ls_schedule TO rt_schedule.
+      ENDIF.
+    ENDLOOP.
 
     " earliest first, which is both the order the goods leave in and the order
     " the delivered quantity has to be counted against

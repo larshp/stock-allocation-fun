@@ -6,6 +6,7 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     CONSTANTS c_matnr     TYPE vbap-matnr VALUE 'SO-DEMAND-01'.
     CONSTANTS c_matnr_2   TYPE vbap-matnr VALUE 'SO-DEMAND-02'.
     CONSTANTS c_matnr_blk TYPE vbap-matnr VALUE 'SO-DEMAND-03'.
+    CONSTANTS c_matnr_bli TYPE vbap-matnr VALUE 'SO-DEMAND-04'.
     CONSTANTS c_werks     TYPE vbap-werks VALUE '1000'.
 
     DATA mo_cut TYPE REF TO zif_demand_reader.
@@ -15,6 +16,10 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS reads_open_items FOR TESTING RAISING cx_static_check.
     METHODS skips_rejected_items FOR TESTING RAISING cx_static_check.
     METHODS skips_blocked_headers FOR TESTING RAISING cx_static_check.
+    METHODS skips_blocked_items FOR TESTING RAISING cx_static_check.
+    METHODS skips_blocked_lines FOR TESTING RAISING cx_static_check.
+    METHODS all_lines_blocked_is_nothing FOR TESTING RAISING cx_static_check.
+    METHODS blocked_item_not_listed FOR TESTING.
     METHODS skips_other_plants FOR TESTING RAISING cx_static_check.
     METHODS missing_lprio_sorts_last FOR TESTING RAISING cx_static_check.
     METHODS lists_materials_with_demand FOR TESTING.
@@ -36,7 +41,9 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
       IMPORTING
         iv_etenr TYPE vbep-etenr
         iv_edatu TYPE vbep-edatu
-        iv_wmeng TYPE vbep-wmeng.
+        iv_wmeng TYPE vbep-wmeng
+        iv_posnr TYPE vbep-posnr DEFAULT '000010'
+        iv_lifsp TYPE vbep-lifsp DEFAULT space.
 
     METHODS given_delivery
       IMPORTING
@@ -66,7 +73,8 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     lt_mara = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_2 mtart = 'FERT' meins = 'PC' )
-      ( mandt = sy-mandt matnr = c_matnr_blk mtart = 'FERT' meins = 'PC' ) ).
+      ( mandt = sy-mandt matnr = c_matnr_blk mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_bli mtart = 'FERT' meins = 'PC' ) ).
 
     lt_marm = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ).
@@ -104,7 +112,10 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt vbeln = '0000004712' posnr = '000040'
         matnr = c_matnr_2 werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' )
       ( mandt = sy-mandt vbeln = '0000004713' posnr = '000020'
-        matnr = c_matnr_blk werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' ) ).
+        matnr = c_matnr_blk werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004711' posnr = '000030'
+        matnr = c_matnr_bli werks = c_werks vrkme = 'PC' kwmeng = '6' lprio = '01'
+        lifsp = '02' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -122,7 +133,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
   METHOD teardown.
 
-    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
+    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -134,7 +145,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       exp = 0
       msg = 'VBAK fixture could not be removed' ).
 
-    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
+    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713' ).
@@ -143,7 +154,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     DELETE FROM marm WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
-    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk ).
+    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -195,6 +206,86 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
         exp = '00000047130000100000'
         msg = 'item of a delivery blocked order must not be returned' ).
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD skips_blocked_items.
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr_bli
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_demand
+      msg = 'a delivery blocked item is not going to ship, so it takes no stock' ).
+
+  ENDMETHOD.
+
+  METHOD skips_blocked_lines.
+
+    given_schedule_line(
+      iv_etenr = '0001'
+      iv_edatu = '20260120'
+      iv_wmeng = '4' ).
+    given_schedule_line(
+      iv_etenr = '0002'
+      iv_edatu = '20260220'
+      iv_wmeng = '3'
+      iv_lifsp = '01' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047120000100001' ]-quantity
+      exp = '4'
+      msg = 'a block on one date says nothing about the others' ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_demand[ demand_id = '00000047120000100002' ] ) )
+      msg = 'a blocked schedule line must not compete for stock' ).
+
+  ENDMETHOD.
+
+  METHOD all_lines_blocked_is_nothing.
+
+    DATA lt_extra TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+
+    lt_extra = VALUE #(
+      ( mandt = sy-mandt vbeln = '0000004712' posnr = '000070'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '8' lprio = '01' ) ).
+    INSERT vbap FROM TABLE @lt_extra.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+
+    given_schedule_line(
+      iv_posnr = '000070'
+      iv_etenr = '0001'
+      iv_edatu = '20260120'
+      iv_wmeng = '8'
+      iv_lifsp = '01' ).
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_demand[ demand_id = '00000047120000700001' ] ) )
+      msg = 'the blocked line itself is out' ).
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_demand[ demand_id = '00000047120000700000' ] ) )
+      msg = 'and the item must not come back as if it had no schedule line at all' ).
+
+  ENDMETHOD.
+
+  METHOD blocked_item_not_listed.
+
+    DATA(lt_matnr) = mo_cut->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_bli ] ) )
+      msg = 'a material whose only item is delivery blocked has nothing to allocate' ).
 
   ENDMETHOD.
 
@@ -411,10 +502,11 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     lt_vbep = VALUE #(
       ( mandt = sy-mandt
         vbeln = '0000004712'
-        posnr = '000010'
+        posnr = iv_posnr
         etenr = iv_etenr
         edatu = iv_edatu
-        wmeng = iv_wmeng ) ).
+        wmeng = iv_wmeng
+        lifsp = iv_lifsp ) ).
 
     INSERT vbep FROM TABLE @lt_vbep.
     cl_abap_unit_assert=>assert_equals(

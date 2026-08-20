@@ -298,6 +298,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD release_earlier.
 
+    DATA lv_released TYPE abap_bool.
+
     LOOP AT mo_store->runs_of_material(
         iv_matnr = iv_matnr
         iv_werks = iv_werks ) INTO DATA(ls_run).
@@ -307,12 +309,21 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       ENDIF.
 
       mo_reservation->cancel( ls_run-reservation ).
+      lv_released = abap_true.
 
     ENDLOOP.
 
-    " and it has to be on the database before the readers run: the stock
-    " deduction and the demand netting both ask the database what is still
-    " reserved, and a cancellation nobody has committed is not there yet
+    " a run that released nothing commits nothing. There is nothing of its own
+    " to make durable, and committing anyway would make somebody else's
+    " unrelated work durable for them, which is what feature 37 said about a
+    " simulation and is no more welcome here.
+    IF lv_released = abap_false.
+      RETURN.
+    ENDIF.
+
+    " what was released has to be on the database before the readers run: the
+    " stock deduction and the demand netting both ask the database what is
+    " still reserved, and a cancellation nobody has committed is not there yet
     mo_commit->commit( ).
 
     " the recorded runs stay. They are what was decided at the time, the

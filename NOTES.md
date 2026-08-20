@@ -1668,6 +1668,10 @@ give the earlier allocations back, then allocate everything from scratch.
   display shows the newest one anyway, and housekeeping removes them once they
   are old and no longer holding anything back. Deleting them here would throw
   away the only record that the earlier promise was ever made.
+- **A run that released nothing commits nothing.** It has nothing of its own
+  to make durable, and committing anyway would make somebody else's unrelated
+  work durable for them — the same reason feature 37 gives for a simulation
+  committing nothing.
 - **A run whose reservation was rejected holds nothing**, so there is nothing
   to cancel and it is skipped. Feature 37 left that state deliberately
   reachable and this is one more thing that has to cope with it.

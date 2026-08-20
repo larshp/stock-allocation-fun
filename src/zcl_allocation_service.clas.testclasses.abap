@@ -312,6 +312,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS without_recut_nothing_is_given FOR TESTING RAISING cx_static_check.
     METHODS a_recut_commits_the_release FOR TESTING RAISING cx_static_check.
     METHODS an_unreserved_run_is_skipped FOR TESTING RAISING cx_static_check.
+    METHODS releasing_nothing_commits_none FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -720,6 +721,26 @@ CLASS ltcl_service IMPLEMENTATION.
       act = mo_commit->get_commits( )
       exp = 3
       msg = 'the release is committed before the readers run, then the two of the run' ).
+
+  ENDMETHOD.
+
+  METHOD releasing_nothing_commits_none.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_recut     = abap_true ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 2
+      msg = 'a run that had nothing to give back must not commit for the sake of it' ).
 
   ENDMETHOD.
 

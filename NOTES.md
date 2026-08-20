@@ -2591,3 +2591,30 @@ cancels.
   that.
 - **It says the material and the reservation**, which are the two things
   somebody needs to find what was given back and what has become of it since.
+
+### Feature 80 — a plant can put a material on hold (done)
+
+Somebody finds a quality problem on a Tuesday afternoon. Until now the only
+ways to stop that night's run giving the material away were to put a delivery
+block on every order for it or to turn the job off for the whole plant. Both
+are the wrong size of answer.
+
+`ZSTOCK_ALLOC_HLD` is one row per material on hold, with a reason and
+optionally a day the hold lifts.
+
+- **A hold with a date lifts by itself**, which is what somebody putting one on
+  for a stock count wants; a hold without one stays until it is taken off,
+  which is what a quality problem wants. Held until the first means held on the
+  first.
+- **The row stays in the table when the hold lapses**, so there is a record of
+  what was held and why. Deleting it would leave the next person asking why
+  nothing was allocated last Wednesday.
+- **A reason field that nothing reads.** It is for the person who finds the row
+  in three weeks and wants to know whether it can go. Not everything in a
+  Customizing table has to be for the program.
+- **The run and the reports honour it alike**, so the material is out of the
+  list and out of a read for it by name: a hold a run obeys and a report
+  ignores is a hold nobody can rely on.
+- **`UNTIL_DATE = @space` does not work in SQL.** An empty date compares against
+  an empty date, not against a blank; the transpiler and SQLite are stricter
+  about that than a quick reading of ABAP would suggest, and the test caught it.

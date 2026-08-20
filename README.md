@@ -112,6 +112,7 @@ one writes to the same application log as an allocation run.
 | ------------------- | --------------------------------------------------------- |
 | `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, where a stock transport order stands against a customer order, how many days it takes to get goods out of the door, whether a promise counts demand nobody has confirmed yet, and how long a recorded run is kept |
 | `ZSTOCK_ALLOC_PRI`  | which customers are served before the rest, once per customer, for one plant or for all of them |
+| `ZSTOCK_ALLOC_HLD`  | materials the plant has put on hold, with a reason and optionally a day the hold lifts by itself |
 
 Both allocation programs read `ZSTOCK_ALLOC_CFG` by default, so a scheduled job
 only has to be told the plant; unticking **Settings come from the plant** hands

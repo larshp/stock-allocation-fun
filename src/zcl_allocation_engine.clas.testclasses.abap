@@ -622,3 +622,216 @@ CLASS ltcl_engine IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+"! Properties the answer has to have whatever it was asked, run over a few
+"! hundred made up situations rather than over one worked example each.
+"!
+"! The cases are generated from a counter, not from a random number: a test
+"! that fails only on some runs is a test nobody can act on. What is being
+"! looked for is the combination nobody thought to write a test for, and a
+"! counter finds those just as well as chance does.
+CLASS ltcl_invariants DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'MAT-INV'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+    CONSTANTS c_cases TYPE i VALUE 120.
+
+    "! One made up situation: the stock there is and the lines waiting for it.
+    TYPES:
+      BEGIN OF ty_case,
+        available TYPE zif_allocation=>ty_quantity,
+        demand    TYPE zif_allocation=>ty_demand_tab,
+      END OF ty_case.
+
+    METHODS case_of
+      IMPORTING
+        iv_index       TYPE i
+      RETURNING
+        VALUE(rs_case) TYPE ty_case.
+
+    METHODS answer_of
+      IMPORTING
+        is_case              TYPE ty_case
+        iv_fair              TYPE abap_bool
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
+      RAISING
+        zcx_allocation.
+
+    METHODS check_case
+      IMPORTING
+        is_case       TYPE ty_case
+        it_allocation TYPE zif_allocation=>ty_allocation_tab.
+
+    METHODS nothing_is_given_twice FOR TESTING RAISING cx_static_check.
+    METHODS fair_share_holds_too FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+
+CLASS ltcl_invariants IMPLEMENTATION.
+
+  METHOD case_of.
+
+    " everything about the case follows from the counter, so case 37 is the
+    " same case in every run, on every machine, for anybody reading a failure
+    DATA(lv_lines) = iv_index MOD 4 + 1.
+
+    rs_case-available = ( iv_index MOD 7 ) * 5.
+
+    DO lv_lines TIMES.
+
+      DATA(lv_line) = sy-index.
+
+      APPEND VALUE #(
+        demand_id = |D{ lv_line }|
+        matnr     = c_matnr
+        werks     = c_werks
+        quantity  = ( ( iv_index + lv_line ) MOD 5 + 1 ) * 4
+        req_date  = '20260301'
+        priority  = COND #( WHEN ( iv_index + lv_line ) MOD 2 = 0
+                            THEN '01'
+                            ELSE '02' )
+        complete  = xsdbool( ( iv_index + lv_line ) MOD 5 = 0 )
+        customer  = COND #( WHEN lv_line MOD 2 = 0
+                            THEN '0000010001'
+                            ELSE '0000010002' )
+        unit_size = COND #( WHEN iv_index MOD 3 = 0
+                            THEN 4
+                            ELSE 1 ) ) TO rs_case-demand.
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD answer_of.
+
+    DATA lo_strategy TYPE REF TO zif_allocation_strategy.
+
+    " the chain CREATE_DEFAULT builds, in the order it builds it
+    IF iv_fair = abap_true.
+      lo_strategy = NEW zcl_alloc_strategy_fairshare( ).
+    ELSE.
+      lo_strategy = NEW zcl_alloc_strategy_priority( ).
+    ENDIF.
+
+    lo_strategy = NEW zcl_alloc_customer_cap(
+      io_strategy = lo_strategy
+      iv_percent  = 60 ).
+    lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
+    lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+
+    rt_allocation = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_reader_double( VALUE #(
+        ( avail_date = '00000000' quantity = is_case-available ) ) )
+      io_demand_reader = NEW lcl_demand_reader_double( VALUE #( ) )
+      io_strategy      = lo_strategy )->allocate(
+        iv_matnr  = c_matnr
+        iv_werks  = c_werks
+        it_demand = is_case-demand ).
+
+  ENDMETHOD.
+
+  METHOD check_case.
+
+    " typed explicitly: an expression handed straight to the assert is worked
+    " out in floating point by the transpiler and comes back as 1.3339999,
+    " see ANOMALIES.md
+    DATA lv_confirmed TYPE zif_allocation=>ty_quantity.
+    DATA lv_short     TYPE zif_allocation=>ty_quantity.
+    DATA lv_units     TYPE i.
+    DATA lv_whole     TYPE zif_allocation=>ty_quantity.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( it_allocation )
+      exp = lines( is_case-demand )
+      msg = 'every demand line is answered exactly once' ).
+
+    LOOP AT it_allocation INTO DATA(ls_allocation).
+
+      DATA(ls_demand) = is_case-demand[ demand_id = ls_allocation-demand_id ].
+
+      lv_confirmed = lv_confirmed + ls_allocation-confirmed.
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( ls_allocation-confirmed <= ls_demand-quantity )
+        msg = 'no line is given more than it asked for' ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( ls_allocation-confirmed >= 0 )
+        msg = 'and none is given a negative quantity' ).
+
+      lv_short = ls_demand-quantity - ls_allocation-confirmed.
+
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_allocation-shortfall
+        exp = lv_short
+        msg = 'what is short is what was asked for less what was confirmed' ).
+
+      IF ls_demand-complete = abap_true.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( ls_allocation-confirmed = 0
+                      OR ls_allocation-confirmed = ls_demand-quantity )
+          msg = 'a complete delivery line gets all of it or none of it' ).
+      ENDIF.
+
+      IF ls_demand-unit_size > 1.
+        lv_units = floor( ls_allocation-confirmed / ls_demand-unit_size ).
+        lv_whole = lv_units * ls_demand-unit_size.
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_allocation-confirmed
+          exp = lv_whole
+          msg = 'a line ordered in units is confirmed in whole units' ).
+      ENDIF.
+
+      IF ls_allocation-shortfall > 0.
+        cl_abap_unit_assert=>assert_not_initial(
+          act = ls_allocation-reason
+          msg = 'a line that fell short says why' ).
+      ENDIF.
+
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_confirmed <= is_case-available )
+      msg = 'and the stock cannot be given away twice' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_is_given_twice.
+
+    DO c_cases TIMES.
+
+      DATA(ls_case) = case_of( sy-index ).
+
+      check_case(
+        is_case       = ls_case
+        it_allocation = answer_of(
+          is_case = ls_case
+          iv_fair = abap_false ) ).
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD fair_share_holds_too.
+
+    DO c_cases TIMES.
+
+      DATA(ls_case) = case_of( sy-index ).
+
+      check_case(
+        is_case       = ls_case
+        it_allocation = answer_of(
+          is_case = ls_case
+          iv_fair = abap_true ) ).
+
+    ENDDO.
+
+  ENDMETHOD.
+
+ENDCLASS.

@@ -2295,3 +2295,39 @@ it? Three reasons, and they are all the same reason.
 What a customer who wants SD to show it should do is read `ZSTOCK_ALLOC_RES` in
 a user exit or an extension field, which is a decision about their SD process
 and not something a stock allocation solution should make for them.
+
+### Feature 72 — the properties an answer always has (done)
+
+Every test so far is a worked example: this stock, these lines, that answer.
+After thirty features of decorators wrapping decorators — a cap inside a
+rounding rule inside a complete delivery rule, over two strategies, walked day
+by day by the engine — the combinations nobody thought to write an example for
+outnumber the ones anybody did.
+
+`ltcl_invariants` runs a couple of hundred made up situations through the
+chain `CREATE_DEFAULT` builds and checks the things that have to be true of
+every answer:
+
+- every demand line answered exactly once,
+- nobody given more than they asked for, or a negative quantity,
+- the shortfall being what was asked for less what was confirmed,
+- a complete delivery line getting all of it or none,
+- a line ordered in units confirmed in whole units,
+- a line that fell short saying why,
+- and the total confirmed never exceeding the stock there was.
+
+- **The cases come from a counter, not from a random number.** A test that
+  fails one run in twenty is a test nobody can act on, and case 37 has to be
+  the same case on every machine and for anybody reading a failure. A counter
+  finds unplanned combinations just as well as chance does.
+- **It runs both strategies**, because the invariants are about the answer and
+  not about the rule that produced it, and the decorators are the same either
+  way.
+- **It found nothing.** That is the outcome to hope for and it is not the same
+  as the tests being pointless: the next feature to break one of these breaks
+  it in front of two hundred and forty cases rather than in front of a
+  customer.
+
+The one thing it did turn up is a second face of ANOMALIES.md 2h: an
+arithmetic expression handed straight to `ASSERT_EQUALS` is worked out in
+floating point, so `10 - 8.666` arrives as `1.3339999999999996`.

@@ -192,6 +192,13 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   should too.
 - **Workaround:** declare the variable with an explicit type whenever the right
   hand side does arithmetic. Done in `src/zcl_deduct_reservations.clas.abap`.
+- **The same thing happens to an expression handed straight to a method**, and
+  the invariant tests of feature 72 walked into it: passing
+  `exp = ls_demand-quantity - ls_allocation-confirmed` to `ASSERT_EQUALS`
+  compares against `1.3339999999999996` where the packed answer is `1.334`.
+  The parameter is typed as the method declares it, but the expression is
+  worked out in floating point before it gets there. Same workaround: put the
+  arithmetic in a typed variable first.
 
 ## 2i. `SELECT DISTINCT` loses the DISTINCT
 

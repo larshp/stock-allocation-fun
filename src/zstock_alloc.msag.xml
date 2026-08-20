@@ -50,6 +50,30 @@
      <MSGNR>007</MSGNR>
      <TEXT>Allocation could not be committed: &amp;1</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>008</MSGNR>
+     <TEXT>Stock allocation started in plant &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>009</MSGNR>
+     <TEXT>Material &amp;1 allocated, run &amp;2</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>010</MSGNR>
+     <TEXT>Material &amp;1: &amp;2 line(s) did not get everything</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>011</MSGNR>
+     <TEXT>Material &amp;1 was not allocated: &amp;2&amp;3&amp;4</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

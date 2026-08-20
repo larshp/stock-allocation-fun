@@ -121,7 +121,8 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
     rt_line = NEW zcl_allocation_report(
       NEW zcl_allocation_mass_run(
         io_service = lo_service
-        io_demand  = lo_demand ) )->run(
+        io_demand  = lo_demand
+        io_log     = NEW zcl_alloc_log_none( ) ) )->run(
           iv_werks    = c_werks
           iv_simulate = iv_simulate ).
 

@@ -48,6 +48,14 @@ the day the last of its supply arrives.
 One material failing does not stop the rest of the run; the report says which
 ones failed and why.
 
+A run that changes something also writes an application log under the object
+`ZSTOCK_ALLOC`, so a scheduled job can be read back in `SLG1` long after its
+spool is gone: one line per material with the run to look the result up by, a
+warning where a line did not get everything, and an error with the reason for
+each material that was skipped. Create the log object once with `SLG0` — it
+is Customizing, not a repository object. Without it the run allocates exactly
+as before and keeps no log.
+
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 
@@ -113,6 +121,7 @@ nothing else has to:
 | `ZIF_ALLOCATION_LOCK`      | how concurrent runs are kept apart                 |
 | `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |
 | `ZIF_ALLOCATION_STORE`     | where the result is recorded                       |
+| `ZIF_ALLOCATION_LOG`       | where a run says what it did                       |
 | `ZIF_ALLOC_CONFIG`         | where a plant's settings come from                 |
 | `ZIF_UNIT_OF_WORK`         | what makes a run durable, and what undoes it       |
 

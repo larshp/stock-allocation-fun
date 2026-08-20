@@ -286,6 +286,28 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   which fails halfway still lets go of the material — without it this would have
   shipped.
 
+## 2l. `SY-REPID` is not implemented
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.60
+- **Severity:** a runtime crash, not a compile error, so it reaches the test
+  run rather than the lint.
+- **Symptom:** abaplint accepts `ls_log-alprog = sy-repid.` and the transpiler
+  emits
+
+  ```js
+  ls_log.get().alprog.set(abap.builtin.sy.get().repid);
+  ```
+
+  `abap.builtin.sy.get().repid` is `undefined`, and the assignment dies with
+  `TypeError: Cannot read properties of undefined (reading 'get')` inside
+  `Character.set`. The other `SY` fields used here -- `DATUM`, `UZEIT`,
+  `UNAME`, `MANDT`, `SUBRC` -- are all there.
+- **Workaround:** do not read `SY-REPID`. In
+  `src/zcl_alloc_log_bal.clas.abap` the application log header leaves `ALPROG`
+  initial and lets `BAL_LOG_CREATE` fill it, which is what that function module
+  does with every header field that is not supplied. That is the better code
+  anyway; the anomaly only decided it sooner.
+
 ## 3. Secondary index fields are not checked
 
 - **Versions:** `@abaplint/cli` 2.120.26

@@ -33,10 +33,12 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_service | <p class="shorttext synchronized">Allocates one material</p>
     "! @parameter io_demand  | <p class="shorttext synchronized">Says which materials need one</p>
+    "! @parameter io_log     | <p class="shorttext synchronized">Where the run says what it did</p>
     METHODS constructor
       IMPORTING
         io_service TYPE REF TO zif_allocation_service
-        io_demand  TYPE REF TO zif_demand_reader.
+        io_demand  TYPE REF TO zif_demand_reader
+        io_log     TYPE REF TO zif_allocation_log.
 
     "! <p class="shorttext synchronized">Allocate every material in a plant that is waiting for stock</p>
     "!
@@ -58,6 +60,13 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PRIVATE SECTION.
     DATA mo_service TYPE REF TO zif_allocation_service.
     DATA mo_demand  TYPE REF TO zif_demand_reader.
+    DATA mo_log     TYPE REF TO zif_allocation_log.
+
+    METHODS short_lines
+      IMPORTING
+        it_allocation   TYPE zif_allocation=>ty_allocation_tab
+      RETURNING
+        VALUE(rv_lines) TYPE i.
 
 ENDCLASS.
 
@@ -75,7 +84,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_horizon_days = iv_horizon_days
         iv_lgort        = iv_lgort
         iv_cap_percent  = iv_cap_percent )
-      io_demand  = zcl_allocation_service=>create_default_demand( ) ).
+      io_demand  = zcl_allocation_service=>create_default_demand( )
+      io_log     = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 
   ENDMETHOD.
 
@@ -83,6 +93,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
     mo_service = io_service.
     mo_demand  = io_demand.
+    mo_log     = io_log.
 
   ENDMETHOD.
 
@@ -94,6 +105,13 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     lt_matnr = it_matnr.
     IF lt_matnr IS INITIAL.
       lt_matnr = mo_demand->materials_with_demand( iv_werks ).
+    ENDIF.
+
+    " a test run keeps no diary. It changes nothing, so there is nothing to
+    " account for afterwards, and saving a log would commit work that a run
+    " which promises to change nothing has no business committing.
+    IF iv_simulate = abap_false.
+      mo_log->start( iv_werks ).
     ENDIF.
 
     LOOP AT lt_matnr INTO DATA(lv_matnr).
@@ -110,14 +128,39 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
             ls_outcome-run = mo_service->run(
               iv_matnr = lv_matnr
               iv_werks = iv_werks ).
+
+            mo_log->allocated(
+              iv_matnr       = lv_matnr
+              iv_run_id      = ls_outcome-run-run_id
+              iv_short_lines = short_lines( ls_outcome-run-allocation ) ).
           ENDIF.
         CATCH zcx_allocation INTO DATA(lx_error).
           ls_outcome-failed = abap_true.
           ls_outcome-reason = lx_error->get_text( ).
+
+          IF iv_simulate = abap_false.
+            mo_log->failed(
+              iv_matnr  = lv_matnr
+              iv_reason = ls_outcome-reason ).
+          ENDIF.
       ENDTRY.
 
       APPEND ls_outcome TO rt_outcome.
 
+    ENDLOOP.
+
+    IF iv_simulate = abap_false.
+      mo_log->save( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD short_lines.
+
+    LOOP AT it_allocation INTO DATA(ls_allocation).
+      IF ls_allocation-shortfall > 0.
+        rv_lines = rv_lines + 1.
+      ENDIF.
     ENDLOOP.
 
   ENDMETHOD.

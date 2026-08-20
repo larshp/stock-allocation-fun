@@ -830,7 +830,7 @@
       "severity": "Error"
     },
     "method_length": {
-      "exclude": [],
+      "exclude": ["zcl_alloc_log_none\\.clas\\.abap$"],
       "severity": "Error",
       "statements": 100,
       "errorWhenEmpty": true,

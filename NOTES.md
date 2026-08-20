@@ -1292,3 +1292,58 @@ way.
 Nothing was added: two fields in the `WHERE` clauses, one loop, and two columns
 in the stubs. The reason it is worth a feature of its own is that all three
 blocks were one rule pretending to be one field.
+
+### Feature 40 — a run that nobody watched can still be read back (done)
+
+Everything the solution had to say about a run, it wrote to a list. That is
+fine for somebody sitting in front of it and useless for the thing this is
+built to be: a job that runs at four in the morning. The spool is gone in a
+week, nobody reads it while it is there, and the one question anybody ever
+asks afterwards — *why did material X get nothing on Tuesday?* — had no answer
+in the system at all.
+
+`ZIF_ALLOCATION_LOG` and `ZCL_ALLOC_LOG_BAL` write the application log,
+`BAL_LOG_CREATE` / `BAL_LOG_MSG_ADD` / `BAL_DB_SAVE` under the object
+`ZSTOCK_ALLOC`, so a night's run is in `SLG1` for as long as the log retention
+says. Messages 008 to 011 join the message class; stubs for the three function
+modules, `BAL_S_LOG`, `BAL_S_MSG`, `BALLOGHNDL` and `BAL_T_LOGH` join
+`sap-stubs/`.
+
+- **The log cannot fail the run.** Nothing on the interface raises, and every
+  BAL call that comes back with a non-zero `SY-SUBRC` clears the handle and
+  stops the logging for good. A run that has already reserved stock must not
+  be reported as failed because its diary was not writable, and a plant whose
+  every material would log the same failure must not pay a round trip per
+  material to be told so again.
+- **No log object, no log.** `ZSTOCK_ALLOC` has to exist in `SLG0`, which is
+  Customizing and not a repository object — the same call feature 36 made
+  about a maintenance view. Without it `BAL_LOG_CREATE` refuses the header and
+  the run carries on exactly as it did before this feature.
+- **A test run keeps no diary.** It changes nothing, so there is nothing to
+  account for; and `BAL_DB_SAVE` needs a commit, which is precisely what
+  feature 37 said a simulation must never issue.
+- **A material that got everything is one line; one that fell short is two.**
+  The second is a warning at a problem class of its own, because SLG1 filters
+  on exactly that, and the whole point of opening the log is to find the lines
+  that did not work out. A failed material is an error at the highest class,
+  carrying the reason.
+- **The reason is spread over three message variables.** `BAL_S_MSG` holds
+  fifty characters per variable and an exception text is a sentence. It goes
+  through a fixed length field first so a short reason pads instead of reading
+  past its own end.
+- **Saving is its own unit of work.** `BAL_DB_SAVE` puts the log on the update
+  task like everything else, so `ZIF_UNIT_OF_WORK` commits it after the last
+  material — and a commit that is refused there is swallowed, because
+  everything the log describes is already durable.
+- **`ZCL_ALLOC_LOG_NONE` is a null object**, which is what the report tests and
+  a system without the SLG0 object use. Its four methods are empty, which is
+  the one place in this repository where an empty method is the right answer,
+  so `method_length` excludes that file rather than being turned off.
+
+The mass run is the only caller: it is where a plant wide job begins and ends,
+and the single material case goes through it too. It knows nothing about BAL —
+it starts a log, says what happened to each material, and saves.
+
+`SY-REPID` had to be left out of the log header, which the transpiler does not
+implement (ANOMALIES.md 2l). `BAL_LOG_CREATE` fills the date, time, user and
+program itself when they are not supplied, which is the better code anyway.

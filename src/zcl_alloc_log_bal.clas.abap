@@ -24,6 +24,7 @@ CLASS zcl_alloc_log_bal DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_msg_allocated TYPE bal_s_msg-msgno VALUE '009'.
     CONSTANTS c_msg_short     TYPE bal_s_msg-msgno VALUE '010'.
     CONSTANTS c_msg_failed    TYPE bal_s_msg-msgno VALUE '011'.
+    CONSTANTS c_msg_removed   TYPE bal_s_msg-msgno VALUE '012'.
 
     "! BAL problem classes: 1 very important, 2 important, 4 additional
     "! information. SLG1 filters on them, so a night's successes can be hidden
@@ -143,6 +144,16 @@ CLASS zcl_alloc_log_bal IMPLEMENTATION.
       iv_variable2 = CONV #( lv_reason+0(c_variable_length) )
       iv_variable3 = CONV #( lv_reason+50(c_variable_length) )
       iv_variable4 = CONV #( lv_reason+100(c_variable_length) ) ).
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~removed.
+
+    add(
+      iv_type      = c_type_success
+      iv_number    = c_msg_removed
+      iv_class     = c_class_info
+      iv_variable1 = CONV #( iv_run_id ) ).
 
   ENDMETHOD.
 

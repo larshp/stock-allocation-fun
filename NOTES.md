@@ -1866,3 +1866,28 @@ demand competing for it, and what a run would confirm now.
   whether to chase purchasing or shipping wants both.
 - **An empty timeline says "nothing" rather than nothing at all.** A blank
   section reads as a bug; the word is an answer.
+
+### Feature 56 — housekeeping keeps a diary too (done)
+
+Feature 40 gave the allocation run an application log because a job nobody
+watches has to be able to say afterwards what it did. Housekeeping is exactly
+such a job and it is the one that *deletes* things: it removes recorded runs
+on a schedule, and until now the only trace of what it removed was the spool
+of the job that removed it.
+
+`ZIF_ALLOCATION_LOG` gained `REMOVED`, message 012 joined the message class,
+and `ZCL_ALLOC_HOUSEKEEPING` takes a log like the mass run does.
+
+- **One log interface, not two.** The interface is what a job of this solution
+  did, and there are two kinds of job. A second interface with its own BAL
+  class would have been the same plumbing twice over so that the word
+  "allocation" in a name stayed accurate.
+- **A test run keeps no diary**, the same rule and the same reason as feature
+  40: it changes nothing, and saving a log commits, which a run that promises
+  to change nothing must not do.
+- **The line is written after the removal is committed**, not before. A log
+  saying a run was removed when the delete had yet to go through would be a
+  worse record than none.
+- **The reorg is otherwise untouched.** It reads the plant's retention from
+  Customizing, removes what is not holding anything back, and now says so
+  where `SLG1` can find it.

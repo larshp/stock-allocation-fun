@@ -31,6 +31,17 @@ INTERFACE zif_allocation_log PUBLIC.
       iv_matnr  TYPE mard-matnr
       iv_reason TYPE string.
 
+  "! <p class="shorttext synchronized">Note that a recorded run was removed</p>
+  "!
+  "! Housekeeping is a job of this solution like the allocation itself, and a
+  "! job that deletes something unattended is exactly the kind that has to be
+  "! able to say afterwards what it deleted.
+  "!
+  "! @parameter iv_run_id | <p class="shorttext synchronized">Run that was removed</p>
+  METHODS removed
+    IMPORTING
+      iv_run_id TYPE zstock_alloc_res-run_id.
+
   "! <p class="shorttext synchronized">Make the log durable</p>
   "!
   "! Called once, after the last material. A log that is never saved is gone

@@ -24,12 +24,14 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_reservation | <p class="shorttext synchronized">Tells which reservations are still there</p>
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
     "! @parameter io_commit      | <p class="shorttext synchronized">Makes each removal durable</p>
+    "! @parameter io_log         | <p class="shorttext synchronized">Where the run says what it removed</p>
     METHODS constructor
       IMPORTING
         io_store       TYPE REF TO zif_allocation_store
         io_reservation TYPE REF TO zif_reservation_reader
         io_authority   TYPE REF TO zif_allocation_authority
-        io_commit      TYPE REF TO zif_unit_of_work.
+        io_commit      TYPE REF TO zif_unit_of_work
+        io_log         TYPE REF TO zif_allocation_log.
 
     "! <p class="shorttext synchronized">Remove recorded runs that are not doing any work</p>
     "!
@@ -77,6 +79,7 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_reservation TYPE REF TO zif_reservation_reader.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
     DATA mo_commit      TYPE REF TO zif_unit_of_work.
+    DATA mo_log         TYPE REF TO zif_allocation_log.
 
     METHODS cutoff
       IMPORTING
@@ -108,7 +111,8 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW zcl_authority_plant( )
-      io_commit      = NEW zcl_unit_of_work( ) ).
+      io_commit      = NEW zcl_unit_of_work( )
+      io_log         = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 
   ENDMETHOD.
 
@@ -118,6 +122,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     mo_reservation = io_reservation.
     mo_authority   = io_authority.
     mo_commit      = io_commit.
+    mo_log         = io_log.
 
   ENDMETHOD.
 
@@ -126,6 +131,13 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     " removing the record of an allocation is a change to the plant's data, so
     " it is guarded exactly like making one
     mo_authority->check_plant( iv_werks ).
+
+    " a test run keeps no diary, for the reason feature 40 gave: it changes
+    " nothing, and saving a log would commit work a run that promises to change
+    " nothing has no business committing
+    IF iv_test = abap_false.
+      mo_log->start( iv_werks ).
+    ENDIF.
 
     DATA(lt_run) = mo_store->runs_recorded_before(
       iv_werks      = iv_werks
@@ -150,11 +162,16 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
       IF iv_test = abap_false.
         mo_store->delete_run( ls_run-run_id ).
         mo_commit->commit( ).
+        mo_log->removed( ls_run-run_id ).
       ENDIF.
 
       rs_outcome-deleted = rs_outcome-deleted + 1.
 
     ENDLOOP.
+
+    IF iv_test = abap_false.
+      mo_log->save( ).
+    ENDIF.
 
   ENDMETHOD.
 

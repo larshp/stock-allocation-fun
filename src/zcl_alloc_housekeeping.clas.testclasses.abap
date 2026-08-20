@@ -70,6 +70,72 @@ CLASS lcl_commit_double IMPLEMENTATION.
 
 ENDCLASS.
 
+"! Remembers what a housekeeping run told it.
+CLASS lcl_log_spy DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_log.
+
+    TYPES ty_run_tab TYPE STANDARD TABLE OF zstock_alloc_res-run_id WITH EMPTY KEY.
+
+    METHODS get_removed
+      RETURNING
+        VALUE(rt_run) TYPE ty_run_tab.
+
+    METHODS get_starts
+      RETURNING
+        VALUE(rv_starts) TYPE i.
+
+    METHODS get_saves
+      RETURNING
+        VALUE(rv_saves) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_removed TYPE ty_run_tab.
+    DATA mv_starts  TYPE i.
+    DATA mv_saves   TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_log_spy IMPLEMENTATION.
+
+  METHOD get_removed.
+    rt_run = mt_removed.
+  ENDMETHOD.
+
+  METHOD get_starts.
+    rv_starts = mv_starts.
+  ENDMETHOD.
+
+  METHOD get_saves.
+    rv_saves = mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~start.
+    mv_starts = mv_starts + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~allocated.
+    " housekeeping allocates nothing
+    CLEAR mv_starts.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~failed.
+    " and fails loudly rather than quietly
+    CLEAR mv_starts.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~removed.
+    APPEND iv_run_id TO mt_removed.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~save.
+    mv_saves = mv_saves + 1.
+  ENDMETHOD.
+
+ENDCLASS.
+
 
 CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -86,6 +152,7 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
 
     DATA mo_cut    TYPE REF TO zcl_alloc_housekeeping.
     DATA mo_commit TYPE REF TO lcl_commit_double.
+    DATA mo_log    TYPE REF TO lcl_log_spy.
 
     METHODS setup.
     METHODS teardown.
@@ -125,6 +192,8 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
     METHODS other_plant_is_untouched FOR TESTING RAISING cx_static_check.
     METHODS refused_run_deletes_nothing FOR TESTING.
     METHODS each_removal_is_committed FOR TESTING RAISING cx_static_check.
+    METHODS a_removal_is_written_down FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -134,12 +203,14 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
   METHOD setup.
 
     mo_commit = NEW #( ).
+    mo_log    = NEW #( ).
 
     mo_cut = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW lcl_authority_double( )
-      io_commit      = mo_commit ).
+      io_commit      = mo_commit
+      io_log         = mo_log ).
 
   ENDMETHOD.
 
@@ -387,6 +458,36 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_removal_is_written_down.
+
+    given_run( 'HOUSEKEEP-RUN-000012' ).
+
+    remove( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_removed( )
+      exp = VALUE lcl_log_spy=>ty_run_tab( ( 'HOUSEKEEP-RUN-000012' ) )
+      msg = 'a job that deletes things unattended has to say what it deleted' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_saves( )
+      exp = 1
+      msg = 'and a log that is never saved is gone when the job ends' ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_keeps_no_diary.
+
+    given_run( 'HOUSEKEEP-RUN-000013' ).
+
+    remove( iv_test = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_starts( )
+      exp = 0
+      msg = 'a run that removes nothing has nothing to account for afterwards' ).
+
+  ENDMETHOD.
+
   METHOD refused_run_deletes_nothing.
 
     given_run( 'HOUSEKEEP-RUN-000009' ).
@@ -395,7 +496,8 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW lcl_authority_double( abap_true )
-      io_commit      = NEW lcl_commit_double( ) ).
+      io_commit      = NEW lcl_commit_double( )
+      io_log         = NEW lcl_log_spy( ) ).
 
     TRY.
         lo_cut->run(

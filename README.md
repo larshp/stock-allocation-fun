@@ -110,7 +110,8 @@ somebody trying something out. A plant with no row gets the defaults.
 recorded runs that are past the retention time **and** are no longer holding
 anything back — a run whose reservation was rejected, deleted or is otherwise
 gone. A run whose reservation is still there stays, because the demand netting
-reads it. It defaults to a test run too.
+reads it. It defaults to a test run too, and a real one writes to the same
+application log as an allocation run.
 
 ## Installing into SAP
 

@@ -74,6 +74,12 @@
      <MSGNR>011</MSGNR>
      <TEXT>Material &amp;1 was not allocated: &amp;2&amp;3&amp;4</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>012</MSGNR>
+     <TEXT>Recorded run &amp;1 removed</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

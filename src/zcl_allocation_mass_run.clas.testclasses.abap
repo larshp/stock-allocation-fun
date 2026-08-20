@@ -160,6 +160,12 @@ CLASS lcl_log_spy IMPLEMENTATION.
       text  = iv_reason ) TO mt_entry.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~removed.
+    APPEND VALUE #(
+      kind = `removed`
+      text = CONV #( iv_run_id ) ) TO mt_entry.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~save.
     APPEND VALUE #( kind = `save` ) TO mt_entry.
   ENDMETHOD.

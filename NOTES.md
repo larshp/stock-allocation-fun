@@ -2159,3 +2159,29 @@ The enqueue call now asks to be waited for.
 - **A run of one material takes a second or two**, so two jobs meeting on the
   same material is exactly the case that waiting fixes, and it is far more
   common than the case that gives up.
+
+### Feature 67 — a run that would do nothing says so (done)
+
+Feature 53's split has one way to go wrong that nobody would notice: package 5
+of 4. It matches no material, so the job reads the plant, allocates nothing,
+writes a diary saying it started and finished, and reports success. A typing
+mistake in a variant becomes a plant that quietly stopped being allocated.
+
+`ZCL_DEMAND_IN_PACKAGE=>IS_A_PACKAGE` says whether two numbers describe a job
+that will run, and `ZSTOCK_ALLOCATION` stops before reading anything if they
+do not. The same pass fixed the projection, where a period count of zero
+printed a heading, no rows, and the words "enough for every period shown" —
+true, and useless.
+
+- **Both numbers empty is a package.** A plant that never split its run has
+  nothing on the screen, and that must go on working.
+- **Half a thought is not.** A package number without a count, or a count
+  without a number, is somebody who filled in one field of two.
+- **The check is in the class, not in the program.** The rule is about what
+  `PACKAGE_OF` will do, and the class is where that is known; the program asks.
+- **It writes the reason rather than issuing a message**, because abaplint
+  cannot see the messages of a hand written message class and `MESSAGE` would
+  not lint — ANOMALIES.md 6, which this feature is what turned up.
+- **A number nobody set is the default, not an empty answer.** That is the
+  projection's rule now, and it is the same instinct: a parameter left alone
+  should give the sensible answer, never a blank one.

@@ -129,6 +129,7 @@ CLASS ltcl_alloc_projection DEFINITION FINAL FOR TESTING
     METHODS the_rest_lands_in_the_last FOR TESTING RAISING cx_static_check.
     METHODS running_out_is_said_in_words FOR TESTING RAISING cx_static_check.
     METHODS enough_is_said_too FOR TESTING RAISING cx_static_check.
+    METHODS no_periods_is_the_default FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -331,6 +332,20 @@ CLASS ltcl_alloc_projection IMPLEMENTATION.
       act = lt_line[ lines( lt_line ) ]
       exp = 'Enough for every period shown'
       msg = 'a projection that ends well should say so rather than trail off' ).
+
+  ENDMETHOD.
+
+  METHOD no_periods_is_the_default.
+
+    DATA(lt_bucket) = projected(
+      it_supply  = VALUE #( )
+      it_demand  = VALUE #( )
+      iv_buckets = 0 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_bucket )
+      exp = zcl_alloc_projection=>c_default_buckets + 1
+      msg = 'a projection of no periods is true and useless, so nobody meant it' ).
 
   ENDMETHOD.
 

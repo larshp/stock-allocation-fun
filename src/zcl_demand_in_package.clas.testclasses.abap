@@ -64,6 +64,10 @@ CLASS ltcl_demand_in_package DEFINITION FINAL FOR TESTING
     METHODS the_same_material_stays_put FOR TESTING.
     METHODS the_work_is_spread FOR TESTING.
     METHODS demand_itself_is_not_split FOR TESTING RAISING cx_static_check.
+    METHODS no_split_is_a_package FOR TESTING.
+    METHODS a_number_in_range_is_one FOR TESTING.
+    METHODS past_the_last_is_not FOR TESTING.
+    METHODS half_a_thought_is_not FOR TESTING.
 
 ENDCLASS.
 
@@ -86,6 +90,51 @@ CLASS ltcl_demand_in_package IMPLEMENTATION.
       iv_packages = iv_packages ) ).
 
     rt_matnr = lo_cut->materials_with_demand( c_werks ).
+
+  ENDMETHOD.
+
+  METHOD no_split_is_a_package.
+
+    cl_abap_unit_assert=>assert_true(
+      act = zcl_demand_in_package=>is_a_package(
+        iv_package  = 0
+        iv_packages = 0 )
+      msg = 'a plant that never split its run has both numbers empty' ).
+
+  ENDMETHOD.
+
+  METHOD a_number_in_range_is_one.
+
+    cl_abap_unit_assert=>assert_true(
+      act = zcl_demand_in_package=>is_a_package(
+        iv_package  = 4
+        iv_packages = 4 )
+      msg = 'the last package of a split is a package like any other' ).
+
+  ENDMETHOD.
+
+  METHOD past_the_last_is_not.
+
+    cl_abap_unit_assert=>assert_false(
+      act = zcl_demand_in_package=>is_a_package(
+        iv_package  = 5
+        iv_packages = 4 )
+      msg = 'package five of four matches no material and would look like a quiet night' ).
+
+  ENDMETHOD.
+
+  METHOD half_a_thought_is_not.
+
+    cl_abap_unit_assert=>assert_false(
+      act = zcl_demand_in_package=>is_a_package(
+        iv_package  = 2
+        iv_packages = 0 )
+      msg = 'a package number without a count is half a thought' ).
+    cl_abap_unit_assert=>assert_false(
+      act = zcl_demand_in_package=>is_a_package(
+        iv_package  = 0
+        iv_packages = 4 )
+      msg = 'and a count without a number is the other half' ).
 
   ENDMETHOD.
 

@@ -18,6 +18,17 @@ PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
 
+  " a package number that matches nothing would read the plant, allocate
+  " nothing and report success, which is the one way a split job can fail
+  " without anybody noticing. It is said and the run stops rather than
+  " looking like a quiet night.
+  IF zcl_demand_in_package=>is_a_package(
+       iv_package  = p_pkg
+       iv_packages = p_pkgs ) = abap_false.
+    WRITE / |Package { p_pkg } of { p_pkgs } would cover no material at all|.
+    RETURN.
+  ENDIF.
+
   DATA lo_strategy TYPE REF TO zif_allocation_strategy.
   DATA lt_matnr    TYPE zif_demand_reader=>ty_matnr_tab.
   DATA lt_dispo    TYPE zcl_demand_of_controller=>ty_dispo_tab.

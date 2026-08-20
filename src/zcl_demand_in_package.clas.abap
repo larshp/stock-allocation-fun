@@ -20,6 +20,24 @@ CLASS zcl_demand_in_package DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_package  TYPE i DEFAULT 0
         iv_packages TYPE i DEFAULT 0.
 
+    "! <p class="shorttext synchronized">Whether these two numbers describe a job that will run</p>
+    "!
+    "! Package 5 of 4 matches no material at all, so a job scheduled with it
+    "! reads the plant, allocates nothing and reports success. That is the one
+    "! failure mode a split must not have, and it is a typing mistake anybody
+    "! can make in a variant, so it is worth refusing before the run starts
+    "! rather than explaining afterwards.
+    "!
+    "! @parameter iv_package  | <p class="shorttext synchronized">Package this run covers</p>
+    "! @parameter iv_packages | <p class="shorttext synchronized">How many packages there are</p>
+    "! @parameter rv_valid    | <p class="shorttext synchronized">True if the two make sense together</p>
+    CLASS-METHODS is_a_package
+      IMPORTING
+        iv_package      TYPE i
+        iv_packages     TYPE i
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
+
     "! <p class="shorttext synchronized">Which package a material belongs to</p>
     "!
     "! A property of the material and the number of packages, and of nothing
@@ -93,6 +111,24 @@ CLASS zcl_demand_in_package IMPLEMENTATION.
     rt_demand = mo_demand->read_open_demand(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
+
+  ENDMETHOD.
+
+  METHOD is_a_package.
+
+    " no split at all: neither number set, which is what a plant that never
+    " split its run has on the screen
+    IF iv_packages <= 1 AND iv_package <= 0.
+      rv_valid = abap_true.
+      RETURN.
+    ENDIF.
+
+    " a count without a number, or a number without a count, is half a thought
+    IF iv_packages <= 1 OR iv_package <= 0.
+      RETURN.
+    ENDIF.
+
+    rv_valid = xsdbool( iv_package <= iv_packages ).
 
   ENDMETHOD.
 

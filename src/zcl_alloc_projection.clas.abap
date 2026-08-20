@@ -155,9 +155,6 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
     rt_bucket = empty_periods(
       iv_days    = iv_days
       iv_buckets = iv_buckets ).
-    IF rt_bucket IS INITIAL.
-      RETURN.
-    ENDIF.
 
     " stock on the shelf carries no date and belongs in the first period, and
     " so does a receipt that was due before today: both are there now
@@ -243,11 +240,16 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
 
   METHOD empty_periods.
 
-    DATA lv_from TYPE d.
-    DATA lv_days TYPE i.
+    DATA lv_from    TYPE d.
+    DATA lv_days    TYPE i.
+    DATA lv_buckets TYPE i.
 
-    IF iv_buckets <= 0.
-      RETURN.
+    " a number nobody set is the default rather than an empty answer: a
+    " projection of no periods would print a heading, no rows, and the words
+    " "enough for every period shown", which is true and useless
+    lv_buckets = iv_buckets.
+    IF lv_buckets <= 0.
+      lv_buckets = c_default_buckets.
     ENDIF.
 
     " a period of no days would put everything in the first one and call it a
@@ -259,7 +261,7 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
 
     lv_from = mv_today.
 
-    DO iv_buckets TIMES.
+    DO lv_buckets TIMES.
       APPEND VALUE #(
         from = lv_from
         to   = lv_from + lv_days - 1 ) TO rt_bucket.

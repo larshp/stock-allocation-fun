@@ -367,3 +367,41 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
 - **Impact:** low for now — verified that a deliberately broken assertion does
   fail the build. Revisit with a custom runner if the suite grows enough that
   losing the tail of the report costs real time.
+
+## 6. abaplint cannot see the messages of a hand written message class
+
+- **Versions:** `@abaplint/cli` 2.120.28
+- **Symptom:** `MESSAGE e015(zstock_alloc)` in a report is reported as
+  `Message number "015" not found in class "ZSTOCK_ALLOC"` although the number
+  is in `src/zstock_alloc.msag.xml`. So is every other number, including the
+  ones that have been there since feature 3.
+- **Cause:** the two tools disagree about where the messages live in the XML.
+  abaplint reads them from a node called `T100` directly under `asx:values`,
+  and reads `T100_TEXTS` as *translations*, expecting `item` rows inside it:
+
+  ```js
+  const t100 = parsed?.abapGit?.["asx:abap"]?.["asx:values"]?.T100;
+  for (const msg of xmlToArray(t100.T100)) { ... }         // messages
+  const t100_texts = ...?.T100_TEXTS;
+  for (const item of xmlToArray(t100_texts?.item)) { ... } // translations
+  ```
+
+  abapGit writes the messages as `T100` rows inside `T100_TEXTS`, which is
+  what this repository has, so abaplint finds no messages at all.
+- **What this repo does:** keeps the abapGit shape, because that is the shape
+  that has to install into a real system, and does without `MESSAGE`
+  statements. The messages are reached through the T100 key constants of
+  `ZCX_ALLOCATION` and through the numbers `ZCL_ALLOC_LOG_BAL` writes to the
+  application log, neither of which abaplint counts as a reference either.
+- **Consequences worth knowing:**
+  - `message_exists` never protects this repository: a typo in a message
+    number in the exception class would not be caught.
+  - `easy_to_find_messages`, which `PLAN.md` asks for, passes vacuously. Adding
+    the `T100` node makes abaplint see the messages and then fail that rule for
+    all fourteen of them, because it counts only `MESSAGE` and `RAISE`
+    statements as references and this solution issues neither: an exception
+    class carries its keys as constants and a log message is written to BAL
+    rather than issued. Duplicating the messages into a second node to satisfy
+    a rule that would then have to be excluded is worse than the gap.
+  - The screen validation in `ZSTOCK_ALLOCATION` therefore writes its reason
+    and returns rather than issuing message 015, which would not lint.

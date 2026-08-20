@@ -2685,3 +2685,26 @@ plant, and per material where it does not.
 - **Each one is tested by asking twice with the row deleted in between**,
   which is the only way to prove from outside that the second answer did not
   come from the database.
+
+### Feature 84 — what would change if we re-ran now (done)
+
+Feature 75 answers "what did last night do to my customers". The question
+somebody asks before pressing the button on a re-cut is the same question in
+the future tense, and it is the more useful of the two: it is the one that can
+still be acted on.
+
+`ZSTOCK_ALLOC_DIFF` ticked as a preview compares the recorded run with what a
+run now would decide.
+
+- **The simulation is the real calculation.** It is `ZCL_ALLOCATION_MASS_RUN`
+  in test mode over the whole plant, the same object the nightly job uses.
+  Anything else would only prove that two programs disagree.
+- **It costs what a run costs.** A preview reads the plant exactly as a run
+  does, which is worth saying on the selection screen and is why it is not the
+  default.
+- **The columns keep their meaning.** "Had" is what the line has now, "has now"
+  is what it would have — the same two columns as the look back, with the
+  present moved from the right hand side to the left.
+- **No simulator wired in means no preview**, and the report says so by
+  answering with nothing changing rather than by failing: a caller that
+  constructed the class without one asked for a look back.

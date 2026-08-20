@@ -130,6 +130,8 @@ CLASS ltcl_alloc_changes DEFINITION FINAL FOR TESTING
     METHODS a_first_run_is_all_new FOR TESTING RAISING cx_static_check.
     METHODS another_customer_is_left_out FOR TESTING RAISING cx_static_check.
     METHODS the_footer_counts_the_losses FOR TESTING RAISING cx_static_check.
+    METHODS a_preview_says_what_it_is FOR TESTING RAISING cx_static_check.
+    METHODS no_simulator_is_no_preview FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -271,6 +273,55 @@ CLASS ltcl_alloc_changes IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ lines( lt_line ) ]
       exp = '1 line(s) changed, 1 of them for the worse' ).
+
+  ENDMETHOD.
+
+  METHOD a_preview_says_what_it_is.
+
+    " no simulator wired in, so the run now confirms nothing and every
+    " recorded line reads as a line about to lose everything: which is what a
+    " preview of a plant with no stock left would say
+    DATA(lo_cut) = NEW zcl_alloc_changes(
+      io_store     = NEW lcl_store_double(
+        it_recorded = VALUE #(
+          ( matnr     = c_matnr
+            run_id    = c_now
+            demand_id = 'D1'
+            requested = '10'
+            confirmed = '10'
+            shortfall = 0
+            customer  = c_kunnr ) )
+        it_run      = VALUE #( ( run_id = c_now matnr = c_matnr werks = c_werks ) )
+        it_lines    = VALUE #( ) )
+      io_authority = mo_authority ).
+
+    DATA(lt_line) = lo_cut->run(
+      iv_werks   = c_werks
+      iv_preview = abap_true ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 1 ]
+      exp = '*what a run now would change*'
+      msg = 'a preview and a look back must not read the same' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*10.000*0.000*'
+      msg = 'what the line has now, against what it would have' ).
+
+  ENDMETHOD.
+
+  METHOD no_simulator_is_no_preview.
+
+    " the same numbers the other way round: without the preview flag the
+    " comparison is with the run before, which this material does not have
+    DATA(lt_line) = changes(
+      iv_then      = '0'
+      iv_now       = '10'
+      iv_had_a_run = abap_false ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 1 ]
+      exp = '*what the last run changed*' ).
 
   ENDMETHOD.
 

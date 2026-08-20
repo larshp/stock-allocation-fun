@@ -30,6 +30,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_PREV</KEY>
+     <ENTRY>Against what a run now would decide</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WORSE</KEY>
      <ENTRY>Only the lines that lost stock</ENTRY>
      <LENGTH>30</LENGTH>

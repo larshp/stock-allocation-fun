@@ -5,13 +5,15 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Query wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter iv_lgort   | <p class="shorttext synchronized">Location to promise from, all if empty</p>
-    "! @parameter iv_planned | <p class="shorttext synchronized">Planned orders count as supply too</p>
-    "! @parameter ro_query   | <p class="shorttext synchronized">Ready to use query</p>
+    "! @parameter iv_lgort     | <p class="shorttext synchronized">Location to promise from, all if empty</p>
+    "! @parameter iv_planned   | <p class="shorttext synchronized">Planned orders count as supply too</p>
+    "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! @parameter ro_query     | <p class="shorttext synchronized">Ready to use query</p>
     CLASS-METHODS create_default
       IMPORTING
         iv_lgort        TYPE mard-lgort OPTIONAL
         iv_planned      TYPE abap_bool DEFAULT abap_false
+        iv_ship_days    TYPE i DEFAULT 0
       RETURNING
         VALUE(ro_query) TYPE REF TO zif_atp_query.
 
@@ -19,10 +21,12 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_supply    | <p class="shorttext synchronized">What the plant has to give away</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may ask about a plant</p>
+    "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_authority TYPE REF TO zif_allocation_authority
+        iv_ship_days TYPE i DEFAULT 0.
 
   PRIVATE SECTION.
 
@@ -32,6 +36,7 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_supply    TYPE REF TO zif_supply_reader.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mv_ship_days TYPE i.
 
     METHODS timeline
       IMPORTING
@@ -53,7 +58,8 @@ CLASS zcl_atp_query IMPLEMENTATION.
       io_supply    = zcl_allocation_service=>create_default_supply(
         iv_lgort   = iv_lgort
         iv_planned = iv_planned )
-      io_authority = NEW zcl_authority_plant( c_activity_display ) ).
+      io_authority = NEW zcl_authority_plant( c_activity_display )
+      iv_ship_days = iv_ship_days ).
 
   ENDMETHOD.
 
@@ -61,6 +67,13 @@ CLASS zcl_atp_query IMPLEMENTATION.
 
     mo_supply    = io_supply.
     mo_authority = io_authority.
+
+    " a negative shipping time would mean the goods leave before they are
+    " picked, so it is read as none rather than obeyed
+    mv_ship_days = iv_ship_days.
+    IF mv_ship_days < 0.
+      CLEAR mv_ship_days.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -77,14 +90,23 @@ CLASS zcl_atp_query IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " the day named is the day the customer wants the goods, and the plant
+    " needs them on the shelf before that. Counting supply that lands on the
+    " day itself would promise something that cannot be shipped in time, which
+    " is the rule the run follows since feature 68.
+    DATA(lv_ready_by) = iv_by_date.
+    IF lv_ready_by IS NOT INITIAL.
+      lv_ready_by = lv_ready_by - mv_ship_days.
+    ENDIF.
+
     LOOP AT timeline(
         iv_matnr = iv_matnr
         iv_werks = iv_werks ) INTO DATA(ls_supply).
 
       " supply that lands after the day the customer named is no use to them,
       " which is the rule the allocation engine follows line by line
-      IF iv_by_date IS NOT INITIAL
-          AND ls_supply-avail_date > iv_by_date.
+      IF lv_ready_by IS NOT INITIAL
+          AND ls_supply-avail_date > lv_ready_by.
         EXIT.
       ENDIF.
 

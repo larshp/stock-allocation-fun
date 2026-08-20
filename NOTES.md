@@ -2215,3 +2215,24 @@ plant, and `ZCL_DEMAND_SHIP_TIME` fills it from the plant's shipping time.
   settings. What that field cannot express is a plant whose answer differs by
   weekday, and that is worth knowing before somebody sets it to 2 and expects
   the weekend to be counted.
+
+### Feature 69 — the promise counts the same days the run does (done)
+
+Feature 68 taught the run that goods have to be in the plant before the day
+they are wanted. It left two things behind that answer the same question in
+other words and had not been told: the promise and the projection.
+
+Both are corrected here, and the reason is the one this repository keeps
+coming back to: a second opinion is worse than no opinion. A salesperson
+promising the 10th out of stock landing on the 9th, and a run refusing to
+confirm it an hour later, is a solution arguing with itself.
+
+- **The promise subtracts the shipping time from the day it was given.** Ask
+  what can be promised by the 3rd in a plant that needs two days, and the
+  answer counts what is there by the 1st.
+- **The projection buckets a requirement by the day the stock has to be
+  there.** The run takes it out of the week it is needed in, so that is the
+  week the projection has to show it going out of.
+- **Both read the shipping time from the plant's settings**, like everything
+  else, so there is one place to change it and no way for the three answers to
+  drift apart again.

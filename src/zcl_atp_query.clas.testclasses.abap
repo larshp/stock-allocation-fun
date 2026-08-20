@@ -115,6 +115,7 @@ CLASS ltcl_atp_query DEFINITION FINAL FOR TESTING
     METHODS an_empty_plant_promises_none FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS a_refused_plant_raises FOR TESTING.
+    METHODS shipping_time_moves_the_day FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -289,6 +290,26 @@ CLASS ltcl_atp_query IMPLEMENTATION.
       act = mo_authority->get_plant( )
       exp = c_werks
       msg = 'a promise is an answer about a plant, so the plant is checked' ).
+
+  ENDMETHOD.
+
+  METHOD shipping_time_moves_the_day.
+
+    " two days to get the goods out of the door, so a promise for the third of
+    " March may only count what is there on the first
+    DATA(lo_query) = CAST zif_atp_query( NEW zcl_atp_query(
+      io_supply    = NEW lcl_supply_double( VALUE #(
+        ( avail_date = '20260302' quantity = '10' ) ) )
+      io_authority = mo_authority
+      iv_ship_days = 2 ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lo_query->promise(
+        iv_matnr    = c_matnr
+        iv_werks    = c_werks
+        iv_quantity = '5'
+        iv_by_date  = '20260303' )
+      msg = 'a promise the plant cannot ship in time is not a promise' ).
 
   ENDMETHOD.
 

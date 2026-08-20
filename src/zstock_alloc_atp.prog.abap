@@ -15,8 +15,9 @@ START-OF-SELECTION.
 
   TRY.
       DATA(ls_promise) = zcl_atp_query=>create_default(
-        iv_lgort   = ls_settings-lgort
-        iv_planned = ls_settings-planned )->promise(
+        iv_lgort     = ls_settings-lgort
+        iv_planned   = ls_settings-planned
+        iv_ship_days = ls_settings-ship_days )->promise(
           iv_matnr    = p_matnr
           iv_werks    = p_werks
           iv_quantity = p_menge

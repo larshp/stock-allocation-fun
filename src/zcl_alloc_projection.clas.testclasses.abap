@@ -129,6 +129,7 @@ CLASS ltcl_alloc_projection DEFINITION FINAL FOR TESTING
     METHODS the_rest_lands_in_the_last FOR TESTING RAISING cx_static_check.
     METHODS running_out_is_said_in_words FOR TESTING RAISING cx_static_check.
     METHODS enough_is_said_too FOR TESTING RAISING cx_static_check.
+    METHODS the_period_is_when_needed FOR TESTING RAISING cx_static_check.
     METHODS no_periods_is_the_default FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
@@ -332,6 +333,28 @@ CLASS ltcl_alloc_projection IMPLEMENTATION.
       act = lt_line[ lines( lt_line ) ]
       exp = 'Enough for every period shown'
       msg = 'a projection that ends well should say so rather than trail off' ).
+
+  ENDMETHOD.
+
+  METHOD the_period_is_when_needed.
+
+    " wanted on the tenth, needed on the shelf on the fifth, which is the week
+    " the run will take the stock out of
+    DATA(lt_bucket) = projected(
+      it_supply = VALUE #( )
+      it_demand = VALUE #(
+        ( demand_id = 'D1'
+          matnr     = c_matnr
+          werks     = c_werks
+          quantity  = '4'
+          req_date  = '20260310'
+          ready_by  = '20260305'
+          priority  = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_bucket[ 1 ]-demand
+      exp = '4'
+      msg = 'a projection that disagrees with the run about the week is worse than none' ).
 
   ENDMETHOD.
 

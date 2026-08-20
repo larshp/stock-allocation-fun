@@ -177,8 +177,17 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
         iv_matnr = iv_matnr
         iv_werks = iv_werks ) INTO DATA(ls_demand).
 
+      " the period a requirement belongs in is the one the stock has to be
+      " there in, not the one the customer wants it in: the run matches on the
+      " same day and a projection that disagreed with it would be worse than
+      " none
+      DATA(lv_needed) = ls_demand-ready_by.
+      IF lv_needed IS INITIAL.
+        lv_needed = ls_demand-req_date.
+      ENDIF.
+
       LOOP AT rt_bucket ASSIGNING <ls_bucket>.
-        IF ls_demand-req_date <= <ls_bucket>-to.
+        IF lv_needed <= <ls_bucket>-to.
           <ls_bucket>-demand = <ls_bucket>-demand + ls_demand-quantity.
           EXIT.
         ENDIF.

@@ -104,8 +104,9 @@ CLASS zcl_alloc_atp_api IMPLEMENTATION.
 
     TRY.
         DATA(ls_promise) = zcl_atp_query=>create_default(
-          iv_lgort   = lv_lgort
-          iv_planned = ls_config-planned )->promise(
+          iv_lgort     = lv_lgort
+          iv_planned   = ls_config-planned
+          iv_ship_days = ls_config-ship_days )->promise(
             iv_matnr    = iv_matnr
             iv_werks    = iv_werks
             iv_quantity = iv_quantity
@@ -187,8 +188,9 @@ CLASS zcl_alloc_atp_api IMPLEMENTATION.
     ENDIF.
 
     eo_query = zcl_atp_query=>create_default(
-      iv_lgort   = lv_lgort
-      iv_planned = ls_config-planned ).
+      iv_lgort     = lv_lgort
+      iv_planned   = ls_config-planned
+      iv_ship_days = ls_config-ship_days ).
 
     APPEND VALUE #(
       werks = iv_werks

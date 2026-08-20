@@ -66,6 +66,11 @@ calculation and shows the result without recording or reserving anything.
 material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
+`ZSTOCK_ALLOC_SHORT` is the other way round: not what happened to one material
+but what is short across the whole plant, soonest and biggest first, with the
+reason on every line and an optional cut-off date and line limit. It is the
+list a planner works through in the morning.
+
 `ZSTOCK_ALLOC_ATP` answers the question a salesperson asks before writing an
 order down: how much of a material this plant can promise, and from when. It
 reads the same supply timeline a run distributes and changes nothing;

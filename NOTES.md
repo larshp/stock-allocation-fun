@@ -1602,3 +1602,36 @@ both reports show it in a column of its own.
 
 The reason is stored with the run in `ZSTOCK_ALLOC_RES`, so the display report
 answers the question a week later, which is when it is usually asked.
+
+### Feature 48 — the list a planner works through in the morning (done)
+
+`ZSTOCK_ALLOC_DISPLAY` answers "what happened to this material", one block per
+material in material order. That is the right shape for looking something up
+and the wrong shape for the question somebody actually starts the day with:
+*what is short here, and which of it matters first?* Material order is
+alphabetical order, which has nothing to do with urgency, and a plant with two
+thousand materials buries the three that need a phone call.
+
+`ZCL_ALLOC_SHORTAGE_LIST` and `ZSTOCK_ALLOC_SHORT` read the same recorded runs
+and turn them into one list across the plant.
+
+- **The day it is wanted decides the order**, because that is what makes one
+  shortage more urgent than another. Within a day the biggest hole comes first,
+  and the material keeps ties steady so the list does not shuffle between runs.
+  A line with no date is wanted now and sorts first without a special case.
+- **Only what is short is in it.** A worklist that includes what worked out is
+  a report, and there is already a report.
+- **A cut-off date narrows it to this week**, which is how a planner reads it:
+  what lands after the horizon they are working to is somebody else's problem
+  this morning.
+- **A line limit is honest about what it dropped.** The footer says "2 of 17
+  short lines shown", because a truncated list that looks complete is worse
+  than a long one.
+- **The reason is the point.** Feature 47 gave each line a reason and this is
+  what it was for: the list says not only what is short but what kind of
+  problem each one is, so purchasing, scheduling and sales can be handed
+  different parts of it.
+
+It changes nothing and checks display authority, like the other read-only
+programs. There is no allocation logic in it at all: everything it shows was
+decided by a run and written down.

@@ -12,6 +12,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_planned       | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_whole_units   | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter iv_recut         | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter iv_sto_priority  | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -22,6 +23,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_planned        TYPE abap_bool DEFAULT abap_false
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
         iv_recut          TYPE abap_bool DEFAULT abap_false
+        iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -49,11 +51,13 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! plant, so both compete in the same run. Public because a plant wide run
     "! needs the same list of sources to know which materials to cover.
     "!
-    "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
-    "! @parameter ro_demand    | <p class="shorttext synchronized">Reader over every source</p>
+    "! @parameter io_converter   | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
+    "! @parameter ro_demand      | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_demand
       IMPORTING
         io_converter     TYPE REF TO zif_unit_converter OPTIONAL
+        iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -149,7 +153,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           iv_planned   = iv_planned )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
-            io_demand = create_default_demand( lo_converter )
+            io_demand = create_default_demand(
+              io_converter    = lo_converter
+              iv_sto_priority = iv_sto_priority )
             iv_days   = iv_horizon_days )
           io_reservation = NEW zcl_reservation_reader( ) )
         io_strategy      = lo_strategy )
@@ -216,7 +222,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " matters is a standing decision of the business, and is put on top
     ro_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )
-      ( NEW zcl_sto_demand_reader( lo_converter ) ) ) ) ).
+      ( NEW zcl_sto_demand_reader(
+          io_converter = lo_converter
+          iv_priority  = iv_sto_priority ) ) ) ) ).
 
   ENDMETHOD.
 

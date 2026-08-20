@@ -18,7 +18,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
         iv_cap      TYPE zstock_alloc_cfg-cap_percent DEFAULT 0
         iv_keep     TYPE zstock_alloc_cfg-keep_days DEFAULT 0
         iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''
-        iv_whole    TYPE zstock_alloc_cfg-whole_units DEFAULT ''.
+        iv_whole    TYPE zstock_alloc_cfg-whole_units DEFAULT ''
+        iv_sto      TYPE zstock_alloc_cfg-sto_prio DEFAULT '00'.
 
     METHODS config
       RETURNING
@@ -37,6 +38,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS anything_but_x_is_no FOR TESTING.
     METHODS whole_units_is_read FOR TESTING.
     METHODS whole_units_is_off_default FOR TESTING.
+    METHODS a_transfer_priority_is_read FOR TESTING.
+    METHODS an_empty_priority_is_default FOR TESTING.
 
 ENDCLASS.
 
@@ -67,7 +70,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         cap_percent  = iv_cap
         keep_days    = iv_keep
         planned      = iv_planned
-        whole_units  = iv_whole ) ).
+        whole_units  = iv_whole
+        sto_prio     = iv_sto ) ).
 
     INSERT zstock_alloc_cfg FROM TABLE @lt_row.
     cl_abap_unit_assert=>assert_equals(
@@ -86,8 +90,9 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = config( )
       exp = VALUE zif_alloc_config=>ty_config(
-        werks     = c_werks
-        keep_days = zcl_alloc_config=>c_default_keep_days )
+        werks        = c_werks
+        keep_days    = zcl_alloc_config=>c_default_keep_days
+        sto_priority = zcl_alloc_config=>c_default_sto_prio )
       msg = 'allocation has to work in a plant nobody has configured' ).
 
   ENDMETHOD.
@@ -109,7 +114,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         horizon_days = 30
         lgort        = '0001'
         cap_percent  = 25
-        keep_days    = 14 ) ).
+        keep_days    = 14
+        sto_priority = zcl_alloc_config=>c_default_sto_prio ) ).
 
   ENDMETHOD.
 
@@ -218,6 +224,28 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       act = config( )-whole_units
       exp = abap_false
       msg = 'holding stock back for want of a whole unit has to be asked for' ).
+
+  ENDMETHOD.
+
+  METHOD a_transfer_priority_is_read.
+
+    given_settings( iv_sto = '10' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-sto_priority
+      exp = '10'
+      msg = 'how a plant weighs a transfer against an order is the plant to say' ).
+
+  ENDMETHOD.
+
+  METHOD an_empty_priority_is_default.
+
+    given_settings( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-sto_priority
+      exp = zcl_alloc_config=>c_default_sto_prio
+      msg = 'zero is a field nobody filled, and 01 would be first of all' ).
 
   ENDMETHOD.
 

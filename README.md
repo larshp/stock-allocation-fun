@@ -91,8 +91,8 @@ them.
 
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
 storage location, customer cap, whether planned orders count as supply, whether
-confirmations are cut to whole order units, and how long a recorded run is
-kept. Both programs read it by default, so a scheduled job only has to be told
+confirmations are cut to whole order units, where a stock transport order
+stands against a customer order, and how long a recorded run is kept. Both programs read it by default, so a scheduled job only has to be told
 the plant; unticking **Settings come from the plant** hands the screen back to
 somebody trying something out. A plant with no row gets the defaults.
 

@@ -114,6 +114,16 @@
      <MASK>  CHAR</MASK>
      <DDTEXT>Confirm Whole Order Units Only</DDTEXT>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>STO_PRIO</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>N</INTTYPE>
+     <INTLEN>000004</INTLEN>
+     <DATATYPE>NUMC</DATATYPE>
+     <LENG>000002</LENG>
+     <MASK>  NUMC</MASK>
+     <DDTEXT>Priority of a Stock Transport Order</DDTEXT>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

@@ -1746,3 +1746,27 @@ puts it on the demand after the readers have built it.
   every rule for combining them is a rule somebody has to learn. Whichever
   answer is more specific wins outright, which is the same shape as the plant
   row beating the general one.
+
+### Feature 52 — where a transfer stands against a customer order (done)
+
+Feature 27 let stock transport orders compete with sales orders and gave them
+a priority of 50, in the middle of the range, with a comment saying that is a
+decision somebody may want to make differently. Two years of plants later, it
+plainly is: a distribution centre feeding shops treats a transfer as the most
+important thing it does, and a factory that also sells direct treats one as
+whatever is left over. Both were stuck with 50, or with wiring the class
+themselves.
+
+`ZSTOCK_ALLOC_CFG-STO_PRIO` says it per plant, next to everything else a plant
+decides, and the selection screen offers it to somebody trying it out.
+
+- **Zero is a field nobody filled, not a priority.** The strategies read 01 as
+  first, so taking an empty field literally would put every transfer in front
+  of every customer — the one answer nobody asked for. An empty field means the
+  default.
+- **The default is still 50**, and it is still the reader's own constant: the
+  configuration class points at `ZCL_STO_DEMAND_READER=>C_DEFAULT_PRIORITY`
+  rather than repeating the number, so there is one place that says what a
+  transfer is worth when nobody has said.
+- **It reaches the reader through the factory**, like every other setting. The
+  reader has taken a priority since feature 27; all that is new is who tells it.

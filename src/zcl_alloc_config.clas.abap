@@ -14,6 +14,12 @@ CLASS zcl_alloc_config DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! A share of the pool cannot be more than the whole of it.
     CONSTANTS c_max_percent TYPE i VALUE 100.
 
+    "! Where a transfer stands against a customer order when the plant has not
+    "! said. The middle of the range: a transfer is neither the first thing to
+    "! serve nor the last.
+    CONSTANTS c_default_sto_prio TYPE zif_allocation=>ty_priority
+      VALUE zcl_sto_demand_reader=>c_default_priority.
+
 ENDCLASS.
 
 
@@ -21,8 +27,9 @@ CLASS zcl_alloc_config IMPLEMENTATION.
 
   METHOD zif_alloc_config~for_plant.
 
-    rs_config-werks     = iv_werks.
-    rs_config-keep_days = c_default_keep_days.
+    rs_config-werks        = iv_werks.
+    rs_config-keep_days    = c_default_keep_days.
+    rs_config-sto_priority = c_default_sto_prio.
 
     SELECT SINGLE strategy,
                   horizon_days,
@@ -30,7 +37,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   cap_percent,
                   keep_days,
                   planned,
-                  whole_units
+                  whole_units,
+                  sto_prio
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -46,6 +54,13 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     " yet is one to be sure about
     rs_config-planned     = xsdbool( ls_row-planned = abap_true ).
     rs_config-whole_units = xsdbool( ls_row-whole_units = abap_true ).
+
+    " a priority of zero is not a priority, it is a field nobody filled: the
+    " strategies read 01 as first, so taking it literally would put every
+    " transfer in front of every customer
+    IF ls_row-sto_prio IS NOT INITIAL.
+      rs_config-sto_priority = ls_row-sto_prio.
+    ENDIF.
 
     " a setting that cannot be honoured is corrected rather than obeyed: none
     " of these has a sensible meaning below zero, and a nightly run must not

@@ -78,6 +78,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_STOP</KEY>
+     <ENTRY>Priority of a transfer, 01 first</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Test run, change nothing</ENTRY>
      <LENGTH>24</LENGTH>

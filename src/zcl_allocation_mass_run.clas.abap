@@ -22,6 +22,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_planned      | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter iv_recut        | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter it_dispo        | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
     "! @parameter ro_mass_run     | <p class="shorttext synchronized">Ready to use plant wide run</p>
     CLASS-METHODS create_default
@@ -33,6 +34,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_planned         TYPE abap_bool DEFAULT abap_false
         iv_whole_units     TYPE abap_bool DEFAULT abap_false
         iv_recut           TYPE abap_bool DEFAULT abap_false
+        iv_sto_priority    TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
       RETURNING
         VALUE(ro_mass_run) TYPE REF TO zcl_allocation_mass_run.
@@ -94,9 +96,11 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_cap_percent  = iv_cap_percent
         iv_planned      = iv_planned
         iv_whole_units  = iv_whole_units
-        iv_recut        = iv_recut )
+        iv_recut        = iv_recut
+        iv_sto_priority = iv_sto_priority )
       io_demand  = NEW zcl_demand_of_controller(
-        io_demand = zcl_allocation_service=>create_default_demand( )
+        io_demand = zcl_allocation_service=>create_default_demand(
+          iv_sto_priority = iv_sto_priority )
         it_dispo  = it_dispo )
       io_log     = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 

@@ -12,6 +12,7 @@ INTERFACE zif_alloc_config PUBLIC.
       keep_days    TYPE i,
       planned      TYPE abap_bool,
       whole_units  TYPE abap_bool,
+      sto_priority TYPE zif_allocation=>ty_priority,
     END OF ty_config.
 
   "! <p class="shorttext synchronized">Settings that apply to allocation in a plant</p>

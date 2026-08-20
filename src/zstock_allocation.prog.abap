@@ -8,6 +8,7 @@ PARAMETERS p_fair AS CHECKBOX.
 PARAMETERS p_horiz TYPE i DEFAULT 0.
 PARAMETERS p_lgort TYPE mard-lgort.
 PARAMETERS p_cap TYPE i DEFAULT 0.
+PARAMETERS p_stop TYPE zif_allocation=>ty_priority DEFAULT '50'.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_recut AS CHECKBOX.
@@ -34,7 +35,8 @@ START-OF-SELECTION.
       lgort        = p_lgort
       cap_percent  = p_cap
       planned      = p_plan
-      whole_units  = p_whole ).
+      whole_units  = p_whole
+      sto_priority = p_stop ).
   ENDIF.
 
   IF ls_settings-fair_share = abap_true.
@@ -61,6 +63,7 @@ START-OF-SELECTION.
       iv_planned      = ls_settings-planned
       iv_whole_units  = ls_settings-whole_units
       iv_recut        = p_recut
+      iv_sto_priority = ls_settings-sto_priority
       it_dispo        = lt_dispo ) ).
 
   DATA(lt_line) = lo_report->run(

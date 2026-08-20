@@ -92,6 +92,12 @@
      <MSGNR>014</MSGNR>
      <TEXT>&amp;1 material(s), &amp;2 short, &amp;3 failed</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>015</MSGNR>
+     <TEXT>Material &amp;1: reservation &amp;2 given back</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

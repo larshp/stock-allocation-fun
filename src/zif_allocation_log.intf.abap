@@ -33,6 +33,19 @@ INTERFACE zif_allocation_log PUBLIC.
       iv_matnr  TYPE mard-matnr
       iv_reason TYPE string.
 
+  "! <p class="shorttext synchronized">Note that an earlier reservation was given back</p>
+  "!
+  "! A re-cut takes stock away from lines that had it. That is the most
+  "! consequential thing a run does and, until it says so here, the only trace
+  "! of it is the reservation no longer being there.
+  "!
+  "! @parameter iv_matnr       | <p class="shorttext synchronized">Material the stock was held for</p>
+  "! @parameter iv_reservation | <p class="shorttext synchronized">Reservation that was cancelled</p>
+  METHODS released
+    IMPORTING
+      iv_matnr       TYPE mard-matnr
+      iv_reservation TYPE rkpf-rsnum.
+
   "! <p class="shorttext synchronized">Note that a recorded run was removed</p>
   "!
   "! Housekeeping is a job of this solution like the allocation itself, and a

@@ -24,6 +24,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_planned        TYPE abap_bool DEFAULT abap_false
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
         iv_recut          TYPE abap_bool DEFAULT abap_false
+        io_log            TYPE REF TO zif_allocation_log OPTIONAL
         iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         iv_ship_days      TYPE i DEFAULT 0
       RETURNING
@@ -117,6 +118,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_lock        | <p class="shorttext synchronized">Keeps two runs off the same material</p>
     "! @parameter io_commit      | <p class="shorttext synchronized">Makes what the run wrote durable</p>
     "! @parameter iv_recut       | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter io_log         | <p class="shorttext synchronized">Where the run says what it gave back</p>
     METHODS constructor
       IMPORTING
         io_engine      TYPE REF TO zcl_allocation_engine
@@ -126,7 +128,8 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_authority   TYPE REF TO zif_allocation_authority
         io_lock        TYPE REF TO zif_allocation_lock
         io_commit      TYPE REF TO zif_unit_of_work
-        iv_recut       TYPE abap_bool DEFAULT abap_false.
+        iv_recut       TYPE abap_bool DEFAULT abap_false
+        io_log         TYPE REF TO zif_allocation_log OPTIONAL.
 
   PRIVATE SECTION.
     DATA mo_engine      TYPE REF TO zcl_allocation_engine.
@@ -137,6 +140,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_lock        TYPE REF TO zif_allocation_lock.
     DATA mo_commit      TYPE REF TO zif_unit_of_work.
     DATA mv_recut       TYPE abap_bool.
+    DATA mo_log         TYPE REF TO zif_allocation_log.
 
     METHODS release_earlier
       IMPORTING
@@ -218,7 +222,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_authority   = NEW zcl_authority_plant( )
       io_lock        = NEW zcl_lock_material( )
       io_commit      = NEW zcl_unit_of_work( )
-      iv_recut       = iv_recut ).
+      iv_recut       = iv_recut
+      io_log         = io_log ).
 
   ENDMETHOD.
 
@@ -316,6 +321,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     mo_commit      = io_commit.
     mv_recut       = iv_recut.
 
+    " a run that was given no log keeps no diary rather than checking for one
+    " everywhere it might write
+    mo_log = io_log.
+    IF mo_log IS NOT BOUND.
+      mo_log = NEW zcl_alloc_log_none( ).
+    ENDIF.
+
   ENDMETHOD.
 
   METHOD zif_allocation_service~run.
@@ -387,6 +399,10 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
       mo_reservation->cancel( ls_run-reservation ).
       lv_released = abap_true.
+
+      mo_log->released(
+        iv_matnr       = iv_matnr
+        iv_reservation = ls_run-reservation ).
 
     ENDLOOP.
 

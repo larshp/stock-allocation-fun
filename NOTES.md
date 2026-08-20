@@ -2570,3 +2570,24 @@ object — did not say.
 The mass run can now be asked what it was told to do, and the report prints it
 under the plant. One sentence, in the same words as the log, from the same
 place: `CREATE_DEFAULT` renders it once.
+
+### Feature 79 — the diary says what was given back (done)
+
+A re-cut takes stock away from lines that had it. It is the most consequential
+thing a run does, and the only trace of it was the reservation no longer being
+there — the log said the material was allocated and left the rest to be
+inferred.
+
+`ZIF_ALLOCATION_LOG` gained `RELEASED`, and the service writes it as it
+cancels.
+
+- **The service needed a log at all.** It had none: the mass run above it kept
+  the diary and the service quietly did the releasing. Now `CREATE_DEFAULT`
+  builds one log and hands it to both, so a night is one page in `SLG1` rather
+  than two — and a service wired by hand without a log keeps none, through the
+  null object rather than through a check at every line.
+- **It is a warning, not information.** Stock taken off a customer is not
+  routine however ordinary the run thinks it is, and `SLG1` filters on exactly
+  that.
+- **It says the material and the reservation**, which are the two things
+  somebody needs to find what was given back and what has become of it since.

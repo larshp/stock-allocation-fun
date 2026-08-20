@@ -135,6 +135,10 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     " the material list wants the sources themselves, not the netted view of
     " them: which materials are worth looking at is a wider question than what
     " is left to serve, and the service works that out per material anyway
+    " one log for the whole job: the run writes to it and so does the service
+    " underneath, so a night is one page in SLG1 rather than two
+    DATA(lo_log) = CAST zif_allocation_log( NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
+
     ro_mass_run = NEW zcl_allocation_mass_run(
       io_service = zcl_allocation_service=>create_default(
         io_strategy     = io_strategy
@@ -145,7 +149,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_whole_units  = iv_whole_units
         iv_recut        = iv_recut
         iv_sto_priority = iv_sto_priority
-        iv_ship_days    = iv_ship_days )
+        iv_ship_days    = iv_ship_days
+        io_log          = lo_log )
       io_demand  = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
           io_demand = zcl_allocation_service=>create_default_demand(
@@ -154,7 +159,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
           it_dispo  = it_dispo )
         iv_package  = iv_package
         iv_packages = iv_packages )
-      io_log     = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
+      io_log     = lo_log ).
 
   ENDMETHOD.
 

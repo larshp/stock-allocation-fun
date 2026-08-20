@@ -27,6 +27,7 @@ CLASS zcl_alloc_log_bal DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_msg_removed   TYPE bal_s_msg-msgno VALUE '012'.
     CONSTANTS c_msg_settings  TYPE bal_s_msg-msgno VALUE '013'.
     CONSTANTS c_msg_finished  TYPE bal_s_msg-msgno VALUE '014'.
+    CONSTANTS c_msg_released  TYPE bal_s_msg-msgno VALUE '015'.
 
     "! BAL problem classes: 1 very important, 2 important, 4 additional
     "! information. SLG1 filters on them, so a night's successes can be hidden
@@ -183,6 +184,19 @@ CLASS zcl_alloc_log_bal IMPLEMENTATION.
       iv_variable2 = CONV #( lv_reason+0(c_variable_length) )
       iv_variable3 = CONV #( lv_reason+50(c_variable_length) )
       iv_variable4 = CONV #( lv_reason+100(c_variable_length) ) ).
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~released.
+
+    " at the class a night's successes can be hidden behind: stock taken off
+    " a customer is not routine, whatever the run thinks of it
+    add(
+      iv_type      = c_type_warning
+      iv_number    = c_msg_released
+      iv_class     = c_class_warning
+      iv_variable1 = CONV #( iv_matnr )
+      iv_variable2 = |{ iv_reservation }| ).
 
   ENDMETHOD.
 

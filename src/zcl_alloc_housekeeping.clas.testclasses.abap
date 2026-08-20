@@ -126,6 +126,11 @@ CLASS lcl_log_spy IMPLEMENTATION.
     CLEAR mv_starts.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~released.
+    " housekeeping gives nothing back, it removes records
+    CLEAR mv_starts.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     APPEND iv_run_id TO mt_removed.
   ENDMETHOD.

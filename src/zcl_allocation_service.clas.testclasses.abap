@@ -256,6 +256,70 @@ CLASS lcl_commit_double IMPLEMENTATION.
 
 ENDCLASS.
 
+"! Remembers what the service told it about giving stock back.
+CLASS lcl_log_spy DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_log.
+
+    TYPES ty_reservation_tab TYPE STANDARD TABLE OF rkpf-rsnum WITH EMPTY KEY.
+
+    METHODS get_released
+      RETURNING
+        VALUE(rt_reservation) TYPE ty_reservation_tab.
+
+    METHODS get_other
+      RETURNING
+        VALUE(rv_other) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_released TYPE ty_reservation_tab.
+    DATA mv_other    TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_log_spy IMPLEMENTATION.
+
+  METHOD get_released.
+    rt_reservation = mt_released.
+  ENDMETHOD.
+
+  METHOD get_other.
+    rv_other = mv_other.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~released.
+    APPEND iv_reservation TO mt_released.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~start.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~allocated.
+    " a service writes none of these; the run above it does
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~failed.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~finished.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~removed.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~save.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
+ENDCLASS.
+
 
 CLASS ltcl_service DEFINITION FINAL FOR TESTING
   DURATION SHORT
@@ -275,6 +339,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     DATA mo_reservation TYPE REF TO lcl_reservation_double.
     DATA mo_lock        TYPE REF TO lcl_lock_double.
     DATA mo_commit      TYPE REF TO lcl_commit_double.
+    DATA mo_log         TYPE REF TO lcl_log_spy.
 
     METHODS teardown.
 
@@ -315,6 +380,7 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS releasing_nothing_commits_none FOR TESTING RAISING cx_static_check.
     METHODS nothing_waiting_is_not_a_run FOR TESTING RAISING cx_static_check.
     METHODS nothing_waiting_commits_none FOR TESTING RAISING cx_static_check.
+    METHODS what_was_given_back_is_noted FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -358,6 +424,7 @@ CLASS ltcl_service IMPLEMENTATION.
       iv_fail        = iv_fail_reserve ).
     mo_lock        = NEW #( ).
     mo_commit      = NEW #( ).
+    mo_log         = NEW #( ).
 
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
@@ -370,7 +437,8 @@ CLASS ltcl_service IMPLEMENTATION.
       io_authority   = NEW lcl_authority_double( iv_refuse )
       io_lock        = mo_lock
       io_commit      = mo_commit
-      iv_recut       = iv_recut ).
+      iv_recut       = iv_recut
+      io_log         = mo_log ).
 
   ENDMETHOD.
 
@@ -759,6 +827,32 @@ CLASS ltcl_service IMPLEMENTATION.
       act = mo_commit->get_commits( )
       exp = 0
       msg = 'most materials of a plant wide run are these, and each is two round trips' ).
+
+  ENDMETHOD.
+
+  METHOD what_was_given_back_is_noted.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_recut     = abap_true ).
+
+    given_earlier_run( ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_released( )
+      exp = VALUE lcl_log_spy=>ty_reservation_tab( ( c_earlier_res ) )
+      msg = 'taking stock off a customer is the last thing to do silently' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_other( )
+      exp = 0
+      msg = 'and the service writes nothing else: the run above it does that' ).
 
   ENDMETHOD.
 

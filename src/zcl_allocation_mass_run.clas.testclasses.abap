@@ -160,6 +160,13 @@ CLASS lcl_log_spy IMPLEMENTATION.
       text  = iv_reason ) TO mt_entry.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~released.
+    APPEND VALUE #(
+      kind  = `released`
+      matnr = iv_matnr
+      text  = |{ iv_reservation }| ) TO mt_entry.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     APPEND VALUE #(
       kind = `removed`

@@ -2383,3 +2383,29 @@ everything that has to decide the way a run decides asks for it.
 Both features come from the same habit: a factory method exists so that the
 graph is described once, and every time something is left out of it, a report
 starts quietly answering a different question.
+
+### Feature 75 — the calls somebody has to make (done)
+
+Feature 49 let a run take back what an earlier one set aside, which is the
+right thing to do to the stock and a hard thing to do to a customer. A line
+that was confirmed 10 last night and is confirmed 4 this morning is a
+telephone call, and finding those meant reading two runs side by side and
+subtracting — for every material in the plant.
+
+`ZSTOCK_ALLOC_DIFF` is that subtraction: per line, what it had and what it has
+now, wherever the two differ.
+
+- **The run before is the run before in time**, found by walking the material's
+  runs from the newest and taking the one after the one being displayed. Not
+  "the second row of the table": a material re-run twice this morning has two
+  runs today, and the comparison is with the one immediately before.
+- **A line exactly where it was is not news.** Only the differences are shown,
+  because a list of everything is a list nobody scans.
+- **Losses can be asked for on their own**, which is the case somebody is
+  usually in: they have calls to make and half an hour to make them.
+- **A material allocated for the first time has gained everything**, and shows
+  as such rather than being left out. It is a change, and it is the kind
+  somebody likes hearing about.
+- **It reads two recorded runs and nothing else.** No engine, no readers, no
+  clever reconstruction of what might have happened: the two answers were
+  written down at the time and this is what they say.

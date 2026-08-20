@@ -21,6 +21,11 @@ INTERFACE zif_allocation PUBLIC.
   "! worth serving in full: a part of it ships nothing, so confirming a part of
   "! it would tie up stock that cannot leave. CUSTOMER is who is waiting, where
   "! there is one: a stock transport order has none.
+  "!
+  "! UNIT_SIZE is how many base units one unit of the document is: 12 for a
+  "! line ordered in cartons of twelve pieces, 1 where the document is in the
+  "! base unit already. It is what makes a confirmation shippable as ordered,
+  "! and only ZCL_ALLOC_WHOLE_UNITS reads it.
   TYPES:
     BEGIN OF ty_demand,
       demand_id TYPE ty_demand_id,
@@ -31,6 +36,7 @@ INTERFACE zif_allocation PUBLIC.
       priority  TYPE ty_priority,
       complete  TYPE abap_bool,
       customer  TYPE vbak-kunnr,
+      unit_size TYPE ty_quantity,
     END OF ty_demand.
   TYPES ty_demand_tab TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 

@@ -1417,3 +1417,41 @@ no longer read as demand, in `READ_ITEMS` and in `MATERIALS_WITH_DEMAND` alike.
 - **The stock transport order reader is untouched.** `EKPO-SOBKZ` exists too,
   but a stock transport order moving special stock between plants is a rarity
   that deserves its own thinking rather than a line copied across.
+
+### Feature 43 — a customer who orders cartons is confirmed in cartons (done)
+
+Everything inside the engine is in base units, which is what makes stock and
+demand comparable at all (feature 17). What leaves the plant is not: a line
+ordered as five cartons of twelve ships in cartons, and confirming it 20 pieces
+is confirming one carton and two thirds of another. Somebody in shipping then
+has to decide what that means, and the eight pieces are held back from a line
+that could have used them either way.
+
+`ZCL_ALLOC_WHOLE_UNITS` wraps a strategy and cuts every confirmation down to a
+whole number of the line's own order unit. `ZSTOCK_ALLOC_CFG-WHOLE_UNITS`
+switches it on per plant, off by default.
+
+- **The unit comes from the document, not from the material.** `ZIF_ALLOCATION`
+  gained `UNIT_SIZE`, the number of base units in one unit of the ordering
+  document, and both demand readers fill it from the converter they already
+  hold. A line in the base unit gets 1 and is never touched, which is most
+  lines in most plants: the rule costs nothing where it does not apply.
+- **What is cut off is offered again.** The decorator caps the line at the
+  whole part and asks the strategy once more, so the pieces one line cannot use
+  reach a line that can — usually one that sells in the base unit. That is
+  feature 25's pass loop, with capping in place of dropping, and the same
+  bound on the number of passes.
+- **The last word is a cut, not a pass.** Whatever the passes settled on, the
+  final answer cuts anything still holding part of a unit. A loop that runs out
+  of passes must not be able to break the rule it exists to keep.
+- **The answer is about the demand as it was asked for.** The passes cap
+  quantities to steer the strategy; the allocation that comes back carries the
+  original requested quantity and the shortfall against it, so nothing about
+  the capping leaks into what a planner reads.
+- **It goes inside the complete delivery rule**, next to the customer cap and
+  for the same reason feature 32 gave: a line cut back to whole cartons may no
+  longer reach the quantity it has to ship in one go, and the rule outside has
+  to see the cut number rather than the one before it.
+- **Off by default.** Cutting a confirmation holds stock back, and a plant that
+  is happy to ship a part carton should not be made to keep it. Like feature
+  41's switch, this is a decision about a site, so it lives with the site.

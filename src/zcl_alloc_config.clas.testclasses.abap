@@ -17,7 +17,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
         iv_lgort    TYPE zstock_alloc_cfg-lgort DEFAULT ''
         iv_cap      TYPE zstock_alloc_cfg-cap_percent DEFAULT 0
         iv_keep     TYPE zstock_alloc_cfg-keep_days DEFAULT 0
-        iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''.
+        iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''
+        iv_whole    TYPE zstock_alloc_cfg-whole_units DEFAULT ''.
 
     METHODS config
       RETURNING
@@ -34,6 +35,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS planned_supply_is_read FOR TESTING.
     METHODS planned_supply_is_off_default FOR TESTING.
     METHODS anything_but_x_is_no FOR TESTING.
+    METHODS whole_units_is_read FOR TESTING.
+    METHODS whole_units_is_off_default FOR TESTING.
 
 ENDCLASS.
 
@@ -63,7 +66,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         lgort        = iv_lgort
         cap_percent  = iv_cap
         keep_days    = iv_keep
-        planned      = iv_planned ) ).
+        planned      = iv_planned
+        whole_units  = iv_whole ) ).
 
     INSERT zstock_alloc_cfg FROM TABLE @lt_row.
     cl_abap_unit_assert=>assert_equals(
@@ -192,6 +196,28 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       act = config( )-planned
       exp = abap_false
       msg = 'a flag holding something else is not a yes' ).
+
+  ENDMETHOD.
+
+  METHOD whole_units_is_read.
+
+    given_settings( iv_whole = 'X' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-whole_units
+      exp = abap_true
+      msg = 'a plant that ships in cartons confirms in cartons' ).
+
+  ENDMETHOD.
+
+  METHOD whole_units_is_off_default.
+
+    given_settings( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-whole_units
+      exp = abap_false
+      msg = 'holding stock back for want of a whole unit has to be asked for' ).
 
   ENDMETHOD.
 

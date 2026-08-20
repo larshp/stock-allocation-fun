@@ -182,7 +182,7 @@ CLASS ltcl_sto_demand_reader IMPLEMENTATION.
         iv_werks = c_werks )
       exp = VALUE zif_allocation=>ty_demand_tab(
         ( demand_id = 'PSTO-000001000100001' matnr = c_matnr werks = c_werks
-          quantity = '10' req_date = '20260201'
+          quantity = '10' req_date = '20260201' unit_size = '1'
           priority = zcl_sto_demand_reader=>c_default_priority ) )
       msg = 'a transfer out of the plant competes for the plant stock' ).
 

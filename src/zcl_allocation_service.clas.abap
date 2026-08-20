@@ -10,6 +10,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_lgort         | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
     "! @parameter iv_cap_percent   | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_planned       | <p class="shorttext synchronized">Planned orders count as supply too</p>
+    "! @parameter iv_whole_units   | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -18,6 +19,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_lgort          TYPE mard-lgort OPTIONAL
         iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_planned        TYPE abap_bool DEFAULT abap_false
+        iv_whole_units    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -100,6 +102,14 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     lo_strategy = NEW zcl_alloc_customer_cap(
       io_strategy = lo_strategy
       iv_percent  = iv_cap_percent ).
+
+    " rounding goes inside the complete delivery rule as well, and for the same
+    " reason as the cap: a line cut back to whole cartons may no longer reach
+    " the quantity it has to ship in one go, and the rule outside has to see
+    " that rather than the number before rounding
+    IF iv_whole_units = abap_true.
+      lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
+    ENDIF.
 
     " which lines may be served in part is a property of the demand, not of the
     " distribution rule, so this wraps whatever strategy is in use

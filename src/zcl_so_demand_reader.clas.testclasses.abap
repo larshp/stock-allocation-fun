@@ -179,9 +179,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand
       exp = VALUE zif_allocation=>ty_demand_tab(
         ( demand_id = '00000047110000100000' matnr = c_matnr werks = c_werks
-          quantity = '10' req_date = '20260210' priority = '02' )
+          quantity = '10' req_date = '20260210' priority = '02' unit_size = '1' )
         ( demand_id = '00000047120000100000' matnr = c_matnr werks = c_werks
-          quantity = '7' req_date = '20260115' priority = '01' ) ) ).
+          quantity = '7' req_date = '20260115' priority = '01' unit_size = '1' ) ) ).
 
   ENDMETHOD.
 
@@ -441,7 +441,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand
       exp = VALUE zif_allocation=>ty_demand_tab(
         ( demand_id = '00000047120000100000' matnr = c_matnr werks = c_werks
-          quantity = '7' req_date = '20260115' priority = '01' ) )
+          quantity = '7' req_date = '20260115' priority = '01' unit_size = '1' ) )
       msg = 'an item delivered in full has nothing left to ask for' ).
 
   ENDMETHOD.

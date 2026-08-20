@@ -31,9 +31,9 @@ waiting for stock it
    the horizon,
 4. walks the supply in the order it becomes available and distributes each day
    of it over the demand that can wait for it, either by delivery priority or
-   as a fair share, optionally holding every customer to a share of the pool,
-   and giving an item that may only ship complete either all of it or none of
-   it,
+   as a fair share, optionally holding every customer to a share of the pool
+   and confirming whole order units only, and giving an item that may only ship
+   complete either all of it or none of it,
 5. records the outcome in `ZSTOCK_ALLOC_RES` and commits it,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`, links
    the reservation back onto the recorded run and commits that.
@@ -65,10 +65,10 @@ material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
-storage location, customer cap, whether planned orders count as supply, and how
-long a recorded run is kept. Both programs read it by default, so a scheduled
-job only has to be told the plant;
-unticking **Settings come from the plant** hands the selection screen back to
+storage location, customer cap, whether planned orders count as supply, whether
+confirmations are cut to whole order units, and how long a recorded run is
+kept. Both programs read it by default, so a scheduled job only has to be told
+the plant; unticking **Settings come from the plant** hands the screen back to
 somebody trying something out. A plant with no row gets the defaults.
 
 `ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes

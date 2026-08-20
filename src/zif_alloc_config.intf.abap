@@ -11,6 +11,7 @@ INTERFACE zif_alloc_config PUBLIC.
       cap_percent  TYPE i,
       keep_days    TYPE i,
       planned      TYPE abap_bool,
+      whole_units  TYPE abap_bool,
     END OF ty_config.
 
   "! <p class="shorttext synchronized">Settings that apply to allocation in a plant</p>

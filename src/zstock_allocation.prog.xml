@@ -60,6 +60,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_WHOLE</KEY>
+     <ENTRY>Confirm whole order units only</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Test run, change nothing</ENTRY>
      <LENGTH>24</LENGTH>

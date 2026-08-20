@@ -155,6 +155,14 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
           iv_quantity = CONV #( ls_line-wmeng )
           iv_uom      = ls_item-vrkme ).
 
+        " and one of those sales units is this many base units, which is what
+        " a confirmation has to be a whole number of where the plant asks for
+        " it. The converter buffers the material master, so this is free.
+        DATA(lv_unit) = mo_converter->to_base(
+          iv_matnr    = ls_item-matnr
+          iv_quantity = 1
+          iv_uom      = ls_item-vrkme ).
+
         IF lv_open <= 0.
           CONTINUE.
         ENDIF.
@@ -183,7 +191,8 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
                               THEN c_lowest_priority
                               ELSE ls_item-lprio )
           complete  = xsdbool( ls_item-kztlf = c_complete_delivery )
-          customer  = ls_item-kunnr ) TO rt_demand.
+          customer  = ls_item-kunnr
+          unit_size = lv_unit ) TO rt_demand.
 
       ENDLOOP.
 

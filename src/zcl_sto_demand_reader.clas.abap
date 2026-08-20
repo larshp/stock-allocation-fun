@@ -123,6 +123,14 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
           iv_quantity = CONV #( lv_open )
           iv_uom      = ls_item-meins ).
 
+        " and one of those units is this many base units, which is what a
+        " confirmation has to be a whole number of. The converter buffers the
+        " material master, so asking it again costs nothing.
+        DATA(lv_unit) = mo_converter->to_base(
+          iv_matnr    = ls_item-matnr
+          iv_quantity = 1
+          iv_uom      = ls_item-meins ).
+
         APPEND VALUE #(
           demand_id = build_demand_id(
             iv_ebeln = ls_line-ebeln
@@ -132,6 +140,7 @@ CLASS zcl_sto_demand_reader IMPLEMENTATION.
           werks     = iv_werks
           quantity  = lv_quantity
           req_date  = ls_line-eindt
+          unit_size = lv_unit
           priority  = mv_priority ) TO rt_demand.
 
       ENDLOOP.

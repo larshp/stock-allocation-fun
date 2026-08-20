@@ -8,6 +8,7 @@ PARAMETERS p_horiz TYPE i DEFAULT 0.
 PARAMETERS p_lgort TYPE mard-lgort.
 PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
+PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
@@ -29,7 +30,8 @@ START-OF-SELECTION.
       horizon_days = p_horiz
       lgort        = p_lgort
       cap_percent  = p_cap
-      planned      = p_plan ).
+      planned      = p_plan
+      whole_units  = p_whole ).
   ENDIF.
 
   IF ls_settings-fair_share = abap_true.
@@ -46,7 +48,8 @@ START-OF-SELECTION.
       iv_horizon_days = ls_settings-horizon_days
       iv_lgort        = ls_settings-lgort
       iv_cap_percent  = ls_settings-cap_percent
-      iv_planned      = ls_settings-planned ) ).
+      iv_planned      = ls_settings-planned
+      iv_whole_units  = ls_settings-whole_units ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

@@ -212,9 +212,11 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       lo_converter = NEW zcl_unit_converter( ).
     ENDIF.
 
-    ro_demand = NEW zcl_demand_sources( VALUE #(
+    " who is waiting is read from the documents; how much that customer
+    " matters is a standing decision of the business, and is put on top
+    ro_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )
-      ( NEW zcl_sto_demand_reader( lo_converter ) ) ) ).
+      ( NEW zcl_sto_demand_reader( lo_converter ) ) ) ) ).
 
   ENDMETHOD.
 

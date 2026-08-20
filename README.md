@@ -85,6 +85,10 @@ reads the same supply timeline a run distributes and changes nothing;
 `Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP —
 remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
 
+`ZSTOCK_ALLOC_PRI` says which customers are served before the rest, once per
+customer instead of once per order line, either for one plant or for all of
+them.
+
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
 storage location, customer cap, whether planned orders count as supply, whether
 confirmations are cut to whole order units, and how long a recorded run is

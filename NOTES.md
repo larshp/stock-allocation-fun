@@ -1715,3 +1715,34 @@ reports cannot be given away, in a class of its own.
 The engine did not change. It never sees batches at all: the shelf life
 question is answered where the book stock is turned into what can be given
 away, which is the seam that existed for it.
+
+### Feature 51 — a business can say which customers come first (done)
+
+Demand is served in delivery priority order, and delivery priority is
+`VBAP-LPRIO`: a field on the order, filled when the order was typed in, from
+the customer master default of the day. That is the right place for "this
+order is urgent" and the wrong place for "this customer is a key account".
+A standing decision about a customer changes without the orders changing, and
+nobody is going to go back through open order lines to reflect it.
+
+`ZSTOCK_ALLOC_PRI` holds it once per customer, and `ZCL_DEMAND_CUSTOMER_PRIO`
+puts it on the demand after the readers have built it.
+
+- **It is a decorator on the demand reader**, so nothing downstream knows the
+  table exists: the strategies still sort by `PRIORITY`, and the priority they
+  sort by is simply better informed. The alternative — teaching both document
+  readers about a Customizing table — would have put the same lookup in two
+  places and left the next reader to remember it.
+- **A row for the plant beats a row for every plant.** A key account is usually
+  a decision of the business, which is what an empty plant means; a site that
+  has decided otherwise for itself is not overruled by it.
+- **A customer nobody ranked keeps what the order says.** The table is a list
+  of exceptions, not a replacement for delivery priority, so a plant with no
+  rows at all allocates exactly as it did before.
+- **Demand with no customer is not ranked**, the same line the customer cap
+  draws: a stock transport order is not a customer and has no share of this.
+- **It overrides rather than adds.** Two numbers for the same line — one from
+  the order and one from the table — would need a rule for combining them, and
+  every rule for combining them is a rule somebody has to learn. Whichever
+  answer is more specific wins outright, which is the same shape as the plant
+  row beating the general one.

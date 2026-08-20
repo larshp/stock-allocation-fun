@@ -79,6 +79,10 @@ calculation and shows the result without recording or reserving anything.
 material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
+`ZSTOCK_ALLOC_WHY` shows the working behind one material: every day of supply
+the run sees, every line competing for it, and what the two come to right now.
+For the question that follows every shortage.
+
 `ZSTOCK_ALLOC_SHORT` is the other way round: not what happened to one material
 but what is short across the whole plant, soonest and biggest first, with the
 reason on every line and an optional cut-off date and line limit. It is the

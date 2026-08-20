@@ -1838,3 +1838,31 @@ The service now stops as soon as the engine answers with nothing.
 - **The lock is still taken and given back.** Whether there is anything to do
   is only known after reading, and reading is exactly what the lock is there to
   make safe.
+
+### Feature 55 — show the working, not only the answer (done)
+
+Feature 47 made a short line say what stopped it, which answers "what kind of
+problem is this". The next question is always "are you sure?", and nothing in
+the solution could answer that. A planner looking at *confirmed 4 of 10, not
+enough stock* has to go and add up `MARD`, the open purchase orders, the
+production orders, the reservations, the deliveries and the safety stock by
+hand — which is the calculation the run just did and threw away.
+
+`ZCL_ALLOC_EXPLAIN` and `ZSTOCK_ALLOC_WHY` show it: the supply timeline, the
+demand competing for it, and what a run would confirm now.
+
+- **It reads the same sources a run reads.** `CREATE_DEFAULT_SUPPLY` and
+  `CREATE_DEFAULT_DEMAND` wire the same object graph, so the working shown is
+  the working done. An explanation assembled from different reads would be a
+  second opinion, and the one thing worse than no explanation is one that
+  disagrees with the answer.
+- **It works the answer out again rather than reading the last run.** The
+  recorded result says what was true last night; the question is always about
+  now, and between the two a delivery went out and an order arrived.
+- **It reserves nothing, records nothing and locks nothing**, and asks only for
+  display authority. It is a question, and asking a question must not change
+  the answer for everybody else.
+- **The reason is shown next to the working**, which is where somebody deciding
+  whether to chase purchasing or shipping wants both.
+- **An empty timeline says "nothing" rather than nothing at all.** A blank
+  section reads as a bug; the word is an answer.

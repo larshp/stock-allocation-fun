@@ -91,6 +91,7 @@ what is no longer holding anything back.
 | `ZSTOCK_ALLOC_WHY`   | the working behind one material — every day of supply, every line competing for it, and what the two come to right now |
 | `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
 | `ZSTOCK_ALLOC_ATP`   | how much can be promised of a quantity, and from when |
+| `ZSTOCK_ALLOC_WHAT`  | what one more order would be confirmed, and which lines on the books would pay for it |
 | `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
 | `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |

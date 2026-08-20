@@ -2833,3 +2833,33 @@ front.
   not would be answering different questions in the same words. The promise
   query was not: it sums demand rather than ordering it, so the queue does not
   come into it.
+
+### Feature 88 — what one more order would cost (done)
+
+The promise of feature 76 answers "how much of this can I have, and from
+when", out of what is left over once the book has been served. That is the
+honest answer to a question about stock and the wrong answer to a question
+about a business: an order taken at a good price can be worth serving ahead of
+one already on the books, and somebody has to be able to see what that would
+cost before agreeing to it.
+
+`ZSTOCK_ALLOC_WHAT` puts the order into the demand as though it had been
+typed, works the material out again, and shows what each line has now against
+what it would have.
+
+- **Both answers come from one read of the demand.** Reading it twice would
+  let an order that arrived in between look like something this one displaced.
+- **Each answer gets a distribution chain of its own.** The rules a plant can
+  put around a strategy remember what they have handed out while a material is
+  worked out -- the quota of feature 86 does exactly that -- so one chain used
+  twice would carry the first answer into the second.
+- **The line is built rather than read, so the shipping time has to be put on
+  it here.** A reader puts `READY_BY` on a real line; without it the order
+  would be allowed to take stock that lands on the day it is meant to ship.
+- **Only the losers are listed.** A line that keeps what it has is not what
+  anybody is asking about, and no line can gain: the same stock is being
+  spread over one requirement more.
+- **It reads the plant's own settings for everything except the order.** An
+  answer worked out by different rules than the run uses would be answering a
+  different question in the same words -- the point the comparison and the
+  explanation both make.

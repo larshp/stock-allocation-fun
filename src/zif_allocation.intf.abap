@@ -32,6 +32,7 @@ INTERFACE zif_allocation PUBLIC.
       customer_cap  TYPE ty_reason VALUE 'C',
       whole_units   TYPE ty_reason VALUE 'U',
       complete_only TYPE ty_reason VALUE 'D',
+      quota         TYPE ty_reason VALUE 'Q',
     END OF c_reason.
 
   "! A single requirement competing for stock. COMPLETE means the line is only

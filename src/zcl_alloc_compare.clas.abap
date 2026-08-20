@@ -45,6 +45,7 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_cap_percent | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_whole_units | <p class="shorttext synchronized">Confirm whole order units only</p>
+    "! @parameter iv_quota       | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be seen, or reading failed</p>
     METHODS run
@@ -53,6 +54,7 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks       TYPE mard-werks
         iv_cap_percent TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_whole_units TYPE abap_bool DEFAULT abap_false
+        iv_quota       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -78,6 +80,7 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
         it_demand            TYPE zif_allocation=>ty_demand_tab
         iv_cap_percent       TYPE i
         iv_whole_units       TYPE abap_bool
+        iv_quota             TYPE abap_bool
       RETURNING
         VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
       RAISING
@@ -154,7 +157,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
       iv_werks       = iv_werks
       it_demand      = lt_demand
       iv_cap_percent = iv_cap_percent
-      iv_whole_units = iv_whole_units ).
+      iv_whole_units = iv_whole_units
+      iv_quota       = iv_quota ).
 
     DATA(lt_fair) = answer_of(
       io_strategy    = NEW zcl_alloc_strategy_fairshare( )
@@ -162,7 +166,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
       iv_werks       = iv_werks
       it_demand      = lt_demand
       iv_cap_percent = iv_cap_percent
-      iv_whole_units = iv_whole_units ).
+      iv_whole_units = iv_whole_units
+      iv_quota       = iv_quota ).
 
     APPEND |{ `Demand` WIDTH = c_width_id }| &&
            |{ `Requested` WIDTH = c_width_qty ALIGN = RIGHT }| &&
@@ -212,7 +217,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
     DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
       io_strategy    = io_strategy
       iv_cap_percent = iv_cap_percent
-      iv_whole_units = iv_whole_units ).
+      iv_whole_units = iv_whole_units
+      iv_quota       = iv_quota ).
 
     rt_allocation = NEW zcl_allocation_engine(
       io_supply_reader = mo_supply

@@ -36,6 +36,8 @@ CLASS zcl_alloc_reason_text IMPLEMENTATION.
         rv_text = `whole units only`.
       WHEN zif_allocation=>c_reason-complete_only.
         rv_text = `complete delivery`.
+      WHEN zif_allocation=>c_reason-quota.
+        rv_text = `customer quota`.
       WHEN space.
         CLEAR rv_text.
       WHEN OTHERS.

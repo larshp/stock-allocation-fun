@@ -21,6 +21,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_planned      | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
+    "! @parameter iv_quota        | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
     "! @parameter iv_recut        | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
@@ -36,6 +37,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_planned         TYPE abap_bool DEFAULT abap_false
         iv_whole_units     TYPE abap_bool DEFAULT abap_false
+        iv_quota           TYPE abap_bool DEFAULT abap_false
         iv_recut           TYPE abap_bool DEFAULT abap_false
         iv_sto_priority    TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         iv_ship_days       TYPE i DEFAULT 0
@@ -103,6 +105,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_cap_percent  TYPE i
         iv_planned      TYPE abap_bool
         iv_whole_units  TYPE abap_bool
+        iv_quota        TYPE abap_bool
         iv_recut        TYPE abap_bool
       RETURNING
         VALUE(rv_text)  TYPE string.
@@ -147,6 +150,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_cap_percent  = iv_cap_percent
         iv_planned      = iv_planned
         iv_whole_units  = iv_whole_units
+        iv_quota        = iv_quota
         iv_recut        = iv_recut
         iv_sto_priority = iv_sto_priority
         iv_ship_days    = iv_ship_days
@@ -266,6 +270,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
                            THEN `, plan counts` ) &&
               COND string( WHEN iv_whole_units = abap_true
                            THEN `, whole units` ) &&
+              COND string( WHEN iv_quota = abap_true
+                           THEN `, quotas` ) &&
               COND string( WHEN iv_recut = abap_true
                            THEN `, re-cut` ).
 

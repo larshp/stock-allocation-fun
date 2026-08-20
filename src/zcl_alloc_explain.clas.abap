@@ -13,6 +13,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
     "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
+    "! @parameter iv_quota        | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
     "! @parameter ro_explain      | <p class="shorttext synchronized">Ready to use explanation</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -23,6 +24,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
         iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
+        iv_quota          TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_explain) TYPE REF TO zcl_alloc_explain.
 
@@ -150,7 +152,8 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
         io_strategy      = zcl_allocation_service=>create_default_strategy(
           io_strategy    = io_strategy
           iv_cap_percent = iv_cap_percent
-          iv_whole_units = iv_whole_units ) )
+          iv_whole_units = iv_whole_units
+          iv_quota       = iv_quota ) )
       io_authority = NEW zcl_authority_plant( c_activity_display ) ).
 
   ENDMETHOD.

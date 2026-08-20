@@ -4,6 +4,7 @@ PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr OBLIGATORY.
 PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_whole AS CHECKBOX.
+PARAMETERS p_quota AS CHECKBOX.
 
 START-OF-SELECTION.
 
@@ -21,7 +22,8 @@ START-OF-SELECTION.
           iv_matnr       = p_matnr
           iv_werks       = p_werks
           iv_cap_percent = p_cap
-          iv_whole_units = p_whole ).
+          iv_whole_units = p_whole
+          iv_quota       = p_quota ).
     CATCH zcx_allocation INTO DATA(lx_error).
       lt_line = VALUE #( ( lx_error->get_text( ) ) ).
   ENDTRY.

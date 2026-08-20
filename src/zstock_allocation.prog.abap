@@ -14,6 +14,7 @@ PARAMETERS p_stop TYPE zif_allocation=>ty_priority DEFAULT '50'.
 PARAMETERS p_ship TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
+PARAMETERS p_quota AS CHECKBOX.
 PARAMETERS p_recut AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
@@ -50,6 +51,7 @@ START-OF-SELECTION.
       cap_percent  = p_cap
       planned      = p_plan
       whole_units  = p_whole
+      quota        = p_quota
       sto_priority = p_stop
       ship_days    = p_ship ).
   ENDIF.
@@ -77,6 +79,7 @@ START-OF-SELECTION.
       iv_cap_percent  = ls_settings-cap_percent
       iv_planned      = ls_settings-planned
       iv_whole_units  = ls_settings-whole_units
+      iv_quota        = ls_settings-quota
       iv_recut        = p_recut
       iv_sto_priority = ls_settings-sto_priority
       iv_ship_days    = ls_settings-ship_days

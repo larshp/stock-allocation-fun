@@ -26,7 +26,8 @@ START-OF-SELECTION.
         iv_ship_days    = ls_settings-ship_days
         io_strategy     = lo_strategy
         iv_cap_percent  = ls_settings-cap_percent
-        iv_whole_units  = ls_settings-whole_units )->run(
+        iv_whole_units  = ls_settings-whole_units
+        iv_quota        = ls_settings-quota )->run(
           iv_matnr = p_matnr
           iv_werks = p_werks ).
     CATCH zcx_allocation INTO DATA(lx_error).

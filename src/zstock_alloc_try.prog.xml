@@ -36,6 +36,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_QUOTA</KEY>
+     <ENTRY>Hold customers to their quotas</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WHOLE</KEY>
      <ENTRY>Confirm whole order units only</ENTRY>
      <LENGTH>30</LENGTH>

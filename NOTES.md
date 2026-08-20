@@ -2744,3 +2744,39 @@ the copy: name a class that implements `ZIF_SUPPLY_READER` or
   shipped, parameterless class to point the configuration at.
 - **A row without a plant applies everywhere**, the same shape as the customer
   priorities in feature 51.
+
+### Feature 86 — how much a customer may take in a month (done)
+
+The customer share of feature 30 is a share of whatever happens to be
+available on the night. That is the plant looking after itself, and it is not
+what a business agrees with a customer: what it agrees is a quantity over a
+period, so many tonnes of this material a month, whether the month turns out
+to be a good one or a bad one. `ZSTOCK_ALLOC_QTA` holds that agreement and
+`ZCL_ALLOC_QUOTA` holds the run to it.
+
+- **It is a quota over one allocation, not over history.** A run re-cutting a
+  material it allocated yesterday reads the same orders again; counting
+  yesterday's answer as consumption as well would take the quota away twice
+  from the same lines and drive every re-cut towards zero. The quota therefore
+  caps what the demand in front of the run may be confirmed, which is stable
+  however many times the run is repeated.
+- **Which period a line falls in is decided by the day the goods are wanted**,
+  not by the day the run happens: an order for March is against March's quota
+  even when the run is in February.
+- **A row naming no customer is the rule of the house, and a customer's own row
+  replaces it** rather than being served on top of it. Two quotas that add up
+  would be an agreement nobody made.
+- **A line outside every period is outside every quota.** A quota says what may
+  be taken in the months it covers and nothing at all about the months it does
+  not, so a plant can put one month under a quota without deciding anything
+  about the rest of the year.
+- **The quota is wrapped outside the customer share**, so a line held back by
+  both carries the quota as its reason: a planner ringing the customer needs to
+  hear "this is what you agreed", not "the plant was thin that night".
+- **A customer loses the far end of its book, not a shaving off every line.**
+  Within a customer the lines are cut back in the order the strategies serve
+  demand, the same technique as `ZCL_ALLOC_CUSTOMER_CAP`, so its urgent lines
+  stay whole and shippable.
+- **New reason `Q`**, and with it a new line in `ZCL_ALLOC_REASON_TEXT`. Every
+  rule that can hold stock back has its own reason, because "short" on its own
+  tells a planner nothing about what to do next.

@@ -40,7 +40,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   whole_units,
                   sto_prio,
                   ship_days,
-                  atp_net
+                  atp_net,
+                  quota
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -57,6 +58,7 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     rs_config-planned     = xsdbool( ls_row-planned = abap_true ).
     rs_config-whole_units  = xsdbool( ls_row-whole_units = abap_true ).
     rs_config-cautious_atp = xsdbool( ls_row-atp_net = abap_true ).
+    rs_config-quota        = xsdbool( ls_row-quota = abap_true ).
 
     " a shipping time below zero would mean the goods leave before they are
     " picked, and is read as none

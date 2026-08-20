@@ -23,6 +23,24 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
+    "! <p class="shorttext synchronized">Everything a plant has to give away, as one reader</p>
+    "!
+    "! What is on the shelf and free, what is on its way in, and what is being
+    "! made. Public because a run is not the only thing that has to know: a
+    "! promise asked for one line reads the same timeline the run distributes.
+    "!
+    "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter iv_lgort     | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
+    "! @parameter iv_planned   | <p class="shorttext synchronized">Planned orders count as supply too</p>
+    "! @parameter ro_supply    | <p class="shorttext synchronized">Reader over every source</p>
+    CLASS-METHODS create_default_supply
+      IMPORTING
+        io_converter     TYPE REF TO zif_unit_converter OPTIONAL
+        iv_lgort         TYPE mard-lgort OPTIONAL
+        iv_planned       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(ro_supply) TYPE REF TO zif_supply_reader.
+
     "! <p class="shorttext synchronized">Every source of demand on a plant, as one reader</p>
     "!
     "! Sales orders and stock transport orders both take stock out of the
@@ -82,14 +100,6 @@ CLASS zcl_allocation_service IMPLEMENTATION.
   METHOD create_default.
 
     DATA lo_strategy TYPE REF TO zif_allocation_strategy.
-    DATA lt_lgort    TYPE zcl_stock_in_locations=>ty_lgort_tab.
-    DATA lt_supply   TYPE zcl_supply_sources=>ty_source_tab.
-
-    " the report offers one location, the class takes as many as a caller
-    " wiring it itself wants to name
-    IF iv_lgort IS NOT INITIAL.
-      APPEND iv_lgort TO lt_lgort.
-    ENDIF.
 
     lo_strategy = io_strategy.
     IF lo_strategy IS NOT BOUND.
@@ -119,28 +129,12 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " both the demand and the supply side ask it the same questions
     DATA(lo_converter) = NEW zcl_unit_converter( ).
 
-    " what is on the shelf, what is on its way, and what is being made. A
-    " planned order is not any of those until the plant says it trusts its own
-    " plan, so it is added rather than always there.
-    lt_supply = VALUE #(
-      ( NEW zcl_supply_on_hand( NEW zcl_stock_reader_net(
-        io_stock     = NEW zcl_stock_in_locations(
-          io_stock = NEW zcl_stock_reader( )
-          it_lgort = lt_lgort )
-        it_deduction = VALUE #(
-          ( NEW zcl_deduct_reservations( ) )
-          ( NEW zcl_deduct_deliveries( ) )
-          ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
-      ( NEW zcl_supply_receipts( lo_converter ) )
-      ( NEW zcl_supply_production( lo_converter ) ) ).
-
-    IF iv_planned = abap_true.
-      APPEND NEW zcl_supply_planned( lo_converter ) TO lt_supply.
-    ENDIF.
-
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
-        io_supply_reader = NEW zcl_supply_sources( lt_supply )
+        io_supply_reader = create_default_supply(
+          io_converter = lo_converter
+          iv_lgort     = iv_lgort
+          iv_planned   = iv_planned )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
             io_demand = create_default_demand( lo_converter )
@@ -153,6 +147,45 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_authority   = NEW zcl_authority_plant( )
       io_lock        = NEW zcl_lock_material( )
       io_commit      = NEW zcl_unit_of_work( ) ).
+
+  ENDMETHOD.
+
+  METHOD create_default_supply.
+
+    DATA lt_lgort  TYPE zcl_stock_in_locations=>ty_lgort_tab.
+    DATA lt_source TYPE zcl_supply_sources=>ty_source_tab.
+
+    " the report offers one location, the class takes as many as a caller
+    " wiring it itself wants to name
+    IF iv_lgort IS NOT INITIAL.
+      APPEND iv_lgort TO lt_lgort.
+    ENDIF.
+
+    DATA(lo_converter) = io_converter.
+    IF lo_converter IS NOT BOUND.
+      lo_converter = NEW zcl_unit_converter( ).
+    ENDIF.
+
+    " what is on the shelf, what is on its way, and what is being made. A
+    " planned order is not any of those until the plant says it trusts its own
+    " plan, so it is added rather than always there.
+    lt_source = VALUE #(
+      ( NEW zcl_supply_on_hand( NEW zcl_stock_reader_net(
+        io_stock     = NEW zcl_stock_in_locations(
+          io_stock = NEW zcl_stock_reader( )
+          it_lgort = lt_lgort )
+        it_deduction = VALUE #(
+          ( NEW zcl_deduct_reservations( ) )
+          ( NEW zcl_deduct_deliveries( ) )
+          ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
+      ( NEW zcl_supply_receipts( lo_converter ) )
+      ( NEW zcl_supply_production( lo_converter ) ) ).
+
+    IF iv_planned = abap_true.
+      APPEND NEW zcl_supply_planned( lo_converter ) TO lt_source.
+    ENDIF.
+
+    ro_supply = NEW zcl_supply_sources( lt_source ).
 
   ENDMETHOD.
 

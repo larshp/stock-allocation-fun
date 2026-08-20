@@ -1490,3 +1490,45 @@ given, and `ZSTOCK_ALLOCATION` has a field for one.
   from the plant. Which materials a job covers is a property of the job — of
   how the work was split between background processes tonight — not of the
   plant, and putting it in Customizing would tie the two together.
+
+### Feature 45 — what can be promised, without allocating anything (done)
+
+Everything so far answers one question: given all the demand there is, who gets
+the stock. There is a second question, asked far more often and by different
+people — *can I promise a customer 500 of this by the 12th?* — and the solution
+could only answer it by running a whole allocation and reading the result,
+which reserves stock and takes a lock to answer a question nobody asked it to
+act on.
+
+`ZIF_ATP_QUERY` / `ZCL_ATP_QUERY` answer it directly. They walk the same supply
+timeline a run distributes and say how much of the quantity asked for is there,
+and on what day it is complete. `ZSTOCK_ALLOC_ATP` is the same thing with a
+selection screen.
+
+- **It is the timeline the run uses, not a second opinion.**
+  `ZCL_ALLOCATION_SERVICE=>CREATE_DEFAULT_SUPPLY` was pulled out of
+  `CREATE_DEFAULT` so both wire up the same object graph — free stock less what
+  is held back, plus receipts, production orders and, if the plant says so,
+  planned orders. An availability answer that disagreed with the run that acts
+  on it would be worse than none.
+- **A date cuts the timeline, it does not move it.** With a date the answer
+  counts only what is there by that day, which is what a customer asking for
+  the 12th means. Without one the answer is the earliest day the whole quantity
+  can be there — the two questions a salesperson actually asks.
+- **The day is the day the promise is complete**, the last one that
+  contributed, and initial means the stock is on the shelf. Same convention as
+  feature 35, because it is the same statement.
+- **A promise of nothing carries no date.** Saying "none, on the third" would
+  put a day against goods nobody is offering.
+- **It reserves nothing and locks nothing.** A question asked from a sales
+  order screen must not hold stock or block the nightly run; what turns an
+  answer into a hold is an allocation run, which is the thing that writes.
+- **It still asks whether the user may see the plant**, at display activity.
+  A promise is a statement about a plant's stock, and somebody who may not see
+  that plant may not have it read out to them either.
+
+What it does not do is subtract demand that no run has confirmed yet. Between
+runs, two people can be promised the same piece; the run is what decides who
+really gets it. That is a property of allocating in batches rather than a gap
+in the query, and pretending otherwise would mean holding stock for a promise
+nobody recorded.

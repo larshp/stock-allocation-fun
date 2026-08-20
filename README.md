@@ -64,6 +64,11 @@ calculation and shows the result without recording or reserving anything.
 material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
+`ZSTOCK_ALLOC_ATP` answers the question a salesperson asks before writing an
+order down: how much of a material this plant can promise, and from when. It
+reads the same supply timeline a run distributes and changes nothing;
+`ZIF_ATP_QUERY` is the same answer for a program to call.
+
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
 storage location, customer cap, whether planned orders count as supply, whether
 confirmations are cut to whole order units, and how long a recorded run is
@@ -124,6 +129,7 @@ nothing else has to:
 | `ZIF_RUN_ID_SUPPLIER`      | how runs are numbered                              |
 | `ZIF_ALLOCATION_STORE`     | where the result is recorded                       |
 | `ZIF_ALLOCATION_LOG`       | where a run says what it did                       |
+| `ZIF_ATP_QUERY`            | how a promise is worked out for one line           |
 | `ZIF_ALLOC_CONFIG`         | where a plant's settings come from                 |
 | `ZIF_UNIT_OF_WORK`         | what makes a run durable, and what undoes it       |
 

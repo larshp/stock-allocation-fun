@@ -13,6 +13,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_whole_units   | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter iv_recut         | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     "! @parameter iv_sto_priority  | <p class="shorttext synchronized">Where a transfer stands against an order</p>
+    "! @parameter iv_ship_days     | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -24,6 +25,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
         iv_recut          TYPE abap_bool DEFAULT abap_false
         iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
+        iv_ship_days      TYPE i DEFAULT 0
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -53,11 +55,13 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_converter   | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
+    "! @parameter iv_ship_days   | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter ro_demand      | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_demand
       IMPORTING
         io_converter     TYPE REF TO zif_unit_converter OPTIONAL
         iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
+        iv_ship_days     TYPE i DEFAULT 0
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -155,7 +159,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           io_demand      = NEW zcl_demand_within_horizon(
             io_demand = create_default_demand(
               io_converter    = lo_converter
-              iv_sto_priority = iv_sto_priority )
+              iv_sto_priority = iv_sto_priority
+              iv_ship_days    = iv_ship_days )
             iv_days   = iv_horizon_days )
           io_reservation = NEW zcl_reservation_reader( ) )
         io_strategy      = lo_strategy )
@@ -224,12 +229,16 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ENDIF.
 
     " who is waiting is read from the documents; how much that customer
-    " matters is a standing decision of the business, and is put on top
-    ro_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
+    " matters is a standing decision of the business, and how long the plant
+    " needs to get the goods out of the door is a fact about the plant. Both
+    " go on top of what the documents say.
+    ro_demand = NEW zcl_demand_ship_time(
+      io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )
       ( NEW zcl_sto_demand_reader(
           io_converter = lo_converter
-          iv_priority  = iv_sto_priority ) ) ) ) ).
+          iv_priority  = iv_sto_priority ) ) ) ) )
+      iv_days   = iv_ship_days ).
 
   ENDMETHOD.
 

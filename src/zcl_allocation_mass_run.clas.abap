@@ -23,6 +23,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter iv_recut        | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
+    "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter it_dispo        | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
     "! @parameter iv_package      | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
     "! @parameter iv_packages     | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
@@ -37,6 +38,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_whole_units     TYPE abap_bool DEFAULT abap_false
         iv_recut           TYPE abap_bool DEFAULT abap_false
         iv_sto_priority    TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
+        iv_ship_days       TYPE i DEFAULT 0
         it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
         iv_package         TYPE i DEFAULT 0
         iv_packages        TYPE i DEFAULT 0
@@ -131,11 +133,13 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_planned      = iv_planned
         iv_whole_units  = iv_whole_units
         iv_recut        = iv_recut
-        iv_sto_priority = iv_sto_priority )
+        iv_sto_priority = iv_sto_priority
+        iv_ship_days    = iv_ship_days )
       io_demand  = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
           io_demand = zcl_allocation_service=>create_default_demand(
-            iv_sto_priority = iv_sto_priority )
+            iv_sto_priority = iv_sto_priority
+            iv_ship_days    = iv_ship_days )
           it_dispo  = it_dispo )
         iv_package  = iv_package
         iv_packages = iv_packages )

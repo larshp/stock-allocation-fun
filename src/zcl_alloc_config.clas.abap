@@ -38,7 +38,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   keep_days,
                   planned,
                   whole_units,
-                  sto_prio
+                  sto_prio,
+                  ship_days
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -54,6 +55,12 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     " yet is one to be sure about
     rs_config-planned     = xsdbool( ls_row-planned = abap_true ).
     rs_config-whole_units = xsdbool( ls_row-whole_units = abap_true ).
+
+    " a shipping time below zero would mean the goods leave before they are
+    " picked, and is read as none
+    IF ls_row-ship_days > 0.
+      rs_config-ship_days = ls_row-ship_days.
+    ENDIF.
 
     " a priority of zero is not a priority, it is a field nobody filled: the
     " strategies read 01 as first, so taking it literally would put every

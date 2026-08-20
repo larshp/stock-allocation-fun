@@ -2185,3 +2185,33 @@ true, and useless.
 - **A number nobody set is the default, not an empty answer.** That is the
   projection's rule now, and it is the same instinct: a parameter left alone
   should give the sensible answer, never a blank one.
+
+### Feature 68 — the goods have to leave before they can arrive (done)
+
+Feature 34 refuses to serve a line from stock that arrives after the line is
+wanted, which is right and one day short of the truth. A customer wanting
+goods on the 10th does not want them leaving the plant on the 10th: picking,
+packing and the lorry take time, and a receipt landing on the 9th is no use to
+a line that has to be on a trailer on the 8th. The run was confirming lines
+against stock that arrives too late to ship.
+
+`ZIF_ALLOCATION`'s demand gained `READY_BY`, the day the stock has to be in the
+plant, and `ZCL_DEMAND_SHIP_TIME` fills it from the plant's shipping time.
+
+- **The date the customer wants is not touched.** `REQ_DATE` is what the order
+  says and is what the answer, the reservation and both reports show; the day
+  the goods must be on the shelf is a second date, and conflating the two would
+  have made every report disagree with the sales order.
+- **A line that says nothing is wanted when it is wanted.** `READY_BY` initial
+  means the two dates are the same, which is what a plant that ships the day it
+  picks has, and what every reader that has never heard of this feature
+  produces. The engine falls back to `REQ_DATE`, so nothing outside the default
+  wiring changes.
+- **A line wanted now cannot be wanted two days before now.** An undated
+  requirement is left alone: bringing "now" forward is not a thing.
+- **Days, not a factory calendar.** A calendar would say the goods cannot leave
+  on a Sunday and would need `TFACD` and the calendar function modules; days
+  are a decent approximation of the same idea and are one field in the plant's
+  settings. What that field cannot express is a plant whose answer differs by
+  weekday, and that is worth knowing before somebody sets it to 2 and expects
+  the weekend to be counted.

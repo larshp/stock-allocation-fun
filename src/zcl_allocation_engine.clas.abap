@@ -269,14 +269,26 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
 
   METHOD servable_from.
 
-    " a receipt cannot serve a line that is wanted before it arrives:
+    " a receipt cannot serve a line that needs the stock before it arrives:
     " confirming it would promise a date that cannot be kept. Stock that is
     " already there carries no date and can serve anything, including a line
     " that is already overdue.
+    "
+    " What the line needs is READY_BY, the day the goods have to be in the
+    " plant, which is earlier than the day the customer wants them by however
+    " long shipping takes. A line that says nothing about it wants them on the
+    " day it is wanted, which is what a plant that ships the same day has.
     LOOP AT it_demand INTO DATA(ls_demand).
-      IF ls_demand-quantity > 0 AND ls_demand-req_date >= iv_date.
+
+      DATA(lv_needed) = ls_demand-ready_by.
+      IF lv_needed IS INITIAL.
+        lv_needed = ls_demand-req_date.
+      ENDIF.
+
+      IF ls_demand-quantity > 0 AND lv_needed >= iv_date.
         APPEND ls_demand TO rt_demand.
       ENDIF.
+
     ENDLOOP.
 
   ENDMETHOD.

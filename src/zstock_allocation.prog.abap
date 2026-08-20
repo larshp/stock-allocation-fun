@@ -11,6 +11,7 @@ PARAMETERS p_horiz TYPE i DEFAULT 0.
 PARAMETERS p_lgort TYPE mard-lgort.
 PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_stop TYPE zif_allocation=>ty_priority DEFAULT '50'.
+PARAMETERS p_ship TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_recut AS CHECKBOX.
@@ -49,7 +50,8 @@ START-OF-SELECTION.
       cap_percent  = p_cap
       planned      = p_plan
       whole_units  = p_whole
-      sto_priority = p_stop ).
+      sto_priority = p_stop
+      ship_days    = p_ship ).
   ENDIF.
 
   IF ls_settings-fair_share = abap_true.
@@ -77,6 +79,7 @@ START-OF-SELECTION.
       iv_whole_units  = ls_settings-whole_units
       iv_recut        = p_recut
       iv_sto_priority = ls_settings-sto_priority
+      iv_ship_days    = ls_settings-ship_days
       iv_package      = p_pkg
       iv_packages     = p_pkgs
       it_dispo        = lt_dispo ) ).

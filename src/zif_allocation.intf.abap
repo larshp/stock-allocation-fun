@@ -39,6 +39,11 @@ INTERFACE zif_allocation PUBLIC.
   "! it would tie up stock that cannot leave. CUSTOMER is who is waiting, where
   "! there is one: a stock transport order has none.
   "!
+  "! READY_BY is the day the stock has to be in the plant for the line to be
+  "! wanted on REQ_DATE: earlier by however long it takes the plant to pick,
+  "! pack and ship. Initial means the two are the same day, which is what a
+  "! plant that ships the same day it picks has.
+  "!
   "! UNIT_SIZE is how many base units one unit of the document is: 12 for a
   "! line ordered in cartons of twelve pieces, 1 where the document is in the
   "! base unit already. It is what makes a confirmation shippable as ordered,
@@ -50,6 +55,7 @@ INTERFACE zif_allocation PUBLIC.
       werks     TYPE mard-werks,
       quantity  TYPE ty_quantity,
       req_date  TYPE d,
+      ready_by  TYPE d,
       priority  TYPE ty_priority,
       complete  TYPE abap_bool,
       customer  TYPE vbak-kunnr,

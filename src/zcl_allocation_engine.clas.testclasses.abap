@@ -140,6 +140,7 @@ CLASS ltcl_engine DEFINITION FINAL FOR TESTING
     METHODS a_late_receipt_says_so FOR TESTING RAISING cx_static_check.
     METHODS an_empty_pool_says_so FOR TESTING RAISING cx_static_check.
     METHODS a_full_line_has_no_reason FOR TESTING RAISING cx_static_check.
+    METHODS a_late_receipt_misses_shipping FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -302,6 +303,28 @@ CLASS ltcl_engine IMPLEMENTATION.
       act = lt_result[ 1 ]-confirmed
       exp = '10'
       msg = 'a line wanted after the receipt arrives can be served from it' ).
+
+  ENDMETHOD.
+
+  METHOD a_late_receipt_misses_shipping.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260309' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260310' ready_by = '20260308'
+          priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0
+      msg = 'stock landing the day before is no use to a line loading two days before' ).
 
   ENDMETHOD.
 

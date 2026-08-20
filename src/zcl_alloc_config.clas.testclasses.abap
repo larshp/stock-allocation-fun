@@ -19,7 +19,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
         iv_keep     TYPE zstock_alloc_cfg-keep_days DEFAULT 0
         iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''
         iv_whole    TYPE zstock_alloc_cfg-whole_units DEFAULT ''
-        iv_sto      TYPE zstock_alloc_cfg-sto_prio DEFAULT '00'.
+        iv_sto      TYPE zstock_alloc_cfg-sto_prio DEFAULT '00'
+        iv_ship     TYPE zstock_alloc_cfg-ship_days DEFAULT 0.
 
     METHODS config
       RETURNING
@@ -40,6 +41,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS whole_units_is_off_default FOR TESTING.
     METHODS a_transfer_priority_is_read FOR TESTING.
     METHODS an_empty_priority_is_default FOR TESTING.
+    METHODS a_shipping_time_is_read FOR TESTING.
+    METHODS a_negative_time_is_none FOR TESTING.
 
 ENDCLASS.
 
@@ -71,7 +74,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         keep_days    = iv_keep
         planned      = iv_planned
         whole_units  = iv_whole
-        sto_prio     = iv_sto ) ).
+        sto_prio     = iv_sto
+        ship_days    = iv_ship ) ).
 
     INSERT zstock_alloc_cfg FROM TABLE @lt_row.
     cl_abap_unit_assert=>assert_equals(
@@ -246,6 +250,28 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       act = config( )-sto_priority
       exp = zcl_alloc_config=>c_default_sto_prio
       msg = 'zero is a field nobody filled, and 01 would be first of all' ).
+
+  ENDMETHOD.
+
+  METHOD a_shipping_time_is_read.
+
+    given_settings( iv_ship = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-ship_days
+      exp = 2
+      msg = 'how long the plant needs to get goods out of the door is the plant to say' ).
+
+  ENDMETHOD.
+
+  METHOD a_negative_time_is_none.
+
+    given_settings( iv_ship = -2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-ship_days
+      exp = 0
+      msg = 'goods leaving before they are picked is not a setting to obey' ).
 
   ENDMETHOD.
 

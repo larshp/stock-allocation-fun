@@ -1563,3 +1563,42 @@ structure and `ZCL_ALLOC_ATP_API` behind it.
   have to know whether this plant counts planned orders; it asks about goods
   and gets the plant's own answer. A storage location may still be narrowed,
   because that is a statement about which goods the caller means.
+
+### Feature 47 — say why a line did not get everything (done)
+
+A line that comes back short says how much is missing and nothing else, and by
+now there are five different reasons it could be short, three of which are the
+plant's own rules. "Confirmed 4 of 10" sends a planner to look for stock that
+may not be the problem at all: the stock might be there and held by another
+customer's share, or cut off because the line is sold in cartons, or dropped
+because the item ships in one go, or on its way and arriving too late. Each of
+those is a different thing to do next, and the report could not tell them
+apart.
+
+`ZIF_ALLOCATION=>C_REASON` names the five, `TY_ALLOCATION` carries one, and
+both reports show it in a column of its own.
+
+- **The rule that held a line back is the one that says so.** The customer cap,
+  the whole units rule and the complete delivery rule each set their own reason
+  on the line they cut, because each of them is the only thing that knows it
+  did. Nothing outside has to guess from the numbers.
+- **The engine explains the two reasons that are nobody's rule**: a line no day
+  of supply could be offered to, because every receipt lands after it is
+  wanted, and a line the pool simply did not stretch to. The first is a
+  scheduling problem and the second a purchasing one, which is exactly why they
+  must not read the same.
+- **The last word wins.** A line the cap held back in January and the stock
+  held back in March was stopped by the stock in the end, so the reason from
+  the latest day of supply is the one kept.
+- **A rule only explains a line it actually cut.** The whole units rule sets
+  its reason when a pass caps a line or the final cut takes something off it,
+  not when the line was already short before it looked. Otherwise the last rule
+  in the chain would take the blame for everything.
+- **A line that got everything has no reason at all**, and the column is empty
+  rather than saying "fine".
+- **An unfamiliar code is printed as it stands.** A customer with a strategy of
+  its own can answer with a reason of its own, and a letter nobody here
+  recognises still says more than an empty column.
+
+The reason is stored with the run in `ZSTOCK_ALLOC_RES`, so the display report
+answers the question a week later, which is when it is usually asked.

@@ -336,7 +336,8 @@ CLASS ltcl_service IMPLEMENTATION.
       act = ls_run-allocation
       exp = VALUE zif_allocation=>ty_allocation_tab(
         ( demand_id = 'D1' requested = '5' confirmed = '5' shortfall = 0 )
-        ( demand_id = 'D2' requested = '5' confirmed = '2' shortfall = '3' ) ) ).
+        ( demand_id = 'D2' requested = '5' confirmed = '2' shortfall = '3'
+          reason = zif_allocation=>c_reason-no_stock ) ) ).
 
   ENDMETHOD.
 

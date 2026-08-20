@@ -57,6 +57,14 @@ CLASS zcl_allocation_engine DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_demand_id_tab TYPE STANDARD TABLE OF zif_allocation=>ty_demand_id WITH EMPTY KEY.
 
+    "! Why a strategy left a line short, as the strategy itself explained it.
+    TYPES:
+      BEGIN OF ty_reason,
+        demand_id TYPE zif_allocation=>ty_demand_id,
+        reason    TYPE zif_allocation=>ty_reason,
+      END OF ty_reason.
+    TYPES ty_reason_tab TYPE STANDARD TABLE OF ty_reason WITH EMPTY KEY.
+
     "! What one day of supply confirmed for one demand line.
     TYPES:
       BEGIN OF ty_confirmed,
@@ -102,8 +110,20 @@ CLASS zcl_allocation_engine DEFINITION PUBLIC FINAL CREATE PUBLIC.
         it_demand            TYPE zif_allocation=>ty_demand_tab
         it_served            TYPE ty_demand_id_tab
         it_confirmed         TYPE ty_confirmed_tab
+        it_offered           TYPE ty_demand_id_tab
+        it_reason            TYPE ty_reason_tab
+        iv_had_supply        TYPE abap_bool
       RETURNING
         VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
+
+    METHODS reason_for
+      IMPORTING
+        iv_demand_id     TYPE zif_allocation=>ty_demand_id
+        it_offered       TYPE ty_demand_id_tab
+        it_reason        TYPE ty_reason_tab
+        iv_had_supply    TYPE abap_bool
+      RETURNING
+        VALUE(rv_reason) TYPE zif_allocation=>ty_reason.
 
 ENDCLASS.
 
@@ -140,6 +160,10 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
     DATA lt_served    TYPE ty_demand_id_tab.
     DATA lt_confirmed TYPE ty_confirmed_tab.
     DATA lv_pool      TYPE zif_allocation=>ty_quantity.
+    " the lines a day of supply was ever offered to, and what a strategy said
+    " about the ones it could not fill
+    DATA lt_offered   TYPE ty_demand_id_tab.
+    DATA lt_reason    TYPE ty_reason_tab.
 
     DATA(lt_supply) = pooled_by_date( mo_supply_reader->read_supply(
       iv_matnr = iv_matnr
@@ -159,6 +183,12 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      LOOP AT lt_bucket INTO DATA(ls_bucket).
+        IF NOT line_exists( lt_offered[ table_line = ls_bucket-demand_id ] ).
+          APPEND ls_bucket-demand_id TO lt_offered.
+        ENDIF.
+      ENDLOOP.
+
       DATA(lt_answer) = mo_strategy->allocate(
         iv_available = lv_pool
         it_demand    = lt_bucket ).
@@ -167,6 +197,16 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
 
         IF NOT line_exists( lt_served[ table_line = ls_answer-demand_id ] ).
           APPEND ls_answer-demand_id TO lt_served.
+        ENDIF.
+
+        " a rule that held a line back says so itself, and the last day it said
+        " it is the answer: a line the cap stopped in January and the stock
+        " stopped in March was stopped by the stock in the end.
+        IF ls_answer-reason IS NOT INITIAL.
+          DELETE lt_reason WHERE demand_id = ls_answer-demand_id.
+          APPEND VALUE #(
+            demand_id = ls_answer-demand_id
+            reason    = ls_answer-reason ) TO lt_reason.
         ENDIF.
 
         IF ls_answer-confirmed <= 0.
@@ -191,9 +231,12 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
     ENDLOOP.
 
     rt_allocation = answer(
-      it_demand    = it_demand
-      it_served    = lt_served
-      it_confirmed = lt_confirmed ).
+      it_demand     = it_demand
+      it_served     = lt_served
+      it_confirmed  = lt_confirmed
+      it_offered    = lt_offered
+      it_reason     = lt_reason
+      iv_had_supply = xsdbool( lt_supply IS NOT INITIAL ) ).
 
   ENDMETHOD.
 
@@ -235,6 +278,31 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
         APPEND ls_demand TO rt_demand.
       ENDIF.
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD reason_for.
+
+    " what a rule of the plant's own making did to the line is the better
+    " answer, because it is the one somebody can decide to change
+    READ TABLE it_reason INTO DATA(ls_reason)
+      WITH KEY demand_id = iv_demand_id.
+    IF sy-subrc = 0.
+      rv_reason = ls_reason-reason.
+      RETURN.
+    ENDIF.
+
+    " a line no day of supply was ever offered to was passed over by the rule
+    " that a receipt cannot serve a requirement wanted before it lands. There
+    " is stock coming; it comes too late for this line.
+    IF iv_had_supply = abap_true
+        AND NOT line_exists( it_offered[ table_line = iv_demand_id ] ).
+      rv_reason = zif_allocation=>c_reason-supply_late.
+      RETURN.
+    ENDIF.
+
+    " otherwise the pool simply did not stretch this far
+    rv_reason = zif_allocation=>c_reason-no_stock.
 
   ENDMETHOD.
 
@@ -295,7 +363,13 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
         confirmed  = lv_confirmed
         shortfall  = COND #( WHEN ls_line-quantity > lv_confirmed
                              THEN ls_line-quantity - lv_confirmed
-                             ELSE 0 ) ) TO rt_allocation.
+                             ELSE 0 )
+        reason     = COND #( WHEN ls_line-quantity > lv_confirmed
+                             THEN reason_for(
+                               iv_demand_id  = lv_demand_id
+                               it_offered    = it_offered
+                               it_reason     = it_reason
+                               iv_had_supply = iv_had_supply ) ) ) TO rt_allocation.
 
     ENDLOOP.
 

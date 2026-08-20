@@ -29,6 +29,7 @@ CLASS ltcl_whole_units DEFINITION FINAL FOR TESTING
     METHODS less_than_one_unit_is_nothing FOR TESTING.
     METHODS every_line_is_answered_once FOR TESTING.
     METHODS complete_delivery_still_works FOR TESTING.
+    METHODS a_cut_line_says_why FOR TESTING.
 
 ENDCLASS.
 
@@ -165,6 +166,19 @@ CLASS ltcl_whole_units IMPLEMENTATION.
       act = lines( lt_allocation )
       exp = 3
       msg = 'every demand line is answered exactly once, cut or not' ).
+
+  ENDMETHOD.
+
+  METHOD a_cut_line_says_why.
+
+    DATA(lt_allocation) = allocate(
+      iv_available = '20'
+      it_demand    = VALUE #( ( demand( iv_id = 'D1' iv_quantity = '60' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocation[ demand_id = 'D1' ]-reason
+      exp = zif_allocation=>c_reason-whole_units
+      msg = 'a planner has to be able to tell rounding from a shortage' ).
 
   ENDMETHOD.
 

@@ -44,6 +44,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         requested  = ls_allocation-requested
         confirmed  = ls_allocation-confirmed
         shortfall  = ls_allocation-shortfall
+        reason     = ls_allocation-reason
         created_by = sy-uname
         created_at = lv_timestamp ) TO lt_row.
     ENDLOOP.
@@ -105,6 +106,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         requested   TYPE zstock_alloc_res-requested,
         confirmed   TYPE zstock_alloc_res-confirmed,
         shortfall   TYPE zstock_alloc_res-shortfall,
+        reason      TYPE zstock_alloc_res-reason,
         created_at  TYPE zstock_alloc_res-created_at,
       END OF ty_row.
     DATA lt_row    TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
@@ -123,6 +125,7 @@ CLASS zcl_allocation_store IMPLEMENTATION.
            requested,
            confirmed,
            shortfall,
+           reason,
            created_at
       FROM zstock_alloc_res
       WHERE werks = @iv_werks
@@ -157,7 +160,8 @@ CLASS zcl_allocation_store IMPLEMENTATION.
         avail_date  = ls_row-avail_date
         requested   = ls_row-requested
         confirmed   = ls_row-confirmed
-        shortfall   = ls_row-shortfall ) TO rt_recorded.
+        shortfall   = ls_row-shortfall
+        reason      = ls_row-reason ) TO rt_recorded.
 
     ENDLOOP.
 
@@ -183,7 +187,8 @@ CLASS zcl_allocation_store IMPLEMENTATION.
            avail_date,
            requested,
            confirmed,
-           shortfall
+           shortfall,
+           reason
       FROM zstock_alloc_res
       WHERE run_id = @iv_run_id
       ORDER BY demand_id

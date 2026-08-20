@@ -137,6 +137,9 @@ CLASS ltcl_engine DEFINITION FINAL FOR TESTING
     METHODS receipt_dates_the_line FOR TESTING RAISING cx_static_check.
     METHODS the_last_day_dates_the_line FOR TESTING RAISING cx_static_check.
     METHODS nothing_confirmed_has_no_date FOR TESTING RAISING cx_static_check.
+    METHODS a_late_receipt_says_so FOR TESTING RAISING cx_static_check.
+    METHODS an_empty_pool_says_so FOR TESTING RAISING cx_static_check.
+    METHODS a_full_line_has_no_reason FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -299,6 +302,66 @@ CLASS ltcl_engine IMPLEMENTATION.
       act = lt_result[ 1 ]-confirmed
       exp = '10'
       msg = 'a line wanted after the receipt arrives can be served from it' ).
+
+  ENDMETHOD.
+
+  METHOD a_late_receipt_says_so.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-reason
+      exp = zif_allocation=>c_reason-supply_late
+      msg = 'there is stock coming, and it comes too late for this line' ).
+
+  ENDMETHOD.
+
+  METHOD an_empty_pool_says_so.
+
+    given(
+      it_supply = on_hand( '4' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-reason
+      exp = zif_allocation=>c_reason-no_stock
+      msg = 'the pool was offered to the line and did not stretch that far' ).
+
+  ENDMETHOD.
+
+  METHOD a_full_line_has_no_reason.
+
+    given(
+      it_supply = on_hand( '10' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result[ 1 ]-reason
+      msg = 'a line that got everything has nothing to explain' ).
 
   ENDMETHOD.
 

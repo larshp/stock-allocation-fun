@@ -24,6 +24,7 @@ INTERFACE zif_allocation_store PUBLIC.
       requested   TYPE zstock_alloc_res-requested,
       confirmed   TYPE zstock_alloc_res-confirmed,
       shortfall   TYPE zstock_alloc_res-shortfall,
+      reason      TYPE zstock_alloc_res-reason,
     END OF ty_recorded.
   TYPES ty_recorded_tab TYPE STANDARD TABLE OF ty_recorded WITH EMPTY KEY.
 

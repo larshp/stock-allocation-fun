@@ -42,9 +42,11 @@ Each material is its own unit of work, committed through
 `BAPI_TRANSACTION_COMMIT` and waited for, so the next material sees what this
 one decided and a job that dies half way leaves whole answers behind.
 
-Every answered line says how much was confirmed, how much is short, and the day
-the confirmed quantity is there — `now` when it comes off the shelf, otherwise
-the day the last of its supply arrives.
+Every answered line says how much was confirmed, how much is short, the day the
+confirmed quantity is there — `now` when it comes off the shelf, otherwise the
+day the last of its supply arrives — and, where it fell short, why: not enough
+stock, stock that comes too late, the customer's share, whole units, or the
+complete delivery rule.
 
 One material failing does not stop the rest of the run; the report says which
 ones failed and why.

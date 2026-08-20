@@ -32,6 +32,7 @@ CLASS ltcl_customer_cap DEFINITION FINAL FOR TESTING
     METHODS urgent_line_is_cut_back_last FOR TESTING.
     METHODS no_customer_is_no_share FOR TESTING.
     METHODS a_share_is_never_rounded_up FOR TESTING.
+    METHODS a_capped_line_says_why FOR TESTING.
 
 ENDCLASS.
 
@@ -60,6 +61,22 @@ CLASS ltcl_customer_cap IMPLEMENTATION.
     rt_allocation = lo_cut->zif_allocation_strategy~allocate(
       iv_available = iv_available
       it_demand    = it_demand ).
+
+  ENDMETHOD.
+
+  METHOD a_capped_line_says_why.
+
+    DATA(lt_result) = allocate(
+      iv_percent = 50
+      it_demand  = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '100'
+                  iv_customer = c_big ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-reason
+      exp = zif_allocation=>c_reason-customer_cap
+      msg = 'there was stock left, this customer had simply had their share' ).
 
   ENDMETHOD.
 

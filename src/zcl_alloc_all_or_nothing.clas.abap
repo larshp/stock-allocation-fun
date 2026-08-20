@@ -136,7 +136,8 @@ CLASS zcl_alloc_all_or_nothing IMPLEMENTATION.
         confirmed = 0
         shortfall = COND #( WHEN ls_demand-quantity > 0
                             THEN ls_demand-quantity
-                            ELSE 0 ) ) TO rt_allocation.
+                            ELSE 0 )
+        reason    = zif_allocation=>c_reason-complete_only ) TO rt_allocation.
 
     ENDLOOP.
 

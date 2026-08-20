@@ -25,6 +25,7 @@ CLASS ltcl_all_or_nothing DEFINITION FINAL FOR TESTING
     METHODS lowest_priority_goes_first FOR TESTING.
     METHODS no_stock_is_not_a_dropped_line FOR TESTING.
     METHODS no_demand_gives_empty_result FOR TESTING.
+    METHODS a_dropped_line_says_why FOR TESTING.
 
 ENDCLASS.
 
@@ -44,6 +45,22 @@ CLASS ltcl_all_or_nothing IMPLEMENTATION.
       req_date  = '20260101'
       priority  = iv_priority
       complete  = iv_complete ).
+  ENDMETHOD.
+
+  METHOD a_dropped_line_says_why.
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '5'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '10'
+                  iv_complete = abap_true ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-reason
+      exp = zif_allocation=>c_reason-complete_only
+      msg = 'the stock was there, the rule about shipping in one go was not met' ).
+
   ENDMETHOD.
 
   METHOD complete_line_that_fits_wins.

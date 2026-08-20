@@ -51,6 +51,7 @@ CLASS zcl_alloc_customer_cap DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS answer_the_real_demand
       IMPORTING
         it_demand            TYPE zif_allocation=>ty_demand_tab
+        it_capped            TYPE zif_allocation=>ty_demand_tab
         it_allocation        TYPE zif_allocation=>ty_allocation_tab
       RETURNING
         VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
@@ -78,13 +79,16 @@ CLASS zcl_alloc_customer_cap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    DATA(lt_capped) = capped_demand(
+      it_demand = it_demand
+      iv_cap    = cap_quantity( iv_available ) ).
+
     rt_allocation = answer_the_real_demand(
       it_demand     = it_demand
+      it_capped     = lt_capped
       it_allocation = mo_strategy->allocate(
         iv_available = iv_available
-        it_demand    = capped_demand(
-          it_demand = it_demand
-          iv_cap    = cap_quantity( iv_available ) ) ) ).
+        it_demand    = lt_capped ) ).
 
   ENDMETHOD.
 
@@ -150,6 +154,7 @@ CLASS zcl_alloc_customer_cap IMPLEMENTATION.
   METHOD answer_the_real_demand.
 
     DATA lv_requested TYPE zif_allocation=>ty_quantity.
+    DATA lv_allowed   TYPE zif_allocation=>ty_quantity.
 
     " the strategy answered a demand that was cut back, but the answer is about
     " the demand as it stands: what a line asked for is what the order says, and
@@ -166,6 +171,17 @@ CLASS zcl_alloc_customer_cap IMPLEMENTATION.
       ls_line-shortfall = COND #( WHEN lv_requested > ls_line-confirmed
                                   THEN lv_requested - ls_line-confirmed
                                   ELSE 0 ).
+
+      " a line that got everything its share allowed and still asked for more
+      " was stopped by the cap, not by the stock: there was some left, its
+      " customer had simply had their share of it
+      IF ls_line-shortfall > 0
+          AND line_exists( it_capped[ demand_id = ls_line-demand_id ] ).
+        lv_allowed = it_capped[ demand_id = ls_line-demand_id ]-quantity.
+        IF ls_line-confirmed >= lv_allowed.
+          ls_line-reason = zif_allocation=>c_reason-customer_cap.
+        ENDIF.
+      ENDIF.
 
       APPEND ls_line TO rt_allocation.
 

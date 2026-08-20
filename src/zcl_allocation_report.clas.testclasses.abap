@@ -102,6 +102,7 @@ CLASS ltcl_allocation_report DEFINITION FINAL FOR TESTING
     METHODS footer_counts_the_failures FOR TESTING.
     METHODS simulation_is_labelled FOR TESTING.
     METHODS the_day_it_is_there_is_shown FOR TESTING.
+    METHODS why_a_line_is_short_is_shown FOR TESTING.
 
 ENDCLASS.
 
@@ -140,6 +141,28 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 3 ]
       exp = |*{ c_matnr }*| ).
+
+  ENDMETHOD.
+
+  METHOD why_a_line_is_short_is_shown.
+
+    DATA(lt_line) = report_of(
+      is_run   = VALUE #(
+        run_id     = 'RUN-0001'
+        allocation = VALUE #(
+          ( demand_id = 'D1' requested = '10' confirmed = '4' shortfall = '6'
+            reason = zif_allocation=>c_reason-customer_cap )
+          ( demand_id = 'D2' requested = '5' confirmed = '5' shortfall = 0 ) ) )
+      it_matnr = VALUE #( ( c_matnr ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 7 ]
+      exp = '*D1*customer share*'
+      msg = 'short on its own tells a planner nothing about what to do next' ).
+    cl_abap_unit_assert=>assert_char_np(
+      act = lt_line[ 8 ]
+      exp = '*customer share*'
+      msg = 'a line that got everything has nothing to explain' ).
 
   ENDMETHOD.
 

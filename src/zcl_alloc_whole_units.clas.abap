@@ -51,6 +51,7 @@ CLASS zcl_alloc_whole_units DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS answer_for
       IMPORTING
         it_demand            TYPE zif_allocation=>ty_demand_tab
+        it_cap               TYPE ty_cap_tab
         it_allocation        TYPE zif_allocation=>ty_allocation_tab
       RETURNING
         VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
@@ -100,6 +101,7 @@ CLASS zcl_alloc_whole_units IMPLEMENTATION.
     " happens whatever the loop did is what makes the rule a rule.
     rt_allocation = answer_for(
       it_demand     = it_demand
+      it_cap        = lt_cap
       it_allocation = lt_allocation ).
 
   ENDMETHOD.
@@ -183,9 +185,19 @@ CLASS zcl_alloc_whole_units IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      ls_allocation-confirmed = whole_part(
+      DATA(lv_whole) = whole_part(
         is_demand   = ls_demand
         iv_quantity = ls_allocation-confirmed ).
+
+      " the rule only explains a line it actually cut, here or in one of the
+      " passes. One that was short before it looked at it is short for
+      " whatever reason made it so.
+      IF lv_whole < ls_allocation-confirmed
+          OR line_exists( it_cap[ demand_id = ls_allocation-demand_id ] ).
+        ls_allocation-reason = zif_allocation=>c_reason-whole_units.
+      ENDIF.
+
+      ls_allocation-confirmed = lv_whole.
       ls_allocation-requested = ls_demand-quantity.
       ls_allocation-shortfall = COND #(
         WHEN ls_allocation-requested > ls_allocation-confirmed

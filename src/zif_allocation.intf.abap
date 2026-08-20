@@ -17,6 +17,23 @@ INTERFACE zif_allocation PUBLIC.
   "! Order in which demand is served, 01 first.
   TYPES ty_priority TYPE n LENGTH 2.
 
+  "! Why a line did not get everything it asked for. Initial when it did.
+  TYPES ty_reason TYPE c LENGTH 1.
+
+  "! The reasons a line can fall short of what it asked for. There is one per
+  "! rule that can hold stock back, because "short" on its own tells a planner
+  "! nothing about what to do next: stock that is not there is a purchasing
+  "! problem, stock that arrives too late is a scheduling one, and a line held
+  "! back by a rule of the plant's own making is neither.
+  CONSTANTS:
+    BEGIN OF c_reason,
+      no_stock      TYPE ty_reason VALUE 'S',
+      supply_late   TYPE ty_reason VALUE 'L',
+      customer_cap  TYPE ty_reason VALUE 'C',
+      whole_units   TYPE ty_reason VALUE 'U',
+      complete_only TYPE ty_reason VALUE 'D',
+    END OF c_reason.
+
   "! A single requirement competing for stock. COMPLETE means the line is only
   "! worth serving in full: a part of it ships nothing, so confirming a part of
   "! it would tie up stock that cannot leave. CUSTOMER is who is waiting, where
@@ -49,6 +66,9 @@ INTERFACE zif_allocation PUBLIC.
   "! comes off stock that is on the shelf already, and never later than
   "! REQ_DATE, because a requirement is not served from stock that arrives
   "! after it is wanted.
+  "!
+  "! REASON says what stopped a line that is short, one of C_REASON, and is
+  "! initial for a line that got everything.
   TYPES:
     BEGIN OF ty_allocation,
       demand_id  TYPE ty_demand_id,
@@ -57,6 +77,7 @@ INTERFACE zif_allocation PUBLIC.
       requested  TYPE ty_quantity,
       confirmed  TYPE ty_quantity,
       shortfall  TYPE ty_quantity,
+      reason     TYPE ty_reason,
     END OF ty_allocation.
   TYPES ty_allocation_tab TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
 

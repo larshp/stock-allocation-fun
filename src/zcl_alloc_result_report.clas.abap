@@ -45,6 +45,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     CONSTANTS c_width_id  TYPE i VALUE 26.
     CONSTANTS c_width_qty TYPE i VALUE 14.
+    CONSTANTS c_width_why TYPE i VALUE 22.
 
     "! Displaying stock figures, not changing them.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
@@ -59,6 +60,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_confirmed   TYPE string
         iv_shortfall   TYPE string
         iv_available   TYPE string
+        iv_reason      TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
 
@@ -127,7 +129,8 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
           iv_requested = `Requested`
           iv_confirmed = `Confirmed`
           iv_shortfall = `Shortfall`
-          iv_available = `Available` ) TO rt_line.
+          iv_available = `Available`
+          iv_reason    = `Why` ) TO rt_line.
       ENDIF.
 
       lv_requested = lv_requested + ls_recorded-requested.
@@ -141,7 +144,8 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
         iv_shortfall = |{ ls_recorded-shortfall }|
         iv_available = available_text(
           iv_avail_date = ls_recorded-avail_date
-          iv_confirmed  = ls_recorded-confirmed ) ) TO rt_line.
+          iv_confirmed  = ls_recorded-confirmed )
+        iv_reason    = zcl_alloc_reason_text=>text( ls_recorded-reason ) ) TO rt_line.
 
     ENDLOOP.
 
@@ -153,7 +157,8 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
       iv_requested = |{ lv_requested }|
       iv_confirmed = |{ lv_confirmed }|
       iv_shortfall = |{ lv_shortfall }|
-      iv_available = `` ) TO rt_line.
+      iv_available = ``
+      iv_reason    = `` ) TO rt_line.
 
   ENDMETHOD.
 
@@ -163,7 +168,8 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
            && |{ iv_requested WIDTH = c_width_qty ALIGN = RIGHT }|
            && |{ iv_confirmed WIDTH = c_width_qty ALIGN = RIGHT }|
            && |{ iv_shortfall WIDTH = c_width_qty ALIGN = RIGHT }|
-           && |{ iv_available WIDTH = c_width_qty ALIGN = RIGHT }|.
+           && |{ iv_available WIDTH = c_width_qty ALIGN = RIGHT }|
+           && |  { iv_reason WIDTH = c_width_why }|.
 
   ENDMETHOD.
 

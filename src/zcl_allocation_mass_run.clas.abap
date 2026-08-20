@@ -58,6 +58,17 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_log      TYPE REF TO zif_allocation_log
         iv_settings TYPE string OPTIONAL.
 
+    "! <p class="shorttext synchronized">What this run was told to do, in a line</p>
+    "!
+    "! The same sentence the log is headed with. A spool that does not say what
+    "! the run was set to do is a spool somebody has to guess about, and the
+    "! variant can have been changed by the time they read it.
+    "!
+    "! @parameter rv_settings | <p class="shorttext synchronized">The settings, in the words a person would use</p>
+    METHODS settings
+      RETURNING
+        VALUE(rv_settings) TYPE string.
+
     "! <p class="shorttext synchronized">Allocate every material in a plant that is waiting for stock</p>
     "!
     "! One material failing does not stop the rest. This runs unattended, and a
@@ -154,6 +165,10 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     mo_log      = io_log.
     mv_settings = iv_settings.
 
+  ENDMETHOD.
+
+  METHOD settings.
+    rv_settings = mv_settings.
   ENDMETHOD.
 
   METHOD run.

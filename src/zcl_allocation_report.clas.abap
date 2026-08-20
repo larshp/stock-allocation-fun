@@ -81,6 +81,15 @@ CLASS zcl_allocation_report IMPLEMENTATION.
       iv_simulate = iv_simulate ).
 
     APPEND |Plant { iv_werks }| TO rt_line.
+
+    " what the run was told to do, next to what it did, for the same reason
+    " the log is headed with it: the variant can have been changed by the time
+    " anybody reads the spool
+    DATA(lv_settings) = mo_mass_run->settings( ).
+    IF lv_settings IS NOT INITIAL.
+      APPEND |Settings: { lv_settings }| TO rt_line.
+    ENDIF.
+
     IF iv_simulate = abap_true.
       APPEND `Simulation, nothing was recorded and no stock was reserved` TO rt_line.
     ENDIF.

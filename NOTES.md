@@ -2466,3 +2466,15 @@ promise to be defined properly rather than walked:
 - **Off by default.** A promise that counts unconfirmed demand is the right
   answer for a plant that sells all day and allocates at night, and the wrong
   one for a plant whose orders are entered after the stock is promised.
+
+### Feature 78 — the spool says what the run was set to do (done)
+
+Feature 61 put the settings at the head of the application log because half
+the questions about a night's allocation are really questions about the
+variant it ran with. The list the report writes — which is what somebody
+actually opens first, and the only thing there is at all without the `SLG0`
+object — did not say.
+
+The mass run can now be asked what it was told to do, and the report prints it
+under the plant. One sentence, in the same words as the log, from the same
+place: `CREATE_DEFAULT` renders it once.

@@ -103,6 +103,7 @@ CLASS ltcl_allocation_report DEFINITION FINAL FOR TESTING
     METHODS simulation_is_labelled FOR TESTING.
     METHODS the_day_it_is_there_is_shown FOR TESTING.
     METHODS why_a_line_is_short_is_shown FOR TESTING.
+    METHODS the_settings_head_the_list FOR TESTING.
 
 ENDCLASS.
 
@@ -141,6 +142,24 @@ CLASS ltcl_allocation_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 3 ]
       exp = |*{ c_matnr }*| ).
+
+  ENDMETHOD.
+
+  METHOD the_settings_head_the_list.
+
+    DATA(lo_report) = NEW zcl_allocation_report(
+      NEW zcl_allocation_mass_run(
+        io_service  = NEW lcl_service_double( )
+        io_demand   = NEW lcl_demand_double( VALUE #( ) )
+        io_log      = NEW zcl_alloc_log_none( )
+        iv_settings = `fair share, horizon 30 day(s)` ) ).
+
+    DATA(lt_line) = lo_report->run( c_werks ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 2 ]
+      exp = '*fair share, horizon 30 day(s)*'
+      msg = 'a spool that does not say what the run was set to do is a guess' ).
 
   ENDMETHOD.
 

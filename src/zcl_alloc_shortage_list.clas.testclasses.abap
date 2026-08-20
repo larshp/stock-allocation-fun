@@ -100,6 +100,7 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
         iv_short           TYPE zif_allocation=>ty_quantity
         iv_req_date        TYPE d DEFAULT '20260301'
         iv_reason          TYPE zif_allocation=>ty_reason DEFAULT 'S'
+        iv_customer        TYPE vbak-kunnr DEFAULT '0000040001'
       RETURNING
         VALUE(rs_recorded) TYPE zif_allocation_store=>ty_recorded.
 
@@ -108,6 +109,7 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
         it_recorded    TYPE zif_allocation_store=>ty_recorded_tab
         iv_until       TYPE d OPTIONAL
         iv_top         TYPE i DEFAULT 0
+        iv_kunnr       TYPE vbak-kunnr OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE zcl_alloc_shortage_list=>ty_line_tab
       RAISING
@@ -121,6 +123,8 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
     METHODS the_top_is_a_top FOR TESTING RAISING cx_static_check.
     METHODS what_is_cut_off_is_counted FOR TESTING RAISING cx_static_check.
     METHODS the_reason_is_in_the_line FOR TESTING RAISING cx_static_check.
+    METHODS the_customer_is_shown FOR TESTING RAISING cx_static_check.
+    METHODS one_customer_can_be_asked FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -142,7 +146,8 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
       requested = iv_short
       confirmed = 0
       shortfall = iv_short
-      reason    = iv_reason ).
+      reason    = iv_reason
+      customer  = iv_customer ).
 
   ENDMETHOD.
 
@@ -155,7 +160,8 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
     rt_line = lo_cut->run(
       iv_werks = c_werks
       iv_until = iv_until
-      iv_top   = iv_top ).
+      iv_top   = iv_top
+      iv_kunnr = iv_kunnr ).
 
   ENDMETHOD.
 
@@ -312,6 +318,49 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
       act = lt_line[ 3 ]
       exp = '*stock comes too late*'
       msg = 'the worklist is only useful if it says what to do about each line' ).
+
+  ENDMETHOD.
+
+  METHOD the_customer_is_shown.
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded(
+          iv_matnr     = 'MAT-1'
+          iv_demand_id = 'D1'
+          iv_short     = '5'
+          iv_customer  = '0000040007' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*0000040007*'
+      msg = 'the first question about a shortage is who is waiting for it' ).
+
+  ENDMETHOD.
+
+  METHOD one_customer_can_be_asked.
+
+    DATA(lt_line) = list_of(
+      it_recorded = VALUE #(
+        ( recorded(
+            iv_matnr     = 'MAT-1'
+            iv_demand_id = 'D1'
+            iv_short     = '5'
+            iv_customer  = '0000040007' ) )
+        ( recorded(
+            iv_matnr     = 'MAT-2'
+            iv_demand_id = 'D2'
+            iv_short     = '9'
+            iv_customer  = '0000040008' ) ) )
+      iv_kunnr    = '0000040007' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_line )
+      exp = 5
+      msg = 'heading, columns, one line, a blank and the footer' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*MAT-1*'
+      msg = 'somebody about to ring a customer wants that customer only' ).
 
   ENDMETHOD.
 

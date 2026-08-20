@@ -368,6 +368,7 @@ CLASS zcl_allocation_engine IMPLEMENTATION.
       APPEND VALUE #(
         demand_id  = lv_demand_id
         req_date   = ls_line-req_date
+        customer   = ls_line-customer
         avail_date = available_from(
           iv_demand_id = lv_demand_id
           it_confirmed = it_confirmed )

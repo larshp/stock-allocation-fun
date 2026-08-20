@@ -2236,3 +2236,26 @@ confirm it an hour later, is a solution arguing with itself.
 - **Both read the shipping time from the plant's settings**, like everything
   else, so there is one place to change it and no way for the three answers to
   drift apart again.
+
+### Feature 70 — the answer remembers who was waiting (done)
+
+The recorded result knew the demand line, the quantities, the day and, since
+feature 47, the reason. It did not know the customer, so the question sales
+asks — *what is customer X short of?* — could only be answered by taking every
+short demand id, splitting the sales order number out of it, and reading
+`VBAK`. Which is a join a person does by hand at a desk.
+
+`TY_ALLOCATION` and `ZSTOCK_ALLOC_RES` now carry the customer, and the
+shortage list shows it and can be narrowed to one.
+
+- **It travels the way the requirement date travels.** The engine copies it
+  from the demand onto the answer, next to `REQ_DATE`, because it is the same
+  kind of thing: a fact about the line that the answer has to keep so that
+  reading the answer later does not mean reading the order again.
+- **It is on the answer, not looked up by the report.** A report that read
+  `VBAK` would say who the customer is *today*; the recorded run says who it
+  was when the stock was promised, which is the question being asked when
+  somebody is looking at an old run.
+- **A transfer has no customer**, so the column is empty for it and a filter on
+  a customer leaves it out — a stock transport order is not part of a
+  conversation with a customer.

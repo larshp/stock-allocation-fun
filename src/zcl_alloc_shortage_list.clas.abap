@@ -31,6 +31,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_until       | <p class="shorttext synchronized">Only lines wanted by this day, all if empty</p>
     "! @parameter iv_top         | <p class="shorttext synchronized">Most lines to show, all if zero</p>
     "! @parameter iv_dispo       | <p class="shorttext synchronized">MRP controller, every one if empty</p>
+    "! @parameter iv_kunnr       | <p class="shorttext synchronized">Customer, every one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be displayed</p>
     METHODS run
@@ -39,6 +40,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_until       TYPE d OPTIONAL
         iv_top         TYPE i DEFAULT 0
         iv_dispo       TYPE marc-dispo OPTIONAL
+        iv_kunnr       TYPE vbak-kunnr OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -48,6 +50,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     CONSTANTS c_width_date TYPE i VALUE 12.
     CONSTANTS c_width_matnr TYPE i VALUE 20.
+    CONSTANTS c_width_kunnr TYPE i VALUE 12.
     CONSTANTS c_width_id   TYPE i VALUE 26.
     CONSTANTS c_width_qty  TYPE i VALUE 14.
     CONSTANTS c_width_why  TYPE i VALUE 22.
@@ -64,6 +67,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_until           TYPE d
         iv_werks           TYPE mard-werks
         iv_dispo           TYPE marc-dispo
+        iv_kunnr           TYPE vbak-kunnr
       RETURNING
         VALUE(rt_recorded) TYPE zif_allocation_store=>ty_recorded_tab.
 
@@ -72,6 +76,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_date        TYPE string
         iv_matnr       TYPE string
         iv_id          TYPE string
+        iv_kunnr       TYPE string
         iv_short       TYPE string
         iv_reason      TYPE string
       RETURNING
@@ -114,7 +119,8 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       it_recorded = mo_store->latest_per_material( iv_werks )
       iv_until    = iv_until
       iv_werks    = iv_werks
-      iv_dispo    = iv_dispo ).
+      iv_dispo    = iv_dispo
+      iv_kunnr    = iv_kunnr ).
 
     APPEND |Plant { iv_werks }, what is short| TO rt_line.
 
@@ -127,6 +133,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       iv_date   = `Wanted`
       iv_matnr  = `Material`
       iv_id     = `Demand`
+      iv_kunnr  = `Customer`
       iv_short  = `Short`
       iv_reason = `Why` ) TO rt_line.
 
@@ -145,6 +152,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         iv_date   = date_text( ls_short-req_date )
         iv_matnr  = |{ ls_short-matnr }|
         iv_id     = |{ ls_short-demand_id }|
+        iv_kunnr  = |{ ls_short-customer }|
         iv_short  = |{ ls_short-shortfall }|
         iv_reason = zcl_alloc_reason_text=>text( ls_short-reason ) ) TO rt_line.
 
@@ -182,6 +190,13 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " somebody asking about one customer is asking what to tell them, and a
+      " transfer with no customer at all is not part of that conversation
+      IF iv_kunnr IS NOT INITIAL
+          AND ls_recorded-customer <> iv_kunnr.
+        CONTINUE.
+      ENDIF.
+
       " a line wanted after the day the planner is looking at is somebody
       " else's problem this morning
       IF iv_until IS NOT INITIAL
@@ -210,6 +225,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
     rv_line = |{ iv_date WIDTH = c_width_date }|
            && |{ iv_matnr WIDTH = c_width_matnr }|
            && |{ iv_id WIDTH = c_width_id }|
+           && |{ iv_kunnr WIDTH = c_width_kunnr }|
            && |{ iv_short WIDTH = c_width_qty ALIGN = RIGHT }|
            && |  { iv_reason WIDTH = c_width_why }|.
 

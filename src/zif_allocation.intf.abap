@@ -75,6 +75,10 @@ INTERFACE zif_allocation PUBLIC.
   "!
   "! REASON says what stopped a line that is short, one of C_REASON, and is
   "! initial for a line that got everything.
+  "!
+  "! CUSTOMER is who was waiting, carried over from the demand so that an
+  "! answer read back a week later still says whose order it was. A stock
+  "! transport order has none.
   TYPES:
     BEGIN OF ty_allocation,
       demand_id  TYPE ty_demand_id,
@@ -84,6 +88,7 @@ INTERFACE zif_allocation PUBLIC.
       confirmed  TYPE ty_quantity,
       shortfall  TYPE ty_quantity,
       reason     TYPE ty_reason,
+      customer   TYPE vbak-kunnr,
     END OF ty_allocation.
   TYPES ty_allocation_tab TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
 

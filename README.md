@@ -66,6 +66,12 @@ demand on the books today competes for all the stock rather than for what is
 left over. That is what makes an urgent order that arrived this morning able to
 take stock from a line that is not due for a month.
 
+A plant too big for one nightly job can be split: schedule `ZSTOCK_ALLOCATION`
+several times with **Jobs sharing the plant** set to how many there are and
+**Package this job covers** set to 1, 2, 3 and so on. Which job takes a
+material follows from the material number, so the jobs never collide and
+nothing is missed even though each of them reads the plant a moment apart.
+
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 

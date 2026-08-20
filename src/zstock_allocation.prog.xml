@@ -78,6 +78,18 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_PKG</KEY>
+     <ENTRY>Package this job covers</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_PKGS</KEY>
+     <ENTRY>Jobs sharing the plant, 0 for one</ENTRY>
+     <LENGTH>33</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_STOP</KEY>
      <ENTRY>Priority of a transfer, 01 first</ENTRY>
      <LENGTH>32</LENGTH>

@@ -3,6 +3,8 @@ REPORT zstock_allocation.
 PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_dispo TYPE marc-dispo.
+PARAMETERS p_pkg TYPE i DEFAULT 0.
+PARAMETERS p_pkgs TYPE i DEFAULT 0.
 PARAMETERS p_cfg AS CHECKBOX DEFAULT abap_true.
 PARAMETERS p_fair AS CHECKBOX.
 PARAMETERS p_horiz TYPE i DEFAULT 0.
@@ -64,6 +66,8 @@ START-OF-SELECTION.
       iv_whole_units  = ls_settings-whole_units
       iv_recut        = p_recut
       iv_sto_priority = ls_settings-sto_priority
+      iv_package      = p_pkg
+      iv_packages     = p_pkgs
       it_dispo        = lt_dispo ) ).
 
   DATA(lt_line) = lo_report->run(

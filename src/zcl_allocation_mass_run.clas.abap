@@ -24,6 +24,8 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_recut        | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter it_dispo        | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
+    "! @parameter iv_package      | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
+    "! @parameter iv_packages     | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
     "! @parameter ro_mass_run     | <p class="shorttext synchronized">Ready to use plant wide run</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -36,6 +38,8 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_recut           TYPE abap_bool DEFAULT abap_false
         iv_sto_priority    TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
+        iv_package         TYPE i DEFAULT 0
+        iv_packages        TYPE i DEFAULT 0
       RETURNING
         VALUE(ro_mass_run) TYPE REF TO zcl_allocation_mass_run.
 
@@ -98,10 +102,13 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_whole_units  = iv_whole_units
         iv_recut        = iv_recut
         iv_sto_priority = iv_sto_priority )
-      io_demand  = NEW zcl_demand_of_controller(
-        io_demand = zcl_allocation_service=>create_default_demand(
-          iv_sto_priority = iv_sto_priority )
-        it_dispo  = it_dispo )
+      io_demand  = NEW zcl_demand_in_package(
+        io_demand   = NEW zcl_demand_of_controller(
+          io_demand = zcl_allocation_service=>create_default_demand(
+            iv_sto_priority = iv_sto_priority )
+          it_dispo  = it_dispo )
+        iv_package  = iv_package
+        iv_packages = iv_packages )
       io_log     = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 
   ENDMETHOD.

@@ -1770,3 +1770,42 @@ decides, and the selection screen offers it to somebody trying it out.
   transfer is worth when nobody has said.
 - **It reaches the reader through the factory**, like every other setting. The
   reader has taken a priority since feature 27; all that is new is who tells it.
+
+### Feature 53 — a plant too big for one job (done)
+
+Feature 44 split a run by MRP controller, which is the split a business
+already has. It is not always the split a machine wants: controllers are
+uneven, one of them owns half the plant, and a site that does not use them at
+all is back to one job. What a background process wants is n roughly equal
+pieces, and it does not care which materials are in which.
+
+`ZCL_DEMAND_IN_PACKAGE` gives it that. `ZSTOCK_ALLOCATION` gains two numbers —
+how many jobs share the plant, and which one this is — so the same report,
+scheduled four times with four variants, is four processes doing a quarter of
+the work each.
+
+- **A material's package follows from the material number**, not from its
+  position in the list. That is the whole trick: the four jobs read the plant
+  seconds apart and see slightly different lists, and they still agree about
+  every material either of them sees. No material is allocated twice, and none
+  falls between two jobs because an order arrived while they were starting.
+- **An alphabet lookup, not a character code.** The answer has to be the same
+  in every system whatever the code page, so the characters are looked up in a
+  fixed alphabet and weighted by position. It is not a checksum and does not
+  have to be one: the only thing it must be is repeatable.
+- **A package number nobody set means no split**, not an empty plant. Zero
+  packages, one package, or a package number of zero all allocate everything —
+  the failure mode of an unset parameter must not be a run that quietly does
+  nothing.
+- **The split is on the material list, not on the demand**, the same shape as
+  the controller filter it wraps. Both can be used at once: the packages then
+  divide what the controllers left.
+- **The jobs need no coordination.** They do not talk to each other, share no
+  state and start in any order; the material lock (feature 19) is still there
+  for the case that somebody schedules two jobs with the same package number
+  by mistake.
+
+Deliberately not done: submitting the jobs. `SM36` schedules a report four
+times with four variants and does it better than anything this repository
+would write, and a program that submitted background jobs would need the job
+API stubbed to be tested at all.

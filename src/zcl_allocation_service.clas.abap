@@ -65,6 +65,26 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
+    "! <p class="shorttext synchronized">The rule a run distributes stock by</p>
+    "!
+    "! The distribution rule with everything a plant can put around it, in the
+    "! order it has to go: the customer cap first, then whole units, then the
+    "! complete delivery rule outside both, so that each of them sees what the
+    "! one inside it did. Public because anything that shows what a run would
+    "! decide has to decide it the same way.
+    "!
+    "! @parameter io_strategy    | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter iv_cap_percent | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
+    "! @parameter iv_whole_units | <p class="shorttext synchronized">Confirm whole order units only</p>
+    "! @parameter ro_strategy    | <p class="shorttext synchronized">The rule, wrapped</p>
+    CLASS-METHODS create_default_strategy
+      IMPORTING
+        io_strategy        TYPE REF TO zif_allocation_strategy OPTIONAL
+        iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
+        iv_whole_units     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(ro_strategy) TYPE REF TO zif_allocation_strategy.
+
     "! <p class="shorttext synchronized">The demand a run really works with</p>
     "!
     "! What CREATE_DEFAULT_DEMAND reads, less what earlier runs already hold
@@ -139,7 +159,7 @@ ENDCLASS.
 
 CLASS zcl_allocation_service IMPLEMENTATION.
 
-  METHOD create_default.
+  METHOD create_default_strategy.
 
     DATA lo_strategy TYPE REF TO zif_allocation_strategy.
 
@@ -165,7 +185,16 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     " which lines may be served in part is a property of the demand, not of the
     " distribution rule, so this wraps whatever strategy is in use
-    lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+    ro_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+
+  ENDMETHOD.
+
+  METHOD create_default.
+
+    DATA(lo_strategy) = create_default_strategy(
+      io_strategy    = io_strategy
+      iv_cap_percent = iv_cap_percent
+      iv_whole_units = iv_whole_units ).
 
     " one converter serves the whole run: it buffers the material master, and
     " both the demand and the supply side ask it the same questions

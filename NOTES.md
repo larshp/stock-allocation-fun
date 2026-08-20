@@ -2358,3 +2358,28 @@ the three reports read, and the wiring exists in one place instead of four.
 The mistake was made once and copied twice, which is what a factory method
 exists to prevent: `CREATE_DEFAULT_SUPPLY` had already been pulled out for
 exactly this reason in feature 45 and the demand side had not.
+
+### Feature 74 — one place builds the rule, and the explanation uses it (done)
+
+The same mistake as feature 73, one layer down. `ZSTOCK_ALLOC_WHY` said "what a
+run would confirm now" and worked it out with a bare priority strategy: no
+customer cap, no whole units, no complete delivery rule, and priority even in a
+plant configured for fair share. It was not showing what a run would do; it was
+showing what the simplest possible run would do.
+
+`ZCL_ALLOCATION_SERVICE=>CREATE_DEFAULT_STRATEGY` now builds the chain, and
+everything that has to decide the way a run decides asks for it.
+
+- **The order of the wrapping is knowledge**, and it was written down in a
+  comment in one method: cap inside rounding inside the complete delivery rule,
+  each seeing what the one inside it did. Two places implementing that from the
+  comment is one place too many; the comparison report had already copied it.
+- **The explanation takes the plant's rule and its limits**, handed over by the
+  program that has already read them, so a fair share plant sees fair share.
+- **The comparison still builds two chains**, one per rule, which is what it is
+  for — but it builds them by asking the factory twice rather than by repeating
+  the recipe.
+
+Both features come from the same habit: a factory method exists so that the
+graph is described once, and every time something is left out of it, a report
+starts quietly answering a different question.

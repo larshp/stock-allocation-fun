@@ -819,6 +819,8 @@ CLASS ltcl_default_sources DEFINITION FINAL FOR TESTING
     METHODS teardown.
     METHODS a_transfer_gets_the_stock FOR TESTING RAISING cx_static_check.
     METHODS a_transfer_is_covered FOR TESTING.
+    METHODS the_rule_comes_wrapped FOR TESTING.
+    METHODS whole_units_only_if_asked FOR TESTING.
     METHODS only_named_location_counts FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -917,6 +919,58 @@ CLASS ltcl_default_sources IMPLEMENTATION.
       act = ls_here-allocation[ 1 ]-confirmed
       exp = '4'
       msg = 'and the stock in it still is' ).
+
+  ENDMETHOD.
+
+  METHOD the_rule_comes_wrapped.
+
+    " a complete delivery line that cannot be filled is dropped, which only
+    " happens if the rule came back wrapped in the complete delivery rule
+    DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy( ).
+
+    DATA(lt_result) = lo_strategy->allocate(
+      iv_available = '5'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260301' priority = '01'
+          complete = abap_true ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0
+      msg = 'anything that shows what a run would decide must decide it the same way' ).
+
+  ENDMETHOD.
+
+  METHOD whole_units_only_if_asked.
+
+    DATA(lo_plain) = zcl_allocation_service=>create_default_strategy( ).
+
+    DATA(lt_result) = lo_plain->allocate(
+      iv_available = '5'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260301' priority = '01'
+          unit_size = 4 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '5'
+      msg = 'a plant that has not asked for whole units gets what there is' ).
+
+    DATA(lo_whole) = zcl_allocation_service=>create_default_strategy( iv_whole_units = abap_true ).
+
+    lt_result = lo_whole->allocate(
+      iv_available = '5'
+      it_demand    = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260301' priority = '01'
+          unit_size = 4 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '4'
+      msg = 'and one that has asked gets whole units' ).
 
   ENDMETHOD.
 

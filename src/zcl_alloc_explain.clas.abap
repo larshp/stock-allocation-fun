@@ -10,6 +10,9 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_planned      | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
     "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
+    "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter ro_explain      | <p class="shorttext synchronized">Ready to use explanation</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -17,6 +20,9 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_planned        TYPE abap_bool DEFAULT abap_false
         iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
         iv_ship_days      TYPE i DEFAULT 0
+        io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
+        iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
+        iv_whole_units    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_explain) TYPE REF TO zcl_alloc_explain.
 
@@ -138,7 +144,10 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       io_engine    = NEW zcl_allocation_engine(
         io_supply_reader = lo_supply
         io_demand_reader = lo_demand
-        io_strategy      = NEW zcl_alloc_strategy_priority( ) )
+        io_strategy      = zcl_allocation_service=>create_default_strategy(
+          io_strategy    = io_strategy
+          iv_cap_percent = iv_cap_percent
+          iv_whole_units = iv_whole_units ) )
       io_authority = NEW zcl_authority_plant( c_activity_display ) ).
 
   ENDMETHOD.

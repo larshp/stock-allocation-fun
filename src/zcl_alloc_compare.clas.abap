@@ -207,17 +207,12 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
 
   METHOD answer_of.
 
-    " the same decorators the run puts around a strategy, in the same order,
+    " the same decorators the run puts around a strategy, from the same place,
     " so that what is compared is the rule and not the wrapping
-    DATA(lo_strategy) = CAST zif_allocation_strategy( NEW zcl_alloc_customer_cap(
-      io_strategy = io_strategy
-      iv_percent  = iv_cap_percent ) ).
-
-    IF iv_whole_units = abap_true.
-      lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
-    ENDIF.
-
-    lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+    DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
+      io_strategy    = io_strategy
+      iv_cap_percent = iv_cap_percent
+      iv_whole_units = iv_whole_units ).
 
     rt_allocation = NEW zcl_allocation_engine(
       io_supply_reader = mo_supply

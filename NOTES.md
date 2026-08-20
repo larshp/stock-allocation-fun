@@ -1532,3 +1532,34 @@ runs, two people can be promised the same piece; the run is what decides who
 really gets it. That is a property of allocating in batches rather than a gap
 in the query, and pretending otherwise would mean holding stock for a promise
 nobody recorded.
+
+### Feature 46 — a front door for callers outside this repository (done)
+
+Feature 45's query is an ABAP interface, which is the right thing for ABAP and
+no use to anything else. The people most likely to want it are not in this
+system: a sales order user exit is, but a Fiori service, a shop floor screen or
+the planning system on the other end of an RFC destination are not.
+
+`Z_STOCK_ALLOC_PROMISE` in function group `ZSTOCK_ALLOC_API` is remote enabled
+and answers the same question, with `ZSTOCK_ALLOC_PROMISE` as the result
+structure and `ZCL_ALLOC_ATP_API` behind it.
+
+- **The function module holds no logic.** It hands its parameters to a class
+  and copies the answer back, which is what `reduce_procedural_code` insists on
+  and what makes the same answer testable. Everything a remote caller can do,
+  an ABAP caller can do without going through RFC.
+- **A `BAPIRET2`, not an exception.** A caller on the other side of an RFC
+  destination cannot catch an ABAP exception. What went wrong is said in the
+  structure every SAP caller already knows how to read, carrying the message
+  class and number of the exception it came from rather than a sentence only a
+  human can use.
+- **Nothing to promise is not an error.** An empty answer with no message is
+  the honest reply to "can you give me ten of these" when the plant has none;
+  a message is for a question that could not be answered at all.
+- **Flat DDIC types throughout**, because RFC has no interfaces, no references
+  and no packed types of its own choosing. `ZSTOCK_ALLOC_PROMISE` exists to be
+  that shape, and the quantity and date fields of the answer are typed from it.
+- **The plant's settings are read, not asked for.** A remote caller should not
+  have to know whether this plant counts planned orders; it asks about goods
+  and gets the plant's own answer. A storage location may still be narrowed,
+  because that is a statement about which goods the caller means.

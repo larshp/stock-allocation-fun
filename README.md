@@ -67,7 +67,9 @@ the recorded result and changes nothing.
 `ZSTOCK_ALLOC_ATP` answers the question a salesperson asks before writing an
 order down: how much of a material this plant can promise, and from when. It
 reads the same supply timeline a run distributes and changes nothing;
-`ZIF_ATP_QUERY` is the same answer for a program to call.
+`ZIF_ATP_QUERY` is the same answer for a program to call, and
+`Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP —
+remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
 
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
 storage location, customer cap, whether planned orders count as supply, whether

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>Stock allocation: outside callers</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LZSTOCK_ALLOC_APITOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLZSTOCK_ALLOC_API</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>Z_STOCK_ALLOC_PROMISE</FUNCNAME>
+     <SHORT_TEXT>What a plant can promise of a material</SHORT_TEXT>
+     <REMOTE_CALL>R</REMOTE_CALL>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>IV_MATNR</PARAMETER>
+       <TYP>MARD-MATNR</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <TYP>MARD-WERKS</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_QUANTITY</PARAMETER>
+       <TYP>ZSTOCK_ALLOC_PROMISE-QUANTITY</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_BY_DATE</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>ZSTOCK_ALLOC_PROMISE-AVAIL_DATE</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_LGORT</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>MARD-LGORT</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>ES_PROMISE</PARAMETER>
+       <TYP>ZSTOCK_ALLOC_PROMISE</TYP>
+      </RSEXP>
+      <RSEXP>
+       <PARAMETER>ES_RETURN</PARAMETER>
+       <TYP>BAPIRET2</TYP>
+      </RSEXP>
+     </EXPORT>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

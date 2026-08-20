@@ -1347,3 +1347,48 @@ it starts a log, says what happened to each material, and saves.
 `SY-REPID` had to be left out of the log header, which the transpiler does not
 implement (ANOMALIES.md 2l). `BAL_LOG_CREATE` fills the date, time, user and
 program itself when they are not supplied, which is the better code anyway.
+
+### Feature 41 — a plant may allocate against its own plan (done)
+
+Feature 38 put production orders on the timeline. Below them sits the layer
+MRP works in: the planned order, which is what the system intends to make or
+buy before anybody has said yes. Whether that counts as supply is not a
+question with one right answer, and this is the first thing in the solution
+where the honest reply is "it depends on the plant".
+
+- A make to stock plant with a stable plan runs out of confirmations long
+  before it runs out of intention, and the planner allocating by hand is
+  reading exactly those planned orders off MD04.
+- A plant whose plan is re-cut every night by MRP would be promising customers
+  stock against a proposal that will not exist tomorrow.
+
+So `ZCL_SUPPLY_PLANNED` reads `PLAF` and answers `ZIF_SUPPLY_READER` like every
+other source, and it is only in the object graph when the plant's Customizing
+says so. `ZSTOCK_ALLOC_CFG-PLANNED` is the switch, off for a plant that has
+never heard of it, and the selection screen has the same checkbox for somebody
+trying it out.
+
+- **Firmed only, by default.** A firmed order (`PLAF-AUFFX`) is one MRP has
+  been told to leave alone, which is the closest thing a planned order has to a
+  human agreeing to it. `IV_FIRM_ONLY` can be switched off by a caller wiring
+  the class itself, and the constructor defaults to the safe answer rather than
+  the complete one. That distinction is per class, not per plant, because a
+  plant that wants its whole plan counted is asking a different question from a
+  plant that wants none of it.
+- **A converted order is not read twice.** `PLAF-UMSKZ` says what it proposed
+  is a production order or a purchase requisition now, and feature 38 or 34
+  reads it there. Both would be the same goods given away twice.
+- **Long term planning stays out.** A simulative order lives in the same table
+  under a planning scenario of its own (`PLAF-PLSCN`), and it describes a
+  future somebody was asking about. Only the operative plan, `000`, is supply.
+- **No finish date, no supply**, the rule feature 34 set and feature 38
+  repeated: placing an undated receipt on the timeline means calling it
+  available now.
+- **The switch is read where every other setting is**, so a nightly job still
+  only has to be told the plant. `ZCL_ALLOC_CONFIG` reads anything but `X` as
+  no — the one setting in the table that promises stock nobody has ordered is
+  the one to be sure about.
+
+Adding a fourth supply source is now a two line change to `CREATE_DEFAULT`,
+which is what feature 34 built the composition for. The engine, the strategies
+and the demand side did not move.

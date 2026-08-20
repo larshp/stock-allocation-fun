@@ -54,6 +54,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_PLAN</KEY>
+     <ENTRY>Planned orders count as supply</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Test run, change nothing</ENTRY>
      <LENGTH>24</LENGTH>

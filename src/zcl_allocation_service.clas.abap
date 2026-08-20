@@ -9,6 +9,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_horizon_days  | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
     "! @parameter iv_lgort         | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
     "! @parameter iv_cap_percent   | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
+    "! @parameter iv_planned       | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -16,6 +17,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
         iv_lgort          TYPE mard-lgort OPTIONAL
         iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
+        iv_planned        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -79,6 +81,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     DATA lo_strategy TYPE REF TO zif_allocation_strategy.
     DATA lt_lgort    TYPE zcl_stock_in_locations=>ty_lgort_tab.
+    DATA lt_supply   TYPE zcl_supply_sources=>ty_source_tab.
 
     " the report offers one location, the class takes as many as a caller
     " wiring it itself wants to name
@@ -106,19 +109,28 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " both the demand and the supply side ask it the same questions
     DATA(lo_converter) = NEW zcl_unit_converter( ).
 
+    " what is on the shelf, what is on its way, and what is being made. A
+    " planned order is not any of those until the plant says it trusts its own
+    " plan, so it is added rather than always there.
+    lt_supply = VALUE #(
+      ( NEW zcl_supply_on_hand( NEW zcl_stock_reader_net(
+        io_stock     = NEW zcl_stock_in_locations(
+          io_stock = NEW zcl_stock_reader( )
+          it_lgort = lt_lgort )
+        it_deduction = VALUE #(
+          ( NEW zcl_deduct_reservations( ) )
+          ( NEW zcl_deduct_deliveries( ) )
+          ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
+      ( NEW zcl_supply_receipts( lo_converter ) )
+      ( NEW zcl_supply_production( lo_converter ) ) ).
+
+    IF iv_planned = abap_true.
+      APPEND NEW zcl_supply_planned( lo_converter ) TO lt_supply.
+    ENDIF.
+
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
-        io_supply_reader = NEW zcl_supply_sources( VALUE #(
-          ( NEW zcl_supply_on_hand( NEW zcl_stock_reader_net(
-            io_stock     = NEW zcl_stock_in_locations(
-              io_stock = NEW zcl_stock_reader( )
-              it_lgort = lt_lgort )
-            it_deduction = VALUE #(
-              ( NEW zcl_deduct_reservations( ) )
-              ( NEW zcl_deduct_deliveries( ) )
-              ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
-          ( NEW zcl_supply_receipts( lo_converter ) )
-          ( NEW zcl_supply_production( lo_converter ) ) ) )
+        io_supply_reader = NEW zcl_supply_sources( lt_supply )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
             io_demand = create_default_demand( lo_converter )

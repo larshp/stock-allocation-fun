@@ -21,8 +21,9 @@ waiting for stock it
    what is not up for allocation — open reservations, stock on deliveries that
    are waiting for their goods issue, and the plant's safety stock — plus the
    receipts still to come in on open purchasing documents from
-   `EKKO`/`EKPO`/`EKET` and on open production orders from
-   `AUFK`/`AFKO`/`AFPO`, each on the day it arrives,
+   `EKKO`/`EKPO`/`EKET`, on open production orders from `AUFK`/`AFKO`/`AFPO`
+   and, where the plant asks for it, on planned orders from `PLAF`, each on
+   the day it arrives,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what
@@ -64,8 +65,9 @@ material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
 `ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
-storage location, customer cap and how long a recorded run is kept. Both
-programs read it by default, so a scheduled job only has to be told the plant;
+storage location, customer cap, whether planned orders count as supply, and how
+long a recorded run is kept. Both programs read it by default, so a scheduled
+job only has to be told the plant;
 unticking **Settings come from the plant** hands the selection screen back to
 somebody trying something out. A plant with no row gets the defaults.
 

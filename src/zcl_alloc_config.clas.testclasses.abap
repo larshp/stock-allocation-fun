@@ -16,7 +16,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
         iv_horizon  TYPE zstock_alloc_cfg-horizon_days DEFAULT 0
         iv_lgort    TYPE zstock_alloc_cfg-lgort DEFAULT ''
         iv_cap      TYPE zstock_alloc_cfg-cap_percent DEFAULT 0
-        iv_keep     TYPE zstock_alloc_cfg-keep_days DEFAULT 0.
+        iv_keep     TYPE zstock_alloc_cfg-keep_days DEFAULT 0
+        iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''.
 
     METHODS config
       RETURNING
@@ -30,6 +31,9 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS negative_cap_is_no_cap FOR TESTING.
     METHODS keeping_nothing_is_a_setting FOR TESTING.
     METHODS other_plant_is_not_read FOR TESTING.
+    METHODS planned_supply_is_read FOR TESTING.
+    METHODS planned_supply_is_off_default FOR TESTING.
+    METHODS anything_but_x_is_no FOR TESTING.
 
 ENDCLASS.
 
@@ -58,7 +62,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         horizon_days = iv_horizon
         lgort        = iv_lgort
         cap_percent  = iv_cap
-        keep_days    = iv_keep ) ).
+        keep_days    = iv_keep
+        planned      = iv_planned ) ).
 
     INSERT zstock_alloc_cfg FROM TABLE @lt_row.
     cl_abap_unit_assert=>assert_equals(
@@ -154,6 +159,39 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       act = config( )-keep_days
       exp = 0
       msg = 'a configured zero means zero, the default is for plants with no row' ).
+
+  ENDMETHOD.
+
+  METHOD planned_supply_is_read.
+
+    given_settings( iv_planned = 'X' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-planned
+      exp = abap_true
+      msg = 'a plant that trusts its plan may allocate against it' ).
+
+  ENDMETHOD.
+
+  METHOD planned_supply_is_off_default.
+
+    given_settings( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-planned
+      exp = abap_false
+      msg = 'promising stock nobody has ordered yet has to be asked for' ).
+
+  ENDMETHOD.
+
+  METHOD anything_but_x_is_no.
+
+    given_settings( iv_planned = 'Y' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-planned
+      exp = abap_false
+      msg = 'a flag holding something else is not a yes' ).
 
   ENDMETHOD.
 

@@ -28,7 +28,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   horizon_days,
                   lgort,
                   cap_percent,
-                  keep_days
+                  keep_days,
+                  planned
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -38,6 +39,11 @@ CLASS zcl_alloc_config IMPLEMENTATION.
 
     rs_config-fair_share = xsdbool( ls_row-strategy = c_fair_share ).
     rs_config-lgort      = ls_row-lgort.
+
+    " anything but the flag being set means no, including the flag holding
+    " something that is not X: a switch that promises stock nobody has ordered
+    " yet is one to be sure about
+    rs_config-planned    = xsdbool( ls_row-planned = abap_true ).
 
     " a setting that cannot be honoured is corrected rather than obeyed: none
     " of these has a sensible meaning below zero, and a nightly run must not

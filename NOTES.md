@@ -2797,3 +2797,39 @@ to be a good one or a bad one. `ZSTOCK_ALLOC_QTA` holds that agreement and
   confirmed yet either and there is nothing to start over from. It is tested
   both ways round: two deliveries in one month hand out one quota, and the
   same material allocated twice gives the same answer twice.
+
+### Feature 87 — a line that keeps losing moves up the queue (done)
+
+Priority is a stable order, and a stable order starves the bottom of it. A
+line behind a customer that orders every week is behind it every week; a plant
+that is short every night is short for the same lines every night. Each run on
+its own looks like a reasonable answer, which is exactly why nobody notices
+until the customer rings.
+
+`ZCL_DEMAND_AGING` is the correction. A line short in every recorded run for as
+long as the plant is prepared to let anybody wait moves up one place, and
+another place for every further wait of the same length, until it is at the
+front.
+
+- **One place per whole wait, rather than a configured jump.** "Every week you
+  wait, you move up one" is a sentence a planner can repeat to a customer. A
+  number of steps in a second Customizing field would need a paragraph and
+  would still be arbitrary.
+- **A run that served the line in full ends the wait.** What is counted is the
+  unbroken run of shortfalls at the near end of the history, not every night
+  the line was ever short: a line served in January and short since March has
+  been waiting since March.
+- **It sits outside the standing customer priority**, because that is what it
+  corrects. Reading them the other way round would let the key account setting
+  overwrite the waiting a line has done.
+- **It reads `ZSTOCK_ALLOC_RES` once per material**, the same table and the
+  same shape of read the netting has done since feature 12. Housekeeping bounds
+  how far back that history goes, which also bounds how far a line can climb
+  in practice.
+- **A wait of zero days is read as no escalation**, not as "everybody to the
+  front the night they first fall short", which is not a queue at all.
+- **The reports that explain, project and compare an allocation were given the
+  setting too.** A run that reorders its demand and an explanation that does
+  not would be answering different questions in the same words. The promise
+  query was not: it sums demand rather than ordering it, so the queue does not
+  come into it.

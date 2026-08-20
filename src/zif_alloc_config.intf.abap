@@ -16,6 +16,7 @@ INTERFACE zif_alloc_config PUBLIC.
       ship_days    TYPE i,
       cautious_atp TYPE abap_bool,
       quota        TYPE abap_bool,
+      age_days     TYPE i,
     END OF ty_config.
 
   "! <p class="shorttext synchronized">Settings that apply to allocation in a plant</p>

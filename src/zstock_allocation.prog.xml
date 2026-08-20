@@ -66,6 +66,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_AGE</KEY>
+     <ENTRY>Wait that moves a line up</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_QUOTA</KEY>
      <ENTRY>Hold customers to their quotas</ENTRY>
      <LENGTH>30</LENGTH>

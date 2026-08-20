@@ -24,6 +24,7 @@ START-OF-SELECTION.
         iv_planned      = ls_settings-planned
         iv_horizon_days = ls_settings-horizon_days
         iv_ship_days    = ls_settings-ship_days
+        iv_age_days     = ls_settings-age_days
         io_strategy     = lo_strategy
         iv_cap_percent  = ls_settings-cap_percent
         iv_whole_units  = ls_settings-whole_units

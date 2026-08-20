@@ -17,7 +17,8 @@ START-OF-SELECTION.
         iv_lgort        = ls_settings-lgort
         iv_planned      = ls_settings-planned
         iv_horizon_days = ls_settings-horizon_days
-        iv_ship_days    = ls_settings-ship_days )->run(
+        iv_ship_days    = ls_settings-ship_days
+        iv_age_days     = ls_settings-age_days )->run(
           iv_matnr   = p_matnr
           iv_werks   = p_werks
           iv_days    = p_days

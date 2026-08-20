@@ -12,6 +12,7 @@ PARAMETERS p_lgort TYPE mard-lgort.
 PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_stop TYPE zif_allocation=>ty_priority DEFAULT '50'.
 PARAMETERS p_ship TYPE i DEFAULT 0.
+PARAMETERS p_age TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_quota AS CHECKBOX.
@@ -53,7 +54,8 @@ START-OF-SELECTION.
       whole_units  = p_whole
       quota        = p_quota
       sto_priority = p_stop
-      ship_days    = p_ship ).
+      ship_days    = p_ship
+      age_days     = p_age ).
   ENDIF.
 
   IF ls_settings-fair_share = abap_true.
@@ -83,6 +85,7 @@ START-OF-SELECTION.
       iv_recut        = p_recut
       iv_sto_priority = ls_settings-sto_priority
       iv_ship_days    = ls_settings-ship_days
+      iv_age_days     = ls_settings-age_days
       iv_package      = p_pkg
       iv_packages     = p_pkgs
       it_dispo        = lt_dispo ) ).

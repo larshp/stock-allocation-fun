@@ -41,7 +41,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   sto_prio,
                   ship_days,
                   atp_net,
-                  quota
+                  quota,
+                  age_days
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -78,6 +79,12 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     " stop because somebody typed a minus
     IF ls_row-horizon_days > 0.
       rs_config-horizon_days = ls_row-horizon_days.
+    ENDIF.
+
+    " a wait of no days would move every short line to the front of the queue
+    " on the night it first fell short, which is not a queue at all
+    IF ls_row-age_days > 0.
+      rs_config-age_days = ls_row-age_days.
     ENDIF.
 
     IF ls_row-cap_percent > 0.

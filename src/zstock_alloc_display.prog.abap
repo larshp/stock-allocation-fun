@@ -3,6 +3,7 @@ REPORT zstock_alloc_display.
 PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_dispo TYPE marc-dispo.
+PARAMETERS p_kunnr TYPE vbak-kunnr.
 PARAMETERS p_short AS CHECKBOX.
 
 START-OF-SELECTION.
@@ -12,7 +13,8 @@ START-OF-SELECTION.
         iv_werks      = p_werks
         iv_matnr      = p_matnr
         iv_short_only = p_short
-        iv_dispo      = p_dispo ).
+        iv_dispo      = p_dispo
+        iv_kunnr      = p_kunnr ).
     CATCH zcx_allocation INTO DATA(lx_error).
       lt_line = VALUE #( ( lx_error->get_text( ) ) ).
   ENDTRY.

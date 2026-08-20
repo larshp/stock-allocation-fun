@@ -56,12 +56,14 @@ CLASS ltcl_result_report DEFINITION FINAL FOR TESTING
         iv_confirmed  TYPE zstock_alloc_res-confirmed
         iv_created_at TYPE zstock_alloc_res-created_at
         iv_rsnum      TYPE zstock_alloc_res-reservation DEFAULT '0000004711'
-        iv_avail_date TYPE zstock_alloc_res-avail_date OPTIONAL.
+        iv_avail_date TYPE zstock_alloc_res-avail_date OPTIONAL
+        iv_customer   TYPE zstock_alloc_res-customer DEFAULT '0000050001'.
 
     METHODS lines_of
       IMPORTING
         iv_matnr       TYPE mard-matnr OPTIONAL
         iv_short_only  TYPE abap_bool DEFAULT abap_false
+        iv_kunnr       TYPE vbak-kunnr OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE zcl_alloc_result_report=>ty_line_tab
       RAISING
@@ -73,6 +75,8 @@ CLASS ltcl_result_report DEFINITION FINAL FOR TESTING
     METHODS totals_add_the_lines_up FOR TESTING RAISING cx_static_check.
     METHODS short_only_drops_the_rest FOR TESTING RAISING cx_static_check.
     METHODS one_material_can_be_asked FOR TESTING RAISING cx_static_check.
+    METHODS the_customer_is_shown FOR TESTING RAISING cx_static_check.
+    METHODS one_customer_can_be_asked FOR TESTING RAISING cx_static_check.
     METHODS nothing_recorded_says_so FOR TESTING RAISING cx_static_check.
     METHODS refused_plant_shows_nothing FOR TESTING.
     METHODS stock_on_hand_reads_as_now FOR TESTING RAISING cx_static_check.
@@ -114,6 +118,7 @@ CLASS ltcl_result_report IMPLEMENTATION.
         confirmed   = iv_confirmed
         shortfall   = iv_requested - iv_confirmed
         reservation = iv_rsnum
+        customer    = iv_customer
         created_by  = sy-uname
         created_at  = iv_created_at ) ).
 
@@ -130,7 +135,55 @@ CLASS ltcl_result_report IMPLEMENTATION.
     rt_line = mo_cut->run(
       iv_werks      = c_werks
       iv_matnr      = iv_matnr
-      iv_short_only = iv_short_only ).
+      iv_short_only = iv_short_only
+      iv_kunnr      = iv_kunnr ).
+
+  ENDMETHOD.
+
+  METHOD the_customer_is_shown.
+
+    given_run(
+      iv_run_id     = 'DISPLAY-RUN-000021'
+      iv_demand_id  = 'D1'
+      iv_requested  = '10'
+      iv_confirmed  = '4'
+      iv_created_at = '20260210120000'
+      iv_customer   = '0000050009' ).
+
+    DATA(lt_line) = lines_of( ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 7 ]
+      exp = '*0000050009*'
+      msg = 'reading an old run should not mean reading the order again' ).
+
+  ENDMETHOD.
+
+  METHOD one_customer_can_be_asked.
+
+    given_run(
+      iv_run_id     = 'DISPLAY-RUN-000022'
+      iv_demand_id  = 'D1'
+      iv_requested  = '10'
+      iv_confirmed  = '4'
+      iv_created_at = '20260210120000'
+      iv_customer   = '0000050009' ).
+    given_run(
+      iv_run_id     = 'DISPLAY-RUN-000023'
+      iv_matnr      = c_matnr_2
+      iv_demand_id  = 'D2'
+      iv_requested  = '5'
+      iv_confirmed  = '5'
+      iv_created_at = '20260210120000'
+      iv_customer   = '0000050010' ).
+
+    DATA(lt_line) = lines_of( iv_kunnr = '0000050009' ).
+
+    LOOP AT lt_line INTO DATA(lv_line).
+      cl_abap_unit_assert=>assert_false(
+        act = xsdbool( lv_line CS '0000050010' )
+        msg = 'somebody about to ring a customer wants that customer only' ).
+    ENDLOOP.
 
   ENDMETHOD.
 

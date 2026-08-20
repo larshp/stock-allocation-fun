@@ -2259,3 +2259,39 @@ shortage list shows it and can be narrowed to one.
 - **A transfer has no customer**, so the column is empty for it and a filter on
   a customer leaves it out — a stock transport order is not part of a
   conversation with a customer.
+
+### Feature 71 — the display can be read by customer (done)
+
+Feature 70 put the customer on the recorded answer and gave the shortage list a
+column and a filter. The display report, which is the one somebody opens when a
+customer is on the telephone, still could not be narrowed to them and did not
+say who any line belonged to. Two reports over one table should not answer
+different halves of the same question.
+
+Nothing new was learnt; a column and a parameter were added where they were
+already earned.
+
+### Deliberately not done: writing the confirmation back into the sales order
+
+It comes up every time somebody sees this solution: why does an allocation not
+put its confirmed quantity into the sales order schedule line, so that SD shows
+it? Three reasons, and they are all the same reason.
+
+- **`VBEP-BMENG` is ATP's field.** SD fills it from an availability check with
+  its own rules, its own scope and its own requirement types. Writing a number
+  into it from outside means the next change to the order, the next
+  rescheduling run or the next ATP check silently overwrites the allocation,
+  and nobody can tell which answer they are looking at.
+- **A reservation is the SAP way to hold stock.** It is visible in `MB23` and
+  `MMBE`, it nets off MRP, it is what a goods issue consumes and what
+  everything else in the system already understands. Feature 59 made it say
+  which line it is holding stock for; that is the link SD needs, in the
+  direction SAP expects it.
+- **The two would then disagree.** An allocation re-cut (feature 49) gives
+  stock back; a confirmation written into the order does not know that. Two
+  places holding the same promise, updated by different jobs, is the failure
+  this repository has spent features avoiding everywhere else.
+
+What a customer who wants SD to show it should do is read `ZSTOCK_ALLOC_RES` in
+a user exit or an extension field, which is a decision about their SD process
+and not something a stock allocation solution should make for them.

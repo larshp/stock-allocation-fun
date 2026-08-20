@@ -30,6 +30,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_matnr       | <p class="shorttext synchronized">Material, every one if empty</p>
     "! @parameter iv_short_only  | <p class="shorttext synchronized">Only lines that did not get everything</p>
     "! @parameter iv_dispo       | <p class="shorttext synchronized">MRP controller, every one if empty</p>
+    "! @parameter iv_kunnr       | <p class="shorttext synchronized">Customer, every one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be displayed</p>
     METHODS run
@@ -38,6 +39,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr       TYPE mard-matnr OPTIONAL
         iv_short_only  TYPE abap_bool DEFAULT abap_false
         iv_dispo       TYPE marc-dispo OPTIONAL
+        iv_kunnr       TYPE vbak-kunnr OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -46,6 +48,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PRIVATE SECTION.
 
     CONSTANTS c_width_id  TYPE i VALUE 26.
+    CONSTANTS c_width_kunnr TYPE i VALUE 12.
     CONSTANTS c_width_qty TYPE i VALUE 14.
     CONSTANTS c_width_why TYPE i VALUE 22.
 
@@ -58,6 +61,7 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS format_row
       IMPORTING
         iv_id          TYPE string
+        iv_kunnr       TYPE string
         iv_requested   TYPE string
         iv_confirmed   TYPE string
         iv_shortfall   TYPE string
@@ -137,6 +141,12 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " somebody asking about one customer is asking what to tell them
+      IF iv_kunnr IS NOT INITIAL
+          AND ls_recorded-customer <> iv_kunnr.
+        CONTINUE.
+      ENDIF.
+
       " one block per material, headed by the run that decided it
       IF ls_recorded-matnr <> lv_matnr.
         lv_matnr = ls_recorded-matnr.
@@ -146,6 +156,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
         APPEND |Reservation { ls_recorded-reservation }| TO rt_line.
         APPEND format_row(
           iv_id        = `Demand`
+          iv_kunnr     = `Customer`
           iv_requested = `Requested`
           iv_confirmed = `Confirmed`
           iv_shortfall = `Shortfall`
@@ -159,6 +170,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
 
       APPEND format_row(
         iv_id        = |{ ls_recorded-demand_id }|
+        iv_kunnr     = |{ ls_recorded-customer }|
         iv_requested = |{ ls_recorded-requested }|
         iv_confirmed = |{ ls_recorded-confirmed }|
         iv_shortfall = |{ ls_recorded-shortfall }|
@@ -174,6 +186,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
     APPEND || TO rt_line.
     APPEND format_row(
       iv_id        = `Total`
+      iv_kunnr     = ``
       iv_requested = |{ lv_requested }|
       iv_confirmed = |{ lv_confirmed }|
       iv_shortfall = |{ lv_shortfall }|
@@ -185,6 +198,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
   METHOD format_row.
 
     rv_line = |{ iv_id WIDTH = c_width_id }|
+           && |{ iv_kunnr WIDTH = c_width_kunnr }|
            && |{ iv_requested WIDTH = c_width_qty ALIGN = RIGHT }|
            && |{ iv_confirmed WIDTH = c_width_qty ALIGN = RIGHT }|
            && |{ iv_shortfall WIDTH = c_width_qty ALIGN = RIGHT }|

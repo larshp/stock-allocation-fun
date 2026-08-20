@@ -1813,3 +1813,28 @@ Deliberately not done: submitting the jobs. `SM36` schedules a report four
 times with four variants and does it better than anything this repository
 would write, and a program that submitted background jobs would need the job
 API stubbed to be tested at all.
+
+### Feature 54 — a material with nothing waiting is not a run (done)
+
+A plant wide run covers every material anything is waiting for, and most of
+those turn out to have nothing left to serve by the time the netting has taken
+off what is delivered and what earlier runs already hold. The run still handed
+each of them a run id, wrote nothing under it, and committed twice — twice,
+because feature 37 waits for each commit, so an empty material cost two round
+trips to the update task and a line in the log leading to an empty page.
+
+The service now stops as soon as the engine answers with nothing.
+
+- **No demand is not the same as no confirmation.** A line confirmed nothing is
+  still an answer and is recorded; a material with no demand lines at all has
+  no answer to record. The test for it is the allocation being empty, not the
+  confirmed quantity being zero.
+- **The run id is handed out after the calculation**, not before, so a material
+  that turns out to have nothing waiting does not consume one. Nothing depends
+  on the ids being consecutive, but a number that leads nowhere is still a
+  number somebody will look up one day.
+- **The log says nothing about it either.** A diary entry for a material that
+  was not allocated is a line to check and find nothing behind.
+- **The lock is still taken and given back.** Whether there is anything to do
+  is only known after reading, and reading is exactly what the lock is there to
+  make safe.

@@ -313,6 +313,8 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS a_recut_commits_the_release FOR TESTING RAISING cx_static_check.
     METHODS an_unreserved_run_is_skipped FOR TESTING RAISING cx_static_check.
     METHODS releasing_nothing_commits_none FOR TESTING RAISING cx_static_check.
+    METHODS nothing_waiting_is_not_a_run FOR TESTING RAISING cx_static_check.
+    METHODS nothing_waiting_commits_none FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -721,6 +723,42 @@ CLASS ltcl_service IMPLEMENTATION.
       act = mo_commit->get_commits( )
       exp = 3
       msg = 'the release is committed before the readers run, then the two of the run' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_waiting_is_not_a_run.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #( ) ).
+
+    DATA(ls_run) = lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_run-run_id
+      msg = 'a run id for a material nothing was waiting for leads to an empty page' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_run-reservation
+      msg = 'and there is nothing to reserve either' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_waiting_commits_none.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #( ) ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 0
+      msg = 'most materials of a plant wide run are these, and each is two round trips' ).
 
   ENDMETHOD.
 

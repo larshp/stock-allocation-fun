@@ -153,10 +153,15 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
               iv_matnr = lv_matnr
               iv_werks = iv_werks ).
 
-            mo_log->allocated(
-              iv_matnr       = lv_matnr
-              iv_run_id      = ls_outcome-run-run_id
-              iv_short_lines = short_lines( ls_outcome-run-allocation ) ).
+            " a material nothing was waiting for was not allocated, and a
+            " line in the log saying it was would be a line to look up and
+            " find nothing behind
+            IF ls_outcome-run-run_id IS NOT INITIAL.
+              mo_log->allocated(
+                iv_matnr       = lv_matnr
+                iv_run_id      = ls_outcome-run-run_id
+                iv_short_lines = short_lines( ls_outcome-run-allocation ) ).
+            ENDIF.
           ENDIF.
         CATCH zcx_allocation INTO DATA(lx_error).
           ls_outcome-failed = abap_true.

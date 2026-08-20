@@ -334,14 +334,24 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD allocate_and_record.
 
+    rs_run-allocation = mo_engine->allocate_open_demand(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+    " a material nothing is waiting for is not a run. There is no answer to
+    " record, nothing to reserve, and a run id handed out for it would be a
+    " number in the log that leads to an empty page. A plant wide run passes
+    " over most of its materials this way, and each one it passes over is two
+    " commits it does not have to wait for.
+    IF rs_run-allocation IS INITIAL.
+      RETURN.
+    ENDIF.
+
     " the result is written down before the stock is reserved. If the
     " reservation is then rejected there is still a record of what was decided,
     " which can be looked up and retried. The other order would risk stock being
     " earmarked with nothing to show for it.
-    rs_run-run_id     = mo_run_id->next( ).
-    rs_run-allocation = mo_engine->allocate_open_demand(
-      iv_matnr = iv_matnr
-      iv_werks = iv_werks ).
+    rs_run-run_id = mo_run_id->next( ).
 
     mo_store->save(
       iv_run_id     = rs_run-run_id

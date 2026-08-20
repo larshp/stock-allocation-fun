@@ -39,7 +39,8 @@ CLASS lcl_service_double DEFINITION FINAL.
     METHODS constructor
       IMPORTING
         iv_fails_for TYPE mard-matnr OPTIONAL
-        iv_short_for TYPE mard-matnr OPTIONAL.
+        iv_short_for TYPE mard-matnr OPTIONAL
+        iv_empty_for TYPE mard-matnr OPTIONAL.
 
     METHODS get_seen
       RETURNING
@@ -48,6 +49,7 @@ CLASS lcl_service_double DEFINITION FINAL.
   PRIVATE SECTION.
     DATA mv_fails_for TYPE mard-matnr.
     DATA mv_short_for TYPE mard-matnr.
+    DATA mv_empty_for TYPE mard-matnr.
     DATA mt_seen      TYPE zif_demand_reader=>ty_matnr_tab.
 
 ENDCLASS.
@@ -58,6 +60,7 @@ CLASS lcl_service_double IMPLEMENTATION.
   METHOD constructor.
     mv_fails_for = iv_fails_for.
     mv_short_for = iv_short_for.
+    mv_empty_for = iv_empty_for.
   ENDMETHOD.
 
   METHOD zif_allocation_service~simulate.
@@ -76,6 +79,11 @@ CLASS lcl_service_double IMPLEMENTATION.
       RAISE EXCEPTION NEW zcx_allocation(
         textid     = zcx_allocation=>reserve_failed
         mv_message = `stock is blocked` ).
+    ENDIF.
+
+    " a material nothing was waiting for comes back with no run at all
+    IF iv_matnr = mv_empty_for.
+      RETURN.
     ENDIF.
 
     IF iv_matnr = mv_short_for.
@@ -174,6 +182,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
         it_matnr          TYPE zif_demand_reader=>ty_matnr_tab
         iv_fails_for      TYPE mard-matnr OPTIONAL
         iv_short_for      TYPE mard-matnr OPTIONAL
+        iv_empty_for      TYPE mard-matnr OPTIONAL
         iv_simulate       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_outcome) TYPE zcl_allocation_mass_run=>ty_outcome_tab.
@@ -187,6 +196,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
     METHODS a_short_material_is_counted FOR TESTING.
     METHODS a_failure_is_written_down FOR TESTING.
     METHODS a_test_run_keeps_no_diary FOR TESTING.
+    METHODS an_empty_material_is_not_noted FOR TESTING.
 
 ENDCLASS.
 
@@ -199,7 +209,8 @@ CLASS ltcl_mass_run IMPLEMENTATION.
 
     mo_service = NEW #(
       iv_fails_for = iv_fails_for
-      iv_short_for = iv_short_for ).
+      iv_short_for = iv_short_for
+      iv_empty_for = iv_empty_for ).
     mo_log     = NEW lcl_log_spy( ).
     lo_demand  = NEW lcl_demand_double( it_matnr ).
 
@@ -352,6 +363,21 @@ CLASS ltcl_mass_run IMPLEMENTATION.
       act = lt_entry[ 2 ]-text
       exp = '*stock is blocked*'
       msg = 'the reason a material was skipped is the point of keeping a log' ).
+
+  ENDMETHOD.
+
+  METHOD an_empty_material_is_not_noted.
+
+    mass_run_over(
+      it_matnr     = VALUE #( ( 'MAT-1' ) )
+      iv_empty_for = 'MAT-1' ).
+
+    DATA(lt_entry) = mo_log->get_entries( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_entry )
+      exp = 2
+      msg = 'the run started and saved, and had nothing to say about the material' ).
 
   ENDMETHOD.
 

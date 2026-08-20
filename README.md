@@ -96,6 +96,8 @@ what is no longer holding anything back.
 `ZIF_ATP_QUERY` is the promise for a program in the same system to call, and
 `Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP:
 remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
+`Z_STOCK_ALLOC_PROMISES` answers a whole basket in one call, reading each
+plant's settings once instead of once per line.
 
 `ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
 because the demand netting reads it. It defaults to a test run too, and a real

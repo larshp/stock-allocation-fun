@@ -2086,3 +2086,28 @@ dates — and runs `ZCL_ALLOCATION_MASS_RUN=>CREATE_DEFAULT` over it.
 - **It asserts what was written down as well as what was returned**, because
   the recording is the part a report reads afterwards, and a test run is
   asserted to leave the table empty.
+
+### Feature 64 — a basket in one call (done)
+
+Feature 46 opened the promise to callers outside ABAP, one line per call. A
+sales order with twenty items priced over an RFC destination is then twenty
+round trips, and each of them reads the plant's Customizing again and builds
+the whole object graph again to answer one question. The interface was right
+and the granularity was wrong.
+
+`Z_STOCK_ALLOC_PROMISES` takes a table of lines and answers all of them.
+
+- **The settings are read once per plant and the sources wired once per plant
+  and location.** That is the whole point: the work a single call repeats is
+  not the reading of stock, it is everything around it.
+- **The lines carry their own numbers.** The caller says which line each
+  question is, and gets it back on the answer, so nothing depends on the order
+  the answers come in — even though they do come back in order.
+- **A line nobody can answer carries the reason and the rest are still
+  answered.** One material that does not exist, or one plant the caller may
+  not see, must not cost a whole basket. The single line call keeps the
+  `BAPIRET2` because that is what one answer looks like in SAP; a table of
+  them would have to say which line each message belonged to, which is what
+  the message field on the answer line does.
+- **Nothing to promise is still not a failure**, the same rule feature 46 set.
+  An empty quantity with no message means the plant has none.

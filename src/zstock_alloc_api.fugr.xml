@@ -47,6 +47,21 @@
       </RSEXP>
      </EXPORT>
     </item>
+    <item>
+     <FUNCNAME>Z_STOCK_ALLOC_PROMISES</FUNCNAME>
+     <SHORT_TEXT>What a plant can promise, line by line</SHORT_TEXT>
+     <REMOTE_CALL>R</REMOTE_CALL>
+     <TABLES>
+      <RSTBL>
+       <PARAMETER>IT_ASK</PARAMETER>
+       <DBSTRUCT>ZSTOCK_ALLOC_ASK</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>ET_ANSWER</PARAMETER>
+       <DBSTRUCT>ZSTOCK_ALLOC_ANS</DBSTRUCT>
+      </RSTBL>
+     </TABLES>
+    </item>
    </FUNCTIONS>
   </asx:values>
  </asx:abap>

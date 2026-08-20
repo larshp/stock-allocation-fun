@@ -2137,3 +2137,25 @@ to each other.
   weighing up fair share is usually weighing it up together with them.
 - **It changes nothing** and asks for display authority, like every other
   question-shaped program here.
+
+### Feature 66 — a material somebody is looking at is not a lost cause (done)
+
+Feature 19 takes a lock per material and gives up the moment somebody else has
+it. In a quiet system that is right; in a real one a nightly job walks into a
+planner who happens to have `MM02` open, or into another allocation job that
+started a second earlier, and reports a material it could not do — an error
+nobody can act on, because by the time anybody reads it the lock is long gone.
+
+The enqueue call now asks to be waited for.
+
+- **`_WAIT = 'X'` is the SAP answer**, not a retry loop of our own. The enqueue
+  server keeps trying for a time the system sets (`enque/delay_max` and its
+  neighbours), which is a decision about the system rather than about this
+  program, and it does the waiting in the right place — in the lock server
+  rather than in a work process holding a database connection.
+- **The refusal still exists.** Waiting is not waiting forever: a material
+  genuinely held for a long time still comes back as a failure, one material
+  fails and the run goes on, which is what feature 13 built.
+- **A run of one material takes a second or two**, so two jobs meeting on the
+  same material is exactly the case that waiting fixes, and it is far more
+  common than the case that gives up.

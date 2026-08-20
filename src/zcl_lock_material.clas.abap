@@ -15,6 +15,14 @@ CLASS zcl_lock_material DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! commit waits for the update, so nothing of the run outlives the lock.
     CONSTANTS c_scope_dialog TYPE ddenqscope VALUE '1'.
 
+    "! Wait for the lock instead of being refused the moment somebody else has
+    "! it. A material is locked for as long as one run of it takes, which is a
+    "! second or two, and a nightly job that gave up on every material a person
+    "! happened to be looking at would report failures nobody can act on. How
+    "! long the enqueue server keeps trying is a system setting, which is where
+    "! that decision belongs.
+    CONSTANTS c_wait TYPE ddenqwait VALUE 'X'.
+
 ENDCLASS.
 
 
@@ -28,6 +36,7 @@ CLASS zcl_lock_material IMPLEMENTATION.
         matnr          = iv_matnr
         werks          = iv_werks
         _scope         = c_scope_dialog
+        _wait          = c_wait
       EXCEPTIONS
         foreign_lock   = 1
         system_failure = 2

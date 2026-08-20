@@ -37,6 +37,11 @@
        <DEFAULT>'2'</DEFAULT>
        <TYP>DDENQSCOPE</TYP>
       </RSIMP>
+      <RSIMP>
+       <PARAMETER>_WAIT</PARAMETER>
+       <DEFAULT>SPACE</DEFAULT>
+       <TYP>DDENQWAIT</TYP>
+      </RSIMP>
      </IMPORT>
      <EXCEPTION>
       <RSEXC>

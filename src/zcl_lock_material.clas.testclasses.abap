@@ -18,6 +18,7 @@ CLASS ltcl_lock_material DEFINITION FINAL FOR TESTING
     METHODS other_material_is_unaffected FOR TESTING RAISING cx_static_check.
     METHODS other_plant_is_unaffected FOR TESTING RAISING cx_static_check.
     METHODS releasing_twice_is_harmless FOR TESTING RAISING cx_static_check.
+    METHODS the_lock_is_waited_for FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -39,6 +40,19 @@ CLASS ltcl_lock_material IMPLEMENTATION.
     mo_cut->release(
       iv_matnr = c_matnr
       iv_werks = '2000' ).
+
+  ENDMETHOD.
+
+  METHOD the_lock_is_waited_for.
+
+    mo_cut->acquire(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = cl_stub_enqueue=>last_wait( )
+      exp = 'X'
+      msg = 'a job must not give up on every material somebody is looking at' ).
 
   ENDMETHOD.
 

@@ -202,6 +202,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
       WHERE item~werks = @iv_werks
         AND item~abgru = @space
         AND item~lifsp = @space
+        AND item~sobkz = @space
         AND header~lifsk = @space
       ORDER BY item~matnr
       INTO TABLE @rt_matnr.
@@ -220,6 +221,12 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
     " schedule line, and wherever it sits it says the goods are not to leave.
     " Two of the three are answered here; the third is answered per line, in
     " SCHEDULES_OF.
+    "
+    " An item with a special stock indicator is served from a stock segment of
+    " its own -- sales order stock, project stock -- which is in MSKA or MSPR
+    " and not in the MARD this run gives away. It has its own goods to wait
+    " for, and letting it compete here would take anonymous stock away from the
+    " items that have nothing else.
     SELECT item~vbeln,
            item~posnr,
            item~matnr,
@@ -236,6 +243,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         AND item~werks = @iv_werks
         AND item~abgru = @space
         AND item~lifsp = @space
+        AND item~sobkz = @space
         AND header~lifsk = @space
       ORDER BY item~vbeln, item~posnr
       INTO TABLE @rt_item.

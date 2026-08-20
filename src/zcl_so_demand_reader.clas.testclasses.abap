@@ -7,6 +7,7 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     CONSTANTS c_matnr_2   TYPE vbap-matnr VALUE 'SO-DEMAND-02'.
     CONSTANTS c_matnr_blk TYPE vbap-matnr VALUE 'SO-DEMAND-03'.
     CONSTANTS c_matnr_bli TYPE vbap-matnr VALUE 'SO-DEMAND-04'.
+    CONSTANTS c_matnr_mto TYPE vbap-matnr VALUE 'SO-DEMAND-05'.
     CONSTANTS c_werks     TYPE vbap-werks VALUE '1000'.
 
     DATA mo_cut TYPE REF TO zif_demand_reader.
@@ -20,6 +21,8 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS skips_blocked_lines FOR TESTING RAISING cx_static_check.
     METHODS all_lines_blocked_is_nothing FOR TESTING RAISING cx_static_check.
     METHODS blocked_item_not_listed FOR TESTING.
+    METHODS special_stock_is_not_demand FOR TESTING RAISING cx_static_check.
+    METHODS special_stock_not_listed FOR TESTING.
     METHODS skips_other_plants FOR TESTING RAISING cx_static_check.
     METHODS missing_lprio_sorts_last FOR TESTING RAISING cx_static_check.
     METHODS lists_materials_with_demand FOR TESTING.
@@ -74,7 +77,8 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_2 mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_blk mtart = 'FERT' meins = 'PC' )
-      ( mandt = sy-mandt matnr = c_matnr_bli mtart = 'FERT' meins = 'PC' ) ).
+      ( mandt = sy-mandt matnr = c_matnr_bli mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_mto mtart = 'FERT' meins = 'PC' ) ).
 
     lt_marm = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ).
@@ -115,7 +119,10 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
         matnr = c_matnr_blk werks = c_werks vrkme = 'PC' kwmeng = '2' lprio = '01' )
       ( mandt = sy-mandt vbeln = '0000004711' posnr = '000030'
         matnr = c_matnr_bli werks = c_werks vrkme = 'PC' kwmeng = '6' lprio = '01'
-        lifsp = '02' ) ).
+        lifsp = '02' )
+      ( mandt = sy-mandt vbeln = '0000004711' posnr = '000040'
+        matnr = c_matnr_mto werks = c_werks vrkme = 'PC' kwmeng = '8' lprio = '01'
+        sobkz = 'E' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -133,7 +140,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
   METHOD teardown.
 
-    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
+    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -145,7 +152,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       exp = 0
       msg = 'VBAK fixture could not be removed' ).
 
-    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
+    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713' ).
@@ -154,7 +161,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     DELETE FROM marm WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
-    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli ).
+    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -286,6 +293,28 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false(
       act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_bli ] ) )
       msg = 'a material whose only item is delivery blocked has nothing to allocate' ).
+
+  ENDMETHOD.
+
+  METHOD special_stock_is_not_demand.
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr_mto
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_demand
+      msg = 'an item with a stock segment of its own must not take the free pool' ).
+
+  ENDMETHOD.
+
+  METHOD special_stock_not_listed.
+
+    DATA(lt_matnr) = mo_cut->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_mto ] ) )
+      msg = 'a material whose only demand is made to order has nothing to allocate' ).
 
   ENDMETHOD.
 

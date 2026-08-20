@@ -1392,3 +1392,28 @@ trying it out.
 Adding a fourth supply source is now a two line change to `CREATE_DEFAULT`,
 which is what feature 34 built the composition for. The engine, the strategies
 and the demand side did not move.
+
+### Feature 42 — stock that belongs to somebody already does not compete (done)
+
+`MARD` is anonymous stock: the pieces on the shelf that any order may have.
+Stock made or bought for one sales order or one project is not in it — sales
+order stock is in `MSKA`, project stock in `MSPR`, each in a segment of its
+own. The demand side did not know that. A made to order item was read as
+ordinary demand and competed for the free pool, which is wrong twice over: the
+item cannot be shipped from that pool, and every item that has nothing but the
+pool lost stock to it.
+
+`VBAP-SOBKZ` says an item has a segment of its own, and an item that has one is
+no longer read as demand, in `READ_ITEMS` and in `MATERIALS_WITH_DEMAND` alike.
+
+- **Any special stock indicator, not just `E`.** The reason is the same for
+  sales order stock, project stock and everything else the field can hold: the
+  goods this item will ship are counted somewhere `MARD` is not.
+- **This is the safe half of the answer.** The complete one would read the
+  segment as well and allocate it to the item that owns it, and it would need
+  `MSKA`, `MSPR` and a pool per segment rather than one per material. Leaving
+  the demand out confirms less and never promises stock that cannot ship;
+  reading the segments is a feature, not a footnote, and it is not this one.
+- **The stock transport order reader is untouched.** `EKPO-SOBKZ` exists too,
+  but a stock transport order moving special stock between plants is a rarity
+  that deserves its own thinking rather than a line copied across.

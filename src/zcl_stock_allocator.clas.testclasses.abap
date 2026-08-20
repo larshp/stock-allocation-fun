@@ -42,6 +42,9 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS protects_safety_stock FOR TESTING.
     METHODS shares_plant_safety_stock FOR TESTING.
     METHODS rejects_all_or_nothing FOR TESTING.
+    METHODS reports_no_available_stock FOR TESTING.
+    METHODS reports_missing_stock FOR TESTING.
+    METHODS reports_missing_base_unit FOR TESTING.
     METHODS partially_allocates FOR TESTING.
     METHODS honors_minimum_fill FOR TESTING.
     METHODS rejects_below_minimum_fill FOR TESTING.
@@ -60,6 +63,9 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS accepts_asset_assignment FOR TESTING.
     METHODS accepts_sales_cost_center FOR TESTING.
     METHODS accepts_network_assignment FOR TESTING.
+    METHODS rejects_unsupported_movement FOR TESTING.
+    METHODS defers_beyond_horizon FOR TESTING.
+    METHODS includes_horizon_boundary FOR TESTING.
 
     METHODS stock
       IMPORTING
@@ -121,8 +127,14 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       act = lt_result[ 1 ]-source_unit_of_measure
       exp = 'EA' ).
     cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_fully_allocated ).
+    cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 2 ]-status
       exp = zcl_stock_allocator=>gc_status_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_partial_denied ).
   ENDMETHOD.
 
   METHOD protects_safety_stock.
@@ -268,6 +280,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'Unsupported allocation strategy' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_bad_strategy ).
   ENDMETHOD.
 
   METHOD rejects_all_or_nothing.
@@ -291,6 +306,49 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       exp = 5 ).
   ENDMETHOD.
 
+  METHOD reports_no_available_stock.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id            = 'NO-STOCK'
+            iv_quantity      = 1
+            iv_allow_partial = abap_true ) ) )
+      it_stock_balances = stock( 0 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_no_available_stock ).
+  ENDMETHOD.
+
+  METHOD reports_missing_stock.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'MISSING-STOCK'
+            iv_quantity = 1 ) ) )
+      it_stock_balances = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_stock_not_found ).
+  ENDMETHOD.
+
+  METHOD reports_missing_base_unit.
+    DATA(lt_stock) = stock( 10 ).
+    CLEAR lt_stock[ 1 ]-base_unit.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'MISSING-BASE-UNIT'
+            iv_quantity = 1 ) ) )
+      it_stock_balances = lt_stock ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_base_unit_missing ).
+  ENDMETHOD.
+
   METHOD partially_allocates.
     DATA(lt_result) = mo_cut->allocate(
       it_requests       = VALUE #(
@@ -306,6 +364,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-status
       exp = zcl_stock_allocator=>gc_status_partial ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_partial ).
   ENDMETHOD.
 
   METHOD honors_minimum_fill.
@@ -342,6 +403,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-allocated_qty
       exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_below_minimum_fill ).
   ENDMETHOD.
 
   METHOD rejects_duplicate_id.
@@ -358,6 +422,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 2 ]-status
       exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_duplicate_request ).
   ENDMETHOD.
 
   METHOD rejects_invalid_quantity.
@@ -371,6 +438,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-status
       exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
   ENDMETHOD.
 
   METHOD rejects_missing_posting_data.
@@ -458,6 +528,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'No material-specific unit conversion is maintained' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
   ENDMETHOD.
 
   METHOD rejects_missing_cost_center.
@@ -637,6 +710,65 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-network_activity
       exp = '0010' ).
+  ENDMETHOD.
+
+  METHOD rejects_unsupported_movement.
+    DATA(ls_request) = request(
+      iv_id       = 'UNSUPPORTED-MOVEMENT'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '291'.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #( ( ls_request ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_rule_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Movement type 291 is not supported' ).
+    cl_abap_unit_assert=>assert_initial( mo_converter->mv_material ).
+  ENDMETHOD.
+
+  METHOD defers_beyond_horizon.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id               = 'FUTURE'
+            iv_quantity         = 5
+            iv_requirement_date = '20260901' ) ) )
+      it_stock_balances = stock( 10 )
+      iv_horizon_date   = '20260831' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_deferred ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_not_required ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_outside_horizon ).
+    cl_abap_unit_assert=>assert_initial( mo_converter->mv_material ).
+  ENDMETHOD.
+
+  METHOD includes_horizon_boundary.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id               = 'ON-HORIZON'
+            iv_quantity         = 5
+            iv_requirement_date = '20260831' ) ) )
+      it_stock_balances = stock( 10 )
+      iv_horizon_date   = '20260831' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_allocated ).
   ENDMETHOD.
 
   METHOD stock.

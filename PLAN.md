@@ -59,3 +59,19 @@ best practices.
       records explicitly before stock reads or posting.
 - [x] Support the remaining standard consumption assignments for sales orders
       (231), assets (241), sales cost centers (251), and networks (281).
+- [x] Check plant-level `M_MATE_WRK` change authorization before idempotency
+      replay or stock access, including for simulation runs.
+- [x] Reject movement types outside the explicitly modeled standard
+      consumption set before conversion, allocation, or posting.
+- [x] Add an optional allocation horizon that defers future demand before stock
+      reads while preserving completed idempotent replay.
+- [x] Reopen an exactly matching request after its reservation is explicitly
+      cancelled, replacing the old claim atomically with the new posting.
+- [x] Add an opt-in full-batch policy that posts new reservations only when
+      every new request is fully allocatable.
+- [x] Correlate every application call and its audit rows with a shared,
+      filterable run ID returned to the caller.
+- [x] Persist the complete stock identity and request/run decision policy in
+      current and historical audit rows and CSV export.
+- [x] Add stable machine-readable decision codes to allocation results,
+      operational audit, history, and CSV export.

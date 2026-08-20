@@ -20,6 +20,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
 
     DATA lt_request_ids TYPE RANGE OF zstock_algh-request_id.
     DATA lt_run_modes TYPE RANGE OF zstock_algh-run_mode.
+    DATA lt_run_ids TYPE RANGE OF zstock_algh-run_id.
     IF iv_request_id IS NOT INITIAL.
       APPEND VALUE #(
         sign   = 'I'
@@ -32,6 +33,12 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         option = 'EQ'
         low    = iv_run_mode ) TO lt_run_modes.
     ENDIF.
+    IF iv_run_id IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = iv_run_id ) TO lt_run_ids.
+    ENDIF.
 
     SELECT *
       FROM zstock_algh
@@ -41,6 +48,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         AND logged_on <= @iv_to_date
         AND request_id IN @lt_request_ids
         AND run_mode IN @lt_run_modes
+        AND run_id IN @lt_run_ids
       ORDER BY logged_on ASCENDING,
                logged_at ASCENDING,
                log_uuid ASCENDING.

@@ -18,10 +18,12 @@ CLASS lcl_idempotency_store DEFINITION FINAL.
     TYPES ty_records TYPE STANDARD TABLE OF
       zif_idempotency_store=>ty_record WITH EMPTY KEY.
     DATA mt_records TYPE ty_records.
+    DATA mv_find_calls TYPE i.
 ENDCLASS.
 
 CLASS lcl_idempotency_store IMPLEMENTATION.
   METHOD zif_idempotency_store~find.
+    mv_find_calls = mv_find_calls + 1.
     READ TABLE mt_records INTO rs_record
       WITH KEY request_id = iv_request_id.
   ENDMETHOD.
@@ -32,6 +34,36 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
 
   METHOD zif_idempotency_store~set_document.
     rv_updated = abap_true.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_allocation_authority DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_authority.
+    DATA mv_denied_plant TYPE zcl_stock_allocator=>ty_plant.
+    DATA mt_checked_plants TYPE STANDARD TABLE OF
+      zcl_stock_allocator=>ty_plant WITH EMPTY KEY.
+ENDCLASS.
+
+CLASS lcl_allocation_authority IMPLEMENTATION.
+  METHOD zif_allocation_authority~is_authorized.
+    APPEND iv_plant TO mt_checked_plants.
+    rv_authorized = xsdbool( iv_plant <> mv_denied_plant ).
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_reservation_status DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_reservation_status.
+    DATA mv_is_cancelled TYPE abap_bool.
+    DATA mt_document_ids TYPE STANDARD TABLE OF
+      zcl_stock_allocator=>ty_document_id WITH EMPTY KEY.
+ENDCLASS.
+
+CLASS lcl_reservation_status IMPLEMENTATION.
+  METHOD zif_reservation_status~is_cancelled.
+    APPEND iv_document_id TO mt_document_ids.
+    rv_is_cancelled = mv_is_cancelled.
   ENDMETHOD.
 ENDCLASS.
 
@@ -89,6 +121,8 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     DATA mo_writer TYPE REF TO lcl_allocation_writer.
     DATA mo_converter TYPE REF TO lcl_unit_converter.
     DATA mo_store TYPE REF TO lcl_idempotency_store.
+    DATA mo_authority TYPE REF TO lcl_allocation_authority.
+    DATA mo_reservation_status TYPE REF TO lcl_reservation_status.
     DATA mo_cut TYPE REF TO zcl_stock_allocation_service.
 
     METHODS setup.
@@ -98,12 +132,20 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS skips_empty_write FOR TESTING.
     METHODS converts_before_write FOR TESTING.
     METHODS replays_completed_request FOR TESTING.
+    METHODS rejects_incomplete_replay FOR TESTING.
     METHODS replay_does_not_reduce_stock FOR TESTING.
     METHODS rejects_reused_id_changes FOR TESTING.
     METHODS rejects_reused_assignment FOR TESTING.
     METHODS rejects_reused_sales_order FOR TESTING.
     METHODS rejects_legacy_replay FOR TESTING.
     METHODS simulation_ignores_replay FOR TESTING.
+    METHODS denies_before_replay_or_stock FOR TESTING.
+    METHODS checks_each_plant_once FOR TESTING.
+    METHODS defers_without_stock_read FOR TESTING.
+    METHODS reopens_cancelled_reservation FOR TESTING.
+    METHODS aborts_incomplete_full_batch FOR TESTING.
+    METHODS posts_complete_full_batch FOR TESTING.
+    METHODS aborts_full_batch_simulation FOR TESTING.
 
     METHODS requests
       IMPORTING
@@ -120,6 +162,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     mo_writer = NEW #( ).
     mo_converter = NEW #( ).
     mo_store = NEW #( ).
+    mo_authority = NEW #( ).
+    mo_reservation_status = NEW #( ).
     mo_reader->mt_stock = VALUE #(
       ( material         = 'MAT-1'
         plant            = '1000'
@@ -127,10 +171,12 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
         base_unit        = 'EA'
         unrestricted_qty = 10 ) ).
     mo_cut = NEW #(
-      io_stock_reader      = mo_reader
-      io_allocation_writer = mo_writer
-      io_unit_converter    = mo_converter
-      io_idempotency_store = mo_store ).
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = mo_authority
+      io_reservation_status = mo_reservation_status ).
   ENDMETHOD.
 
   METHOD simulation_does_not_write.
@@ -236,7 +282,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
         unit_of_measure      = 'EA'
         document_id          = '0000000042' ) ).
 
-    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+    DATA(lt_result) = mo_cut->execute(
+      it_requests     = requests( 5 )
+      iv_horizon_date = '20260817' ).
 
     cl_abap_unit_assert=>assert_initial( mo_reader->mt_requests ).
     cl_abap_unit_assert=>assert_equals(
@@ -248,6 +296,43 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'Existing reservation reused' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replayed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation_status->mt_document_ids[ 1 ]
+      exp = '0000000042' ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_replay.
+    mo_store->mt_records = VALUE #(
+      ( is_found             = abap_true
+        payload_version      = zcl_stock_allocator=>gc_payload_version
+        request_id           = 'REQUEST-1'
+        material             = 'MAT-1'
+        plant                = '1000'
+        storage_location     = '0001'
+        movement_type        = '201'
+        cost_center          = 'CC1000'
+        requirement_date     = '20260818'
+        source_requested_qty = 5
+        source_unit          = 'EA'
+        priority             = 100
+        requested_qty        = 5
+        allocated_qty        = 5
+        unit_of_measure      = 'EA' ) ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_missing ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD replay_does_not_reduce_stock.
@@ -298,6 +383,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD rejects_reused_id_changes.
+    mo_reservation_status->mv_is_cancelled = abap_true.
     mo_store->mt_records = VALUE #(
       ( is_found             = abap_true
         payload_version      = zcl_stock_allocator=>gc_payload_version
@@ -324,6 +410,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'Request ID was already used with different input' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_conflict ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_writer->mv_call_count
       exp = 0 ).
@@ -417,6 +506,9 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       act = lt_result[ 1 ]-posting_message
       exp = 'Stored request payload version is unsupported' ).
     cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_version ).
+    cl_abap_unit_assert=>assert_equals(
       act = mo_writer->mv_call_count
       exp = 0 ).
   ENDMETHOD.
@@ -437,6 +529,190 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_status
       exp = zcl_stock_allocator=>gc_posting_simulated ).
+  ENDMETHOD.
+
+  METHOD denies_before_replay_or_stock.
+    mo_authority->mv_denied_plant = '1000'.
+    mo_store->mt_records = VALUE #(
+      ( is_found    = abap_true
+        request_id  = 'REQUEST-1'
+        document_id = '0000000042' ) ).
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests     = requests( 5 )
+      iv_horizon_date = '20260817' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Not authorized to allocate plant 1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_plant_unauthorized ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_initial( mo_reader->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD checks_each_plant_once.
+    DATA(lt_requests) = requests( 5 ).
+    APPEND VALUE #(
+      request_id       = 'REQUEST-2'
+      material         = 'MAT-1'
+      plant            = '1000'
+      storage_location = '0001'
+      movement_type    = '201'
+      cost_center      = 'CC1000'
+      unit_of_measure  = 'EA'
+      requirement_date = '20260818'
+      requested_qty    = 5
+      priority         = 200 ) TO lt_requests.
+
+    mo_cut->execute(
+      it_requests   = lt_requests
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_authority->mt_checked_plants )
+      exp = 1 ).
+  ENDMETHOD.
+
+  METHOD defers_without_stock_read.
+    DATA(lt_result) = mo_cut->execute(
+      it_requests     = requests( 5 )
+      iv_horizon_date = '20260817' ).
+
+    cl_abap_unit_assert=>assert_initial( mo_reader->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_deferred ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD reopens_cancelled_reservation.
+    mo_reservation_status->mv_is_cancelled = abap_true.
+    mo_store->mt_records = VALUE #(
+      ( is_found             = abap_true
+        payload_version      = zcl_stock_allocator=>gc_payload_version
+        request_id           = 'REQUEST-1'
+        material             = 'MAT-1'
+        plant                = '1000'
+        storage_location     = '0001'
+        movement_type        = '201'
+        cost_center          = 'CC1000'
+        requirement_date     = '20260818'
+        source_requested_qty = 5
+        source_unit          = 'EA'
+        priority             = 100
+        requested_qty        = 5
+        allocated_qty        = 5
+        unit_of_measure      = 'EA'
+        document_id          = '0000000041' ) ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_reader->mt_requests )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mt_saved[ 1 ]-replaced_document_id
+      exp = '0000000041' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-document_id
+      exp = '0000000042' ).
+  ENDMETHOD.
+
+  METHOD aborts_incomplete_full_batch.
+    DATA(lt_requests) = requests( 6 ).
+    APPEND VALUE #(
+      request_id       = 'REQUEST-2'
+      material         = 'MAT-1'
+      plant            = '1000'
+      storage_location = '0001'
+      movement_type    = '201'
+      cost_center      = 'CC1000'
+      unit_of_measure  = 'EA'
+      requirement_date = '20260818'
+      requested_qty    = 6
+      priority         = 200 ) TO lt_requests.
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests           = lt_requests
+      iv_require_full_batch = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-1' ]-status
+      exp = zcl_stock_allocator=>gc_status_aborted ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-1' ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_full_batch_aborted ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-2' ]-status
+      exp = zcl_stock_allocator=>gc_status_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD posts_complete_full_batch.
+    DATA(lt_requests) = requests( 5 ).
+    APPEND VALUE #(
+      request_id       = 'REQUEST-2'
+      material         = 'MAT-1'
+      plant            = '1000'
+      storage_location = '0001'
+      movement_type    = '201'
+      cost_center      = 'CC1000'
+      unit_of_measure  = 'EA'
+      requirement_date = '20260818'
+      requested_qty    = 5
+      priority         = 200 ) TO lt_requests.
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests           = lt_requests
+      iv_require_full_batch = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_writer->mt_saved )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-2' ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_posted ).
+  ENDMETHOD.
+
+  METHOD aborts_full_batch_simulation.
+    DATA(lt_requests) = requests( 6 ).
+    APPEND VALUE #(
+      request_id       = 'REQUEST-2'
+      material         = 'MAT-1'
+      plant            = '1000'
+      storage_location = '0001'
+      movement_type    = '201'
+      cost_center      = 'CC1000'
+      unit_of_measure  = 'EA'
+      requirement_date = '20260818'
+      requested_qty    = 6
+      priority         = 200 ) TO lt_requests.
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests           = lt_requests
+      iv_simulation         = abap_true
+      iv_require_full_batch = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-1' ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_not_required ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ request_id = 'REQUEST-1' ]-allocated_qty
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD requests.

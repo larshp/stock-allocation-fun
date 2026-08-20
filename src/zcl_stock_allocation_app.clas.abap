@@ -7,6 +7,7 @@ CLASS zcl_stock_allocation_app DEFINITION
     TYPES:
       BEGIN OF ty_result,
         allocations TYPE zcl_stock_allocator=>ty_allocations,
+        run_id      TYPE zif_allocation_logger=>ty_run_id,
         log_saved   TYPE abap_bool,
       END OF ty_result.
 
@@ -17,12 +18,14 @@ CLASS zcl_stock_allocation_app DEFINITION
 
     METHODS run
       IMPORTING
-        it_requests      TYPE zcl_stock_allocator=>ty_requests
-        iv_simulation    TYPE abap_bool DEFAULT abap_false
-        iv_strategy      TYPE zcl_stock_allocator=>ty_strategy
+        it_requests           TYPE zcl_stock_allocator=>ty_requests
+        iv_simulation         TYPE abap_bool DEFAULT abap_false
+        iv_horizon_date       TYPE d OPTIONAL
+        iv_require_full_batch TYPE abap_bool DEFAULT abap_false
+        iv_strategy           TYPE zcl_stock_allocator=>ty_strategy
           DEFAULT zcl_stock_allocator=>gc_strategy_priority_due
       RETURNING
-        VALUE(rs_result) TYPE ty_result.
+        VALUE(rs_result)      TYPE ty_result.
 
     CLASS-METHODS create_sap
       RETURNING
@@ -40,13 +43,21 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD run.
+    DATA(lv_run_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
+    rs_result-run_id = |{ lv_run_uuid }|.
     rs_result-allocations = mo_service->execute(
-      it_requests   = it_requests
-      iv_simulation = iv_simulation
-      iv_strategy   = iv_strategy ).
+      it_requests           = it_requests
+      iv_simulation         = iv_simulation
+      iv_horizon_date       = iv_horizon_date
+      iv_require_full_batch = iv_require_full_batch
+      iv_strategy           = iv_strategy ).
     rs_result-log_saved = mo_logger->write(
-      it_allocations = rs_result-allocations
-      iv_simulation  = iv_simulation ).
+      it_allocations        = rs_result-allocations
+      iv_simulation         = iv_simulation
+      iv_run_id             = rs_result-run_id
+      iv_strategy           = iv_strategy
+      iv_horizon_date       = iv_horizon_date
+      iv_require_full_batch = iv_require_full_batch ).
   ENDMETHOD.
 
   METHOD create_sap.
@@ -57,16 +68,20 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
     DATA(lo_stock_lock) = NEW zcl_stock_lock_sap( ).
     DATA(lo_gateway) = NEW zcl_reservation_gateway_sap( ).
     DATA(lo_idempotency_store) = NEW zcl_idempotency_store_sap( ).
+    DATA(lo_authority) = NEW zcl_allocation_authority_sap( ).
+    DATA(lo_reservation_status) = NEW zcl_reservation_status_sap( ).
     DATA(lo_writer) = NEW zcl_allocation_writer_sap(
       io_gateway           = lo_gateway
       io_idempotency_store = lo_idempotency_store
       io_stock_rechecker   = lo_stock_rechecker
       io_stock_lock        = lo_stock_lock ).
     DATA(lo_service) = NEW zcl_stock_allocation_service(
-      io_stock_reader      = lo_stock_reader
-      io_allocation_writer = lo_writer
-      io_unit_converter    = lo_unit_converter
-      io_idempotency_store = lo_idempotency_store ).
+      io_stock_reader       = lo_stock_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = lo_unit_converter
+      io_idempotency_store  = lo_idempotency_store
+      io_authority          = lo_authority
+      io_reservation_status = lo_reservation_status ).
     DATA(lo_log_store) = NEW zcl_allocation_log_store_sap( ).
     DATA(lo_logger) = NEW zcl_allocation_logger_sap( lo_log_store ).
 

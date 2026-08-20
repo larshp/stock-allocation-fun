@@ -41,6 +41,16 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~claim.
+    IF iv_replaced_document_id IS NOT INITIAL.
+      DELETE FROM zstock_alloc
+        WHERE request_id = @is_allocation-request_id
+          AND reservation_id = @iv_replaced_document_id.
+      IF sy-subrc <> 0.
+        rv_acquired = abap_false.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
     DATA(ls_claim) = VALUE zstock_alloc(
       payload_version      = zcl_stock_allocator=>gc_payload_version
       request_id           = is_allocation-request_id

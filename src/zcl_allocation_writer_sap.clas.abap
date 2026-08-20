@@ -63,7 +63,10 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     LOOP AT ct_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
       WHERE allocated_qty > 0
         AND posting_status = zcl_stock_allocator=>gc_posting_pending.
-      IF mo_idempotency_store->claim( <ls_allocation> ) = abap_false.
+      IF mo_idempotency_store->claim(
+          is_allocation           = <ls_allocation>
+          iv_replaced_document_id = <ls_allocation>-replaced_document_id )
+          = abap_false.
         rollback_and_release( ).
         fail_all(
           EXPORTING
@@ -173,7 +176,12 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
         AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       <ls_allocation>-posting_status =
         zcl_stock_allocator=>gc_posting_posted.
-      CLEAR <ls_allocation>-posting_message.
+      IF <ls_allocation>-replaced_document_id IS INITIAL.
+        CLEAR <ls_allocation>-posting_message.
+      ELSE.
+        <ls_allocation>-posting_message =
+          |Cancelled reservation { <ls_allocation>-replaced_document_id } replaced|.
+      ENDIF.
     ENDLOOP.
   ENDMETHOD.
 

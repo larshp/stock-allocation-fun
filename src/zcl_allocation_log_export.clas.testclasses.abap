@@ -6,6 +6,7 @@ CLASS lcl_allocation_history_reader DEFINITION FINAL.
     DATA mv_to_date TYPE d.
     DATA mv_request_id TYPE zstock_algh-request_id.
     DATA mv_run_mode TYPE zstock_algh-run_mode.
+    DATA mv_run_id TYPE zstock_algh-run_id.
     DATA mv_max_rows TYPE i.
     DATA mv_calls TYPE i.
 ENDCLASS.
@@ -17,6 +18,7 @@ CLASS lcl_allocation_history_reader IMPLEMENTATION.
     mv_to_date = iv_to_date.
     mv_request_id = iv_request_id.
     mv_run_mode = iv_run_mode.
+    mv_run_id = iv_run_id.
     mv_max_rows = iv_max_rows.
     rs_result = ms_result.
   ENDMETHOD.
@@ -53,8 +55,20 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     mo_reader->ms_result-entries = VALUE #(
       ( logged_on            = '20260801'
         logged_at            = '123456'
+        run_id               = '00112233445566778899AABBCCDDEEFF'
         request_id           = 'REQ;1'
         run_mode             = 'P'
+        material             = 'MAT-1'
+        plant                = '1000'
+        storage_location     = '0001'
+        movement_type        = '201'
+        requirement_date     = '20260815'
+        minimum_fill_pct     = 75
+        priority             = 10
+        allow_partial        = abap_true
+        allocation_strategy  = 'DUE_PRIORITY'
+        horizon_date         = '20260831'
+        require_full_batch   = abap_true
         cost_center          = 'CC1000'
         order_id             = 'ORDER-1'
         wbs_element          = 'PROJECT-1'
@@ -65,6 +79,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
         network_id           = '000001234567'
         network_activity     = '0010'
         allocation_status    = 'ALLOCATED'
+        decision_code        = 'FULLY_ALLOCATED'
         posting_status       = 'POSTED'
         source_requested_qty = 1
         source_unit          = 'BOX'
@@ -72,6 +87,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
         allocated_qty        = 5
         unit_of_measure      = 'EA'
         reservation_id       = '0000000001'
+        prior_reservation_id = '0000000041'
         log_message          = 'Text "quoted"'
         logged_by            = 'TESTER' ) ).
 
@@ -80,6 +96,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       iv_to_date    = '20260818'
       iv_request_id = 'REQ;1'
       iv_run_mode   = 'P'
+      iv_run_id     = '00112233445566778899AABBCCDDEEFF'
       iv_max_rows   = 50 ).
 
     cl_abap_unit_assert=>assert_true( ls_result-is_success ).
@@ -90,6 +107,23 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       act = lines( ls_result-lines )
       exp = 2 ).
     FIND FIRST OCCURRENCE OF 'SALES_ORDER_ITEM' IN ls_result-lines[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF 'ALLOCATION_STRATEGY' IN ls_result-lines[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF 'DECISION_CODE' IN ls_result-lines[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF 'RUN_ID' IN ls_result-lines[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF '"00112233445566778899AABBCCDDEEFF"'
+      IN ls_result-lines[ 2 ].
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0 ).
@@ -121,9 +155,27 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0 ).
+    FIND FIRST OCCURRENCE OF ';"MAT-1";"1000";"0001";"201";'
+      IN ls_result-lines[ 2 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF ';"0000000001";"0000000041";'
+      IN ls_result-lines[ 2 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    FIND FIRST OCCURRENCE OF ';"ALLOCATED";"FULLY_ALLOCATED";"POSTED";'
+      IN ls_result-lines[ 2 ].
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_max_rows
       exp = 51 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_run_id
+      exp = '00112233445566778899AABBCCDDEEFF' ).
   ENDMETHOD.
 
   METHOD supplies_default_dates.

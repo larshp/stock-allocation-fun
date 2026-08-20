@@ -37,9 +37,10 @@ INTERFACE zif_idempotency_store PUBLIC.
 
   METHODS claim
     IMPORTING
-      is_allocation      TYPE zcl_stock_allocator=>ty_allocation
+      is_allocation           TYPE zcl_stock_allocator=>ty_allocation
+      iv_replaced_document_id TYPE zcl_stock_allocator=>ty_document_id OPTIONAL
     RETURNING
-      VALUE(rv_acquired) TYPE abap_bool.
+      VALUE(rv_acquired)      TYPE abap_bool.
 
   METHODS set_document
     IMPORTING

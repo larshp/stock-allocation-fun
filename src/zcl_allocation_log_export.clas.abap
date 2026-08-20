@@ -30,6 +30,7 @@ CLASS zcl_allocation_log_export DEFINITION
         iv_to_date       TYPE d OPTIONAL
         iv_request_id    TYPE zstock_algh-request_id OPTIONAL
         iv_run_mode      TYPE zstock_algh-run_mode OPTIONAL
+        iv_run_id        TYPE zstock_algh-run_id OPTIONAL
         iv_max_rows      TYPE i DEFAULT gc_default_max_rows
         iv_today         TYPE d OPTIONAL
       RETURNING
@@ -98,6 +99,7 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       iv_to_date    = lv_to_date
       iv_request_id = iv_request_id
       iv_run_mode   = iv_run_mode
+      iv_run_id     = iv_run_id
       iv_max_rows   = lv_read_limit ).
     IF ls_read_result-is_success = abap_false.
       rs_result-message = ls_read_result-message.
@@ -109,12 +111,16 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
     ENDIF.
 
     DATA(lv_header) =
-      'LOGGED_ON;LOGGED_AT;LOG_UUID;REQUEST_ID;RUN_MODE;COST_CENTER;ORDER_ID;WBS_ELEMENT;'
+      'LOGGED_ON;LOGGED_AT;LOG_UUID;RUN_ID;REQUEST_ID;RUN_MODE;'
+      && 'MATERIAL;PLANT;STORAGE_LOCATION;MOVEMENT_TYPE;REQUIREMENT_DATE;'
+      && 'MINIMUM_FILL_PCT;PRIORITY;ALLOW_PARTIAL;ALLOCATION_STRATEGY;HORIZON_DATE;'
+      && 'REQUIRE_FULL_BATCH;COST_CENTER;ORDER_ID;WBS_ELEMENT;'
       && 'SALES_ORDER;SALES_ORDER_ITEM;ASSET_NUMBER;ASSET_SUBNUMBER;'
       && 'NETWORK_ID;NETWORK_ACTIVITY;'
-      && 'ALLOCATION_STATUS;POSTING_STATUS;SOURCE_REQUESTED_QTY;SOURCE_UNIT;'
+      && 'ALLOCATION_STATUS;DECISION_CODE;POSTING_STATUS;'
+      && 'SOURCE_REQUESTED_QTY;SOURCE_UNIT;'
       && 'REQUESTED_QTY;ALLOCATED_QTY;UNIT_OF_MEASURE;'
-      && 'RESERVATION_ID;LOG_MESSAGE;LOGGED_BY'.
+      && 'RESERVATION_ID;PRIOR_RESERVATION_ID;LOG_MESSAGE;LOGGED_BY'.
     APPEND lv_header TO rs_result-lines.
     LOOP AT ls_read_result-entries INTO DATA(ls_entry).
       APPEND format_entry( ls_entry ) TO rs_result-lines.
@@ -134,17 +140,33 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
   METHOD format_entry.
     DATA(lv_uuid) = |{ is_entry-log_uuid }|.
     DATA(lv_source_quantity) = |{ is_entry-source_requested_qty }|.
+    DATA(lv_minimum_fill_pct) = |{ is_entry-minimum_fill_pct }|.
+    DATA(lv_priority) = |{ is_entry-priority }|.
     DATA(lv_requested_quantity) = |{ is_entry-requested_qty }|.
     DATA(lv_quantity) = |{ is_entry-allocated_qty }|.
     CONDENSE lv_source_quantity NO-GAPS.
+    CONDENSE lv_minimum_fill_pct NO-GAPS.
+    CONDENSE lv_priority NO-GAPS.
     CONDENSE lv_requested_quantity NO-GAPS.
     CONDENSE lv_quantity NO-GAPS.
 
     rv_line = quote( CONV string( is_entry-logged_on ) )
       && ';' && quote( CONV string( is_entry-logged_at ) )
       && ';' && quote( lv_uuid )
+      && ';' && quote( CONV string( is_entry-run_id ) )
       && ';' && quote( CONV string( is_entry-request_id ) )
       && ';' && quote( CONV string( is_entry-run_mode ) )
+      && ';' && quote( CONV string( is_entry-material ) )
+      && ';' && quote( CONV string( is_entry-plant ) )
+      && ';' && quote( CONV string( is_entry-storage_location ) )
+      && ';' && quote( CONV string( is_entry-movement_type ) )
+      && ';' && quote( CONV string( is_entry-requirement_date ) )
+      && ';' && quote( lv_minimum_fill_pct )
+      && ';' && quote( lv_priority )
+      && ';' && quote( CONV string( is_entry-allow_partial ) )
+      && ';' && quote( CONV string( is_entry-allocation_strategy ) )
+      && ';' && quote( CONV string( is_entry-horizon_date ) )
+      && ';' && quote( CONV string( is_entry-require_full_batch ) )
       && ';' && quote( CONV string( is_entry-cost_center ) )
       && ';' && quote( CONV string( is_entry-order_id ) )
       && ';' && quote( CONV string( is_entry-wbs_element ) )
@@ -155,6 +177,7 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       && ';' && quote( CONV string( is_entry-network_id ) )
       && ';' && quote( CONV string( is_entry-network_activity ) )
       && ';' && quote( CONV string( is_entry-allocation_status ) )
+      && ';' && quote( CONV string( is_entry-decision_code ) )
       && ';' && quote( CONV string( is_entry-posting_status ) )
       && ';' && quote( lv_source_quantity )
       && ';' && quote( CONV string( is_entry-source_unit ) )
@@ -162,6 +185,7 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       && ';' && quote( lv_quantity )
       && ';' && quote( CONV string( is_entry-unit_of_measure ) )
       && ';' && quote( CONV string( is_entry-reservation_id ) )
+      && ';' && quote( CONV string( is_entry-prior_reservation_id ) )
       && ';' && quote( CONV string( is_entry-log_message ) )
       && ';' && quote( CONV string( is_entry-logged_by ) ).
   ENDMETHOD.

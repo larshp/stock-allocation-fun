@@ -106,6 +106,55 @@
   IDs, commit failure, rollback, idempotency, persistence failure, and empty
   batches, stale-stock rechecks, strategy selection, application composition,
   and logging delegation.
+- Added `zif_allocation_authority` and the SAP implementation
+  `zcl_allocation_authority_sap`. The orchestration service deduplicates plants
+  and checks `M_MATE_WRK` change activity before idempotency lookup or stock
+  access. One denied plant invalidates the whole atomic batch, including a
+  simulation, without calling the reader, converter, or writer.
+- Closed the custom-movement gap with an explicit allowlist for movements 201,
+  221, 231, 241, 251, 261, and 281. Any other movement is invalid before unit
+  conversion or stock consumption. The suite now contains eighty transpiled
+  ABAP Unit scenarios.
+- Added an optional inclusive allocation horizon to the app, service, and pure
+  allocator. New requests beyond the cutoff return `DEFERRED` and are removed
+  from the stock-reader input; completed productive requests are resolved first
+  and still replay. The horizon is run policy rather than idempotency payload,
+  so deferred requests remain eligible as the cutoff advances. The suite now
+  contains eighty-three transpiled ABAP Unit scenarios.
+- Added `zif_reservation_status` and `zcl_reservation_status_sap` to distinguish
+  explicitly cancelled reservations from replayable outcomes. When every
+  existing `RESB` item is deletion-flagged, an exact request retry re-enters
+  allocation and carries the prior reservation ID into posting. The writer
+  conditionally replaces that exact old claim in the same LUW as the new BAPI
+  reservation and document update. Missing rows and consumed but undeleted
+  reservations remain replays. The suite now contains eighty-six transpiled
+  ABAP Unit scenarios, including a concurrent replacement loser.
+- Added `iv_require_full_batch` to the app and service as an opt-in run policy.
+  After allocation, any incomplete new result changes every pending allocation
+  to `ABORTED`, restores its full shortfall, and prevents the writer call.
+  Rejected or invalid rows retain their root-cause result, and committed replay
+  rows remain untouched. Productive, simulation, abort, and success paths bring
+  the suite to eighty-nine transpiled ABAP Unit scenarios.
+- Added a 32-character hexadecimal run ID to application results and both audit
+  tables. One ID is generated before each app call, passed to the logger, shared
+  by every current/history row from that call, and retained in the result even
+  when logging fails. History reads, the export class, CSV output, and report
+  parameter `P_RUN` support direct correlation filtering. Per-row `LOG_UUID`
+  remains the append-only history key. Separate-call uniqueness coverage brings
+  the suite to ninety transpiled ABAP Unit scenarios.
+- Expanded both audit tables and CSV output with the complete allocation
+  identity and policy: stock key, movement and requirement date, minimum fill,
+  priority, partial flag, strategy, horizon, strict-batch flag, and prior
+  reservation replaced after cancellation. The application passes run policy
+  explicitly to the logger, so persisted outcomes can be reconstructed without
+  the original in-memory request. The schema change is additive.
+- Added a stable `DECISION_CODE` to allocation results, current audit, history,
+  and CSV export. It classifies allocation-layer outcomes independently of
+  mutable diagnostic text and posting/BAPI status, including distinct shortage,
+  replay, horizon, authorization, validation, and strict-batch reasons. Four
+  boundary scenarios for zero stock, missing stock, missing base-unit setup,
+  and incomplete replay bring the suite to ninety-four transpiled ABAP Unit
+  scenarios. The audit schema change is additive.
 
 ## Policy decisions
 
@@ -142,3 +191,34 @@
 - The transpiler configuration explicitly renames the JavaScript keyword
   `return`; this preserves the standard BAPI `RETURN` parameter during local
   transpilation.
+- Authorization is fail-closed at the service call boundary. A mixed-plant
+  batch is not split into separately authorized writes because reservation
+  posting is atomic for the batch and partial authorization would make that
+  contract ambiguous.
+- Movement-type support is opt-in. Unknown and customized types are rejected
+  even when they happen not to require an account assignment in the standard
+  system; admitting one requires an explicit validation and gateway mapping.
+- The allocation horizon is inclusive and optional. It affects only new work:
+  exact completed retries retain their committed result, while deferred
+  requests create no persistent claim and may be reconsidered later.
+- Reservation cancellation is recognized only from explicit deletion flags on
+  an existing `RESB` document. Absence is not proof of cancellation because
+  the document may have been archived; consumption is fulfillment, not a reason
+  to create the demand again.
+- A cancelled claim is replaced with a conditional delete followed by an insert
+  in the reservation LUW. The database row lock arbitrates concurrent retries,
+  and rollback restores the old claim if locking, stock recheck, BAPI creation,
+  document persistence, or commit fails.
+- Full-batch enforcement applies to new work only. It cannot and does not roll
+  back an earlier committed replay; those rows are excluded when deciding
+  whether the current run's pending allocations may be posted.
+- Run IDs identify one application invocation, not one request or reservation.
+  They are correlation metadata and never participate in allocation ordering,
+  request idempotency, reservation posting, or table keys.
+- Audit policy fields describe the call that produced the outcome. They are
+  evidence for diagnosis and export, not inputs read back into allocation or
+  replay decisions.
+- Decision codes are a stable integration contract for allocation-layer
+  outcomes. Posting status and message remain separate because a successfully
+  calculated allocation can still fail during locking, recheck, BAPI creation,
+  or commit.

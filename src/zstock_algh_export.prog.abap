@@ -4,6 +4,7 @@ PARAMETERS p_from TYPE d.
 PARAMETERS p_to TYPE d.
 PARAMETERS p_req TYPE zstock_algh-request_id.
 PARAMETERS p_mode TYPE zstock_algh-run_mode.
+PARAMETERS p_run TYPE zstock_algh-run_id.
 PARAMETERS p_max TYPE i DEFAULT 1000.
 
 START-OF-SELECTION.
@@ -13,6 +14,7 @@ START-OF-SELECTION.
     iv_to_date    = p_to
     iv_request_id = p_req
     iv_run_mode   = p_mode
+    iv_run_id     = p_run
     iv_max_rows   = p_max ).
 
   IF ls_result-is_success = abap_false.

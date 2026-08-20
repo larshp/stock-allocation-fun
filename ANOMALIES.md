@@ -137,10 +137,89 @@ network activity are retained through replay, posting, audit, and export. The
 gateway also maps the external WBS identifier to `BAPI2093_RES_HEAD-WBS_ELEMENT`
 instead of the internal numeric WBS field.
 
-## OPEN-018: movement 291 and customized field selection are not modeled
+## RESOLVED-018: movement 291 and customized field selection are not modeled
 
 Movement 291 permits arbitrary account assignments, and customer movement-type
 customizing can make additional fields required or forbidden. The allocator
-intentionally validates the standard fixed mappings only. Verify target field
-selection and extend the policy before admitting movement 291 or customized
-movement types.
+now admits only the explicitly modeled standard movements 201, 221, 231, 241,
+251, 261, and 281. Movement 291 and customized movement types fail before unit
+conversion or stock consumption. Verify target field selection and extend both
+the validation and reservation mapping before adding another type to the
+allowlist.
+
+## RESOLVED-019: stock could be disclosed without a plant authorization check
+
+The service previously read replay records and current stock for every supplied
+plant without checking whether the caller was allowed to work in that plant.
+`zif_allocation_authority` now guards the boundary, and the SAP implementation
+checks `M_MATE_WRK` activity `02` once per unique plant. A denial invalidates
+the whole batch before idempotency or stock access, for both productive and
+simulation calls. The denial path is covered through an injected test double;
+open-abap itself grants every `AUTHORITY-CHECK`, so target-role behavior still
+needs the normal SAP integration test.
+
+## RESOLVED-020: future demand always competed for current stock
+
+Every supplied request previously entered allocation regardless of how far its
+requirement date was in the future. Callers can now pass an inclusive horizon
+date through the application and service. New requests beyond that date return
+`DEFERRED` before stock reading, unit conversion, or posting, and create no
+idempotency claim. Exact completed productive retries are resolved before the
+horizon rule and continue to replay their committed reservation.
+
+## RESOLVED-021: cancelled reservations replayed forever
+
+An exact retry previously returned its stored reservation without checking
+whether that reservation had subsequently been cancelled. The production
+composition now reads `RESB` through `zif_reservation_status`. When an existing
+document has items and every item is deletion-flagged, the request re-enters
+allocation and the writer conditionally replaces the old request/document pair
+inside the new reservation LUW. Changed payloads remain invalid, and concurrent
+replacement attempts cannot both acquire the claim.
+
+Missing `RESB` rows and consumed but undeleted items deliberately remain
+replayable. Missing data can mean archiving rather than cancellation, while a
+consumed reservation represents fulfilled demand; treating either as cancelled
+could create a duplicate requirement.
+
+## RESOLVED-022: callers could not require complete batch fulfillment
+
+Request-level all-or-nothing behavior did not prevent other requests in the
+same call from posting when one request was partial, rejected, invalid, or
+deferred. Callers can now set `iv_require_full_batch`. The service preserves
+the original incomplete results, changes every otherwise pending new result to
+`ABORTED`, clears its allocation, and skips the writer entirely. Simulations
+use the same rule. Existing committed replays remain unchanged because a new
+call cannot atomically undo work committed by an earlier call.
+
+## RESOLVED-023: audit rows could not be correlated to one application run
+
+History rows had unique `LOG_UUID` values and request IDs, but no shared value
+identified the batch that produced them. The application now generates one
+32-character hexadecimal run ID before service execution, returns it to the
+caller, and supplies it to every current and history row. History reads and CSV
+export accept the run ID as a filter. The ID remains available when audit saving
+fails, allowing callers to correlate their own diagnostics with the failed run.
+The new audit columns are additive; rows written before deployment remain blank.
+
+## RESOLVED-024: audit rows omitted allocation identity and policy
+
+Operational and history records previously retained quantities, assignments,
+statuses, and reservation IDs but omitted the material/plant/location key,
+movement, requirement date, request policy, and run policy. An exported outcome
+therefore could not be interpreted without the original request. Both audit
+tables and CSV output now carry those fields plus the prior reservation replaced
+after cancellation. The application passes strategy, horizon, and full-batch
+policy to the logger explicitly. Existing rows remain valid with blank values
+in the additive columns.
+
+## RESOLVED-025: outcome reasons required message-text parsing
+
+Allocation status described only the broad result, while integrations had to
+parse English `POSTING_MESSAGE` text to distinguish no stock, minimum-fill
+failure, replay conflict, horizon deferral, authorization denial, and other
+decisions. Allocation results now expose a stable `DECISION_CODE`. The logger
+persists it in current and historical audit rows, and CSV export includes the
+same value. The code describes the allocation-layer decision; posting status
+and BAPI diagnostics remain separate. Existing audit rows remain valid with a
+blank value in the additive column.

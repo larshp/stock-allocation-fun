@@ -53,7 +53,9 @@ CLASS lcl_idempotency_store DEFINITION FINAL.
 
     DATA mt_claimed TYPE ty_request_ids.
     DATA mt_documents TYPE ty_documents.
+    DATA mt_replaced_documents TYPE ty_documents.
     DATA mv_update_fails TYPE abap_bool.
+    DATA mv_replacement_fails TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_idempotency_store IMPLEMENTATION.
@@ -67,6 +69,17 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~claim.
+    IF iv_replaced_document_id IS NOT INITIAL.
+      APPEND VALUE #(
+        request_id  = is_allocation-request_id
+        document_id = iv_replaced_document_id )
+        TO mt_replaced_documents.
+      IF mv_replacement_fails = abap_true.
+        rv_acquired = abap_false.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
     IF line_exists( mt_claimed[ table_line = is_allocation-request_id ] ).
       rv_acquired = abap_false.
       RETURN.
@@ -147,6 +160,8 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS rejects_lock_failure FOR TESTING.
     METHODS ignores_empty_batch FOR TESTING.
     METHODS ignores_already_posted FOR TESTING.
+    METHODS replaces_cancelled_claim FOR TESTING.
+    METHODS rolls_back_replacement_race FOR TESTING.
 
     METHODS allocations
       IMPORTING
@@ -319,6 +334,45 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_lock->mv_acquire_count
       exp = 0 ).
+  ENDMETHOD.
+
+  METHOD replaces_cancelled_claim.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000099' ) ).
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-replaced_document_id = '0000000041'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_replaced_documents[ 1 ]-document_id
+      exp = '0000000041' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-document_id
+      exp = '0000000099' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Cancelled reservation 0000000041 replaced' ).
+  ENDMETHOD.
+
+  METHOD rolls_back_replacement_race.
+    mo_store->mv_replacement_fails = abap_true.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-replaced_document_id = '0000000041'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
   ENDMETHOD.
 
   METHOD rejects_duplicate_claim.

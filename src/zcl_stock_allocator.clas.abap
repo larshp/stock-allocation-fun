@@ -22,6 +22,7 @@ CLASS zcl_stock_allocator DEFINITION
     TYPES ty_quantity         TYPE decfloat34.
     TYPES ty_status           TYPE c LENGTH 12.
     TYPES ty_posting_status   TYPE c LENGTH 12.
+    TYPES ty_decision_code    TYPE c LENGTH 30.
     TYPES ty_document_id      TYPE c LENGTH 10.
     TYPES ty_strategy         TYPE c LENGTH 20.
     TYPES ty_payload_version  TYPE c LENGTH 3.
@@ -30,6 +31,8 @@ CLASS zcl_stock_allocator DEFINITION
     CONSTANTS gc_status_partial   TYPE ty_status VALUE 'PARTIAL'.
     CONSTANTS gc_status_rejected  TYPE ty_status VALUE 'REJECTED'.
     CONSTANTS gc_status_invalid   TYPE ty_status VALUE 'INVALID'.
+    CONSTANTS gc_status_deferred  TYPE ty_status VALUE 'DEFERRED'.
+    CONSTANTS gc_status_aborted   TYPE ty_status VALUE 'ABORTED'.
     CONSTANTS gc_status_config_error TYPE ty_status VALUE 'CONFIG_ERROR'.
     CONSTANTS gc_posting_pending  TYPE ty_posting_status VALUE 'PENDING'.
     CONSTANTS gc_posting_posted   TYPE ty_posting_status VALUE 'POSTED'.
@@ -40,6 +43,44 @@ CLASS zcl_stock_allocator DEFINITION
     CONSTANTS gc_strategy_due_priority TYPE ty_strategy VALUE 'DUE_PRIORITY'.
     CONSTANTS gc_strategy_priority_id  TYPE ty_strategy VALUE 'PRIORITY_ID'.
     CONSTANTS gc_payload_version TYPE ty_payload_version VALUE '001'.
+    CONSTANTS gc_decision_fully_allocated TYPE ty_decision_code
+      VALUE 'FULLY_ALLOCATED'.
+    CONSTANTS gc_decision_partial TYPE ty_decision_code
+      VALUE 'PARTIALLY_ALLOCATED'.
+    CONSTANTS gc_decision_no_available_stock TYPE ty_decision_code
+      VALUE 'NO_AVAILABLE_STOCK'.
+    CONSTANTS gc_decision_partial_denied TYPE ty_decision_code
+      VALUE 'PARTIAL_NOT_ALLOWED'.
+    CONSTANTS gc_decision_below_minimum_fill TYPE ty_decision_code
+      VALUE 'BELOW_MINIMUM_FILL'.
+    CONSTANTS gc_decision_invalid_request TYPE ty_decision_code
+      VALUE 'INVALID_REQUEST'.
+    CONSTANTS gc_decision_rule_invalid TYPE ty_decision_code
+      VALUE 'REQUEST_RULE_INVALID'.
+    CONSTANTS gc_decision_duplicate_request TYPE ty_decision_code
+      VALUE 'DUPLICATE_REQUEST_ID'.
+    CONSTANTS gc_decision_bad_strategy TYPE ty_decision_code
+      VALUE 'STRATEGY_UNSUPPORTED'.
+    CONSTANTS gc_decision_replay_version TYPE ty_decision_code
+      VALUE 'REPLAY_VERSION_UNSUPPORTED'.
+    CONSTANTS gc_decision_replay_conflict TYPE ty_decision_code
+      VALUE 'REPLAY_PAYLOAD_CONFLICT'.
+    CONSTANTS gc_decision_replay_missing TYPE ty_decision_code
+      VALUE 'REPLAY_RESERVATION_MISSING'.
+    CONSTANTS gc_decision_replayed TYPE ty_decision_code
+      VALUE 'RESERVATION_REPLAYED'.
+    CONSTANTS gc_decision_outside_horizon TYPE ty_decision_code
+      VALUE 'OUTSIDE_HORIZON'.
+    CONSTANTS gc_decision_stock_not_found TYPE ty_decision_code
+      VALUE 'STOCK_NOT_FOUND'.
+    CONSTANTS gc_decision_base_unit_missing TYPE ty_decision_code
+      VALUE 'BASE_UNIT_MISSING'.
+    CONSTANTS gc_decision_conversion_failed TYPE ty_decision_code
+      VALUE 'UNIT_CONVERSION_FAILED'.
+    CONSTANTS gc_decision_plant_unauthorized TYPE ty_decision_code
+      VALUE 'PLANT_UNAUTHORIZED'.
+    CONSTANTS gc_decision_full_batch_aborted TYPE ty_decision_code
+      VALUE 'FULL_BATCH_ABORTED'.
 
     TYPES:
       BEGIN OF ty_request,
@@ -105,8 +146,10 @@ CLASS zcl_stock_allocator DEFINITION
         allocated_qty          TYPE ty_quantity,
         shortfall_qty          TYPE ty_quantity,
         status                 TYPE ty_status,
+        decision_code          TYPE ty_decision_code,
         posting_status         TYPE ty_posting_status,
         document_id            TYPE ty_document_id,
+        replaced_document_id   TYPE ty_document_id,
         posting_message        TYPE string,
       END OF ty_allocation.
     TYPES ty_allocations TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
@@ -138,6 +181,7 @@ CLASS zcl_stock_allocator DEFINITION
         allocated_qty          TYPE ty_quantity,
         unit_of_measure        TYPE ty_unit,
         document_id            TYPE ty_document_id,
+        document_cancelled     TYPE abap_bool,
       END OF ty_replay.
     TYPES ty_replays TYPE SORTED TABLE OF ty_replay
       WITH UNIQUE KEY request_id.
@@ -151,6 +195,7 @@ CLASS zcl_stock_allocator DEFINITION
         it_requests           TYPE ty_requests
         it_stock_balances     TYPE ty_stock_balances
         it_replays            TYPE ty_replays OPTIONAL
+        iv_horizon_date       TYPE d OPTIONAL
         iv_strategy           TYPE ty_strategy DEFAULT gc_strategy_priority_due
       RETURNING
         VALUE(rt_allocations) TYPE ty_allocations.
@@ -203,6 +248,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     DATA lt_stock_balances TYPE ty_stock_balances.
     DATA lt_plant_balances TYPE ty_plant_balances.
     DATA lt_seen_request_ids TYPE ty_seen_request_ids.
+    DATA lv_replaced_document_id TYPE ty_document_id.
 
     lt_requests = it_requests.
     lt_stock_balances = it_stock_balances.
@@ -266,6 +312,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             source_unit_of_measure = ls_invalid_strategy_request-unit_of_measure
             shortfall_qty          = ls_invalid_strategy_request-requested_qty
             status                 = gc_status_config_error
+            decision_code          = gc_decision_bad_strategy
             posting_status         = gc_posting_not_required
             posting_message        = 'Unsupported allocation strategy' )
             TO rt_allocations.
@@ -274,6 +321,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     ENDCASE.
 
     LOOP AT lt_requests INTO DATA(ls_request).
+      CLEAR lv_replaced_document_id.
       DATA(lv_account_error) = get_account_error( ls_request ).
       IF ls_request-requested_qty <= 0
           OR ls_request-minimum_fill_pct < 0
@@ -309,6 +357,13 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           source_unit_of_measure = ls_request-unit_of_measure
           shortfall_qty          = ls_request-requested_qty
           status                 = gc_status_invalid
+          decision_code          = COND #(
+            WHEN line_exists(
+              lt_seen_request_ids[ table_line = ls_request-request_id ] )
+            THEN gc_decision_duplicate_request
+            WHEN lv_account_error IS NOT INITIAL
+            THEN gc_decision_rule_invalid
+            ELSE gc_decision_invalid_request )
           posting_status         = gc_posting_not_required
           posting_message        = lv_account_error ) TO rt_allocations.
         CONTINUE.
@@ -345,6 +400,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             allow_partial          = ls_request-allow_partial
             shortfall_qty          = ls_request-requested_qty
             status                 = gc_status_invalid
+            decision_code          = gc_decision_replay_version
             posting_status         = gc_posting_not_required
             posting_message        = 'Stored request payload version is unsupported' )
             TO rt_allocations.
@@ -392,6 +448,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             allow_partial          = ls_request-allow_partial
             shortfall_qty          = ls_request-requested_qty
             status                 = gc_status_invalid
+            decision_code          = gc_decision_replay_conflict
             posting_status         = gc_posting_not_required
             posting_message        = 'Request ID was already used with different input' )
             TO rt_allocations.
@@ -421,9 +478,12 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             allow_partial          = ls_request-allow_partial
             shortfall_qty          = ls_request-requested_qty
             status                 = gc_status_invalid
+            decision_code          = gc_decision_replay_missing
             posting_status         = gc_posting_failed
             posting_message        = 'Request ID is claimed without a reservation' )
             TO rt_allocations.
+        ELSEIF ls_replay-document_cancelled = abap_true.
+          lv_replaced_document_id = ls_replay-document_id.
         ELSE.
           DATA(lv_replay_status) = COND ty_status(
             WHEN ls_replay-allocated_qty = ls_replay-requested_qty
@@ -455,11 +515,48 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             allocated_qty          = ls_replay-allocated_qty
             shortfall_qty          = ls_replay-requested_qty - ls_replay-allocated_qty
             status                 = lv_replay_status
+            decision_code          = gc_decision_replayed
             posting_status         = gc_posting_posted
             document_id            = ls_replay-document_id
             posting_message        = 'Existing reservation reused' )
             TO rt_allocations.
         ENDIF.
+        IF lv_replaced_document_id IS INITIAL.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+      IF iv_horizon_date IS NOT INITIAL
+          AND ls_request-requirement_date > iv_horizon_date.
+        APPEND VALUE #(
+          request_id             = ls_request-request_id
+          material               = ls_request-material
+          plant                  = ls_request-plant
+          storage_location       = ls_request-storage_location
+          movement_type          = ls_request-movement_type
+          cost_center            = ls_request-cost_center
+          order_id               = ls_request-order_id
+          wbs_element            = ls_request-wbs_element
+          sales_order            = ls_request-sales_order
+          sales_order_item       = ls_request-sales_order_item
+          asset_number           = ls_request-asset_number
+          asset_subnumber        = ls_request-asset_subnumber
+          network_id             = ls_request-network_id
+          network_activity       = ls_request-network_activity
+          unit_of_measure        = ls_request-unit_of_measure
+          requirement_date       = ls_request-requirement_date
+          requested_qty          = ls_request-requested_qty
+          source_requested_qty   = ls_request-requested_qty
+          source_unit_of_measure = ls_request-unit_of_measure
+          minimum_fill_pct       = ls_request-minimum_fill_pct
+          priority               = ls_request-priority
+          allow_partial          = ls_request-allow_partial
+          shortfall_qty          = ls_request-requested_qty
+          status                 = gc_status_deferred
+          decision_code          = gc_decision_outside_horizon
+          posting_status         = gc_posting_not_required
+          posting_message        = 'Requirement date is outside allocation horizon' )
+          TO rt_allocations.
         CONTINUE.
       ENDIF.
 
@@ -490,6 +587,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           source_unit_of_measure = ls_request-unit_of_measure
           shortfall_qty          = ls_request-requested_qty
           status                 = gc_status_rejected
+          decision_code          = gc_decision_stock_not_found
           posting_status         = gc_posting_not_required ) TO rt_allocations.
         CONTINUE.
       ENDIF.
@@ -517,6 +615,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           source_unit_of_measure = ls_request-unit_of_measure
           shortfall_qty          = ls_request-requested_qty
           status                 = gc_status_invalid
+          decision_code          = gc_decision_base_unit_missing
           posting_status         = gc_posting_not_required
           posting_message        = 'Material base unit is missing' )
           TO rt_allocations.
@@ -552,6 +651,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           source_unit_of_measure = ls_request-unit_of_measure
           shortfall_qty          = ls_request-requested_qty
           status                 = gc_status_invalid
+          decision_code          = gc_decision_conversion_failed
           posting_status         = gc_posting_not_required
           posting_message        = ls_conversion-message )
           TO rt_allocations.
@@ -570,6 +670,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       DATA(ls_allocation) = create_allocation(
         is_request   = ls_normalized_request
         iv_available = lv_available ).
+      ls_allocation-replaced_document_id = lv_replaced_document_id.
       ls_allocation-source_requested_qty = ls_request-requested_qty.
       ls_allocation-source_unit_of_measure = ls_request-unit_of_measure.
       APPEND ls_allocation TO rt_allocations.
@@ -619,15 +720,24 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     IF iv_available >= is_request-requested_qty.
       rs_allocation-allocated_qty = is_request-requested_qty.
       rs_allocation-status = gc_status_allocated.
+      rs_allocation-decision_code = gc_decision_fully_allocated.
       rs_allocation-posting_status = gc_posting_pending.
     ELSEIF is_request-allow_partial = abap_true
         AND iv_available > 0
         AND lv_available_pct >= is_request-minimum_fill_pct.
       rs_allocation-allocated_qty = iv_available.
       rs_allocation-status = gc_status_partial.
+      rs_allocation-decision_code = gc_decision_partial.
       rs_allocation-posting_status = gc_posting_pending.
     ELSE.
       rs_allocation-status = gc_status_rejected.
+      IF iv_available <= 0.
+        rs_allocation-decision_code = gc_decision_no_available_stock.
+      ELSEIF is_request-allow_partial = abap_false.
+        rs_allocation-decision_code = gc_decision_partial_denied.
+      ELSE.
+        rs_allocation-decision_code = gc_decision_below_minimum_fill.
+      ENDIF.
       rs_allocation-posting_status = gc_posting_not_required.
     ENDIF.
 
@@ -665,6 +775,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         IF is_request-network_id IS INITIAL.
           rv_message = 'Movement type 281 requires a network'.
         ENDIF.
+      WHEN OTHERS.
+        rv_message = |Movement type { is_request-movement_type } is not supported|.
     ENDCASE.
   ENDMETHOD.
 ENDCLASS.

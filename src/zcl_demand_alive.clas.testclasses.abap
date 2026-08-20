@@ -57,6 +57,7 @@ CLASS ltcl_demand_alive DEFINITION FINAL FOR TESTING
     METHODS a_material_flag_does_too FOR TESTING RAISING cx_static_check.
     METHODS a_named_flagged_one_is_out FOR TESTING RAISING cx_static_check.
     METHODS a_named_live_one_is_read FOR TESTING RAISING cx_static_check.
+    METHODS a_material_is_read_once FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -94,6 +95,25 @@ CLASS ltcl_demand_alive IMPLEMENTATION.
 
     DELETE FROM mara WHERE matnr IN ( @c_live, @c_plant, @c_gone ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD a_material_is_read_once.
+
+    mo_cut->read_open_demand(
+      iv_matnr = c_plant
+      iv_werks = c_werks ).
+
+    UPDATE marc SET lvorm = @space
+      WHERE matnr = @c_plant
+        AND werks = @c_werks.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->read_open_demand(
+        iv_matnr = c_plant
+        iv_werks = c_werks )
+      msg = 'the list is filtered and then the material is read, which is twice' ).
 
   ENDMETHOD.
 

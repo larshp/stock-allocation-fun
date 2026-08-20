@@ -74,6 +74,7 @@ CLASS ltcl_demand_customer_prio DEFINITION FINAL FOR TESTING
     METHODS another_plant_is_not_read FOR TESTING RAISING cx_static_check.
     METHODS no_customer_is_no_rank FOR TESTING RAISING cx_static_check.
     METHODS the_material_list_is_passed_on FOR TESTING.
+    METHODS the_ranks_are_read_once FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -240,6 +241,36 @@ CLASS ltcl_demand_customer_prio IMPLEMENTATION.
       act = lt_demand[ 1 ]-priority
       exp = '05'
       msg = 'a stock transport order is not a customer and has no share of this' ).
+
+  ENDMETHOD.
+
+  METHOD the_ranks_are_read_once.
+
+    given_rank(
+      iv_kunnr    = c_key
+      iv_priority = '01' ).
+
+    DATA(lo_cut) = CAST zif_demand_reader( NEW zcl_demand_customer_prio(
+      NEW lcl_demand_double( VALUE #(
+        ( line(
+            iv_id       = 'D1'
+            iv_customer = c_key ) ) ) ) ) ).
+
+    lo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    DELETE FROM zstock_alloc_pri WHERE kunnr = @c_key.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DATA(lt_demand) = lo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ 1 ]-priority
+      exp = '01'
+      msg = 'a run asks once per material and must not read once per material' ).
 
   ENDMETHOD.
 

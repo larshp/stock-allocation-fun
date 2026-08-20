@@ -2660,3 +2660,28 @@ keeps them.
   two materials different treatment for no reason anybody could see.
 - **The test asks twice and deletes the row in between**, which is the only way
   to prove from outside that the second answer did not come from the database.
+
+### Feature 83 — the rest of the plant's tables, read once (done)
+
+Having found one plant wide table being read once per material, it was worth
+looking for the others. Two more:
+
+- **The customer ranks** (feature 51) were read on every `READ_OPEN_DEMAND`.
+- **The deletion flags** (feature 76) were two `SELECT SINGLE`s per material,
+  and a run asks about each material twice — once when the list is filtered
+  and once when the material is read.
+
+Both are now read once and kept, keyed by plant where the answer depends on the
+plant, and per material where it does not.
+
+- **The deletion answer is remembered per material rather than per plant.**
+  The plant's own flags could be read in one go, but the client wide flag on
+  `MARA` cannot: reading every flagged material in the client to save a row
+  read per material would be trading a small cost for an unbounded one.
+- **These are not micro-optimisations.** A plant wide run over five thousand
+  materials was making fifteen thousand round trips to answer three questions
+  whose answers do not change while it runs. The engine walks a timeline in
+  memory; nearly all of the time a run takes is spent in reads like these.
+- **Each one is tested by asking twice with the row deleted in between**,
+  which is the only way to prove from outside that the second answer did not
+  come from the database.

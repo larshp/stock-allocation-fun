@@ -20,7 +20,19 @@ CLASS zcl_demand_alive DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
+    "! What was found about one material, so that a run asking twice reads
+    "! once. A run does ask twice: the list is filtered and then the material
+    "! is read.
+    TYPES:
+      BEGIN OF ty_answer,
+        matnr   TYPE mard-matnr,
+        werks   TYPE mard-werks,
+        flagged TYPE abap_bool,
+      END OF ty_answer.
+    TYPES ty_answer_tab TYPE STANDARD TABLE OF ty_answer WITH EMPTY KEY.
+
     DATA mo_demand TYPE REF TO zif_demand_reader.
+    DATA mt_answer TYPE ty_answer_tab.
 
     METHODS is_flagged
       IMPORTING
@@ -28,6 +40,12 @@ CLASS zcl_demand_alive DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks          TYPE mard-werks
       RETURNING
         VALUE(rv_flagged) TYPE abap_bool.
+
+    METHODS remember
+      IMPORTING
+        iv_matnr   TYPE mard-matnr
+        iv_werks   TYPE mard-werks
+        iv_flagged TYPE abap_bool.
 
     METHODS flagged_in_plant
       IMPORTING
@@ -98,6 +116,14 @@ CLASS zcl_demand_alive IMPLEMENTATION.
 
   METHOD is_flagged.
 
+    READ TABLE mt_answer INTO DATA(ls_answer)
+      WITH KEY matnr = iv_matnr
+               werks = iv_werks.
+    IF sy-subrc = 0.
+      rv_flagged = ls_answer-flagged.
+      RETURN.
+    ENDIF.
+
     SELECT SINGLE lvorm
       FROM marc
       WHERE matnr = @iv_matnr
@@ -105,6 +131,10 @@ CLASS zcl_demand_alive IMPLEMENTATION.
       INTO @DATA(lv_plant_flag).
     IF sy-subrc = 0 AND lv_plant_flag <> space.
       rv_flagged = abap_true.
+      remember(
+        iv_matnr   = iv_matnr
+        iv_werks   = iv_werks
+        iv_flagged = rv_flagged ).
       RETURN.
     ENDIF.
 
@@ -115,6 +145,20 @@ CLASS zcl_demand_alive IMPLEMENTATION.
     IF sy-subrc = 0 AND lv_flag <> space.
       rv_flagged = abap_true.
     ENDIF.
+
+    remember(
+      iv_matnr   = iv_matnr
+      iv_werks   = iv_werks
+      iv_flagged = rv_flagged ).
+
+  ENDMETHOD.
+
+  METHOD remember.
+
+    APPEND VALUE #(
+      matnr   = iv_matnr
+      werks   = iv_werks
+      flagged = iv_flagged ) TO mt_answer.
 
   ENDMETHOD.
 

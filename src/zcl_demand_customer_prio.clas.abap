@@ -31,6 +31,13 @@ CLASS zcl_demand_customer_prio DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_demand TYPE REF TO zif_demand_reader.
 
+    "! The plant's ranks, read the first time anything asks and kept for the
+    "! rest of the run: a plant wide run asks once per material and the answer
+    "! is the same every time.
+    DATA mt_rank   TYPE ty_rank_tab.
+    DATA mv_read   TYPE abap_bool.
+    DATA mv_plant  TYPE mard-werks.
+
     METHODS read_ranks
       IMPORTING
         iv_werks       TYPE mard-werks
@@ -97,6 +104,11 @@ CLASS zcl_demand_customer_prio IMPLEMENTATION.
 
   METHOD read_ranks.
 
+    IF mv_read = abap_true AND mv_plant = iv_werks.
+      rt_rank = mt_rank.
+      RETURN.
+    ENDIF.
+
     " the plant's own rows and the ones that apply everywhere, read together
     " and told apart afterwards: two selects for a table this small would be a
     " round trip spent on tidiness
@@ -107,10 +119,15 @@ CLASS zcl_demand_customer_prio IMPLEMENTATION.
       WHERE werks = @iv_werks
          OR werks = @space
       ORDER BY werks, kunnr
-      INTO TABLE @rt_rank.
+      INTO TABLE @mt_rank.
     IF sy-subrc <> 0.
-      CLEAR rt_rank.
+      CLEAR mt_rank.
     ENDIF.
+
+    mv_plant = iv_werks.
+    mv_read  = abap_true.
+
+    rt_rank = mt_rank.
 
   ENDMETHOD.
 

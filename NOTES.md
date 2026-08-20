@@ -49,8 +49,100 @@ The eight rules the plan calls out are all on: `modify_only_own_db_tables`,
 `align_type_expressions`, `easy_to_find_messages`, `max_one_method_parameter_per_line`,
 `align_parameters`, `local_testclass_consistency`, `allowed_object_naming`, `line_length`.
 
+`easy_to_find_messages` is on and has nothing to check: abaplint reads a
+message class from an XML node that abapGit does not write, so it sees no
+messages in `ZSTOCK_ALLOC` at all. That is ANOMALIES.md 6, and it is worth
+knowing before trusting the rule list above. One rule is excluded for one
+file: `method_length` for `ZCL_ALLOC_LOG_NONE`, whose methods are empty
+because it is a null object, which is the one place an empty method is right.
+
 `syntax.version` is `open-abap` and `syntax.errorNamespace` is `.`, so every
 object in the repo — stubs included — is fully syntax checked.
+
+## The features, in order
+
+Each one is written up below: what was wrong, what was done, and the
+decisions that were not obvious. The numbers are the order they were built
+in, which is also the order they make sense in.
+
+1. read available stock
+2. allocation engine
+3. sales order demand
+4. end to end allocation
+5. fair share strategy
+6. persist the result
+7. the service
+8. reserve the confirmed stock
+9. one run, end to end
+10. do not allocate the same stock twice
+11. something a user can actually run
+12. safety stock, and netting made composable
+13. allocate a whole plant
+14. the report covers the plant
+15. check the user may do this
+16. installable, and checked on every push
+17. units of measure
+18. do not serve the same demand twice
+19. one run at a time per material
+20. allocation horizon
+21. test run
+22. a cancelled reservation reopens the demand
+23. an index for the access path
+24. what has been delivered is no longer demand
+25. a complete delivery line takes all of it or none
+26. housekeeping, and one place that knows what a live reservation is
+27. stock transport orders compete too
+28. a requirement is a schedule line, not a document item
+29. the material master is read once, not once per quantity
+30. allocate only from the storage locations that may be used
+31. look at what was decided
+32. no single customer takes the whole pool
+33. a delivery that has not left still holds its stock
+34. stock on its way is supply too
+35. say when a confirmed line is covered
+36. a plant's settings live in Customizing
+37. a run is a unit of work
+38. what the plant is about to make is supply too
+39. a blocked line takes no stock
+40. a run that nobody watched can still be read back
+41. a plant may allocate against its own plan
+42. stock that belongs to somebody already does not compete
+43. a customer who orders cartons is confirmed in cartons
+44. a run can be cut down to what one planner owns
+45. what can be promised, without allocating anything
+46. a front door for callers outside this repository
+47. say why a line did not get everything
+48. the list a planner works through in the morning
+49. a run can take back what an earlier one set aside
+50. stock that will not keep is not stock to promise
+51. a business can say which customers come first
+52. where a transfer stands against a customer order
+53. a plant too big for one job
+54. a material with nothing waiting is not a run
+55. show the working, not only the answer
+56. housekeeping keeps a diary too
+57. where a run and its reservation disagree
+58. when is this going to run out
+59. a reservation that says what it is holding stock for
+60. the buying half of a plan
+61. what the run was told to do, and how the night went
+62. a planner's own materials, in the reports too
+63. a test of the whole thing as it ships
+64. a basket in one call
+65. what the other rule would have done
+66. a material somebody is looking at is not a lost cause
+67. a run that would do nothing says so
+68. the goods have to leave before they can arrive
+69. the promise counts the same days the run does
+70. the answer remembers who was waiting
+71. the display can be read by customer
+72. the properties an answer always has
+73. the reports read the demand the run reads
+74. one place builds the rule, and the explanation uses it
+75. the calls somebody has to make
+76. a material on its way out is left alone
+77. a promise that counts what is already on the books
+78. the spool says what the run was set to do
 
 ## Progress
 

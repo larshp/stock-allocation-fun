@@ -33,13 +33,15 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_gross     | <p class="shorttext synchronized">What the documents ask for, before netting</p>
     "! @parameter io_engine    | <p class="shorttext synchronized">Works out who would get what</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter iv_today     | <p class="shorttext synchronized">Day to measure a hold against, today if empty</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
         io_demand    TYPE REF TO zif_demand_reader
         io_gross     TYPE REF TO zif_demand_reader OPTIONAL
         io_engine    TYPE REF TO zcl_allocation_engine
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_authority TYPE REF TO zif_allocation_authority
+        iv_today     TYPE d OPTIONAL.
 
     "! <p class="shorttext synchronized">Show the working behind one material's answer</p>
     "!
@@ -78,6 +80,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_gross     TYPE REF TO zif_demand_reader.
     DATA mo_engine    TYPE REF TO zcl_allocation_engine.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mv_today     TYPE d.
 
     METHODS supply_lines
       IMPORTING
@@ -160,6 +163,12 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     mo_engine    = io_engine.
     mo_authority = io_authority.
 
+    " the day is handed in so a test can say what today is
+    mv_today = iv_today.
+    IF mv_today IS INITIAL.
+      mv_today = sy-datum.
+    ENDIF.
+
   ENDMETHOD.
 
   METHOD run.
@@ -169,6 +178,18 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     mo_authority->check_plant( iv_werks ).
 
     APPEND |Material { iv_matnr } in plant { iv_werks }| TO rt_line.
+
+    " a material the plant has put on hold reads as a material nobody wants,
+    " because the demand readers leave it out. An explanation that goes quiet
+    " on the one question it exists to answer is worse than no explanation.
+    DATA(lv_hold) = zcl_alloc_hold=>reason_for(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks
+      iv_today = mv_today ).
+    IF lv_hold IS NOT INITIAL.
+      APPEND |On hold: { lv_hold }| TO rt_line.
+      APPEND `Nothing is allocated for a material on hold, whatever is waiting` TO rt_line.
+    ENDIF.
 
     APPEND LINES OF supply_lines( mo_supply->read_supply(
       iv_matnr = iv_matnr

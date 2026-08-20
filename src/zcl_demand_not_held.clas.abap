@@ -23,9 +23,6 @@ CLASS zcl_demand_not_held DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    "! An empty date field, which SQL will not compare against SPACE.
-    CONSTANTS c_no_date TYPE d VALUE '00000000'.
-
     DATA mo_demand TYPE REF TO zif_demand_reader.
     DATA mv_today  TYPE d.
 
@@ -86,21 +83,9 @@ CLASS zcl_demand_not_held IMPLEMENTATION.
 
   METHOD held_in_plant.
 
-    " a hold with a date on it lifts by itself on that day, which is what
-    " somebody putting one on for a stock count wants; a hold without one
-    " stays until somebody takes it off, which is what a quality problem
-    " wants. The row is left in the table either way, so there is a record of
-    " what was held and why.
-    SELECT matnr
-      FROM zstock_alloc_hld
-      WHERE werks = @iv_werks
-        AND ( until_date = @c_no_date
-           OR until_date >= @mv_today )
-      ORDER BY matnr
-      INTO TABLE @rt_matnr.
-    IF sy-subrc <> 0.
-      CLEAR rt_matnr.
-    ENDIF.
+    rt_matnr = zcl_alloc_hold=>materials(
+      iv_werks = iv_werks
+      iv_today = mv_today ).
 
   ENDMETHOD.
 

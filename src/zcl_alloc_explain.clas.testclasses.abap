@@ -116,6 +116,7 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS a_short_line_says_why FOR TESTING RAISING cx_static_check.
     METHODS an_empty_material_says_so FOR TESTING RAISING cx_static_check.
     METHODS what_is_taken_care_of_shows FOR TESTING RAISING cx_static_check.
+    METHODS a_hold_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -257,6 +258,32 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
       act = lt_line[ 8 ]
       exp = '*6.000*4.000*'
       msg = 'a line of ten asking for six should say where the other four went' ).
+
+  ENDMETHOD.
+
+  METHOD a_hold_is_said_out_loud.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_hld WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt  = sy-mandt
+        werks  = c_werks
+        matnr  = c_matnr
+        reason = 'counting the last pallet again' ) ).
+    INSERT zstock_alloc_hld FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM zstock_alloc_hld WHERE werks = @c_werks AND matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 2 ]
+      exp = '*counting the last pallet again*'
+      msg = 'a material on hold reads as a material nobody wants unless it says so' ).
 
   ENDMETHOD.
 

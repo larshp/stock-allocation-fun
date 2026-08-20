@@ -2618,3 +2618,23 @@ optionally a day the hold lifts.
 - **`UNTIL_DATE = @space` does not work in SQL.** An empty date compares against
   an empty date, not against a blank; the transpiler and SQLite are stricter
   about that than a quick reading of ABAP would suggest, and the test caught it.
+
+### Feature 81 — an explanation that goes quiet is no explanation (done)
+
+Feature 80's hold works by leaving the material out of the demand, which is
+right for the run and wrong for `ZSTOCK_ALLOC_WHY`. A held material read as a
+material nobody wants: no demand, nothing waiting, no answer — and the one
+question that report exists to answer is *why did this get nothing*.
+
+The hold lookup moved out of the decorator into `ZCL_ALLOC_HOLD`, and the
+explanation asks it before saying anything else.
+
+- **Same shape as feature 62.** A rule two things have to agree about lives in
+  a class of its own; the decorator that acts on it and the report that
+  explains it both ask. What "on hold" means, lapsing included, is decided
+  once.
+- **It is said first, above the timeline.** Somebody reading the page needs to
+  know before they start adding up stock that none of it was ever going to be
+  allocated.
+- **A hold with an empty reason still says something.** "No reason given" is
+  an answer; a blank line looks like a bug.

@@ -2331,3 +2331,30 @@ every answer:
 The one thing it did turn up is a second face of ANOMALIES.md 2h: an
 arithmetic expression handed straight to `ASSERT_EQUALS` is worked out in
 floating point, so `10 - 8.666` arrives as `1.3339999999999996`.
+
+### Feature 73 — the reports read the demand the run reads (done)
+
+Three read-only programs — the explanation, the projection and the comparison
+— were wired to `CREATE_DEFAULT_DEMAND`, which is what the documents ask for.
+A run is given something else: the same reader with the netting and the horizon
+around it, which is what is *left* to serve. So all three quietly answered a
+different question from the one the run answers, and the explanation was the
+worst of them, because its whole purpose is to agree with the run.
+
+`CREATE_DEFAULT_OPEN_DEMAND` is now the thing the engine is given and the thing
+the three reports read, and the wiring exists in one place instead of four.
+
+- **The horizon and the shipping time reach them too.** They were reading with
+  neither, so a plant with a thirty day horizon saw a report full of lines its
+  run would never look at.
+- **The explanation shows both.** It keeps the gross reader as well and prints
+  what is already taken care of next to what is left, because the first thing
+  anybody asks about a line of ten asking for four is where the other six went.
+  That is what the two readers were for; using only one of them was the bug.
+- **The answer is worked out from the netted demand**, which is what the run
+  does. Before this the explanation could confirm a line that a run would
+  already have served.
+
+The mistake was made once and copied twice, which is what a factory method
+exists to prevent: `CREATE_DEFAULT_SUPPLY` had already been pulled out for
+exactly this reason in feature 45 and the demand side had not.

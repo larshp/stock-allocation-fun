@@ -65,6 +65,28 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
+    "! <p class="shorttext synchronized">The demand a run really works with</p>
+    "!
+    "! What CREATE_DEFAULT_DEMAND reads, less what earlier runs already hold
+    "! and what is beyond the horizon: the reader the engine is given. Public
+    "! because everything that explains, projects or compares an allocation has
+    "! to read the same demand the run reads, or it is answering a different
+    "! question in the same words.
+    "!
+    "! @parameter io_converter    | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
+    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
+    "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! @parameter ro_demand       | <p class="shorttext synchronized">Reader of what is left to serve</p>
+    CLASS-METHODS create_default_open_demand
+      IMPORTING
+        io_converter     TYPE REF TO zif_unit_converter OPTIONAL
+        iv_horizon_days  TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
+        iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
+        iv_ship_days     TYPE i DEFAULT 0
+      RETURNING
+        VALUE(ro_demand) TYPE REF TO zif_demand_reader.
+
     "! <p class="shorttext synchronized">Wire up the service</p>
     "!
     "! @parameter io_engine      | <p class="shorttext synchronized">Calculates the allocation</p>
@@ -155,14 +177,11 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           io_converter = lo_converter
           iv_lgort     = iv_lgort
           iv_planned   = iv_planned )
-        io_demand_reader = NEW zcl_demand_reader_net(
-          io_demand      = NEW zcl_demand_within_horizon(
-            io_demand = create_default_demand(
-              io_converter    = lo_converter
-              iv_sto_priority = iv_sto_priority
-              iv_ship_days    = iv_ship_days )
-            iv_days   = iv_horizon_days )
-          io_reservation = NEW zcl_reservation_reader( ) )
+        io_demand_reader = create_default_open_demand(
+          io_converter    = lo_converter
+          iv_horizon_days = iv_horizon_days
+          iv_sto_priority = iv_sto_priority
+          iv_ship_days    = iv_ship_days )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
@@ -216,6 +235,21 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ENDIF.
 
     ro_supply = NEW zcl_supply_sources( lt_source ).
+
+  ENDMETHOD.
+
+  METHOD create_default_open_demand.
+
+    " the netting and the horizon are what turn "what is on the books" into
+    " "what is still to serve", and the engine is given the second of those
+    ro_demand = NEW zcl_demand_reader_net(
+      io_demand      = NEW zcl_demand_within_horizon(
+        io_demand = create_default_demand(
+          io_converter    = io_converter
+          iv_sto_priority = iv_sto_priority
+          iv_ship_days    = iv_ship_days )
+        iv_days   = iv_horizon_days )
+      io_reservation = NEW zcl_reservation_reader( ) ).
 
   ENDMETHOD.
 

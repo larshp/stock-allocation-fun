@@ -14,8 +14,10 @@ START-OF-SELECTION.
 
   TRY.
       DATA(lt_line) = zcl_alloc_projection=>create_default(
-        iv_lgort   = ls_settings-lgort
-        iv_planned = ls_settings-planned )->run(
+        iv_lgort        = ls_settings-lgort
+        iv_planned      = ls_settings-planned
+        iv_horizon_days = ls_settings-horizon_days
+        iv_ship_days    = ls_settings-ship_days )->run(
           iv_matnr   = p_matnr
           iv_werks   = p_werks
           iv_days    = p_days

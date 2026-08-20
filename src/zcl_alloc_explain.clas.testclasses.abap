@@ -115,6 +115,7 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS the_answer_is_worked_out FOR TESTING RAISING cx_static_check.
     METHODS a_short_line_says_why FOR TESTING RAISING cx_static_check.
     METHODS an_empty_material_says_so FOR TESTING RAISING cx_static_check.
+    METHODS what_is_taken_care_of_shows FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
@@ -223,6 +224,39 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
       act = lt_line[ 4 ]
       exp = '*nothing*'
       msg = 'an empty timeline is an answer, and an empty page is not' ).
+
+  ENDMETHOD.
+
+  METHOD what_is_taken_care_of_shows.
+
+    " the order asks for ten, four have gone out already, so the run sees six
+    DATA(lo_supply) = CAST zif_supply_reader( NEW lcl_supply_double( VALUE #(
+      ( avail_date = '00000000' quantity = '10' ) ) ) ).
+    DATA(lo_demand) = CAST zif_demand_reader( NEW lcl_demand_double( VALUE #(
+      ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+        quantity = '6' req_date = '20260210' priority = '02' ) ) ) ).
+    DATA(lo_gross)  = CAST zif_demand_reader( NEW lcl_demand_double( VALUE #(
+      ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+        quantity = '10' req_date = '20260210' priority = '02' ) ) ) ).
+
+    DATA(lo_cut) = NEW zcl_alloc_explain(
+      io_supply    = lo_supply
+      io_demand    = lo_demand
+      io_gross     = lo_gross
+      io_engine    = NEW zcl_allocation_engine(
+        io_supply_reader = lo_supply
+        io_demand_reader = lo_demand
+        io_strategy      = NEW zcl_alloc_strategy_priority( ) )
+      io_authority = mo_authority ).
+
+    DATA(lt_line) = lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 8 ]
+      exp = '*6.000*4.000*'
+      msg = 'a line of ten asking for six should say where the other four went' ).
 
   ENDMETHOD.
 

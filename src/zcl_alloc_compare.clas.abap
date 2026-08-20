@@ -8,11 +8,15 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter iv_lgort   | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
     "! @parameter iv_planned | <p class="shorttext synchronized">Planned orders count as supply too</p>
+    "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
+    "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter ro_compare | <p class="shorttext synchronized">Ready to use comparison</p>
     CLASS-METHODS create_default
       IMPORTING
         iv_lgort          TYPE mard-lgort OPTIONAL
         iv_planned        TYPE abap_bool DEFAULT abap_false
+        iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
+        iv_ship_days      TYPE i DEFAULT 0
       RETURNING
         VALUE(ro_compare) TYPE REF TO zcl_alloc_compare.
 
@@ -107,7 +111,10 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
         io_converter = lo_converter
         iv_lgort     = iv_lgort
         iv_planned   = iv_planned )
-      io_demand    = zcl_allocation_service=>create_default_demand( io_converter = lo_converter )
+      io_demand    = zcl_allocation_service=>create_default_open_demand(
+        io_converter    = lo_converter
+        iv_horizon_days = iv_horizon_days
+        iv_ship_days    = iv_ship_days )
       io_authority = NEW zcl_authority_plant( c_activity_display ) ).
 
   ENDMETHOD.

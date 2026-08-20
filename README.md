@@ -79,6 +79,9 @@ calculation and shows the result without recording or reserving anything.
 material, and can be narrowed to the lines that did not get everything. It reads
 the recorded result and changes nothing.
 
+`ZSTOCK_ALLOC_PROJ` looks forward instead of back: what comes in, what goes
+out and what is left, week by week, and the first week the material runs out.
+
 `ZSTOCK_ALLOC_WHY` shows the working behind one material: every day of supply
 the run sees, every line competing for it, and what the two come to right now.
 For the question that follows every shortage.

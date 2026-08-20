@@ -1921,3 +1921,35 @@ a footer saying how many were looked at.
   a run whose reservation is gone is a decision — re-run the material, or leave
   housekeeping to remove the record — and a report that quietly picked one
   would be the thing nobody expected.
+
+### Feature 58 — when is this going to run out (done)
+
+Everything in the solution so far answers a question about today: who gets the
+stock that is there, what did not get any, why. The question a planner asks
+*before* any of that is whether there is going to be enough at all, and if not
+from when — and the numbers to answer it were already being read every night
+and thrown away.
+
+`ZCL_ALLOC_PROJECTION` puts them in periods: what comes in, what goes out,
+what is left at the end, week by week. `ZSTOCK_ALLOC_PROJ` shows it.
+
+- **It is the run's own numbers.** The same supply sources and the same demand
+  readers, so a projection that says a week is short and a run that confirms
+  everything in that week cannot both happen. A forecast built from its own
+  reads would be a different opinion with no way to tell which is right.
+- **The past lands in the first period.** Stock on the shelf carries no date
+  and is there now; a receipt that was due last week is there now too; a
+  requirement that was wanted in January is wanted now. Putting either into a
+  period of its own would be honest about the calendar and useless to a
+  planner.
+- **Everything beyond the last period lands in one more.** Otherwise the
+  columns add up to what fitted on the screen rather than to what the material
+  has, and a total that is not a total is worse than no total.
+- **The balance is carried from one period to the next**, which is the only
+  reason to have periods at all: a week that is short on its own may be
+  covered by what the week before left over.
+- **The week it runs out is said in words**, under the row it happens in.
+  Somebody came to the report for that one fact and should not have to find
+  the first negative number in a column.
+- **A projection that ends well says so**, because a report that just stops is
+  a report somebody re-runs to check it worked.

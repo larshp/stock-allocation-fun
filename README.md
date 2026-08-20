@@ -19,17 +19,19 @@ controller. For each material waiting for stock it
 2. works out what there is to give away and from when: the book stock from
    `MARD`, restricted to the storage locations that may be allocated and less
    what is not up for allocation — open reservations, stock on deliveries that
-   are waiting for their goods issue, the plant's safety stock, and batches
-   that will not keep long enough to ship — plus the
-   receipts still to come in on open purchasing documents from
-   `EKKO`/`EKPO`/`EKET`, on open production orders from `AUFK`/`AFKO`/`AFPO`
-   and, where the plant asks for it, on planned orders from `PLAF` and
-   purchase requisitions from `EBAN`, each on the day it arrives,
+   are waiting for their goods issue, the plant's safety stock and batches that
+   will not keep long enough to ship — plus the receipts still to come in on
+   open purchasing documents from `EKKO`/`EKPO`/`EKET`, on open production
+   orders from `AUFK`/`AFKO`/`AFPO` and, where the plant asks for it, on
+   planned orders from `PLAF` and purchase requisitions from `EBAN`, each on
+   the day it arrives,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
-   orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
-   it to base units, takes off what has already been delivered or sent and what
-   earlier runs already reserved for the same line, and drops anything beyond
-   the horizon,
+   orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — leaving
+   out what is rejected, delivery blocked at any of the three levels a block
+   can sit on, or served from a stock segment of its own; converts it to base
+   units, takes off what has already been delivered or sent and what earlier
+   runs already reserved for the same line, and drops anything beyond the
+   horizon,
 4. walks the supply in the order it becomes available and distributes each day
    of it over the demand that can wait for it, either by delivery priority or
    as a fair share, optionally holding every customer to a share of the pool
@@ -56,8 +58,8 @@ A run that changes something also writes an application log under the object
 `ZSTOCK_ALLOC`, so a scheduled job can be read back in `SLG1` long after its
 spool is gone: one line per material with the run to look the result up by, a
 warning where a line did not get everything, and an error with the reason for
-each material that was skipped, headed by the settings the run used and
-closed by how the night went as a whole. Create the log object once with `SLG0` — it
+each material that was skipped, headed by the settings the run used and closed
+by how the night went as a whole. Create the log object once with `SLG0` — it
 is Customizing, not a repository object. Without it the run allocates exactly
 as before and keeps no log.
 
@@ -76,53 +78,40 @@ nothing is missed even though each of them reads the plant a moment apart.
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 
-`ZSTOCK_ALLOC_DISPLAY` shows what the last run decided for a plant, per
-material, and can be narrowed to the lines that did not get everything or to
-one MRP controller's materials. It reads
-the recorded result and changes nothing.
+## The other programs
 
-`ZSTOCK_ALLOC_PROJ` looks forward instead of back: what comes in, what goes
-out and what is left, week by week, and the first week the material runs out.
+Everything below reads and changes nothing, except the reorg, which removes
+what is no longer holding anything back.
 
-`ZSTOCK_ALLOC_WHY` shows the working behind one material: every day of supply
-the run sees, every line competing for it, and what the two come to right now.
-For the question that follows every shortage.
+| Program              | What it answers                                          |
+| -------------------- | -------------------------------------------------------- |
+| `ZSTOCK_ALLOC_DISPLAY` | what the last run decided, per material — narrowed to the short lines or to one MRP controller |
+| `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the reason on every line: the list a planner works through in the morning |
+| `ZSTOCK_ALLOC_WHY`   | the working behind one material — every day of supply, every line competing for it, and what the two come to right now |
+| `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
+| `ZSTOCK_ALLOC_ATP`   | how much can be promised of a quantity, and from when |
+| `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
+| `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
 
-`ZSTOCK_ALLOC_SHORT` is the other way round: not what happened to one material
-but what is short across the whole plant, soonest and biggest first, with the
-reason on every line, an optional cut-off date, a line limit and the same MRP
-controller filter. It is the
-list a planner works through in the morning.
-
-`ZSTOCK_ALLOC_ATP` answers the question a salesperson asks before writing an
-order down: how much of a material this plant can promise, and from when. It
-reads the same supply timeline a run distributes and changes nothing;
-`ZIF_ATP_QUERY` is the same answer for a program to call, and
-`Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP —
+`ZIF_ATP_QUERY` is the promise for a program in the same system to call, and
+`Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP:
 remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
 
-`ZSTOCK_ALLOC_PRI` says which customers are served before the rest, once per
-customer instead of once per order line, either for one plant or for all of
-them.
+`ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
+because the demand netting reads it. It defaults to a test run too, and a real
+one writes to the same application log as an allocation run.
 
-`ZSTOCK_ALLOC_CFG` holds the settings of a plant — distribution rule, horizon,
-storage location, customer cap, whether planned orders count as supply, whether
-confirmations are cut to whole order units, where a stock transport order
-stands against a customer order, and how long a recorded run is kept. Both programs read it by default, so a scheduled job only has to be told
-the plant; unticking **Settings come from the plant** hands the screen back to
-somebody trying something out. A plant with no row gets the defaults.
+## Customizing
 
-`ZSTOCK_ALLOC_CHECK` compares every recorded run with the reservation it
-claims and lists the ones that no longer agree — gone, holding less, holding
-more, or never reserved at all. Somebody with `MB22` can change a reservation
-and the netting will believe it; this is how that shows up.
+| Table               | What it holds                                             |
+| ------------------- | --------------------------------------------------------- |
+| `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, where a stock transport order stands against a customer order, and how long a recorded run is kept |
+| `ZSTOCK_ALLOC_PRI`  | which customers are served before the rest, once per customer, for one plant or for all of them |
 
-`ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes
-recorded runs that are past the retention time **and** are no longer holding
-anything back — a run whose reservation was rejected, deleted or is otherwise
-gone. A run whose reservation is still there stays, because the demand netting
-reads it. It defaults to a test run too, and a real one writes to the same
-application log as an allocation run.
+Both allocation programs read `ZSTOCK_ALLOC_CFG` by default, so a scheduled job
+only has to be told the plant; unticking **Settings come from the plant** hands
+the screen back to somebody trying something out. A plant with no row gets the
+defaults.
 
 ## Installing into SAP
 

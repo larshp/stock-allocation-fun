@@ -80,6 +80,18 @@
      <MSGNR>012</MSGNR>
      <TEXT>Recorded run &amp;1 removed</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>013</MSGNR>
+     <TEXT>Settings: &amp;1&amp;2&amp;3&amp;4</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>014</MSGNR>
+     <TEXT>&amp;1 material(s), &amp;2 short, &amp;3 failed</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

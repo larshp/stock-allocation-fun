@@ -56,7 +56,8 @@ A run that changes something also writes an application log under the object
 `ZSTOCK_ALLOC`, so a scheduled job can be read back in `SLG1` long after its
 spool is gone: one line per material with the run to look the result up by, a
 warning where a line did not get everything, and an error with the reason for
-each material that was skipped. Create the log object once with `SLG0` — it
+each material that was skipped, headed by the settings the run used and
+closed by how the night went as a whole. Create the log object once with `SLG0` — it
 is Customizing, not a repository object. Without it the run allocates exactly
 as before and keeps no log.
 

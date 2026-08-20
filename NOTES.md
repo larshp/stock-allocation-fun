@@ -2004,3 +2004,30 @@ given. The feature was half a feature and did not say so.
   order alone; a requisition has no such flag in the same sense, so the class
   takes what it finds. A plant that wants only committed receipts leaves the
   switch off, which is where that decision belongs.
+
+### Feature 61 — what the run was told to do, and how the night went (done)
+
+The log said what happened to each material and nothing about the run itself.
+Two questions come up every time somebody opens one, and neither could be
+answered from it: *what settings did this run use* — because the variant can
+have been changed since — and *how did the night go as a whole*, which four
+hundred lines each describing one material do not say.
+
+Two more messages: the settings under the opening line, and a closing summary.
+
+- **The settings are rendered where they are known.** `CREATE_DEFAULT` is the
+  only place that has all of them at once, so it turns them into a line and
+  hands it to the mass run, which hands it to the log. The alternative — the
+  program building the text — would have put the same knowledge in a second
+  place, and the class would have had to be told twice.
+- **The strategy is named by what it is.** A customer that swapped in one of
+  its own reads its own class name in the log rather than a word this
+  repository chose for it.
+- **A night with something wrong in it says so at a problem class SLG1 filters
+  on**, so a list of logs shows which ones are worth opening. A night where
+  nothing failed is a success message and stays quiet.
+- **The summary counts materials, not lines.** How many lines fell short is a
+  question for the display; how many *materials* need looking at is the one a
+  planner starts with in the morning.
+- **A test run still keeps no diary**, and a run with nothing to say about its
+  settings writes no settings line rather than an empty one.

@@ -47,12 +47,14 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_service | <p class="shorttext synchronized">Allocates one material</p>
     "! @parameter io_demand  | <p class="shorttext synchronized">Says which materials need one</p>
-    "! @parameter io_log     | <p class="shorttext synchronized">Where the run says what it did</p>
+    "! @parameter io_log      | <p class="shorttext synchronized">Where the run says what it did</p>
+    "! @parameter iv_settings | <p class="shorttext synchronized">What the run was told to do, in a line</p>
     METHODS constructor
       IMPORTING
-        io_service TYPE REF TO zif_allocation_service
-        io_demand  TYPE REF TO zif_demand_reader
-        io_log     TYPE REF TO zif_allocation_log.
+        io_service  TYPE REF TO zif_allocation_service
+        io_demand   TYPE REF TO zif_demand_reader
+        io_log      TYPE REF TO zif_allocation_log
+        iv_settings TYPE string OPTIONAL.
 
     "! <p class="shorttext synchronized">Allocate every material in a plant that is waiting for stock</p>
     "!
@@ -74,13 +76,41 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PRIVATE SECTION.
     DATA mo_service TYPE REF TO zif_allocation_service.
     DATA mo_demand  TYPE REF TO zif_demand_reader.
-    DATA mo_log     TYPE REF TO zif_allocation_log.
+    DATA mo_log      TYPE REF TO zif_allocation_log.
+    DATA mv_settings TYPE string.
+
+    "! What the run was told to do, in the words a person would use. Rendered
+    "! where the settings are known, which is the only place that knows all of
+    "! them at once.
+    CLASS-METHODS settings_text
+      IMPORTING
+        io_strategy     TYPE REF TO zif_allocation_strategy
+        iv_horizon_days TYPE i
+        iv_lgort        TYPE mard-lgort
+        iv_cap_percent  TYPE i
+        iv_planned      TYPE abap_bool
+        iv_whole_units  TYPE abap_bool
+        iv_recut        TYPE abap_bool
+      RETURNING
+        VALUE(rv_text)  TYPE string.
 
     METHODS short_lines
       IMPORTING
         it_allocation   TYPE zif_allocation=>ty_allocation_tab
       RETURNING
         VALUE(rv_lines) TYPE i.
+
+    METHODS short_materials
+      IMPORTING
+        it_outcome      TYPE ty_outcome_tab
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+    METHODS failed_materials
+      IMPORTING
+        it_outcome      TYPE ty_outcome_tab
+      RETURNING
+        VALUE(rv_count) TYPE i.
 
 ENDCLASS.
 
@@ -117,7 +147,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
     mo_service = io_service.
     mo_demand  = io_demand.
-    mo_log     = io_log.
+    mo_log      = io_log.
+    mv_settings = iv_settings.
 
   ENDMETHOD.
 
@@ -135,7 +166,9 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     " account for afterwards, and saving a log would commit work that a run
     " which promises to change nothing has no business committing.
     IF iv_simulate = abap_false.
-      mo_log->start( iv_werks ).
+      mo_log->start(
+        iv_werks    = iv_werks
+        iv_settings = mv_settings ).
     ENDIF.
 
     LOOP AT lt_matnr INTO DATA(lv_matnr).
@@ -179,8 +212,59 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     ENDLOOP.
 
     IF iv_simulate = abap_false.
+      mo_log->finished(
+        iv_materials = lines( rt_outcome )
+        iv_short     = short_materials( rt_outcome )
+        iv_failed    = failed_materials( rt_outcome ) ).
       mo_log->save( ).
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD settings_text.
+
+    " the strategy is named by what it is, not by its class: a customer that
+    " swapped in one of its own reads its own name here rather than "fair
+    " share" or a blank
+    DATA(lv_strategy) = `priority`.
+    IF io_strategy IS BOUND.
+      lv_strategy = cl_abap_classdescr=>get_class_name( io_strategy ).
+    ENDIF.
+
+    rv_text = |{ lv_strategy }| &&
+              COND string( WHEN iv_horizon_days > 0
+                           THEN |, horizon { iv_horizon_days } day(s)| ) &&
+              COND string( WHEN iv_lgort IS NOT INITIAL
+                           THEN |, location { iv_lgort }| ) &&
+              COND string( WHEN iv_cap_percent > 0
+                           THEN |, cap { iv_cap_percent } percent| ) &&
+              COND string( WHEN iv_planned = abap_true
+                           THEN `, plan counts` ) &&
+              COND string( WHEN iv_whole_units = abap_true
+                           THEN `, whole units` ) &&
+              COND string( WHEN iv_recut = abap_true
+                           THEN `, re-cut` ).
+
+  ENDMETHOD.
+
+  METHOD short_materials.
+
+    LOOP AT it_outcome INTO DATA(ls_outcome).
+      IF ls_outcome-failed = abap_false
+          AND short_lines( ls_outcome-run-allocation ) > 0.
+        rv_count = rv_count + 1.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD failed_materials.
+
+    LOOP AT it_outcome INTO DATA(ls_outcome).
+      IF ls_outcome-failed = abap_true.
+        rv_count = rv_count + 1.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 

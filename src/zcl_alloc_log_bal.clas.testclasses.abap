@@ -89,6 +89,10 @@ CLASS ltcl_alloc_log_bal DEFINITION FINAL FOR TESTING
     METHODS saving_commits FOR TESTING.
     METHODS an_unopened_log_is_not_saved FOR TESTING.
     METHODS a_refused_commit_is_no_error FOR TESTING.
+    METHODS the_settings_are_written_down FOR TESTING.
+    METHODS no_settings_is_no_line FOR TESTING.
+    METHODS the_end_is_summed_up FOR TESTING.
+    METHODS a_failure_makes_it_a_warning FOR TESTING.
 
 ENDCLASS.
 
@@ -249,6 +253,69 @@ CLASS ltcl_alloc_log_bal IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = cl_stub_bal=>last_handle( )
       msg = 'without a log there is nowhere to write, and nothing is opened late' ).
+
+  ENDMETHOD.
+
+  METHOD the_settings_are_written_down.
+
+    mo_cut->start(
+      iv_werks    = c_werks
+      iv_settings = `priority, horizon 30 day(s)` ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgno
+      exp = '013' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgv1
+      exp = 'priority, horizon 30 day(s)'
+      msg = 'half the questions about a night are questions about its variant' ).
+
+  ENDMETHOD.
+
+  METHOD no_settings_is_no_line.
+
+    mo_cut->start( c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( messages( ) )
+      exp = 1
+      msg = 'a caller with nothing to say about its settings says nothing' ).
+
+  ENDMETHOD.
+
+  METHOD the_end_is_summed_up.
+
+    mo_cut->start( c_werks ).
+    mo_cut->finished(
+      iv_materials = 400
+      iv_short     = 12
+      iv_failed    = 0 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgno
+      exp = '014' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgv1
+      exp = '400' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgty
+      exp = 'S'
+      msg = 'a night where nothing failed is not a night to open' ).
+
+  ENDMETHOD.
+
+  METHOD a_failure_makes_it_a_warning.
+
+    mo_cut->start( c_werks ).
+    mo_cut->finished(
+      iv_materials = 400
+      iv_short     = 12
+      iv_failed    = 3 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = message( 2 )-msgty
+      exp = 'W'
+      msg = 'a list of logs should show which ones are worth opening' ).
 
   ENDMETHOD.
 

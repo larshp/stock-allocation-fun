@@ -6,10 +6,12 @@ INTERFACE zif_allocation_log PUBLIC.
   "! cannot write its diary still has to allocate stock, and a night's
   "! allocations must not be lost because the log was.
   "!
-  "! @parameter iv_werks | <p class="shorttext synchronized">Plant the run covers</p>
+  "! @parameter iv_werks    | <p class="shorttext synchronized">Plant the run covers</p>
+  "! @parameter iv_settings | <p class="shorttext synchronized">What the run was told to do, in a line</p>
   METHODS start
     IMPORTING
-      iv_werks TYPE mard-werks.
+      iv_werks    TYPE mard-werks
+      iv_settings TYPE string OPTIONAL.
 
   "! <p class="shorttext synchronized">Note that a material was allocated</p>
   "!
@@ -41,6 +43,22 @@ INTERFACE zif_allocation_log PUBLIC.
   METHODS removed
     IMPORTING
       iv_run_id TYPE zstock_alloc_res-run_id.
+
+  "! <p class="shorttext synchronized">Note how the run ended</p>
+  "!
+  "! The last line, and the one somebody reads first: a night that covered
+  "! four hundred materials and left two short is a different night from one
+  "! that left two hundred short, and neither is visible from four hundred
+  "! lines each saying what happened to one of them.
+  "!
+  "! @parameter iv_materials | <p class="shorttext synchronized">Materials the run covered</p>
+  "! @parameter iv_short     | <p class="shorttext synchronized">Of those, how many did not get everything</p>
+  "! @parameter iv_failed    | <p class="shorttext synchronized">Of those, how many could not be allocated</p>
+  METHODS finished
+    IMPORTING
+      iv_materials TYPE i
+      iv_short     TYPE i
+      iv_failed    TYPE i.
 
   "! <p class="shorttext synchronized">Make the log durable</p>
   "!

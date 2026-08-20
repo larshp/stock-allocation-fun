@@ -25,6 +25,8 @@ CLASS zcl_alloc_log_bal DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_msg_short     TYPE bal_s_msg-msgno VALUE '010'.
     CONSTANTS c_msg_failed    TYPE bal_s_msg-msgno VALUE '011'.
     CONSTANTS c_msg_removed   TYPE bal_s_msg-msgno VALUE '012'.
+    CONSTANTS c_msg_settings  TYPE bal_s_msg-msgno VALUE '013'.
+    CONSTANTS c_msg_finished  TYPE bal_s_msg-msgno VALUE '014'.
 
     "! BAL problem classes: 1 very important, 2 important, 4 additional
     "! information. SLG1 filters on them, so a night's successes can be hidden
@@ -64,8 +66,9 @@ CLASS zcl_alloc_log_bal IMPLEMENTATION.
 
   METHOD zif_allocation_log~start.
 
-    DATA ls_log    TYPE bal_s_log.
-    DATA lv_handle TYPE balloghndl.
+    DATA ls_log      TYPE bal_s_log.
+    DATA lv_handle   TYPE balloghndl.
+    DATA lv_settings TYPE c LENGTH 200.
 
     " the external number is what somebody scanning SLG1 sees first, so it says
     " which plant and when rather than repeating the object name.
@@ -100,6 +103,42 @@ CLASS zcl_alloc_log_bal IMPLEMENTATION.
       iv_number    = c_msg_started
       iv_class     = c_class_info
       iv_variable1 = CONV #( iv_werks ) ).
+
+    " what the run was told to do, next to what it did. Half the questions
+    " asked about a night's allocation are really questions about the variant
+    " it ran with, and the variant can be changed by then.
+    IF iv_settings IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    lv_settings = iv_settings.
+
+    add(
+      iv_type      = c_type_success
+      iv_number    = c_msg_settings
+      iv_class     = c_class_info
+      iv_variable1 = CONV #( lv_settings+0(c_variable_length) )
+      iv_variable2 = CONV #( lv_settings+50(c_variable_length) )
+      iv_variable3 = CONV #( lv_settings+100(c_variable_length) )
+      iv_variable4 = CONV #( lv_settings+150(c_variable_length) ) ).
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~finished.
+
+    " a night with something wrong in it says so at the class SLG1 filters on,
+    " so a list of logs shows which ones are worth opening
+    add(
+      iv_type      = COND #( WHEN iv_failed > 0
+                             THEN c_type_warning
+                             ELSE c_type_success )
+      iv_number    = c_msg_finished
+      iv_class     = COND #( WHEN iv_failed > 0
+                             THEN c_class_warning
+                             ELSE c_class_info )
+      iv_variable1 = |{ iv_materials }|
+      iv_variable2 = |{ iv_short }|
+      iv_variable3 = |{ iv_failed }| ).
 
   ENDMETHOD.
 

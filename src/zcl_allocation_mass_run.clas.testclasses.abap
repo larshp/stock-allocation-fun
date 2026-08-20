@@ -166,6 +166,13 @@ CLASS lcl_log_spy IMPLEMENTATION.
       text = CONV #( iv_run_id ) ) TO mt_entry.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~finished.
+    APPEND VALUE #(
+      kind  = `finished`
+      lines = iv_materials
+      text  = |{ iv_short } short, { iv_failed } failed| ) TO mt_entry.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~save.
     APPEND VALUE #( kind = `save` ) TO mt_entry.
   ENDMETHOD.
@@ -203,6 +210,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
     METHODS a_failure_is_written_down FOR TESTING.
     METHODS a_test_run_keeps_no_diary FOR TESTING.
     METHODS an_empty_material_is_not_noted FOR TESTING.
+    METHODS the_night_is_summed_up FOR TESTING.
 
 ENDCLASS.
 
@@ -314,8 +322,8 @@ CLASS ltcl_mass_run IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_entry )
-      exp = 4
-      msg = 'a run says it started, what it did to each material, and saves' ).
+      exp = 5
+      msg = 'it started, said what it did to each material, summed up and saved' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_entry[ 1 ]-kind
       exp = `start` ).
@@ -331,6 +339,10 @@ CLASS ltcl_mass_run IMPLEMENTATION.
       msg = 'the diary points at the run the result was recorded under' ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_entry[ 4 ]-kind
+      exp = `finished`
+      msg = 'the last thing anybody reads is how the night went as a whole' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_entry[ 5 ]-kind
       exp = `save`
       msg = 'a log that is never saved is gone when the job ends' ).
 
@@ -382,8 +394,32 @@ CLASS ltcl_mass_run IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( lt_entry )
-      exp = 2
-      msg = 'the run started and saved, and had nothing to say about the material' ).
+      exp = 3
+      msg = 'started, summed up and saved, with nothing to say about the material' ).
+
+  ENDMETHOD.
+
+  METHOD the_night_is_summed_up.
+
+    mass_run_over(
+      it_matnr     = VALUE #( ( 'MAT-1' ) ( 'MAT-2' ) ( 'MAT-3' ) )
+      iv_short_for = 'MAT-2'
+      iv_fails_for = 'MAT-3' ).
+
+    DATA(lt_entry) = mo_log->get_entries( ).
+    DATA(ls_last)  = lt_entry[ lines( lt_entry ) - 1 ].
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_last-kind
+      exp = `finished` ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_last-lines
+      exp = 3
+      msg = 'three materials were covered' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_last-text
+      exp = `1 short, 1 failed`
+      msg = 'and four hundred lines do not say which night this was' ).
 
   ENDMETHOD.
 

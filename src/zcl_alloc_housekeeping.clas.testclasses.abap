@@ -130,6 +130,11 @@ CLASS lcl_log_spy IMPLEMENTATION.
     APPEND iv_run_id TO mt_removed.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~finished.
+    " housekeeping counts what it removed, not what it allocated
+    CLEAR mv_starts.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~save.
     mv_saves = mv_saves + 1.
   ENDMETHOD.

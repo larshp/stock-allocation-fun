@@ -26,6 +26,9 @@ CLASS zcl_alloc_log_none IMPLEMENTATION.
   METHOD zif_allocation_log~removed.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~finished.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~save.
   ENDMETHOD.
 

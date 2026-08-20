@@ -2409,3 +2409,29 @@ now, wherever the two differ.
 - **It reads two recorded runs and nothing else.** No engine, no readers, no
   clever reconstruction of what might have happened: the two answers were
   written down at the time and this is what they say.
+
+### Feature 76 — a material on its way out is left alone (done)
+
+Feature 62 dropped materials flagged for deletion from a run split by MRP
+controller, and only from those: a plain plant wide run still allocated them,
+and so did a run for a named material. That is the wrong way round — the
+filter was a side effect of a lookup rather than a rule of the solution.
+
+`ZCL_DEMAND_ALIVE` makes it a rule. A material flagged for deletion is not
+demand.
+
+- **Allocating one is worse than pointless.** The stock is meant to be used up
+  or written off, and the reservation the run creates is one more thing
+  standing between the material and being archived — which somebody then has
+  to find and delete.
+- **Both flags count.** `MARC-LVORM` says this plant is finished with it,
+  `MARA-LVORM` says everybody is. Either is enough.
+- **The list is filtered from one read and a named material from one row.** A
+  run over a plant reads the plant's flags once; a caller naming a material
+  gets one `SELECT SINGLE`, which is nothing against the twenty reads that
+  follow it, and it is exactly the case that matters: a material being deleted
+  is the kind somebody types in to see what is holding it up.
+- **It is a decorator, like every other rule about which demand counts.**
+  The blocks, the special stock, the controller, the package and now the
+  deletion flag are all the same shape, and the readers underneath them still
+  know only about documents.

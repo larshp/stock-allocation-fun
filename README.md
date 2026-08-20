@@ -28,7 +28,8 @@ controller. For each material waiting for stock it
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — leaving
    out what is rejected, delivery blocked at any of the three levels a block
-   can sit on, or served from a stock segment of its own; converts it to base
+   can sit on, served from a stock segment of its own, or waiting for a
+   material that is flagged for deletion; converts it to base
    units, takes off what has already been delivered or sent and what earlier
    runs already reserved for the same line, and drops anything beyond the
    horizon,

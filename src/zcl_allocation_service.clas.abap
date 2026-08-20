@@ -295,13 +295,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " matters is a standing decision of the business, and how long the plant
     " needs to get the goods out of the door is a fact about the plant. Both
     " go on top of what the documents say.
-    ro_demand = NEW zcl_demand_ship_time(
+    ro_demand = NEW zcl_demand_alive( NEW zcl_demand_ship_time(
       io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )
       ( NEW zcl_sto_demand_reader(
           io_converter = lo_converter
           iv_priority  = iv_sto_priority ) ) ) ) )
-      iv_days   = iv_ship_days ).
+      iv_days   = iv_ship_days ) ).
 
   ENDMETHOD.
 

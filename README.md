@@ -11,8 +11,8 @@ tests run without a SAP system.
 
 ## What it does
 
-`ZSTOCK_ALLOCATION` takes a plant and, optionally, a material. For each material
-waiting for stock it
+`ZSTOCK_ALLOCATION` takes a plant and, optionally, a material or an MRP
+controller. For each material waiting for stock it
 
 1. checks the user may allocate in the plant (`AUTHORITY-CHECK` on
    `M_MATE_WRK`) and locks the material for the run,
@@ -115,7 +115,7 @@ nothing else has to:
 | `ZIF_STOCK_DEDUCTION`      | what counts as unavailable, one class per reason   |
 | `ZIF_SUPPLY_READER`        | what there is to give away, one class per source   |
 | `ZIF_STOCK_READER`         | where the book stock comes from                     |
-| `ZIF_DEMAND_READER`        | where demand comes from, one class per source       |
+| `ZIF_DEMAND_READER`        | where demand comes from, and which materials count  |
 | `ZIF_UNIT_CONVERTER`       | how quantities reach the base unit of measure      |
 | `ZIF_RESERVATION_WRITER`   | how confirmed stock is earmarked                   |
 | `ZIF_RESERVATION_READER`   | when an earlier reservation stops counting         |

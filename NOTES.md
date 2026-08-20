@@ -1455,3 +1455,38 @@ switches it on per plant, off by default.
 - **Off by default.** Cutting a confirmation holds stock back, and a plant that
   is happy to ship a part carton should not be made to keep it. Like feature
   41's switch, this is a decision about a site, so it lives with the site.
+
+### Feature 44 — a run can be cut down to what one planner owns (done)
+
+A plant wide run is one job that either finishes or does not. In a plant with
+fifty thousand materials that is a bad unit of work: it cannot be spread over
+several background processes, a failure halfway means repeating everything, and
+a planner who wants their own materials looked at has to ask for the whole
+plant to be run.
+
+MRP controller is how a plant is already divided among the people who look
+after it, so that is the line to cut along. `ZCL_DEMAND_OF_CONTROLLER` wraps a
+`ZIF_DEMAND_READER` and keeps only the materials of the controllers it was
+given, and `ZSTOCK_ALLOCATION` has a field for one.
+
+- **It decorates the material list, not the demand.** `READ_OPEN_DEMAND` is
+  passed straight through: what a material is owed does not depend on who
+  looks after it, and a caller naming a material outright means that material.
+  Only `MATERIALS_WITH_DEMAND`, the question "what should this run cover",
+  gets an answer that depends on the controller.
+- **An empty list is every controller**, the same answer
+  `ZCL_STOCK_IN_LOCATIONS` gives an empty list of storage locations. A plant
+  that has never split its run keeps the run it had.
+- **A material flagged for deletion in the plant is dropped with it.**
+  `MARC-LVORM` is on the row that is being read anyway, and a material on its
+  way out of the plant is not worth a reservation. It is the one thing here
+  that is not about controllers, and it is here because this is the first time
+  anything in the solution reads `MARC` per material list rather than per
+  material.
+- **`MARC` is read once for the run**, filtered by a range of controllers,
+  rather than once per candidate material. Feature 29 made that argument about
+  the material master and it is the same argument.
+- **The controller stays on the selection screen** even when the settings come
+  from the plant. Which materials a job covers is a property of the job — of
+  how the work was split between background processes tonight — not of the
+  plant, and putting it in Customizing would tie the two together.

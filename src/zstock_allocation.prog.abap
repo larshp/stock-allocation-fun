@@ -2,6 +2,7 @@ REPORT zstock_allocation.
 
 PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
+PARAMETERS p_dispo TYPE marc-dispo.
 PARAMETERS p_cfg AS CHECKBOX DEFAULT abap_true.
 PARAMETERS p_fair AS CHECKBOX.
 PARAMETERS p_horiz TYPE i DEFAULT 0.
@@ -15,6 +16,7 @@ START-OF-SELECTION.
 
   DATA lo_strategy TYPE REF TO zif_allocation_strategy.
   DATA lt_matnr    TYPE zif_demand_reader=>ty_matnr_tab.
+  DATA lt_dispo    TYPE zcl_demand_of_controller=>ty_dispo_tab.
   DATA ls_settings TYPE zif_alloc_config=>ty_config.
 
   " P_CFG on is what a scheduled job runs with: the plant is the only thing it
@@ -42,6 +44,13 @@ START-OF-SELECTION.
     APPEND p_matnr TO lt_matnr.
   ENDIF.
 
+  " which materials a job covers is a property of the job rather than of the
+  " plant, so it stays on the screen whatever P_CFG says. The screen offers one
+  " controller, the class takes as many as a caller wiring it wants to name.
+  IF p_dispo IS NOT INITIAL.
+    APPEND p_dispo TO lt_dispo.
+  ENDIF.
+
   DATA(lo_report) = NEW zcl_allocation_report(
     zcl_allocation_mass_run=>create_default(
       io_strategy     = lo_strategy
@@ -49,7 +58,8 @@ START-OF-SELECTION.
       iv_lgort        = ls_settings-lgort
       iv_cap_percent  = ls_settings-cap_percent
       iv_planned      = ls_settings-planned
-      iv_whole_units  = ls_settings-whole_units ) ).
+      iv_whole_units  = ls_settings-whole_units
+      it_dispo        = lt_dispo ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

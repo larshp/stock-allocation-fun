@@ -19,7 +19,8 @@ controller. For each material waiting for stock it
 2. works out what there is to give away and from when: the book stock from
    `MARD`, restricted to the storage locations that may be allocated and less
    what is not up for allocation — open reservations, stock on deliveries that
-   are waiting for their goods issue, and the plant's safety stock — plus the
+   are waiting for their goods issue, the plant's safety stock, and batches
+   that will not keep long enough to ship — plus the
    receipts still to come in on open purchasing documents from
    `EKKO`/`EKPO`/`EKET`, on open production orders from `AUFK`/`AFKO`/`AFPO`
    and, where the plant asks for it, on planned orders from `PLAF`, each on

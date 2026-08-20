@@ -1680,3 +1680,38 @@ give the earlier allocations back, then allocate everything from scratch.
 structures it takes. The X structure is honoured: a field is only taken when
 the change indicator says so, which is what makes a blank different from a
 field nobody set, and the stub refuses a reservation that is not there.
+
+### Feature 50 — stock that will not keep is not stock to promise (done)
+
+`MARD` counts a batch that went off last month exactly like one made
+yesterday. For a material with a shelf life that makes the whole answer wrong
+in the worst direction: the run confirms a customer against goods that cannot
+legally leave the warehouse, the delivery fails at picking, and the line that
+could have been served waited for nothing.
+
+`ZCL_DEDUCT_SHELF_LIFE` is one more `ZIF_STOCK_DEDUCTION`, which is what
+feature 12 built that interface for: another reason some of what `MARD`
+reports cannot be given away, in a class of its own.
+
+- **The minimum remaining shelf life is the line, not the expiry date.**
+  `MARA-MHDRZ` is what a customer is owed when the goods arrive, so a batch
+  expiring inside it cannot be sent even though it has not expired. Measuring
+  against today alone would confirm stock that shipping will refuse.
+- **A material with no minimum only loses what has already gone off**, which
+  falls out of the same arithmetic rather than needing a case of its own.
+- **A material that is not batch managed loses nothing.** It has no expiry
+  dates to read and `MCHB` has nothing to say about it, so the deduction leaves
+  it alone rather than reading batch tables that will never answer.
+- **An undated batch is kept.** Guessing an expiry would hold back stock that
+  may be perfectly good; whether a date is required is a decision on the
+  material master, and a plant that wants one enforced enforces it there.
+- **A batch flagged for deletion is not counted**, because it is not in the
+  book stock this deduction is subtracting from either. Deducting it would take
+  the same quantity off twice.
+- **Today is handed in.** The class takes the day to measure from, so a test
+  can say what today is instead of the tests being right only until the
+  fixtures expire.
+
+The engine did not change. It never sees batches at all: the shelf life
+question is answered where the book stock is turned into what can be given
+away, which is the seam that existed for it.

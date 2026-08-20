@@ -190,7 +190,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
         it_deduction = VALUE #(
           ( NEW zcl_deduct_reservations( ) )
           ( NEW zcl_deduct_deliveries( ) )
-          ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
+          ( NEW zcl_deduct_safety_stock( ) )
+          ( NEW zcl_deduct_shelf_life( ) ) ) ) ) )
       ( NEW zcl_supply_receipts( lo_converter ) )
       ( NEW zcl_supply_production( lo_converter ) ) ).
 

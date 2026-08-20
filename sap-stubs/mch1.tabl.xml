@@ -3,17 +3,17 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <DD02V>
-    <TABNAME>MARA</TABNAME>
+    <TABNAME>MCH1</TABNAME>
     <DDLANGUAGE>E</DDLANGUAGE>
     <TABCLASS>TRANSP</TABCLASS>
     <CLIDEP>X</CLIDEP>
-    <DDTEXT>General Material Data</DDTEXT>
+    <DDTEXT>Batches</DDTEXT>
     <MASTERLANG>E</MASTERLANG>
     <CONTFLAG>A</CONTFLAG>
     <EXCLASS>1</EXCLASS>
    </DD02V>
    <DD09L>
-    <TABNAME>MARA</TABNAME>
+    <TABNAME>MCH1</TABNAME>
     <AS4LOCAL>A</AS4LOCAL>
     <TABKAT>0</TABKAT>
     <TABART>APPL1</TABART>
@@ -45,44 +45,26 @@
      <DDTEXT>Material Number</DDTEXT>
     </DD03P>
     <DD03P>
-     <FIELDNAME>MTART</FIELDNAME>
+     <FIELDNAME>CHARG</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
      <ADMINFIELD>0</ADMINFIELD>
      <INTTYPE>C</INTTYPE>
-     <INTLEN>000008</INTLEN>
+     <INTLEN>000020</INTLEN>
+     <NOTNULL>X</NOTNULL>
      <DATATYPE>CHAR</DATATYPE>
-     <LENG>000004</LENG>
+     <LENG>000010</LENG>
      <MASK>  CHAR</MASK>
-     <DDTEXT>Material Type</DDTEXT>
+     <DDTEXT>Batch Number</DDTEXT>
     </DD03P>
     <DD03P>
-     <FIELDNAME>MEINS</FIELDNAME>
+     <FIELDNAME>VFDAT</FIELDNAME>
      <ADMINFIELD>0</ADMINFIELD>
-     <INTTYPE>C</INTTYPE>
-     <INTLEN>000006</INTLEN>
-     <DATATYPE>CHAR</DATATYPE>
-     <LENG>000003</LENG>
-     <MASK>  CHAR</MASK>
-     <DDTEXT>Base Unit of Measure</DDTEXT>
-    </DD03P>
-    <DD03P>
-     <FIELDNAME>XCHPF</FIELDNAME>
-     <ADMINFIELD>0</ADMINFIELD>
-     <INTTYPE>C</INTTYPE>
-     <INTLEN>000002</INTLEN>
-     <DATATYPE>CHAR</DATATYPE>
-     <LENG>000001</LENG>
-     <MASK>  CHAR</MASK>
-     <DDTEXT>Batch Management Requirement Indicator</DDTEXT>
-    </DD03P>
-    <DD03P>
-     <FIELDNAME>MHDRZ</FIELDNAME>
-     <ADMINFIELD>0</ADMINFIELD>
-     <INTTYPE>P</INTTYPE>
-     <INTLEN>000003</INTLEN>
-     <DATATYPE>DEC</DATATYPE>
-     <LENG>000004</LENG>
-     <MASK>  DEC</MASK>
-     <DDTEXT>Minimum Remaining Shelf Life</DDTEXT>
+     <INTTYPE>D</INTTYPE>
+     <INTLEN>000016</INTLEN>
+     <DATATYPE>DATS</DATATYPE>
+     <LENG>000008</LENG>
+     <MASK>  DATS</MASK>
+     <DDTEXT>Shelf Life Expiration Date</DDTEXT>
     </DD03P>
     <DD03P>
      <FIELDNAME>LVORM</FIELDNAME>
@@ -92,7 +74,7 @@
      <DATATYPE>CHAR</DATATYPE>
      <LENG>000001</LENG>
      <MASK>  CHAR</MASK>
-     <DDTEXT>Flag Material for Deletion at Client Level</DDTEXT>
+     <DDTEXT>Deletion Flag for the Batch</DDTEXT>
     </DD03P>
    </DD03P_TABLE>
   </asx:values>

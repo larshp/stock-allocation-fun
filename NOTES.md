@@ -2780,3 +2780,20 @@ to be a good one or a bad one. `ZSTOCK_ALLOC_QTA` holds that agreement and
 - **New reason `Q`**, and with it a new line in `ZCL_ALLOC_REASON_TEXT`. Every
   rule that can hold stock back has its own reason, because "short" on its own
   tells a planner nothing about what to do next.
+- **A quota has to survive the engine's walk, which the first version did
+  not.** The engine offers one day of supply at a time and asks the strategy
+  once per day with what is left of the demand, so a rule written as a plain
+  decorator is granted again every morning: a customer with a monthly quota of
+  thirty took thirty off every delivery that landed in the month. The quota
+  therefore keeps what is left of itself between calls and spends it against
+  what was really confirmed, not against what it allowed -- a line allowed
+  thirty that only got ten because the shelf was empty has used ten.
+- **What tells one walk from the next is that the demand has not shrunk.** The
+  strategy interface has no "a new allocation is starting" on it, and adding
+  one would touch every strategy and every double in the tests for the sake of
+  one rule. A line only ever gets smaller while a walk is under way, once
+  something has been confirmed for it, so demand back at or above what the
+  walk started with is a new walk -- and if it is not, then nothing has been
+  confirmed yet either and there is nothing to start over from. It is tested
+  both ways round: two deliveries in one month hand out one quota, and the
+  same material allocated twice gives the same answer twice.

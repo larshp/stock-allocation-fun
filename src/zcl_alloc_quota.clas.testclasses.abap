@@ -1,3 +1,63 @@
+CLASS lcl_supply_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_supply_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_supply TYPE zif_supply_reader=>ty_supply_tab.
+
+  PRIVATE SECTION.
+    DATA mt_supply TYPE zif_supply_reader=>ty_supply_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_supply_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_supply = it_supply.
+  ENDMETHOD.
+
+  METHOD zif_supply_reader~read_supply.
+    rt_supply = mt_supply.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
+  PRIVATE SECTION.
+    DATA mt_demand TYPE zif_allocation=>ty_demand_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_demand = it_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+    rt_demand = mt_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    CLEAR rt_matnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_alloc_quota DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -54,6 +114,9 @@ CLASS ltcl_alloc_quota DEFINITION FINAL FOR TESTING
     METHODS an_own_quota_beats_the_house FOR TESTING.
     METHODS the_line_says_it_was_the_quota FOR TESTING.
     METHODS what_was_asked_for_is_kept FOR TESTING.
+    METHODS the_quota_holds_over_days FOR TESTING RAISING cx_static_check.
+    METHODS a_second_run_starts_again FOR TESTING RAISING cx_static_check.
+    METHODS stock_that_ran_out_is_kept FOR TESTING.
 
 ENDCLASS.
 
@@ -335,6 +398,96 @@ CLASS ltcl_alloc_quota IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_line-shortfall
       exp = CONV zif_allocation=>ty_quantity( 50 ) ).
+
+  ENDMETHOD.
+
+  METHOD the_quota_holds_over_days.
+
+    given_quota( 30 ).
+
+    " two days of supply, and the engine offers each of them to what is left
+    " of the demand: a quota granted again every morning would let this
+    " customer take sixty of the thirty it agreed
+    DATA(lo_engine) = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_double( VALUE #(
+        ( quantity = 50 )
+        ( quantity   = 50
+          avail_date = '20260105' ) ) )
+      io_demand_reader = NEW lcl_demand_double( VALUE #( ) )
+      io_strategy      = mo_cut ).
+
+    DATA(lt_answer) = lo_engine->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #( ( demand( iv_id       = 'D1'
+                                     iv_quantity = 80
+                                     iv_date     = c_jan_end ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_answer
+                          iv_id         = 'D1' )
+      exp = CONV zif_allocation=>ty_quantity( 30 )
+      msg = 'a month has one quota, however many deliveries arrive in it' ).
+
+  ENDMETHOD.
+
+  METHOD a_second_run_starts_again.
+
+    given_quota( 30 ).
+
+    DATA(lo_engine) = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_double( VALUE #( ( quantity = 100 ) ) )
+      io_demand_reader = NEW lcl_demand_double( VALUE #( ) )
+      io_strategy      = mo_cut ).
+
+    DATA(lt_demand) = VALUE zif_allocation=>ty_demand_tab(
+      ( demand( iv_id       = 'D1'
+                iv_quantity = 80 ) ) ).
+
+    lo_engine->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = lt_demand ).
+
+    " the same material allocated again, which is what a re-cut is: the quota
+    " is about the orders, and the orders have not changed
+    DATA(lt_again) = lo_engine->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = lt_demand ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_again
+                          iv_id         = 'D1' )
+      exp = CONV zif_allocation=>ty_quantity( 30 )
+      msg = 'a re-cut gives the same answer, not nothing at all' ).
+
+  ENDMETHOD.
+
+  METHOD stock_that_ran_out_is_kept.
+
+    given_quota( 50 ).
+
+    " the quota allows fifty, the shelf holds ten: the forty the customer did
+    " not get is still its to take when the next lorry arrives
+    DATA(lt_answer) = mo_cut->allocate(
+      iv_available = 10
+      it_demand    = VALUE #( ( demand( iv_id = 'D1' iv_quantity = 80 ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_answer
+                          iv_id         = 'D1' )
+      exp = CONV zif_allocation=>ty_quantity( 10 ) ).
+
+    DATA(lt_later) = mo_cut->allocate(
+      iv_available = 100
+      it_demand    = VALUE #( ( demand( iv_id = 'D1' iv_quantity = 70 ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_later
+                          iv_id         = 'D1' )
+      exp = CONV zif_allocation=>ty_quantity( 40 )
+      msg = 'what comes off a quota is what was confirmed, not what was allowed' ).
 
   ENDMETHOD.
 

@@ -29,6 +29,10 @@ CLASS ltcl_allocation_log_retention DEFINITION FINAL
     METHODS calculates_simulation_cutoff FOR TESTING.
     METHODS delegates_productive_cleanup FOR TESTING.
     METHODS rejects_invalid_retention FOR TESTING.
+    METHODS rejects_excessive_retention FOR TESTING.
+    METHODS rejects_invalid_simulation FOR TESTING.
+    METHODS rejects_future_effective_date FOR TESTING.
+    METHODS rejects_invalid_store_state FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
 
@@ -79,10 +83,73 @@ CLASS ltcl_allocation_log_retention IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
-      exp = 'Retention days must be greater than zero' ).
+      exp = 'Retention days must be between 1 and 36500' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mv_calls
       exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_excessive_retention.
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days =
+        zcl_allocation_log_retention=>gc_max_retention_days + 1
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention days must be between 1 and 36500' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_simulation.
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = 'Y'
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention simulation flag must be X or blank' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_future_effective_date.
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '99991231' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention effective date must not be in the future' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_store_state.
+    mo_store->ms_result = VALUE #(
+      is_success    = 'Y'
+      affected_rows = 7
+      message       = 'Misleading success' ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_initial( ls_result-affected_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention store returned invalid state' ).
   ENDMETHOD.
 
   METHOD creates_sap_composition.

@@ -51,13 +51,14 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       iv_horizon_date       = iv_horizon_date
       iv_require_full_batch = iv_require_full_batch
       iv_strategy           = iv_strategy ).
-    rs_result-log_saved = mo_logger->write(
+    DATA(lv_log_saved) = mo_logger->write(
       it_allocations        = rs_result-allocations
       iv_simulation         = iv_simulation
       iv_run_id             = rs_result-run_id
       iv_strategy           = iv_strategy
       iv_horizon_date       = iv_horizon_date
       iv_require_full_batch = iv_require_full_batch ).
+    rs_result-log_saved = xsdbool( lv_log_saved = abap_true ).
   ENDMETHOD.
 
   METHOD create_sap.
@@ -65,7 +66,8 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
     DATA(lo_factor_reader) = NEW zcl_unit_factor_reader_sap( ).
     DATA(lo_unit_converter) = NEW zcl_unit_converter( lo_factor_reader ).
     DATA(lo_stock_rechecker) = NEW zcl_stock_rechecker_sap( lo_stock_reader ).
-    DATA(lo_stock_lock) = NEW zcl_stock_lock_sap( ).
+    DATA(lo_lock_gateway) = NEW zcl_stock_lock_gateway_sap( ).
+    DATA(lo_stock_lock) = NEW zcl_stock_lock_sap( lo_lock_gateway ).
     DATA(lo_gateway) = NEW zcl_reservation_gateway_sap( ).
     DATA(lo_idempotency_store) = NEW zcl_idempotency_store_sap( ).
     DATA(lo_authority) = NEW zcl_allocation_authority_sap( ).

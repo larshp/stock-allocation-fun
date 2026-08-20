@@ -28,12 +28,22 @@ INTERFACE zif_idempotency_store PUBLIC.
       unit_of_measure      TYPE zcl_stock_allocator=>ty_unit,
       document_id          TYPE zcl_stock_allocator=>ty_document_id,
     END OF ty_record.
+  TYPES ty_records TYPE SORTED TABLE OF ty_record
+    WITH UNIQUE KEY request_id.
+  TYPES ty_request_ids TYPE SORTED TABLE OF
+    zcl_stock_allocator=>ty_request_id WITH UNIQUE KEY table_line.
 
   METHODS find
     IMPORTING
       iv_request_id    TYPE zcl_stock_allocator=>ty_request_id
     RETURNING
       VALUE(rs_record) TYPE ty_record.
+
+  METHODS find_many
+    IMPORTING
+      it_request_ids    TYPE ty_request_ids
+    RETURNING
+      VALUE(rt_records) TYPE ty_records.
 
   METHODS claim
     IMPORTING

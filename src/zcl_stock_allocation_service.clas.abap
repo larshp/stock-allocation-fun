@@ -27,10 +27,12 @@ CLASS zcl_stock_allocation_service DEFINITION
     TYPES ty_plants TYPE SORTED TABLE OF zcl_stock_allocator=>ty_plant
       WITH UNIQUE KEY table_line.
 
-    METHODS reject_unauthorized
+    METHODS reject_batch
       IMPORTING
         it_requests           TYPE zcl_stock_allocator=>ty_requests
-        iv_plant              TYPE zcl_stock_allocator=>ty_plant
+        iv_status             TYPE zcl_stock_allocator=>ty_status
+        iv_decision_code      TYPE zcl_stock_allocator=>ty_decision_code
+        iv_message            TYPE string
       RETURNING
         VALUE(rt_allocations) TYPE zcl_stock_allocator=>ty_allocations.
 
@@ -50,31 +52,133 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_allocation_service~execute.
+    IF iv_simulation <> abap_false AND iv_simulation <> abap_true.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_run_policy_invalid
+        iv_message       = 'Simulation flag must be X or blank' ).
+      RETURN.
+    ENDIF.
+    IF iv_require_full_batch <> abap_false
+        AND iv_require_full_batch <> abap_true.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_run_policy_invalid
+        iv_message       = 'Full-batch flag must be X or blank' ).
+      RETURN.
+    ENDIF.
+    IF iv_strategy <> zcl_stock_allocator=>gc_strategy_priority_due
+        AND iv_strategy <> zcl_stock_allocator=>gc_strategy_due_priority
+        AND iv_strategy <> zcl_stock_allocator=>gc_strategy_priority_id.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_bad_strategy
+        iv_message       = 'Unsupported allocation strategy' ).
+      RETURN.
+    ENDIF.
+
+    DATA lt_dependency_requests TYPE zcl_stock_allocator=>ty_requests.
+    LOOP AT it_requests INTO DATA(ls_dependency_request).
+      DATA(ls_validation) =
+        mo_allocator->validate_request( ls_dependency_request ).
+      IF ls_validation-is_valid = abap_false.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_dependency_request TO lt_dependency_requests.
+    ENDLOOP.
+
     DATA lt_plants TYPE ty_plants.
-    LOOP AT it_requests INTO DATA(ls_plant_request)
+    LOOP AT lt_dependency_requests INTO DATA(ls_plant_request)
       WHERE plant IS NOT INITIAL.
       INSERT ls_plant_request-plant INTO TABLE lt_plants.
     ENDLOOP.
     LOOP AT lt_plants INTO DATA(lv_plant).
-      IF mo_authority->is_authorized( lv_plant ) = abap_false.
-        rt_allocations = reject_unauthorized(
-          it_requests = it_requests
-          iv_plant    = lv_plant ).
+      DATA(lv_authorized) = mo_authority->is_authorized( lv_plant ).
+      IF lv_authorized <> abap_false AND lv_authorized <> abap_true.
+        rt_allocations = reject_batch(
+          it_requests      = it_requests
+          iv_status        = zcl_stock_allocator=>gc_status_config_error
+          iv_decision_code = zcl_stock_allocator=>gc_decision_authority_invalid
+          iv_message       =
+            |Authorization check returned invalid state for plant { lv_plant }| ).
+        RETURN.
+      ENDIF.
+      IF lv_authorized = abap_false.
+        rt_allocations = reject_batch(
+          it_requests      = it_requests
+          iv_status        = zcl_stock_allocator=>gc_status_invalid
+          iv_decision_code = zcl_stock_allocator=>gc_decision_plant_unauthorized
+          iv_message       = |Not authorized to allocate plant { lv_plant }| ).
         RETURN.
       ENDIF.
     ENDLOOP.
 
     DATA lt_replays TYPE zcl_stock_allocator=>ty_replays.
-    DATA(lt_stock_requests) = it_requests.
+    DATA lt_replay_request_ids TYPE zif_idempotency_store=>ty_request_ids.
+    DATA lt_processed_request_ids TYPE zif_idempotency_store=>ty_request_ids.
+    DATA lt_replay_records TYPE zif_idempotency_store=>ty_records.
+    DATA lt_replay_document_ids TYPE zif_reservation_status=>ty_document_ids.
+    DATA lt_cancelled_document_ids
+      TYPE zif_reservation_status=>ty_document_ids.
+    DATA(lt_stock_requests) = lt_dependency_requests.
     DATA lv_document_cancelled TYPE abap_bool.
     IF iv_simulation = abap_false.
-      LOOP AT it_requests INTO DATA(ls_request).
+      LOOP AT lt_dependency_requests INTO DATA(ls_request).
+        INSERT ls_request-request_id INTO TABLE lt_replay_request_ids.
+      ENDLOOP.
+      IF lt_replay_request_ids IS NOT INITIAL.
+        lt_replay_records = mo_idempotency_store->find_many(
+          lt_replay_request_ids ).
+      ENDIF.
+      LOOP AT lt_replay_records ASSIGNING FIELD-SYMBOL(<ls_lookup_record>).
+        IF <ls_lookup_record>-is_found <> abap_false
+            AND <ls_lookup_record>-is_found <> abap_true.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_lookup
+            iv_message       =
+              |Idempotency lookup returned invalid state for request { <ls_lookup_record>-request_id }| ).
+          RETURN.
+        ENDIF.
+        IF NOT line_exists( lt_replay_request_ids[
+          table_line = <ls_lookup_record>-request_id ] ).
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_lookup
+            iv_message       =
+              |Idempotency lookup returned unexpected request { <ls_lookup_record>-request_id }| ).
+          RETURN.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT lt_replay_records INTO DATA(ls_replay_record)
+        WHERE is_found = abap_true
+          AND document_id IS NOT INITIAL.
+        INSERT ls_replay_record-document_id
+          INTO TABLE lt_replay_document_ids.
+      ENDLOOP.
+      IF lt_replay_document_ids IS NOT INITIAL.
+        lt_cancelled_document_ids =
+          mo_reservation_status->find_cancelled(
+            lt_replay_document_ids ).
+      ENDIF.
+
+      LOOP AT lt_dependency_requests INTO ls_request.
+        INSERT ls_request-request_id INTO TABLE lt_processed_request_ids.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
         CLEAR lv_document_cancelled.
-        DATA(ls_record) = mo_idempotency_store->find( ls_request-request_id ).
-        IF ls_record-is_found = abap_true.
+        READ TABLE lt_replay_records INTO DATA(ls_record)
+          WITH TABLE KEY request_id = ls_request-request_id.
+        IF sy-subrc = 0 AND ls_record-is_found = abap_true.
           IF ls_record-document_id IS NOT INITIAL
-              AND mo_reservation_status->is_cancelled(
-                ls_record-document_id ) = abap_true.
+              AND line_exists( lt_cancelled_document_ids[
+                table_line = ls_record-document_id ] ).
             lv_document_cancelled = abap_true.
           ENDIF.
           INSERT VALUE #(
@@ -118,7 +222,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         WHERE requirement_date > iv_horizon_date.
     ENDIF.
 
-    DATA(lt_stock) = mo_stock_reader->read_stock( lt_stock_requests ).
+    DATA lt_stock TYPE zcl_stock_allocator=>ty_stock_balances.
+    IF lt_stock_requests IS NOT INITIAL.
+      lt_stock = mo_stock_reader->read_stock( lt_stock_requests ).
+    ENDIF.
     rt_allocations = mo_allocator->allocate(
       it_requests       = it_requests
       it_stock_balances = lt_stock
@@ -168,7 +275,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD reject_unauthorized.
+  METHOD reject_batch.
     LOOP AT it_requests INTO DATA(ls_request).
       APPEND VALUE #(
         request_id             = ls_request-request_id
@@ -194,10 +301,10 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         priority               = ls_request-priority
         allow_partial          = ls_request-allow_partial
         shortfall_qty          = ls_request-requested_qty
-        status                 = zcl_stock_allocator=>gc_status_invalid
-        decision_code          = zcl_stock_allocator=>gc_decision_plant_unauthorized
+        status                 = iv_status
+        decision_code          = iv_decision_code
         posting_status         = zcl_stock_allocator=>gc_posting_not_required
-        posting_message        = |Not authorized to allocate plant { iv_plant }| )
+        posting_message        = iv_message )
         TO rt_allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -218,6 +325,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WHERE posting_status = zcl_stock_allocator=>gc_posting_pending.
       CLEAR <ls_allocation>-allocated_qty.
       <ls_allocation>-shortfall_qty = <ls_allocation>-requested_qty.
+      CLEAR <ls_allocation>-fill_pct.
       <ls_allocation>-status = zcl_stock_allocator=>gc_status_aborted.
       <ls_allocation>-decision_code =
         zcl_stock_allocator=>gc_decision_full_batch_aborted.

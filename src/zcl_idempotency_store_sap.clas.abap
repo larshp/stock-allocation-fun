@@ -9,35 +9,51 @@ ENDCLASS.
 
 CLASS zcl_idempotency_store_sap IMPLEMENTATION.
   METHOD zif_idempotency_store~find.
-    SELECT SINGLE payload_version,
-                  request_id,
-                  material,
-                  plant,
-                  storage_location,
-                  movement_type,
-                  cost_center,
-                  order_id,
-                  wbs_element,
-                  sales_order,
-                  sales_order_item,
-                  asset_number,
-                  asset_subnumber,
-                  network_id,
-                  network_activity,
-                  requirement_date,
-                  source_requested_qty,
-                  source_unit,
-                  minimum_fill_pct,
-                  priority,
-                  allow_partial,
-                  requested_qty,
-                  allocated_qty,
-                  unit_of_measure,
-                  reservation_id AS document_id
+    DATA(lt_request_ids) = VALUE zif_idempotency_store=>ty_request_ids(
+      ( iv_request_id ) ).
+    DATA(lt_records) = zif_idempotency_store~find_many( lt_request_ids ).
+    READ TABLE lt_records INTO rs_record
+      WITH TABLE KEY request_id = iv_request_id.
+  ENDMETHOD.
+
+  METHOD zif_idempotency_store~find_many.
+    IF it_request_ids IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT payload_version,
+           request_id,
+           material,
+           plant,
+           storage_location,
+           movement_type,
+           cost_center,
+           order_id,
+           wbs_element,
+           sales_order,
+           sales_order_item,
+           asset_number,
+           asset_subnumber,
+           network_id,
+           network_activity,
+           requirement_date,
+           source_requested_qty,
+           source_unit,
+           minimum_fill_pct,
+           priority,
+           allow_partial,
+           requested_qty,
+           allocated_qty,
+           unit_of_measure,
+           reservation_id AS document_id
       FROM zstock_alloc
-      WHERE request_id = @iv_request_id
-      INTO CORRESPONDING FIELDS OF @rs_record.
-    rs_record-is_found = xsdbool( sy-subrc = 0 ).
+      FOR ALL ENTRIES IN @it_request_ids
+      WHERE request_id = @it_request_ids-table_line
+      INTO CORRESPONDING FIELDS OF TABLE @rt_records.
+
+    LOOP AT rt_records ASSIGNING FIELD-SYMBOL(<ls_record>).
+      <ls_record>-is_found = abap_true.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~claim.

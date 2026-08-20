@@ -26,7 +26,12 @@ CLASS zcl_unit_converter IMPLEMENTATION.
       DATA(ls_factor) = mo_factor_reader->read(
         iv_material    = iv_material
         iv_source_unit = iv_source_unit ).
-      IF ls_factor-is_found = abap_false
+      IF ls_factor-is_found <> abap_false
+          AND ls_factor-is_found <> abap_true.
+        rs_result-message = 'Unit conversion lookup returned invalid state'.
+        RETURN.
+      ENDIF.
+      IF ls_factor-is_found <> abap_true
           OR ls_factor-numerator <= 0
           OR ls_factor-denominator <= 0.
         rs_result-message = 'No material-specific unit conversion is maintained'.

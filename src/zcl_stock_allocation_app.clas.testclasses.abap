@@ -57,6 +57,7 @@ CLASS ltcl_stock_allocation_app DEFINITION FINAL
     METHODS setup.
     METHODS delegates_and_logs FOR TESTING.
     METHODS returns_log_failure FOR TESTING.
+    METHODS normalizes_invalid_log_state FOR TESTING.
     METHODS returns_unique_run_ids FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
@@ -123,6 +124,16 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
     cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
+  ENDMETHOD.
+
+  METHOD normalizes_invalid_log_state.
+    mo_logger->mv_saved = 'Y'.
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #( )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
   ENDMETHOD.
 
   METHOD returns_unique_run_ids.

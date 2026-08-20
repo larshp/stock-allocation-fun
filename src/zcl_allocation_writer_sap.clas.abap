@@ -32,6 +32,18 @@ CLASS zcl_allocation_writer_sap DEFINITION
       RETURNING
         VALUE(rv_error_text) TYPE string.
 
+    METHODS get_warning_text
+      IMPORTING
+        it_messages            TYPE zif_reservation_gateway=>ty_messages
+      RETURNING
+        VALUE(rv_warning_text) TYPE string.
+
+    METHODS append_message
+      IMPORTING
+        iv_message TYPE string
+      CHANGING
+        cv_text    TYPE string.
+
     METHODS fail_all
       IMPORTING
         iv_message     TYPE string
@@ -60,17 +72,21 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    LOOP AT ct_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
-      WHERE allocated_qty > 0
-        AND posting_status = zcl_stock_allocator=>gc_posting_pending.
-      IF mo_idempotency_store->claim(
-          is_allocation           = <ls_allocation>
-          iv_replaced_document_id = <ls_allocation>-replaced_document_id )
-          = abap_false.
+    DATA(lt_claim_allocations) = lt_pending_allocations.
+    SORT lt_claim_allocations BY request_id ASCENDING.
+    LOOP AT lt_claim_allocations INTO DATA(ls_claim_allocation).
+      DATA(lv_claim_acquired) = mo_idempotency_store->claim(
+        is_allocation           = ls_claim_allocation
+        iv_replaced_document_id = ls_claim_allocation-replaced_document_id ).
+      IF lv_claim_acquired <> abap_true.
+        DATA(lv_claim_message) = COND string(
+          WHEN lv_claim_acquired = abap_false
+          THEN 'Request ID is already claimed or could not be persisted'
+          ELSE 'Idempotency claim returned invalid state' ).
         rollback_and_release( ).
         fail_all(
           EXPORTING
-            iv_message     = 'Request ID is already claimed or could not be persisted'
+            iv_message     = lv_claim_message
           CHANGING
             ct_allocations = ct_allocations ).
         RETURN.
@@ -78,28 +94,36 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     ENDLOOP.
 
     DATA(ls_lock) = mo_stock_lock->acquire( lt_pending_allocations ).
-    IF ls_lock-acquired = abap_false.
+    IF ls_lock-acquired <> abap_true.
+      DATA(lv_lock_message) = COND string(
+        WHEN ls_lock-acquired = abap_false
+        THEN ls_lock-message
+        ELSE 'Stock lock returned invalid state' ).
       rollback_and_release( ).
       fail_all(
         EXPORTING
-          iv_message     = ls_lock-message
+          iv_message     = lv_lock_message
         CHANGING
           ct_allocations = ct_allocations ).
       RETURN.
     ENDIF.
 
     DATA(ls_recheck) = mo_stock_rechecker->recheck( lt_pending_allocations ).
-    IF ls_recheck-is_valid = abap_false.
+    IF ls_recheck-is_valid <> abap_true.
+      DATA(lv_recheck_message) = COND string(
+        WHEN ls_recheck-is_valid = abap_false
+        THEN ls_recheck-message
+        ELSE 'Stock recheck returned invalid state' ).
       rollback_and_release( ).
       fail_all(
         EXPORTING
-          iv_message     = ls_recheck-message
+          iv_message     = lv_recheck_message
         CHANGING
           ct_allocations = ct_allocations ).
       RETURN.
     ENDIF.
 
-    LOOP AT ct_allocations ASSIGNING <ls_allocation>
+    LOOP AT ct_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
       WHERE allocated_qty > 0
         AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       DATA(ls_request) = VALUE zif_reservation_gateway=>ty_request(
@@ -142,17 +166,24 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
         RETURN.
       ENDIF.
 
-      IF mo_idempotency_store->set_document(
-          iv_request_id  = <ls_allocation>-request_id
-          iv_document_id = <ls_allocation>-document_id ) = abap_false.
+      DATA(lv_document_updated) = mo_idempotency_store->set_document(
+        iv_request_id  = <ls_allocation>-request_id
+        iv_document_id = <ls_allocation>-document_id ).
+      IF lv_document_updated <> abap_true.
+        DATA(lv_update_message) = COND string(
+          WHEN lv_document_updated = abap_false
+          THEN 'Reservation document could not be persisted'
+          ELSE 'Idempotency document update returned invalid state' ).
         rollback_and_release( ).
         fail_all(
           EXPORTING
-            iv_message     = 'Reservation document could not be persisted'
+            iv_message     = lv_update_message
           CHANGING
             ct_allocations = ct_allocations ).
         RETURN.
       ENDIF.
+
+      <ls_allocation>-posting_message = get_warning_text( lt_messages ).
     ENDLOOP.
 
     DATA(lt_commit_messages) = mo_gateway->commit( ).
@@ -168,6 +199,7 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
           ct_allocations = ct_allocations ).
       RETURN.
     ENDIF.
+    DATA(lv_commit_warning) = get_warning_text( lt_commit_messages ).
 
     mo_stock_lock->release( ).
 
@@ -176,12 +208,26 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
         AND posting_status = zcl_stock_allocator=>gc_posting_pending.
       <ls_allocation>-posting_status =
         zcl_stock_allocator=>gc_posting_posted.
-      IF <ls_allocation>-replaced_document_id IS INITIAL.
-        CLEAR <ls_allocation>-posting_message.
-      ELSE.
-        <ls_allocation>-posting_message =
-          |Cancelled reservation { <ls_allocation>-replaced_document_id } replaced|.
+      DATA(lv_create_warning) = <ls_allocation>-posting_message.
+      CLEAR <ls_allocation>-posting_message.
+      IF <ls_allocation>-replaced_document_id IS NOT INITIAL.
+        append_message(
+          EXPORTING
+            iv_message =
+              |Cancelled reservation { <ls_allocation>-replaced_document_id } replaced|
+          CHANGING
+            cv_text    = <ls_allocation>-posting_message ).
       ENDIF.
+      append_message(
+        EXPORTING
+          iv_message = lv_create_warning
+        CHANGING
+          cv_text    = <ls_allocation>-posting_message ).
+      append_message(
+        EXPORTING
+          iv_message = lv_commit_warning
+        CHANGING
+          cv_text    = <ls_allocation>-posting_message ).
     ENDLOOP.
   ENDMETHOD.
 
@@ -205,6 +251,25 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
       RETURN.
     ENDLOOP.
     rv_error_text = iv_fallback.
+  ENDMETHOD.
+
+  METHOD get_warning_text.
+    LOOP AT it_messages INTO DATA(ls_message)
+      WHERE type = 'W'.
+      rv_warning_text = ls_message-message.
+      RETURN.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD append_message.
+    IF iv_message IS INITIAL.
+      RETURN.
+    ENDIF.
+    IF cv_text IS INITIAL.
+      cv_text = iv_message.
+    ELSE.
+      cv_text = |{ cv_text }; { iv_message }|.
+    ENDIF.
   ENDMETHOD.
 
   METHOD fail_all.

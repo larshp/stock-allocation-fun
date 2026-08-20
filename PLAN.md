@@ -37,8 +37,8 @@ best practices.
 - [x] Add selectable ordering strategies beyond priority and requirement date.
 - [x] Recheck aggregate availability after idempotency claims and immediately
       before reservation posting.
-- [x] Serialize stock pools with an exclusive SAP enqueue lock rooted on
-      `MARD`, held across recheck and reservation commit/rollback.
+- [x] Serialize material/plant safety-stock domains with a generic-location SAP
+      enqueue lock rooted on `MARD`, held across recheck and commit/rollback.
 - [x] Add an application entry point and operational logging suitable for the
       target SAP landscape.
 - [x] Retain append-only UUID-keyed audit history alongside current-state
@@ -75,3 +75,71 @@ best practices.
       current and historical audit rows and CSV export.
 - [x] Add stable machine-readable decision codes to allocation results,
       operational audit, history, and CSV export.
+- [x] Add decision-code filtering to authorized audit-history reads and the
+      executable CSV export report.
+- [x] Capture whether usable availability was evaluated and the quantity seen
+      at each allocation decision in results, audit, and CSV export.
+- [x] Add independent material, plant, and storage-location filters to the
+      authorized audit-history reader and executable export report.
+- [x] Add movement-type, allocation-status, and posting-status filters to
+      authorized audit-history export.
+- [x] Reject zero or negative canonical quantities before allocation arithmetic,
+      including successful responses from replaceable unit converters.
+- [x] Add exact produced- and prior-reservation filters to authorized audit
+      history reads and executable CSV export.
+- [x] Add an independent inclusive requirement-date interval to authorized
+      audit-history reads and executable CSV export.
+- [x] Fail closed on noncanonical ABAP boolean values before request arithmetic
+      or run-level side effects, with explicit and auditable outcomes.
+- [x] Enforce one modeled account-assignment family per supported movement type
+      before unit conversion or stock evaluation.
+- [x] Reject unsupported allocation strategies at the service boundary before
+      authorization, replay, stock, conversion, or posting dependencies.
+- [x] Share pure request validation with orchestration so malformed rows skip
+      business-data dependencies without changing their final outcomes.
+- [x] Acquire batch idempotency claims in deterministic request-ID order while
+      preserving business order for recheck and reservation posting.
+- [x] Preserve successful reservation create and commit warnings in posting
+      results, audit history, and CSV export without weakening error rollback.
+- [x] Load persisted idempotency replay payloads for a productive batch with one
+      guarded set-oriented query over its unique valid request IDs.
+- [x] Classify cancellation for all unique persisted reservation IDs with one
+      guarded set-oriented `RESB` read while preserving fail-safe replay rules.
+- [x] Align stock-lock granularity with plant-level safety stock by serializing
+      all storage locations for each material/plant allocation domain.
+- [x] Neutralize spreadsheet-active prefixes in every audit CSV field while
+      preserving delimiter and embedded-quote escaping.
+- [x] Enforce valid date ranges and a hard row ceiling inside the public audit
+      history SQL reader, independent of export-facade validation.
+- [x] Fail closed on malformed retention simulation flags at both the facade
+      and destructive history-store boundary.
+- [x] Bound retention arithmetic and reject future effective dates or cutoffs
+      that are not strictly before the application server date.
+- [x] Add exact audit-history filtering by logging user and make the default
+      export window exactly 30 inclusive calendar dates.
+- [x] Add optional time-of-day boundaries to audit-history reads and export,
+      composing them with the inclusive log-date interval.
+- [x] Add exact audit-history filters for every modeled consumption
+      account-assignment component.
+- [x] Add audit-history filters for source/canonical units, allocation strategy,
+      and an inclusive horizon-date interval.
+- [x] Add unambiguous tri-state audit filters for partial policy, strict-batch
+      policy, and availability-evaluated evidence.
+- [x] Fail closed on malformed stock-lock wait flags and noncanonical enqueue
+      gateway acquisition results.
+- [x] Require canonical success acknowledgements at every transactional writer
+      gate before reservation posting can advance.
+- [x] Fail closed on noncanonical authorization, conversion-factor, and
+      unit-converter result flags before protected work or arithmetic.
+- [x] Validate replay lookup scope and canonicalize remaining audit, retention,
+      logger, and application adapter result flags.
+- [x] Persist and export shortfall quantity and fulfillment percentage, with
+      fail-closed validation of replayed canonical outcomes.
+- [x] Add a tri-state shortage selector to authorized history reads and the
+      executable CSV export pipeline.
+- [x] Add full, partial, and none fulfillment-band filtering over persisted fill
+      percentage throughout the authorized export pipeline.
+- [x] Enforce the persistable `DEC(13,3)` numeric domain for request quantities,
+      minimum-fill policy, priority, and converted canonical quantities.
+- [x] Add evidence-aware positive and zero usable-stock filtering to authorized
+      audit reads and the executable CSV export pipeline.

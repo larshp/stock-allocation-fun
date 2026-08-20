@@ -33,6 +33,22 @@ CLASS zcl_allocation_log_store_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_history_store~remove_before.
+    IF iv_simulation <> abap_false AND iv_simulation <> abap_true.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention simulation flag must be X or blank'.
+      RETURN.
+    ENDIF.
+    IF iv_cutoff_date IS INITIAL.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention cutoff date must not be initial'.
+      RETURN.
+    ENDIF.
+    IF iv_cutoff_date >= sy-datum.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention cutoff date must be before today'.
+      RETURN.
+    ENDIF.
+
     DATA lv_activity TYPE c LENGTH 2.
     lv_activity = COND #( WHEN iv_simulation = abap_true
                            THEN '03'

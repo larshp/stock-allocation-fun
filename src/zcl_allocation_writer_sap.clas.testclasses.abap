@@ -52,10 +52,14 @@ CLASS lcl_idempotency_store DEFINITION FINAL.
     TYPES ty_documents TYPE STANDARD TABLE OF ty_document WITH EMPTY KEY.
 
     DATA mt_claimed TYPE ty_request_ids.
+    DATA mt_claim_order TYPE STANDARD TABLE OF
+      zcl_stock_allocator=>ty_request_id WITH EMPTY KEY.
     DATA mt_documents TYPE ty_documents.
     DATA mt_replaced_documents TYPE ty_documents.
     DATA mv_update_fails TYPE abap_bool.
     DATA mv_replacement_fails TYPE abap_bool.
+    DATA mv_claim_invalid TYPE abap_bool.
+    DATA mv_update_invalid TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_idempotency_store IMPLEMENTATION.
@@ -68,7 +72,25 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_idempotency_store~find_many.
+    LOOP AT it_request_ids INTO DATA(lv_request_id).
+      READ TABLE mt_documents INTO DATA(ls_document)
+        WITH KEY request_id = lv_request_id.
+      IF sy-subrc = 0.
+        INSERT VALUE #(
+          is_found    = abap_true
+          request_id  = lv_request_id
+          document_id = ls_document-document_id ) INTO TABLE rt_records.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_idempotency_store~claim.
+    APPEND is_allocation-request_id TO mt_claim_order.
+    IF mv_claim_invalid = abap_true.
+      rv_acquired = 'Y'.
+      RETURN.
+    ENDIF.
     IF iv_replaced_document_id IS NOT INITIAL.
       APPEND VALUE #(
         request_id  = is_allocation-request_id
@@ -90,6 +112,10 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~set_document.
+    IF mv_update_invalid = abap_true.
+      rv_updated = 'Y'.
+      RETURN.
+    ENDIF.
     IF mv_update_fails = abap_true.
       rv_updated = abap_false.
       RETURN.
@@ -151,6 +177,8 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
 
     METHODS setup.
     METHODS commits_successful_batch FOR TESTING.
+    METHODS orders_claims_before_posting FOR TESTING.
+    METHODS preserves_success_warnings FOR TESTING.
     METHODS rolls_back_create_error FOR TESTING.
     METHODS rolls_back_missing_document FOR TESTING.
     METHODS rolls_back_commit_error FOR TESTING.
@@ -158,6 +186,10 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS rolls_back_store_failure FOR TESTING.
     METHODS rejects_stale_stock FOR TESTING.
     METHODS rejects_lock_failure FOR TESTING.
+    METHODS rejects_invalid_claim_state FOR TESTING.
+    METHODS rejects_invalid_lock_state FOR TESTING.
+    METHODS rejects_invalid_recheck_state FOR TESTING.
+    METHODS rejects_invalid_update_state FOR TESTING.
     METHODS ignores_empty_batch FOR TESTING.
     METHODS ignores_already_posted FOR TESTING.
     METHODS replaces_cancelled_claim FOR TESTING.
@@ -336,6 +368,71 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD orders_claims_before_posting.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001' )
+      ( document_id = '0000000002' ) ).
+    DATA(lt_allocations) = allocations( 2 ).
+    lt_allocations[ 1 ]-request_id = 'Z-REQUEST'.
+    lt_allocations[ 2 ]-request_id = 'A-REQUEST'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_claim_order[ 1 ]
+      exp = 'A-REQUEST' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_claim_order[ 2 ]
+      exp = 'Z-REQUEST' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-request_id
+      exp = 'Z-REQUEST' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 2 ]-request_id
+      exp = 'A-REQUEST' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-document_id
+      exp = '0000000001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 2 ]-document_id
+      exp = '0000000002' ).
+  ENDMETHOD.
+
+  METHOD preserves_success_warnings.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001'
+        messages    = VALUE #(
+          ( type = 'W' message = 'Requirement date was adjusted' ) ) )
+      ( document_id = '0000000002' ) ).
+    mo_gateway->mt_commit_messages = VALUE #(
+      ( type = 'W' message = 'Commit completed with a warning' ) ).
+    DATA(lt_allocations) = allocations( 2 ).
+    lt_allocations[ 1 ]-replaced_document_id = '0000000041'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_posted ).
+    DATA(lv_expected_message) =
+      |Cancelled reservation 0000000041 replaced; | &&
+      |Requirement date was adjusted; | &&
+      |Commit completed with a warning|.
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = lv_expected_message ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 2 ]-posting_message
+      exp = 'Commit completed with a warning' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD replaces_cancelled_claim.
     mo_gateway->mt_responses = VALUE #(
       ( document_id = '0000000099' ) ).
@@ -457,6 +554,79 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_allocations[ 1 ]-posting_message
       exp = 'Stock pool is locked by another process' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_claim_state.
+    mo_store->mv_claim_invalid = abap_true.
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Idempotency claim returned invalid state' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_acquire_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_lock_state.
+    mo_lock->ms_result = VALUE #(
+      acquired = 'Y'
+      message  = 'Malformed lock state' ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Stock lock returned invalid state' ).
+    cl_abap_unit_assert=>assert_initial( mo_rechecker->mt_checked ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_recheck_state.
+    mo_rechecker->ms_result = VALUE #(
+      is_valid = 'Y'
+      message  = 'Malformed recheck state' ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Stock recheck returned invalid state' ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_release_count
+      exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_update_state.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001' ) ).
+    mo_store->mv_update_invalid = abap_true.
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Idempotency document update returned invalid state' ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_allocations[ 1 ]-document_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
   ENDMETHOD.
 
   METHOD allocations.

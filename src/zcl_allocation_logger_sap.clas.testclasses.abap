@@ -26,6 +26,8 @@ CLASS ltcl_allocation_logger_sap DEFINITION FINAL
     METHODS setup.
     METHODS writes_current_and_history FOR TESTING.
     METHODS propagates_store_failure FOR TESTING.
+    METHODS rejects_invalid_store_state FOR TESTING.
+    METHODS records_invalid_run_mode FOR TESTING.
 
     METHODS allocations
       RETURNING
@@ -75,6 +77,16 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mt_history[ 1 ]-requested_qty
       exp = 5 ).
+    cl_abap_unit_assert=>assert_initial(
+      mo_store->mt_current[ 1 ]-shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_current[ 1 ]-fill_pct
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_initial(
+      mo_store->mt_history[ 1 ]-shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_history[ 1 ]-fill_pct
+      exp = 100 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mt_history[ 1 ]-cost_center
       exp = 'CC1000' ).
@@ -107,6 +119,11 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mt_history[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_fully_allocated ).
+    cl_abap_unit_assert=>assert_true(
+      mo_store->mt_history[ 1 ]-availability_checked ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_history[ 1 ]-available_qty
+      exp = 9 ).
     cl_abap_unit_assert=>assert_not_initial(
       act = mo_store->mt_history[ 1 ]-log_uuid ).
     cl_abap_unit_assert=>assert_differs(
@@ -129,6 +146,34 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
       exp = 'P' ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_store_state.
+    mo_store->mv_saved = 'Y'.
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( )
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+  ENDMETHOD.
+
+  METHOD records_invalid_run_mode.
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( )
+      iv_simulation  = 'Y'
+      iv_run_id      = '11223344556677889900AABBCCDDEEFF'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_true( lv_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_current[ 1 ]-run_mode
+      exp = 'I' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mt_history[ 1 ]-run_mode
+      exp = 'I' ).
+  ENDMETHOD.
+
   METHOD allocations.
     rt_allocations = VALUE #(
       ( request_id             = 'LOG-1'
@@ -149,17 +194,23 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
         allow_partial          = abap_true
         allocated_qty          = 5
         requested_qty          = 5
+        shortfall_qty          = 0
+        fill_pct               = 100
         unit_of_measure        = 'EA'
         source_requested_qty   = 1
         source_unit_of_measure = 'BOX'
         status                 = zcl_stock_allocator=>gc_status_allocated
         decision_code          = zcl_stock_allocator=>gc_decision_fully_allocated
         posting_status         = zcl_stock_allocator=>gc_posting_posted
+        availability_checked   = abap_true
+        available_qty          = 9
         document_id            = '0000000001'
         replaced_document_id   = '0000000041' )
       ( request_id             = 'LOG-2'
         allocated_qty          = 2
         requested_qty          = 2
+        shortfall_qty          = 0
+        fill_pct               = 100
         unit_of_measure        = 'EA'
         source_requested_qty   = 2
         source_unit_of_measure = 'EA'

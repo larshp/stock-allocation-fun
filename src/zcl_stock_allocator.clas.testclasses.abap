@@ -46,15 +46,26 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS reports_missing_stock FOR TESTING.
     METHODS reports_missing_base_unit FOR TESTING.
     METHODS partially_allocates FOR TESTING.
+    METHODS reports_fulfillment_metrics FOR TESTING.
     METHODS honors_minimum_fill FOR TESTING.
     METHODS rejects_below_minimum_fill FOR TESTING.
     METHODS rejects_duplicate_id FOR TESTING.
     METHODS rejects_invalid_quantity FOR TESTING.
+    METHODS accepts_numeric_boundaries FOR TESTING.
+    METHODS rejects_excessive_quantity FOR TESTING.
+    METHODS rejects_quantity_precision FOR TESTING.
+    METHODS rejects_fill_precision FOR TESTING.
+    METHODS rejects_nonpositive_priority FOR TESTING.
+    METHODS rejects_invalid_partial_flag FOR TESTING.
     METHODS rejects_missing_posting_data FOR TESTING.
     METHODS rejects_missing_unit FOR TESTING.
     METHODS converts_alternative_unit FOR TESTING.
     METHODS rejects_missing_conversion FOR TESTING.
+    METHODS rejects_bad_conversion_flag FOR TESTING.
+    METHODS rejects_zero_conversion FOR TESTING.
+    METHODS rejects_large_conversion FOR TESTING.
     METHODS rejects_missing_cost_center FOR TESTING.
+    METHODS rejects_mixed_assignments FOR TESTING.
     METHODS accepts_order_assignment FOR TESTING.
     METHODS accepts_wbs_assignment FOR TESTING.
     METHODS rejects_missing_sales_item FOR TESTING.
@@ -129,12 +140,20 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_fully_allocated ).
+    cl_abap_unit_assert=>assert_true(
+      lt_result[ 1 ]-availability_checked ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-available_qty
+      exp = 10 ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 2 ]-status
       exp = zcl_stock_allocator=>gc_status_rejected ).
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 2 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_partial_denied ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 2 ]-available_qty
+      exp = 3 ).
   ENDMETHOD.
 
   METHOD protects_safety_stock.
@@ -318,6 +337,10 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_no_available_stock ).
+    cl_abap_unit_assert=>assert_true(
+      lt_result[ 1 ]-availability_checked ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_result[ 1 ]-available_qty ).
   ENDMETHOD.
 
   METHOD reports_missing_stock.
@@ -331,6 +354,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_stock_not_found ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD reports_missing_base_unit.
@@ -347,6 +372,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_base_unit_missing ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD partially_allocates.
@@ -367,6 +394,45 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_partial ).
+  ENDMETHOD.
+
+  METHOD reports_fulfillment_metrics.
+    DATA(lt_full) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'FULL-METRICS'
+            iv_quantity = 5 ) ) )
+      it_stock_balances = stock( 5 ) ).
+    DATA(lt_partial) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id            = 'PARTIAL-METRICS'
+            iv_quantity      = 8
+            iv_allow_partial = abap_true ) ) )
+      it_stock_balances = stock( 6 ) ).
+    DATA(lt_rejected) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'REJECTED-METRICS'
+            iv_quantity = 8 ) ) )
+      it_stock_balances = stock( 6 ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      lt_full[ 1 ]-shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_full[ 1 ]-fill_pct
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_partial[ 1 ]-shortfall_qty
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_partial[ 1 ]-fill_pct
+      exp = 75 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_rejected[ 1 ]-shortfall_qty
+      exp = 8 ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_rejected[ 1 ]-fill_pct ).
   ENDMETHOD.
 
   METHOD honors_minimum_fill.
@@ -441,6 +507,116 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+  ENDMETHOD.
+
+  METHOD accepts_numeric_boundaries.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id               = 'NUMERIC-BOUNDARY'
+            iv_quantity         = zcl_stock_allocator=>gc_max_quantity
+            iv_priority         = 1
+            iv_minimum_fill_pct = 100 ) ) )
+      it_stock_balances = stock(
+        zcl_stock_allocator=>gc_max_quantity ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-requested_qty
+      exp = zcl_stock_allocator=>gc_max_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_excessive_quantity.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'TOO-LARGE'
+            iv_quantity = zcl_stock_allocator=>gc_max_quantity + 1 ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Requested quantity exceeds supported precision' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
+  ENDMETHOD.
+
+  METHOD rejects_quantity_precision.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'TOO-PRECISE'
+            iv_quantity = CONV decfloat34( '1.2345' ) ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Requested quantity supports at most three decimals' ).
+  ENDMETHOD.
+
+  METHOD rejects_fill_precision.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id               = 'FILL-PRECISE'
+            iv_quantity         = 10
+            iv_minimum_fill_pct = CONV decfloat34( '50.1234' ) ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Minimum fill percentage supports at most three decimals' ).
+  ENDMETHOD.
+
+  METHOD rejects_nonpositive_priority.
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'BAD-PRIORITY'
+            iv_quantity = 1
+            iv_priority = 0 ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Priority must be greater than zero' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_partial_flag.
+    DATA(ls_request) = request(
+      iv_id       = 'INVALID-PARTIAL-FLAG'
+      iv_quantity = 1 ).
+    ls_request-allow_partial = 'Y'.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #( ( ls_request ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_bad_request_flag ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allow-partial flag must be X or blank' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD rejects_missing_posting_data.
@@ -531,6 +707,36 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-decision_code
       exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_conversion_flag.
+    mo_converter->mv_use_result = abap_true.
+    mo_converter->ms_result = VALUE #(
+      is_success = 'Y'
+      quantity   = 10
+      message    = 'Malformed converter state' ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id              = 'BAD-CONVERSION'
+            iv_quantity        = 1
+            iv_unit_of_measure = 'BOX' ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Unit converter returned invalid state' ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_result[ 1 ]-allocated_qty ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD rejects_missing_cost_center.
@@ -710,6 +916,139 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-network_activity
       exp = '0010' ).
+  ENDMETHOD.
+
+  METHOD rejects_mixed_assignments.
+    DATA lt_requests TYPE zcl_stock_allocator=>ty_requests.
+
+    DATA(ls_request) = request(
+      iv_id       = 'MIXED-201'
+      iv_quantity = 1 ).
+    ls_request-order_id = '000001234567'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-221'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '221'.
+    ls_request-wbs_element = 'PROJECT-001'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-231'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '231'.
+    ls_request-sales_order = '0000123456'.
+    ls_request-sales_order_item = '000010'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-241'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '241'.
+    ls_request-asset_number = '000000123456'.
+    ls_request-asset_subnumber = '0000'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-251'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '251'.
+    ls_request-wbs_element = 'PROJECT-001'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-261'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '261'.
+    ls_request-order_id = '000001234567'.
+    APPEND ls_request TO lt_requests.
+
+    ls_request = request(
+      iv_id       = 'MIXED-281'
+      iv_quantity = 1 ).
+    ls_request-movement_type = '281'.
+    ls_request-network_id = '000001234567'.
+    APPEND ls_request TO lt_requests.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = lt_requests
+      it_stock_balances = stock( 10 ) ).
+
+    LOOP AT lt_result INTO DATA(ls_result).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_result-status
+        exp = zcl_stock_allocator=>gc_status_invalid ).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_result-decision_code
+        exp = zcl_stock_allocator=>gc_decision_rule_invalid ).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_result-posting_message
+        exp = |Movement type { ls_result-movement_type } has conflicting account assignments| ).
+      cl_abap_unit_assert=>assert_false(
+        ls_result-availability_checked ).
+    ENDLOOP.
+    cl_abap_unit_assert=>assert_initial( mo_converter->mv_material ).
+  ENDMETHOD.
+
+  METHOD rejects_zero_conversion.
+    mo_converter->mv_use_result = abap_true.
+    mo_converter->ms_result = VALUE #(
+      is_success = abap_true
+      quantity   = 0 ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id              = 'ROUNDED-TO-ZERO'
+            iv_quantity        = 1
+            iv_unit_of_measure = 'ALT' ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_canonical_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_not_required ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Converted base quantity must be greater than zero' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-requested_qty
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-unit_of_measure
+      exp = 'ALT' ).
+  ENDMETHOD.
+
+  METHOD rejects_large_conversion.
+    mo_converter->mv_use_result = abap_true.
+    mo_converter->ms_result = VALUE #(
+      is_success = abap_true
+      quantity   = zcl_stock_allocator=>gc_max_quantity + 1 ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id              = 'LARGE-CONVERSION'
+            iv_quantity        = 1
+            iv_unit_of_measure = 'BOX' ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_canonical_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Converted base quantity exceeds supported precision' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD rejects_unsupported_movement.

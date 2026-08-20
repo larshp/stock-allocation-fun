@@ -26,6 +26,7 @@ CLASS zcl_stock_allocator DEFINITION
     TYPES ty_document_id      TYPE c LENGTH 10.
     TYPES ty_strategy         TYPE c LENGTH 20.
     TYPES ty_payload_version  TYPE c LENGTH 3.
+    CONSTANTS gc_max_quantity TYPE ty_quantity VALUE '9999999999.999'.
 
     CONSTANTS gc_status_allocated TYPE ty_status VALUE 'ALLOCATED'.
     CONSTANTS gc_status_partial   TYPE ty_status VALUE 'PARTIAL'.
@@ -55,6 +56,10 @@ CLASS zcl_stock_allocator DEFINITION
       VALUE 'BELOW_MINIMUM_FILL'.
     CONSTANTS gc_decision_invalid_request TYPE ty_decision_code
       VALUE 'INVALID_REQUEST'.
+    CONSTANTS gc_decision_bad_request_flag TYPE ty_decision_code
+      VALUE 'REQUEST_FLAG_INVALID'.
+    CONSTANTS gc_decision_run_policy_invalid TYPE ty_decision_code
+      VALUE 'RUN_POLICY_INVALID'.
     CONSTANTS gc_decision_rule_invalid TYPE ty_decision_code
       VALUE 'REQUEST_RULE_INVALID'.
     CONSTANTS gc_decision_duplicate_request TYPE ty_decision_code
@@ -69,6 +74,10 @@ CLASS zcl_stock_allocator DEFINITION
       VALUE 'REPLAY_RESERVATION_MISSING'.
     CONSTANTS gc_decision_replayed TYPE ty_decision_code
       VALUE 'RESERVATION_REPLAYED'.
+    CONSTANTS gc_decision_replay_lookup TYPE ty_decision_code
+      VALUE 'REPLAY_LOOKUP_INVALID'.
+    CONSTANTS gc_decision_replay_outcome TYPE ty_decision_code
+      VALUE 'REPLAY_OUTCOME_INVALID'.
     CONSTANTS gc_decision_outside_horizon TYPE ty_decision_code
       VALUE 'OUTSIDE_HORIZON'.
     CONSTANTS gc_decision_stock_not_found TYPE ty_decision_code
@@ -77,8 +86,12 @@ CLASS zcl_stock_allocator DEFINITION
       VALUE 'BASE_UNIT_MISSING'.
     CONSTANTS gc_decision_conversion_failed TYPE ty_decision_code
       VALUE 'UNIT_CONVERSION_FAILED'.
+    CONSTANTS gc_decision_canonical_invalid TYPE ty_decision_code
+      VALUE 'CANONICAL_QUANTITY_INVALID'.
     CONSTANTS gc_decision_plant_unauthorized TYPE ty_decision_code
       VALUE 'PLANT_UNAUTHORIZED'.
+    CONSTANTS gc_decision_authority_invalid TYPE ty_decision_code
+      VALUE 'AUTHORIZATION_RESULT_INVALID'.
     CONSTANTS gc_decision_full_batch_aborted TYPE ty_decision_code
       VALUE 'FULL_BATCH_ABORTED'.
 
@@ -145,6 +158,9 @@ CLASS zcl_stock_allocator DEFINITION
         allow_partial          TYPE abap_bool,
         allocated_qty          TYPE ty_quantity,
         shortfall_qty          TYPE ty_quantity,
+        fill_pct               TYPE ty_quantity,
+        availability_checked   TYPE abap_bool,
+        available_qty          TYPE ty_quantity,
         status                 TYPE ty_status,
         decision_code          TYPE ty_decision_code,
         posting_status         TYPE ty_posting_status,
@@ -153,6 +169,13 @@ CLASS zcl_stock_allocator DEFINITION
         posting_message        TYPE string,
       END OF ty_allocation.
     TYPES ty_allocations TYPE STANDARD TABLE OF ty_allocation WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ty_validation,
+        is_valid      TYPE abap_bool,
+        decision_code TYPE ty_decision_code,
+        message       TYPE string,
+      END OF ty_validation.
 
     TYPES:
       BEGIN OF ty_replay,
@@ -190,6 +213,12 @@ CLASS zcl_stock_allocator DEFINITION
       IMPORTING
         io_unit_converter TYPE REF TO zif_unit_converter.
 
+    METHODS validate_request
+      IMPORTING
+        is_request           TYPE ty_request
+      RETURNING
+        VALUE(rs_validation) TYPE ty_validation.
+
     METHODS allocate
       IMPORTING
         it_requests           TYPE ty_requests
@@ -202,6 +231,7 @@ CLASS zcl_stock_allocator DEFINITION
 
   PRIVATE SECTION.
     DATA mo_unit_converter TYPE REF TO zif_unit_converter.
+    TYPES ty_persisted_quantity TYPE p LENGTH 7 DECIMALS 3.
 
     TYPES ty_seen_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
@@ -236,6 +266,12 @@ CLASS zcl_stock_allocator DEFINITION
         is_request        TYPE ty_request
       RETURNING
         VALUE(rv_message) TYPE string.
+
+    METHODS has_conflicting_assignment
+      IMPORTING
+        is_request            TYPE ty_request
+      RETURNING
+        VALUE(rv_conflicting) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_stock_allocator IMPLEMENTATION.
@@ -322,19 +358,10 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
     LOOP AT lt_requests INTO DATA(ls_request).
       CLEAR lv_replaced_document_id.
-      DATA(lv_account_error) = get_account_error( ls_request ).
-      IF ls_request-requested_qty <= 0
-          OR ls_request-minimum_fill_pct < 0
-          OR ls_request-minimum_fill_pct > 100
-          OR ls_request-request_id IS INITIAL
-          OR ls_request-material IS INITIAL
-          OR ls_request-plant IS INITIAL
-          OR ls_request-storage_location IS INITIAL
-          OR ls_request-movement_type IS INITIAL
-          OR ls_request-unit_of_measure IS INITIAL
-          OR ls_request-requirement_date IS INITIAL
-          OR lv_account_error IS NOT INITIAL
-          OR line_exists( lt_seen_request_ids[ table_line = ls_request-request_id ] ).
+      DATA(ls_validation) = validate_request( ls_request ).
+      DATA(lv_duplicate) = xsdbool( line_exists(
+        lt_seen_request_ids[ table_line = ls_request-request_id ] ) ).
+      IF ls_validation-is_valid = abap_false OR lv_duplicate = abap_true.
         APPEND VALUE #(
           request_id             = ls_request-request_id
           material               = ls_request-material
@@ -358,14 +385,14 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           shortfall_qty          = ls_request-requested_qty
           status                 = gc_status_invalid
           decision_code          = COND #(
-            WHEN line_exists(
-              lt_seen_request_ids[ table_line = ls_request-request_id ] )
+            WHEN lv_duplicate = abap_true
             THEN gc_decision_duplicate_request
-            WHEN lv_account_error IS NOT INITIAL
-            THEN gc_decision_rule_invalid
-            ELSE gc_decision_invalid_request )
+            ELSE ls_validation-decision_code )
           posting_status         = gc_posting_not_required
-          posting_message        = lv_account_error ) TO rt_allocations.
+          posting_message        = COND #(
+            WHEN lv_duplicate = abap_true
+            THEN ''
+            ELSE ls_validation-message ) ) TO rt_allocations.
         CONTINUE.
       ENDIF.
 
@@ -482,6 +509,39 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             posting_status         = gc_posting_failed
             posting_message        = 'Request ID is claimed without a reservation' )
             TO rt_allocations.
+        ELSEIF ls_replay-requested_qty <= 0
+            OR ls_replay-allocated_qty <= 0
+            OR ls_replay-allocated_qty > ls_replay-requested_qty
+            OR ls_replay-unit_of_measure IS INITIAL.
+          APPEND VALUE #(
+            request_id             = ls_request-request_id
+            material               = ls_request-material
+            plant                  = ls_request-plant
+            storage_location       = ls_request-storage_location
+            movement_type          = ls_request-movement_type
+            cost_center            = ls_request-cost_center
+            order_id               = ls_request-order_id
+            wbs_element            = ls_request-wbs_element
+            sales_order            = ls_request-sales_order
+            sales_order_item       = ls_request-sales_order_item
+            asset_number           = ls_request-asset_number
+            asset_subnumber        = ls_request-asset_subnumber
+            network_id             = ls_request-network_id
+            network_activity       = ls_request-network_activity
+            unit_of_measure        = ls_request-unit_of_measure
+            requirement_date       = ls_request-requirement_date
+            requested_qty          = ls_request-requested_qty
+            source_requested_qty   = ls_request-requested_qty
+            source_unit_of_measure = ls_request-unit_of_measure
+            minimum_fill_pct       = ls_request-minimum_fill_pct
+            priority               = ls_request-priority
+            allow_partial          = ls_request-allow_partial
+            shortfall_qty          = ls_request-requested_qty
+            status                 = gc_status_invalid
+            decision_code          = gc_decision_replay_outcome
+            posting_status         = gc_posting_not_required
+            posting_message        = 'Stored allocation outcome is invalid' )
+            TO rt_allocations.
         ELSEIF ls_replay-document_cancelled = abap_true.
           lv_replaced_document_id = ls_replay-document_id.
         ELSE.
@@ -514,6 +574,10 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
             allow_partial          = ls_replay-allow_partial
             allocated_qty          = ls_replay-allocated_qty
             shortfall_qty          = ls_replay-requested_qty - ls_replay-allocated_qty
+            fill_pct               = COND #(
+              WHEN ls_replay-requested_qty > 0
+              THEN ls_replay-allocated_qty * 100 / ls_replay-requested_qty
+              ELSE 0 )
             status                 = lv_replay_status
             decision_code          = gc_decision_replayed
             posting_status         = gc_posting_posted
@@ -628,7 +692,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         iv_quantity    = ls_request-requested_qty
         iv_source_unit = ls_request-unit_of_measure
         iv_base_unit   = <ls_stock>-base_unit ).
-      IF ls_conversion-is_success = abap_false.
+      IF ls_conversion-is_success <> abap_true.
+        DATA(lv_conversion_message) = COND string(
+          WHEN ls_conversion-is_success = abap_false
+          THEN ls_conversion-message
+          ELSE 'Unit converter returned invalid state' ).
         APPEND VALUE #(
           request_id             = ls_request-request_id
           material               = ls_request-material
@@ -653,7 +721,65 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           status                 = gc_status_invalid
           decision_code          = gc_decision_conversion_failed
           posting_status         = gc_posting_not_required
-          posting_message        = ls_conversion-message )
+          posting_message        = lv_conversion_message )
+          TO rt_allocations.
+        CONTINUE.
+      ENDIF.
+      IF ls_conversion-quantity <= 0.
+        APPEND VALUE #(
+          request_id             = ls_request-request_id
+          material               = ls_request-material
+          plant                  = ls_request-plant
+          storage_location       = ls_request-storage_location
+          movement_type          = ls_request-movement_type
+          cost_center            = ls_request-cost_center
+          order_id               = ls_request-order_id
+          wbs_element            = ls_request-wbs_element
+          sales_order            = ls_request-sales_order
+          sales_order_item       = ls_request-sales_order_item
+          asset_number           = ls_request-asset_number
+          asset_subnumber        = ls_request-asset_subnumber
+          network_id             = ls_request-network_id
+          network_activity       = ls_request-network_activity
+          unit_of_measure        = ls_request-unit_of_measure
+          requirement_date       = ls_request-requirement_date
+          requested_qty          = ls_request-requested_qty
+          source_requested_qty   = ls_request-requested_qty
+          source_unit_of_measure = ls_request-unit_of_measure
+          shortfall_qty          = ls_request-requested_qty
+          status                 = gc_status_invalid
+          decision_code          = gc_decision_canonical_invalid
+          posting_status         = gc_posting_not_required
+          posting_message        = 'Converted base quantity must be greater than zero' )
+          TO rt_allocations.
+        CONTINUE.
+      ENDIF.
+      IF ls_conversion-quantity > gc_max_quantity.
+        APPEND VALUE #(
+          request_id             = ls_request-request_id
+          material               = ls_request-material
+          plant                  = ls_request-plant
+          storage_location       = ls_request-storage_location
+          movement_type          = ls_request-movement_type
+          cost_center            = ls_request-cost_center
+          order_id               = ls_request-order_id
+          wbs_element            = ls_request-wbs_element
+          sales_order            = ls_request-sales_order
+          sales_order_item       = ls_request-sales_order_item
+          asset_number           = ls_request-asset_number
+          asset_subnumber        = ls_request-asset_subnumber
+          network_id             = ls_request-network_id
+          network_activity       = ls_request-network_activity
+          unit_of_measure        = ls_request-unit_of_measure
+          requirement_date       = ls_request-requirement_date
+          requested_qty          = ls_request-requested_qty
+          source_requested_qty   = ls_request-requested_qty
+          source_unit_of_measure = ls_request-unit_of_measure
+          shortfall_qty          = ls_request-requested_qty
+          status                 = gc_status_invalid
+          decision_code          = gc_decision_canonical_invalid
+          posting_status         = gc_posting_not_required
+          posting_message        = 'Converted base quantity exceeds supported precision' )
           TO rt_allocations.
         CONTINUE.
       ENDIF.
@@ -679,6 +805,78 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       <ls_plant_balance>-unrestricted_qty =
         <ls_plant_balance>-unrestricted_qty - ls_allocation-allocated_qty.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_request.
+    DATA(lv_account_error) = get_account_error( is_request ).
+    DATA(lv_request_flag_invalid) = xsdbool(
+      is_request-allow_partial <> abap_false
+      AND is_request-allow_partial <> abap_true ).
+    DATA(lv_structural_invalid) = xsdbool(
+      is_request-request_id IS INITIAL
+      OR is_request-material IS INITIAL
+      OR is_request-plant IS INITIAL
+      OR is_request-storage_location IS INITIAL
+      OR is_request-movement_type IS INITIAL
+      OR is_request-unit_of_measure IS INITIAL
+      OR is_request-requirement_date IS INITIAL ).
+    DATA lv_rounded_requested TYPE ty_persisted_quantity.
+    IF is_request-requested_qty > 0
+        AND is_request-requested_qty <= gc_max_quantity.
+      lv_rounded_requested = is_request-requested_qty.
+    ENDIF.
+    DATA lv_rounded_minimum TYPE ty_persisted_quantity.
+    IF is_request-minimum_fill_pct >= 0
+        AND is_request-minimum_fill_pct <= 100.
+      lv_rounded_minimum = is_request-minimum_fill_pct.
+    ENDIF.
+    DATA(lv_numeric_invalid) = xsdbool(
+      is_request-requested_qty <= 0
+      OR is_request-requested_qty > gc_max_quantity
+      OR lv_rounded_requested <> is_request-requested_qty
+      OR is_request-minimum_fill_pct < 0
+      OR is_request-minimum_fill_pct > 100
+      OR lv_rounded_minimum <> is_request-minimum_fill_pct
+      OR is_request-priority <= 0 ).
+    IF lv_structural_invalid = abap_false
+        AND lv_numeric_invalid = abap_false
+        AND lv_request_flag_invalid = abap_false
+        AND lv_account_error IS INITIAL.
+      rs_validation-is_valid = abap_true.
+      RETURN.
+    ENDIF.
+
+    rs_validation-decision_code = COND #(
+      WHEN lv_request_flag_invalid = abap_true
+      THEN gc_decision_bad_request_flag
+      WHEN lv_account_error IS NOT INITIAL
+      THEN gc_decision_rule_invalid
+      ELSE gc_decision_invalid_request ).
+    rs_validation-message = COND #(
+      WHEN lv_request_flag_invalid = abap_true
+      THEN 'Allow-partial flag must be X or blank'
+      WHEN lv_account_error IS NOT INITIAL
+      THEN lv_account_error
+      WHEN lv_structural_invalid = abap_false
+        AND is_request-requested_qty <= 0
+      THEN 'Requested quantity must be greater than zero'
+      WHEN lv_structural_invalid = abap_false
+        AND is_request-requested_qty > gc_max_quantity
+      THEN 'Requested quantity exceeds supported precision'
+      WHEN lv_structural_invalid = abap_false
+        AND lv_rounded_requested <> is_request-requested_qty
+      THEN 'Requested quantity supports at most three decimals'
+      WHEN lv_structural_invalid = abap_false
+        AND ( is_request-minimum_fill_pct < 0
+          OR is_request-minimum_fill_pct > 100 )
+      THEN 'Minimum fill percentage must be between 0 and 100'
+      WHEN lv_structural_invalid = abap_false
+        AND lv_rounded_minimum <> is_request-minimum_fill_pct
+      THEN 'Minimum fill percentage supports at most three decimals'
+      WHEN lv_structural_invalid = abap_false
+        AND is_request-priority <= 0
+      THEN 'Priority must be greater than zero'
+      ELSE '' ).
   ENDMETHOD.
 
   METHOD calculate_available.
@@ -714,6 +912,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     rs_allocation-minimum_fill_pct = is_request-minimum_fill_pct.
     rs_allocation-priority = is_request-priority.
     rs_allocation-allow_partial = is_request-allow_partial.
+    rs_allocation-availability_checked = abap_true.
+    rs_allocation-available_qty = iv_available.
     DATA(lv_available_pct) =
       iv_available * 100 / is_request-requested_qty.
 
@@ -743,6 +943,8 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
     rs_allocation-shortfall_qty =
       is_request-requested_qty - rs_allocation-allocated_qty.
+    rs_allocation-fill_pct =
+      rs_allocation-allocated_qty * 100 / is_request-requested_qty.
   ENDMETHOD.
 
   METHOD get_account_error.
@@ -777,6 +979,73 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         ENDIF.
       WHEN OTHERS.
         rv_message = |Movement type { is_request-movement_type } is not supported|.
+    ENDCASE.
+    IF rv_message IS INITIAL
+        AND has_conflicting_assignment( is_request ) = abap_true.
+      rv_message =
+        |Movement type { is_request-movement_type } has conflicting account assignments|.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD has_conflicting_assignment.
+    CASE is_request-movement_type.
+      WHEN '201' OR '251'.
+        rv_conflicting = xsdbool(
+          is_request-order_id IS NOT INITIAL
+          OR is_request-wbs_element IS NOT INITIAL
+          OR is_request-sales_order IS NOT INITIAL
+          OR is_request-sales_order_item IS NOT INITIAL
+          OR is_request-asset_number IS NOT INITIAL
+          OR is_request-asset_subnumber IS NOT INITIAL
+          OR is_request-network_id IS NOT INITIAL
+          OR is_request-network_activity IS NOT INITIAL ).
+      WHEN '221'.
+        rv_conflicting = xsdbool(
+          is_request-cost_center IS NOT INITIAL
+          OR is_request-order_id IS NOT INITIAL
+          OR is_request-sales_order IS NOT INITIAL
+          OR is_request-sales_order_item IS NOT INITIAL
+          OR is_request-asset_number IS NOT INITIAL
+          OR is_request-asset_subnumber IS NOT INITIAL
+          OR is_request-network_id IS NOT INITIAL
+          OR is_request-network_activity IS NOT INITIAL ).
+      WHEN '231'.
+        rv_conflicting = xsdbool(
+          is_request-cost_center IS NOT INITIAL
+          OR is_request-order_id IS NOT INITIAL
+          OR is_request-wbs_element IS NOT INITIAL
+          OR is_request-asset_number IS NOT INITIAL
+          OR is_request-asset_subnumber IS NOT INITIAL
+          OR is_request-network_id IS NOT INITIAL
+          OR is_request-network_activity IS NOT INITIAL ).
+      WHEN '241'.
+        rv_conflicting = xsdbool(
+          is_request-cost_center IS NOT INITIAL
+          OR is_request-order_id IS NOT INITIAL
+          OR is_request-wbs_element IS NOT INITIAL
+          OR is_request-sales_order IS NOT INITIAL
+          OR is_request-sales_order_item IS NOT INITIAL
+          OR is_request-network_id IS NOT INITIAL
+          OR is_request-network_activity IS NOT INITIAL ).
+      WHEN '261'.
+        rv_conflicting = xsdbool(
+          is_request-cost_center IS NOT INITIAL
+          OR is_request-wbs_element IS NOT INITIAL
+          OR is_request-sales_order IS NOT INITIAL
+          OR is_request-sales_order_item IS NOT INITIAL
+          OR is_request-asset_number IS NOT INITIAL
+          OR is_request-asset_subnumber IS NOT INITIAL
+          OR is_request-network_id IS NOT INITIAL
+          OR is_request-network_activity IS NOT INITIAL ).
+      WHEN '281'.
+        rv_conflicting = xsdbool(
+          is_request-cost_center IS NOT INITIAL
+          OR is_request-order_id IS NOT INITIAL
+          OR is_request-wbs_element IS NOT INITIAL
+          OR is_request-sales_order IS NOT INITIAL
+          OR is_request-sales_order_item IS NOT INITIAL
+          OR is_request-asset_number IS NOT INITIAL
+          OR is_request-asset_subnumber IS NOT INITIAL ).
     ENDCASE.
   ENDMETHOD.
 ENDCLASS.

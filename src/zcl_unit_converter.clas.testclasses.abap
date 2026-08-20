@@ -29,7 +29,9 @@ CLASS ltcl_unit_converter DEFINITION FINAL
     METHODS bypasses_matching_base_unit FOR TESTING.
     METHODS applies_material_factor FOR TESTING.
     METHODS rounds_to_stock_precision FOR TESTING.
+    METHODS rejects_rounded_zero FOR TESTING.
     METHODS rejects_missing_factor FOR TESTING.
+    METHODS rejects_invalid_found_flag FOR TESTING.
     METHODS rejects_zero_denominator FOR TESTING.
 ENDCLASS.
 
@@ -93,6 +95,24 @@ CLASS ltcl_unit_converter IMPLEMENTATION.
       exp = CONV decfloat34( '0.333' ) ).
   ENDMETHOD.
 
+  METHOD rejects_rounded_zero.
+    mo_reader->ms_result = VALUE #(
+      is_found    = abap_true
+      numerator   = 1
+      denominator = 10000 ).
+
+    DATA(ls_result) = mo_cut->zif_unit_converter~to_base(
+      iv_material    = 'MAT-1'
+      iv_quantity    = 1
+      iv_source_unit = 'ALT'
+      iv_base_unit   = 'EA' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Converted base quantity is not positive' ).
+  ENDMETHOD.
+
   METHOD rejects_missing_factor.
     DATA(ls_result) = mo_cut->zif_unit_converter~to_base(
       iv_material    = 'MAT-1'
@@ -104,6 +124,24 @@ CLASS ltcl_unit_converter IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'No material-specific unit conversion is maintained' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_found_flag.
+    mo_reader->ms_result = VALUE #(
+      is_found    = 'Y'
+      numerator   = 10
+      denominator = 1 ).
+
+    DATA(ls_result) = mo_cut->zif_unit_converter~to_base(
+      iv_material    = 'MAT-1'
+      iv_quantity    = 1
+      iv_source_unit = 'BOX'
+      iv_base_unit   = 'EA' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Unit conversion lookup returned invalid state' ).
   ENDMETHOD.
 
   METHOD rejects_zero_denominator.

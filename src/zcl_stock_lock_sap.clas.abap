@@ -8,55 +8,59 @@ CLASS zcl_stock_lock_sap DEFINITION
 
     METHODS constructor
       IMPORTING
+        io_gateway       TYPE REF TO zif_stock_lock_gateway
         iv_wait_for_lock TYPE abap_bool DEFAULT abap_false.
 
   PRIVATE SECTION.
     TYPES:
-      BEGIN OF ty_stock_key,
-        material         TYPE zcl_stock_allocator=>ty_material,
-        plant            TYPE zcl_stock_allocator=>ty_plant,
-        storage_location TYPE zcl_stock_allocator=>ty_storage_location,
-      END OF ty_stock_key.
-    TYPES ty_stock_keys TYPE SORTED TABLE OF ty_stock_key
-      WITH UNIQUE KEY material plant storage_location.
+      BEGIN OF ty_plant_key,
+        material TYPE zcl_stock_allocator=>ty_material,
+        plant    TYPE zcl_stock_allocator=>ty_plant,
+      END OF ty_plant_key.
+    TYPES ty_plant_keys TYPE SORTED TABLE OF ty_plant_key
+      WITH UNIQUE KEY material plant.
 
+    DATA mo_gateway TYPE REF TO zif_stock_lock_gateway.
     DATA mv_wait_for_lock TYPE abap_bool.
-    DATA mt_locked_keys TYPE ty_stock_keys.
+    DATA mt_locked_keys TYPE ty_plant_keys.
 ENDCLASS.
 
 CLASS zcl_stock_lock_sap IMPLEMENTATION.
   METHOD constructor.
+    mo_gateway = io_gateway.
     mv_wait_for_lock = iv_wait_for_lock.
   ENDMETHOD.
 
   METHOD zif_stock_lock~acquire.
-    DATA lt_requested_keys TYPE ty_stock_keys.
+    IF mv_wait_for_lock <> abap_false AND mv_wait_for_lock <> abap_true.
+      rs_result-acquired = abap_false.
+      rs_result-message = 'Stock lock wait flag must be X or blank'.
+      RETURN.
+    ENDIF.
+
+    DATA lt_requested_keys TYPE ty_plant_keys.
 
     LOOP AT it_allocations INTO DATA(ls_allocation)
       WHERE allocated_qty > 0.
       INSERT VALUE #(
-        material         = ls_allocation-material
-        plant            = ls_allocation-plant
-        storage_location = ls_allocation-storage_location )
+        material = ls_allocation-material
+        plant    = ls_allocation-plant )
         INTO TABLE lt_requested_keys.
     ENDLOOP.
 
     LOOP AT lt_requested_keys INTO DATA(ls_key).
-      CALL FUNCTION 'ENQUEUE_EZSTOCK_POOL'
-        EXPORTING
-          matnr          = ls_key-material
-          werks          = ls_key-plant
-          lgort          = ls_key-storage_location
-          _scope         = '3'
-          _wait          = mv_wait_for_lock
-        EXCEPTIONS
-          foreign_lock   = 1
-          system_failure = 2
-          OTHERS         = 3.
-      IF sy-subrc <> 0.
+      DATA(ls_lock) = mo_gateway->acquire(
+        iv_material      = ls_key-material
+        iv_plant         = ls_key-plant
+        iv_wait_for_lock = mv_wait_for_lock ).
+      IF ls_lock-acquired <> abap_true.
         zif_stock_lock~release( ).
-        rs_result-acquired = abap_false.
-        rs_result-message = 'Stock pool is locked by another process'.
+        IF ls_lock-acquired = abap_false.
+          rs_result = ls_lock.
+        ELSE.
+          rs_result-acquired = abap_false.
+          rs_result-message = 'Stock lock gateway returned invalid state'.
+        ENDIF.
         RETURN.
       ENDIF.
 
@@ -68,12 +72,9 @@ CLASS zcl_stock_lock_sap IMPLEMENTATION.
 
   METHOD zif_stock_lock~release.
     LOOP AT mt_locked_keys INTO DATA(ls_key).
-      CALL FUNCTION 'DEQUEUE_EZSTOCK_POOL'
-        EXPORTING
-          matnr  = ls_key-material
-          werks  = ls_key-plant
-          lgort  = ls_key-storage_location
-          _scope = '3'.
+      mo_gateway->release(
+        iv_material = ls_key-material
+        iv_plant    = ls_key-plant ).
     ENDLOOP.
     CLEAR mt_locked_keys.
   ENDMETHOD.

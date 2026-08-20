@@ -5,6 +5,7 @@ CLASS zcl_allocation_log_retention DEFINITION
 
   PUBLIC SECTION.
     CONSTANTS gc_default_retention_days TYPE i VALUE 365.
+    CONSTANTS gc_max_retention_days TYPE i VALUE 36500.
 
     METHODS constructor
       IMPORTING
@@ -37,9 +38,15 @@ CLASS zcl_allocation_log_retention IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD run.
-    IF iv_retention_days <= 0.
+    IF iv_simulation <> abap_false AND iv_simulation <> abap_true.
       rs_result-is_success = abap_false.
-      rs_result-message = 'Retention days must be greater than zero'.
+      rs_result-message = 'Retention simulation flag must be X or blank'.
+      RETURN.
+    ENDIF.
+    IF iv_retention_days <= 0
+        OR iv_retention_days > gc_max_retention_days.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention days must be between 1 and 36500'.
       RETURN.
     ENDIF.
 
@@ -47,11 +54,23 @@ CLASS zcl_allocation_log_retention IMPLEMENTATION.
       WHEN iv_today IS INITIAL
       THEN sy-datum
       ELSE iv_today ).
+    IF lv_today > sy-datum.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention effective date must not be in the future'.
+      RETURN.
+    ENDIF.
     DATA lv_cutoff_date TYPE d.
     lv_cutoff_date = lv_today - iv_retention_days.
 
-    rs_result = mo_store->remove_before(
+    DATA(ls_store_result) = mo_store->remove_before(
       iv_cutoff_date = lv_cutoff_date
       iv_simulation  = iv_simulation ).
+    IF ls_store_result-is_success <> abap_false
+        AND ls_store_result-is_success <> abap_true.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention store returned invalid state'.
+      RETURN.
+    ENDIF.
+    rs_result = ls_store_result.
   ENDMETHOD.
 ENDCLASS.

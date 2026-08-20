@@ -201,8 +201,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       ( NEW zcl_supply_receipts( lo_converter ) )
       ( NEW zcl_supply_production( lo_converter ) ) ).
 
+    " a plan has two halves: what the plant will make and what it will buy.
+    " MRP writes the first as a planned order and the second as a purchase
+    " requisition, so a plant that trusts its plan has to be given both or it
+    " gets nothing at all for everything it buys.
     IF iv_planned = abap_true.
       APPEND NEW zcl_supply_planned( lo_converter ) TO lt_source.
+      APPEND NEW zcl_supply_requisitions( lo_converter ) TO lt_source.
     ENDIF.
 
     ro_supply = NEW zcl_supply_sources( lt_source ).

@@ -1975,3 +1975,32 @@ The item text now carries it: `ALLOC` and the demand line the item is for.
 - **Nothing reads it back yet.** It is there for a person in `MB23` and for the
   consistency check to grow into; writing it costs one field on a structure the
   BAPI already takes.
+
+### Feature 60 — the buying half of a plan (done)
+
+Feature 41 let a plant allocate against its own plan and read `PLAF`, which is
+where MRP writes what the plant will *make*. For everything the plant *buys*
+MRP writes a purchase requisition instead, and a distribution centre that buys
+everything it sells got exactly nothing out of the switch it had just been
+given. The feature was half a feature and did not say so.
+
+`ZCL_SUPPLY_REQUISITIONS` reads `EBAN` and is added by the same switch.
+
+- **One switch, not two.** "Trust the plan" is one decision. A plant does not
+  believe its planned orders and disbelieve its requisitions; the two are the
+  same MRP run writing down what it intends, in the table that fits the way the
+  material is procured.
+- **What has been ordered is not counted here.** `EBAN-BSMNG` is the part that
+  has become a purchase order, and feature 34 reads that as a receipt. Only
+  what is still a proposal is left.
+- **A converted item is out altogether**, because `EBAN-EBELN` says the whole
+  of it is a purchase order now. Deleted and closed items are out for the
+  reasons those flags exist.
+- **No delivery date, no supply**, which is the rule every source in this
+  solution follows, and the reason is the same every time: putting an undated
+  receipt on the timeline means calling it available now.
+- **A requisition is not firmed the way a planned order is.** `ZCL_SUPPLY_PLANNED`
+  can insist on firming because `PLAF-AUFFX` says whether MRP will leave the
+  order alone; a requisition has no such flag in the same sense, so the class
+  takes what it finds. A plant that wants only committed receipts leaves the
+  switch off, which is where that decision belongs.

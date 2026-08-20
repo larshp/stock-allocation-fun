@@ -23,8 +23,8 @@ controller. For each material waiting for stock it
    that will not keep long enough to ship — plus the
    receipts still to come in on open purchasing documents from
    `EKKO`/`EKPO`/`EKET`, on open production orders from `AUFK`/`AFKO`/`AFPO`
-   and, where the plant asks for it, on planned orders from `PLAF`, each on
-   the day it arrives,
+   and, where the plant asks for it, on planned orders from `PLAF` and
+   purchase requisitions from `EBAN`, each on the day it arrives,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what

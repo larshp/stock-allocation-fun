@@ -436,3 +436,270 @@ CLASS ltcl_mass_run IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+"! The whole thing as it ships: real readers, the real engine, the real store,
+"! against a plant put together in the database. Only the function modules are
+"! doubled, because they are the edge of the system.
+"!
+"! What this catches that the tests above cannot is wiring: a source that was
+"! written and never added to CREATE_DEFAULT reads the same in a unit test and
+"! is missing here.
+CLASS ltcl_end_to_end DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PUBLIC SECTION.
+    INTERFACES if_ftd_invocation_answer.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'E2E-MAT-01'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '9601'.
+    CONSTANTS c_ebeln TYPE ekko-ebeln VALUE 'E2E-PO-001'.
+    CONSTANTS c_soon  TYPE vbak-vbeln VALUE 'E2E-SO-001'.
+    CONSTANTS c_late  TYPE vbak-vbeln VALUE 'E2E-SO-002'.
+
+    CONSTANTS c_create   TYPE sxco_fm_name VALUE 'BAPI_RESERVATION_CREATE1'.
+    CONSTANTS c_commit   TYPE sxco_fm_name VALUE 'BAPI_TRANSACTION_COMMIT'.
+    CONSTANTS c_rollback TYPE sxco_fm_name VALUE 'BAPI_TRANSACTION_ROLLBACK'.
+    CONSTANTS c_log      TYPE sxco_fm_name VALUE 'BAL_LOG_CREATE'.
+    CONSTANTS c_msg      TYPE sxco_fm_name VALUE 'BAL_LOG_MSG_ADD'.
+    CONSTANTS c_save     TYPE sxco_fm_name VALUE 'BAL_DB_SAVE'.
+
+    DATA mi_env   TYPE REF TO if_function_test_environment.
+    DATA mv_calls TYPE i.
+
+    METHODS setup.
+    METHODS teardown.
+
+    METHODS allocation
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
+
+    METHODS outcome_of
+      RETURNING
+        VALUE(rt_outcome) TYPE zcl_allocation_mass_run=>ty_outcome_tab.
+
+    METHODS the_plant_is_covered FOR TESTING.
+    METHODS priority_takes_the_shelf FOR TESTING.
+    METHODS the_receipt_dates_the_line FOR TESTING.
+    METHODS the_line_left_out_says_why FOR TESTING.
+    METHODS the_answer_is_written_down FOR TESTING.
+    METHODS a_test_run_writes_nothing FOR TESTING.
+
+ENDCLASS.
+
+
+CLASS ltcl_end_to_end IMPLEMENTATION.
+
+  METHOD setup.
+
+    DATA lt_deps TYPE if_function_test_environment=>tt_function_dependencies.
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_mard TYPE STANDARD TABLE OF mard WITH EMPTY KEY.
+    DATA lt_ekko TYPE STANDARD TABLE OF ekko WITH EMPTY KEY.
+    DATA lt_ekpo TYPE STANDARD TABLE OF ekpo WITH EMPTY KEY.
+    DATA lt_eket TYPE STANDARD TABLE OF eket WITH EMPTY KEY.
+    DATA lt_vbak TYPE STANDARD TABLE OF vbak WITH EMPTY KEY.
+    DATA lt_vbap TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+
+    " every function module the run reaches, doubled to answer with nothing:
+    " what they do is covered where they are called, and here they only have
+    " to exist
+    INSERT c_create INTO TABLE lt_deps.
+    INSERT c_commit INTO TABLE lt_deps.
+    INSERT c_rollback INTO TABLE lt_deps.
+    INSERT c_log INTO TABLE lt_deps.
+    INSERT c_msg INTO TABLE lt_deps.
+    INSERT c_save INTO TABLE lt_deps.
+
+    mi_env = cl_function_test_environment=>create( lt_deps ).
+    mi_env->get_double( c_create )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+    mi_env->get_double( c_commit )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+    mi_env->get_double( c_rollback )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+    mi_env->get_double( c_log )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+    mi_env->get_double( c_msg )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+    mi_env->get_double( c_save )->configure_call( )->ignore_all_parameters( )->then_answer( me ).
+
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " twenty on the shelf
+    lt_mard = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr werks = c_werks lgort = '0001' labst = '20' ) ).
+    INSERT mard FROM TABLE @lt_mard.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " and ten more landing on the tenth of March
+    lt_ekko = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln bsart = 'NB' ) ).
+    INSERT ekko FROM TABLE @lt_ekko.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_ekpo = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' matnr = c_matnr
+        werks = c_werks menge = '10' meins = 'PC' ) ).
+    INSERT ekpo FROM TABLE @lt_ekpo.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_eket = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' etenr = '0001'
+        eindt = '20260310' menge = '10' wemng = 0 ) ).
+    INSERT eket FROM TABLE @lt_eket.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " one order wanted on the fifth of March at ordinary priority, one wanted
+    " on the first of April by a customer that comes first
+    lt_vbak = VALUE #(
+      ( mandt = sy-mandt vbeln = c_soon auart = 'TA' vkorg = '1000'
+        kunnr = '0000030001' vdatu = '20260305' )
+      ( mandt = sy-mandt vbeln = c_late auart = 'TA' vkorg = '1000'
+        kunnr = '0000030002' vdatu = '20260401' ) ).
+    INSERT vbak FROM TABLE @lt_vbak.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_vbap = VALUE #(
+      ( mandt = sy-mandt vbeln = c_soon posnr = '000010' matnr = c_matnr
+        werks = c_werks vrkme = 'PC' kwmeng = '15' lprio = '02' )
+      ( mandt = sy-mandt vbeln = c_late posnr = '000010' matnr = c_matnr
+        werks = c_werks vrkme = 'PC' kwmeng = '25' lprio = '01' ) ).
+    INSERT vbap FROM TABLE @lt_vbap.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    mi_env->clear_doubles( ).
+
+    DELETE FROM zstock_alloc_res WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM vbap WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM vbak WHERE vbeln IN ( @c_soon, @c_late ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM eket WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM ekpo WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM ekko WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM mard WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD if_ftd_invocation_answer~answer.
+    " the doubles answer with nothing at all, which every caller here reads as
+    " "it worked": no BAPIRET2 rows, no reservation number, no log handle
+    mv_calls = mv_calls + 1.
+  ENDMETHOD.
+
+  METHOD outcome_of.
+
+    rt_outcome = zcl_allocation_mass_run=>create_default( )->run(
+      iv_werks    = c_werks
+      iv_simulate = abap_true ).
+
+  ENDMETHOD.
+
+  METHOD allocation.
+
+    DATA(lt_outcome) = outcome_of( ).
+
+    rt_allocation = lt_outcome[ 1 ]-run-allocation.
+
+  ENDMETHOD.
+
+  METHOD the_plant_is_covered.
+
+    DATA(lt_outcome) = outcome_of( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_outcome )
+      exp = 1
+      msg = 'the material two orders are waiting for is found without being named' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_outcome[ 1 ]-matnr
+      exp = c_matnr ).
+
+  ENDMETHOD.
+
+  METHOD priority_takes_the_shelf.
+
+    DATA(lt_line) = allocation( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_line[ demand_id = 'E2E-SO-002000010' && '0000' ]-confirmed
+      exp = '25'
+      msg = 'the urgent line takes the shelf and then the receipt' ).
+
+  ENDMETHOD.
+
+  METHOD the_receipt_dates_the_line.
+
+    DATA(lt_line) = allocation( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_line[ demand_id = 'E2E-SO-002000010' && '0000' ]-avail_date
+      exp = '20260310'
+      msg = 'twenty off the shelf and five off the receipt is there on the tenth' ).
+
+  ENDMETHOD.
+
+  METHOD the_line_left_out_says_why.
+
+    DATA(lt_line) = allocation( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_line[ demand_id = 'E2E-SO-001000010' && '0000' ]-confirmed
+      exp = 0
+      msg = 'the shelf went to the urgent line and the receipt lands too late' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_line[ demand_id = 'E2E-SO-001000010' && '0000' ]-reason
+      exp = zif_allocation=>c_reason-no_stock ).
+
+  ENDMETHOD.
+
+  METHOD the_answer_is_written_down.
+
+    zcl_allocation_mass_run=>create_default( )->run( c_werks ).
+
+    SELECT COUNT( * ) FROM zstock_alloc_res
+      WHERE werks = @c_werks
+      INTO @DATA(lv_rows).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_rows
+      exp = 2
+      msg = 'a real run records one row per demand line it answered' ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_writes_nothing.
+
+    outcome_of( ).
+
+    SELECT COUNT( * ) FROM zstock_alloc_res
+      WHERE werks = @c_werks
+      INTO @DATA(lv_rows).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_rows
+      exp = 0
+      msg = 'a test run does the whole calculation and leaves nothing behind' ).
+
+  ENDMETHOD.
+
+ENDCLASS.

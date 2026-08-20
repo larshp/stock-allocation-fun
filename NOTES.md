@@ -2057,3 +2057,32 @@ decorator into `ZCL_ALLOC_OWNED_BY`.
   store answers what the last run decided; which of those a planner wants to
   see is a question about the material master, and putting it in the store
   would have taught the store about `MARC`.
+
+### Feature 63 — a test of the whole thing as it ships (done)
+
+Every class here is tested against doubles, which is what makes the tests fast
+and the failures readable, and there is one kind of mistake it cannot catch: a
+source that was written, tested and never added to `CREATE_DEFAULT`. The class
+passes, the wiring is wrong, and the run quietly leaves a whole category of
+stock or demand out. Twenty features of composition later that is the risk
+worth spending a test on.
+
+`ltcl_end_to_end` builds a plant in the database — stock on the shelf, a
+purchase order landing in March, two sales orders at different priorities and
+dates — and runs `ZCL_ALLOCATION_MASS_RUN=>CREATE_DEFAULT` over it.
+
+- **Only the function modules are doubled**, because they are the edge of the
+  system: `BAPI_RESERVATION_CREATE1`, the two transaction BAPIs and the three
+  BAL calls. Everything inside — the readers, the netting, the engine, the
+  strategies, the store — is the real thing, wired the way the report wires it.
+- **The doubles answer with nothing**, which every caller here reads as "it
+  worked". What those calls do when they answer with something is covered
+  where they are made; here they only have to exist.
+- **The scenario is chosen so that three rules interact.** The urgent line
+  takes the shelf, the receipt lands too late for the line that wanted it
+  sooner, and the line left out says the pool did not stretch. Any one of
+  priority, the availability date or the reason breaking shows up as a
+  different number.
+- **It asserts what was written down as well as what was returned**, because
+  the recording is the part a report reads afterwards, and a test run is
+  asserted to leave the table empty.

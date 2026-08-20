@@ -27,6 +27,39 @@ CLASS lcl_supply_double IMPLEMENTATION.
 ENDCLASS.
 
 
+"! Answers with a fixed demand.
+CLASS lcl_demand_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
+  PRIVATE SECTION.
+    DATA mt_demand TYPE zif_allocation=>ty_demand_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_demand = it_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+    rt_demand = mt_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    CLEAR rt_matnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! Refuses every plant it is asked about.
 CLASS lcl_authority_refusing DEFINITION FINAL.
 
@@ -116,6 +149,8 @@ CLASS ltcl_atp_query DEFINITION FINAL FOR TESTING
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS a_refused_plant_raises FOR TESTING.
     METHODS shipping_time_moves_the_day FOR TESTING RAISING cx_static_check.
+    METHODS demand_takes_from_a_promise FOR TESTING RAISING cx_static_check.
+    METHODS later_demand_is_not_counted FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -310,6 +345,54 @@ CLASS ltcl_atp_query IMPLEMENTATION.
         iv_quantity = '5'
         iv_by_date  = '20260303' )
       msg = 'a promise the plant cannot ship in time is not a promise' ).
+
+  ENDMETHOD.
+
+  METHOD demand_takes_from_a_promise.
+
+    " ten on the shelf and six already on the books, so six is all there is
+    DATA(lo_query) = CAST zif_atp_query( NEW zcl_atp_query(
+      io_supply    = NEW lcl_supply_double( VALUE #(
+        ( avail_date = '00000000' quantity = '10' ) ) )
+      io_authority = mo_authority
+      io_demand    = NEW lcl_demand_double( VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '6' req_date = '20260201' priority = '01' ) ) ) ) ).
+
+    DATA(ls_promise) = lo_query->promise(
+      iv_matnr    = c_matnr
+      iv_werks    = c_werks
+      iv_quantity = '10' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_promise-quantity
+      exp = '4'
+      msg = 'a plant that would rather promise less than promise twice' ).
+
+  ENDMETHOD.
+
+  METHOD later_demand_is_not_counted.
+
+    " the order on the books is wanted in April; a promise for the first of
+    " March is not competing with it
+    DATA(lo_query) = CAST zif_atp_query( NEW zcl_atp_query(
+      io_supply    = NEW lcl_supply_double( VALUE #(
+        ( avail_date = '00000000' quantity = '10' ) ) )
+      io_authority = mo_authority
+      io_demand    = NEW lcl_demand_double( VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '6' req_date = '20260401' priority = '01' ) ) ) ) ).
+
+    DATA(ls_promise) = lo_query->promise(
+      iv_matnr    = c_matnr
+      iv_werks    = c_werks
+      iv_quantity = '10'
+      iv_by_date  = '20260301' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_promise-quantity
+      exp = '10'
+      msg = 'a check up to a date does not protect what is wanted after it' ).
 
   ENDMETHOD.
 

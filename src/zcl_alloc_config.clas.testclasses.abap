@@ -20,7 +20,8 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
         iv_planned  TYPE zstock_alloc_cfg-planned DEFAULT ''
         iv_whole    TYPE zstock_alloc_cfg-whole_units DEFAULT ''
         iv_sto      TYPE zstock_alloc_cfg-sto_prio DEFAULT '00'
-        iv_ship     TYPE zstock_alloc_cfg-ship_days DEFAULT 0.
+        iv_ship     TYPE zstock_alloc_cfg-ship_days DEFAULT 0
+        iv_atp_net  TYPE zstock_alloc_cfg-atp_net DEFAULT ''.
 
     METHODS config
       RETURNING
@@ -43,6 +44,7 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS an_empty_priority_is_default FOR TESTING.
     METHODS a_shipping_time_is_read FOR TESTING.
     METHODS a_negative_time_is_none FOR TESTING.
+    METHODS a_cautious_promise_is_read FOR TESTING.
 
 ENDCLASS.
 
@@ -75,7 +77,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         planned      = iv_planned
         whole_units  = iv_whole
         sto_prio     = iv_sto
-        ship_days    = iv_ship ) ).
+        ship_days    = iv_ship
+        atp_net      = iv_atp_net ) ).
 
     INSERT zstock_alloc_cfg FROM TABLE @lt_row.
     cl_abap_unit_assert=>assert_equals(
@@ -272,6 +275,17 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       act = config( )-ship_days
       exp = 0
       msg = 'goods leaving before they are picked is not a setting to obey' ).
+
+  ENDMETHOD.
+
+  METHOD a_cautious_promise_is_read.
+
+    given_settings( iv_atp_net = 'X' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-cautious_atp
+      exp = abap_true
+      msg = 'whether a promise counts what is already on the books is the plant to say' ).
 
   ENDMETHOD.
 

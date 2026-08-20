@@ -2435,3 +2435,34 @@ demand.
   The blocks, the special stock, the controller, the package and now the
   deletion flag are all the same shape, and the readers underneath them still
   know only about documents.
+
+### Feature 77 — a promise that counts what is already on the books (done)
+
+Feature 45 said plainly what its promise does not do: it does not subtract
+demand that no run has confirmed yet, so between runs two salespeople can be
+promised the same piece. For a plant that allocates nightly and sells all day,
+that is the wrong default in the other direction.
+
+`ZSTOCK_ALLOC_CFG-ATP_NET` turns the promise cautious: the demand on the books
+goes onto the timeline as negative supply on the day the goods have to be
+there, and what can be promised is what is left after all of it.
+
+Making it work made the answer better in both modes, because it forced the
+promise to be defined properly rather than walked:
+
+- **What can be promised is what the stock comes to at the end of the window**,
+  not what it reaches on the way. Walking forward and stopping the moment the
+  running total covers the quantity was right while nothing ever took stock
+  away; with demand on the timeline it would have promised ten out of ten on
+  the shelf while six of them were spoken for.
+- **The day is the earliest day from which the balance never drops below the
+  promised quantity again.** Promising it earlier would be promising stock
+  that something in between takes. Found by walking the balances backwards,
+  which for a timeline with no demand on it gives exactly the old answer: the
+  first day the stock reaches the quantity.
+- **A check up to a date does not protect what is wanted after it.** Demand
+  beyond the window is not counted, which is what an availability check means
+  and what SAP's own does.
+- **Off by default.** A promise that counts unconfirmed demand is the right
+  answer for a plant that sells all day and allocates at night, and the wrong
+  one for a plant whose orders are entered after the stock is promised.

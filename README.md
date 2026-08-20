@@ -21,7 +21,8 @@ waiting for stock it
    what is not up for allocation — open reservations, stock on deliveries that
    are waiting for their goods issue, and the plant's safety stock — plus the
    receipts still to come in on open purchasing documents from
-   `EKKO`/`EKPO`/`EKET`, each on the day it arrives,
+   `EKKO`/`EKPO`/`EKET` and on open production orders from
+   `AUFK`/`AFKO`/`AFPO`, each on the day it arrives,
 3. reads the open demand — sales orders from `VBAK`/`VBAP` and stock transport
    orders that take stock out of the plant from `EKKO`/`EKPO`/`EKET` — converts
    it to base units, takes off what has already been delivered or sent and what

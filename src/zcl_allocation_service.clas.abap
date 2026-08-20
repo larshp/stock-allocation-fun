@@ -117,7 +117,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
               ( NEW zcl_deduct_reservations( ) )
               ( NEW zcl_deduct_deliveries( ) )
               ( NEW zcl_deduct_safety_stock( ) ) ) ) ) )
-          ( NEW zcl_supply_receipts( lo_converter ) ) ) )
+          ( NEW zcl_supply_receipts( lo_converter ) )
+          ( NEW zcl_supply_production( lo_converter ) ) ) )
         io_demand_reader = NEW zcl_demand_reader_net(
           io_demand      = NEW zcl_demand_within_horizon(
             io_demand = create_default_demand( lo_converter )

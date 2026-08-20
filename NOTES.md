@@ -1199,3 +1199,60 @@ service commits, and `ZCL_ALLOC_HOUSEKEEPING` commits each removal.
 `RETURN` and the transpiler cannot declare it (ANOMALIES.md 2f). The unit tests
 double both BAPIs with `cl_function_test_environment`, so the calls are still
 checked against the real signatures by abaplint and still executed by a test.
+
+### Feature 38 — what the plant is about to make is supply too (done)
+
+Feature 34 put stock on its way onto the timeline, but only the stock somebody
+is buying. A plant that makes what it sells had nothing on the timeline beyond
+what was on the shelf: every production order in the works was invisible, so a
+line wanted the week after the order finishes came back short while the goods
+were being made for it. The two sources are the same kind of thing — a
+quantity, a day, a document somebody has committed to — and now they read the
+same way.
+
+`ZCL_SUPPLY_PRODUCTION` reads `AFPO` for the item, `AFKO` for the dates,
+`AUFK` for the order master and `JEST` for the statuses, and answers
+`ZIF_SUPPLY_READER` like every other source. Stubs for the four tables joined
+`sap-stubs/`.
+
+- **`AFPO-DWERK` is the plant**, the plant the order *delivers into*, which is
+  not always the plant it is produced in. Supply belongs where the goods land,
+  the same reasoning that made `EKPO-WERKS` the filter for a receipt.
+- **The open quantity is `PSMNG - WEMNG`.** What has already been delivered to
+  stock is in `MARD` and comes back as stock on hand; counting it here as well
+  would give it away twice. Same rule as `EKET-WEMNG`, and the reason a
+  finished order contributes nothing rather than everything.
+- **Three dates, in order of how much they promise**: the item's own delivery
+  date `AFPO-LTRMP` is what the order says about this material, `AFKO-GLTRS` is
+  what scheduling worked out for the order, `AFKO-GLTRP` is what somebody asked
+  for when it was created. The first one that is filled wins. An order with
+  none of them is left out — placing it on the timeline would mean calling it
+  available now, which is feature 34's rule for a purchasing item without a
+  schedule line.
+- **An unreleased order is still a receipt.** MRP plans against it, the
+  material is expected on the day it says, and leaving it out would hold stock
+  back from the very demand the order was created to cover. Release is a
+  statement about whether work may start, not about whether the goods are
+  coming.
+- **What does take an order out of supply** is the deletion indicator on the
+  order master, the delivery completed indicator on the item, and an active
+  system status of technically complete, closed or flagged for deletion. Those
+  three are `I0045`, `I0046` and `I0076` in `JEST`, because there is no field
+  on the order that carries them, and `JEST-INACT` marks a status the order
+  used to have and no longer has. An order in any of those states will not
+  deliver the rest of its quantity however much of it is still open, and
+  confirming against it promises goods nobody is going to make.
+- **`JEST` is read once for the material, not once per order.** It carries no
+  material or plant of its own, so it is joined through `AUFK` to `AFPO` to
+  stay selective — the same shape as the `EKET` read, and the same reason
+  feature 29 gave for buffering the material master: a plant wide run must not
+  turn one read into one read per document.
+- **Every item of an order counts on its own day.** A production order can
+  deliver its material in more than one item, and merging them would flatten
+  two different days into one, which is what feature 34 refused to do with two
+  schedule lines.
+
+Nothing else changed. The engine already walks whatever the supply sources hand
+it in date order, so a production order competes with a purchase order and with
+the shelf without knowing the others exist — which is what the composition was
+for.

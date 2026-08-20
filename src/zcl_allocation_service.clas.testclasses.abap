@@ -105,10 +105,17 @@ CLASS lcl_reservation_double DEFINITION FINAL.
       RETURNING
         VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab.
 
+    METHODS get_cancelled
+      RETURNING
+        VALUE(rt_reservation) TYPE ty_reservation_tab.
+
+    TYPES ty_reservation_tab TYPE STANDARD TABLE OF rkpf-rsnum WITH EMPTY KEY.
+
   PRIVATE SECTION.
     DATA mv_reservation TYPE rkpf-rsnum.
     DATA mv_fail        TYPE abap_bool.
     DATA mt_last        TYPE zif_allocation=>ty_allocation_tab.
+    DATA mt_cancelled   TYPE ty_reservation_tab.
 
 ENDCLASS.
 
@@ -132,6 +139,14 @@ CLASS lcl_reservation_double IMPLEMENTATION.
 
   METHOD get_last_allocation.
     rt_allocation = mt_last.
+  ENDMETHOD.
+
+  METHOD zif_reservation_writer~cancel.
+    APPEND iv_reservation TO mt_cancelled.
+  ENDMETHOD.
+
+  METHOD get_cancelled.
+    rt_reservation = mt_cancelled.
   ENDMETHOD.
 
 ENDCLASS.
@@ -252,6 +267,8 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     CONSTANTS c_werks  TYPE mard-werks VALUE '1000'.
 
     CONSTANTS c_reservation TYPE rkpf-rsnum VALUE '0000009001'.
+    CONSTANTS c_earlier_run TYPE zstock_alloc_res-run_id VALUE 'SERVICE-TEST-RUN-0000'.
+    CONSTANTS c_earlier_res TYPE rkpf-rsnum VALUE '0000008001'.
     CONSTANTS c_demand_id   TYPE zstock_alloc_res-demand_id VALUE 'D1'.
 
     DATA mo_store       TYPE REF TO zif_allocation_store.
@@ -267,8 +284,16 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
         it_demand         TYPE zif_allocation=>ty_demand_tab
         iv_refuse         TYPE abap_bool DEFAULT abap_false
         iv_fail_reserve   TYPE abap_bool DEFAULT abap_false
+        iv_recut          TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
+
+    "! A run of the same material recorded earlier, holding IV_RESERVATION.
+    METHODS given_earlier_run
+      IMPORTING
+        iv_reservation TYPE rkpf-rsnum DEFAULT c_earlier_res
+      RAISING
+        zcx_allocation.
 
     METHODS run_returns_the_allocation FOR TESTING RAISING cx_static_check.
     METHODS run_is_recorded FOR TESTING RAISING cx_static_check.
@@ -283,6 +308,10 @@ CLASS ltcl_service DEFINITION FINAL FOR TESTING
     METHODS a_run_is_committed FOR TESTING RAISING cx_static_check.
     METHODS the_record_survives_a_refusal FOR TESTING.
     METHODS a_simulation_commits_nothing FOR TESTING RAISING cx_static_check.
+    METHODS a_recut_gives_the_stock_back FOR TESTING RAISING cx_static_check.
+    METHODS without_recut_nothing_is_given FOR TESTING RAISING cx_static_check.
+    METHODS a_recut_commits_the_release FOR TESTING RAISING cx_static_check.
+    METHODS an_unreserved_run_is_skipped FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -290,8 +319,32 @@ ENDCLASS.
 CLASS ltcl_service IMPLEMENTATION.
 
   METHOD teardown.
+
     DELETE FROM zstock_alloc_res WHERE run_id = @c_run_id.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM zstock_alloc_res WHERE run_id = @c_earlier_run.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD given_earlier_run.
+
+    mo_store->save(
+      iv_run_id     = c_earlier_run
+      iv_matnr      = c_matnr
+      iv_werks      = c_werks
+      it_allocation = VALUE #(
+        ( demand_id = c_demand_id requested = '5' confirmed = '5' shortfall = 0 ) ) ).
+
+    IF iv_reservation IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    mo_store->record_reservation(
+      iv_run_id      = c_earlier_run
+      iv_reservation = iv_reservation ).
+
   ENDMETHOD.
 
   METHOD service_with.
@@ -313,7 +366,8 @@ CLASS ltcl_service IMPLEMENTATION.
       io_reservation = mo_reservation
       io_authority   = NEW lcl_authority_double( iv_refuse )
       io_lock        = mo_lock
-      io_commit      = mo_commit ).
+      io_commit      = mo_commit
+      iv_recut       = iv_recut ).
 
   ENDMETHOD.
 
@@ -602,6 +656,91 @@ CLASS ltcl_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_bound(
       act = zcl_allocation_service=>create_default( iv_horizon_days = 30 )
       msg = 'the horizon must be settable from outside' ).
+
+  ENDMETHOD.
+
+  METHOD a_recut_gives_the_stock_back.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_recut     = abap_true ).
+
+    given_earlier_run( ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation->get_cancelled( )
+      exp = VALUE lcl_reservation_double=>ty_reservation_tab( ( c_earlier_res ) )
+      msg = 'what an earlier run set aside goes back into the pool first' ).
+
+  ENDMETHOD.
+
+  METHOD without_recut_nothing_is_given.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    given_earlier_run( ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_reservation->get_cancelled( )
+      msg = 'an ordinary run adds to what was decided, it does not undo it' ).
+
+  ENDMETHOD.
+
+  METHOD a_recut_commits_the_release.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_recut     = abap_true ).
+
+    given_earlier_run( ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->get_commits( )
+      exp = 3
+      msg = 'the release is committed before the readers run, then the two of the run' ).
+
+  ENDMETHOD.
+
+  METHOD an_unreserved_run_is_skipped.
+
+    DATA(lo_cut) = service_with(
+      iv_available = '7'
+      it_demand    = VALUE #(
+        ( demand_id = c_demand_id matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) )
+      iv_recut     = abap_true ).
+
+    given_earlier_run( '0000000000' ).
+
+    lo_cut->run(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_reservation->get_cancelled( )
+      msg = 'a run whose reservation was rejected holds nothing to give back' ).
 
   ENDMETHOD.
 

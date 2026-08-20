@@ -93,6 +93,47 @@ CLASS zcl_allocation_store IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_allocation_store~runs_of_material.
+
+    TYPES:
+      BEGIN OF ty_row,
+        run_id      TYPE zstock_alloc_res-run_id,
+        matnr       TYPE zstock_alloc_res-matnr,
+        werks       TYPE zstock_alloc_res-werks,
+        reservation TYPE zstock_alloc_res-reservation,
+        created_at  TYPE zstock_alloc_res-created_at,
+      END OF ty_row.
+    DATA lt_row TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+
+    SELECT run_id,
+           matnr,
+           werks,
+           reservation,
+           created_at
+      FROM zstock_alloc_res
+      WHERE matnr = @iv_matnr
+        AND werks = @iv_werks
+      ORDER BY created_at DESCENDING, run_id
+      INTO TABLE @lt_row.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    " the table holds one row per demand line, and every row of a run answers
+    " this the same way
+    LOOP AT lt_row INTO DATA(ls_row).
+      IF line_exists( rt_run[ run_id = ls_row-run_id ] ).
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        run_id      = ls_row-run_id
+        matnr       = ls_row-matnr
+        werks       = ls_row-werks
+        reservation = ls_row-reservation ) TO rt_run.
+    ENDLOOP.
+
+  ENDMETHOD.
+
   METHOD zif_allocation_store~latest_per_material.
 
     TYPES:

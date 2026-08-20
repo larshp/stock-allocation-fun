@@ -22,4 +22,19 @@ INTERFACE zif_reservation_writer PUBLIC.
     RAISING
       zcx_allocation.
 
+  "! <p class="shorttext synchronized">Give an earlier reservation back</p>
+  "!
+  "! What a run does before allocating afresh: the stock an earlier run set
+  "! aside goes back into the pool, so the demand that is on the books today
+  "! competes for all of it rather than for what is left over. A reservation
+  "! that is already gone is not an error -- the stock is free either way.
+  "!
+  "! @parameter iv_reservation | <p class="shorttext synchronized">Reservation to give back</p>
+  "! @raising   zcx_allocation | <p class="shorttext synchronized">Reservation could not be cancelled</p>
+  METHODS cancel
+    IMPORTING
+      iv_reservation TYPE rkpf-rsnum
+    RAISING
+      zcx_allocation.
+
 ENDINTERFACE.

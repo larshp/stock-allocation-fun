@@ -17,8 +17,11 @@ CLASS zcl_reservation_writer DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    TYPES ty_item_tab   TYPE STANDARD TABLE OF bapi2093_res_item WITH EMPTY KEY.
-    TYPES ty_return_tab TYPE STANDARD TABLE OF bapiret2 WITH EMPTY KEY.
+    TYPES ty_item_tab    TYPE STANDARD TABLE OF bapi2093_res_item WITH EMPTY KEY.
+    TYPES ty_return_tab  TYPE STANDARD TABLE OF bapiret2 WITH EMPTY KEY.
+    TYPES ty_change_tab  TYPE STANDARD TABLE OF bapi2093_res_item_change WITH EMPTY KEY.
+    TYPES ty_changex_tab TYPE STANDARD TABLE OF bapi2093_res_item_changex WITH EMPTY KEY.
+    TYPES ty_rspos_tab   TYPE STANDARD TABLE OF resb-rspos WITH EMPTY KEY.
 
     DATA mv_move_type TYPE rkpf-bwart.
 
@@ -36,6 +39,12 @@ CLASS zcl_reservation_writer DEFINITION PUBLIC FINAL CREATE PUBLIC.
         it_return TYPE ty_return_tab
       RAISING
         zcx_allocation.
+
+    METHODS live_items_of
+      IMPORTING
+        iv_reservation  TYPE rkpf-rsnum
+      RETURNING
+        VALUE(rt_rspos) TYPE ty_rspos_tab.
 
 ENDCLASS.
 
@@ -76,6 +85,57 @@ CLASS zcl_reservation_writer IMPLEMENTATION.
     raise_on_error( lt_return ).
 
     rv_reservation = lv_reservation.
+
+  ENDMETHOD.
+
+  METHOD zif_reservation_writer~cancel.
+
+    DATA lt_item   TYPE ty_change_tab.
+    DATA lt_itemx  TYPE ty_changex_tab.
+    DATA lt_return TYPE ty_return_tab.
+
+    IF iv_reservation IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " an item that is already deleted is left alone: there is nothing to give
+    " back, and a BAPI told to delete what is deleted answers with an error
+    " that says nothing went wrong
+    DATA(lt_rspos) = live_items_of( iv_reservation ).
+    IF lt_rspos IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_rspos INTO DATA(lv_rspos).
+      APPEND VALUE #( res_item   = lv_rspos
+                      delete_ind = abap_true ) TO lt_item.
+      APPEND VALUE #( res_item   = lv_rspos
+                      delete_ind = abap_true ) TO lt_itemx.
+    ENDLOOP.
+
+    CALL FUNCTION 'BAPI_RESERVATION_CHANGE'
+      EXPORTING
+        reservation       = iv_reservation
+      TABLES
+        reservationitems  = lt_item
+        reservationitemsx = lt_itemx
+        return            = lt_return.
+
+    raise_on_error( lt_return ).
+
+  ENDMETHOD.
+
+  METHOD live_items_of.
+
+    SELECT rspos
+      FROM resb
+      WHERE rsnum = @iv_reservation
+        AND xloek = @space
+      ORDER BY rspos
+      INTO TABLE @rt_rspos.
+    IF sy-subrc <> 0.
+      CLEAR rt_rspos.
+    ENDIF.
 
   ENDMETHOD.
 

@@ -72,6 +72,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_RECUT</KEY>
+     <ENTRY>Give earlier allocations back first</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Test run, change nothing</ENTRY>
      <LENGTH>24</LENGTH>

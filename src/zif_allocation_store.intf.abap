@@ -87,6 +87,22 @@ INTERFACE zif_allocation_store PUBLIC.
     RETURNING
       VALUE(rt_run) TYPE ty_run_head_tab.
 
+  "! <p class="shorttext synchronized">Runs recorded for one material in one plant</p>
+  "!
+  "! One entry per run, newest first. What a run that is about to re-cut an
+  "! allocation reads: the earlier runs of this material, so their reservations
+  "! can be given back before it starts.
+  "!
+  "! @parameter iv_matnr | <p class="shorttext synchronized">Material number</p>
+  "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+  "! @parameter rt_run   | <p class="shorttext synchronized">One entry per recorded run</p>
+  METHODS runs_of_material
+    IMPORTING
+      iv_matnr      TYPE mard-matnr
+      iv_werks      TYPE mard-werks
+    RETURNING
+      VALUE(rt_run) TYPE ty_run_head_tab.
+
   "! <p class="shorttext synchronized">What the last run decided, per material</p>
   "!
   "! A material is allocated again and again, and only the newest answer for it

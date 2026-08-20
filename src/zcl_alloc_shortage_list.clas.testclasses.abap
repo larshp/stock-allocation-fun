@@ -38,6 +38,10 @@ CLASS lcl_store_double IMPLEMENTATION.
     CLEAR rt_run.
   ENDMETHOD.
 
+  METHOD zif_allocation_store~runs_of_material.
+    CLEAR rt_run.
+  ENDMETHOD.
+
   METHOD zif_allocation_store~record_reservation.
     CLEAR mv_written.
   ENDMETHOD.

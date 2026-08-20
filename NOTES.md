@@ -1635,3 +1635,48 @@ and turn them into one list across the plant.
 It changes nothing and checks display authority, like the other read-only
 programs. There is no allocation logic in it at all: everything it shows was
 decided by a run and written down.
+
+### Feature 49 — a run can take back what an earlier one set aside (done)
+
+Every run so far could only add. Feature 18 made sure a line already served is
+not served twice, feature 26 made sure a live reservation still counts, and
+between them a decision once made was permanent until housekeeping removed it.
+That is right for a plant where demand only ever arrives, and wrong for every
+other one: an urgent order that comes in this morning can only have what last
+night's run happened to leave over, however far away the lines holding the rest
+are due.
+
+SAP calls the answer backorder rescheduling. Here it is one switch on the run:
+give the earlier allocations back, then allocate everything from scratch.
+
+- **Cancelling is part of earmarking**, so `ZIF_RESERVATION_WRITER` gained
+  `CANCEL` rather than a new interface. Whoever knows how to hold stock back
+  knows how to stop holding it.
+- **Only what is still held is given back.** The items of the reservation are
+  read first and the ones already carrying `RESB-XLOEK` are left alone: there
+  is nothing to release, and a BAPI told to delete what is deleted answers with
+  an error that means nothing went wrong.
+- **The release happens inside the lock.** Feature 19's lock is taken before
+  anything is read; the release sits inside it, so no other run can take the
+  freed stock between the moment it is given back and the moment it is
+  allocated again.
+- **And it is committed before the readers run.** The stock deduction and the
+  demand netting both ask the database what is still reserved. A cancellation
+  nobody has committed is not there yet, and the run would give away the same
+  stock twice — the same reasoning feature 37 gave for `WAIT = 'X'`.
+- **The recorded runs stay.** They are what was decided at the time, the
+  display shows the newest one anyway, and housekeeping removes them once they
+  are old and no longer holding anything back. Deleting them here would throw
+  away the only record that the earlier promise was ever made.
+- **A run whose reservation was rejected holds nothing**, so there is nothing
+  to cancel and it is skipped. Feature 37 left that state deliberately
+  reachable and this is one more thing that has to cope with it.
+- **It is off by default and lives on the screen, not in Customizing.**
+  Whether tonight's job re-cuts is a decision about tonight — a plant does not
+  want its allocations re-cut every night by accident, and the switch that says
+  "throw last night's promises open again" should be one somebody ticks.
+
+`BAPI_RESERVATION_CHANGE` joins the stub function group, with the two item
+structures it takes. The X structure is honoured: a field is only taken when
+the change indicator says so, which is what makes a blank different from a
+field nobody set, and the stub refuses a reservation that is not there.

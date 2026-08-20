@@ -10,6 +10,7 @@ PARAMETERS p_lgort TYPE mard-lgort.
 PARAMETERS p_cap TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
+PARAMETERS p_recut AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
@@ -59,6 +60,7 @@ START-OF-SELECTION.
       iv_cap_percent  = ls_settings-cap_percent
       iv_planned      = ls_settings-planned
       iv_whole_units  = ls_settings-whole_units
+      iv_recut        = p_recut
       it_dispo        = lt_dispo ) ).
 
   DATA(lt_line) = lo_report->run(

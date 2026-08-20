@@ -11,6 +11,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_cap_percent   | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_planned       | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_whole_units   | <p class="shorttext synchronized">Confirm whole order units only</p>
+    "! @parameter iv_recut         | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -20,6 +21,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_planned        TYPE abap_bool DEFAULT abap_false
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
+        iv_recut          TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -64,6 +66,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
     "! @parameter io_lock        | <p class="shorttext synchronized">Keeps two runs off the same material</p>
     "! @parameter io_commit      | <p class="shorttext synchronized">Makes what the run wrote durable</p>
+    "! @parameter iv_recut       | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
     METHODS constructor
       IMPORTING
         io_engine      TYPE REF TO zcl_allocation_engine
@@ -72,7 +75,8 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_reservation TYPE REF TO zif_reservation_writer
         io_authority   TYPE REF TO zif_allocation_authority
         io_lock        TYPE REF TO zif_allocation_lock
-        io_commit      TYPE REF TO zif_unit_of_work.
+        io_commit      TYPE REF TO zif_unit_of_work
+        iv_recut       TYPE abap_bool DEFAULT abap_false.
 
   PRIVATE SECTION.
     DATA mo_engine      TYPE REF TO zcl_allocation_engine.
@@ -82,6 +86,14 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
     DATA mo_lock        TYPE REF TO zif_allocation_lock.
     DATA mo_commit      TYPE REF TO zif_unit_of_work.
+    DATA mv_recut       TYPE abap_bool.
+
+    METHODS release_earlier
+      IMPORTING
+        iv_matnr TYPE mard-matnr
+        iv_werks TYPE mard-werks
+      RAISING
+        zcx_allocation.
 
     METHODS allocate_and_record
       IMPORTING
@@ -146,7 +158,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_reservation = NEW zcl_reservation_writer( )
       io_authority   = NEW zcl_authority_plant( )
       io_lock        = NEW zcl_lock_material( )
-      io_commit      = NEW zcl_unit_of_work( ) ).
+      io_commit      = NEW zcl_unit_of_work( )
+      iv_recut       = iv_recut ).
 
   ENDMETHOD.
 
@@ -213,6 +226,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     mo_authority   = io_authority.
     mo_lock        = io_lock.
     mo_commit      = io_commit.
+    mv_recut       = iv_recut.
 
   ENDMETHOD.
 
@@ -230,6 +244,15 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " CATCH and re-raise rather than CLEANUP: the transpiler drops the body of
     " a CLEANUP block, so the lock would never come back. See ANOMALIES.md.
     TRY.
+        " what earlier runs set aside goes back into the pool first, so this
+        " one sees all of it. It happens inside the lock, so nobody can take
+        " the freed stock between giving it back and allocating it again.
+        IF mv_recut = abap_true.
+          release_earlier(
+            iv_matnr = iv_matnr
+            iv_werks = iv_werks ).
+        ENDIF.
+
         rs_run = allocate_and_record(
           iv_matnr = iv_matnr
           iv_werks = iv_werks ).
@@ -259,6 +282,31 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     rs_run-allocation = mo_engine->allocate_open_demand(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
+
+  ENDMETHOD.
+
+  METHOD release_earlier.
+
+    LOOP AT mo_store->runs_of_material(
+        iv_matnr = iv_matnr
+        iv_werks = iv_werks ) INTO DATA(ls_run).
+
+      IF ls_run-reservation IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      mo_reservation->cancel( ls_run-reservation ).
+
+    ENDLOOP.
+
+    " and it has to be on the database before the readers run: the stock
+    " deduction and the demand netting both ask the database what is still
+    " reserved, and a cancellation nobody has committed is not there yet
+    mo_commit->commit( ).
+
+    " the recorded runs stay. They are what was decided at the time, the
+    " display shows the newest one anyway, and housekeeping removes them once
+    " they are old and no longer holding anything back.
 
   ENDMETHOD.
 

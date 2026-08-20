@@ -42,6 +42,8 @@ CLASS ltcl_allocation_store DEFINITION FINAL FOR TESTING
     METHODS deleted_run_reads_empty FOR TESTING RAISING cx_static_check.
     METHODS unknown_run_cannot_be_deleted FOR TESTING.
     METHODS the_day_it_is_there_is_kept FOR TESTING RAISING cx_static_check.
+    METHODS runs_of_a_material_are_listed FOR TESTING RAISING cx_static_check.
+    METHODS another_material_is_not_listed FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -231,6 +233,36 @@ CLASS ltcl_allocation_store IMPLEMENTATION.
         cl_abap_unit_assert=>fail( 'linking a run that was never saved must not pass silently' ).
       CATCH zcx_allocation.
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD runs_of_a_material_are_listed.
+
+    given_old_run( c_run_id ).
+
+    mo_cut->record_reservation(
+      iv_run_id      = c_run_id
+      iv_reservation = '0000007001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->runs_of_material(
+        iv_matnr = c_matnr
+        iv_werks = c_werks )
+      exp = VALUE zif_allocation_store=>ty_run_head_tab(
+        ( run_id = c_run_id matnr = c_matnr werks = c_werks reservation = '0000007001' ) )
+      msg = 'a run of two demand lines is one run, and it says what it holds' ).
+
+  ENDMETHOD.
+
+  METHOD another_material_is_not_listed.
+
+    given_old_run( c_run_id ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->runs_of_material(
+        iv_matnr = 'STORE-TEST-99'
+        iv_werks = c_werks )
+      msg = 'a re-cut of one material must not give another one back' ).
 
   ENDMETHOD.
 

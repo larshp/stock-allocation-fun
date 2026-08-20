@@ -4,6 +4,8 @@ CLASS cl_stub_reservation DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_item_tab   TYPE STANDARD TABLE OF bapi2093_res_item WITH EMPTY KEY.
     TYPES ty_return_tab TYPE STANDARD TABLE OF bapiret2 WITH EMPTY KEY.
+    TYPES ty_change_tab TYPE STANDARD TABLE OF bapi2093_res_item_change WITH EMPTY KEY.
+    TYPES ty_changex_tab TYPE STANDARD TABLE OF bapi2093_res_item_changex WITH EMPTY KEY.
 
     TYPES:
       BEGIN OF ty_result,
@@ -26,6 +28,25 @@ CLASS cl_stub_reservation DEFINITION PUBLIC FINAL CREATE PUBLIC.
         it_item          TYPE ty_item_tab
       RETURNING
         VALUE(rs_result) TYPE ty_result.
+
+    "! <p class="shorttext synchronized">Change the items of an existing reservation</p>
+    "!
+    "! Carries the part of BAPI_RESERVATION_CHANGE the custom code depends on:
+    "! an item whose deletion indicator is set and marked as changed gets
+    "! RESB-XLOEK, which is what the readers of a live reservation look at. A
+    "! reservation that is not there is refused.
+    "!
+    "! @parameter iv_reservation | <p class="shorttext synchronized">Reservation number</p>
+    "! @parameter it_item        | <p class="shorttext synchronized">Items as they are to be</p>
+    "! @parameter it_itemx       | <p class="shorttext synchronized">Which of their fields to take</p>
+    "! @parameter rt_message     | <p class="shorttext synchronized">What the BAPI would say</p>
+    CLASS-METHODS change
+      IMPORTING
+        iv_reservation    TYPE rkpf-rsnum
+        it_item           TYPE ty_change_tab
+        it_itemx          TYPE ty_changex_tab
+      RETURNING
+        VALUE(rt_message) TYPE ty_return_tab.
 
   PRIVATE SECTION.
 
@@ -98,6 +119,56 @@ CLASS cl_stub_reservation IMPLEMENTATION.
                     number     = '060'
                     message    = 'Reservation created'
                     message_v1 = lv_rsnum ) TO rs_result-messages.
+
+  ENDMETHOD.
+
+  METHOD change.
+
+    DATA lv_touched    TYPE abap_bool.
+    DATA lt_item_range TYPE RANGE OF resb-rspos.
+
+    SELECT SINGLE rsnum FROM rkpf
+      WHERE rsnum = @iv_reservation
+      INTO @DATA(lv_rsnum).
+    IF sy-subrc <> 0.
+      APPEND error(
+        iv_number  = '003'
+        iv_message = 'Reservation does not exist' ) TO rt_message.
+      RETURN.
+    ENDIF.
+
+    " a field is only taken when the X structure says so, which is how every
+    " change BAPI tells a blank apart from a field nobody set
+    LOOP AT it_item INTO DATA(ls_item).
+      IF line_exists( it_itemx[ res_item   = ls_item-res_item
+                                delete_ind = abap_true ] ).
+        APPEND VALUE #( sign   = 'I'
+                        option = 'EQ'
+                        low    = ls_item-res_item ) TO lt_item_range.
+      ENDIF.
+    ENDLOOP.
+
+    IF lt_item_range IS NOT INITIAL.
+      UPDATE resb SET xloek = @abap_true
+        WHERE rsnum = @lv_rsnum
+          AND rspos IN @lt_item_range.
+      IF sy-subrc = 0.
+        lv_touched = abap_true.
+      ENDIF.
+    ENDIF.
+
+    IF lv_touched = abap_false.
+      APPEND error(
+        iv_number  = '004'
+        iv_message = 'No reservation item was changed' ) TO rt_message.
+      RETURN.
+    ENDIF.
+
+    APPEND VALUE #( type       = 'S'
+                    id         = 'M7'
+                    number     = '061'
+                    message    = 'Reservation changed'
+                    message_v1 = lv_rsnum ) TO rt_message.
 
   ENDMETHOD.
 

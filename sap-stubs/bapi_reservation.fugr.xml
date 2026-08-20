@@ -34,6 +34,30 @@
       </RSTBL>
      </TABLES>
     </item>
+    <item>
+     <FUNCNAME>BAPI_RESERVATION_CHANGE</FUNCNAME>
+     <SHORT_TEXT>Change Reservation</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>RESERVATION</PARAMETER>
+       <TYP>RKPF-RSNUM</TYP>
+      </RSIMP>
+     </IMPORT>
+     <TABLES>
+      <RSTBL>
+       <PARAMETER>RESERVATIONITEMS</PARAMETER>
+       <DBSTRUCT>BAPI2093_RES_ITEM_CHANGE</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RESERVATIONITEMSX</PARAMETER>
+       <DBSTRUCT>BAPI2093_RES_ITEM_CHANGEX</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RETURN</PARAMETER>
+       <DBSTRUCT>BAPIRET2</DBSTRUCT>
+      </RSTBL>
+     </TABLES>
+    </item>
    </FUNCTIONS>
   </asx:values>
  </asx:abap>

@@ -59,6 +59,12 @@ each material that was skipped. Create the log object once with `SLG0` — it
 is Customizing, not a repository object. Without it the run allocates exactly
 as before and keeps no log.
 
+Ticking **Give earlier allocations back first** re-cuts instead of adding: the
+run cancels the reservations its earlier runs left on the material, so all the
+demand on the books today competes for all the stock rather than for what is
+left over. That is what makes an urgent order that arrived this morning able to
+take stock from a line that is not due for a month.
+
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 

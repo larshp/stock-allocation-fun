@@ -138,6 +138,16 @@
      <MASK>  DATS</MASK>
      <DDTEXT>Requirement Date</DDTEXT>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>SGTXT</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000100</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000050</LENG>
+     <MASK>  CHAR</MASK>
+     <DDTEXT>Item Text</DDTEXT>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

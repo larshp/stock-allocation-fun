@@ -102,7 +102,8 @@ CLASS cl_stub_reservation IMPLEMENTATION.
                       lgort = ls_item-stge_loc
                       bdmng = ls_item-entry_qnt
                       meins = ls_item-entry_uom
-                      bdter = ls_item-req_date ) TO lt_resb.
+                      bdter = ls_item-req_date
+                      sgtxt = ls_item-item_text ) TO lt_resb.
     ENDLOOP.
 
     INSERT resb FROM TABLE @lt_resb.

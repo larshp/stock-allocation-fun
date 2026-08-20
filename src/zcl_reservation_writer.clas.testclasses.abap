@@ -30,6 +30,7 @@ CLASS ltcl_reservation_writer DEFINITION FINAL FOR TESTING
     METHODS unconfirmed_lines_are_skipped FOR TESTING RAISING cx_static_check.
     METHODS nothing_confirmed_skips_bapi FOR TESTING RAISING cx_static_check.
     METHODS header_carries_move_type FOR TESTING RAISING cx_static_check.
+    METHODS the_item_names_the_line FOR TESTING RAISING cx_static_check.
     METHODS error_message_raises FOR TESTING.
     METHODS success_message_is_no_error FOR TESTING RAISING cx_static_check.
 
@@ -103,9 +104,9 @@ CLASS ltcl_reservation_writer IMPLEMENTATION.
       act = mt_seen
       exp = VALUE ty_item_tab(
         ( material = c_matnr plant = c_werks stge_loc = '0001'
-          entry_qnt = '4' req_date = '20260210' )
+          entry_qnt = '4' req_date = '20260210' item_text = 'ALLOC D1' )
         ( material = c_matnr plant = c_werks stge_loc = '0001'
-          entry_qnt = '5' req_date = '20260215' ) ) ).
+          entry_qnt = '5' req_date = '20260215' item_text = 'ALLOC D2' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_reservation
@@ -162,6 +163,22 @@ CLASS ltcl_reservation_writer IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ms_seen_head-created_by
       exp = sy-uname ).
+
+  ENDMETHOD.
+
+  METHOD the_item_names_the_line.
+
+    mo_cut->reserve(
+      iv_matnr      = c_matnr
+      iv_werks      = c_werks
+      it_allocation = VALUE #(
+        ( demand_id = '00000047110000100001' req_date = '20260210'
+          requested = '10' confirmed = '10' shortfall = 0 ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = mt_seen[ 1 ]-item_text
+      exp = '*00000047110000100001*'
+      msg = 'a quantity held in MB23 by nobody knows what is a quantity nobody trusts' ).
 
   ENDMETHOD.
 

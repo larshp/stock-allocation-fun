@@ -3,6 +3,10 @@ CLASS zcl_reservation_writer DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_reservation_writer.
 
+    "! What the item text of an allocation's reservation item starts with, so
+    "! that a text this solution wrote can be told from one somebody typed.
+    CONSTANTS c_text_prefix TYPE c LENGTH 5 VALUE 'ALLOC'.
+
     "! Movement type an allocation reserves under. Which one a system uses is
     "! Customizing; 311 is a plant internal transfer and is a safe default for
     "! earmarking stock that has been promised but not yet issued.
@@ -142,14 +146,20 @@ CLASS zcl_reservation_writer IMPLEMENTATION.
   METHOD build_items.
 
     " the unit of entry is left empty on purpose, the BAPI then falls back to
-    " the base unit of measure of the material
+    " the base unit of measure of the material.
+    "
+    " The item text carries the demand line the item is holding stock for.
+    " Nothing in SAP links a manual reservation item back to the sales order
+    " line it was created for, and without it a planner looking at MB23 sees a
+    " quantity held by nobody knows what.
     LOOP AT it_allocation INTO DATA(ls_allocation) WHERE confirmed > 0.
       APPEND VALUE #(
         material  = iv_matnr
         plant     = iv_werks
         stge_loc  = iv_lgort
         entry_qnt = ls_allocation-confirmed
-        req_date  = ls_allocation-req_date ) TO rt_item.
+        req_date  = ls_allocation-req_date
+        item_text = |{ c_text_prefix } { ls_allocation-demand_id }| ) TO rt_item.
     ENDLOOP.
 
   ENDMETHOD.

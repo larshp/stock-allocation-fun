@@ -1953,3 +1953,25 @@ what is left at the end, week by week. `ZSTOCK_ALLOC_PROJ` shows it.
   the first negative number in a column.
 - **A projection that ends well says so**, because a report that just stops is
   a report somebody re-runs to check it worked.
+
+### Feature 59 — a reservation that says what it is holding stock for (done)
+
+A reservation created by a run has one item per confirmed line, and nothing
+says which line. In `MB23` a planner sees a quantity held back by a
+reservation with a number they have never seen, created by a background user,
+against a movement type used for half a dozen things. The link exists in
+`ZSTOCK_ALLOC_RES`, which is this solution's own table and not where anybody
+looking at a reservation starts.
+
+The item text now carries it: `ALLOC` and the demand line the item is for.
+
+- **A prefix, so it can be told apart.** A text this solution wrote looks
+  different from one somebody typed, which matters the moment anybody starts
+  reading these programmatically — including the next feature in this
+  repository.
+- **It is the demand id**, the same string the recorded result and both reports
+  use, so a reservation item, a line in the run and a line in `SLG1` all name
+  the requirement the same way.
+- **Nothing reads it back yet.** It is there for a person in `MB23` and for the
+  consistency check to grow into; writing it costs one field on a structure the
+  BAPI already takes.

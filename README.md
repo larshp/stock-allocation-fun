@@ -106,6 +106,11 @@ stands against a customer order, and how long a recorded run is kept. Both progr
 the plant; unticking **Settings come from the plant** hands the screen back to
 somebody trying something out. A plant with no row gets the defaults.
 
+`ZSTOCK_ALLOC_CHECK` compares every recorded run with the reservation it
+claims and lists the ones that no longer agree — gone, holding less, holding
+more, or never reserved at all. Somebody with `MB22` can change a reservation
+and the netting will believe it; this is how that shows up.
+
 `ZSTOCK_ALLOC_REORG` keeps `ZSTOCK_ALLOC_RES` from growing forever. It removes
 recorded runs that are past the retention time **and** are no longer holding
 anything back — a run whose reservation was rejected, deleted or is otherwise

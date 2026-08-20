@@ -29,4 +29,28 @@ CLASS zcl_reservation_reader IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_reservation_reader~held_quantity.
+
+    IF iv_reservation IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " the same definition of live as above: an item flagged for deletion holds
+    " nothing, and a reservation whose items are all flagged holds nothing at
+    " all rather than not existing
+    SELECT SUM( bdmng )
+      FROM resb
+      WHERE rsnum = @iv_reservation
+        AND xloek = @space
+      INTO @DATA(lv_quantity).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    IF lv_quantity > 0.
+      rv_quantity = lv_quantity.
+    ENDIF.
+
+  ENDMETHOD.
+
 ENDCLASS.

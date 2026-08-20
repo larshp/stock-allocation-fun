@@ -19,4 +19,18 @@ INTERFACE zif_reservation_reader PUBLIC.
     RETURNING
       VALUE(rt_reservation) TYPE ty_reservation_tab.
 
+  "! <p class="shorttext synchronized">Quantity a reservation is still holding</p>
+  "!
+  "! The items that have not been flagged for deletion, added up. What a run
+  "! promised and what its reservation holds should be the same number, and
+  "! this is the second half of that comparison.
+  "!
+  "! @parameter iv_reservation | <p class="shorttext synchronized">Reservation number</p>
+  "! @parameter rv_quantity    | <p class="shorttext synchronized">Quantity still held, zero if it is gone</p>
+  METHODS held_quantity
+    IMPORTING
+      iv_reservation     TYPE rkpf-rsnum
+    RETURNING
+      VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
 ENDINTERFACE.

@@ -1891,3 +1891,33 @@ and `ZCL_ALLOC_HOUSEKEEPING` takes a log like the mass run does.
 - **The reorg is otherwise untouched.** It reads the plant's retention from
   Customizing, removes what is not holding anything back, and now says so
   where `SLG1` can find it.
+
+### Feature 57 — where a run and its reservation disagree (done)
+
+A recorded run says how much it confirmed; its reservation is what actually
+holds that stock back. Feature 37 writes the two in one unit of work so they
+start out agreeing, and after that they are on their own: anybody with `MB22`
+can change or delete the reservation, a goods issue can consume it, and the
+demand netting goes on believing whichever one it happens to read. The two
+drifting apart is not a bug that can be prevented from inside — it is a thing
+that has to be *noticed*.
+
+`ZSTOCK_ALLOC_CHECK` notices it. One line per run that no longer matches, and
+a footer saying how many were looked at.
+
+- **Four ways to disagree, and they mean different things.** A reservation
+  that is gone means the stock is free again and the record is stale; one
+  holding less means somebody took part of it; one holding more means stock is
+  held back that no run admits to; never reserved at all is the state feature
+  37 deliberately leaves behind for somebody to retry. A single "inconsistent"
+  would have made the report useless.
+- **Agreement is silent.** A check that lists everything it checked is a check
+  nobody reads twice.
+- **`HELD_QUANTITY` joins `ZIF_RESERVATION_READER`**, next to the question of
+  whether a reservation is live at all. What counts as live is defined once
+  (feature 26) and the quantity is measured the same way, so the check and the
+  netting cannot disagree about what they are looking at.
+- **It changes nothing, not even the stale records it finds.** What to do about
+  a run whose reservation is gone is a decision — re-run the material, or leave
+  housekeeping to remove the record — and a report that quietly picked one
+  would be the thing nobody expected.

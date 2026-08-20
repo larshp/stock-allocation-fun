@@ -14,7 +14,7 @@ CLASS zcl_demand_sources DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter it_source | <p class="shorttext synchronized">Where demand comes from, one per kind</p>
     METHODS constructor
       IMPORTING
-        it_source TYPE ty_source_tab.
+        it_source TYPE ty_source_tab OPTIONAL.
 
   PRIVATE SECTION.
     DATA mt_source TYPE ty_source_tab.

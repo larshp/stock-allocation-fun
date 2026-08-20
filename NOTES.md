@@ -2708,3 +2708,39 @@ run now would decide.
 - **No simulator wired in means no preview**, and the report says so by
   answering with nothing changing rather than by failing: a caller that
   constructed the class without one asked for a look back.
+
+### Feature 85 — a customer can add its own source in Customizing (done)
+
+Every part of this a plant is likely to want to change already sits behind an
+interface, but using that meant writing a factory method of your own and
+keeping it in step with `ZCL_ALLOCATION_SERVICE` through every upgrade — which
+is a modification with extra steps. `ZSTOCK_ALLOC_EXT` is the same seam without
+the copy: name a class that implements `ZIF_SUPPLY_READER` or
+`ZIF_DEMAND_READER` and it joins the sources the run reads.
+
+- **The plant is settled when a material is read, not when the graph is built.**
+  The first shape of this threaded the plant down through `CREATE_DEFAULT` into
+  both factory methods, which meant every caller that builds a graph before it
+  knows the plant — the comparison, the projection, the promise — had to be
+  told twice. `READ_SUPPLY` already takes the plant, so `ZCL_SUPPLY_EXTENSION`
+  looks the classes up per plant at read time and buffers them. Nothing else in
+  the solution changed shape.
+- **Creating late is what makes a typo survivable.** A class name in a
+  Customizing table is a class name somebody typed. Creating it in a factory
+  method turns a typo into a short dump before the run starts; creating it on
+  first read turns it into one material that failed and said which class,
+  written to the log, with the rest of the plant carrying on.
+- **Supply that cannot be read stops the material.** The one thing a stock
+  allocation must never do is allocate as though a source were empty when it
+  could not be asked. `MATERIALS_WITH_DEMAND` cannot raise, so a broken
+  configuration contributes nothing to the list and fails loudly at the read
+  that follows — which is the read that matters.
+- **A plant is remembered only once all of its classes were created**, so a
+  configuration that does not work says so every time rather than answering
+  with the half of it that happened to load.
+- **The composites became creatable with no sources at all.** `IT_SOURCE` on
+  `ZCL_SUPPLY_SOURCES` and `ZCL_DEMAND_SOURCES` is now optional, which is what
+  a composite over nothing should have meant all along and gives the tests a
+  shipped, parameterless class to point the configuration at.
+- **A row without a plant applies everywhere**, the same shape as the customer
+  priorities in feature 51.

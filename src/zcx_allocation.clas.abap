@@ -68,6 +68,16 @@ CLASS zcx_allocation DEFINITION
       END OF commit_failed.
 
     CONSTANTS:
+      BEGIN OF no_source,
+        msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
+        msgno TYPE symsgno VALUE '016',
+        attr1 TYPE scx_attrname VALUE 'MV_MESSAGE',
+        attr2 TYPE scx_attrname VALUE '',
+        attr3 TYPE scx_attrname VALUE '',
+        attr4 TYPE scx_attrname VALUE '',
+      END OF no_source.
+
+    CONSTANTS:
       BEGIN OF locked,
         msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
         msgno TYPE symsgno VALUE '005',

@@ -268,6 +268,11 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       APPEND NEW zcl_supply_requisitions( lo_converter ) TO lt_source.
     ENDIF.
 
+    " and whatever the plant has added of its own, after everything that ships
+    " with the solution: a source somebody wrote for their own system is a
+    " source like any other and the engine cannot tell the difference
+    APPEND NEW zcl_supply_extension( ) TO lt_source.
+
     ro_supply = NEW zcl_supply_sources( lt_source ).
 
   ENDMETHOD.
@@ -289,6 +294,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD create_default_demand.
 
+    DATA lt_source TYPE zcl_demand_sources=>ty_source_tab.
+
     " one converter serves both readers, and the caller may hand in the one the
     " rest of its run uses so the material master is read once for all of them
     DATA(lo_converter) = io_converter.
@@ -300,12 +307,18 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " matters is a standing decision of the business, and how long the plant
     " needs to get the goods out of the door is a fact about the plant. Both
     " go on top of what the documents say.
-    ro_demand = NEW zcl_demand_not_held( NEW zcl_demand_alive( NEW zcl_demand_ship_time(
-      io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( VALUE #(
+    lt_source = VALUE #(
       ( NEW zcl_so_demand_reader( lo_converter ) )
       ( NEW zcl_sto_demand_reader(
           io_converter = lo_converter
-          iv_priority  = iv_sto_priority ) ) ) ) )
+          iv_priority  = iv_sto_priority ) ) ).
+
+    " and whatever the plant has added of its own: which plant that is, and so
+    " which classes, is settled when a material is read rather than here
+    APPEND NEW zcl_demand_extension( ) TO lt_source.
+
+    ro_demand = NEW zcl_demand_not_held( NEW zcl_demand_alive( NEW zcl_demand_ship_time(
+      io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( lt_source ) )
       iv_days   = iv_ship_days ) ) ).
 
   ENDMETHOD.

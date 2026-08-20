@@ -63,6 +63,8 @@ CLASS ltcl_demand_not_held DEFINITION FINAL FOR TESTING
     METHODS a_hold_can_lift_by_itself FOR TESTING RAISING cx_static_check.
     METHODS a_hold_holds_until_its_day FOR TESTING RAISING cx_static_check.
     METHODS a_named_held_one_is_out FOR TESTING RAISING cx_static_check.
+    METHODS the_list_is_read_once FOR TESTING RAISING cx_static_check.
+    METHODS another_plant_is_read_again FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -100,6 +102,39 @@ CLASS ltcl_demand_not_held IMPLEMENTATION.
       act = sy-subrc
       exp = 0
       msg = 'hold fixture could not be inserted' ).
+
+  ENDMETHOD.
+
+  METHOD the_list_is_read_once.
+
+    given_hold( c_held ).
+
+    " asked once, so the answer is read; asked again after the row has gone,
+    " so an answer that changed would mean it had been read twice
+    mo_cut->materials_with_demand( c_werks ).
+
+    DELETE FROM zstock_alloc_hld WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->read_open_demand(
+        iv_matnr = c_held
+        iv_werks = c_werks )
+      msg = 'a plant wide run asks once per material and must not read once per material' ).
+
+  ENDMETHOD.
+
+  METHOD another_plant_is_read_again.
+
+    given_hold( c_held ).
+
+    mo_cut->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = mo_cut->read_open_demand(
+        iv_matnr = c_held
+        iv_werks = '9802' )
+      msg = 'a hold in one plant is not a hold in another, buffered or not' ).
 
   ENDMETHOD.
 

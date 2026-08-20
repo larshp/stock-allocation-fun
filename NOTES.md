@@ -2638,3 +2638,25 @@ explanation asks it before saying anything else.
   allocated.
 - **A hold with an empty reason still says something.** "No reason given" is
   an answer; a blank line looks like a bug.
+
+### Feature 82 — the hold list is read once, not once per material (done)
+
+Feature 80 asked the hold table on every call, and a plant wide run calls
+`READ_OPEN_DEMAND` once per material. Five thousand materials meant five
+thousand reads of a table that answers the same thing every time — the exact
+mistake feature 29 fixed for the material master, made again a fortnight
+later in a different class.
+
+The decorator now reads the plant's holds the first time anything asks and
+keeps them.
+
+- **Keyed by plant, not just kept.** One instance serves one plant in practice,
+  but a reader asked about a second plant reads again rather than answering
+  from the first plant's list. A buffer that can be wrong is worse than no
+  buffer.
+- **Within a run that is exactly right.** A hold put on while a run is walking
+  a plant applies to the next run: the run is already reading a plant that is
+  changing underneath it, and a rule that flickers halfway through would give
+  two materials different treatment for no reason anybody could see.
+- **The test asks twice and deletes the row in between**, which is the only way
+  to prove from outside that the second answer did not come from the database.

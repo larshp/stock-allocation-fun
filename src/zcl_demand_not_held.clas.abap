@@ -26,6 +26,15 @@ CLASS zcl_demand_not_held DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_demand TYPE REF TO zif_demand_reader.
     DATA mv_today  TYPE d.
 
+    "! The plant's holds, read the first time anything asks and kept for the
+    "! rest of the run. A plant wide run asks once per material, and the
+    "! answer is the same every time: one read for five thousand materials
+    "! rather than five thousand reads, which is what feature 29 said about
+    "! the material master.
+    DATA mt_held   TYPE zif_demand_reader=>ty_matnr_tab.
+    DATA mv_read   TYPE abap_bool.
+    DATA mv_plant  TYPE mard-werks.
+
     METHODS held_in_plant
       IMPORTING
         iv_werks        TYPE mard-werks
@@ -83,9 +92,22 @@ CLASS zcl_demand_not_held IMPLEMENTATION.
 
   METHOD held_in_plant.
 
-    rt_matnr = zcl_alloc_hold=>materials(
+    " one instance serves one plant in practice, and answers for another are
+    " read again rather than kept: a reader asked about two plants is a reader
+    " somebody wired unusually, and it must still be right
+    IF mv_read = abap_true AND mv_plant = iv_werks.
+      rt_matnr = mt_held.
+      RETURN.
+    ENDIF.
+
+    mt_held = zcl_alloc_hold=>materials(
       iv_werks = iv_werks
       iv_today = mv_today ).
+
+    mv_plant = iv_werks.
+    mv_read  = abap_true.
+
+    rt_matnr = mt_held.
 
   ENDMETHOD.
 

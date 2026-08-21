@@ -97,17 +97,14 @@ CLASS zcl_alloc_atp_api IMPLEMENTATION.
     DATA(lo_config) = CAST zif_alloc_config( NEW zcl_alloc_config( ) ).
     DATA(ls_config) = lo_config->for_plant( iv_werks ).
 
-    DATA(lv_lgort) = iv_lgort.
-    IF lv_lgort IS INITIAL.
-      lv_lgort = ls_config-lgort.
+    " a caller may narrow the location, because that is a question about the
+    " goods it is asking for; everything else is the plant's
+    IF iv_lgort IS NOT INITIAL.
+      ls_config-lgort = iv_lgort.
     ENDIF.
 
     TRY.
-        DATA(ls_promise) = zcl_atp_query=>create_default(
-          iv_lgort     = lv_lgort
-          iv_planned   = ls_config-planned
-          iv_ship_days = ls_config-ship_days
-          iv_cautious  = ls_config-cautious_atp )->promise(
+        DATA(ls_promise) = zcl_atp_query=>create_default( ls_config )->promise(
             iv_matnr    = iv_matnr
             iv_werks    = iv_werks
             iv_quantity = iv_quantity
@@ -183,16 +180,11 @@ CLASS zcl_alloc_atp_api IMPLEMENTATION.
     DATA(lo_config) = CAST zif_alloc_config( NEW zcl_alloc_config( ) ).
     DATA(ls_config) = lo_config->for_plant( iv_werks ).
 
-    DATA(lv_lgort) = iv_lgort.
-    IF lv_lgort IS INITIAL.
-      lv_lgort = ls_config-lgort.
+    IF iv_lgort IS NOT INITIAL.
+      ls_config-lgort = iv_lgort.
     ENDIF.
 
-    eo_query = zcl_atp_query=>create_default(
-      iv_lgort     = lv_lgort
-      iv_planned   = ls_config-planned
-      iv_ship_days = ls_config-ship_days
-      iv_cautious  = ls_config-cautious_atp ).
+    eo_query = zcl_atp_query=>create_default( ls_config ).
 
     APPEND VALUE #(
       werks = iv_werks

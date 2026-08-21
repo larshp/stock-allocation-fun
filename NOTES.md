@@ -191,6 +191,7 @@ in, which is also the order they make sense in.
 124. the notes check themselves
 125. the movement type is the plant's to choose
 126. the settings travel as one thing
+127. the answers take the settings as one thing too
 
 ## Progress
 
@@ -3786,3 +3787,28 @@ structure `ZIF_ALLOC_CONFIG` answers with, instead of eleven parameters.
 - **The screen path keeps its own structure.** `ZSTOCK_ALLOCATION` with the
   settings taken off the screen fills a `TY_CONFIG` and passes that, so both
   paths go through one door.
+
+### Feature 127 — the answers take the settings as one thing too (done)
+
+Feature 126 did it for the run. The five factories that answer questions about
+a run -- the promise, the explanation, the comparison, the projection and the
+what-if -- still took a parameter each, which is where four of the five
+defects of that family actually happened.
+
+All of them now take `ZIF_ALLOC_CONFIG=>TY_CONFIG`.
+
+- **What is left as a parameter is what is not a setting.** A caller may hand
+  the explanation and the what-if a strategy of its own, because a comparison
+  of rules is a question about rules; the promise may be narrowed to one
+  storage location, because that is a question about the goods being asked
+  for. Both are done by overriding one field of the structure rather than by
+  adding a parameter next to it.
+- **The three that only have `CREATE_FOR_PLANT` were left alone.** The
+  coverage check, the substitute list and the supply what-if read the settings
+  and build their graph in the same method: there is no caller to forget
+  anything, and unpacking a structure where it is read is what unpacking is
+  for.
+- **Nothing in the tests changed.** Every one of them constructs its subject
+  through the constructor with doubles, which is why the defect family was
+  invisible to them in the first place -- and why feature 100 tests the wiring
+  through the factory instead.

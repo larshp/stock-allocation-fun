@@ -10,31 +10,16 @@ CLASS zcl_alloc_whatif DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Question wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter iv_lgort        | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
-    "! @parameter iv_planned      | <p class="shorttext synchronized">Planned orders count as supply too</p>
-    "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
-    "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
-    "! @parameter iv_work_days | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
-    "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
-    "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
-    "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
-    "! @parameter iv_quota        | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
-    "! @parameter ro_whatif       | <p class="shorttext synchronized">Ready to use question</p>
+    "!
+    "! The settings travel as one structure, for the reason feature 126 gives.
+    "!
+    "! @parameter is_settings | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_strategy | <p class="shorttext synchronized">Distribution rule, the plant's by default</p>
+    "! @parameter ro_whatif | <p class="shorttext synchronized">Ready to use</p>
     CLASS-METHODS create_default
       IMPORTING
-        iv_lgort         TYPE mard-lgort OPTIONAL
-        iv_planned       TYPE abap_bool DEFAULT abap_false
-        iv_horizon_days  TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
-        iv_ship_days     TYPE i DEFAULT 0
-        iv_age_days      TYPE i DEFAULT zcl_demand_aging=>c_never
-        iv_work_days     TYPE abap_bool DEFAULT abap_false
-        iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
+        is_settings      TYPE zif_alloc_config=>ty_config
         io_strategy      TYPE REF TO zif_allocation_strategy OPTIONAL
-        iv_cap_percent   TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
-        iv_whole_units   TYPE abap_bool DEFAULT abap_false
-        iv_quota         TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_whatif) TYPE REF TO zcl_alloc_whatif.
 
@@ -180,16 +165,16 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
 
     DATA(lo_supply) = zcl_allocation_service=>create_default_supply(
       io_converter = lo_converter
-      iv_lgort     = iv_lgort
-      iv_planned   = iv_planned ).
+      iv_lgort     = is_settings-lgort
+      iv_planned   = is_settings-planned ).
 
     DATA(lo_demand) = zcl_allocation_service=>create_default_open_demand(
       io_converter    = lo_converter
-      iv_horizon_days = iv_horizon_days
-      iv_ship_days    = iv_ship_days
-      iv_age_days     = iv_age_days
-      iv_work_days    = iv_work_days
-      iv_sto_priority = iv_sto_priority ).
+      iv_horizon_days = is_settings-horizon_days
+      iv_ship_days    = is_settings-ship_days
+      iv_age_days     = is_settings-age_days
+      iv_work_days    = is_settings-work_days
+      iv_sto_priority = is_settings-sto_priority ).
 
     " each of the two answers gets a distribution rule of its own. The rules a
     " plant can put around a strategy remember what they have handed out while
@@ -204,20 +189,20 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
         io_demand_reader = lo_demand
         io_strategy      = zcl_allocation_service=>create_default_strategy(
           io_strategy    = io_strategy
-          iv_cap_percent = iv_cap_percent
-          iv_whole_units = iv_whole_units
-          iv_quota       = iv_quota ) )
+          iv_cap_percent = is_settings-cap_percent
+          iv_whole_units = is_settings-whole_units
+          iv_quota       = is_settings-quota ) )
       io_after     = NEW zcl_allocation_engine(
         io_supply_reader = lo_supply
         io_demand_reader = lo_demand
         io_strategy      = zcl_allocation_service=>create_default_strategy(
           io_strategy    = io_strategy
-          iv_cap_percent = iv_cap_percent
-          iv_whole_units = iv_whole_units
-          iv_quota       = iv_quota ) )
+          iv_cap_percent = is_settings-cap_percent
+          iv_whole_units = is_settings-whole_units
+          iv_quota       = is_settings-quota ) )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
-      iv_ship_days = iv_ship_days
-      io_calendar  = COND #( WHEN iv_work_days = abap_true
+      iv_ship_days = is_settings-ship_days
+      io_calendar  = COND #( WHEN is_settings-work_days = abap_true
                              THEN NEW zcl_calendar_factory( ) ) ).
 
   ENDMETHOD.
@@ -227,17 +212,8 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
     DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
 
     ro_whatif = create_default(
-      iv_lgort        = ls_settings-lgort
-      iv_planned      = ls_settings-planned
-      iv_horizon_days = ls_settings-horizon_days
-      iv_ship_days    = ls_settings-ship_days
-      iv_age_days     = ls_settings-age_days
-      iv_work_days    = ls_settings-work_days
-      iv_sto_priority = ls_settings-sto_priority
-      io_strategy     = zcl_alloc_config=>strategy_of( ls_settings )
-      iv_cap_percent  = ls_settings-cap_percent
-      iv_whole_units  = ls_settings-whole_units
-      iv_quota        = ls_settings-quota ).
+      is_settings = ls_settings
+      io_strategy = zcl_alloc_config=>strategy_of( ls_settings ) ).
 
   ENDMETHOD.
 

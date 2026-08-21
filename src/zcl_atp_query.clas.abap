@@ -5,19 +5,15 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Query wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter iv_lgort     | <p class="shorttext synchronized">Location to promise from, all if empty</p>
-    "! @parameter iv_planned   | <p class="shorttext synchronized">Planned orders count as supply too</p>
-    "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_cautious  | <p class="shorttext synchronized">Count demand nobody has confirmed yet</p>
-    "! @parameter iv_work_days | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter ro_query     | <p class="shorttext synchronized">Ready to use query</p>
+    "! The settings travel as one structure, for the reason feature 126 gives:
+    "! a parameter each is how a setting added later reaches everything except
+    "! the one caller nobody remembered.
+    "!
+    "! @parameter is_settings | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter ro_query    | <p class="shorttext synchronized">Ready to use query</p>
     CLASS-METHODS create_default
       IMPORTING
-        iv_lgort        TYPE mard-lgort OPTIONAL
-        iv_planned      TYPE abap_bool DEFAULT abap_false
-        iv_ship_days    TYPE i DEFAULT 0
-        iv_cautious     TYPE abap_bool DEFAULT abap_false
-        iv_work_days    TYPE abap_bool DEFAULT abap_false
+        is_settings     TYPE zif_alloc_config=>ty_config
       RETURNING
         VALUE(ro_query) TYPE REF TO zif_atp_query.
 
@@ -108,15 +104,15 @@ CLASS zcl_atp_query IMPLEMENTATION.
 
     ro_query = NEW zcl_atp_query(
       io_supply    = zcl_allocation_service=>create_default_supply(
-        iv_lgort   = iv_lgort
-        iv_planned = iv_planned )
+        iv_lgort   = is_settings-lgort
+        iv_planned = is_settings-planned )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
-      iv_ship_days = iv_ship_days
-      io_demand    = COND #( WHEN iv_cautious = abap_true
+      iv_ship_days = is_settings-ship_days
+      io_demand    = COND #( WHEN is_settings-cautious_atp = abap_true
                              THEN zcl_allocation_service=>create_default_open_demand(
-                               iv_ship_days = iv_ship_days
-                               iv_work_days = iv_work_days ) )
-      io_calendar  = COND #( WHEN iv_work_days = abap_true
+                               iv_ship_days = is_settings-ship_days
+                               iv_work_days = is_settings-work_days ) )
+      io_calendar  = COND #( WHEN is_settings-work_days = abap_true
                              THEN NEW zcl_calendar_factory( ) ) ).
 
   ENDMETHOD.
@@ -125,12 +121,7 @@ CLASS zcl_atp_query IMPLEMENTATION.
 
     DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
 
-    ro_query = create_default(
-      iv_lgort     = ls_settings-lgort
-      iv_planned   = ls_settings-planned
-      iv_ship_days = ls_settings-ship_days
-      iv_cautious  = ls_settings-cautious_atp
-      iv_work_days = ls_settings-work_days ).
+    ro_query = create_default( ls_settings ).
 
   ENDMETHOD.
 

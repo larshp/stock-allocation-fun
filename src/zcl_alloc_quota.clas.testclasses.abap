@@ -105,6 +105,7 @@ CLASS ltcl_alloc_quota DEFINITION FINAL FOR TESTING
 
     METHODS no_quota_changes_nothing FOR TESTING.
     METHODS a_quota_cuts_the_customer FOR TESTING.
+    METHODS the_plant_is_read_once FOR TESTING.
     METHODS the_rest_is_left_for_others FOR TESTING.
     METHODS the_urgent_line_is_kept FOR TESTING.
     METHODS a_period_stands_on_its_own FOR TESTING.
@@ -491,4 +492,55 @@ CLASS ltcl_alloc_quota IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_plant_is_read_once.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_qta WITH EMPTY KEY.
+
+    " two materials, both with a quota, and the rows deleted after the first
+    " one is allocated: a run that read the table per material would find
+    " nothing for the second, and one that read the plant once still knows
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        kunnr     = c_big
+        date_from = c_january
+        date_to   = c_jan_end
+        quantity  = 30 )
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = 'QTA-MAT-02'
+        kunnr     = c_big
+        date_from = c_january
+        date_to   = c_jan_end
+        quantity  = 30 ) ).
+    INSERT zstock_alloc_qta FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    mo_cut->allocate(
+      iv_available = 100
+      it_demand    = VALUE #( ( demand( iv_id       = 'D1'
+                                        iv_quantity = 80 ) ) ) ).
+
+    DELETE FROM zstock_alloc_qta WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_second) = mo_cut->allocate(
+      iv_available = 100
+      it_demand    = VALUE #(
+        ( demand_id = 'D2'
+          matnr     = 'QTA-MAT-02'
+          werks     = c_werks
+          quantity  = 80
+          req_date  = c_january
+          priority  = '10'
+          customer  = c_big ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_second
+                          iv_id         = 'D2' )
+      exp = CONV zif_allocation=>ty_quantity( 30 )
+      msg = 'a plant wide run must not read a page of Customizing once per material' ).
+
+  ENDMETHOD.
 ENDCLASS.

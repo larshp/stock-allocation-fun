@@ -3441,3 +3441,27 @@ schedule line.
 - **The plant is checked.** A caller on an RFC destination is a user like any
   other, and what a plant decided is the plant's business; the refusal comes
   back in `BAPIRET2` like every other thing that can go wrong out there.
+
+### Feature 111 — the newest two tables, read once for the plant (done)
+
+Features 82 and 83 went through the readers taking a round trip per material
+for an answer that does not change while a run is going. Features 86 and 104
+added two more of them: the quotas and the promises were each read once per
+material, which is ten thousand round trips on a plant of five thousand
+materials to read two pages that a person typed.
+
+Both are now read once per plant and filtered in memory.
+
+- **What bounds it is that people maintain them.** A quota is agreed with a
+  customer and a promise is made by a director; a plant with more of either
+  than fits in memory has a different problem. That is worth saying out loud
+  in the code, because the same argument would be wrong about, say, the sales
+  orders.
+- **The per material read stays public**, because the explanation asks about
+  one material and reading a plant for it would be the same mistake the other
+  way round.
+- **It is tested by deleting the rows in between**, as features 82 and 83 are:
+  allocate one material, delete the plant's Customizing, allocate a second
+  material, and see that the second still knows what it was promised. Nothing
+  else proves from outside that the second answer did not come from the
+  database.

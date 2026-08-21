@@ -57,11 +57,27 @@ CLASS zcl_alloc_promised DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_strategy TYPE REF TO zif_allocation_strategy.
 
-    "! The promises of one material, read the first time it is allocated.
+    "! One plant's promises, material and all.
+    TYPES:
+      BEGIN OF ty_row,
+        matnr     TYPE zstock_alloc_fix-matnr,
+        demand_id TYPE zstock_alloc_fix-demand_id,
+        quantity  TYPE zif_allocation=>ty_quantity,
+        valid_to  TYPE zstock_alloc_fix-valid_to,
+        reason    TYPE zstock_alloc_fix-reason,
+      END OF ty_row.
+    TYPES ty_row_tab TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+
+    "! The promises of the whole plant, read the first time anything is
+    "! allocated in it: one round trip per material would be five thousand of
+    "! them to read a page a person typed. Same reasoning as ZCL_ALLOC_QUOTA.
+    DATA mt_row   TYPE ty_row_tab.
+    DATA mv_werks TYPE mard-werks.
+    DATA mv_read  TYPE abap_bool.
+
+    "! The promises of the material being allocated, out of the plant's.
     DATA mt_promise TYPE ty_promise_tab.
     DATA mv_matnr   TYPE mard-matnr.
-    DATA mv_werks   TYPE mard-werks.
-    DATA mv_read    TYPE abap_bool.
 
     "! What is left of each promise, and the demand the allocation started
     "! with: the engine walks the days of supply and asks once per day, so a
@@ -182,14 +198,38 @@ CLASS zcl_alloc_promised IMPLEMENTATION.
 
   METHOD buffered_for.
 
+    DATA ls_promise TYPE ty_promise.
+
     IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
       rt_promise = mt_promise.
       RETURN.
     ENDIF.
 
-    rt_promise = promised_for(
-      iv_matnr = iv_matnr
-      iv_werks = iv_werks ).
+    IF mv_read = abap_false OR mv_werks <> iv_werks.
+      SELECT matnr,
+             demand_id,
+             quantity,
+             valid_to,
+             reason
+        FROM zstock_alloc_fix
+        WHERE werks = @iv_werks
+          AND ( valid_to = @c_no_end
+             OR valid_to >= @sy-datum )
+        ORDER BY matnr, demand_id
+        INTO TABLE @mt_row.
+      IF sy-subrc <> 0.
+        CLEAR mt_row.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr.
+      ls_promise-demand_id = ls_row-demand_id.
+      ls_promise-quantity  = ls_row-quantity.
+      ls_promise-valid_to  = ls_row-valid_to.
+      ls_promise-reason    = ls_row-reason.
+      APPEND ls_promise TO rt_promise.
+    ENDLOOP.
 
     mt_promise = rt_promise.
     mv_matnr   = iv_matnr.

@@ -45,6 +45,7 @@ CLASS ltcl_alloc_promised DEFINITION FINAL FOR TESTING
     METHODS a_promise_is_given_once FOR TESTING.
     METHODS a_promise_can_run_out FOR TESTING.
     METHODS a_promise_of_today_holds FOR TESTING.
+    METHODS the_plant_is_read_once FOR TESTING.
 
 ENDCLASS.
 
@@ -336,4 +337,60 @@ CLASS ltcl_alloc_promised IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_plant_is_read_once.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_fix WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        demand_id = c_first
+        quantity  = 6
+        reason    = 'the first material' )
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = 'FIX-MAT-02'
+        demand_id = c_secnd
+        quantity  = 6
+        reason    = 'the second material' ) ).
+    INSERT zstock_alloc_fix FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    mo_cut->allocate(
+      iv_available = 100
+      it_demand    = VALUE #( ( demand( iv_id       = c_first
+                                        iv_quantity = 10
+                                        iv_priority = '01' ) ) ) ).
+
+    DELETE FROM zstock_alloc_fix WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " the second material's promise was read with the first material's, and a
+    " plant wide run must not go back to the database for every one of them
+    DATA(lt_second) = mo_cut->allocate(
+      iv_available = 4
+      it_demand    = VALUE #(
+        ( demand_id = c_secnd
+          matnr     = 'FIX-MAT-02'
+          werks     = c_werks
+          quantity  = 10
+          req_date  = '20260601'
+          priority  = '99'
+          customer  = 'FIXCUST' )
+        ( demand_id = 'FIX-D3'
+          matnr     = 'FIX-MAT-02'
+          werks     = c_werks
+          quantity  = 10
+          req_date  = '20260601'
+          priority  = '01'
+          customer  = 'FIXCUST' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_second
+                          iv_id         = c_secnd )
+      exp = CONV zif_allocation=>ty_quantity( 4 )
+      msg = 'the promise still outranks the queue for the second material too' ).
+
+  ENDMETHOD.
 ENDCLASS.

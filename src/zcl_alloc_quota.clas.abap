@@ -73,12 +73,30 @@ CLASS zcl_alloc_quota DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_strategy TYPE REF TO zif_allocation_strategy.
 
-    "! The quotas of one material, read the first time it is allocated and kept
-    "! until another material is: a run allocates a material once.
-    DATA mt_quota TYPE ty_quota_tab.
-    DATA mv_matnr TYPE mard-matnr.
+    "! One plant's quota rows, material and all.
+    TYPES:
+      BEGIN OF ty_row,
+        matnr     TYPE zstock_alloc_qta-matnr,
+        kunnr     TYPE zstock_alloc_qta-kunnr,
+        date_from TYPE zstock_alloc_qta-date_from,
+        date_to   TYPE zstock_alloc_qta-date_to,
+        quantity  TYPE zif_allocation=>ty_quantity,
+      END OF ty_row.
+    TYPES ty_row_tab TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+
+    "! The quotas of the whole plant, read the first time anything is
+    "! allocated in it. A plant wide run asks per material, and one round trip
+    "! per material for a table this size is five thousand round trips to read
+    "! a page of Customizing. What bounds it is that quotas are agreed by
+    "! people: a plant with more of them than fit in memory has a different
+    "! problem.
+    DATA mt_row   TYPE ty_row_tab.
     DATA mv_werks TYPE mard-werks.
     DATA mv_read  TYPE abap_bool.
+
+    "! The rows of the material being allocated, out of the plant's.
+    DATA mt_quota TYPE ty_quota_tab.
+    DATA mv_matnr TYPE mard-matnr.
 
     "! What is left of each quota of the allocation that is going on, and the
     "! demand that allocation started with. The engine offers one day of supply
@@ -216,14 +234,36 @@ CLASS zcl_alloc_quota IMPLEMENTATION.
 
   METHOD quotas_of.
 
+    DATA ls_quota TYPE ty_quota.
+
     IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
       rt_quota = mt_quota.
       RETURN.
     ENDIF.
 
-    rt_quota = quotas_for(
-      iv_matnr = iv_matnr
-      iv_werks = iv_werks ).
+    IF mv_read = abap_false OR mv_werks <> iv_werks.
+      SELECT matnr,
+             kunnr,
+             date_from,
+             date_to,
+             quantity
+        FROM zstock_alloc_qta
+        WHERE werks = @iv_werks
+        ORDER BY matnr, kunnr, date_from
+        INTO TABLE @mt_row.
+      IF sy-subrc <> 0.
+        CLEAR mt_row.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr.
+      ls_quota-kunnr     = ls_row-kunnr.
+      ls_quota-date_from = ls_row-date_from.
+      ls_quota-date_to   = ls_row-date_to.
+      ls_quota-quantity  = ls_row-quantity.
+      APPEND ls_quota TO rt_quota.
+    ENDLOOP.
 
     mt_quota = rt_quota.
     mv_matnr = iv_matnr.

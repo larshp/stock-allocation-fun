@@ -14,17 +14,24 @@ CLASS zcl_demand_ship_time DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! Zero days is a plant that ships the day it picks, and changes nothing.
     "!
-    "! @parameter io_demand | <p class="shorttext synchronized">Reader of the demand as the documents have it</p>
-    "! @parameter iv_days   | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! Which days count is the calendar's business: every day for a plant that
+    "! has not said otherwise, and the working days of its factory calendar for
+    "! one that has.
+    "!
+    "! @parameter io_demand   | <p class="shorttext synchronized">Reader of the demand as the documents have it</p>
+    "! @parameter iv_days     | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! @parameter io_calendar | <p class="shorttext synchronized">Which days the plant works, every day if none</p>
     METHODS constructor
       IMPORTING
-        io_demand TYPE REF TO zif_demand_reader
-        iv_days   TYPE i DEFAULT 0.
+        io_demand   TYPE REF TO zif_demand_reader
+        iv_days     TYPE i DEFAULT 0
+        io_calendar TYPE REF TO zif_work_calendar OPTIONAL.
 
   PRIVATE SECTION.
 
-    DATA mo_demand TYPE REF TO zif_demand_reader.
-    DATA mv_days   TYPE i.
+    DATA mo_demand   TYPE REF TO zif_demand_reader.
+    DATA mv_days     TYPE i.
+    DATA mo_calendar TYPE REF TO zif_work_calendar.
 
 ENDCLASS.
 
@@ -40,6 +47,13 @@ CLASS zcl_demand_ship_time IMPLEMENTATION.
     mv_days = iv_days.
     IF mv_days < 0.
       CLEAR mv_days.
+    ENDIF.
+
+    " a caller that names no calendar gets the one the solution has always
+    " used, which counts every day
+    mo_calendar = io_calendar.
+    IF mo_calendar IS NOT BOUND.
+      mo_calendar = NEW zcl_calendar_plain( ).
     ENDIF.
 
   ENDMETHOD.
@@ -62,7 +76,10 @@ CLASS zcl_demand_ship_time IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      <ls_demand>-ready_by = <ls_demand>-req_date - mv_days.
+      <ls_demand>-ready_by = mo_calendar->days_before(
+        iv_werks = iv_werks
+        iv_date  = <ls_demand>-req_date
+        iv_days  = mv_days ).
 
     ENDLOOP.
 

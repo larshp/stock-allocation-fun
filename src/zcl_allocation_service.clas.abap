@@ -16,6 +16,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_sto_priority  | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter iv_ship_days     | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days      | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
+    "! @parameter iv_work_days     | <p class="shorttext synchronized">Shipping time counts working days only</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -31,6 +32,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         iv_ship_days      TYPE i DEFAULT 0
         iv_age_days       TYPE i DEFAULT zcl_demand_aging=>c_never
+        iv_work_days      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -62,6 +64,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter iv_ship_days   | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days    | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
+    "! @parameter iv_work_days   | <p class="shorttext synchronized">Shipping time counts working days only</p>
     "! @parameter ro_demand      | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_demand
       IMPORTING
@@ -69,6 +72,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         iv_ship_days     TYPE i DEFAULT 0
         iv_age_days      TYPE i DEFAULT zcl_demand_aging=>c_never
+        iv_work_days     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -107,6 +111,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
+    "! @parameter iv_work_days    | <p class="shorttext synchronized">Shipping time counts working days only</p>
     "! @parameter ro_demand       | <p class="shorttext synchronized">Reader of what is left to serve</p>
     CLASS-METHODS create_default_open_demand
       IMPORTING
@@ -115,6 +120,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         iv_ship_days     TYPE i DEFAULT 0
         iv_age_days      TYPE i DEFAULT zcl_demand_aging=>c_never
+        iv_work_days     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -234,7 +240,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           iv_horizon_days = iv_horizon_days
           iv_sto_priority = iv_sto_priority
           iv_ship_days    = iv_ship_days
-          iv_age_days     = iv_age_days )
+          iv_age_days     = iv_age_days
+          iv_work_days    = iv_work_days )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
@@ -307,7 +314,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
           io_converter    = io_converter
           iv_sto_priority = iv_sto_priority
           iv_ship_days    = iv_ship_days
-          iv_age_days     = iv_age_days )
+          iv_age_days     = iv_age_days
+          iv_work_days    = iv_work_days )
         iv_days   = iv_horizon_days )
       io_reservation = NEW zcl_reservation_reader( ) ).
 
@@ -315,7 +323,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD create_default_demand.
 
-    DATA lt_source TYPE zcl_demand_sources=>ty_source_tab.
+    DATA lt_source   TYPE zcl_demand_sources=>ty_source_tab.
+    DATA lo_calendar TYPE REF TO zif_work_calendar.
 
     " one converter serves both readers, and the caller may hand in the one the
     " rest of its run uses so the material master is read once for all of them
@@ -341,11 +350,18 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " how long a line has been waiting goes on top of the standing priority of
     " its customer, because that is what it corrects: the same lines losing
     " every night to the same customers
+    " a plant that counts working days is asking the factory calendar the
+    " question; one that has not said carries on counting every day
+    IF iv_work_days = abap_true.
+      lo_calendar = NEW zcl_calendar_factory( ).
+    ENDIF.
+
     ro_demand = NEW zcl_demand_not_held( NEW zcl_demand_alive( NEW zcl_demand_ship_time(
-      io_demand = NEW zcl_demand_aging(
+      io_demand   = NEW zcl_demand_aging(
         io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( lt_source ) )
         iv_days   = iv_age_days )
-      iv_days   = iv_ship_days ) ) ).
+      iv_days     = iv_ship_days
+      io_calendar = lo_calendar ) ) ).
 
   ENDMETHOD.
 

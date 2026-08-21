@@ -3088,3 +3088,35 @@ because a package nobody ran has no result to be missing from.
 - **The jobs are named `ZSTOCK_ALLOC_<plant>_<package>`**, so they sort
   together in SM37, which is where somebody looks at eight in the morning to
   find out whether the night finished.
+
+### Feature 98 — the shipping time in working days (done)
+
+Feature 62 put a shipping time between the day goods have to be ready and the
+day the customer wants them, and counted it in calendar days. For a plant that
+does not pick at the weekend that is wrong in the direction that hurts: three
+days before a Monday delivery is a Friday, the plant reads it as "ready on
+Friday", and a receipt landing on the Friday is confirmed for a line that has
+to be on a trailer on the Wednesday.
+
+`ZCL_CALENDAR_FACTORY` counts in the working days of the plant's factory
+calendar, `T001W-FABKL`, through the standard conversion function modules.
+
+- **It is a seam, not a switch inside the decorator.** `ZIF_WORK_CALENDAR` has
+  one method, and the plain implementation is what the solution has always
+  done. A plant that counts every day pays nothing for the existence of the
+  other one.
+- **The plant is asked when the date is converted, not when the graph is
+  built**, the same shape as the extension sources in feature 85:
+  `READ_OPEN_DEMAND` knows the plant, so nothing has to be told twice.
+- **A day that is not a working day counts as the working day before it.**
+  Goods wanted on a Saturday have to be ready on the Friday, because nobody is
+  there on the Saturday to pick them, and the conversion is asked for that
+  with `CORRECT_OPTION = '-'`.
+- **A plant with no calendar is a failure, not a guess.** Reading five working
+  days into a plant that has not said so would put dates on confirmations that
+  the plant never agreed to; the material fails and says which plant.
+- **The stub is a Monday to Friday week with no holidays.** What a real
+  calendar adds -- a country's holidays, a plant that works Saturdays, the
+  August shutdown -- changes which days come back, not what the code does with
+  them, and the tests are written against the days rather than against the
+  arithmetic.

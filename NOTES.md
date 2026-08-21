@@ -2988,3 +2988,29 @@ Every factory that answers a question about a plant now has
   which question is being asked and nothing about how the answer is arrived
   at; every line of wiring in one is a line that can drift away from what the
   run does.
+
+### Feature 94 — what has been happening to my order (done)
+
+The display shows what the last run decided; the shortage list shows what is
+short tonight. Neither answers the question a customer actually asks. A line
+short every night for three weeks and a line short for the first time this
+morning look identical in both, and they are not the same thing at all --
+since feature 87 the run does not treat them the same either.
+
+`ZSTOCK_ALLOC_HIST` takes a sales order and shows one row per recorded run,
+oldest first.
+
+- **It counts the unbroken wait at the near end**, exactly as the escalation
+  does, and says since when. A run that served the line in full ends the wait,
+  so the number on the page is the number the run is acting on.
+- **It reads the recorded runs directly**, as the netting and the escalation
+  do. The store's own methods answer per run or per material; this asks per
+  order line, which is a different question of the same table.
+- **The reason is put into words by `ZCL_ALLOC_REASON_TEXT`**, so the trail
+  reads in the same wording as every other list. Two names for the same reason
+  is worse than none.
+- **A document number is what somebody has in front of them**, not a
+  twenty-four character demand id, so the report takes the order and
+  optionally the item and matches the ids that begin with it.
+- **How far back it goes is how far back housekeeping keeps**, which is worth
+  knowing before setting the retention to a week.

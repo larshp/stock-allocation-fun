@@ -34,6 +34,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
     "! @parameter iv_work_days    | <p class="shorttext synchronized">Shipping time counts working days only</p>
+    "! @parameter iv_move_type    | <p class="shorttext synchronized">Movement type the reservation is made under</p>
     "! @parameter it_dispo        | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
     "! @parameter iv_package      | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
     "! @parameter iv_packages     | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
@@ -52,6 +53,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_ship_days       TYPE i DEFAULT 0
         iv_age_days        TYPE i DEFAULT zcl_demand_aging=>c_never
         iv_work_days       TYPE abap_bool DEFAULT abap_false
+        iv_move_type       TYPE rkpf-bwart DEFAULT zcl_reservation_writer=>c_default_move_type
         it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
         iv_package         TYPE i DEFAULT 0
         iv_packages        TYPE i DEFAULT 0
@@ -196,6 +198,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_ship_days    = iv_ship_days
         iv_age_days     = iv_age_days
         iv_work_days    = iv_work_days
+        iv_move_type    = iv_move_type
         io_log          = lo_log )
       io_demand   = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(

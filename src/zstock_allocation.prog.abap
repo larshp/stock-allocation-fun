@@ -16,6 +16,7 @@ PARAMETERS p_age TYPE i DEFAULT 0.
 PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_quota AS CHECKBOX.
+PARAMETERS p_work AS CHECKBOX.
 PARAMETERS p_recut AS CHECKBOX.
 PARAMETERS p_carry AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
@@ -54,6 +55,8 @@ START-OF-SELECTION.
       planned      = p_plan
       whole_units  = p_whole
       quota        = p_quota
+      work_days    = p_work
+      move_type    = zcl_reservation_writer=>c_default_move_type
       sto_priority = p_stop
       ship_days    = p_ship
       age_days     = p_age ).
@@ -87,6 +90,8 @@ START-OF-SELECTION.
       iv_sto_priority = ls_settings-sto_priority
       iv_ship_days    = ls_settings-ship_days
       iv_age_days     = ls_settings-age_days
+      iv_work_days    = ls_settings-work_days
+      iv_move_type    = ls_settings-move_type
       iv_package      = p_pkg
       iv_packages     = p_pkgs
       it_dispo        = lt_dispo ) ).

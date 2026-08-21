@@ -189,6 +189,7 @@ in, which is also the order they make sense in.
 122. the README stops being a wall
 123. documentation that can fail
 124. the notes check themselves
+125. the movement type is the plant's to choose
 
 ## Progress
 
@@ -3734,3 +3735,27 @@ written: eighteen write-ups reachable only by scrolling.
 The index parser deliberately reads only the list between its own heading and
 the write-ups: `NOTES.md` is full of numbered points that are not features,
 and a checker that cannot tell them apart would have to be switched off.
+
+### Feature 125 — the movement type is the plant's to choose (done)
+
+`311` -- a plant internal transfer -- has been hard-wired into the reservation
+writer as the movement type an allocation earmarks stock under. It is a
+sensible default and it is not a decision this solution gets to make: which
+movement types exist, and which of them a warehouse is allowed to reserve
+under, is Customizing in every SAP system, and a business whose 311 is
+configured for something else has no way in.
+
+- **A plant with no movement type gets `311`**, exactly as before, so nothing
+  changes for anybody who has not asked.
+- **Empty is read as the default rather than passed on.** A blank movement
+  type would be refused by the BAPI for every material in the plant, which is
+  a bad way to find out that a field was left empty.
+
+**And the run was not switching on working days at all.** Threading the
+movement type through showed that `ZSTOCK_ALLOCATION` -- the nightly job, the
+most important caller there is -- passed ten settings to the mass run and not
+`IV_WORK_DAYS`, which feature 98 added. A plant that had configured working
+days got them in every report about the run and not in the run. It is the
+fifth of this family of defects, and the first one in the run itself; the
+screen now offers the switch too, so a run with the settings taken off the
+screen can have it.

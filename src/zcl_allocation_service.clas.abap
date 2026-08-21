@@ -17,6 +17,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_ship_days     | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days      | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
     "! @parameter iv_work_days     | <p class="shorttext synchronized">Shipping time counts working days only</p>
+    "! @parameter iv_move_type     | <p class="shorttext synchronized">Movement type the reservation is made under</p>
     "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -33,6 +34,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_ship_days      TYPE i DEFAULT 0
         iv_age_days       TYPE i DEFAULT zcl_demand_aging=>c_never
         iv_work_days      TYPE abap_bool DEFAULT abap_false
+        iv_move_type      TYPE rkpf-bwart DEFAULT zcl_reservation_writer=>c_default_move_type
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -251,7 +253,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
-      io_reservation = NEW zcl_reservation_writer( )
+      io_reservation = NEW zcl_reservation_writer( iv_move_type )
       io_authority   = NEW zcl_authority_alloc( )
       io_lock        = NEW zcl_lock_material( )
       io_commit      = NEW zcl_unit_of_work( )

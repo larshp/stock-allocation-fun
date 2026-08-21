@@ -126,6 +126,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_WORK</KEY>
+     <ENTRY>Shipping time in working days</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
      <LENGTH>5</LENGTH>

@@ -52,6 +52,7 @@ CLASS zcl_alloc_config IMPLEMENTATION.
   METHOD zif_alloc_config~for_plant.
 
     rs_config-werks        = iv_werks.
+    rs_config-move_type    = zcl_reservation_writer=>c_default_move_type.
     rs_config-keep_days    = c_default_keep_days.
     rs_config-sto_priority = c_default_sto_prio.
 
@@ -67,7 +68,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   atp_net,
                   quota,
                   age_days,
-                  work_days
+                  work_days,
+                  move_type
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -86,6 +88,15 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     rs_config-cautious_atp = xsdbool( ls_row-atp_net = abap_true ).
     rs_config-quota        = xsdbool( ls_row-quota = abap_true ).
     rs_config-work_days    = xsdbool( ls_row-work_days = abap_true ).
+
+    " a plant that has not named one reserves under the movement type the
+    " writer has always used, rather than under a blank one, which the BAPI
+    " would refuse for every material in the plant
+    IF ls_row-move_type IS NOT INITIAL.
+      rs_config-move_type = ls_row-move_type.
+    ELSE.
+      rs_config-move_type = zcl_reservation_writer=>c_default_move_type.
+    ENDIF.
 
     " a shipping time below zero would mean the goods leave before they are
     " picked, and is read as none

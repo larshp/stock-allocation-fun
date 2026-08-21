@@ -45,6 +45,7 @@ CLASS ltcl_alloc_config DEFINITION FINAL FOR TESTING
     METHODS a_shipping_time_is_read FOR TESTING.
     METHODS a_negative_time_is_none FOR TESTING.
     METHODS a_cautious_promise_is_read FOR TESTING.
+    METHODS a_movement_type_is_read FOR TESTING.
 
 ENDCLASS.
 
@@ -99,7 +100,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
       exp = VALUE zif_alloc_config=>ty_config(
         werks        = c_werks
         keep_days    = zcl_alloc_config=>c_default_keep_days
-        sto_priority = zcl_alloc_config=>c_default_sto_prio )
+        sto_priority = zcl_alloc_config=>c_default_sto_prio
+        move_type    = zcl_reservation_writer=>c_default_move_type )
       msg = 'allocation has to work in a plant nobody has configured' ).
 
   ENDMETHOD.
@@ -122,7 +124,8 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
         lgort        = '0001'
         cap_percent  = 25
         keep_days    = 14
-        sto_priority = zcl_alloc_config=>c_default_sto_prio ) ).
+        sto_priority = zcl_alloc_config=>c_default_sto_prio
+        move_type    = zcl_reservation_writer=>c_default_move_type ) ).
 
   ENDMETHOD.
 
@@ -299,4 +302,22 @@ CLASS ltcl_alloc_config IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_movement_type_is_read.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_cfg WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        move_type = '411' ) ).
+    INSERT zstock_alloc_cfg FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " which movement type stock is earmarked under is a decision every SAP
+    " system makes for itself, and 311 is only a sensible default
+    cl_abap_unit_assert=>assert_equals(
+      act = config( )-move_type
+      exp = '411' ).
+
+  ENDMETHOD.
 ENDCLASS.

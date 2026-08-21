@@ -2938,3 +2938,30 @@ letting them do everything else that object covers.
 - **A role has to be given the object before anybody can run a plant**, and
   that is now written in the README next to the installation steps rather than
   discovered on the first night.
+
+### Feature 92 — the preview was previewing something else (done)
+
+A sweep over the reports, looking for the mistake features 73 and 74 made,
+found it again in feature 84. `ZSTOCK_ALLOC_DIFF` ticked as a preview built
+its simulator with `ZCL_ALLOCATION_MASS_RUN=>CREATE_DEFAULT( )` -- no
+strategy, no horizon, no location, no cap, no whole units, no quotas, no
+shipping time. It then compared last night's run, which used the plant's
+Customizing, against a simulation that used none of it.
+
+Every setting the plant has would have shown up as a change the run was about
+to make. A plant on fair share with a horizon would have read the preview as
+"tonight everything moves", and the one thing a preview has to be is boring
+when nothing has changed.
+
+- **The fix is `CREATE_FOR_PLANT`**, not a longer report. The reports that got
+  this right did it by copying nine lines of settings out of the config into a
+  factory call, and a nine line ritual that has to be repeated is the reason
+  this was wrong in the first place. The knowledge now sits once, in the class
+  that needs it, and the report is three lines again.
+- **`CREATE_DEFAULT` still takes a mass run**, because a caller wiring its own
+  -- the tests do -- has to be able to hand one in.
+- **This is the third one of these.** All three were the same shape: an answer
+  worked out with different settings than the run uses, presented in the words
+  the run uses. It is worth saying plainly: in this solution, anything that
+  says what a run would decide has to be built from `ZIF_ALLOC_CONFIG`, and a
+  factory that cannot do that itself is a factory that will be called wrongly.

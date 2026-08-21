@@ -14,6 +14,22 @@ CLASS zcl_alloc_changes DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_changes) TYPE REF TO zcl_alloc_changes.
 
+    "! <p class="shorttext synchronized">Comparison that can preview a plant, wired up for it</p>
+    "!
+    "! A preview is only worth anything if it is the calculation the run would
+    "! do, and that includes the settings the run would do it with: a
+    "! simulation on the defaults shows every setting of the plant as a change
+    "! the run is about to make. Reading them belongs here, once, rather than
+    "! in every caller that wants a preview.
+    "!
+    "! @parameter iv_werks   | <p class="shorttext synchronized">Plant</p>
+    "! @parameter ro_changes | <p class="shorttext synchronized">Ready to use comparison, preview and all</p>
+    CLASS-METHODS create_for_plant
+      IMPORTING
+        iv_werks          TYPE mard-werks
+      RETURNING
+        VALUE(ro_changes) TYPE REF TO zcl_alloc_changes.
+
     "! <p class="shorttext synchronized">Wire up the comparison</p>
     "!
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
@@ -106,6 +122,30 @@ CLASS zcl_alloc_changes IMPLEMENTATION.
       io_store     = NEW zcl_allocation_store( )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
       io_mass_run  = io_mass_run ).
+
+  ENDMETHOD.
+
+  METHOD create_for_plant.
+
+    DATA lo_strategy TYPE REF TO zif_allocation_strategy.
+
+    DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
+
+    IF ls_settings-fair_share = abap_true.
+      lo_strategy = NEW zcl_alloc_strategy_fairshare( ).
+    ENDIF.
+
+    ro_changes = create_default( zcl_allocation_mass_run=>create_default(
+      io_strategy     = lo_strategy
+      iv_horizon_days = ls_settings-horizon_days
+      iv_lgort        = ls_settings-lgort
+      iv_cap_percent  = ls_settings-cap_percent
+      iv_planned      = ls_settings-planned
+      iv_whole_units  = ls_settings-whole_units
+      iv_quota        = ls_settings-quota
+      iv_sto_priority = ls_settings-sto_priority
+      iv_ship_days    = ls_settings-ship_days
+      iv_age_days     = ls_settings-age_days ) ).
 
   ENDMETHOD.
 

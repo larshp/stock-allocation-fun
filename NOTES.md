@@ -209,6 +209,7 @@ in, which is also the order they make sense in.
 142. and the answers know about the bar too
 143. the last factory takes the settings too
 144. the check knows the commonest mistake
+145. would you take the other size
 
 ## Progress
 
@@ -4156,3 +4157,25 @@ to stand in with.
 - **It also reports a smallest worthwhile confirmation above a hundred
   percent**, which the reader clamps: at a hundred it is the complete delivery
   rule, and above it, it is a number somebody typed twice.
+
+### Feature 145 — would you take the other size (done)
+
+The promise answers "how much of this can I have". The question that follows
+it is the one a shop assistant asks without thinking and a webshop cannot ask
+at all. The plant has already written down which materials can stand in for
+which, for the planner's list of feature 108; `Z_STOCK_ALLOC_ALTERNATIVES`
+asks each of them the promise question.
+
+- **The arrangement is read by the class that owns it.**
+  `ZCL_ALLOC_SUBSTITUTE=>SUBSTITUTES_FOR` is now public and both the report
+  and the API use it: what a plant has said can stand in for what is one
+  arrangement, and two readers of it would drift.
+- **The factor converts the quantity that is asked, not the answer.** Two of
+  the substitute making one of the material means twice as many are needed,
+  and asking for the original quantity would promise half an order and call it
+  complete.
+- **One query object for the whole call.** The settings and the sources are
+  the same for every substitute in the plant, which is the point feature 64
+  makes about a basket.
+- **A substitute nobody can answer for carries its reason and the others are
+  still answered**, exactly as a basket line does.

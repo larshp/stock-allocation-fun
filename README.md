@@ -149,7 +149,10 @@ which say so on their selection screens and default to a test run.
 `Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP:
 remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
 `Z_STOCK_ALLOC_PROMISES` answers a whole basket in one call, reading each
-plant's settings once instead of once per line. `Z_STOCK_ALLOC_RESULT`
+plant's settings once instead of once per line. `Z_STOCK_ALLOC_ALTERNATIVES` answers the question that follows a short
+promise — what else the plant could offer instead, from the substitutes it has
+named, with the quantity converted by the factor of the arrangement.
+`Z_STOCK_ALLOC_RESULT`
 answers the question afterwards — what the last run actually gave an order —
 for the same kind of caller, and takes a stock transport order as readily as a
 sales one.

@@ -56,6 +56,32 @@ CLASS zcl_alloc_substitute DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! One substitute. Declared explicitly rather than inferred with
+    "! INTO TABLE @DATA(), see ANOMALIES.md.
+    TYPES:
+      BEGIN OF ty_substitute,
+        substitute TYPE zstock_alloc_sub-substitute,
+        factor     TYPE zif_allocation=>ty_quantity,
+        note       TYPE zstock_alloc_sub-note,
+      END OF ty_substitute.
+    TYPES ty_substitute_tab TYPE STANDARD TABLE OF ty_substitute WITH EMPTY KEY.
+
+    "! <p class="shorttext synchronized">What the plant says can stand in for a material</p>
+    "!
+    "! Public because the promise of feature 145 asks the same question of the
+    "! same table: what a plant has said can stand in for what is one
+    "! arrangement, and two readers of it would drift.
+    "!
+    "! @parameter iv_werks     | <p class="shorttext synchronized">Plant</p>
+    "! @parameter iv_matnr     | <p class="shorttext synchronized">Material that is short</p>
+    "! @parameter rt_substitute | <p class="shorttext synchronized">What could stand in for it</p>
+    CLASS-METHODS substitutes_for
+      IMPORTING
+        iv_werks             TYPE mard-werks
+        iv_matnr             TYPE mard-matnr
+      RETURNING
+        VALUE(rt_substitute) TYPE ty_substitute_tab.
+
   PRIVATE SECTION.
 
     CONSTANTS c_width_matnr TYPE i VALUE 20.
@@ -72,16 +98,6 @@ CLASS zcl_alloc_substitute DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_short.
     TYPES ty_short_tab TYPE STANDARD TABLE OF ty_short WITH EMPTY KEY.
 
-    "! One substitute. Declared explicitly rather than inferred with
-    "! INTO TABLE @DATA(), see ANOMALIES.md.
-    TYPES:
-      BEGIN OF ty_substitute,
-        substitute TYPE zstock_alloc_sub-substitute,
-        factor     TYPE zif_allocation=>ty_quantity,
-        note       TYPE zstock_alloc_sub-note,
-      END OF ty_substitute.
-    TYPES ty_substitute_tab TYPE STANDARD TABLE OF ty_substitute WITH EMPTY KEY.
-
     DATA mo_supply    TYPE REF TO zif_supply_reader.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
@@ -92,13 +108,6 @@ CLASS zcl_alloc_substitute DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr        TYPE mard-matnr
       RETURNING
         VALUE(rt_short) TYPE ty_short_tab.
-
-    METHODS substitutes_of
-      IMPORTING
-        iv_werks             TYPE mard-werks
-        iv_matnr             TYPE mard-matnr
-      RETURNING
-        VALUE(rt_substitute) TYPE ty_substitute_tab.
 
     METHODS lines_for
       IMPORTING
@@ -205,7 +214,7 @@ CLASS zcl_alloc_substitute IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD substitutes_of.
+  METHOD substitutes_for.
 
     SELECT substitute,
            factor,
@@ -227,7 +236,7 @@ CLASS zcl_alloc_substitute IMPLEMENTATION.
     DATA lv_later  TYPE zif_allocation=>ty_quantity.
     DATA lv_covers TYPE zif_allocation=>ty_quantity.
 
-    DATA(lt_substitute) = substitutes_of(
+    DATA(lt_substitute) = substitutes_for(
       iv_werks = iv_werks
       iv_matnr = is_short-matnr ).
 

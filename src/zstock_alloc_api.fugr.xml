@@ -97,6 +97,35 @@
       </RSEXP>
      </EXPORT>
     </item>
+    <item>
+     <FUNCNAME>Z_STOCK_ALLOC_ALTERNATIVES</FUNCNAME>
+     <SHORT_TEXT>What else could be promised instead</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>IV_MATNR</PARAMETER>
+       <TYP>MARD-MATNR</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <TYP>MARD-WERKS</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_QUANTITY</PARAMETER>
+       <TYP>ZSTOCK_ALLOC_PROMISE-QUANTITY</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_BY_DATE</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>ZSTOCK_ALLOC_PROMISE-AVAIL_DATE</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>ET_ANSWER</PARAMETER>
+       <TYP>ZCL_ALLOC_ALT_API=&gt;TY_ANSWER_TAB</TYP>
+      </RSEXP>
+     </EXPORT>
+    </item>
    </FUNCTIONS>
   </asx:values>
  </asx:abap>

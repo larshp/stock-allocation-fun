@@ -3170,3 +3170,28 @@ the plant in `T001W` -- and nothing doubled at all.
 - **The escalation test is the one worth reading.** Ten weeks of being short
   beats seven places of delivery priority, and a run set up exactly as the
   night runs it says so.
+
+### Feature 101 — what the night did not get to (done)
+
+Every report so far reads what a run decided. None of them can see a material
+no run decided anything about, because a material nobody allocated has no
+result to be missing from -- it looks exactly like a material nobody is
+waiting for. That is also precisely what a split night's failure looks like: a
+job that was never scheduled, or died in its first minute, leaves a package of
+the plant untouched and says nothing.
+
+`ZSTOCK_ALLOC_COVER` asks it the other way round: everything waiting for
+stock, less everything a run has decided about since a point in time.
+
+- **The list of materials is the list a run works from**, built by
+  `CREATE_DEFAULT_DEMAND` with the plant's own settings. A list built any other
+  way would report materials the run never intended to cover as ones it missed
+  -- a report that cries wolf is a report nobody runs twice.
+- **The window is rounded up to whole days.** A run that finished forty
+  minutes outside a twenty-four hour window is a run that did its work, and
+  reporting it as missing sends somebody looking for a job that was fine.
+- **It reads the recorded runs by plant and time**, which is what the `PLA`
+  index of feature 95 exists for.
+- **A quiet plant says it is quiet.** Nothing waiting is a different answer
+  from everything covered, and both are different from a hundred materials
+  missed.

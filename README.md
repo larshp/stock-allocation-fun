@@ -102,6 +102,7 @@ what is no longer holding anything back.
 | `ZSTOCK_ALLOC_WHAT`  | what one more order would be confirmed, and which lines on the books would pay for it |
 | `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
 | `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
+| `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |

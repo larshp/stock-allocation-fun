@@ -33,6 +33,7 @@ INTERFACE zif_allocation PUBLIC.
       whole_units   TYPE ty_reason VALUE 'U',
       complete_only TYPE ty_reason VALUE 'D',
       quota         TYPE ty_reason VALUE 'Q',
+      too_little    TYPE ty_reason VALUE 'M',
     END OF c_reason.
 
   "! A single requirement competing for stock. COMPLETE means the line is only

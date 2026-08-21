@@ -50,8 +50,8 @@ one decided and a job that dies half way leaves whole answers behind.
 Every answered line says how much was confirmed, how much is short, the day the
 confirmed quantity is there — `now` when it comes off the shelf, otherwise the
 day the last of its supply arrives — and, where it fell short, why: not enough
-stock, stock that comes too late, the customer's share, its quota, whole
-units, or the complete delivery rule.
+stock, stock that comes too late, the customer's share, its quota, too little
+to be worth shipping, whole units, or the complete delivery rule.
 
 One material failing does not stop the rest of the run; the report says which
 ones failed and why. Twenty in a row does stop it: that is the lock table
@@ -198,7 +198,7 @@ corrected before a night acts on it.
 
 | Table               | What it holds                                             |
 | ------------------- | --------------------------------------------------------- |
-| `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, whether customers are held to their quotas, where a stock transport order stands against a customer order, how many days it takes to get goods out of the door and whether those are working days, how long a line may go short before it moves up the queue, which movement type the reservation is made under, whether a promise counts demand nobody has confirmed yet, and how long a recorded run is kept |
+| `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, the least share of a line worth confirming at all, whether customers are held to their quotas, where a stock transport order stands against a customer order, how many days it takes to get goods out of the door and whether those are working days, how long a line may go short before it moves up the queue, which movement type the reservation is made under, whether a promise counts demand nobody has confirmed yet, and how long a recorded run is kept |
 | `ZSTOCK_ALLOC_PRI`  | which customers are served before the rest, once per customer, for one plant or for all of them |
 | `ZSTOCK_ALLOC_HLD`  | materials the plant has put on hold, with a reason and optionally a day the hold lifts by itself |
 | `ZSTOCK_ALLOC_SUB`  | materials that could stand in for another one in a plant, how many of them make one of it, and what a planner should know before offering it |

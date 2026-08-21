@@ -19,6 +19,7 @@ INTERFACE zif_alloc_config PUBLIC.
       age_days     TYPE i,
       work_days    TYPE abap_bool,
       move_type    TYPE rkpf-bwart,
+      min_percent  TYPE i,
     END OF ty_config.
 
   "! <p class="shorttext synchronized">Settings that apply to allocation in a plant</p>

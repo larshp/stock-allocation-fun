@@ -69,7 +69,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   quota,
                   age_days,
                   work_days,
-                  move_type
+                  move_type,
+                  min_percent
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -122,6 +123,14 @@ CLASS zcl_alloc_config IMPLEMENTATION.
     " on the night it first fell short, which is not a queue at all
     IF ls_row-age_days > 0.
       rs_config-age_days = ls_row-age_days.
+    ENDIF.
+
+    " a bar above the whole line would confirm nothing anywhere, which is not
+    " a setting anybody means
+    IF ls_row-min_percent > 0.
+      rs_config-min_percent = COND #( WHEN ls_row-min_percent > c_max_percent
+                                      THEN c_max_percent
+                                      ELSE ls_row-min_percent ).
     ENDIF.
 
     IF ls_row-cap_percent > 0.

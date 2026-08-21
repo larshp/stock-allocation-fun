@@ -76,6 +76,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_cap_percent | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_whole_units | <p class="shorttext synchronized">Confirm whole order units only</p>
     "! @parameter iv_quota       | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
+    "! @parameter iv_min_percent | <p class="shorttext synchronized">Least share of a line worth confirming</p>
     "! @parameter ro_strategy    | <p class="shorttext synchronized">The rule, wrapped</p>
     CLASS-METHODS create_default_strategy
       IMPORTING
@@ -83,6 +84,7 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_whole_units     TYPE abap_bool DEFAULT abap_false
         iv_quota           TYPE abap_bool DEFAULT abap_false
+        iv_min_percent     TYPE i DEFAULT zcl_alloc_minimum=>c_no_minimum
       RETURNING
         VALUE(ro_strategy) TYPE REF TO zif_allocation_strategy.
 
@@ -204,6 +206,14 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     IF iv_whole_units = abap_true.
       lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
     ENDIF.
+
+    " the plant's own bar goes inside the complete delivery rule: a line cut
+    " back to nothing because it was too thin is a line the rule outside no
+    " longer has to think about, and a line the rule outside drops was never
+    " going to clear the bar either
+    lo_strategy = NEW zcl_alloc_minimum(
+      io_strategy = lo_strategy
+      iv_percent  = iv_min_percent ).
 
     " which lines may be served in part is a property of the demand, not of the
     " distribution rule, so this wraps whatever strategy is in use

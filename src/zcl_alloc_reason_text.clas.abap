@@ -38,6 +38,8 @@ CLASS zcl_alloc_reason_text IMPLEMENTATION.
         rv_text = `complete delivery`.
       WHEN zif_allocation=>c_reason-quota.
         rv_text = `customer quota`.
+      WHEN zif_allocation=>c_reason-too_little.
+        rv_text = `too little to ship`.
       WHEN space.
         CLEAR rv_text.
       WHEN OTHERS.

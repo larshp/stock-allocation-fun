@@ -205,6 +205,7 @@ in, which is also the order they make sense in.
 138. the night check keeps quiet when there is nothing to say
 139. which kind of empty
 140. the overview arrives, when it is worth arriving
+141. a confirmation too small to ship is none
 
 ## Progress
 
@@ -4072,3 +4073,32 @@ short of something, or a plant no run has touched today.
 - **The worklist was deliberately left alone.** A planner's morning list is
   expected daily and its absence is information too; monitoring and a work
   queue are not the same kind of mail.
+
+### Feature 141 — a confirmation too small to ship is none (done)
+
+A line for a thousand pieces confirmed for three costs the plant a delivery, a
+lorry booking and an invoice, and gives the customer something they cannot
+use. Everybody would rather the three pieces had gone to a line that could
+ship and the customer had been told the truth a week earlier.
+
+`ZSTOCK_ALLOC_CFG-MIN_PERCENT` is the bar, and `ZCL_ALLOC_MINIMUM` holds the
+run to it: a line that cannot be confirmed at least that share of what it
+asked for is confirmed nothing.
+
+- **It is the complete delivery rule with the bar lower down.** Same shape:
+  drop a line, offer the stock again, repeat until nothing under the bar is
+  left holding anything. Feature 25 already proved the shape works and bounds
+  the passes by the number of lines.
+- **The thinnest line goes first, not the furthest from complete.** Complete
+  delivery drops the line furthest from whole because that frees the most
+  stock; here the aim is the opposite -- free the least, so the line behind
+  has the best chance of clearing the bar itself.
+- **It sits inside the complete delivery rule.** A line cut to nothing for
+  being too thin is one the outer rule no longer has to think about, and a
+  line the outer rule drops was never going to clear the bar either.
+- **New reason `M`.** Every rule that can hold stock back has its own reason,
+  and "too little to ship" is not "not enough stock": the stock was there and
+  the plant decided the delivery was not worth making.
+- **A bar of a hundred percent or more is refused rather than obeyed**, since
+  that is the complete delivery rule, which is a property of the document
+  rather than of the plant.

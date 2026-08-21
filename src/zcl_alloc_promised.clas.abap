@@ -22,19 +22,38 @@ CLASS zcl_alloc_promised DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         io_strategy TYPE REF TO zif_allocation_strategy.
 
-  PRIVATE SECTION.
-
-    "! A promise with no last day is kept until somebody removes it.
-    CONSTANTS c_no_end TYPE d VALUE '00000000'.
-
     "! One promise. Declared explicitly rather than inferred with
     "! INTO TABLE @DATA(), see ANOMALIES.md.
     TYPES:
       BEGIN OF ty_promise,
         demand_id TYPE zstock_alloc_fix-demand_id,
         quantity  TYPE zif_allocation=>ty_quantity,
+        valid_to  TYPE zstock_alloc_fix-valid_to,
+        reason    TYPE zstock_alloc_fix-reason,
       END OF ty_promise.
     TYPES ty_promise_tab TYPE STANDARD TABLE OF ty_promise WITH EMPTY KEY.
+
+    "! <p class="shorttext synchronized">The promises still standing for one material</p>
+    "!
+    "! Public because the explanation of feature 55 has to show the same rows
+    "! the rule acts on: an explanation that reads the table its own way is a
+    "! second implementation of the rule, and the two of them will disagree
+    "! one day.
+    "!
+    "! @parameter iv_matnr  | <p class="shorttext synchronized">Material number</p>
+    "! @parameter iv_werks  | <p class="shorttext synchronized">Plant</p>
+    "! @parameter rt_promise | <p class="shorttext synchronized">Promises that have not run out</p>
+    CLASS-METHODS promised_for
+      IMPORTING
+        iv_matnr          TYPE mard-matnr
+        iv_werks          TYPE mard-werks
+      RETURNING
+        VALUE(rt_promise) TYPE ty_promise_tab.
+
+  PRIVATE SECTION.
+
+    "! A promise with no last day is kept until somebody removes it.
+    CONSTANTS c_no_end TYPE d VALUE '00000000'.
 
     DATA mo_strategy TYPE REF TO zif_allocation_strategy.
 
@@ -52,7 +71,7 @@ CLASS zcl_alloc_promised DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mt_left  TYPE ty_promise_tab.
     DATA mv_start TYPE zif_allocation=>ty_quantity.
 
-    METHODS promises_of
+    METHODS buffered_for
       IMPORTING
         iv_matnr          TYPE mard-matnr
         iv_werks          TYPE mard-werks
@@ -105,7 +124,7 @@ CLASS zcl_alloc_promised IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lt_promise) = promises_of(
+    DATA(lt_promise) = buffered_for(
       iv_matnr = ls_first-matnr
       iv_werks = ls_first-werks ).
 
@@ -139,18 +158,15 @@ CLASS zcl_alloc_promised IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD promises_of.
-
-    IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
-      rt_promise = mt_promise.
-      RETURN.
-    ENDIF.
+  METHOD promised_for.
 
     " a promise with a day on it is kept until that day and then stops being
     " one: a row nobody ever removes goes on outranking the rules every night
     " for a reason that was true in March
     SELECT demand_id,
-           quantity
+           quantity,
+           valid_to,
+           reason
       FROM zstock_alloc_fix
       WHERE werks = @iv_werks
         AND matnr = @iv_matnr
@@ -161,6 +177,19 @@ CLASS zcl_alloc_promised IMPLEMENTATION.
     IF sy-subrc <> 0.
       CLEAR rt_promise.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD buffered_for.
+
+    IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
+      rt_promise = mt_promise.
+      RETURN.
+    ENDIF.
+
+    rt_promise = promised_for(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
 
     mt_promise = rt_promise.
     mv_matnr   = iv_matnr.

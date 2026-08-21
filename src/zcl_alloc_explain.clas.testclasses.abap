@@ -118,6 +118,8 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS what_is_taken_care_of_shows FOR TESTING RAISING cx_static_check.
     METHODS a_hold_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
+    METHODS a_promise_is_said_out_loud FOR TESTING RAISING cx_static_check.
+    METHODS a_quota_is_said_out_loud FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -297,6 +299,77 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
       act = mo_authority->get_plant( )
       exp = c_werks
       msg = 'this is a plant stock situation, and not everybody may see it' ).
+
+  ENDMETHOD.
+
+  METHOD a_promise_is_said_out_loud.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_fix WITH EMPTY KEY.
+    DATA lv_said TYPE abap_bool.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        demand_id = 'EXPLAIN-D1'
+        quantity  = 6
+        reason    = 'promised at the trade fair' ) ).
+    INSERT zstock_alloc_fix FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM zstock_alloc_fix WHERE werks = @c_werks AND matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    LOOP AT lt_line INTO DATA(lv_line).
+      IF lv_line CS 'promised at the trade fair'.
+        lv_said = abap_true.
+      ENDIF.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_said
+      exp = abap_true
+      msg = 'an answer that does not follow from the priorities has to say what it does follow from' ).
+
+  ENDMETHOD.
+
+  METHOD a_quota_is_said_out_loud.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_qta WITH EMPTY KEY.
+    DATA lv_said TYPE abap_bool.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        kunnr     = 'EXPLCUST'
+        date_from = '20260101'
+        date_to   = '20261231'
+        quantity  = 30 ) ).
+    INSERT zstock_alloc_qta FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM zstock_alloc_qta WHERE werks = @c_werks AND matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    LOOP AT lt_line INTO DATA(lv_line).
+      IF lv_line CS 'EXPLCUST'.
+        lv_said = abap_true.
+      ENDIF.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_said
+      exp = abap_true
+      msg = 'the quota that cut the line is part of the working' ).
 
   ENDMETHOD.
 

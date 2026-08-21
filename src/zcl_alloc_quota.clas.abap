@@ -22,8 +22,6 @@ CLASS zcl_alloc_quota DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         io_strategy TYPE REF TO zif_allocation_strategy.
 
-  PRIVATE SECTION.
-
     "! One quota row. Declared explicitly rather than inferred with
     "! INTO TABLE @DATA(), see ANOMALIES.md.
     TYPES:
@@ -34,6 +32,24 @@ CLASS zcl_alloc_quota DEFINITION PUBLIC FINAL CREATE PUBLIC.
         quantity  TYPE zif_allocation=>ty_quantity,
       END OF ty_quota.
     TYPES ty_quota_tab TYPE STANDARD TABLE OF ty_quota WITH EMPTY KEY.
+
+    "! <p class="shorttext synchronized">The quotas agreed for one material</p>
+    "!
+    "! Public for the reason ZCL_ALLOC_PROMISED=>PROMISED_FOR is: the
+    "! explanation has to show the rows the rule acts on rather than read the
+    "! table a second way of its own.
+    "!
+    "! @parameter iv_matnr | <p class="shorttext synchronized">Material number</p>
+    "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter rt_quota | <p class="shorttext synchronized">Quota rows of the material</p>
+    CLASS-METHODS quotas_for
+      IMPORTING
+        iv_matnr        TYPE mard-matnr
+        iv_werks        TYPE mard-werks
+      RETURNING
+        VALUE(rt_quota) TYPE ty_quota_tab.
+
+  PRIVATE SECTION.
 
     "! What is left of one quota row, kept across the days of one allocation.
     TYPES:
@@ -177,16 +193,11 @@ CLASS zcl_alloc_quota IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD quotas_of.
-
-    IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
-      rt_quota = mt_quota.
-      RETURN.
-    ENDIF.
+  METHOD quotas_for.
 
     " the rows of the material in this plant, whether they name a customer or
-    " apply to all of them. Which of the two wins is decided per line below,
-    " because a customer with a quota of its own is not also part of the
+    " apply to all of them. Which of the two wins is decided per line in the
+    " rule, because a customer with a quota of its own is not also part of the
     " quota everybody shares.
     SELECT kunnr,
            date_from,
@@ -200,6 +211,19 @@ CLASS zcl_alloc_quota IMPLEMENTATION.
     IF sy-subrc <> 0.
       CLEAR rt_quota.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD quotas_of.
+
+    IF mv_read = abap_true AND mv_matnr = iv_matnr AND mv_werks = iv_werks.
+      rt_quota = mt_quota.
+      RETURN.
+    ENDIF.
+
+    rt_quota = quotas_for(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
 
     mt_quota = rt_quota.
     mv_matnr = iv_matnr.

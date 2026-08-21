@@ -104,6 +104,13 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mv_today     TYPE d.
 
+    METHODS rule_lines
+      IMPORTING
+        iv_matnr       TYPE mard-matnr
+        iv_werks       TYPE mard-werks
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
     METHODS supply_lines
       IMPORTING
         it_supply      TYPE zif_supply_reader=>ty_supply_tab
@@ -234,6 +241,10 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       APPEND `Nothing is allocated for a material on hold, whatever is waiting` TO rt_line.
     ENDIF.
 
+    APPEND LINES OF rule_lines(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ) TO rt_line.
+
     APPEND LINES OF supply_lines( mo_supply->read_supply(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ) ) TO rt_line.
@@ -259,6 +270,49 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       iv_matnr  = iv_matnr
       iv_werks  = iv_werks
       it_demand = lt_demand ) ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD rule_lines.
+
+    " what has been set aside or agreed for this material, in the rows the
+    " rules themselves read. A planner looking at an answer that does not
+    " follow from the priorities is looking for exactly these two tables, and
+    " an explanation that leaves them out sends them to SE16.
+    LOOP AT zcl_alloc_promised=>promised_for(
+        iv_matnr = iv_matnr
+        iv_werks = iv_werks ) INTO DATA(ls_promise).
+
+      IF lines( rt_line ) = 0.
+        APPEND `Promised by hand` TO rt_line.
+      ENDIF.
+
+      APPEND |  { ls_promise-demand_id } { ls_promise-quantity }| &&
+             COND string( WHEN ls_promise-valid_to IS NOT INITIAL
+                          THEN | until { ls_promise-valid_to DATE = ISO }| ) &&
+             COND string( WHEN ls_promise-reason IS NOT INITIAL
+                          THEN |, { ls_promise-reason }| ) TO rt_line.
+
+    ENDLOOP.
+
+    DATA(lv_quotas) = abap_false.
+
+    LOOP AT zcl_alloc_quota=>quotas_for(
+        iv_matnr = iv_matnr
+        iv_werks = iv_werks ) INTO DATA(ls_quota).
+
+      IF lv_quotas = abap_false.
+        APPEND `Quotas agreed` TO rt_line.
+        lv_quotas = abap_true.
+      ENDIF.
+
+      APPEND |  { COND string( WHEN ls_quota-kunnr IS INITIAL
+                               THEN `everybody`
+                               ELSE |{ ls_quota-kunnr }| ) } | &&
+             |{ ls_quota-quantity } for | &&
+             |{ ls_quota-date_from DATE = ISO } to { ls_quota-date_to DATE = ISO }| TO rt_line.
+
+    ENDLOOP.
 
   ENDMETHOD.
 

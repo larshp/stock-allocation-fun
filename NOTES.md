@@ -3320,3 +3320,28 @@ both are now dealt with.
 - **The last day it is kept is a day it is kept.** An off-by-one here is a
   promise broken on its final morning, which is exactly the morning somebody
   is watching.
+
+### Feature 106 — the explanation says what the rules are (done)
+
+`ZSTOCK_ALLOC_WHY` shows the supply, the demand and the answer, which is
+enough while the answer follows from the priorities. Since features 86 and 104
+it often does not: a line can be cut back by a quota agreed in March or
+overtaken by something a director promised at a trade fair, and neither shows
+up anywhere in the working. A planner looking at an answer that makes no sense
+was being sent to SE16.
+
+The explanation now opens with what has been set aside or agreed for the
+material.
+
+- **It shows the rows the rules read**, through `PROMISED_FOR` and
+  `QUOTAS_FOR` on the classes that carry the rules. An explanation that read
+  the tables its own way would be a second implementation of each rule, and
+  the two would disagree the first time either changed -- which is the whole
+  argument of feature 74.
+- **A promise that has run out is not shown here**, because it is not acting
+  on anything; `ZSTOCK_ALLOC_PROM` is where those are found.
+- **Nothing is printed when there is nothing**, so a material with no
+  arrangements reads exactly as it did before.
+- **The reason goes with the promise.** "Six promised until the thirtieth,
+  sales director, trade fair" is an explanation; "six promised" is another
+  question.

@@ -3465,3 +3465,29 @@ Both are now read once per plant and filtered in memory.
   material, and see that the second still knows what it was promised. Nothing
   else proves from outside that the second answer did not come from the
   database.
+
+### Feature 112 — a check for the Customizing itself (done)
+
+Six tables of this solution are maintained by people, and nearly everything
+that can be typed wrongly in one of them is invisible until a night behaves
+oddly. A quota whose period runs backwards never binds. A substitute pointing
+at a material somebody archived offers stock that cannot exist. A class named
+in `ZSTOCK_ALLOC_EXT` that never came across in the transport fails the whole
+plant on its first material, at two in the morning.
+
+`ZSTOCK_ALLOC_CFGC` is the check to run after transporting Customizing, and
+again when a night is strange.
+
+- **It reports what is quietly corrected, not only what fails.** The config
+  reader clamps a cap above a hundred and reads a negative number of days as
+  none, because a nightly run must not stop for a typed minus -- but it cannot
+  say so, and a setting that does not do what it says is the hardest kind of
+  wrong to find.
+- **It creates the configured classes and casts them.** A class that exists
+  but is not a reader of the kind it was configured as is a plant that fails
+  every material, and finding that out here costs one report.
+- **A plant with no settings row is not a finding.** Running on the defaults
+  is the decision feature 36 made deliberately; a check that complains about
+  it teaches people to ignore the check.
+- **Nothing to correct is an answer.** A check that cannot say a plant is
+  tidy leaves somebody reading a list of nothing wondering what they missed.

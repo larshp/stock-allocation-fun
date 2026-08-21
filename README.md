@@ -107,6 +107,7 @@ what is no longer holding anything back.
 | `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
 | `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
 | `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
+| `ZSTOCK_ALLOC_CFGC`  | what is wrong with a plant's Customizing: periods that run backwards, materials that are gone, classes nobody transported |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |

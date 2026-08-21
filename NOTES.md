@@ -200,6 +200,7 @@ in, which is also the order they make sense in.
 133. the worklist says how long a line has been short
 134. chasing the chronic ones is a different morning
 135. the oldest thing still waiting
+136. stock held for demand that is gone
 
 ## Progress
 
@@ -3969,3 +3970,28 @@ one line wanted in May, which is a problem somebody has stopped looking at.
   tells them apart, and it comes out of rows the overview already reads.
 - **A line with no date is not the oldest.** Demand with no date is wanted now
   and would otherwise make every plant look like 0000-00-00.
+
+### Feature 136 — stock held for demand that is gone (done)
+
+An order is deleted, an item is rejected, a schedule line is pushed out of the
+horizon. The demand readers stop returning it that same night, and the
+reservation an earlier run made for it stays exactly where it is, holding
+stock for a line nobody has any more. Nothing takes it back: a re-cut would,
+but only for a material it happens to allocate; housekeeping only removes the
+records of runs that hold nothing; the consistency check of feature 57 reports
+the disagreement and cannot act on it.
+
+`ZSTOCK_ALLOC_ORPH` sweeps a plant for exactly that.
+
+- **All of a run's lines, or none of it.** A reservation is one object and
+  cancelling it takes the stock from every line it covers, so a run with one
+  line still on the books is left alone. Partly orphaned reservations are what
+  the next re-cut is for.
+- **It reads the demand before the netting.** The question is whether the line
+  still exists at all, not whether it is still waiting for anything -- a line
+  fully served by this very reservation is not gone.
+- **A reservation that is holding nothing is not looked at.** Already issued or
+  already cancelled, there is nothing to give back.
+- **It defaults to a test run and writes to the same log as everything else.**
+  Stock reappearing in a plant with nothing saying why is the thing this
+  solution exists to avoid.

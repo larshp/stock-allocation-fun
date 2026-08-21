@@ -134,11 +134,12 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
 
-### The three that change something
+### The four that change something
 
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
+| `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
 

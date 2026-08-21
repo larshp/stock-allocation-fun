@@ -62,6 +62,35 @@
       </RSTBL>
      </TABLES>
     </item>
+    <item>
+     <FUNCNAME>Z_STOCK_ALLOC_RESULT</FUNCNAME>
+     <SHORT_TEXT>What the last run gave one order</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <TYP>MARD-WERKS</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_VBELN</PARAMETER>
+       <TYP>VBAP-VBELN</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_POSNR</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>VBAP-POSNR</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>ET_LINE</PARAMETER>
+       <TYP>ZCL_ALLOC_RESULT_API=&gt;TY_LINE_TAB</TYP>
+      </RSEXP>
+      <RSEXP>
+       <PARAMETER>ES_RETURN</PARAMETER>
+       <TYP>BAPIRET2</TYP>
+      </RSEXP>
+     </EXPORT>
+    </item>
    </FUNCTIONS>
   </asx:values>
  </asx:abap>

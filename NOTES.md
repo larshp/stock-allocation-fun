@@ -3417,3 +3417,27 @@ arrive: a nightly job, an address, a plain list.
 - **Failing to send does not lose the list.** The lines are written to the
   spool first and the send is reported if it fails: the answer is the point,
   the delivery is a convenience.
+
+### Feature 110 — what did my order get, for a caller outside ABAP (done)
+
+The promise answers "what could I have"; nothing answered the question that
+follows it. A webshop that took an order at nine and a customer service screen
+looking at it at eleven both need to know what the run gave it, and neither of
+them can read `ZSTOCK_ALLOC_RES` or catch an ABAP exception.
+
+`Z_STOCK_ALLOC_RESULT` takes a sales document and answers with one line per
+schedule line.
+
+- **The newest run per line, not every run.** A re-cut replaces what the run
+  before it decided; a caller handed both would have to work out which one
+  stands, and would get it wrong. `ZSTOCK_ALLOC_HIST` is where the trail
+  lives.
+- **The reason comes in words as well as in code.** A one letter code is
+  something only this repository can look up, and the same wording as every
+  report comes from `ZCL_ALLOC_REASON_TEXT`.
+- **An order no run has seen is an empty answer, not an error.** It usually
+  means the order arrived after the last run, which is the ordinary state of
+  an order taken this morning.
+- **The plant is checked.** A caller on an RFC destination is a user like any
+  other, and what a plant decided is the plant's business; the refusal comes
+  back in `BAPIRET2` like every other thing that can go wrong out there.

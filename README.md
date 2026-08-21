@@ -156,7 +156,10 @@ sales one.
 
 `ZSTOCK_ALLOC_SHORT` and `ZSTOCK_ALLOC_COVER` both take an e-mail address.
 Scheduled with one, the morning list and the "did the night finish" check
-arrive rather than waiting to be run.
+arrive rather than waiting to be run. The coverage check sends only when
+something is missing unless the box is unticked: a nightly mail saying
+everything is fine is a mail nobody opens, and on the morning it matters it
+looks like all the others.
 
 `ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
 because the demand netting reads it, and a real run writes to the same
@@ -177,7 +180,8 @@ are meant to be used in when a plant runs unattended, and why:
    re-cut, which is what a plant wanting all of today's demand to compete for
    all of the stock needs.
 3. **`ZSTOCK_ALLOC_COVER`** with an e-mail address — did the night finish. A
-   package that never ran leaves no trace anywhere else.
+   package that never ran leaves no trace anywhere else, and this only writes
+   to anybody when something is missing.
 4. **`ZSTOCK_ALLOC_SHORT`** with an e-mail address — the morning list, waiting
    in an inbox rather than waiting to be run.
 5. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs

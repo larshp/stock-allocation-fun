@@ -50,6 +50,25 @@ CLASS zcl_alloc_coverage DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">The materials with demand that nothing has decided about</p>
+    "!
+    "! What `RUN` puts into words, as a list. A scheduled check that mails
+    "! only when something is wrong has to be able to ask the question before
+    "! it decides whether to send the answer.
+    "!
+    "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter iv_hours | <p class="shorttext synchronized">How far back a run still counts</p>
+    "! @parameter rt_matnr | <p class="shorttext synchronized">Materials waiting that no run has covered</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be seen, or reading failed</p>
+    METHODS missed
+      IMPORTING
+        iv_werks        TYPE mard-werks
+        iv_hours        TYPE i DEFAULT c_default_hours
+      RETURNING
+        VALUE(rt_matnr) TYPE ty_matnr_tab
+      RAISING
+        zcx_allocation.
+
     "! <p class="shorttext synchronized">The materials a run has already decided about</p>
     "!
     "! Public because a run that carries on where the last one stopped has to
@@ -118,21 +137,15 @@ CLASS zcl_alloc_coverage IMPLEMENTATION.
 
     APPEND |Plant { iv_werks }, waiting and not allocated in the last { lv_hours } hour(s)| TO rt_line.
 
-    DATA(lt_done) = allocated_since(
+    DATA(lt_missed) = missed(
       iv_werks = iv_werks
       iv_hours = lv_hours ).
 
-    LOOP AT mo_demand->materials_with_demand( iv_werks ) INTO DATA(lv_matnr).
+    lv_total  = lines( mo_demand->materials_with_demand( iv_werks ) ).
+    lv_missed = lines( lt_missed ).
 
-      lv_total = lv_total + 1.
-
-      IF line_exists( lt_done[ table_line = lv_matnr ] ).
-        CONTINUE.
-      ENDIF.
-
-      lv_missed = lv_missed + 1.
+    LOOP AT lt_missed INTO DATA(lv_matnr).
       APPEND |{ lv_matnr }| TO rt_line.
-
     ENDLOOP.
 
     APPEND || TO rt_line.
@@ -148,6 +161,27 @@ CLASS zcl_alloc_coverage IMPLEMENTATION.
     ENDIF.
 
     APPEND |{ lv_missed } of { lv_total } material(s) with demand were not| TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD missed.
+
+    mo_authority->check_plant( iv_werks ).
+
+    DATA(lv_hours) = iv_hours.
+    IF lv_hours <= 0.
+      lv_hours = c_default_hours.
+    ENDIF.
+
+    DATA(lt_done) = allocated_since(
+      iv_werks = iv_werks
+      iv_hours = lv_hours ).
+
+    LOOP AT mo_demand->materials_with_demand( iv_werks ) INTO DATA(lv_matnr).
+      IF NOT line_exists( lt_done[ table_line = lv_matnr ] ).
+        APPEND lv_matnr TO rt_matnr.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 

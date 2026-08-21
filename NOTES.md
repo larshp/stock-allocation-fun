@@ -202,6 +202,7 @@ in, which is also the order they make sense in.
 135. the oldest thing still waiting
 136. stock held for demand that is gone
 137. the night, written down
+138. the night check keeps quiet when there is nothing to say
 
 ## Progress
 
@@ -4017,3 +4018,19 @@ The README now has the running order, with the reason for each position.
 - **None of it is required.** A plant that schedules only the allocation gets
   a working allocation, and the section says so first: an installation guide
   that reads as a list of obligations is one people skip.
+
+### Feature 138 — the night check keeps quiet when there is nothing to say (done)
+
+A monitoring check that mails every night is a mail rule in somebody's inbox
+within a fortnight, and on the morning it matters it looks exactly like all
+the others. The coverage check now sends only when a material with demand was
+not covered, unless the box is unticked.
+
+- **The report asks before it decides.** `MISSED` returns what `RUN` puts into
+  words, so the decision to send is made on the answer rather than by reading
+  the text of it.
+- **The spool is written either way.** Somebody running it from the screen
+  gets the whole page, including "all covered"; it is only the mail that is
+  conditional.
+- **The default is to keep quiet.** A check installed by somebody who did not
+  read the documentation should behave the way monitoring is supposed to.

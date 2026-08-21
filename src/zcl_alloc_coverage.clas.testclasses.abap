@@ -104,6 +104,8 @@ CLASS ltcl_alloc_coverage DEFINITION FINAL FOR TESTING
     METHODS a_covered_plant_says_so FOR TESTING RAISING cx_static_check.
     METHODS nothing_waiting_says_so FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
+    METHODS what_was_missed_is_a_list FOR TESTING RAISING cx_static_check.
+    METHODS a_covered_plant_misses_none FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -234,4 +236,29 @@ CLASS ltcl_alloc_coverage IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD what_was_missed_is_a_list.
+
+    DATA(lo_check) = NEW zcl_alloc_coverage(
+      io_demand    = NEW lcl_demand_double( VALUE #( ( c_missed ) ) )
+      io_authority = NEW lcl_authority_double( ) ).
+
+    " a scheduled check that keeps quiet unless something is wrong has to be
+    " able to ask before it decides whether to say anything
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lo_check->missed( c_werks ) )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD a_covered_plant_misses_none.
+
+    given_run( c_done ).
+
+    DATA(lo_check) = NEW zcl_alloc_coverage(
+      io_demand    = NEW lcl_demand_double( VALUE #( ( c_done ) ) )
+      io_authority = NEW lcl_authority_double( ) ).
+
+    cl_abap_unit_assert=>assert_initial( lo_check->missed( c_werks ) ).
+
+  ENDMETHOD.
 ENDCLASS.

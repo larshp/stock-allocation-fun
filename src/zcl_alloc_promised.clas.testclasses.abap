@@ -53,7 +53,9 @@ ENDCLASS.
 CLASS ltcl_alloc_promised IMPLEMENTATION.
 
   METHOD setup.
-    mo_cut = NEW zcl_alloc_promised( NEW zcl_alloc_strategy_priority( ) ).
+    mo_cut = NEW zcl_alloc_floor(
+      io_strategy = NEW zcl_alloc_strategy_priority( )
+      io_floor    = NEW zcl_alloc_promised( ) ).
   ENDMETHOD.
 
   METHOD teardown.

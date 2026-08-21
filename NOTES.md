@@ -213,6 +213,7 @@ in, which is also the order they make sense in.
 146. what ships this week is not taken back
 147. the settings line takes the settings as one thing
 148. the floor forgets the material before it
+149. the promise hands over through the same code
 
 ## Progress
 
@@ -4259,3 +4260,27 @@ not survive coming out into a class of its own.
 - **Found by reading the new class against the old one**, which is the same
   way the settings defects of features 103 and 117 turned up. A rule moved out
   of a class is a rule that has to be read twice.
+
+### Feature 149 — the promise hands over through the same code (done)
+
+`ZCL_ALLOC_FLOOR` came out of `ZCL_ALLOC_PROMISED` for the firm zone, which
+left the two of them doing the same work in two places -- and feature 148
+showed within the hour what that costs, because the copy that moved lost the
+one line that cleared the leftovers between materials.
+
+`ZCL_ALLOC_PROMISED` is now a source of floors rather than a strategy. What is
+left of it is what is particular to a hand promise: the table it reads, the
+last day a promise counts for, and the plant wide buffer. The hundred and
+fifty lines of taking a quantity off the top, taking it out of the demand the
+rules see, and answering every line exactly once are gone from it.
+
+- **The tests did not change**, except for the two lines that wire the thing
+  under test. They ask what a promise does to an allocation, and that is still
+  the question; if the answer had moved, they would have said so.
+- **`PROMISED_FOR` stays a class method**, because the explanation of feature
+  55 reads it without wanting a strategy chain.
+- **The class doc moved above the class.** It described the constructor, and
+  the constructor is gone: a source needs nothing to be built.
+- **The chain reads the same as before.** The promise is still outside the
+  quota and the share and inside whole units -- what changed is who does the
+  handing over, not when.

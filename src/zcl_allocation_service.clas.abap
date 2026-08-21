@@ -206,7 +206,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " and inside the two that describe what can actually be shipped: a promise
     " outranks the customer share and the quota, and it does not turn a line
     " into one that can leave the building in pieces
-    lo_strategy = NEW zcl_alloc_promised( lo_strategy ).
+    lo_strategy = NEW zcl_alloc_floor(
+      io_strategy = lo_strategy
+      io_floor    = NEW zcl_alloc_promised( ) ).
 
     " rounding goes inside the complete delivery rule as well, and for the same
     " reason as the cap: a line cut back to whole cartons may no longer reach

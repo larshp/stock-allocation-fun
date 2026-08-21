@@ -170,6 +170,25 @@ in, which is also the order they make sense in.
 103. the settings line nobody was writing
 104. a quantity somebody promised by hand
 105. a promise runs out, and can be looked at
+106. the explanation says what the rules are
+107. a run that is failing at everything stops
+108. what could stand in for what is short
+109. the morning list finds the planner
+110. what did my order get, for a caller outside ABAP
+111. the newest two tables, read once for the plant
+112. a check for the Customizing itself
+113. the holds and the priorities are checked too
+114. the Customizing logs its changes
+115. checking every plant at once
+116. carrying on where a night stopped
+117. every answer reads every setting the run reads
+118. the morning list says what the quantities are
+119. the other pages say what the quantities are too
+120. what one more delivery would fix
+121. how every plant stands, on one page
+122. the README stops being a wall
+123. documentation that can fail
+124. the notes check themselves
 
 ## Progress
 
@@ -3697,3 +3716,21 @@ or a table with delivery class `C` is not in a table in the README.
 - **It runs before the transpile**, where the linting is: both are questions
   about the source rather than about the behaviour, and both should fail in
   the first ten seconds rather than the last.
+
+### Feature 124 — the notes check themselves (done)
+
+The plan asks for the progress to be kept in `NOTES.md`, and what that turns
+into after a hundred write-ups is an index at the top that stopped matching
+somewhere around number 105. The check found exactly that the moment it was
+written: eighteen write-ups reachable only by scrolling.
+
+`npm run docs` now also checks that
+
+- **the write-ups are numbered 1, 2, 3 with no gaps and no repeats** -- two
+  features sharing a number are two features nobody can tell apart afterwards;
+- **the index has one entry per write-up, in order, with the same title** --
+  an index that has drifted is worse than none, because it is believed.
+
+The index parser deliberately reads only the list between its own heading and
+the write-ups: `NOTES.md` is full of numbered points that are not features,
+and a checker that cannot tell them apart would have to be switched off.

@@ -49,6 +49,7 @@ CLASS zcl_job_scheduler IMPLEMENTATION.
       WITH p_pkgs  = iv_packages
       WITH p_test  = iv_test
       WITH p_recut = iv_recut
+      WITH p_carry = iv_carry_on
       VIA JOB lv_jobname NUMBER lv_jobcount
       AND RETURN.
 

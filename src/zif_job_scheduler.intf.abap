@@ -13,6 +13,7 @@ INTERFACE zif_job_scheduler PUBLIC.
   "! @parameter iv_packages    | <p class="shorttext synchronized">Jobs sharing the plant</p>
   "! @parameter iv_test        | <p class="shorttext synchronized">The job changes nothing</p>
   "! @parameter iv_recut       | <p class="shorttext synchronized">The job gives earlier allocations back first</p>
+  "! @parameter iv_carry_on    | <p class="shorttext synchronized">The job leaves out what a run covered today</p>
   "! @parameter rv_jobname     | <p class="shorttext synchronized">Name the job was scheduled under</p>
   "! @raising   zcx_allocation | <p class="shorttext synchronized">Job could not be scheduled</p>
   METHODS schedule
@@ -22,6 +23,7 @@ INTERFACE zif_job_scheduler PUBLIC.
       iv_packages       TYPE i
       iv_test           TYPE abap_bool DEFAULT abap_true
       iv_recut          TYPE abap_bool DEFAULT abap_false
+      iv_carry_on       TYPE abap_bool DEFAULT abap_false
     RETURNING
       VALUE(rv_jobname) TYPE btcjob
     RAISING

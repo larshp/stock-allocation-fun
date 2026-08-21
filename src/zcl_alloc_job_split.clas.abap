@@ -40,6 +40,7 @@ CLASS zcl_alloc_job_split DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_jobs        | <p class="shorttext synchronized">How many jobs to share it between</p>
     "! @parameter iv_test        | <p class="shorttext synchronized">The jobs change nothing</p>
     "! @parameter iv_recut       | <p class="shorttext synchronized">The jobs give earlier allocations back first</p>
+    "! @parameter iv_carry_on    | <p class="shorttext synchronized">The jobs leave out what a run covered today</p>
     "! @parameter rt_jobname     | <p class="shorttext synchronized">What the jobs were scheduled as</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">A job could not be scheduled</p>
     METHODS run
@@ -48,6 +49,7 @@ CLASS zcl_alloc_job_split DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_jobs           TYPE i
         iv_test           TYPE abap_bool DEFAULT abap_true
         iv_recut          TYPE abap_bool DEFAULT abap_false
+        iv_carry_on       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_jobname) TYPE ty_jobname_tab
       RAISING
@@ -104,7 +106,8 @@ CLASS zcl_alloc_job_split IMPLEMENTATION.
         iv_package  = sy-index
         iv_packages = lv_jobs
         iv_test     = iv_test
-        iv_recut    = iv_recut ) TO rt_jobname.
+        iv_recut    = iv_recut
+        iv_carry_on = iv_carry_on ) TO rt_jobname.
 
     ENDDO.
 

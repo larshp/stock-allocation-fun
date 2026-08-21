@@ -3563,3 +3563,27 @@ already decided about today.
 - **It composes with the re-cut.** Carrying on a re-cut night gives back and
   re-allocates only what is left, which is exactly what finishing an
   interrupted re-cut means.
+
+### Feature 117 — every answer reads every setting the run reads (done)
+
+A sweep across the nine factories that read `ZIF_ALLOC_CONFIG`, listing which
+settings each of them passes on, found two more of the defect features 73, 74,
+92 and 99 all were:
+
+- **The preview did not pass the working day calendar.** A plant that counts
+  working days would have seen a preview counting plain ones, and every line
+  whose supply lands at a weekend as a change the run was about to make.
+- **Four of them never passed the transfer priority.** The explanation, the
+  comparison, the projection and the what-if all built their demand with the
+  default of `50`, so in a plant that had decided transfers come first -- or
+  last -- every one of them ranked stock transport orders differently from the
+  run whose answer they were explaining.
+
+Both are fixed, and the sweep is now a two-line shell command that lists what
+each factory passes. Two deliberate exceptions remain and are worth naming:
+the substitute list reads only supply, and the promise sums demand rather than
+ordering it, so neither needs the queue settings.
+
+**The split scheduler carries the flag through too**, so finishing an
+interrupted night on a plant that is split is one report run rather than eight
+jobs created by hand.

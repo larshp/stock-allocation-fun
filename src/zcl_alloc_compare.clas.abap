@@ -12,6 +12,7 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days  | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
     "! @parameter iv_work_days | <p class="shorttext synchronized">Shipping time counts working days only</p>
+    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter ro_compare | <p class="shorttext synchronized">Ready to use comparison</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -21,6 +22,7 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_ship_days      TYPE i DEFAULT 0
         iv_age_days       TYPE i DEFAULT zcl_demand_aging=>c_never
         iv_work_days      TYPE abap_bool DEFAULT abap_false
+        iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
       RETURNING
         VALUE(ro_compare) TYPE REF TO zcl_alloc_compare.
 
@@ -139,7 +141,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
         iv_horizon_days = iv_horizon_days
         iv_ship_days    = iv_ship_days
         iv_age_days     = iv_age_days
-        iv_work_days    = iv_work_days )
+        iv_work_days    = iv_work_days
+        iv_sto_priority = iv_sto_priority )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.
@@ -157,7 +160,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
       iv_horizon_days = ls_settings-horizon_days
       iv_ship_days    = ls_settings-ship_days
       iv_age_days     = ls_settings-age_days
-      iv_work_days    = ls_settings-work_days ).
+      iv_work_days    = ls_settings-work_days
+      iv_sto_priority = ls_settings-sto_priority ).
 
   ENDMETHOD.
 

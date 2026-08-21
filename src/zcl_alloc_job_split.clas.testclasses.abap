@@ -11,6 +11,7 @@ CLASS lcl_scheduler_spy DEFINITION FINAL.
         packages TYPE i,
         test     TYPE abap_bool,
         recut    TYPE abap_bool,
+        carry_on TYPE abap_bool,
       END OF ty_call.
     TYPES ty_call_tab TYPE STANDARD TABLE OF ty_call WITH EMPTY KEY.
 
@@ -48,7 +49,8 @@ CLASS lcl_scheduler_spy IMPLEMENTATION.
       package  = iv_package
       packages = iv_packages
       test     = iv_test
-      recut    = iv_recut ) TO mt_call.
+      recut    = iv_recut
+      carry_on = iv_carry_on ) TO mt_call.
 
     rv_jobname = |JOB_{ iv_werks }_{ iv_package }|.
 
@@ -118,6 +120,7 @@ CLASS ltcl_alloc_job_split DEFINITION FINAL FOR TESTING
     METHODS the_number_is_capped FOR TESTING RAISING cx_static_check.
     METHODS the_settings_are_passed_on FOR TESTING RAISING cx_static_check.
     METHODS the_names_come_back FOR TESTING RAISING cx_static_check.
+    METHODS carrying_on_is_passed_on FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_schedules_none FOR TESTING.
     METHODS a_refused_job_is_said FOR TESTING.
 
@@ -271,4 +274,20 @@ CLASS ltcl_alloc_job_split IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD carrying_on_is_passed_on.
+
+    cut( )->run(
+      iv_werks    = c_werks
+      iv_jobs     = 2
+      iv_carry_on = abap_true ).
+
+    " finishing an interrupted night is exactly the case a split plant has:
+    " every job has to leave out what any job already covered
+    LOOP AT mo_spy->get_calls( ) INTO DATA(ls_call).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_call-carry_on
+        exp = abap_true ).
+    ENDLOOP.
+
+  ENDMETHOD.
 ENDCLASS.

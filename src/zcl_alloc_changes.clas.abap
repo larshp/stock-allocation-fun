@@ -145,7 +145,8 @@ CLASS zcl_alloc_changes IMPLEMENTATION.
       iv_quota        = ls_settings-quota
       iv_sto_priority = ls_settings-sto_priority
       iv_ship_days    = ls_settings-ship_days
-      iv_age_days     = ls_settings-age_days ) ).
+      iv_age_days     = ls_settings-age_days
+      iv_work_days    = ls_settings-work_days ) ).
 
   ENDMETHOD.
 

@@ -12,6 +12,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
     "! @parameter iv_work_days | <p class="shorttext synchronized">Shipping time counts working days only</p>
+    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
     "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
     "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
     "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
@@ -25,6 +26,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_ship_days      TYPE i DEFAULT 0
         iv_age_days       TYPE i DEFAULT zcl_demand_aging=>c_never
         iv_work_days      TYPE abap_bool DEFAULT abap_false
+        iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
         iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
         iv_whole_units    TYPE abap_bool DEFAULT abap_false
@@ -169,7 +171,8 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       iv_horizon_days = iv_horizon_days
       iv_ship_days    = iv_ship_days
       iv_age_days     = iv_age_days
-      iv_work_days    = iv_work_days ).
+      iv_work_days    = iv_work_days
+      iv_sto_priority = iv_sto_priority ).
 
     ro_explain = NEW zcl_alloc_explain(
       io_supply    = lo_supply
@@ -198,6 +201,7 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       iv_ship_days    = ls_settings-ship_days
       iv_age_days     = ls_settings-age_days
       iv_work_days    = ls_settings-work_days
+      iv_sto_priority = ls_settings-sto_priority
       io_strategy     = zcl_alloc_config=>strategy_of( ls_settings )
       iv_cap_percent  = ls_settings-cap_percent
       iv_whole_units  = ls_settings-whole_units

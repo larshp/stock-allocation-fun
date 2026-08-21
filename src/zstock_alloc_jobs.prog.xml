@@ -18,6 +18,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_CARRY</KEY>
+     <ENTRY>Carry on where a run stopped</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_JOBS</KEY>
      <ENTRY>Jobs to share the plant</ENTRY>
      <LENGTH>23</LENGTH>

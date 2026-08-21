@@ -35,9 +35,10 @@ controller. For each material waiting for stock it
    horizon,
 4. walks the supply in the order it becomes available and distributes each day
    of it over the demand that can wait for it, either by delivery priority or
-   as a fair share, optionally holding every customer to a share of the pool,
-   to the quota it agreed for the period, and to whole order units, and giving
-   an item that may only ship complete either all of it or none of it,
+   as a fair share, handing over first whatever somebody has promised a line
+   by hand, optionally holding every customer to a share of the pool, to the
+   quota it agreed for the period, and to whole order units, and giving an
+   item that may only ship complete either all of it or none of it,
 5. records the outcome in `ZSTOCK_ALLOC_RES` and commits it,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`, links
    the reservation back onto the recorded run and commits that.
@@ -127,6 +128,7 @@ one writes to the same application log as an allocation run.
 | `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, whether customers are held to their quotas, where a stock transport order stands against a customer order, how many days it takes to get goods out of the door and whether those are working days, how long a line may go short before it moves up the queue, whether a promise counts demand nobody has confirmed yet, and how long a recorded run is kept |
 | `ZSTOCK_ALLOC_PRI`  | which customers are served before the rest, once per customer, for one plant or for all of them |
 | `ZSTOCK_ALLOC_HLD`  | materials the plant has put on hold, with a reason and optionally a day the hold lifts by itself |
+| `ZSTOCK_ALLOC_FIX`  | quantities somebody has promised a demand line by hand, served before the distribution rules see the stock, with a note of who promised it |
 | `ZSTOCK_ALLOC_QTA`  | how much of a material one customer may take in a period, per plant; a row naming no customer is the rule of the house |
 | `ZSTOCK_ALLOC_EXT`  | classes of your own that join the run as a source of supply or of demand, for one plant or for all of them |
 

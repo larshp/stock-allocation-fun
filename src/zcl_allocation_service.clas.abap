@@ -203,6 +203,12 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       lo_strategy = NEW zcl_alloc_quota( lo_strategy ).
     ENDIF.
 
+    " what somebody promised by hand goes outside the rules that ration stock
+    " and inside the two that describe what can actually be shipped: a promise
+    " outranks the customer share and the quota, and it does not turn a line
+    " into one that can leave the building in pieces
+    lo_strategy = NEW zcl_alloc_promised( lo_strategy ).
+
     " rounding goes inside the complete delivery rule as well, and for the same
     " reason as the cap: a line cut back to whole cartons may no longer reach
     " the quantity it has to ship in one go, and the rule outside has to see

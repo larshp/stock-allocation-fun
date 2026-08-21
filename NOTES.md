@@ -3239,3 +3239,35 @@ there, and nothing joined the two ends.
   off.
 - **What is off is not mentioned.** A header listing every setting a run could
   have had, on or off, is a header nobody reads twice.
+
+### Feature 104 — a quantity somebody promised by hand (done)
+
+Every rule so far is a rule about the ordinary night. What a business also has
+is the extraordinary one: a director has promised a customer a hundred pieces,
+and the run is about to give them to somebody with a better delivery priority.
+Without somewhere to put that, it gets done by reserving the stock in MB21
+behind the run's back -- where the allocation cannot see it, the netting does
+not know what it is for, and the next re-cut fights it.
+
+`ZSTOCK_ALLOC_FIX` is that somewhere: a demand line, a quantity, and who
+promised it. `ZCL_ALLOC_PROMISED` hands it over before the distribution rules
+see the stock.
+
+- **A promise outranks the rules and not the physics.** It sits outside the
+  customer share and the quota -- being cut back by a rationing rule is
+  exactly what a promise is for -- and inside whole units and the complete
+  delivery rule, which describe what can actually leave the building.
+- **It cannot promise more than the line asks for, or more than there is.**
+  What a promise decides is who gets the stock first, not how much of it
+  exists; the rest of the line goes back into the queue like anything else.
+- **It is handed over once per allocation, not once per day of supply.** The
+  same trap the quota fell into in feature 86, and the same way out: what is
+  left of each promise is kept across the engine's walk, and a walk is told
+  from the next by the demand not having shrunk.
+- **There is no switch for it.** A promise is not a plant policy but an
+  exception to one, and a plant that had forgotten to tick the box would
+  quietly not keep promises somebody had made. The cost of that decision is
+  one indexed read per material per run.
+- **The line still says what it asked for.** A line promised three of the ten
+  it ordered is seven short, and the report says so: a promise is not a way of
+  hiding a shortfall.

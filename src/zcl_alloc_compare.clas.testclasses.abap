@@ -109,6 +109,16 @@ CLASS ltcl_alloc_compare DEFINITION FINAL FOR TESTING
       RETURNING
         VALUE(rs_demand) TYPE zif_allocation=>ty_demand.
 
+    METHODS compared_with
+      IMPORTING
+        is_settings    TYPE zif_alloc_config=>ty_config
+        iv_available   TYPE zif_allocation=>ty_quantity
+        it_demand      TYPE zif_allocation=>ty_demand_tab
+      RETURNING
+        VALUE(rt_line) TYPE zcl_alloc_compare=>ty_line_tab
+      RAISING
+        zcx_allocation.
+
     METHODS compared
       IMPORTING
         iv_available   TYPE zif_allocation=>ty_quantity
@@ -125,6 +135,7 @@ CLASS ltcl_alloc_compare DEFINITION FINAL FOR TESTING
     METHODS whole_lines_are_counted FOR TESTING RAISING cx_static_check.
     METHODS nothing_waiting_says_so FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
+    METHODS the_plants_bar_is_kept FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -149,10 +160,20 @@ CLASS ltcl_alloc_compare IMPLEMENTATION.
 
   METHOD compared.
 
+    rt_line = compared_with(
+      is_settings  = VALUE #( )
+      iv_available = iv_available
+      it_demand    = it_demand ).
+
+  ENDMETHOD.
+
+  METHOD compared_with.
+
     DATA(lo_cut) = NEW zcl_alloc_compare(
       io_supply    = NEW lcl_supply_double( iv_available )
       io_demand    = NEW lcl_demand_double( it_demand )
-      io_authority = mo_authority ).
+      io_authority = mo_authority
+      is_settings  = is_settings ).
 
     rt_line = lo_cut->run(
       iv_matnr = c_matnr
@@ -273,6 +294,26 @@ CLASS ltcl_alloc_compare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_authority->get_plant( )
       exp = c_werks ).
+
+  ENDMETHOD.
+
+  METHOD the_plants_bar_is_kept.
+
+    " the report compares the distribution rule and nothing else: a plant that
+    " will not ship less than half a line ships less than half a line under
+    " neither of them, and a comparison that forgets the rest of the settings
+    " compares two runs the plant would never make
+    DATA(lt_line) = compared_with(
+      is_settings  = VALUE #( min_percent = 50 )
+      iv_available = '4'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '10'
+                  iv_priority = '01' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*D1*10.000*0.000*0.000*' ).
 
   ENDMETHOD.
 

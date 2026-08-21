@@ -215,6 +215,7 @@ in, which is also the order they make sense in.
 148. the floor forgets the material before it
 149. the promise hands over through the same code
 150. the explanation says what is firm
+151. the comparison keeps the rest of the settings
 
 ## Progress
 
@@ -4304,3 +4305,23 @@ same complaint feature 106 fixed for the promise and the quota.
   first version of the negative test passed for the wrong reason; it now asks
   for the whole heading. Worth writing down because it is the sort of test
   that would have gone on passing after the feature was broken.
+
+### Feature 151 — the comparison keeps the rest of the settings (done)
+
+`ZCL_ALLOC_COMPARE` builds the strategy chain the run builds, and put four
+settings into it by hand: the three rules the report exists to compare, plus
+the bar. Everything else the plant is set to do -- since feature 146, the firm
+zone -- was dropped on the way past, so the report compared two runs the plant
+would never make. The ninth of the same family, and the same fix as features
+126 to 128: keep the structure, override the three fields that are arguments.
+
+- **The three rules are arguments of `RUN`, the rest is the plant's.** That
+  distinction is the report; what was wrong was that "the rest" had been
+  copied out field by field instead of carried.
+- **A test that a setting the report is not comparing survives it.** The bar
+  is the one to test with, because it can turn a confirmation into a nought
+  and the two rules then agree about it.
+- **Found by sweeping for the family**, not by a failing test: every place
+  that builds a strategy chain was read again after the firm zone went in.
+  Eight of the previous nine were found the same way, which says something
+  about how much of this a test suite can be expected to catch.

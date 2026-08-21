@@ -38,12 +38,13 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_supply    | <p class="shorttext synchronized">What the plant has to give away</p>
     "! @parameter io_demand    | <p class="shorttext synchronized">What is waiting for it</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter is_settings  | <p class="shorttext synchronized">The plant's other settings, kept by both</p>
     METHODS constructor
       IMPORTING
-        io_supply      TYPE REF TO zif_supply_reader
-        io_demand      TYPE REF TO zif_demand_reader
-        io_authority   TYPE REF TO zif_allocation_authority
-        iv_min_percent TYPE i DEFAULT zcl_alloc_minimum=>c_no_minimum.
+        io_supply    TYPE REF TO zif_supply_reader
+        io_demand    TYPE REF TO zif_demand_reader
+        io_authority TYPE REF TO zif_allocation_authority
+        is_settings  TYPE zif_alloc_config=>ty_config OPTIONAL.
 
     "! <p class="shorttext synchronized">What each distribution rule would confirm</p>
     "!
@@ -86,9 +87,11 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
-    "! The plant's own bar on a confirmation worth making, which is a setting
-    "! rather than one of the rules this report is comparing.
-    DATA mv_min_percent TYPE i.
+    "! Everything the plant is set to do that this report is not comparing:
+    "! the bar of feature 141, the firm zone of feature 146, and whatever is
+    "! added next. Both answers are worked out with it, or the comparison is
+    "! between two rules neither of which the plant would have applied.
+    DATA ms_settings TYPE zif_alloc_config=>ty_config.
 
     METHODS answer_of
       IMPORTING
@@ -128,19 +131,19 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
     DATA(lo_converter) = NEW zcl_unit_converter( ).
 
     ro_compare = NEW zcl_alloc_compare(
-      io_supply      = zcl_allocation_service=>create_default_supply(
+      io_supply    = zcl_allocation_service=>create_default_supply(
         io_converter = lo_converter
         iv_lgort     = is_settings-lgort
         iv_planned   = is_settings-planned )
-      io_demand      = zcl_allocation_service=>create_default_open_demand(
+      io_demand    = zcl_allocation_service=>create_default_open_demand(
         io_converter    = lo_converter
         iv_horizon_days = is_settings-horizon_days
         iv_ship_days    = is_settings-ship_days
         iv_age_days     = is_settings-age_days
         iv_work_days    = is_settings-work_days
         iv_sto_priority = is_settings-sto_priority )
-      io_authority   = NEW zcl_authority_alloc( c_activity_display )
-      iv_min_percent = is_settings-min_percent ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
+      is_settings  = is_settings ).
 
   ENDMETHOD.
 
@@ -159,8 +162,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
 
     mo_supply    = io_supply.
     mo_demand    = io_demand.
-    mo_authority   = io_authority.
-    mv_min_percent = iv_min_percent.
+    mo_authority = io_authority.
+    ms_settings  = is_settings.
 
   ENDMETHOD.
 
@@ -259,14 +262,18 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
   METHOD answer_of.
 
     " the same decorators the run puts around a strategy, from the same place,
-    " so that what is compared is the rule and not the wrapping
-    " the three rules this report exists to compare are arguments rather than
-    " settings, so they are put into the plant's settings on the way past
+    " so that what is compared is the rule and not the wrapping. The three
+    " rules this report exists to compare are arguments rather than settings,
+    " so they are put into the plant's settings on the way past and everything
+    " else the plant is set to do is left exactly as it is: a comparison that
+    " quietly drops the rest is comparing two runs the plant would never make.
+    DATA(ls_settings) = ms_settings.
+    ls_settings-cap_percent = iv_cap_percent.
+    ls_settings-whole_units = iv_whole_units.
+    ls_settings-quota       = iv_quota.
+
     DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
-      is_settings = VALUE #( cap_percent = iv_cap_percent
-                             whole_units = iv_whole_units
-                             quota       = iv_quota
-                             min_percent = mv_min_percent )
+      is_settings = ls_settings
       io_strategy = io_strategy ).
 
     rt_allocation = NEW zcl_allocation_engine(

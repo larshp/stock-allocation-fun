@@ -412,3 +412,25 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
     a rule that would then have to be excluded is worse than the gap.
   - The screen validation in `ZSTOCK_ALLOCATION` therefore writes its reason
     and returns rather than issuing message 015, which would not lint.
+
+## 7. `SUBMIT` is transpiled to a runtime error
+
+- **Where:** `ZCL_JOB_SCHEDULER=>ZIF_JOB_SCHEDULER~SCHEDULE`, which submits
+  `ZSTOCK_ALLOCATION` as a background job.
+- **What happens:** abaplint parses `SUBMIT ... VIA JOB ... AND RETURN`
+  without complaint, and the transpiler emits
+
+  ```js
+  throw new Error("Submit, transpiler todo");
+  ```
+
+  for the whole statement, so any test that reaches it fails.
+- **What this repo does:** puts the statement behind `ZIF_JOB_SCHEDULER` with
+  nothing else in the method that is worth testing, and tests
+  `ZCL_ALLOC_JOB_SPLIT` -- how many jobs, which packages, what they are told,
+  what happens when one is refused -- against a double. `ZCL_JOB_SCHEDULER`
+  ships without unit tests, and its XML says so.
+- **Consequences worth knowing:** the three statements in that method are the
+  only lines of the solution that no test executes. They are also the lines a
+  first run in a real system exercises immediately: a job either appears in
+  SM37 or it does not.

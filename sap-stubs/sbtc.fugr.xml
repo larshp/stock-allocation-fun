@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>SBTC</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LSBTCTOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLSBTC</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>JOB_OPEN</FUNCNAME>
+     <SHORT_TEXT>Open a background job</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>JOBNAME</PARAMETER>
+       <TYP>BTCJOB</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>JOBCOUNT</PARAMETER>
+       <TYP>BTCJOBCNT</TYP>
+      </RSEXP>
+     </EXPORT>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>CANT_CREATE_JOB</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>INVALID_JOB_DATA</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+    <item>
+     <FUNCNAME>JOB_CLOSE</FUNCNAME>
+     <SHORT_TEXT>Close and release a background job</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>JOBCOUNT</PARAMETER>
+       <TYP>BTCJOBCNT</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>JOBNAME</PARAMETER>
+       <TYP>BTCJOB</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>STRTIMMED</PARAMETER>
+       <TYP>ABAP_BOOL</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>JOB_WAS_RELEASED</PARAMETER>
+       <TYP>ABAP_BOOL</TYP>
+      </RSEXP>
+     </EXPORT>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>CANT_START_IMMEDIATE</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>JOBNAME_MISSING</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>JOB_CLOSE_FAILED</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>JOB_NOSTEPS</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

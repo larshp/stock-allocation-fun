@@ -104,6 +104,12 @@
      <MSGNR>016</MSGNR>
      <TEXT>Configured source &amp;1 could not be used</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>017</MSGNR>
+     <TEXT>Job &amp;1 could not be scheduled</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

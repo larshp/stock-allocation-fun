@@ -78,6 +78,16 @@ CLASS zcx_allocation DEFINITION
       END OF no_source.
 
     CONSTANTS:
+      BEGIN OF job_failed,
+        msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
+        msgno TYPE symsgno VALUE '017',
+        attr1 TYPE scx_attrname VALUE 'MV_MESSAGE',
+        attr2 TYPE scx_attrname VALUE '',
+        attr3 TYPE scx_attrname VALUE '',
+        attr4 TYPE scx_attrname VALUE '',
+      END OF job_failed.
+
+    CONSTANTS:
       BEGIN OF locked,
         msgid TYPE symsgid VALUE 'ZSTOCK_ALLOC',
         msgno TYPE symsgno VALUE '005',

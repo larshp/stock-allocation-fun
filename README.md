@@ -80,6 +80,9 @@ several times with **Jobs sharing the plant** set to how many there are and
 **Package this job covers** set to 1, 2, 3 and so on. Which job takes a
 material follows from the material number, so the jobs never collide and
 nothing is missed even though each of them reads the plant a moment apart.
+`ZSTOCK_ALLOC_JOBS` schedules the whole set in one go rather than leaving
+somebody to create them one at a time in SM36, where one job quietly missing
+is a part of the plant nobody allocates.
 
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
@@ -100,6 +103,7 @@ what is no longer holding anything back.
 | `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
 | `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
+| `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_HIST`  | what every run so far decided about one sales order, run by run, and how long it has been going short |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |

@@ -3057,3 +3057,34 @@ run confirmed against each of them.
   one worth seeing: either a promise nobody is using, or a figure that is
   wrong in a way the run will not reveal until it bites.
 - **The recorded runs are read once for the plant**, not once per quota row.
+
+### Feature 97 — scheduling the split night in one go (done)
+
+Feature 58 made a plant splittable, and left the scheduling to whoever was
+sitting in front of SM36: eight jobs, eight variants, each to be found and
+changed again whenever anything about the run changes. The failure mode is
+quiet and nasty -- one job not scheduled is one package of the plant nobody
+allocates, and nothing in the result reports says a package is missing,
+because a package nobody ran has no result to be missing from.
+
+`ZSTOCK_ALLOC_JOBS` schedules all of them.
+
+- **The `SUBMIT` sits alone behind `ZIF_JOB_SCHEDULER`.** The transpiler turns
+  `SUBMIT` into a runtime error (ANOMALIES 7), so the statement cannot be
+  covered by a test here -- which makes it all the more important that
+  everything around it can be. How many jobs, which package each covers, what
+  they are told and what happens when one is refused are all on the testable
+  side of that interface.
+- **Every job is told the total as well as its own number.** Which material
+  falls in which package follows from how many packages there are, so a job
+  given the wrong total covers the wrong materials -- and silently, because it
+  still allocates something.
+- **It stops at the first job that cannot be scheduled**, and says which. The
+  jobs already queued stay queued: taking them back would mean cancelling work
+  that may already have started, and a plant three quarters scheduled that
+  says so is better than one that quietly unschedules itself.
+- **Twenty is the ceiling.** Five hundred jobs on one plant is not a split, it
+  is a way of filling every background work process the system has.
+- **The jobs are named `ZSTOCK_ALLOC_<plant>_<package>`**, so they sort
+  together in SM37, which is where somebody looks at eight in the morning to
+  find out whether the night finished.

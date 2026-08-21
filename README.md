@@ -221,11 +221,12 @@ npm test
 | Script              | What it does                                            |
 | ------------------- | ------------------------------------------------------- |
 | `npm run lint`      | `abaplint` over `src/` and `sap-stubs/`                 |
+| `npm run docs`      | checks every report and Customizing table is in this file |
 | `npm run transpile` | ABAP -> JavaScript into `output/`                       |
 | `npm run unit`      | runs the transpiled ABAP Unit tests                     |
-| `npm test`          | all three, in that order                                |
+| `npm test`          | all four, in that order                                 |
 
-The same three steps run on every push, see
+The same four steps run on every push, see
 [.github/workflows/test.yml](.github/workflows/test.yml).
 
 ## Where the seams are

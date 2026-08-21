@@ -3675,3 +3675,25 @@ three that change anything.
 - **A script checks the grouping is complete**: every `Z*` report in `src/`
   appears in one of the tables. A grouped list that quietly loses a program is
   worse than the wall it replaced.
+
+### Feature 123 — documentation that can fail (done)
+
+Feature 122 said "a script checks the grouping is complete", and what actually
+happened was that a script was run once, by hand, and then thrown away. Two
+things drift the moment nobody is looking: a report that is added and never
+written down, and a Customizing table that is added and never explained.
+Neither is visible to abaplint or to a unit test, because both are perfectly
+good ABAP.
+
+`npm run docs` is now part of `npm test`, and it fails when a report in `src/`
+or a table with delivery class `C` is not in a table in the README.
+
+- **It was proved to fail.** Renaming one entry in the README made it exit
+  non-zero and say which report was missing; a check that has never been seen
+  failing is a check nobody should believe.
+- **Delivery class picks the tables out**, so a structure used as an RFC
+  parameter is not asked for. That is the same distinction the Customizing
+  section of the README makes.
+- **It runs before the transpile**, where the linting is: both are questions
+  about the source rather than about the behaviour, and both should fail in
+  the first ten seconds rather than the last.

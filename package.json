@@ -7,7 +7,8 @@
     "lint": "abaplint",
     "transpile": "abap_transpile abaplint-transpile.json",
     "unit": "node output/index.mjs",
-    "test": "npm run lint && npm run transpile && npm run unit"
+    "test": "npm run lint && npm run docs && npm run transpile && npm run unit",
+    "docs": "node test/docs.mjs"
   },
   "license": "MIT",
   "devDependencies": {

@@ -88,6 +88,7 @@ CLASS ltcl_alloc_cfg_check DEFINITION FINAL FOR TESTING
     METHODS a_hold_without_a_reason FOR TESTING RAISING cx_static_check.
     METHODS a_priority_of_nothing FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
+    METHODS a_material_not_in_the_plant FOR TESTING RAISING cx_static_check.
     METHODS every_plant_can_be_asked FOR TESTING.
     METHODS a_plant_not_yours_is_skipped FOR TESTING.
 
@@ -99,11 +100,17 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
   METHOD setup.
 
     DATA lt_mara  TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_marc  TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
     DATA lt_t001w TYPE STANDARD TABLE OF t001w WITH EMPTY KEY.
 
     lt_mara = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' ) ).
     INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_marc = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr werks = c_werks ) ).
+    INSERT marc FROM TABLE @lt_marc.
     cl_abap_unit_assert=>assert_subrc( ).
 
     lt_t001w = VALUE #(
@@ -116,6 +123,8 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
   METHOD teardown.
 
     DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM marc WHERE werks = @c_werks.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
     DELETE FROM t001w WHERE werks = @c_werks.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
@@ -201,6 +210,7 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
   METHOD a_tidy_plant_says_so.
 
     DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_marc TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
 
     given_quota( ).
     given_substitute( c_matnr && '-X' ).
@@ -208,6 +218,11 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
     lt_mara = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr && '-X' mtart = 'FERT' meins = 'PC' ) ).
     INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_marc = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr && '-X' werks = c_werks ) ).
+    INSERT marc FROM TABLE @lt_marc.
     cl_abap_unit_assert=>assert_subrc( ).
 
     DATA(lt_line) = checked( ).
@@ -370,6 +385,29 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
       act = says( it_line = lt_line
                   iv_text = `No plant here is one you may look at` )
       msg = 'a check that stops at the first plant somebody is not responsible for is unrunnable' ).
+
+  ENDMETHOD.
+
+  METHOD a_material_not_in_the_plant.
+
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+
+    " the material exists and was never extended to this plant: the row looks
+    " right and the run will never see the two of them together
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = 'CFGC-ELSEWHERE' mtart = 'FERT' meins = 'PC' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    given_quota( iv_matnr = 'CFGC-ELSEWHERE' ).
+
+    DATA(lt_line) = checked( ).
+
+    DELETE FROM mara WHERE matnr = 'CFGC-ELSEWHERE'.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `not in this plant` ) ).
 
   ENDMETHOD.
 ENDCLASS.

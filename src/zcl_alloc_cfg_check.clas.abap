@@ -117,6 +117,13 @@ CLASS zcl_alloc_cfg_check DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_there) TYPE abap_bool.
 
+    METHODS is_in_the_plant
+      IMPORTING
+        iv_matnr        TYPE mard-matnr
+        iv_werks        TYPE mard-werks
+      RETURNING
+        VALUE(rv_there) TYPE abap_bool.
+
 ENDCLASS.
 
 
@@ -222,7 +229,8 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
                   cap_percent,
                   keep_days,
                   ship_days,
-                  age_days
+                  age_days,
+                  min_percent
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_cfg).
@@ -242,6 +250,11 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
 
     IF ls_cfg-cap_percent > c_max_percent.
       APPEND |A customer share of { ls_cfg-cap_percent } percent is read as { c_max_percent }| TO rt_line.
+    ENDIF.
+
+    IF ls_cfg-min_percent > c_max_percent.
+      APPEND |A smallest worthwhile confirmation of { ls_cfg-min_percent } percent | &&
+             |is read as { c_max_percent }, which is the complete delivery rule| TO rt_line.
     ENDIF.
 
     IF ls_cfg-horizon_days < 0 OR ls_cfg-ship_days < 0
@@ -275,6 +288,9 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
 
       IF is_a_material( ls_quota-matnr ) = abap_false.
         APPEND |Quota { ls_quota-matnr }: no such material| TO rt_line.
+      ELSEIF is_in_the_plant( iv_matnr = ls_quota-matnr
+                              iv_werks = iv_werks ) = abap_false.
+        APPEND |Quota { ls_quota-matnr }: the material is not in this plant| TO rt_line.
       ENDIF.
 
     ENDLOOP.
@@ -305,6 +321,9 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
 
       IF is_a_material( ls_promise-matnr ) = abap_false.
         APPEND |Promise { ls_promise-matnr }: no such material| TO rt_line.
+      ELSEIF is_in_the_plant( iv_matnr = ls_promise-matnr
+                              iv_werks = iv_werks ) = abap_false.
+        APPEND |Promise { ls_promise-matnr }: the material is not in this plant| TO rt_line.
       ENDIF.
 
     ENDLOOP.
@@ -334,6 +353,10 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
 
       IF is_a_material( ls_substitute-substitute ) = abap_false.
         APPEND |Substitute { ls_substitute-substitute }: no such material| TO rt_line.
+      ELSEIF is_in_the_plant( iv_matnr = ls_substitute-substitute
+                              iv_werks = iv_werks ) = abap_false.
+        APPEND |Substitute { ls_substitute-substitute }: not in this plant, | &&
+               |so it has nothing here to stand in with| TO rt_line.
       ENDIF.
 
     ENDLOOP.
@@ -440,6 +463,20 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
       ENDTRY.
 
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD is_in_the_plant.
+
+    " a material that exists and was never extended to this plant is the
+    " commonest of these mistakes: the row looks right, the material is real,
+    " and the run will never see either of them together
+    SELECT SINGLE matnr
+      FROM marc
+      WHERE matnr = @iv_matnr
+        AND werks = @iv_werks
+      INTO @DATA(lv_matnr).
+    rv_there = xsdbool( sy-subrc = 0 AND lv_matnr IS NOT INITIAL ).
 
   ENDMETHOD.
 

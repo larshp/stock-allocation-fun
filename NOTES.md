@@ -208,6 +208,7 @@ in, which is also the order they make sense in.
 141. a confirmation too small to ship is none
 142. and the answers know about the bar too
 143. the last factory takes the settings too
+144. the check knows the commonest mistake
 
 ## Progress
 
@@ -4140,3 +4141,18 @@ It now takes the settings structure, like everything else since feature 126.
 - **Adding the next rule is one line in one method.** Which is the whole point
   of the exercise, and the fifth time this repository has paid for the loose
   parameters before finally removing them.
+
+### Feature 144 — the check knows the commonest mistake (done)
+
+The Customizing check looked for materials that do not exist. The mistake
+people actually make is subtler and far commoner: a material that exists and
+was never extended to the plant. The row looks right, the material is real,
+`MARA` has it -- and the run will never see the two of them together, so a
+quota never binds, a promise is never kept and a substitute has nothing here
+to stand in with.
+
+- **`MARC` is the question, not `MARA`.** All three tables that name a
+  material are now checked against the plant as well as against the client.
+- **It also reports a smallest worthwhile confirmation above a hundred
+  percent**, which the reader clamps: at a hundred it is the complete delivery
+  rule, and above it, it is a number somebody typed twice.

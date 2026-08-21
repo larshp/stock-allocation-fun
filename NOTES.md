@@ -3468,7 +3468,7 @@ Both are now read once per plant and filtered in memory.
 
 ### Feature 112 — a check for the Customizing itself (done)
 
-Six tables of this solution are maintained by people, and nearly everything
+Seven tables of this solution are maintained by people, and nearly everything
 that can be typed wrongly in one of them is invisible until a night behaves
 oddly. A quota whose period runs backwards never binds. A substitute pointing
 at a material somebody archived offers stock that cannot exist. A class named
@@ -3491,3 +3491,20 @@ again when a night is strange.
   it teaches people to ignore the check.
 - **Nothing to correct is an answer.** A check that cannot say a plant is
   tidy leaves somebody reading a list of nothing wondering what they missed.
+
+### Feature 113 — the holds and the priorities are checked too (done)
+
+Feature 112 read five of the maintained tables and stopped, which is the kind
+of half-done check that is worse than none: somebody runs it, sees "nothing to
+correct", and concludes that the hold nobody has looked at since March is
+fine.
+
+- **A hold that lifted itself is still a row.** The reader ignores it, so
+  nothing is wrong with the run -- but the row is a note somebody left, and a
+  note about a problem from March being still on the table is worth a line.
+- **A hold with no reason is the worst kind.** The material is out of every
+  run and nobody can argue with it, because nobody knows who set it or why.
+- **A customer priority row with no priority does nothing at all**, which
+  looks exactly like a customer somebody promoted. So does one with no
+  customer: demand without a customer is a stock transport order, and the rank
+  reader never looks at those.

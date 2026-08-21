@@ -84,6 +84,9 @@ CLASS ltcl_alloc_cfg_check DEFINITION FINAL FOR TESTING
     METHODS a_substitute_for_itself FOR TESTING RAISING cx_static_check.
     METHODS a_source_nobody_wrote FOR TESTING RAISING cx_static_check.
     METHODS a_source_of_the_wrong_kind FOR TESTING RAISING cx_static_check.
+    METHODS a_stale_hold_shows FOR TESTING RAISING cx_static_check.
+    METHODS a_hold_without_a_reason FOR TESTING RAISING cx_static_check.
+    METHODS a_priority_of_nothing FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
 
 ENDCLASS.
@@ -119,6 +122,10 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
     DELETE FROM zstock_alloc_sub WHERE werks = @c_werks.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
     DELETE FROM zstock_alloc_ext WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM zstock_alloc_hld WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM zstock_alloc_pri WHERE werks = @c_werks.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
   ENDMETHOD.
@@ -277,4 +284,62 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_stale_hold_shows.
+
+    DATA lt_row       TYPE STANDARD TABLE OF zstock_alloc_hld WITH EMPTY KEY.
+    DATA lv_yesterday TYPE d.
+
+    lv_yesterday = sy-datum - 1.
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        werks      = c_werks
+        matnr      = c_matnr
+        reason     = 'counting the last pallet'
+        until_date = lv_yesterday ) ).
+    INSERT zstock_alloc_hld FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = checked( )
+                  iv_text = `and the row is still there` )
+      msg = 'a hold that lifted itself in March is a row nobody has looked at since' ).
+
+  ENDMETHOD.
+
+  METHOD a_hold_without_a_reason.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_hld WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt = sy-mandt
+        werks = c_werks
+        matnr = c_matnr ) ).
+    INSERT zstock_alloc_hld FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = checked( )
+                  iv_text = `no reason is given` )
+      msg = 'a material out of every run for a reason nobody wrote down' ).
+
+  ENDMETHOD.
+
+  METHOD a_priority_of_nothing.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_pri WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt = sy-mandt
+        werks = c_werks
+        kunnr = c_kunnr ) ).
+    INSERT zstock_alloc_pri FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = checked( )
+                  iv_text = `the row does nothing` )
+      msg = 'a customer somebody meant to promote and did not' ).
+
+  ENDMETHOD.
 ENDCLASS.

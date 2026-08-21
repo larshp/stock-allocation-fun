@@ -81,6 +81,18 @@ CLASS zcl_alloc_cfg_check DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
+    METHODS hold_lines
+      IMPORTING
+        iv_werks       TYPE mard-werks
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
+    METHODS priority_lines
+      IMPORTING
+        iv_werks       TYPE mard-werks
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
     METHODS extension_lines
       IMPORTING
         iv_werks       TYPE mard-werks
@@ -119,6 +131,8 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
     APPEND LINES OF quota_lines( iv_werks ) TO rt_line.
     APPEND LINES OF promise_lines( iv_werks ) TO rt_line.
     APPEND LINES OF substitute_lines( iv_werks ) TO rt_line.
+    APPEND LINES OF hold_lines( iv_werks ) TO rt_line.
+    APPEND LINES OF priority_lines( iv_werks ) TO rt_line.
     APPEND LINES OF extension_lines( iv_werks ) TO rt_line.
 
     APPEND || TO rt_line.
@@ -273,6 +287,70 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
 
       IF is_a_material( ls_substitute-substitute ) = abap_false.
         APPEND |Substitute { ls_substitute-substitute }: no such material| TO rt_line.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD hold_lines.
+
+    SELECT matnr, reason, until_date
+      FROM zstock_alloc_hld
+      WHERE werks = @iv_werks
+      ORDER BY matnr
+      INTO TABLE @DATA(lt_hold).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_hold INTO DATA(ls_hold).
+
+      IF ls_hold-until_date <> c_no_end AND ls_hold-until_date < sy-datum.
+        APPEND |Hold { ls_hold-matnr }: lifted on { ls_hold-until_date DATE = ISO }, | &&
+               |and the row is still there| TO rt_line.
+      ENDIF.
+
+      " a hold with no reason on it is one nobody can argue with, and the
+      " material stays out of every run until somebody guesses who set it
+      IF ls_hold-reason IS INITIAL.
+        APPEND |Hold { ls_hold-matnr }: no reason is given| TO rt_line.
+      ENDIF.
+
+      IF is_a_material( ls_hold-matnr ) = abap_false.
+        APPEND |Hold { ls_hold-matnr }: no such material| TO rt_line.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD priority_lines.
+
+    " the rows of this plant and the ones that apply everywhere, which is how
+    " the reader reads them
+    SELECT werks, kunnr, priority
+      FROM zstock_alloc_pri
+      WHERE werks = @iv_werks
+         OR werks = @space
+      ORDER BY werks, kunnr
+      INTO TABLE @DATA(lt_rank).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_rank INTO DATA(ls_rank).
+
+      " the reader takes an empty priority as "nothing was said", so a row
+      " with one is a row that does nothing at all
+      IF ls_rank-priority IS INITIAL.
+        APPEND |Customer { ls_rank-kunnr }: no priority is set, so the row does nothing| TO rt_line.
+      ENDIF.
+
+      " demand with no customer is a stock transport order, which this never
+      " looks at: a row without one cannot match anything
+      IF ls_rank-kunnr IS INITIAL.
+        APPEND |A customer priority row with no customer matches nothing| TO rt_line.
       ENDIF.
 
     ENDLOOP.

@@ -710,3 +710,81 @@ CLASS ltcl_end_to_end IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+"! The line the log and the report head their pages with.
+CLASS ltcl_settings_line DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+
+    METHODS settings_of
+      IMPORTING
+        iv_quota           TYPE abap_bool DEFAULT abap_false
+        iv_ship_days       TYPE i DEFAULT 0
+        iv_work_days       TYPE abap_bool DEFAULT abap_false
+        iv_age_days        TYPE i DEFAULT 0
+      RETURNING
+        VALUE(rv_settings) TYPE string.
+
+    METHODS a_default_run_says_its_rule FOR TESTING.
+    METHODS the_newest_rules_are_named FOR TESTING.
+    METHODS what_is_off_is_not_mentioned FOR TESTING.
+
+ENDCLASS.
+
+
+CLASS ltcl_settings_line IMPLEMENTATION.
+
+  METHOD settings_of.
+
+    rv_settings = zcl_allocation_mass_run=>create_default(
+      iv_quota     = iv_quota
+      iv_ship_days = iv_ship_days
+      iv_work_days = iv_work_days
+      iv_age_days  = iv_age_days )->settings( ).
+
+  ENDMETHOD.
+
+  METHOD a_default_run_says_its_rule.
+
+    " it was worked out from the beginning and never passed on, so every
+    " scheduled job headed its log with an empty settings line
+    cl_abap_unit_assert=>assert_char_cp(
+      act = settings_of( )
+      exp = '*priority*'
+      msg = 'a log nobody can read the settings of is a log of what, exactly' ).
+
+  ENDMETHOD.
+
+  METHOD the_newest_rules_are_named.
+
+    DATA(lv_settings) = settings_of(
+      iv_quota     = abap_true
+      iv_ship_days = 2
+      iv_work_days = abap_true
+      iv_age_days  = 7 ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_settings
+      exp = '*quotas*' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_settings
+      exp = '*2 day(s) to ship in working days*' ).
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lv_settings
+      exp = '*a place per 7 day(s) waited*' ).
+
+  ENDMETHOD.
+
+  METHOD what_is_off_is_not_mentioned.
+
+    " a header that lists every setting a run could have had, on or off, is a
+    " header nobody reads twice
+    cl_abap_unit_assert=>assert_char_np(
+      act = settings_of( )
+      exp = '*quotas*' ).
+
+  ENDMETHOD.
+
+ENDCLASS.

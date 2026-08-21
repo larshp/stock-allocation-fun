@@ -3217,3 +3217,25 @@ of materials worth a run.
   that is not allowed to leave the building; if the business wants those
   orders served, the answer is to release them, not to configure the
   allocation to ignore the block.
+
+### Feature 103 — the settings line nobody was writing (done)
+
+`SETTINGS_TEXT` has been on `ZCL_ALLOCATION_MASS_RUN` since the log was added:
+what the run was told to do, in the words a person would use, for the head of
+the SLG1 page and the head of the report. `CREATE_DEFAULT` never called it.
+Every scheduled job has been writing an empty settings line, and the report
+has been leaving its "Settings:" line out for the same reason -- the code was
+there, and nothing joined the two ends.
+
+- **It was found by looking for callers, not by a test.** Every test that
+  cares about the settings line builds the mass run itself and passes one, so
+  the tests were green and the shipped wiring was empty. The lesson is the one
+  feature 100 drew: what a factory produces has to be tested through the
+  factory.
+- **The line now names everything the run was told**, which the original did
+  not: where transfers stand, how long shipping takes and whether those are
+  working days, and the wait that earns a place. A header that omits half the
+  settings is worse than none, because it reads as though the other half were
+  off.
+- **What is off is not mentioned.** A header listing every setting a run could
+  have had, on or off, is a header nobody reads twice.

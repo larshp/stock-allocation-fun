@@ -111,6 +111,10 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_whole_units  TYPE abap_bool
         iv_quota        TYPE abap_bool
         iv_recut        TYPE abap_bool
+        iv_sto_priority TYPE zif_allocation=>ty_priority
+        iv_ship_days    TYPE i
+        iv_work_days    TYPE abap_bool
+        iv_age_days     TYPE i
       RETURNING
         VALUE(rv_text)  TYPE string.
 
@@ -146,8 +150,25 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     " underneath, so a night is one page in SLG1 rather than two
     DATA(lo_log) = CAST zif_allocation_log( NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 
+    " what the run was told, in one line, for the head of the log and the head
+    " of the report. It was worked out here from the beginning and never
+    " passed on, so every scheduled job wrote an empty settings line.
+    DATA(lv_settings) = settings_text(
+      io_strategy     = io_strategy
+      iv_horizon_days = iv_horizon_days
+      iv_lgort        = iv_lgort
+      iv_cap_percent  = iv_cap_percent
+      iv_planned      = iv_planned
+      iv_whole_units  = iv_whole_units
+      iv_quota        = iv_quota
+      iv_recut        = iv_recut
+      iv_sto_priority = iv_sto_priority
+      iv_ship_days    = iv_ship_days
+      iv_work_days    = iv_work_days
+      iv_age_days     = iv_age_days ).
+
     ro_mass_run = NEW zcl_allocation_mass_run(
-      io_service = zcl_allocation_service=>create_default(
+      io_service  = zcl_allocation_service=>create_default(
         io_strategy     = io_strategy
         iv_horizon_days = iv_horizon_days
         iv_lgort        = iv_lgort
@@ -161,7 +182,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         iv_age_days     = iv_age_days
         iv_work_days    = iv_work_days
         io_log          = lo_log )
-      io_demand  = NEW zcl_demand_in_package(
+      io_demand   = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
           io_demand = zcl_allocation_service=>create_default_demand(
             iv_sto_priority = iv_sto_priority
@@ -171,7 +192,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
           it_dispo  = it_dispo )
         iv_package  = iv_package
         iv_packages = iv_packages )
-      io_log     = lo_log ).
+      io_log      = lo_log
+      iv_settings = lv_settings ).
 
   ENDMETHOD.
 
@@ -280,6 +302,14 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
                            THEN `, whole units` ) &&
               COND string( WHEN iv_quota = abap_true
                            THEN `, quotas` ) &&
+              COND string( WHEN iv_sto_priority IS NOT INITIAL
+                           THEN |, transfers at { iv_sto_priority }| ) &&
+              COND string( WHEN iv_ship_days > 0
+                           THEN |, { iv_ship_days } day(s) to ship| ) &&
+              COND string( WHEN iv_ship_days > 0 AND iv_work_days = abap_true
+                           THEN ` in working days` ) &&
+              COND string( WHEN iv_age_days > 0
+                           THEN |, a place per { iv_age_days } day(s) waited| ) &&
               COND string( WHEN iv_recut = abap_true
                            THEN `, re-cut` ).
 

@@ -142,9 +142,7 @@ CLASS zcl_alloc_substitute IMPLEMENTATION.
     " the plan. A planner offered stock the run would not have allocated is
     " being offered stock that is not there.
     ro_list = NEW zcl_alloc_substitute(
-      io_supply    = zcl_allocation_service=>create_default_supply(
-        iv_lgort   = ls_settings-lgort
-        iv_planned = ls_settings-planned )
+      io_supply    = zcl_allocation_service=>create_default_supply( is_settings = ls_settings )
       io_store     = NEW zcl_allocation_store( )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 

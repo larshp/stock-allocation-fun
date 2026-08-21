@@ -164,17 +164,12 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
     DATA(lo_converter) = NEW zcl_unit_converter( ).
 
     DATA(lo_supply) = zcl_allocation_service=>create_default_supply(
-      io_converter = lo_converter
-      iv_lgort     = is_settings-lgort
-      iv_planned   = is_settings-planned ).
+      is_settings  = is_settings
+      io_converter = lo_converter ).
 
     DATA(lo_demand) = zcl_allocation_service=>create_default_open_demand(
-      io_converter    = lo_converter
-      iv_horizon_days = is_settings-horizon_days
-      iv_ship_days    = is_settings-ship_days
-      iv_age_days     = is_settings-age_days
-      iv_work_days    = is_settings-work_days
-      iv_sto_priority = is_settings-sto_priority ).
+      is_settings  = is_settings
+      io_converter = lo_converter ).
 
     " each of the two answers gets a distribution rule of its own. The rules a
     " plant can put around a strategy remember what they have handed out while

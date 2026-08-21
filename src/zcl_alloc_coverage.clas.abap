@@ -107,11 +107,7 @@ CLASS zcl_alloc_coverage IMPLEMENTATION.
     " the list of materials has to be the list a run works from, or a material
     " the run never intended to cover is reported as one it missed
     ro_coverage = NEW zcl_alloc_coverage(
-      io_demand    = zcl_allocation_service=>create_default_demand(
-        iv_sto_priority = ls_settings-sto_priority
-        iv_ship_days    = ls_settings-ship_days
-        iv_age_days     = ls_settings-age_days
-        iv_work_days    = ls_settings-work_days )
+      io_demand    = zcl_allocation_service=>create_default_demand( is_settings = ls_settings )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.

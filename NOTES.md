@@ -216,6 +216,7 @@ in, which is also the order they make sense in.
 149. the promise hands over through the same code
 150. the explanation says what is firm
 151. the comparison keeps the rest of the settings
+152. the readers take the settings as one thing too
 
 ## Progress
 
@@ -4325,3 +4326,26 @@ would never make. The ninth of the same family, and the same fix as features
   that builds a strategy chain was read again after the firm zone went in.
   Eight of the previous nine were found the same way, which says something
   about how much of this a test suite can be expected to catch.
+
+### Feature 152 — the readers take the settings as one thing too (done)
+
+The strategy factory took `TY_CONFIG` in feature 126, the service in 128, the
+answers in 127 and 143. The three reader factories were the last ones taking
+their settings a field at a time, and eight callers were copying the same five
+or six fields out into them. That copying is where features 117 and 125 both
+came from: a caller that forgets a field is a caller that reads different
+demand than the run does, and nothing says so.
+
+- **`CREATE_DEFAULT_SUPPLY`, `CREATE_DEFAULT_DEMAND` and
+  `CREATE_DEFAULT_OPEN_DEMAND` take the settings**, and the eight callers pass
+  what they already have in their hands.
+- **A caller that names no settings still gets a working reader.** The
+  transfer priority is the one field where an unset value means something
+  wrong rather than nothing -- priority zero would put every transfer in front
+  of every customer order -- so it falls back to the reader's own default,
+  where it did before as a parameter default.
+- **The promise keeps its one deliberate difference**, and now says so: it
+  clears the horizon rather than never passing it. What a promise deducts is
+  every line that is waiting, however far out; the horizon says how far ahead
+  a run bothers to look, which is a different question. Before, that
+  difference was invisible -- two fields simply were not passed.

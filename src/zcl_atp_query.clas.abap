@@ -102,16 +102,18 @@ CLASS zcl_atp_query IMPLEMENTATION.
 
   METHOD create_default.
 
+    " what a promise deducts is every line that is waiting, however far out:
+    " the horizon says how far ahead a run bothers to look, and a line beyond
+    " it is still a line whose stock a promise must not give away twice
+    DATA(ls_netting) = is_settings.
+    CLEAR ls_netting-horizon_days.
+
     ro_query = NEW zcl_atp_query(
-      io_supply    = zcl_allocation_service=>create_default_supply(
-        iv_lgort   = is_settings-lgort
-        iv_planned = is_settings-planned )
+      io_supply    = zcl_allocation_service=>create_default_supply( is_settings = is_settings )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
       iv_ship_days = is_settings-ship_days
       io_demand    = COND #( WHEN is_settings-cautious_atp = abap_true
-                             THEN zcl_allocation_service=>create_default_open_demand(
-                               iv_ship_days = is_settings-ship_days
-                               iv_work_days = is_settings-work_days ) )
+                             THEN zcl_allocation_service=>create_default_open_demand( is_settings = ls_netting ) )
       io_calendar  = COND #( WHEN is_settings-work_days = abap_true
                              THEN NEW zcl_calendar_factory( ) ) ).
 

@@ -169,24 +169,19 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     " the same sources a run reads, so the working shown is the working done
     DATA(lo_converter) = NEW zcl_unit_converter( ).
     DATA(lo_supply)    = zcl_allocation_service=>create_default_supply(
-      io_converter = lo_converter
-      iv_lgort     = is_settings-lgort
-      iv_planned   = is_settings-planned ).
+      is_settings  = is_settings
+      io_converter = lo_converter ).
     " two readers on purpose: what the documents ask for, and what is left of
     " it once the deliveries and the earlier runs have been taken off. The
     " answer is worked out from the second, because that is what a run works
     " with; the first is there so the difference can be shown rather than
     " leaving somebody to wonder why a line of ten is asking for four.
     DATA(lo_gross)  = zcl_allocation_service=>create_default_demand(
-      io_converter = lo_converter
-      iv_ship_days = is_settings-ship_days ).
+      is_settings  = is_settings
+      io_converter = lo_converter ).
     DATA(lo_demand) = zcl_allocation_service=>create_default_open_demand(
-      io_converter    = lo_converter
-      iv_horizon_days = is_settings-horizon_days
-      iv_ship_days    = is_settings-ship_days
-      iv_age_days     = is_settings-age_days
-      iv_work_days    = is_settings-work_days
-      iv_sto_priority = is_settings-sto_priority ).
+      is_settings  = is_settings
+      io_converter = lo_converter ).
 
     " the rule the run would apply, asked the same question the run asks it,
     " rather than a page working out for itself what is firm

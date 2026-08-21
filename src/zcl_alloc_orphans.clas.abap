@@ -111,11 +111,7 @@ CLASS zcl_alloc_orphans IMPLEMENTATION.
     " waiting for anything
     ro_orphans = NEW zcl_alloc_orphans(
       io_store     = NEW zcl_allocation_store( )
-      io_demand    = zcl_allocation_service=>create_default_demand(
-        iv_sto_priority = ls_settings-sto_priority
-        iv_ship_days    = ls_settings-ship_days
-        iv_age_days     = ls_settings-age_days
-        iv_work_days    = ls_settings-work_days )
+      io_demand    = zcl_allocation_service=>create_default_demand( is_settings = ls_settings )
       io_writer    = NEW zcl_reservation_writer( ls_settings-move_type )
       io_reader    = NEW zcl_reservation_reader( )
       io_authority = NEW zcl_authority_alloc( )

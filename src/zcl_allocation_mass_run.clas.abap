@@ -183,11 +183,7 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
         io_log      = lo_log )
       io_demand   = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
-          io_demand = zcl_allocation_service=>create_default_demand(
-            iv_sto_priority = is_settings-sto_priority
-            iv_ship_days    = is_settings-ship_days
-            iv_age_days     = is_settings-age_days
-            iv_work_days    = is_settings-work_days )
+          io_demand = zcl_allocation_service=>create_default_demand( is_settings = is_settings )
           it_dispo  = it_dispo )
         iv_package  = iv_package
         iv_packages = iv_packages )

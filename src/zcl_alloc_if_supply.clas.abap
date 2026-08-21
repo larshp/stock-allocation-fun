@@ -100,16 +100,11 @@ CLASS zcl_alloc_if_supply IMPLEMENTATION.
 
     ro_if = NEW zcl_alloc_if_supply(
       io_supply    = zcl_allocation_service=>create_default_supply(
-        io_converter = lo_converter
-        iv_lgort     = ls_settings-lgort
-        iv_planned   = ls_settings-planned )
+        is_settings  = ls_settings
+        io_converter = lo_converter )
       io_demand    = zcl_allocation_service=>create_default_open_demand(
-        io_converter    = lo_converter
-        iv_horizon_days = ls_settings-horizon_days
-        iv_ship_days    = ls_settings-ship_days
-        iv_age_days     = ls_settings-age_days
-        iv_work_days    = ls_settings-work_days
-        iv_sto_priority = ls_settings-sto_priority )
+        is_settings  = ls_settings
+        io_converter = lo_converter )
       io_strategy  = zcl_allocation_service=>create_default_strategy(
         is_settings = ls_settings
         io_strategy = zcl_alloc_config=>strategy_of( ls_settings ) )

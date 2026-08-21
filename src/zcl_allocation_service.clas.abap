@@ -30,15 +30,16 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! made. Public because a run is not the only thing that has to know: a
     "! promise asked for one line reads the same timeline the run distributes.
     "!
+    "! The settings travel as one structure, for the reason feature 126 gives:
+    "! six callers were copying the same fields out one at a time.
+    "!
+    "! @parameter is_settings  | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
     "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
-    "! @parameter iv_lgort     | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
-    "! @parameter iv_planned   | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter ro_supply    | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_supply
       IMPORTING
+        is_settings      TYPE zif_alloc_config=>ty_config OPTIONAL
         io_converter     TYPE REF TO zif_unit_converter OPTIONAL
-        iv_lgort         TYPE mard-lgort OPTIONAL
-        iv_planned       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_supply) TYPE REF TO zif_supply_reader.
 
@@ -48,19 +49,15 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! plant, so both compete in the same run. Public because a plant wide run
     "! needs the same list of sources to know which materials to cover.
     "!
-    "! @parameter io_converter   | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
-    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
-    "! @parameter iv_ship_days   | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_age_days    | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
-    "! @parameter iv_work_days   | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter ro_demand      | <p class="shorttext synchronized">Reader over every source</p>
+    "! The settings travel as one structure, for the reason feature 126 gives.
+    "!
+    "! @parameter is_settings  | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter ro_demand    | <p class="shorttext synchronized">Reader over every source</p>
     CLASS-METHODS create_default_demand
       IMPORTING
+        is_settings      TYPE zif_alloc_config=>ty_config OPTIONAL
         io_converter     TYPE REF TO zif_unit_converter OPTIONAL
-        iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
-        iv_ship_days     TYPE i DEFAULT 0
-        iv_age_days      TYPE i DEFAULT zcl_demand_aging=>c_never
-        iv_work_days     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -95,21 +92,15 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! to read the same demand the run reads, or it is answering a different
     "! question in the same words.
     "!
-    "! @parameter io_converter    | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
-    "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
-    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
-    "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
-    "! @parameter iv_work_days    | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter ro_demand       | <p class="shorttext synchronized">Reader of what is left to serve</p>
+    "! The settings travel as one structure, for the reason feature 126 gives.
+    "!
+    "! @parameter is_settings  | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_converter | <p class="shorttext synchronized">Unit converter to share, its own if none</p>
+    "! @parameter ro_demand    | <p class="shorttext synchronized">Reader of what is left to serve</p>
     CLASS-METHODS create_default_open_demand
       IMPORTING
+        is_settings      TYPE zif_alloc_config=>ty_config OPTIONAL
         io_converter     TYPE REF TO zif_unit_converter OPTIONAL
-        iv_horizon_days  TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
-        iv_sto_priority  TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
-        iv_ship_days     TYPE i DEFAULT 0
-        iv_age_days      TYPE i DEFAULT zcl_demand_aging=>c_never
-        iv_work_days     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_demand) TYPE REF TO zif_demand_reader.
 
@@ -252,16 +243,11 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ro_service = NEW zcl_allocation_service(
       io_engine      = NEW zcl_allocation_engine(
         io_supply_reader = create_default_supply(
-          io_converter = lo_converter
-          iv_lgort     = ls_settings-lgort
-          iv_planned   = ls_settings-planned )
+          is_settings  = ls_settings
+          io_converter = lo_converter )
         io_demand_reader = create_default_open_demand(
-          io_converter    = lo_converter
-          iv_horizon_days = ls_settings-horizon_days
-          iv_sto_priority = ls_settings-sto_priority
-          iv_ship_days    = ls_settings-ship_days
-          iv_age_days     = ls_settings-age_days
-          iv_work_days    = ls_settings-work_days )
+          is_settings  = ls_settings
+          io_converter = lo_converter )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
@@ -281,8 +267,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     " the report offers one location, the class takes as many as a caller
     " wiring it itself wants to name
-    IF iv_lgort IS NOT INITIAL.
-      APPEND iv_lgort TO lt_lgort.
+    IF is_settings-lgort IS NOT INITIAL.
+      APPEND is_settings-lgort TO lt_lgort.
     ENDIF.
 
     DATA(lo_converter) = io_converter.
@@ -310,7 +296,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " MRP writes the first as a planned order and the second as a purchase
     " requisition, so a plant that trusts its plan has to be given both or it
     " gets nothing at all for everything it buys.
-    IF iv_planned = abap_true.
+    IF is_settings-planned = abap_true.
       APPEND NEW zcl_supply_planned( lo_converter ) TO lt_source.
       APPEND NEW zcl_supply_requisitions( lo_converter ) TO lt_source.
     ENDIF.
@@ -331,12 +317,9 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ro_demand = NEW zcl_demand_reader_net(
       io_demand      = NEW zcl_demand_within_horizon(
         io_demand = create_default_demand(
-          io_converter    = io_converter
-          iv_sto_priority = iv_sto_priority
-          iv_ship_days    = iv_ship_days
-          iv_age_days     = iv_age_days
-          iv_work_days    = iv_work_days )
-        iv_days   = iv_horizon_days )
+          is_settings  = is_settings
+          io_converter = io_converter )
+        iv_days   = is_settings-horizon_days )
       io_reservation = NEW zcl_reservation_reader( ) ).
 
   ENDMETHOD.
@@ -345,6 +328,14 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
     DATA lt_source   TYPE zcl_demand_sources=>ty_source_tab.
     DATA lo_calendar TYPE REF TO zif_work_calendar.
+
+    " a caller that named no settings at all -- a test asking about one
+    " behaviour -- still has to put transfers somewhere against the customer
+    " orders, and priority zero is not a priority
+    DATA(lv_sto_priority) = is_settings-sto_priority.
+    IF lv_sto_priority IS INITIAL.
+      lv_sto_priority = zcl_sto_demand_reader=>c_default_priority.
+    ENDIF.
 
     " one converter serves both readers, and the caller may hand in the one the
     " rest of its run uses so the material master is read once for all of them
@@ -361,7 +352,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       ( NEW zcl_so_demand_reader( lo_converter ) )
       ( NEW zcl_sto_demand_reader(
           io_converter = lo_converter
-          iv_priority  = iv_sto_priority ) ) ).
+          iv_priority  = lv_sto_priority ) ) ).
 
     " and whatever the plant has added of its own: which plant that is, and so
     " which classes, is settled when a material is read rather than here
@@ -372,15 +363,15 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " every night to the same customers
     " a plant that counts working days is asking the factory calendar the
     " question; one that has not said carries on counting every day
-    IF iv_work_days = abap_true.
+    IF is_settings-work_days = abap_true.
       lo_calendar = NEW zcl_calendar_factory( ).
     ENDIF.
 
     ro_demand = NEW zcl_demand_not_held( NEW zcl_demand_alive( NEW zcl_demand_ship_time(
       io_demand   = NEW zcl_demand_aging(
         io_demand = NEW zcl_demand_customer_prio( NEW zcl_demand_sources( lt_source ) )
-        iv_days   = iv_age_days )
-      iv_days     = iv_ship_days
+        iv_days   = is_settings-age_days )
+      iv_days     = is_settings-ship_days
       io_calendar = lo_calendar ) ) ).
 
   ENDMETHOD.

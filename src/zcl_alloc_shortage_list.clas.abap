@@ -54,11 +54,13 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_width_id   TYPE i VALUE 26.
     CONSTANTS c_width_qty  TYPE i VALUE 14.
     CONSTANTS c_width_why  TYPE i VALUE 22.
+    CONSTANTS c_width_uom  TYPE i VALUE 4.
 
     "! Reading what a run decided, not deciding anything.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
 
     DATA mo_store     TYPE REF TO zif_allocation_store.
+    DATA mo_converter TYPE REF TO zif_unit_converter.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
     METHODS short_lines
@@ -78,9 +80,16 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_id          TYPE string
         iv_kunnr       TYPE string
         iv_short       TYPE string
+        iv_uom         TYPE string
         iv_reason      TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
+
+    METHODS unit_of
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+      RETURNING
+        VALUE(rv_uom) TYPE string.
 
     METHODS date_text
       IMPORTING
@@ -104,6 +113,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
   METHOD constructor.
 
     mo_store     = io_store.
+    mo_converter = NEW zcl_unit_converter( ).
     mo_authority = io_authority.
 
   ENDMETHOD.
@@ -135,6 +145,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       iv_id     = `Demand`
       iv_kunnr  = `Customer`
       iv_short  = `Short`
+      iv_uom    = `Unit`
       iv_reason = `Why` ) TO rt_line.
 
     LOOP AT lt_short INTO DATA(ls_short).
@@ -154,6 +165,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         iv_id     = |{ ls_short-demand_id }|
         iv_kunnr  = |{ ls_short-customer }|
         iv_short  = |{ ls_short-shortfall }|
+        iv_uom    = unit_of( ls_short-matnr )
         iv_reason = zcl_alloc_reason_text=>text( ls_short-reason ) ) TO rt_line.
 
     ENDLOOP.
@@ -227,7 +239,21 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
            && |{ iv_id WIDTH = c_width_id }|
            && |{ iv_kunnr WIDTH = c_width_kunnr }|
            && |{ iv_short WIDTH = c_width_qty ALIGN = RIGHT }|
+           && | { iv_uom WIDTH = c_width_uom }|
            && |  { iv_reason WIDTH = c_width_why }|.
+
+  ENDMETHOD.
+
+  METHOD unit_of.
+
+    " a list that says "40 short" and leaves the planner to remember which
+    " materials are in kilos is a list read twice. The converter has the
+    " material master in its hand anyway and keeps it for the whole list.
+    TRY.
+        rv_uom = |{ mo_converter->base_unit( iv_matnr ) }|.
+      CATCH zcx_allocation.
+        CLEAR rv_uom.
+    ENDTRY.
 
   ENDMETHOD.
 

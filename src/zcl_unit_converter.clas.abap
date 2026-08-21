@@ -26,14 +26,6 @@ CLASS zcl_unit_converter DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mt_base   TYPE ty_base_tab.
     DATA mt_factor TYPE ty_factor_tab.
 
-    METHODS base_unit
-      IMPORTING
-        iv_matnr      TYPE mard-matnr
-      RETURNING
-        VALUE(rv_uom) TYPE mara-meins
-      RAISING
-        zcx_allocation.
-
     METHODS factor
       IMPORTING
         iv_matnr         TYPE mard-matnr
@@ -61,7 +53,7 @@ CLASS zcl_unit_converter IMPLEMENTATION.
     " silently rounds the quantity, see ANOMALIES.md
     DATA lv_converted TYPE zif_allocation=>ty_quantity.
 
-    DATA(lv_base) = base_unit( iv_matnr ).
+    DATA(lv_base) = zif_unit_converter~base_unit( iv_matnr ).
     IF lv_base = iv_uom.
       rv_quantity = iv_quantity.
       RETURN.
@@ -76,7 +68,7 @@ CLASS zcl_unit_converter IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD base_unit.
+  METHOD zif_unit_converter~base_unit.
 
     " a demand reader converts every schedule line it reads, and one material
     " has many of them, so the master data is read once per instance rather

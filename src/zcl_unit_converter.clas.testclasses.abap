@@ -19,6 +19,8 @@ CLASS ltcl_unit_converter DEFINITION FINAL FOR TESTING
         it_marm TYPE ty_marm_tab OPTIONAL.
 
     METHODS base_unit_is_unchanged FOR TESTING RAISING cx_static_check.
+    METHODS the_base_unit_can_be_asked FOR TESTING RAISING cx_static_check.
+    METHODS no_material_has_no_unit FOR TESTING.
     METHODS alternative_unit_is_scaled FOR TESTING RAISING cx_static_check.
     METHODS fraction_keeps_decimals FOR TESTING RAISING cx_static_check.
     METHODS unknown_unit_is_refused FOR TESTING.
@@ -226,4 +228,26 @@ CLASS ltcl_unit_converter IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_base_unit_can_be_asked.
+
+    given_material( 'KG' ).
+
+    " a report printing a quantity has to be able to say what it is a
+    " quantity of, and the converter has the master data already
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->base_unit( c_matnr )
+      exp = CONV mara-meins( 'KG' ) ).
+
+  ENDMETHOD.
+
+  METHOD no_material_has_no_unit.
+
+    TRY.
+        mo_cut->base_unit( 'NO-SUCH-MATERIAL' ).
+        cl_abap_unit_assert=>fail( 'a unit invented for a material nobody has is worse than none' ).
+      CATCH zcx_allocation.
+        RETURN.
+    ENDTRY.
+
+  ENDMETHOD.
 ENDCLASS.

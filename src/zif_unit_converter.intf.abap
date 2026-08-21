@@ -21,4 +21,22 @@ INTERFACE zif_unit_converter PUBLIC.
     RAISING
       zcx_allocation.
 
+  "! <p class="shorttext synchronized">The unit a material's stock is kept in</p>
+  "!
+  "! Everything this solution counts is in the base unit, and a report that
+  "! prints "40 short" without it is asking a planner to remember which
+  "! material is in kilos. The converter already has the material master in
+  "! its hand, so asking it costs nothing.
+  "!
+  "! @parameter iv_matnr       | <p class="shorttext synchronized">Material number</p>
+  "! @parameter rv_uom         | <p class="shorttext synchronized">Base unit of measure</p>
+  "! @raising   zcx_allocation | <p class="shorttext synchronized">No such material</p>
+  METHODS base_unit
+    IMPORTING
+      iv_matnr      TYPE mard-matnr
+    RETURNING
+      VALUE(rv_uom) TYPE mara-meins
+    RAISING
+      zcx_allocation.
+
 ENDINTERFACE.

@@ -104,7 +104,7 @@ what is no longer holding anything back.
 | Program              | What it answers                                          |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_DISPLAY` | what the last run decided, per material, with the customer on every line — narrowed to the short lines, one MRP controller or one customer |
-| `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the reason and the customer on every line, narrowed to one MRP controller or one customer: the list a planner works through in the morning |
+| `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the unit, the reason and the customer on every line, narrowed to one MRP controller or one customer: the list a planner works through in the morning |
 | `ZSTOCK_ALLOC_WHY`   | the working behind one material — what has been promised or agreed for it by hand, every day of supply, every line competing for it, and what the three come to right now |
 | `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
 | `ZSTOCK_ALLOC_ATP`   | how much can be promised of a quantity, and from when |

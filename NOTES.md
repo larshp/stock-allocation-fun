@@ -3587,3 +3587,20 @@ ordering it, so neither needs the queue settings.
 **The split scheduler carries the flag through too**, so finishing an
 interrupted night on a plant that is split is one report run rather than eight
 jobs created by hand.
+
+### Feature 118 — the morning list says what the quantities are (done)
+
+Every quantity in this solution is in the base unit of the material, and the
+worklist a planner reads printed "40 short" and left them to remember which
+materials are in kilos and which are in pieces. On a list of thirty lines
+across four material types that is a question per line.
+
+- **`BASE_UNIT` moved onto `ZIF_UNIT_CONVERTER`.** It was private and the
+  converter already keeps the material master for the whole of a run, so the
+  unit costs one read per material and nothing at all after that.
+- **A material whose master has gone shows no unit rather than failing.** The
+  list is about what is short; a material that has since been deleted still
+  belongs on it, and the shortage is the news, not the unit.
+- **Only the worklist got the column so far.** It is the list somebody works
+  through line by line; the others are read a material at a time, where the
+  question does not come up in the same way.

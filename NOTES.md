@@ -204,6 +204,7 @@ in, which is also the order they make sense in.
 137. the night, written down
 138. the night check keeps quiet when there is nothing to say
 139. which kind of empty
+140. the overview arrives, when it is worth arriving
 
 ## Progress
 
@@ -4056,3 +4057,18 @@ them counting.
 - **It does not say which filter.** Listing the six that could have done it is
   honest and cheap; working out which one did would mean reading every filter
   a second time and getting one of them subtly wrong.
+
+### Feature 140 — the overview arrives, when it is worth arriving (done)
+
+The plant overview is the seven-in-the-morning page and it had to be run by
+somebody at seven in the morning. It now takes an address like the two checks,
+and like the coverage check it writes only when there is something: a plant
+short of something, or a plant no run has touched today.
+
+- **`STANDS` returns the figures `RUN` puts into words**, so the decision to
+  send is made on the numbers rather than by reading the page back.
+- **A page of noughts is why nobody reads the one that matters.** The default
+  is to keep quiet, for the reason feature 138 gives.
+- **The worklist was deliberately left alone.** A planner's morning list is
+  expected daily and its absence is information too; monitoring and a work
+  queue are not the same kind of mail.

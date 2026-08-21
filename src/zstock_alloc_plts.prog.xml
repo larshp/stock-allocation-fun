@@ -16,6 +16,18 @@
      <ENTRY>How each plant stands today</ENTRY>
      <LENGTH>27</LENGTH>
     </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MAIL</KEY>
+     <ENTRY>Send the page to</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ONLY</KEY>
+     <ENTRY>Only when a plant is short or did not run</ENTRY>
+     <LENGTH>41</LENGTH>
+    </item>
    </TPOOL>
   </asx:values>
  </asx:abap>

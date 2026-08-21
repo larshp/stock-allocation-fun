@@ -128,6 +128,7 @@ CLASS ltcl_alloc_plant_list DEFINITION FINAL FOR TESTING
     METHODS a_plant_with_nothing_short FOR TESTING.
     METHODS plants_not_yours_are_left_out FOR TESTING.
     METHODS the_oldest_wait_is_shown FOR TESTING.
+    METHODS the_figures_can_be_asked_for FOR TESTING.
 
 ENDCLASS.
 
@@ -245,6 +246,27 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
     " in March is a problem, and the earlier of the two is the news
     cl_abap_unit_assert=>assert_true( says( it_line = lt_line
                                             iv_text = `2026-03-15` ) ).
+
+  ENDMETHOD.
+
+  METHOD the_figures_can_be_asked_for.
+
+    DATA(lo_list) = NEW zcl_alloc_plant_list(
+      io_store     = NEW lcl_store_double( VALUE #(
+        ( recorded( iv_matnr     = c_matnr
+                    iv_shortfall = 40 ) ) ) )
+      io_authority = NEW lcl_authority_double( ) ).
+
+    " an overview that writes to somebody only when a plant is short has to be
+    " able to ask before it decides whether to send
+    DATA(lt_stands) = lo_list->stands( ).
+
+    READ TABLE lt_stands INTO DATA(ls_plant)
+      WITH KEY werks = c_werks.
+    cl_abap_unit_assert=>assert_subrc( ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_plant-short
+      exp = 1 ).
 
   ENDMETHOD.
 ENDCLASS.

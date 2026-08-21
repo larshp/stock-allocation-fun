@@ -4,6 +4,18 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_line_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
+    "! What one plant came to.
+    TYPES:
+      BEGIN OF ty_plant,
+        werks     TYPE mard-werks,
+        materials TYPE i,
+        short     TYPE i,
+        quantity  TYPE zif_allocation=>ty_quantity,
+        oldest    TYPE d,
+        ran_today TYPE abap_bool,
+      END OF ty_plant.
+    TYPES ty_plant_tab TYPE STANDARD TABLE OF ty_plant WITH EMPTY KEY.
+
     "! <p class="shorttext synchronized">List wired up the way a plain SAP system needs it</p>
     "!
     "! @parameter ro_list | <p class="shorttext synchronized">Ready to use list</p>
@@ -38,6 +50,17 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
+    "! <p class="shorttext synchronized">The same, as figures rather than as a page</p>
+    "!
+    "! What `RUN` puts into words. A scheduled overview that writes to
+    "! somebody only when a plant is short or did not run has to be able to
+    "! ask before it decides whether to send.
+    "!
+    "! @parameter rt_plant | <p class="shorttext synchronized">One entry per plant the user may see</p>
+    METHODS stands
+      RETURNING
+        VALUE(rt_plant) TYPE ty_plant_tab.
+
   PRIVATE SECTION.
 
     CONSTANTS c_width_werks TYPE i VALUE 8.
@@ -47,17 +70,6 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! Reading what the plants decided, changing nothing.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
-
-    "! What one plant came to.
-    TYPES:
-      BEGIN OF ty_plant,
-        werks     TYPE mard-werks,
-        materials TYPE i,
-        short     TYPE i,
-        quantity  TYPE zif_allocation=>ty_quantity,
-        oldest    TYPE d,
-        ran_today TYPE abap_bool,
-      END OF ty_plant.
 
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
@@ -101,16 +113,12 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
 
   METHOD run.
 
-    DATA lv_shown TYPE i.
-
     APPEND `How each plant stands, from the last run of each material` TO rt_line.
 
-    SELECT werks
-      FROM t001w
-      ORDER BY werks
-      INTO TABLE @DATA(lt_plant).
-    IF sy-subrc <> 0.
-      APPEND `There are no plants at all` TO rt_line.
+    DATA(lt_stands) = stands( ).
+
+    IF lt_stands IS INITIAL.
+      APPEND `No plant here is one you may look at` TO rt_line.
       RETURN.
     ENDIF.
 
@@ -122,19 +130,7 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
       iv_oldest    = `Oldest wanted`
       iv_today     = `Ran today` ) TO rt_line.
 
-    LOOP AT lt_plant INTO DATA(ls_plant).
-
-      " a plant the user may not see is left out rather than refused, as in
-      " feature 115: a page that stops at the first plant somebody is not
-      " responsible for cannot be read by anybody
-      TRY.
-          mo_authority->check_plant( ls_plant-werks ).
-        CATCH zcx_allocation.
-          CONTINUE.
-      ENDTRY.
-
-      DATA(ls_stands) = stands_of( ls_plant-werks ).
-      lv_shown = lv_shown + 1.
+    LOOP AT lt_stands INTO DATA(ls_stands).
 
       APPEND format_row(
         iv_werks     = |{ ls_stands-werks }|
@@ -150,13 +146,34 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
     ENDLOOP.
 
     APPEND || TO rt_line.
+    APPEND |{ lines( lt_stands ) } plant(s)| TO rt_line.
 
-    IF lv_shown = 0.
-      APPEND `No plant here is one you may look at` TO rt_line.
+  ENDMETHOD.
+
+  METHOD stands.
+
+    SELECT werks
+      FROM t001w
+      ORDER BY werks
+      INTO TABLE @DATA(lt_plant).
+    IF sy-subrc <> 0.
       RETURN.
     ENDIF.
 
-    APPEND |{ lv_shown } plant(s)| TO rt_line.
+    LOOP AT lt_plant INTO DATA(ls_plant).
+
+      " a plant the user may not see is left out rather than refused, as in
+      " feature 115: a page that stops at the first plant somebody is not
+      " responsible for cannot be read by anybody
+      TRY.
+          mo_authority->check_plant( ls_plant-werks ).
+        CATCH zcx_allocation.
+          CONTINUE.
+      ENDTRY.
+
+      APPEND stands_of( ls_plant-werks ) TO rt_plant.
+
+    ENDLOOP.
 
   ENDMETHOD.
 

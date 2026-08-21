@@ -113,6 +113,7 @@ CLASS ltcl_alloc_plant_list DEFINITION FINAL FOR TESTING
       IMPORTING
         iv_matnr           TYPE mard-matnr
         iv_shortfall       TYPE zif_allocation=>ty_quantity
+        iv_req_date        TYPE d DEFAULT '20260601'
       RETURNING
         VALUE(rs_recorded) TYPE zif_allocation_store=>ty_recorded.
 
@@ -126,6 +127,7 @@ CLASS ltcl_alloc_plant_list DEFINITION FINAL FOR TESTING
     METHODS a_plant_is_summed_up FOR TESTING.
     METHODS a_plant_with_nothing_short FOR TESTING.
     METHODS plants_not_yours_are_left_out FOR TESTING.
+    METHODS the_oldest_wait_is_shown FOR TESTING.
 
 ENDCLASS.
 
@@ -158,6 +160,7 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
       matnr     = iv_matnr
       run_id    = c_werks
       demand_id = |{ iv_matnr }-D1|
+      req_date  = iv_req_date
       requested = 100
       confirmed = 100 - iv_shortfall
       shortfall = iv_shortfall ).
@@ -228,4 +231,20 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_oldest_wait_is_shown.
+
+    DATA(lt_line) = lines_of( VALUE #(
+      ( recorded( iv_matnr     = c_matnr
+                  iv_shortfall = 10
+                  iv_req_date  = '20260601' ) )
+      ( recorded( iv_matnr     = 'PLTS-MAT-03'
+                  iv_shortfall = 10
+                  iv_req_date  = '20260315' ) ) ) ).
+
+    " a hundred short lines all wanted next month is a plan; one line wanted
+    " in March is a problem, and the earlier of the two is the news
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `2026-03-15` ) ).
+
+  ENDMETHOD.
 ENDCLASS.

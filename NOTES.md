@@ -199,6 +199,7 @@ in, which is also the order they make sense in.
 132. and the answer over RFC knows about transfers too
 133. the worklist says how long a line has been short
 134. chasing the chronic ones is a different morning
+135. the oldest thing still waiting
 
 ## Progress
 
@@ -3957,3 +3958,14 @@ has been short.
 - **The two orders are the two questions.** Nothing about the selection or the
   filtering changes; a planner who wants both runs the report twice, which is
   cheaper than a list ordered by neither.
+
+### Feature 135 — the oldest thing still waiting (done)
+
+The plant overview said how much is short, which does not distinguish a plant
+with a hundred short lines all wanted next month -- a plan -- from a plant with
+one line wanted in May, which is a problem somebody has stopped looking at.
+
+- **The oldest requirement date among the short lines** is the number that
+  tells them apart, and it comes out of rows the overview already reads.
+- **A line with no date is not the oldest.** Demand with no date is wanted now
+  and would otherwise make every plant look like 0000-00-00.

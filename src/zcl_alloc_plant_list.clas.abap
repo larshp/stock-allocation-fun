@@ -29,8 +29,9 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! everywhere run".
     "!
     "! One line per plant: how many materials the last run of each decided
-    "! about, how many lines are short, how much is short, and whether a run
-    "! has touched the plant today at all.
+    "! about, how many lines are short, how much is short, the oldest day
+    "! anything is still waiting for, and whether a run has touched the plant
+    "! today at all.
     "!
     "! @parameter rt_line | <p class="shorttext synchronized">Lines to display</p>
     METHODS run
@@ -42,6 +43,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_width_werks TYPE i VALUE 8.
     CONSTANTS c_width_count TYPE i VALUE 12.
     CONSTANTS c_width_qty   TYPE i VALUE 16.
+    CONSTANTS c_width_date  TYPE i VALUE 14.
 
     "! Reading what the plants decided, changing nothing.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
@@ -53,6 +55,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         materials TYPE i,
         short     TYPE i,
         quantity  TYPE zif_allocation=>ty_quantity,
+        oldest    TYPE d,
         ran_today TYPE abap_bool,
       END OF ty_plant.
 
@@ -71,6 +74,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_materials   TYPE string
         iv_short       TYPE string
         iv_quantity    TYPE string
+        iv_oldest      TYPE string
         iv_today       TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
@@ -115,6 +119,7 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
       iv_materials = `Materials`
       iv_short     = `Short lines`
       iv_quantity  = `Short`
+      iv_oldest    = `Oldest wanted`
       iv_today     = `Ran today` ) TO rt_line.
 
     LOOP AT lt_plant INTO DATA(ls_plant).
@@ -136,6 +141,8 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
         iv_materials = |{ ls_stands-materials }|
         iv_short     = |{ ls_stands-short }|
         iv_quantity  = |{ ls_stands-quantity }|
+        iv_oldest    = COND string( WHEN ls_stands-oldest IS NOT INITIAL
+                                    THEN |{ ls_stands-oldest DATE = ISO }| )
         iv_today     = COND string( WHEN ls_stands-ran_today = abap_true
                                     THEN `yes`
                                     ELSE `no` ) ) TO rt_line.
@@ -175,6 +182,14 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
       rs_plant-short    = rs_plant-short + 1.
       rs_plant-quantity = rs_plant-quantity + ls_recorded-shortfall.
 
+      " the oldest day something is still waiting for is the number that says
+      " whether a plant is behind or merely busy: a hundred short lines all
+      " wanted next month is a plan, and one line wanted in May is a problem
+      IF ls_recorded-req_date IS NOT INITIAL
+          AND ( rs_plant-oldest IS INITIAL OR ls_recorded-req_date < rs_plant-oldest ).
+        rs_plant-oldest = ls_recorded-req_date.
+      ENDIF.
+
     ENDLOOP.
 
     " "did everywhere run" is the other half of the question, and it is the
@@ -189,7 +204,8 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
            && |{ iv_materials WIDTH = c_width_count ALIGN = RIGHT }|
            && |{ iv_short WIDTH = c_width_count ALIGN = RIGHT }|
            && |{ iv_quantity WIDTH = c_width_qty ALIGN = RIGHT }|
-           && |  { iv_today }|.
+           && |  { iv_oldest WIDTH = c_width_date }|
+           && |{ iv_today }|.
 
   ENDMETHOD.
 

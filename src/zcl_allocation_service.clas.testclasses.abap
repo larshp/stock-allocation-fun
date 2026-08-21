@@ -1052,7 +1052,8 @@ CLASS ltcl_default_sources IMPLEMENTATION.
       exp = '5'
       msg = 'a plant that has not asked for whole units gets what there is' ).
 
-    DATA(lo_whole) = zcl_allocation_service=>create_default_strategy( iv_whole_units = abap_true ).
+    DATA(lo_whole) = zcl_allocation_service=>create_default_strategy(
+      is_settings = VALUE #( whole_units = abap_true ) ).
 
     lt_result = lo_whole->allocate(
       iv_available = '5'

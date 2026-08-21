@@ -72,19 +72,18 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! one inside it did. Public because anything that shows what a run would
     "! decide has to decide it the same way.
     "!
-    "! @parameter io_strategy    | <p class="shorttext synchronized">Distribution rule, priority by default</p>
-    "! @parameter iv_cap_percent | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
-    "! @parameter iv_whole_units | <p class="shorttext synchronized">Confirm whole order units only</p>
-    "! @parameter iv_quota       | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
-    "! @parameter iv_min_percent | <p class="shorttext synchronized">Least share of a line worth confirming</p>
-    "! @parameter ro_strategy    | <p class="shorttext synchronized">The rule, wrapped</p>
+    "!
+    "! The settings travel as one structure, for the reason feature 126 gives:
+    "! this method is called from five places and every rule added to the
+    "! chain used to have to be passed from all of them.
+    "!
+    "! @parameter is_settings | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_strategy | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter ro_strategy | <p class="shorttext synchronized">The rule, wrapped</p>
     CLASS-METHODS create_default_strategy
       IMPORTING
+        is_settings        TYPE zif_alloc_config=>ty_config OPTIONAL
         io_strategy        TYPE REF TO zif_allocation_strategy OPTIONAL
-        iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
-        iv_whole_units     TYPE abap_bool DEFAULT abap_false
-        iv_quota           TYPE abap_bool DEFAULT abap_false
-        iv_min_percent     TYPE i DEFAULT zcl_alloc_minimum=>c_no_minimum
       RETURNING
         VALUE(ro_strategy) TYPE REF TO zif_allocation_strategy.
 
@@ -183,13 +182,13 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " so the rule outside sees it fall short of the whole quantity and drops it
     lo_strategy = NEW zcl_alloc_customer_cap(
       io_strategy = lo_strategy
-      iv_percent  = iv_cap_percent ).
+      iv_percent  = is_settings-cap_percent ).
 
     " the quota goes outside the share of the night: a share of what happens to
     " be there is the plant looking after itself, and what a customer agreed
     " with the business is a promise that has to hold whatever the night looks
     " like. The outer rule is the one whose reason a short line carries.
-    IF iv_quota = abap_true.
+    IF is_settings-quota = abap_true.
       lo_strategy = NEW zcl_alloc_quota( lo_strategy ).
     ENDIF.
 
@@ -203,7 +202,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " reason as the cap: a line cut back to whole cartons may no longer reach
     " the quantity it has to ship in one go, and the rule outside has to see
     " that rather than the number before rounding
-    IF iv_whole_units = abap_true.
+    IF is_settings-whole_units = abap_true.
       lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
     ENDIF.
 
@@ -213,7 +212,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     " going to clear the bar either
     lo_strategy = NEW zcl_alloc_minimum(
       io_strategy = lo_strategy
-      iv_percent  = iv_min_percent ).
+      iv_percent  = is_settings-min_percent ).
 
     " which lines may be served in part is a property of the demand, not of the
     " distribution rule, so this wraps whatever strategy is in use
@@ -231,10 +230,8 @@ CLASS zcl_allocation_service IMPLEMENTATION.
     ENDIF.
 
     DATA(lo_strategy) = create_default_strategy(
-      io_strategy    = io_strategy
-      iv_cap_percent = ls_settings-cap_percent
-      iv_whole_units = ls_settings-whole_units
-      iv_quota       = ls_settings-quota ).
+      is_settings = ls_settings
+      io_strategy = io_strategy ).
 
     " one converter serves the whole run: it buffers the material master, and
     " both the demand and the supply side ask it the same questions

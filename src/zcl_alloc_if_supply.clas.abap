@@ -111,11 +111,8 @@ CLASS zcl_alloc_if_supply IMPLEMENTATION.
         iv_work_days    = ls_settings-work_days
         iv_sto_priority = ls_settings-sto_priority )
       io_strategy  = zcl_allocation_service=>create_default_strategy(
-        io_strategy    = zcl_alloc_config=>strategy_of( ls_settings )
-        iv_cap_percent = ls_settings-cap_percent
-        iv_whole_units = ls_settings-whole_units
-        iv_quota       = ls_settings-quota
-        iv_min_percent = ls_settings-min_percent )
+        is_settings = ls_settings
+        io_strategy = zcl_alloc_config=>strategy_of( ls_settings ) )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.

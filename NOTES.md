@@ -207,6 +207,7 @@ in, which is also the order they make sense in.
 140. the overview arrives, when it is worth arriving
 141. a confirmation too small to ship is none
 142. and the answers know about the bar too
+143. the last factory takes the settings too
 
 ## Progress
 
@@ -4120,3 +4121,22 @@ it without the plant's minimum.
 - **The rule is now stated in the place a reader will look for it**: adding a
   decorator to `CREATE_DEFAULT_STRATEGY` means passing it from every caller of
   that method, and there are five.
+
+### Feature 143 — the last factory takes the settings too (done)
+
+`CREATE_DEFAULT_STRATEGY` builds the chain of rules a plant puts around its
+distribution rule, and it is called from five places. Every rule added to that
+chain -- the quota in 86, the promise in 104, the minimum in 141 -- had to be
+passed from all five, and feature 142 was cleaning up after the third time
+that was forgotten in four.
+
+It now takes the settings structure, like everything else since feature 126.
+
+- **The comparison builds a structure rather than losing its arguments.** The
+  cap, whole units and the quota are what that report exists to compare, so it
+  puts them into a copy of the plant's settings on the way past. That reads
+  better than the parameters did: it is explicit that they are overrides of
+  settings rather than a different kind of thing.
+- **Adding the next rule is one line in one method.** Which is the whole point
+  of the exercise, and the fifth time this repository has paid for the loose
+  parameters before finally removing them.

@@ -898,10 +898,10 @@ CLASS ltcl_invariants IMPLEMENTATION.
     " and all, built for this case alone as CREATE_DEFAULT_STRATEGY builds one
     " per service
     DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
-      io_strategy    = NEW zcl_alloc_strategy_priority( )
-      iv_cap_percent = 60
-      iv_whole_units = abap_true
-      iv_quota       = abap_true ).
+      is_settings = VALUE #( cap_percent = 60
+                             whole_units = abap_true
+                             quota       = abap_true )
+      io_strategy = NEW zcl_alloc_strategy_priority( ) ).
 
     " the stock arrives on two days rather than one, because a rule that has
     " to hold across the engine's walk is only tested by a walk

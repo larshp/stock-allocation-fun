@@ -260,12 +260,14 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
 
     " the same decorators the run puts around a strategy, from the same place,
     " so that what is compared is the rule and not the wrapping
+    " the three rules this report exists to compare are arguments rather than
+    " settings, so they are put into the plant's settings on the way past
     DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
-      io_strategy    = io_strategy
-      iv_cap_percent = iv_cap_percent
-      iv_whole_units = iv_whole_units
-      iv_quota       = iv_quota
-      iv_min_percent = mv_min_percent ).
+      is_settings = VALUE #( cap_percent = iv_cap_percent
+                             whole_units = iv_whole_units
+                             quota       = iv_quota
+                             min_percent = mv_min_percent )
+      io_strategy = io_strategy ).
 
     rt_allocation = NEW zcl_allocation_engine(
       io_supply_reader = mo_supply

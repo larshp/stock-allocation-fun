@@ -223,6 +223,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
     METHODS an_empty_material_is_not_noted FOR TESTING.
     METHODS the_night_is_summed_up FOR TESTING.
     METHODS everything_failing_stops FOR TESTING.
+    METHODS a_run_can_carry_on FOR TESTING.
     METHODS the_stop_is_written_down FOR TESTING.
 
     METHODS many_materials
@@ -503,6 +504,50 @@ CLASS ltcl_mass_run IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_run_can_carry_on.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_now TYPE zstock_alloc_res-created_at.
+
+    CONVERT DATE sy-datum TIME '120000'
+      INTO TIME STAMP lv_now TIME ZONE 'UTC'.
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = 'CARRY-ON-1'
+        demand_id  = 'CARRY-D1'
+        matnr      = 'MAT-1'
+        werks      = c_werks
+        requested  = 10
+        confirmed  = 10
+        created_at = lv_now ) ).
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    mo_service = NEW #( ).
+    mo_log     = NEW lcl_log_spy( ).
+
+    DATA(lt_outcome) = NEW zcl_allocation_mass_run(
+      io_service = mo_service
+      io_demand  = NEW lcl_demand_double( VALUE #( ( 'MAT-1' ) ( 'MAT-2' ) ) )
+      io_log     = mo_log )->run(
+        iv_werks    = c_werks
+        iv_carry_on = abap_true ).
+
+    DELETE FROM zstock_alloc_res WHERE run_id = 'CARRY-ON-1'.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " a night that died at four in the morning has done most of the plant,
+    " and doing it again from the beginning is an hour of a work process for
+    " answers that were already right
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_outcome )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_outcome[ 1 ]-matnr
+      exp = CONV mard-matnr( 'MAT-2' ) ).
+
+  ENDMETHOD.
 ENDCLASS.
 
 

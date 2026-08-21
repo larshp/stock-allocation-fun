@@ -26,6 +26,7 @@ CLASS zcl_allocation_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks       TYPE mard-werks
         it_matnr       TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
         iv_simulate    TYPE abap_bool DEFAULT abap_false
+        iv_carry_on    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -79,7 +80,8 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     DATA(lt_outcome) = mo_mass_run->run(
       iv_werks    = iv_werks
       it_matnr    = it_matnr
-      iv_simulate = iv_simulate ).
+      iv_simulate = iv_simulate
+      iv_carry_on = iv_carry_on ).
 
     APPEND |Plant { iv_werks }| TO rt_line.
 

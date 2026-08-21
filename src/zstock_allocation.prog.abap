@@ -17,6 +17,7 @@ PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_whole AS CHECKBOX.
 PARAMETERS p_quota AS CHECKBOX.
 PARAMETERS p_recut AS CHECKBOX.
+PARAMETERS p_carry AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT abap_true.
 
 START-OF-SELECTION.
@@ -93,7 +94,8 @@ START-OF-SELECTION.
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks
     it_matnr    = lt_matnr
-    iv_simulate = p_test ).
+    iv_simulate = p_test
+    iv_carry_on = p_carry ).
 
   LOOP AT lt_line INTO DATA(lv_line).
     WRITE / lv_line.

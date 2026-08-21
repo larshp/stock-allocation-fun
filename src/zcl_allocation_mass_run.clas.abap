@@ -89,6 +89,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter iv_werks   | <p class="shorttext synchronized">Plant</p>
     "! @parameter it_matnr    | <p class="shorttext synchronized">Materials to cover, everything waiting if empty</p>
+    "! @parameter iv_carry_on | <p class="shorttext synchronized">Leave out what a run has covered today</p>
     "! @parameter iv_simulate | <p class="shorttext synchronized">Work it out but change nothing</p>
     "! @parameter rt_outcome  | <p class="shorttext synchronized">One line per material, in material order</p>
     METHODS run
@@ -96,6 +97,7 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks          TYPE mard-werks
         it_matnr          TYPE zif_demand_reader=>ty_matnr_tab OPTIONAL
         iv_simulate       TYPE abap_bool DEFAULT abap_false
+        iv_carry_on       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_outcome) TYPE ty_outcome_tab.
 
@@ -233,6 +235,17 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     lt_matnr = it_matnr.
     IF lt_matnr IS INITIAL.
       lt_matnr = mo_demand->materials_with_demand( iv_werks ).
+    ENDIF.
+
+    " a night that died at four in the morning has done most of the plant, and
+    " doing it again from the beginning is an hour of a work process and a set
+    " of answers that were already right. What is left is what nothing has
+    " decided about today, which is the question ZCL_ALLOC_COVERAGE answers.
+    IF iv_carry_on = abap_true.
+      DATA(lt_done) = zcl_alloc_coverage=>allocated_since( iv_werks ).
+      LOOP AT lt_done INTO DATA(lv_done).
+        DELETE lt_matnr WHERE table_line = lv_done.
+      ENDLOOP.
     ENDIF.
 
     " a test run keeps no diary. It changes nothing, so there is nothing to

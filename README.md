@@ -88,6 +88,11 @@ nothing is missed even though each of them reads the plant a moment apart.
 somebody to create them one at a time in SM36, where one job quietly missing
 is a part of the plant nobody allocates.
 
+Ticking **Carry on where a run stopped** leaves out every material a run has
+already decided about today. A night that died at four in the morning is then
+finished by re-scheduling the same job rather than by doing the whole plant
+again.
+
 **The selection screen defaults to a test run.** A test run does the whole
 calculation and shows the result without recording or reserving anything.
 

@@ -3541,3 +3541,25 @@ somebody misses the plant they were not thinking about.
 - **It reuses `RUN` per plant** rather than a second pass over the tables:
   what the one-plant check reports is what the all-plants check reports, and
   there is no second implementation to drift.
+
+### Feature 116 — carrying on where a night stopped (done)
+
+A plant wide run that dies at four in the morning -- the work process killed,
+the update task stopped, the twenty failures in a row of feature 107 -- has
+already done most of the plant. Starting again from the beginning costs an
+hour of a work process and re-decides answers that were right the first time.
+
+Ticking **Carry on where a run stopped** leaves out every material a run has
+already decided about today.
+
+- **It asks the question `ZCL_ALLOC_COVERAGE` asks**, through the same class
+  method. Two implementations of "already done" would disagree about the one
+  material that matters, which is the material the night stopped on.
+- **A day, not an hour.** Anything a run decided today stands; a night is one
+  day's work, and a plant wanting the whole thing done again unticks the box.
+- **It is not the default.** A run told to cover a plant covers it: quietly
+  skipping most of it because something ran this morning is not what anybody
+  asked for.
+- **It composes with the re-cut.** Carrying on a re-cut night gives back and
+  re-allocates only what is left, which is exactly what finishing an
+  interrupted re-cut means.

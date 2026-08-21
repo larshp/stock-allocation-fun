@@ -2,7 +2,8 @@ CLASS zcl_alloc_coverage DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    TYPES ty_line_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    TYPES ty_line_tab  TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+    TYPES ty_matnr_tab TYPE STANDARD TABLE OF zstock_alloc_res-matnr WITH EMPTY KEY.
 
     "! A night, which is what somebody asking this in the morning means.
     CONSTANTS c_default_hours TYPE i VALUE 24.
@@ -49,6 +50,22 @@ CLASS zcl_alloc_coverage DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">The materials a run has already decided about</p>
+    "!
+    "! Public because a run that carries on where the last one stopped has to
+    "! ask exactly the question this report asks, and two implementations of
+    "! "already done" would disagree about the material that matters.
+    "!
+    "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter iv_hours | <p class="shorttext synchronized">How far back a run still counts</p>
+    "! @parameter rt_matnr | <p class="shorttext synchronized">Materials with a run since then</p>
+    CLASS-METHODS allocated_since
+      IMPORTING
+        iv_werks        TYPE mard-werks
+        iv_hours        TYPE i DEFAULT c_default_hours
+      RETURNING
+        VALUE(rt_matnr) TYPE ty_matnr_tab.
+
   PRIVATE SECTION.
 
     "! Reading what the night did, not doing any of it again.
@@ -59,17 +76,8 @@ CLASS zcl_alloc_coverage DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     CONSTANTS c_hours_in_day TYPE i VALUE 24.
 
-    TYPES ty_matnr_tab TYPE STANDARD TABLE OF zstock_alloc_res-matnr WITH EMPTY KEY.
-
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
-
-    METHODS allocated_since
-      IMPORTING
-        iv_werks        TYPE mard-werks
-        iv_hours        TYPE i
-      RETURNING
-        VALUE(rt_matnr) TYPE ty_matnr_tab.
 
 ENDCLASS.
 

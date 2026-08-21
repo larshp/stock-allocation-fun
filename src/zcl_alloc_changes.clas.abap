@@ -127,26 +127,11 @@ CLASS zcl_alloc_changes IMPLEMENTATION.
 
   METHOD create_for_plant.
 
-    DATA lo_strategy TYPE REF TO zif_allocation_strategy.
-
     DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
 
-    IF ls_settings-fair_share = abap_true.
-      lo_strategy = NEW zcl_alloc_strategy_fairshare( ).
-    ENDIF.
-
     ro_changes = create_default( zcl_allocation_mass_run=>create_default(
-      io_strategy     = lo_strategy
-      iv_horizon_days = ls_settings-horizon_days
-      iv_lgort        = ls_settings-lgort
-      iv_cap_percent  = ls_settings-cap_percent
-      iv_planned      = ls_settings-planned
-      iv_whole_units  = ls_settings-whole_units
-      iv_quota        = ls_settings-quota
-      iv_sto_priority = ls_settings-sto_priority
-      iv_ship_days    = ls_settings-ship_days
-      iv_age_days     = ls_settings-age_days
-      iv_work_days    = ls_settings-work_days ) ).
+      is_settings = ls_settings
+      io_strategy = zcl_alloc_config=>strategy_of( ls_settings ) ) ).
 
   ENDMETHOD.
 

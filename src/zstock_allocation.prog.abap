@@ -79,22 +79,12 @@ START-OF-SELECTION.
 
   DATA(lo_report) = NEW zcl_allocation_report(
     zcl_allocation_mass_run=>create_default(
-      io_strategy     = lo_strategy
-      iv_horizon_days = ls_settings-horizon_days
-      iv_lgort        = ls_settings-lgort
-      iv_cap_percent  = ls_settings-cap_percent
-      iv_planned      = ls_settings-planned
-      iv_whole_units  = ls_settings-whole_units
-      iv_quota        = ls_settings-quota
-      iv_recut        = p_recut
-      iv_sto_priority = ls_settings-sto_priority
-      iv_ship_days    = ls_settings-ship_days
-      iv_age_days     = ls_settings-age_days
-      iv_work_days    = ls_settings-work_days
-      iv_move_type    = ls_settings-move_type
-      iv_package      = p_pkg
-      iv_packages     = p_pkgs
-      it_dispo        = lt_dispo ) ).
+      is_settings = ls_settings
+      io_strategy = lo_strategy
+      iv_recut    = p_recut
+      it_dispo    = lt_dispo
+      iv_package  = p_pkg
+      iv_packages = p_pkgs ) ).
 
   DATA(lt_line) = lo_report->run(
     iv_werks    = p_werks

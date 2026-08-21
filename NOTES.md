@@ -190,6 +190,7 @@ in, which is also the order they make sense in.
 123. documentation that can fail
 124. the notes check themselves
 125. the movement type is the plant's to choose
+126. the settings travel as one thing
 
 ## Progress
 
@@ -3759,3 +3760,29 @@ days got them in every report about the run and not in the run. It is the
 fifth of this family of defects, and the first one in the run itself; the
 screen now offers the switch too, so a run with the settings taken off the
 screen can have it.
+
+### Feature 126 — the settings travel as one thing (done)
+
+Five defects in this repository have been the same defect: a setting is added,
+every caller has to be found and given a new parameter, and the one that is
+missed goes on answering with the default -- for a year, silently, in the one
+place nobody thought to look. Feature 125 found the fifth, and it was in the
+nightly run itself.
+
+`ZCL_ALLOCATION_MASS_RUN=>CREATE_DEFAULT` now takes the settings as the
+structure `ZIF_ALLOC_CONFIG` answers with, instead of eleven parameters.
+
+- **A structure cannot be half filled in.** Adding a field to `TY_CONFIG`
+  reaches every caller of the run without anybody editing them, which is the
+  whole point: the compiler cannot warn about a parameter nobody passed, and
+  it does not have to.
+- **`CREATE_FOR_PLANT` reads the settings itself**, as the read-only factories
+  have since feature 93, so the nightly report is now six lines and names only
+  what is about the job rather than about the plant: the packages, the MRP
+  controllers, whether it is a re-cut.
+- **What stays a parameter is what is not a plant setting.** The strategy
+  object, the re-cut, the package numbers and the controller list belong to
+  the job, and a job is not Customizing.
+- **The screen path keeps its own structure.** `ZSTOCK_ALLOCATION` with the
+  settings taken off the screen fills a `TY_CONFIG` and passes that, so both
+  paths go through one door.

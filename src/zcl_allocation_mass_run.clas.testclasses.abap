@@ -721,7 +721,7 @@ CLASS ltcl_end_to_end IMPLEMENTATION.
 
   METHOD outcome_of.
 
-    rt_outcome = zcl_allocation_mass_run=>create_default( )->run(
+    rt_outcome = zcl_allocation_mass_run=>create_for_plant( c_werks )->run(
       iv_werks    = c_werks
       iv_simulate = abap_true ).
 
@@ -787,7 +787,7 @@ CLASS ltcl_end_to_end IMPLEMENTATION.
 
   METHOD the_answer_is_written_down.
 
-    zcl_allocation_mass_run=>create_default( )->run( c_werks ).
+    zcl_allocation_mass_run=>create_for_plant( c_werks )->run( c_werks ).
 
     SELECT COUNT( * ) FROM zstock_alloc_res
       WHERE werks = @c_werks
@@ -844,11 +844,11 @@ CLASS ltcl_settings_line IMPLEMENTATION.
 
   METHOD settings_of.
 
-    rv_settings = zcl_allocation_mass_run=>create_default(
-      iv_quota     = iv_quota
-      iv_ship_days = iv_ship_days
-      iv_work_days = iv_work_days
-      iv_age_days  = iv_age_days )->settings( ).
+    rv_settings = zcl_allocation_mass_run=>create_default( VALUE #(
+      quota     = iv_quota
+      ship_days = iv_ship_days
+      work_days = iv_work_days
+      age_days  = iv_age_days ) )->settings( ).
 
   ENDMETHOD.
 

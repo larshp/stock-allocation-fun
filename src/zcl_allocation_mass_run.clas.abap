@@ -22,38 +22,43 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Plant wide run wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter io_strategy     | <p class="shorttext synchronized">Distribution rule, priority by default</p>
-    "! @parameter iv_horizon_days | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
-    "! @parameter iv_lgort        | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
-    "! @parameter iv_cap_percent  | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
-    "! @parameter iv_planned      | <p class="shorttext synchronized">Planned orders count as supply too</p>
-    "! @parameter iv_whole_units  | <p class="shorttext synchronized">Confirm whole order units only</p>
-    "! @parameter iv_quota        | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
-    "! @parameter iv_recut        | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
-    "! @parameter iv_sto_priority | <p class="shorttext synchronized">Where a transfer stands against an order</p>
-    "! @parameter iv_ship_days    | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_age_days     | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
-    "! @parameter iv_work_days    | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter iv_move_type    | <p class="shorttext synchronized">Movement type the reservation is made under</p>
-    "! @parameter it_dispo        | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
-    "! @parameter iv_package      | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
-    "! @parameter iv_packages     | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
-    "! @parameter ro_mass_run     | <p class="shorttext synchronized">Ready to use plant wide run</p>
+    "! The settings come in as the structure `ZIF_ALLOC_CONFIG` answers with,
+    "! rather than as a parameter each. Fifteen parameters filled in by hand is
+    "! how features 92, 99, 117 and 125 all happened: somebody adds a setting,
+    "! every caller has to be found, and the one that is missed goes on
+    "! answering with the default for a year. A structure cannot be half
+    "! filled in.
+    "!
+    "! @parameter is_settings | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_strategy | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter iv_recut    | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter it_dispo    | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
+    "! @parameter iv_package  | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
+    "! @parameter iv_packages | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
+    "! @parameter ro_mass_run | <p class="shorttext synchronized">Ready to use plant wide run</p>
     CLASS-METHODS create_default
       IMPORTING
+        is_settings        TYPE zif_alloc_config=>ty_config
         io_strategy        TYPE REF TO zif_allocation_strategy OPTIONAL
-        iv_horizon_days    TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
-        iv_lgort           TYPE mard-lgort OPTIONAL
-        iv_cap_percent     TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
-        iv_planned         TYPE abap_bool DEFAULT abap_false
-        iv_whole_units     TYPE abap_bool DEFAULT abap_false
-        iv_quota           TYPE abap_bool DEFAULT abap_false
         iv_recut           TYPE abap_bool DEFAULT abap_false
-        iv_sto_priority    TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
-        iv_ship_days       TYPE i DEFAULT 0
-        iv_age_days        TYPE i DEFAULT zcl_demand_aging=>c_never
-        iv_work_days       TYPE abap_bool DEFAULT abap_false
-        iv_move_type       TYPE rkpf-bwart DEFAULT zcl_reservation_writer=>c_default_move_type
+        it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
+        iv_package         TYPE i DEFAULT 0
+        iv_packages        TYPE i DEFAULT 0
+      RETURNING
+        VALUE(ro_mass_run) TYPE REF TO zcl_allocation_mass_run.
+
+    "! <p class="shorttext synchronized">The same, reading the plant's settings itself</p>
+    "!
+    "! @parameter iv_werks    | <p class="shorttext synchronized">Plant</p>
+    "! @parameter iv_recut    | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter it_dispo    | <p class="shorttext synchronized">MRP controllers to cover, all if empty</p>
+    "! @parameter iv_package  | <p class="shorttext synchronized">Package this run covers, 0 for all of them</p>
+    "! @parameter iv_packages | <p class="shorttext synchronized">How many jobs share the plant, 0 for one</p>
+    "! @parameter ro_mass_run | <p class="shorttext synchronized">Ready to use plant wide run</p>
+    CLASS-METHODS create_for_plant
+      IMPORTING
+        iv_werks           TYPE mard-werks
+        iv_recut           TYPE abap_bool DEFAULT abap_false
         it_dispo           TYPE zcl_demand_of_controller=>ty_dispo_tab OPTIONAL
         iv_package         TYPE i DEFAULT 0
         iv_packages        TYPE i DEFAULT 0
@@ -172,46 +177,60 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     " passed on, so every scheduled job wrote an empty settings line.
     DATA(lv_settings) = settings_text(
       io_strategy     = io_strategy
-      iv_horizon_days = iv_horizon_days
-      iv_lgort        = iv_lgort
-      iv_cap_percent  = iv_cap_percent
-      iv_planned      = iv_planned
-      iv_whole_units  = iv_whole_units
-      iv_quota        = iv_quota
+      iv_horizon_days = is_settings-horizon_days
+      iv_lgort        = is_settings-lgort
+      iv_cap_percent  = is_settings-cap_percent
+      iv_planned      = is_settings-planned
+      iv_whole_units  = is_settings-whole_units
+      iv_quota        = is_settings-quota
       iv_recut        = iv_recut
-      iv_sto_priority = iv_sto_priority
-      iv_ship_days    = iv_ship_days
-      iv_work_days    = iv_work_days
-      iv_age_days     = iv_age_days ).
+      iv_sto_priority = is_settings-sto_priority
+      iv_ship_days    = is_settings-ship_days
+      iv_work_days    = is_settings-work_days
+      iv_age_days     = is_settings-age_days ).
 
     ro_mass_run = NEW zcl_allocation_mass_run(
       io_service  = zcl_allocation_service=>create_default(
         io_strategy     = io_strategy
-        iv_horizon_days = iv_horizon_days
-        iv_lgort        = iv_lgort
-        iv_cap_percent  = iv_cap_percent
-        iv_planned      = iv_planned
-        iv_whole_units  = iv_whole_units
-        iv_quota        = iv_quota
+        iv_horizon_days = is_settings-horizon_days
+        iv_lgort        = is_settings-lgort
+        iv_cap_percent  = is_settings-cap_percent
+        iv_planned      = is_settings-planned
+        iv_whole_units  = is_settings-whole_units
+        iv_quota        = is_settings-quota
         iv_recut        = iv_recut
-        iv_sto_priority = iv_sto_priority
-        iv_ship_days    = iv_ship_days
-        iv_age_days     = iv_age_days
-        iv_work_days    = iv_work_days
-        iv_move_type    = iv_move_type
+        iv_sto_priority = is_settings-sto_priority
+        iv_ship_days    = is_settings-ship_days
+        iv_age_days     = is_settings-age_days
+        iv_work_days    = is_settings-work_days
+        iv_move_type    = is_settings-move_type
         io_log          = lo_log )
       io_demand   = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
           io_demand = zcl_allocation_service=>create_default_demand(
-            iv_sto_priority = iv_sto_priority
-            iv_ship_days    = iv_ship_days
-            iv_age_days     = iv_age_days
-            iv_work_days    = iv_work_days )
+            iv_sto_priority = is_settings-sto_priority
+            iv_ship_days    = is_settings-ship_days
+            iv_age_days     = is_settings-age_days
+            iv_work_days    = is_settings-work_days )
           it_dispo  = it_dispo )
         iv_package  = iv_package
         iv_packages = iv_packages )
       io_log      = lo_log
       iv_settings = lv_settings ).
+
+  ENDMETHOD.
+
+  METHOD create_for_plant.
+
+    DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
+
+    ro_mass_run = create_default(
+      is_settings = ls_settings
+      io_strategy = zcl_alloc_config=>strategy_of( ls_settings )
+      iv_recut    = iv_recut
+      it_dispo    = it_dispo
+      iv_package  = iv_package
+      iv_packages = iv_packages ).
 
   ENDMETHOD.
 

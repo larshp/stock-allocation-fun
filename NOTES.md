@@ -3508,3 +3508,21 @@ fine.
   looks exactly like a customer somebody promoted. So does one with no
   customer: demand without a customer is a stock transport order, and the rank
   reader never looks at those.
+
+### Feature 114 — the Customizing logs its changes (done)
+
+Seven tables here are maintained by people, and every one of them can change
+what a night does: a quota, a promise, a hold, a substitute, a class that
+joins the run. None of them was logging its changes, so the only answer to
+"who put that in, and when" was to ask around.
+
+- **`PROTOKOLL` on all seven.** It costs a row in `DBTABLOG` per change and
+  answers the question in `SCU3`. For tables somebody edits a handful of times
+  a month, that is not a cost worth thinking about -- which is exactly why
+  every Customizing table in SAP standard has it on.
+- **The recorded runs stay unlogged.** `ZSTOCK_ALLOC_RES` is application data
+  written by the run itself, thousands of rows a night, and it already says
+  who wrote it and when in its own fields.
+- **No maintenance views ship with the repository.** A generated table
+  maintenance dialogue is a system's own object; the README says to generate
+  them in SE11 rather than pretending a `.tabl.xml` can carry one.

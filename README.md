@@ -145,6 +145,12 @@ one writes to the same application log as an allocation run.
 | `ZSTOCK_ALLOC_QTA`  | how much of a material one customer may take in a period, per plant; a row naming no customer is the rule of the house |
 | `ZSTOCK_ALLOC_EXT`  | classes of your own that join the run as a source of supply or of demand, for one plant or for all of them |
 
+All seven Customizing tables are delivery class `C` and log their changes, so
+`SCU3` answers "who put that quota in and when". None of them ships with a
+maintenance view: generate one per table with the table maintenance generator
+in `SE11` and put the views in a transport of their own, which is where a
+system's own maintenance dialogues belong.
+
 A class named in `ZSTOCK_ALLOC_EXT` has to implement `ZIF_SUPPLY_READER` or
 `ZIF_DEMAND_READER`, be public and be creatable without parameters. It is read
 alongside the sources that ship with the solution, and the engine cannot tell

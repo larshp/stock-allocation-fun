@@ -149,6 +149,7 @@ CLASS ltcl_atp_query DEFINITION FINAL FOR TESTING
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS a_refused_plant_raises FOR TESTING.
     METHODS shipping_time_moves_the_day FOR TESTING RAISING cx_static_check.
+    METHODS working_days_move_it_further FOR TESTING RAISING cx_static_check.
     METHODS demand_takes_from_a_promise FOR TESTING RAISING cx_static_check.
     METHODS later_demand_is_not_counted FOR TESTING RAISING cx_static_check.
 
@@ -412,6 +413,43 @@ CLASS ltcl_atp_query IMPLEMENTATION.
       CATCH zcx_allocation.
         RETURN.
     ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD working_days_move_it_further.
+
+    DATA lt_plant TYPE STANDARD TABLE OF t001w WITH EMPTY KEY.
+
+    lt_plant = VALUE #(
+      ( mandt = sy-mandt werks = c_werks name1 = 'Test plant' fabkl = '01' ) ).
+    INSERT t001w FROM TABLE @lt_plant.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " the goods are wanted on Wednesday the 10th and the plant needs three
+    " days to get them out: on working days that is the Friday before, so a
+    " receipt landing on the Monday is too late. The run has counted it that
+    " way since feature 98, and a promise that counted plain days would offer
+    " what the run would then refuse to confirm.
+    DATA(lo_query) = CAST zif_atp_query( NEW zcl_atp_query(
+      io_supply    = NEW lcl_supply_double( VALUE #(
+        ( avail_date = '20260608' quantity = '10' ) ) )
+      io_authority = mo_authority
+      iv_ship_days = 3
+      io_calendar  = NEW zcl_calendar_factory( ) ) ).
+
+    DATA(ls_promise) = lo_query->promise(
+      iv_matnr    = c_matnr
+      iv_werks    = c_werks
+      iv_quantity = '10'
+      iv_by_date  = '20260610' ).
+
+    DELETE FROM t001w WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_promise-quantity
+      exp = '0'
+      msg = 'stock that lands after the plant has to start picking is not a promise' ).
 
   ENDMETHOD.
 

@@ -9,6 +9,7 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_planned   | <p class="shorttext synchronized">Planned orders count as supply too</p>
     "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter iv_cautious  | <p class="shorttext synchronized">Count demand nobody has confirmed yet</p>
+    "! @parameter iv_work_days | <p class="shorttext synchronized">Shipping time counts working days only</p>
     "! @parameter ro_query     | <p class="shorttext synchronized">Ready to use query</p>
     CLASS-METHODS create_default
       IMPORTING
@@ -16,6 +17,7 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_planned      TYPE abap_bool DEFAULT abap_false
         iv_ship_days    TYPE i DEFAULT 0
         iv_cautious     TYPE abap_bool DEFAULT abap_false
+        iv_work_days    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_query) TYPE REF TO zif_atp_query.
 
@@ -41,12 +43,14 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may ask about a plant</p>
     "! @parameter iv_ship_days | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
     "! @parameter io_demand    | <p class="shorttext synchronized">Demand to count, none if not given</p>
+    "! @parameter io_calendar  | <p class="shorttext synchronized">Which days the plant works, every day if none</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
         io_authority TYPE REF TO zif_allocation_authority
         iv_ship_days TYPE i DEFAULT 0
-        io_demand    TYPE REF TO zif_demand_reader OPTIONAL.
+        io_demand    TYPE REF TO zif_demand_reader OPTIONAL
+        io_calendar  TYPE REF TO zif_work_calendar OPTIONAL.
 
   PRIVATE SECTION.
 
@@ -58,6 +62,7 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mv_ship_days TYPE i.
+    DATA mo_calendar  TYPE REF TO zif_work_calendar.
 
     METHODS timeline
       IMPORTING
@@ -109,7 +114,10 @@ CLASS zcl_atp_query IMPLEMENTATION.
       iv_ship_days = iv_ship_days
       io_demand    = COND #( WHEN iv_cautious = abap_true
                              THEN zcl_allocation_service=>create_default_open_demand(
-                               iv_ship_days = iv_ship_days ) ) ).
+                               iv_ship_days = iv_ship_days
+                               iv_work_days = iv_work_days ) )
+      io_calendar  = COND #( WHEN iv_work_days = abap_true
+                             THEN NEW zcl_calendar_factory( ) ) ).
 
   ENDMETHOD.
 
@@ -121,7 +129,8 @@ CLASS zcl_atp_query IMPLEMENTATION.
       iv_lgort     = ls_settings-lgort
       iv_planned   = ls_settings-planned
       iv_ship_days = ls_settings-ship_days
-      iv_cautious  = ls_settings-cautious_atp ).
+      iv_cautious  = ls_settings-cautious_atp
+      iv_work_days = ls_settings-work_days ).
 
   ENDMETHOD.
 
@@ -136,6 +145,13 @@ CLASS zcl_atp_query IMPLEMENTATION.
     mv_ship_days = iv_ship_days.
     IF mv_ship_days < 0.
       CLEAR mv_ship_days.
+    ENDIF.
+
+    " the promise counts the days to the shelf the way the run counts them, or
+    " it is promising a date the run would not confirm
+    mo_calendar = io_calendar.
+    IF mo_calendar IS NOT BOUND.
+      mo_calendar = NEW zcl_calendar_plain( ).
     ENDIF.
 
   ENDMETHOD.
@@ -159,10 +175,10 @@ CLASS zcl_atp_query IMPLEMENTATION.
     " needs them on the shelf before that. Counting supply that lands on the
     " day itself would promise something that cannot be shipped in time, which
     " is the rule the run follows since feature 68.
-    DATA(lv_ready_by) = iv_by_date.
-    IF lv_ready_by IS NOT INITIAL.
-      lv_ready_by = lv_ready_by - mv_ship_days.
-    ENDIF.
+    DATA(lv_ready_by) = mo_calendar->days_before(
+      iv_werks = iv_werks
+      iv_date  = iv_by_date
+      iv_days  = mv_ship_days ).
 
     " what the stock comes to after every event up to that day: receipts add
     " to it, and demand nobody has confirmed yet takes away, where the plant

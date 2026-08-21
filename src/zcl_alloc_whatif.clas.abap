@@ -60,6 +60,7 @@ CLASS zcl_alloc_whatif DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_after       | <p class="shorttext synchronized">Works out the answer with the extra line</p>
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may see a plant</p>
     "! @parameter iv_ship_days   | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
+    "! @parameter io_calendar    | <p class="shorttext synchronized">Which days the plant works, every day if none</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
@@ -67,7 +68,8 @@ CLASS zcl_alloc_whatif DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_before    TYPE REF TO zcl_allocation_engine
         io_after     TYPE REF TO zcl_allocation_engine
         io_authority TYPE REF TO zif_allocation_authority
-        iv_ship_days TYPE i DEFAULT 0.
+        iv_ship_days TYPE i DEFAULT 0
+        io_calendar  TYPE REF TO zif_work_calendar OPTIONAL.
 
     "! <p class="shorttext synchronized">What one more order would get, and who would pay for it</p>
     "!
@@ -119,6 +121,7 @@ CLASS zcl_alloc_whatif DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_after     TYPE REF TO zcl_allocation_engine.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mv_ship_days TYPE i.
+    DATA mo_calendar  TYPE REF TO zif_work_calendar.
 
     METHODS extra_line
       IMPORTING
@@ -129,7 +132,9 @@ CLASS zcl_alloc_whatif DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_kunnr         TYPE vbak-kunnr
         iv_priority      TYPE zif_allocation=>ty_priority
       RETURNING
-        VALUE(rs_demand) TYPE zif_allocation=>ty_demand.
+        VALUE(rs_demand) TYPE zif_allocation=>ty_demand
+      RAISING
+        zcx_allocation.
 
     METHODS confirmed_for
       IMPORTING
@@ -208,7 +213,9 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
           iv_whole_units = iv_whole_units
           iv_quota       = iv_quota ) )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
-      iv_ship_days = iv_ship_days ).
+      iv_ship_days = iv_ship_days
+      io_calendar  = COND #( WHEN iv_work_days = abap_true
+                             THEN NEW zcl_calendar_factory( ) ) ).
 
   ENDMETHOD.
 
@@ -238,6 +245,13 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
     mo_after     = io_after.
     mo_authority = io_authority.
     mv_ship_days = iv_ship_days.
+
+    " the line is built here rather than read, so it has to be given the same
+    " calendar the readers give a real one
+    mo_calendar = io_calendar.
+    IF mo_calendar IS NOT BOUND.
+      mo_calendar = NEW zcl_calendar_plain( ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -299,10 +313,10 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
     " the line is built here rather than read, so the shipping time the demand
     " readers put on a real line has to be put on this one: without it the
     " order would be allowed to take stock arriving on the day it ships
-    DATA(lv_ready_by) = iv_req_date.
-    IF mv_ship_days > 0.
-      lv_ready_by = iv_req_date - mv_ship_days.
-    ENDIF.
+    DATA(lv_ready_by) = mo_calendar->days_before(
+      iv_werks = iv_werks
+      iv_date  = iv_req_date
+      iv_days  = mv_ship_days ).
 
     rs_demand = VALUE #(
       demand_id = c_demand_id

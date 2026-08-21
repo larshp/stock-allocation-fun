@@ -3120,3 +3120,27 @@ calendar, `T001W-FABKL`, through the standard conversion function modules.
   August shutdown -- changes which days come back, not what the code does with
   them, and the tests are written against the days rather than against the
   arithmetic.
+
+### Feature 99 — the promise and the what-if count the same days (done)
+
+Feature 98 taught the run to count the shipping time in working days and left
+two other places counting plain ones. Both answer questions about what the run
+would do, which makes the disagreement the same defect as features 73, 74 and
+92, in a new place:
+
+- **The promise** worked out the day the goods have to be on the shelf as
+  `wanted minus three`. For a plant on working days it would have offered a
+  quantity out of stock landing on the Monday for a line the run would then
+  refuse, because the run wants it there by the Friday.
+- **The what-if** built its extra demand line by hand, and had to put the
+  shipping time on it itself. Same subtraction, same disagreement -- and the
+  line it answers about is the one somebody is deciding whether to accept.
+
+Both now take a `ZIF_WORK_CALENDAR`, default the plain one, and get the
+factory calendar from `CREATE_FOR_PLANT` exactly as the run does.
+
+- **The rule is worth stating once more**: anything that says what a run would
+  decide has to work it out the way the run works it out, and every setting
+  the run reads is a setting that answer has to read too. Adding one to the
+  run is therefore never a one class change -- feature 98 was not finished
+  until this was done.

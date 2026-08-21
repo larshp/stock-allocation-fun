@@ -30,16 +30,22 @@ CLASS zcl_alloc_history DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! One row per recorded run, oldest first, so the trail reads in the order
     "! it happened.
     "!
+    "! A stock transport order is asked about the same way, by its purchasing
+    "! document: the plant on the other end of one is waiting exactly as a
+    "! customer is, and the person chasing it has the same question.
+    "!
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_vbeln       | <p class="shorttext synchronized">Sales document</p>
     "! @parameter iv_posnr       | <p class="shorttext synchronized">Item, every one if empty</p>
+    "! @parameter iv_ebeln       | <p class="shorttext synchronized">Purchasing document, instead of a sales one</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be seen</p>
     METHODS run
       IMPORTING
         iv_werks       TYPE mard-werks
-        iv_vbeln       TYPE vbap-vbeln
+        iv_vbeln       TYPE vbap-vbeln OPTIONAL
         iv_posnr       TYPE vbap-posnr OPTIONAL
+        iv_ebeln       TYPE ekko-ebeln OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -77,6 +83,7 @@ CLASS zcl_alloc_history DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks      TYPE mard-werks
         iv_vbeln      TYPE vbap-vbeln
         iv_posnr      TYPE vbap-posnr
+        iv_ebeln      TYPE ekko-ebeln
       RETURNING
         VALUE(rt_row) TYPE ty_row_tab.
 
@@ -118,7 +125,10 @@ CLASS zcl_alloc_history IMPLEMENTATION.
 
     mo_authority->check_plant( iv_werks ).
 
-    APPEND |Plant { iv_werks }, order { iv_vbeln }| &&
+    APPEND |Plant { iv_werks }, order | &&
+           COND string( WHEN iv_ebeln IS NOT INITIAL
+                        THEN |{ iv_ebeln }|
+                        ELSE |{ iv_vbeln }| ) &&
            COND string( WHEN iv_posnr IS NOT INITIAL
                         THEN | item { iv_posnr }| ) &&
            |, run by run| TO rt_line.
@@ -126,7 +136,8 @@ CLASS zcl_alloc_history IMPLEMENTATION.
     DATA(lt_row) = rows_of(
       iv_werks = iv_werks
       iv_vbeln = iv_vbeln
-      iv_posnr = iv_posnr ).
+      iv_posnr = iv_posnr
+      iv_ebeln = iv_ebeln ).
 
     IF lt_row IS INITIAL.
       APPEND `No run has ever decided anything about this order` TO rt_line.
@@ -156,9 +167,12 @@ CLASS zcl_alloc_history IMPLEMENTATION.
     DATA lv_pattern TYPE string.
 
     " the demand id of a sales order line is the document, then the item, then
-    " the schedule line, as ZCL_SO_DEMAND_READER builds it. An item nobody
-    " named matches every item of the document.
-    IF iv_posnr IS INITIAL.
+    " the schedule line, as ZCL_SO_DEMAND_READER builds it, and a purchasing
+    " one carries a marker in front of the same shape. An item nobody named
+    " matches every item of the document.
+    IF iv_ebeln IS NOT INITIAL.
+      lv_pattern = |{ zcl_sto_demand_reader=>c_source_marker }{ iv_ebeln }%|.
+    ELSEIF iv_posnr IS INITIAL.
       lv_pattern = |{ iv_vbeln }%|.
     ELSE.
       lv_pattern = |{ iv_vbeln }{ iv_posnr }%|.

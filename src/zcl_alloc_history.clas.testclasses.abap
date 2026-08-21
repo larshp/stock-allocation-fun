@@ -78,6 +78,7 @@ CLASS ltcl_alloc_history DEFINITION FINAL FOR TESTING
     METHODS a_run_that_served_ends_it FOR TESTING RAISING cx_static_check.
     METHODS another_order_is_not_shown FOR TESTING RAISING cx_static_check.
     METHODS one_item_can_be_asked_for FOR TESTING RAISING cx_static_check.
+    METHODS a_transfer_can_be_asked_for FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
 
 ENDCLASS.
@@ -280,4 +281,46 @@ CLASS ltcl_alloc_history IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_transfer_can_be_asked_for.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_when TYPE zstock_alloc_res-created_at.
+    DATA lv_id   TYPE zif_allocation=>ty_demand_id.
+
+    lv_when = zcl_alloc_clock=>stamp_of(
+      iv_date = sy-datum
+      iv_time = '120000' ).
+
+    " the demand id of a transfer, as ZCL_STO_DEMAND_READER builds it
+    lv_id+0(1)  = zcl_sto_demand_reader=>c_source_marker.
+    lv_id+1(10) = '4500001234'.
+    lv_id+11(5) = '00010'.
+    lv_id+16(4) = '0001'.
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = 'HIST-STO-1'
+        demand_id  = lv_id
+        matnr      = c_matnr
+        werks      = c_werks
+        requested  = 50
+        confirmed  = 20
+        shortfall  = 30
+        reason     = zif_allocation=>c_reason-no_stock
+        created_at = lv_when ) ).
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = NEW zcl_alloc_history( NEW lcl_authority_double( ) )->run(
+      iv_werks = c_werks
+      iv_ebeln = '4500001234' ).
+
+    " the plant on the other end of a transfer is waiting exactly as a
+    " customer is, and the person chasing it has the same question
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `20.000` ) ).
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `4500001234` ) ).
+
+  ENDMETHOD.
 ENDCLASS.

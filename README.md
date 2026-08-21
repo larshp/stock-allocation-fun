@@ -120,7 +120,7 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_ATP`   | how much can be promised of a quantity, and from when |
 | `ZSTOCK_ALLOC_WHAT`  | what one more order would be confirmed, and which lines on the books would pay for it |
 | `ZSTOCK_ALLOC_IF`    | what one more delivery would fix: which lines would gain, by how much, and how much of it nobody could take |
-| `ZSTOCK_ALLOC_HIST`  | what every run so far decided about one sales order, run by run, and how long it has been going short |
+| `ZSTOCK_ALLOC_HIST`  | what every run so far decided about one sales order or stock transport order, run by run, and how long it has been going short |
 | `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
 | `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
 

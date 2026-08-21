@@ -195,6 +195,7 @@ in, which is also the order they make sense in.
 128. and the service itself
 129. the day boundary is where the system is
 130. a material on hold says so wherever it is asked about
+131. the transfer has a history too
 
 ## Progress
 
@@ -3879,3 +3880,21 @@ explains nothing, and reads like an invitation.
 - **They still answer the rest of the question.** A held material with stock
   and demand is worth showing the working for -- the hold can be lifted this
   afternoon -- so the line is added rather than the page being cut short.
+
+### Feature 131 — the transfer has a history too (done)
+
+Everything customer-facing in this solution quietly means "sales order". The
+order history of feature 94 took a sales document and nothing else, which
+leaves the plant on the other end of a stock transport order -- waiting for
+the same stock, competing in the same run since feature 27 -- with no way of
+asking what has been happening to it.
+
+- **A purchasing document is asked for the same way.** The demand id of a
+  transfer is the sales shape with a marker in front of it, so the pattern is
+  the only thing that changes.
+- **The marker comes from the reader that writes it.**
+  `ZCL_STO_DEMAND_READER=>C_SOURCE_MARKER` was already public, and a report
+  spelling `P` itself would be the second implementation of an id format.
+- **One of the two, not both.** The report says so rather than quietly
+  preferring one, because a screen where filling in two fields silently
+  ignores one is a screen somebody argues with.

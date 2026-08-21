@@ -98,31 +98,51 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Everything below reads and changes nothing, except the reorg, which removes
-what is no longer holding anything back.
+Twenty programs is a lot to meet at once, so they are grouped by who runs
+them. Everything reads and changes nothing, except the three at the bottom,
+which say so on their selection screens and default to a test run.
+
+### For the planner, in the morning
 
 | Program              | What it answers                                          |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_PLTS`  | how every plant you may see stands: materials, short lines, how much is short, and whether a run has touched it today |
+| `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the unit, the reason and the customer on every line, narrowed to one MRP controller or one customer: the list to work through |
 | `ZSTOCK_ALLOC_DISPLAY` | what the last run decided, per material, with the customer on every line — narrowed to the short lines, one MRP controller or one customer |
-| `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the unit, the reason and the customer on every line, narrowed to one MRP controller or one customer: the list a planner works through in the morning |
+| `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |
 | `ZSTOCK_ALLOC_WHY`   | the working behind one material — what has been promised or agreed for it by hand, every day of supply, every line competing for it, and what the three come to right now |
 | `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
+
+### Before promising anything
+
+| Program              | What it answers                                          |
+| -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_ATP`   | how much can be promised of a quantity, and from when |
-| `ZSTOCK_ALLOC_IF`    | what one more delivery would fix: which lines would gain, by how much, and how much of it nobody could take |
 | `ZSTOCK_ALLOC_WHAT`  | what one more order would be confirmed, and which lines on the books would pay for it |
-| `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
-| `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
-| `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
-| `ZSTOCK_ALLOC_CFGC`  | what is wrong with the Customizing of one plant or of every plant you may see: periods that run backwards, materials that are gone, classes nobody transported |
-| `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
-| `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
-| `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |
-| `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
-| `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
+| `ZSTOCK_ALLOC_IF`    | what one more delivery would fix: which lines would gain, by how much, and how much of it nobody could take |
 | `ZSTOCK_ALLOC_HIST`  | what every run so far decided about one sales order, run by run, and how long it has been going short |
+| `ZSTOCK_ALLOC_DIFF`  | what the last run changed about the one before it, and which customers lost stock — or, ticked, what a run now would change |
+| `ZSTOCK_ALLOC_TRY`   | what each distribution rule would confirm for one material, side by side |
+
+### For whoever looks after the solution
+
+| Program              | What it answers                                          |
+| -------------------- | -------------------------------------------------------- |
+| `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
+| `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
+| `ZSTOCK_ALLOC_CFGC`  | what is wrong with the Customizing of one plant or of every plant you may see: periods that run backwards, materials that are gone, classes nobody transported |
+| `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
+| `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
+
+### The three that change something
+
+| Program              | What it does                                             |
+| -------------------- | -------------------------------------------------------- |
+| `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
+
+### For callers that are not people
 
 `ZIF_ATP_QUERY` is the promise for a program in the same system to call, and
 `Z_STOCK_ALLOC_PROMISE` the same answer again for a caller outside ABAP:
@@ -137,8 +157,8 @@ Scheduled with one, the morning list and the "did the night finish" check
 arrive rather than waiting to be run.
 
 `ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
-because the demand netting reads it. It defaults to a test run too, and a real
-one writes to the same application log as an allocation run.
+because the demand netting reads it, and a real run writes to the same
+application log as an allocation run.
 
 ## Customizing
 

@@ -3661,3 +3661,17 @@ is it worst today, and did everywhere run.
 - **Plants the user may not see are left out**, as in feature 115. A page that
   refuses at the first plant somebody does not own could not be read by
   anybody at all.
+
+### Feature 122 — the README stops being a wall (done)
+
+Twenty programs in one table is a list nobody reads to the end, and the
+question a reader has is not "what programs are there" but "which of these is
+mine". They are now grouped by who runs them: the planner in the morning, the
+person about to promise something, whoever looks after the solution, and the
+three that change anything.
+
+- **The three that change something are their own group**, because that is the
+  distinction somebody scanning the page needs first.
+- **A script checks the grouping is complete**: every `Z*` report in `src/`
+  appears in one of the tables. A grouped list that quietly loses a program is
+  worse than the wall it replaced.

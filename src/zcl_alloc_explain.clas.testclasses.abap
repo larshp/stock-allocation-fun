@@ -120,6 +120,7 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS a_promise_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS a_quota_is_said_out_loud FOR TESTING RAISING cx_static_check.
+    METHODS the_unit_is_on_the_heading FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -373,4 +374,27 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_unit_is_on_the_heading.
+
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'KG' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " a page of numbers that does not say what they are quantities of asks
+    " the reader to know
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 1 ]
+      exp = '*quantities in KG*' ).
+
+  ENDMETHOD.
 ENDCLASS.

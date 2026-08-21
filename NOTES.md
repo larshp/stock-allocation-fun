@@ -3604,3 +3604,18 @@ across four material types that is a question per line.
 - **Only the worklist got the column so far.** It is the list somebody works
   through line by line; the others are read a material at a time, where the
   question does not come up in the same way.
+
+### Feature 119 — the other pages say what the quantities are too (done)
+
+Feature 118 put the unit on the worklist and argued the other reports did not
+need it because they are read a material at a time. That is true of the
+question and false of the page: the display, the explanation and the
+projection each print a column of numbers under a heading naming the material,
+and the heading is exactly where the unit belongs -- once, rather than on
+every line.
+
+- **One read per material, at the heading.** The converter keeps the master
+  data, so the second use of the unit on the same page costs nothing.
+- **A material whose master has gone prints no unit and no comma**, as on the
+  worklist: the page is about what the run decided, and a missing master does
+  not make that less true.

@@ -92,6 +92,8 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
+    DATA mo_converter TYPE REF TO zif_unit_converter.
+
     CONSTANTS c_width_id   TYPE i VALUE 26.
     CONSTANTS c_width_date TYPE i VALUE 12.
     CONSTANTS c_width_qty  TYPE i VALUE 14.
@@ -105,6 +107,12 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_engine    TYPE REF TO zcl_allocation_engine.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mv_today     TYPE d.
+
+    METHODS unit_of
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+      RETURNING
+        VALUE(rv_uom) TYPE string.
 
     METHODS rule_lines
       IMPORTING
@@ -212,6 +220,7 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
   METHOD constructor.
 
     mo_supply    = io_supply.
+    mo_converter = NEW zcl_unit_converter( ).
     mo_demand    = io_demand.
     mo_gross     = io_gross.
     mo_engine    = io_engine.
@@ -231,7 +240,9 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
 
     mo_authority->check_plant( iv_werks ).
 
-    APPEND |Material { iv_matnr } in plant { iv_werks }| TO rt_line.
+    APPEND |Material { iv_matnr } in plant { iv_werks }| &&
+           COND string( WHEN unit_of( iv_matnr ) IS NOT INITIAL
+                        THEN |, quantities in { unit_of( iv_matnr ) }| ) TO rt_line.
 
     " a material the plant has put on hold reads as a material nobody wants,
     " because the demand readers leave it out. An explanation that goes quiet
@@ -274,6 +285,18 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       iv_matnr  = iv_matnr
       iv_werks  = iv_werks
       it_demand = lt_demand ) ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD unit_of.
+
+    " every quantity below is in the base unit of the material, and a page of
+    " numbers that does not say which unit that is asks the reader to know
+    TRY.
+        rv_uom = |{ mo_converter->base_unit( iv_matnr ) }|.
+      CATCH zcx_allocation.
+        CLEAR rv_uom.
+    ENDTRY.
 
   ENDMETHOD.
 

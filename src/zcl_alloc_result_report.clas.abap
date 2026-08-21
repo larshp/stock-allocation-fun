@@ -47,6 +47,8 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
+    DATA mo_converter TYPE REF TO zif_unit_converter.
+
     CONSTANTS c_width_id  TYPE i VALUE 26.
     CONSTANTS c_width_kunnr TYPE i VALUE 12.
     CONSTANTS c_width_qty TYPE i VALUE 14.
@@ -57,6 +59,12 @@ CLASS zcl_alloc_result_report DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+
+    METHODS unit_of
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+      RETURNING
+        VALUE(rv_uom) TYPE string.
 
     METHODS format_row
       IMPORTING
@@ -93,6 +101,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
   METHOD constructor.
 
     mo_store     = io_store.
+    mo_converter = NEW zcl_unit_converter( ).
     mo_authority = io_authority.
 
   ENDMETHOD.
@@ -151,7 +160,9 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
       IF ls_recorded-matnr <> lv_matnr.
         lv_matnr = ls_recorded-matnr.
         APPEND || TO rt_line.
-        APPEND |Material { ls_recorded-matnr }| TO rt_line.
+        APPEND |Material { ls_recorded-matnr }| &&
+               COND string( WHEN unit_of( ls_recorded-matnr ) IS NOT INITIAL
+                            THEN |, quantities in { unit_of( ls_recorded-matnr ) }| ) TO rt_line.
         APPEND |Run         { ls_recorded-run_id }| TO rt_line.
         APPEND |Reservation { ls_recorded-reservation }| TO rt_line.
         APPEND format_row(
@@ -192,6 +203,18 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
       iv_shortfall = |{ lv_shortfall }|
       iv_available = ``
       iv_reason    = `` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD unit_of.
+
+    " every quantity below is in the base unit of the material, and a page of
+    " numbers that does not say which unit that is asks the reader to know
+    TRY.
+        rv_uom = |{ mo_converter->base_unit( iv_matnr ) }|.
+      CATCH zcx_allocation.
+        CLEAR rv_uom.
+    ENDTRY.
 
   ENDMETHOD.
 

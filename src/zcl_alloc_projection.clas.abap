@@ -115,6 +115,8 @@ CLASS zcl_alloc_projection DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
+    DATA mo_converter TYPE REF TO zif_unit_converter.
+
     CONSTANTS c_width_date TYPE i VALUE 12.
     CONSTANTS c_width_qty  TYPE i VALUE 14.
 
@@ -125,6 +127,12 @@ CLASS zcl_alloc_projection DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mv_today     TYPE d.
+
+    METHODS unit_of
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+      RETURNING
+        VALUE(rv_uom) TYPE string.
 
     METHODS empty_periods
       IMPORTING
@@ -182,6 +190,7 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
   METHOD constructor.
 
     mo_supply    = io_supply.
+    mo_converter = NEW zcl_unit_converter( ).
     mo_demand    = io_demand.
     mo_authority = io_authority.
 
@@ -261,7 +270,10 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
       iv_days    = iv_days
       iv_buckets = iv_buckets ).
 
-    APPEND |Material { iv_matnr } in plant { iv_werks }, | &&
+    APPEND |Material { iv_matnr } in plant { iv_werks }| &&
+           COND string( WHEN unit_of( iv_matnr ) IS NOT INITIAL
+                        THEN |, quantities in { unit_of( iv_matnr ) }| ) &&
+           |, | &&
            |{ iv_buckets } period(s) of { iv_days } day(s)| TO rt_line.
 
     APPEND |{ `From` WIDTH = c_width_date }| &&
@@ -291,6 +303,18 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
       APPEND || TO rt_line.
       APPEND `Enough for every period shown` TO rt_line.
     ENDIF.
+
+  ENDMETHOD.
+
+  METHOD unit_of.
+
+    " every quantity below is in the base unit of the material, and a page of
+    " numbers that does not say which unit that is asks the reader to know
+    TRY.
+        rv_uom = |{ mo_converter->base_unit( iv_matnr ) }|.
+      CATCH zcx_allocation.
+        CLEAR rv_uom.
+    ENDTRY.
 
   ENDMETHOD.
 

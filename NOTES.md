@@ -3035,3 +3035,25 @@ readers added since do not use it.
   the table holds a fortnight of one plant.
 - **No code changed.** The reads were already written the way they should be;
   it was the table that had not been told what they were.
+
+### Feature 96 — how the quotas stand (done)
+
+A quota is a promise, and until something is short it is invisible. Nothing
+said how much of one the last run handed over, and nobody would find out that
+a figure had been typed a nought short until a line was cut back by it in the
+middle of a busy month.
+
+`ZSTOCK_ALLOC_QUOT` puts the rows of `ZSTOCK_ALLOC_QTA` next to what the last
+run confirmed against each of them.
+
+- **What was taken is what the newest run confirmed inside the period**, not a
+  total of every run ever recorded, for the reason feature 86 gives: a re-cut
+  replaces its predecessor rather than adding to it, and adding them up would
+  show a customer as having taken its quota five times over.
+- **A row that names no customer becomes one line per customer.** The house
+  rule is a limit each of them runs into separately, and one line showing the
+  total of everybody's would be a number that means nothing.
+- **A quota nobody has taken anything against still gets a line.** It is the
+  one worth seeing: either a promise nobody is using, or a figure that is
+  wrong in a way the run will not reveal until it bites.
+- **The recorded runs are read once for the plant**, not once per quota row.

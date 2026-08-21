@@ -2965,3 +2965,26 @@ when nothing has changed.
   the run uses. It is worth saying plainly: in this solution, anything that
   says what a run would decide has to be built from `ZIF_ALLOC_CONFIG`, and a
   factory that cannot do that itself is a factory that will be called wrongly.
+
+### Feature 93 — reading the plant's settings belongs to the factory (done)
+
+Feature 92 was the third time a report answered "what would a run decide" with
+different settings than the run uses, and all three had the same cause: the
+factory took ten parameters and the caller had to remember to fill every one
+of them from `ZIF_ALLOC_CONFIG`. A ritual that has to be repeated in six
+reports is a defect waiting for the seventh.
+
+Every factory that answers a question about a plant now has
+`CREATE_FOR_PLANT`, which reads the settings itself.
+
+- **`ZCL_ALLOC_CONFIG=>STRATEGY_OF`** turns the plant's `F` into a fair share
+  object. The class that knows what the flag means is the one that should make
+  the object, rather than five callers writing the same two lines.
+- **`CREATE_DEFAULT` stays as it is** on all of them. It is what the tests
+  wire, and what a caller that deliberately wants other settings needs -- the
+  comparison report still offers the cap, whole units and the quota on its
+  screen, because those are what it is asking about.
+- **Five reports went back to being three lines each.** A report should say
+  which question is being asked and nothing about how the answer is arrived
+  at; every line of wiring in one is a line that can drift away from what the
+  run does.

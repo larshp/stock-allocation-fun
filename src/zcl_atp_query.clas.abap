@@ -19,6 +19,22 @@ CLASS zcl_atp_query DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_query) TYPE REF TO zif_atp_query.
 
+    "! <p class="shorttext synchronized">Query, wired up for a plant</p>
+    "!
+    "! Everything but the question comes from the plant's own settings, read
+    "! here rather than by the caller: an answer worked out by different rules
+    "! than the run uses is answering a different question in the same words,
+    "! and a factory that cannot read them itself is one that will be called
+    "! wrongly. Feature 92 is what that looks like when it happens.
+    "!
+    "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter ro_query | <p class="shorttext synchronized">Ready to use, as the plant would</p>
+    CLASS-METHODS create_for_plant
+      IMPORTING
+        iv_werks        TYPE mard-werks
+      RETURNING
+        VALUE(ro_query) TYPE REF TO zif_atp_query.
+
     "! <p class="shorttext synchronized">Wire up the query</p>
     "!
     "! @parameter io_supply    | <p class="shorttext synchronized">What the plant has to give away</p>
@@ -94,6 +110,18 @@ CLASS zcl_atp_query IMPLEMENTATION.
       io_demand    = COND #( WHEN iv_cautious = abap_true
                              THEN zcl_allocation_service=>create_default_open_demand(
                                iv_ship_days = iv_ship_days ) ) ).
+
+  ENDMETHOD.
+
+  METHOD create_for_plant.
+
+    DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
+
+    ro_query = create_default(
+      iv_lgort     = ls_settings-lgort
+      iv_planned   = ls_settings-planned
+      iv_ship_days = ls_settings-ship_days
+      iv_cautious  = ls_settings-cautious_atp ).
 
   ENDMETHOD.
 

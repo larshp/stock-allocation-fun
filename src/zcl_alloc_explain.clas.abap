@@ -30,6 +30,22 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(ro_explain) TYPE REF TO zcl_alloc_explain.
 
+    "! <p class="shorttext synchronized">Explanation, wired up for a plant</p>
+    "!
+    "! Everything but the question comes from the plant's own settings, read
+    "! here rather than by the caller: an answer worked out by different rules
+    "! than the run uses is answering a different question in the same words,
+    "! and a factory that cannot read them itself is one that will be called
+    "! wrongly. Feature 92 is what that looks like when it happens.
+    "!
+    "! @parameter iv_werks | <p class="shorttext synchronized">Plant</p>
+    "! @parameter ro_explain | <p class="shorttext synchronized">Ready to use, as the plant would</p>
+    CLASS-METHODS create_for_plant
+      IMPORTING
+        iv_werks          TYPE mard-werks
+      RETURNING
+        VALUE(ro_explain) TYPE REF TO zcl_alloc_explain.
+
     "! <p class="shorttext synchronized">Wire up the explanation</p>
     "!
     "! @parameter io_supply    | <p class="shorttext synchronized">What the plant has to give away</p>
@@ -158,6 +174,23 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
           iv_whole_units = iv_whole_units
           iv_quota       = iv_quota ) )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+
+  ENDMETHOD.
+
+  METHOD create_for_plant.
+
+    DATA(ls_settings) = CAST zif_alloc_config( NEW zcl_alloc_config( ) )->for_plant( iv_werks ).
+
+    ro_explain = create_default(
+      iv_lgort        = ls_settings-lgort
+      iv_planned      = ls_settings-planned
+      iv_horizon_days = ls_settings-horizon_days
+      iv_ship_days    = ls_settings-ship_days
+      iv_age_days     = ls_settings-age_days
+      io_strategy     = zcl_alloc_config=>strategy_of( ls_settings )
+      iv_cap_percent  = ls_settings-cap_percent
+      iv_whole_units  = ls_settings-whole_units
+      iv_quota        = ls_settings-quota ).
 
   ENDMETHOD.
 

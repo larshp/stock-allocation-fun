@@ -10,19 +10,12 @@ START-OF-SELECTION.
   " which locations may be given away and whether the plan counts are
   " decisions about the plant, so the answer uses the plant's own settings
   " rather than asking again here. Nothing on this screen changes anything.
-  DATA(lo_config) = CAST zif_alloc_config( NEW zcl_alloc_config( ) ).
-  DATA(ls_settings) = lo_config->for_plant( p_werks ).
-
   TRY.
-      DATA(ls_promise) = zcl_atp_query=>create_default(
-        iv_lgort     = ls_settings-lgort
-        iv_planned   = ls_settings-planned
-        iv_ship_days = ls_settings-ship_days
-        iv_cautious  = ls_settings-cautious_atp )->promise(
-          iv_matnr    = p_matnr
-          iv_werks    = p_werks
-          iv_quantity = p_menge
-          iv_by_date  = p_date ).
+      DATA(ls_promise) = zcl_atp_query=>create_for_plant( p_werks )->promise(
+        iv_matnr    = p_matnr
+        iv_werks    = p_werks
+        iv_quantity = p_menge
+        iv_by_date  = p_date ).
     CATCH zcx_allocation INTO DATA(lx_error).
       WRITE / lx_error->get_text( ).
       RETURN.

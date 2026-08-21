@@ -10,21 +10,13 @@ START-OF-SELECTION.
 
   " where the stock comes from is the plant's decision and is not what this
   " report is asking about, so it is read rather than offered
-  DATA(lo_config) = CAST zif_alloc_config( NEW zcl_alloc_config( ) ).
-  DATA(ls_settings) = lo_config->for_plant( p_werks ).
-
   TRY.
-      DATA(lt_line) = zcl_alloc_compare=>create_default(
-        iv_lgort        = ls_settings-lgort
-        iv_planned      = ls_settings-planned
-        iv_horizon_days = ls_settings-horizon_days
-        iv_ship_days    = ls_settings-ship_days
-        iv_age_days     = ls_settings-age_days )->run(
-          iv_matnr       = p_matnr
-          iv_werks       = p_werks
-          iv_cap_percent = p_cap
-          iv_whole_units = p_whole
-          iv_quota       = p_quota ).
+      DATA(lt_line) = zcl_alloc_compare=>create_for_plant( p_werks )->run(
+        iv_matnr       = p_matnr
+        iv_werks       = p_werks
+        iv_cap_percent = p_cap
+        iv_whole_units = p_whole
+        iv_quota       = p_quota ).
     CATCH zcx_allocation INTO DATA(lx_error).
       lt_line = VALUE #( ( lx_error->get_text( ) ) ).
   ENDTRY.

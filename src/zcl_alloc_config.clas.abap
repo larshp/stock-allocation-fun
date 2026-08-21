@@ -20,10 +20,34 @@ CLASS zcl_alloc_config DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_default_sto_prio TYPE zif_allocation=>ty_priority
       VALUE zcl_sto_demand_reader=>c_default_priority.
 
+    "! <p class="shorttext synchronized">The distribution rule a plant has chosen</p>
+    "!
+    "! The class that knows what an `F` in the table means is the one that
+    "! turns it into the object, rather than each caller reading the flag and
+    "! writing the same two lines.
+    "!
+    "! @parameter is_config   | <p class="shorttext synchronized">Settings of the plant</p>
+    "! @parameter ro_strategy | <p class="shorttext synchronized">Fair share, or none for the default</p>
+    CLASS-METHODS strategy_of
+      IMPORTING
+        is_config          TYPE zif_alloc_config=>ty_config
+      RETURNING
+        VALUE(ro_strategy) TYPE REF TO zif_allocation_strategy.
+
 ENDCLASS.
 
 
 CLASS zcl_alloc_config IMPLEMENTATION.
+
+  METHOD strategy_of.
+
+    " a plant that has not chosen is served by priority, and the factories
+    " take an unbound strategy to mean exactly that
+    IF is_config-fair_share = abap_true.
+      ro_strategy = NEW zcl_alloc_strategy_fairshare( ).
+    ENDIF.
+
+  ENDMETHOD.
 
   METHOD zif_alloc_config~for_plant.
 

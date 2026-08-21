@@ -24,6 +24,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_MAIL</KEY>
+     <ENTRY>Send the list to</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
      <LENGTH>5</LENGTH>

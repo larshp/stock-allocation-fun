@@ -116,6 +116,12 @@
      <MSGNR>018</MSGNR>
      <TEXT>Factory calendar &amp;1 could not be read</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZSTOCK_ALLOC</ARBGB>
+     <MSGNR>019</MSGNR>
+     <TEXT>The list could not be sent to &amp;1</TEXT>
+    </T100>
    </T100_TEXTS>
   </asx:values>
  </asx:abap>

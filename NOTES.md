@@ -3395,3 +3395,25 @@ against what the plant has said could stand in for it.
   that ignored it would show a planner twice the cover there is.
 - **It covers at most the gap.** A warehouse full of the substitute still only
   answers the shortage in front of it.
+
+### Feature 109 — the morning list finds the planner (done)
+
+The shortage list of feature 48 and the coverage check of feature 101 are
+both things somebody has to remember to run, which means they get run on the
+mornings somebody remembers. Both are exactly the shape of thing that should
+arrive: a nightly job, an address, a plain list.
+
+- **`ZIF_MAIL_SENDER` is a seam like the rest.** Sending is the one part of a
+  report that talks to the world outside the system, and a test that has to
+  read SOST to find out what happened is not a test anybody keeps. The
+  implementation calls `SO_NEW_DOCUMENT_SEND_API1`; the tests read what the
+  stub was handed.
+- **It commits itself.** A document queued and not committed never leaves, and
+  a report that has changed nothing has nothing else in its unit of work to
+  lose.
+- **No address, no mail.** A report run from the screen is a report somebody
+  is watching, and mailing it to nobody would either fail or, worse, quietly
+  file a document to nowhere.
+- **Failing to send does not lose the list.** The lines are written to the
+  spool first and the send is reported if it fails: the answer is the point,
+  the delivery is a convenience.

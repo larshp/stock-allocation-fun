@@ -122,6 +122,10 @@ remote enabled, with flat fields and a `BAPIRET2` instead of an exception.
 `Z_STOCK_ALLOC_PROMISES` answers a whole basket in one call, reading each
 plant's settings once instead of once per line.
 
+`ZSTOCK_ALLOC_SHORT` and `ZSTOCK_ALLOC_COVER` both take an e-mail address.
+Scheduled with one, the morning list and the "did the night finish" check
+arrive rather than waiting to be run.
+
 `ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
 because the demand netting reads it. It defaults to a test run too, and a real
 one writes to the same application log as an allocation run.

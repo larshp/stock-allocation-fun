@@ -5,6 +5,7 @@ PARAMETERS p_until TYPE d.
 PARAMETERS p_top TYPE i DEFAULT 0.
 PARAMETERS p_dispo TYPE marc-dispo.
 PARAMETERS p_kunnr TYPE vbak-kunnr.
+PARAMETERS p_mail TYPE ad_smtpadr.
 
 START-OF-SELECTION.
 
@@ -22,3 +23,16 @@ START-OF-SELECTION.
   LOOP AT lt_line INTO DATA(lv_line).
     WRITE / lv_line.
   ENDLOOP.
+
+  " a list a planner has to remember to run is a list that gets run on the
+  " mornings somebody remembers. Scheduled with an address, it arrives.
+  IF p_mail IS NOT INITIAL.
+    TRY.
+        CAST zif_mail_sender( NEW zcl_mail_sender( ) )->send(
+          iv_to      = |{ p_mail }|
+          iv_subject = |Stock allocation: what is short in { p_werks }|
+          it_line    = lt_line ).
+      CATCH zcx_allocation INTO DATA(lx_mail).
+        WRITE / lx_mail->get_text( ).
+    ENDTRY.
+  ENDIF.

@@ -15,7 +15,7 @@ tests run without a SAP system.
 controller. For each material waiting for stock it
 
 1. checks the user may allocate in the plant (`AUTHORITY-CHECK` on
-   `M_MATE_WRK`) and locks the material for the run,
+   `ZSTOCK_ALL`) and locks the material for the run,
 2. works out what there is to give away and from when: the book stock from
    `MARD`, restricted to the storage locations that may be allocated and less
    what is not up for allocation — open reservations, stock on deliveries that
@@ -35,9 +35,9 @@ controller. For each material waiting for stock it
    horizon,
 4. walks the supply in the order it becomes available and distributes each day
    of it over the demand that can wait for it, either by delivery priority or
-   as a fair share, optionally holding every customer to a share of the pool
-   and confirming whole order units only, and giving an item that may only ship
-   complete either all of it or none of it,
+   as a fair share, optionally holding every customer to a share of the pool,
+   to the quota it agreed for the period, and to whole order units, and giving
+   an item that may only ship complete either all of it or none of it,
 5. records the outcome in `ZSTOCK_ALLOC_RES` and commits it,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`, links
    the reservation back onto the recorded run and commits that.
@@ -49,8 +49,8 @@ one decided and a job that dies half way leaves whole answers behind.
 Every answered line says how much was confirmed, how much is short, the day the
 confirmed quantity is there — `now` when it comes off the shelf, otherwise the
 day the last of its supply arrives — and, where it fell short, why: not enough
-stock, stock that comes too late, the customer's share, whole units, or the
-complete delivery rule.
+stock, stock that comes too late, the customer's share, its quota, whole
+units, or the complete delivery rule.
 
 One material failing does not stop the rest of the run; the report says which
 ones failed and why.
@@ -69,6 +69,11 @@ run cancels the reservations its earlier runs left on the material, so all the
 demand on the books today competes for all the stock rather than for what is
 left over. That is what makes an urgent order that arrived this morning able to
 take stock from a line that is not due for a month.
+
+A plant that sets a wait in Customizing also moves a line that has been short
+in every run for that long one place up the queue, and another place for every
+further wait of the same length: without it a stable order starves the same
+lines every night.
 
 A plant too big for one nightly job can be split: schedule `ZSTOCK_ALLOCATION`
 several times with **Jobs sharing the plant** set to how many there are and

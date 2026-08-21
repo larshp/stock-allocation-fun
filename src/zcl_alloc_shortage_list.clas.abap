@@ -61,6 +61,11 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_converter TYPE REF TO zif_unit_converter.
+
+    "! The waits of the material whose lines are being written now: the list
+    "! is in material order, so one read per material covers all of its lines.
+    DATA mt_since    TYPE zcl_demand_aging=>ty_waiting_tab.
+    DATA mv_since_of TYPE mard-matnr.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
     METHODS short_lines
@@ -81,6 +86,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_kunnr       TYPE string
         iv_short       TYPE string
         iv_uom         TYPE string
+        iv_since       TYPE string
         iv_reason      TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
@@ -90,6 +96,14 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr      TYPE mard-matnr
       RETURNING
         VALUE(rv_uom) TYPE string.
+
+    METHODS since_of
+      IMPORTING
+        iv_matnr        TYPE mard-matnr
+        iv_demand_id    TYPE zif_allocation=>ty_demand_id
+        iv_werks        TYPE mard-werks
+      RETURNING
+        VALUE(rv_since) TYPE string.
 
     METHODS date_text
       IMPORTING
@@ -146,6 +160,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       iv_kunnr  = `Customer`
       iv_short  = `Short`
       iv_uom    = `Unit`
+      iv_since  = `Short since`
       iv_reason = `Why` ) TO rt_line.
 
     LOOP AT lt_short INTO DATA(ls_short).
@@ -166,6 +181,9 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         iv_kunnr  = |{ ls_short-customer }|
         iv_short  = |{ ls_short-shortfall }|
         iv_uom    = unit_of( ls_short-matnr )
+        iv_since  = since_of( iv_matnr     = ls_short-matnr
+                              iv_demand_id = ls_short-demand_id
+                              iv_werks     = iv_werks )
         iv_reason = zcl_alloc_reason_text=>text( ls_short-reason ) ) TO rt_line.
 
     ENDLOOP.
@@ -232,6 +250,29 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD since_of.
+
+    " how long this line has been short without a break, worked out by the
+    " class the escalation of feature 87 uses: a chronic line and one that
+    " went short this morning look the same in a list of quantities, and they
+    " are not the same problem at all
+    IF mv_since_of <> iv_matnr.
+      mt_since    = zcl_demand_aging=>waiting_for(
+        iv_matnr = iv_matnr
+        iv_werks = iv_werks ).
+      mv_since_of = iv_matnr.
+    ENDIF.
+
+    READ TABLE mt_since INTO DATA(ls_since)
+      WITH KEY demand_id = iv_demand_id.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    rv_since = |{ ls_since-since DATE = ISO }|.
+
+  ENDMETHOD.
+
   METHOD format_row.
 
     rv_line = |{ iv_date WIDTH = c_width_date }|
@@ -240,7 +281,8 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
            && |{ iv_kunnr WIDTH = c_width_kunnr }|
            && |{ iv_short WIDTH = c_width_qty ALIGN = RIGHT }|
            && | { iv_uom WIDTH = c_width_uom }|
-           && |  { iv_reason WIDTH = c_width_why }|.
+           && |  { iv_since WIDTH = c_width_date }|
+           && |{ iv_reason WIDTH = c_width_why }|.
 
   ENDMETHOD.
 

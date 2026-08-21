@@ -32,6 +32,32 @@ CLASS zcl_demand_aging DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_demand TYPE REF TO zif_demand_reader
         iv_days   TYPE i DEFAULT c_never.
 
+    "! Since when one line has been short in every run.
+    TYPES:
+      BEGIN OF ty_waiting,
+        demand_id TYPE zstock_alloc_res-demand_id,
+        since     TYPE d,
+      END OF ty_waiting.
+    TYPES ty_waiting_tab TYPE STANDARD TABLE OF ty_waiting WITH EMPTY KEY.
+
+    "! <p class="shorttext synchronized">How long each line of a material has been short</p>
+    "!
+    "! Public because the worklist wants to say it and this is the class that
+    "! works it out: what counts as a wait -- the unbroken run of shortfalls at
+    "! the near end, ended by any run that served the line in full -- is a rule,
+    "! and a report with a rule of its own would disagree with the escalation
+    "! about the lines that matter.
+    "!
+    "! @parameter iv_matnr  | <p class="shorttext synchronized">Material number</p>
+    "! @parameter iv_werks  | <p class="shorttext synchronized">Plant</p>
+    "! @parameter rt_waiting | <p class="shorttext synchronized">Since when, per line that is waiting</p>
+    CLASS-METHODS waiting_for
+      IMPORTING
+        iv_matnr          TYPE mard-matnr
+        iv_werks          TYPE mard-werks
+      RETURNING
+        VALUE(rt_waiting) TYPE ty_waiting_tab.
+
   PRIVATE SECTION.
 
     "! One recorded line. Declared explicitly rather than inferred with
@@ -44,25 +70,10 @@ CLASS zcl_demand_aging DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_recorded.
     TYPES ty_recorded_tab TYPE STANDARD TABLE OF ty_recorded WITH EMPTY KEY.
 
-    "! Since when one line has been short in every run.
-    TYPES:
-      BEGIN OF ty_waiting,
-        demand_id TYPE zstock_alloc_res-demand_id,
-        since     TYPE d,
-      END OF ty_waiting.
-    TYPES ty_waiting_tab TYPE STANDARD TABLE OF ty_waiting WITH EMPTY KEY.
-
     DATA mo_demand TYPE REF TO zif_demand_reader.
     DATA mv_days   TYPE i.
 
-    METHODS waiting_since
-      IMPORTING
-        iv_matnr          TYPE mard-matnr
-        iv_werks          TYPE mard-werks
-      RETURNING
-        VALUE(rt_waiting) TYPE ty_waiting_tab.
-
-    METHODS unbroken_run_of_short
+    CLASS-METHODS unbroken_run_of_short
       IMPORTING
         it_recorded       TYPE ty_recorded_tab
       RETURNING
@@ -97,7 +108,7 @@ CLASS zcl_demand_aging IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lt_waiting) = waiting_since(
+    DATA(lt_waiting) = waiting_for(
       iv_matnr = iv_matnr
       iv_werks = iv_werks ).
     IF lt_waiting IS INITIAL.
@@ -128,7 +139,7 @@ CLASS zcl_demand_aging IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD waiting_since.
+  METHOD waiting_for.
 
     DATA lt_recorded TYPE ty_recorded_tab.
 

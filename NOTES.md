@@ -197,6 +197,7 @@ in, which is also the order they make sense in.
 130. a material on hold says so wherever it is asked about
 131. the transfer has a history too
 132. and the answer over RFC knows about transfers too
+133. the worklist says how long a line has been short
 
 ## Progress
 
@@ -3914,3 +3915,22 @@ old.
 - **Both documents are optional and one of them is required.** The function
   module answers nothing rather than guessing when neither is given, and the
   report says so on the screen.
+
+### Feature 133 — the worklist says how long a line has been short (done)
+
+A line short since a fortnight ago and one short since this morning are the
+same quantity on the morning list and are not the same problem. The run has
+known the difference since feature 87 -- it is what the escalation acts on --
+and the list a planner actually works through did not show it.
+
+- **It is worked out by the class that owns the rule.**
+  `ZCL_DEMAND_AGING=>WAITING_FOR` is now public, so the column and the
+  escalation agree by construction about what a wait is: the unbroken run of
+  shortfalls at the near end, ended by any run that served the line in full.
+  A report with a rule of its own would disagree about exactly the lines that
+  matter.
+- **One read per material, not per line.** The list comes in material order,
+  so the waits of a material are read when its first short line is written and
+  used for the rest of them.
+- **A line short for the first time tonight shows nothing.** An empty column
+  is the answer: there is no wait to report, and a date would suggest one.

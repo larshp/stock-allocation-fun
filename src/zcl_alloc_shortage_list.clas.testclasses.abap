@@ -126,6 +126,7 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
     METHODS the_customer_is_shown FOR TESTING RAISING cx_static_check.
     METHODS one_customer_can_be_asked FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
+    METHODS how_long_it_has_been_short FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -375,4 +376,43 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD how_long_it_has_been_short.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_date TYPE d.
+    DATA lv_when TYPE zstock_alloc_res-created_at.
+
+    lv_date = sy-datum - 14.
+    lv_when = zcl_alloc_clock=>stamp_of(
+      iv_date = lv_date
+      iv_time = '120000' ).
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = 'SHORT-SINCE'
+        demand_id  = 'D1'
+        matnr      = 'SHORT-MAT-09'
+        werks      = c_werks
+        requested  = 10
+        confirmed  = 0
+        shortfall  = 10
+        created_at = lv_when ) ).
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'SHORT-MAT-09'
+                  iv_demand_id = 'D1'
+                  iv_short     = 10 ) ) ) ).
+
+    DELETE FROM zstock_alloc_res WHERE run_id = 'SHORT-SINCE'.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " a line short since a fortnight ago and one short since this morning are
+    " the same quantity and not the same problem
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = |*{ lv_date DATE = ISO }*| ).
+
+  ENDMETHOD.
 ENDCLASS.

@@ -3619,3 +3619,28 @@ every line.
 - **A material whose master has gone prints no unit and no comma**, as on the
   worklist: the page is about what the run decided, and a missing master does
   not make that less true.
+
+### Feature 120 — what one more delivery would fix (done)
+
+Feature 88 asks what an order would cost the book. This is the mirror: what a
+delivery would buy it. It is the question in front of somebody deciding
+whether to pay for an expedited shipment or ring the supplier again -- five
+hundred on Friday sounds useful, and whether it is depends entirely on which
+lines could actually take it.
+
+`ZSTOCK_ALLOC_IF` puts the delivery into the supply as though it were on order
+and shows who would gain.
+
+- **The extra delivery is a supply reader**, `ZCL_SUPPLY_EXTRA`, wrapping the
+  real one and appending one row for one material in one plant. Everything
+  else -- the engine, the rules, the plant's settings -- is what a run uses,
+  so what it shows is what the run would decide.
+- **It says how much of the delivery nobody could take.** A planner deciding
+  between five hundred and a thousand needs that number more than the first
+  one: the answer to "should I expedite" is often "half of it".
+- **A delivery that lands too late fixes nothing, and says so.** The line that
+  is short ships on Thursday and the lorry arrives on Friday; the engine
+  already refuses that, and the report shows the refusal rather than a
+  hopeful number.
+- **No line can be worse off for stock arriving**, so only the gainers are
+  listed -- the same shape as feature 88, which lists only the losers.

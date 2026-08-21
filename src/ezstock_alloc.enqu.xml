@@ -1,12 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_ENQU" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <DD25V>
     <VIEWNAME>EZSTOCK_ALLOC</VIEWNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
     <AGGTYPE>E</AGGTYPE>
     <ROOTTAB>MARC</ROOTTAB>
-    <DDLANGUAGE>E</DDLANGUAGE>
     <DDTEXT>Stock Allocation Run</DDTEXT>
    </DD25V>
    <DD26E_TABLE>
@@ -27,6 +27,8 @@
      <FIELDNAME>MANDT</FIELDNAME>
      <KEYFLAG>X</KEYFLAG>
      <ENQMODE>E</ENQMODE>
+     <CHECKTABLE>T000</CHECKTABLE>
+     <SHLPORIGIN>P</SHLPORIGIN>
     </DD27P>
     <DD27P>
      <VIEWNAME>EZSTOCK_ALLOC</VIEWNAME>
@@ -36,6 +38,13 @@
      <FIELDNAME>MATNR</FIELDNAME>
      <KEYFLAG>X</KEYFLAG>
      <ENQMODE>E</ENQMODE>
+     <MEMORYID>MAT</MEMORYID>
+     <CHECKTABLE>MARA</CHECKTABLE>
+     <SHLPORIGIN>X</SHLPORIGIN>
+     <SHLPNAME>S_MAT1</SHLPNAME>
+     <SHLPFIELD>MATNR</SHLPFIELD>
+     <LOGFLAG>X</LOGFLAG>
+     <CONVEXIT>MATN1</CONVEXIT>
     </DD27P>
     <DD27P>
      <VIEWNAME>EZSTOCK_ALLOC</VIEWNAME>
@@ -45,6 +54,12 @@
      <FIELDNAME>WERKS</FIELDNAME>
      <KEYFLAG>X</KEYFLAG>
      <ENQMODE>E</ENQMODE>
+     <MEMORYID>WRK</MEMORYID>
+     <CHECKTABLE>T001W</CHECKTABLE>
+     <SHLPORIGIN>P</SHLPORIGIN>
+     <SHLPNAME>H_T001W_C</SHLPNAME>
+     <SHLPFIELD>WERKS</SHLPFIELD>
+     <LOGFLAG>X</LOGFLAG>
     </DD27P>
    </DD27P_TABLE>
   </asx:values>

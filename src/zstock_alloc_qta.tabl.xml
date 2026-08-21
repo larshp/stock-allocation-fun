@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -8,8 +8,8 @@
     <TABCLASS>TRANSP</TABCLASS>
     <CLIDEP>X</CLIDEP>
     <DDTEXT>Stock Allocation: Quota per Customer and Period</DDTEXT>
-    <CONTFLAG>C</CONTFLAG>
     <MASTERLANG>E</MASTERLANG>
+    <CONTFLAG>C</CONTFLAG>
     <EXCLASS>1</EXCLASS>
    </DD02V>
    <DD09L>
@@ -80,6 +80,7 @@
      <LENG>000008</LENG>
      <MASK>  DATS</MASK>
      <DDTEXT>First Day of the Period</DDTEXT>
+     <SHLPORIGIN>T</SHLPORIGIN>
     </DD03P>
     <DD03P>
      <FIELDNAME>DATE_TO</FIELDNAME>
@@ -90,6 +91,7 @@
      <LENG>000008</LENG>
      <MASK>  DATS</MASK>
      <DDTEXT>Last Day of the Period</DDTEXT>
+     <SHLPORIGIN>T</SHLPORIGIN>
     </DD03P>
     <DD03P>
      <FIELDNAME>QUANTITY</FIELDNAME>

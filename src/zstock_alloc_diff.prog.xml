@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -20,25 +20,25 @@
      <ID>S</ID>
      <KEY>P_KUNNR</KEY>
      <ENTRY>Customer, all if empty</ENTRY>
-     <LENGTH>22</LENGTH>
+     <LENGTH>30</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
-     <LENGTH>5</LENGTH>
+     <LENGTH>13</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_PREV</KEY>
      <ENTRY>Against what a run now would decide</ENTRY>
-     <LENGTH>35</LENGTH>
+     <LENGTH>43</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WORSE</KEY>
      <ENTRY>Only the lines that lost stock</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

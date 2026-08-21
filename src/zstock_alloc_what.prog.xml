@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -20,37 +20,37 @@
      <ID>S</ID>
      <KEY>P_DATUM</KEY>
      <ENTRY>Wanted on</ENTRY>
-     <LENGTH>9</LENGTH>
+     <LENGTH>17</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_KUNNR</KEY>
      <ENTRY>Customer</ENTRY>
-     <LENGTH>8</LENGTH>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material</ENTRY>
-     <LENGTH>8</LENGTH>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_MENGE</KEY>
      <ENTRY>Quantity</ENTRY>
-     <LENGTH>8</LENGTH>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_PRIO</KEY>
      <ENTRY>Priority</ENTRY>
-     <LENGTH>8</LENGTH>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
-     <LENGTH>5</LENGTH>
+     <LENGTH>13</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

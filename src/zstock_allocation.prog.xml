@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -20,121 +20,121 @@
      <ID>S</ID>
      <KEY>P_CARRY</KEY>
      <ENTRY>Carry on where a run stopped</ENTRY>
-     <LENGTH>28</LENGTH>
+     <LENGTH>36</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_CFG</KEY>
      <ENTRY>Settings come from the plant</ENTRY>
-     <LENGTH>28</LENGTH>
+     <LENGTH>36</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_CAP</KEY>
      <ENTRY>Max percent per customer, 0 none</ENTRY>
-     <LENGTH>32</LENGTH>
+     <LENGTH>40</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_DISPO</KEY>
      <ENTRY>MRP controller, all if empty</ENTRY>
-     <LENGTH>28</LENGTH>
+     <LENGTH>36</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_FAIR</KEY>
      <ENTRY>Fair share instead of priority</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_HORIZ</KEY>
      <ENTRY>Horizon in days, 0 for no limit</ENTRY>
-     <LENGTH>31</LENGTH>
+     <LENGTH>39</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_LGORT</KEY>
      <ENTRY>Storage location, all if empty</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material, all if empty</ENTRY>
-     <LENGTH>22</LENGTH>
+     <LENGTH>30</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_PLAN</KEY>
      <ENTRY>Planned orders count as supply</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_AGE</KEY>
      <ENTRY>Wait that moves a line up</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>33</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_QUOTA</KEY>
      <ENTRY>Hold customers to their quotas</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WHOLE</KEY>
      <ENTRY>Confirm whole order units only</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_RECUT</KEY>
      <ENTRY>Give earlier allocations back first</ENTRY>
-     <LENGTH>35</LENGTH>
+     <LENGTH>43</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_PKG</KEY>
      <ENTRY>Package this job covers</ENTRY>
-     <LENGTH>23</LENGTH>
+     <LENGTH>31</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_PKGS</KEY>
      <ENTRY>Jobs sharing the plant, 0 for one</ENTRY>
-     <LENGTH>33</LENGTH>
+     <LENGTH>41</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_SHIP</KEY>
      <ENTRY>Days to get the goods out of the door</ENTRY>
-     <LENGTH>37</LENGTH>
+     <LENGTH>45</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_STOP</KEY>
      <ENTRY>Priority of a transfer, 01 first</ENTRY>
-     <LENGTH>32</LENGTH>
+     <LENGTH>40</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_TEST</KEY>
      <ENTRY>Test run, change nothing</ENTRY>
-     <LENGTH>24</LENGTH>
+     <LENGTH>32</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WORK</KEY>
      <ENTRY>Shipping time in working days</ENTRY>
-     <LENGTH>29</LENGTH>
+     <LENGTH>37</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
-     <LENGTH>5</LENGTH>
+     <LENGTH>13</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

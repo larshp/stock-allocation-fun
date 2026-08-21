@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -9,9 +9,60 @@
    </INCLUDES>
    <FUNCTIONS>
     <item>
+     <FUNCNAME>Z_STOCK_ALLOC_ALTERNATIVES</FUNCNAME>
+     <SHORT_TEXT>What else could be promised instead</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>IV_MATNR</PARAMETER>
+       <TYP>MARD-MATNR</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <TYP>MARD-WERKS</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_QUANTITY</PARAMETER>
+       <TYP>ZSTOCK_ALLOC_PROMISE-QUANTITY</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_BY_DATE</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>ZSTOCK_ALLOC_PROMISE-AVAIL_DATE</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>ET_ANSWER</PARAMETER>
+       <TYP>ZCL_ALLOC_ALT_API=&gt;TY_ANSWER_TAB</TYP>
+      </RSEXP>
+     </EXPORT>
+     <DOCUMENTATION>
+      <RSFDO>
+       <PARAMETER>IV_MATNR</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_QUANTITY</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_BY_DATE</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ET_ANSWER</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+     </DOCUMENTATION>
+    </item>
+    <item>
      <FUNCNAME>Z_STOCK_ALLOC_PROMISE</FUNCNAME>
-     <SHORT_TEXT>What a plant can promise of a material</SHORT_TEXT>
      <REMOTE_CALL>R</REMOTE_CALL>
+     <SHORT_TEXT>What a plant can promise of a material</SHORT_TEXT>
      <IMPORT>
       <RSIMP>
        <PARAMETER>IV_MATNR</PARAMETER>
@@ -46,11 +97,41 @@
        <TYP>BAPIRET2</TYP>
       </RSEXP>
      </EXPORT>
+     <DOCUMENTATION>
+      <RSFDO>
+       <PARAMETER>IV_MATNR</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_WERKS</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_QUANTITY</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_BY_DATE</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_LGORT</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ES_PROMISE</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ES_RETURN</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+     </DOCUMENTATION>
     </item>
     <item>
      <FUNCNAME>Z_STOCK_ALLOC_PROMISES</FUNCNAME>
-     <SHORT_TEXT>What a plant can promise, line by line</SHORT_TEXT>
      <REMOTE_CALL>R</REMOTE_CALL>
+     <SHORT_TEXT>What a plant can promise, line by line</SHORT_TEXT>
      <TABLES>
       <RSTBL>
        <PARAMETER>IT_ASK</PARAMETER>
@@ -61,6 +142,16 @@
        <DBSTRUCT>ZSTOCK_ALLOC_ANS</DBSTRUCT>
       </RSTBL>
      </TABLES>
+     <DOCUMENTATION>
+      <RSFDO>
+       <PARAMETER>IT_ASK</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ET_ANSWER</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+     </DOCUMENTATION>
     </item>
     <item>
      <FUNCNAME>Z_STOCK_ALLOC_RESULT</FUNCNAME>
@@ -96,35 +187,32 @@
        <TYP>BAPIRET2</TYP>
       </RSEXP>
      </EXPORT>
-    </item>
-    <item>
-     <FUNCNAME>Z_STOCK_ALLOC_ALTERNATIVES</FUNCNAME>
-     <SHORT_TEXT>What else could be promised instead</SHORT_TEXT>
-     <IMPORT>
-      <RSIMP>
-       <PARAMETER>IV_MATNR</PARAMETER>
-       <TYP>MARD-MATNR</TYP>
-      </RSIMP>
-      <RSIMP>
+     <DOCUMENTATION>
+      <RSFDO>
        <PARAMETER>IV_WERKS</PARAMETER>
-       <TYP>MARD-WERKS</TYP>
-      </RSIMP>
-      <RSIMP>
-       <PARAMETER>IV_QUANTITY</PARAMETER>
-       <TYP>ZSTOCK_ALLOC_PROMISE-QUANTITY</TYP>
-      </RSIMP>
-      <RSIMP>
-       <PARAMETER>IV_BY_DATE</PARAMETER>
-       <OPTIONAL>X</OPTIONAL>
-       <TYP>ZSTOCK_ALLOC_PROMISE-AVAIL_DATE</TYP>
-      </RSIMP>
-     </IMPORT>
-     <EXPORT>
-      <RSEXP>
-       <PARAMETER>ET_ANSWER</PARAMETER>
-       <TYP>ZCL_ALLOC_ALT_API=&gt;TY_ANSWER_TAB</TYP>
-      </RSEXP>
-     </EXPORT>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_VBELN</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_POSNR</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IV_EBELN</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ET_LINE</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>ES_RETURN</PARAMETER>
+       <KIND>P</KIND>
+      </RSFDO>
+     </DOCUMENTATION>
     </item>
    </FUNCTIONS>
   </asx:values>

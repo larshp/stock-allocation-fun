@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -20,31 +20,31 @@
      <ID>S</ID>
      <KEY>P_CAP</KEY>
      <ENTRY>Max percent per customer, 0 none</ENTRY>
-     <LENGTH>32</LENGTH>
+     <LENGTH>40</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material</ENTRY>
-     <LENGTH>8</LENGTH>
+     <LENGTH>16</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant</ENTRY>
-     <LENGTH>5</LENGTH>
+     <LENGTH>13</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_QUOTA</KEY>
      <ENTRY>Hold customers to their quotas</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_WHOLE</KEY>
      <ENTRY>Confirm whole order units only</ENTRY>
-     <LENGTH>30</LENGTH>
+     <LENGTH>38</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

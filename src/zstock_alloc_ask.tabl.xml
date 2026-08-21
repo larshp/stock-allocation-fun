@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -61,6 +61,7 @@
      <LENG>000008</LENG>
      <MASK>  DATS</MASK>
      <DDTEXT>Day It Is Wanted By, Empty for Any Day</DDTEXT>
+     <SHLPORIGIN>T</SHLPORIGIN>
     </DD03P>
     <DD03P>
      <FIELDNAME>STGE_LOC</FIELDNAME>
@@ -70,7 +71,7 @@
      <DATATYPE>CHAR</DATATYPE>
      <LENG>000004</LENG>
      <MASK>  CHAR</MASK>
-     <DDTEXT>Storage Location, the Plant's if Empty</DDTEXT>
+     <DDTEXT>Storage Location, the Plant&apos;s if Empty</DDTEXT>
     </DD03P>
    </DD03P_TABLE>
   </asx:values>

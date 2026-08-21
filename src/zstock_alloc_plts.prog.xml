@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -20,13 +20,13 @@
      <ID>S</ID>
      <KEY>P_MAIL</KEY>
      <ENTRY>Send the page to</ENTRY>
-     <LENGTH>16</LENGTH>
+     <LENGTH>24</LENGTH>
     </item>
     <item>
      <ID>S</ID>
      <KEY>P_ONLY</KEY>
      <ENTRY>Only when a plant is short or did not run</ENTRY>
-     <LENGTH>41</LENGTH>
+     <LENGTH>49</LENGTH>
     </item>
    </TPOOL>
   </asx:values>

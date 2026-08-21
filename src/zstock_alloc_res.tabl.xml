@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
@@ -85,6 +85,7 @@
      <LENG>000008</LENG>
      <MASK>  DATS</MASK>
      <DDTEXT>Date the Quantity is Needed</DDTEXT>
+     <SHLPORIGIN>T</SHLPORIGIN>
     </DD03P>
     <DD03P>
      <FIELDNAME>AVAIL_DATE</FIELDNAME>
@@ -95,6 +96,7 @@
      <LENG>000008</LENG>
      <MASK>  DATS</MASK>
      <DDTEXT>Date the Confirmed Quantity is There</DDTEXT>
+     <SHLPORIGIN>T</SHLPORIGIN>
     </DD03P>
     <DD03P>
      <FIELDNAME>REQUESTED</FIELDNAME>
@@ -181,83 +183,92 @@
     </DD03P>
    </DD03P_TABLE>
    <DD12V>
-    <item>
-     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
-     <INDEXNAME>MAT</INDEXNAME>
-     <DDLANGUAGE>E</DDLANGUAGE>
-     <DDTEXT>Material and Plant</DDTEXT>
-     <UNIQUEFLAG> </UNIQUEFLAG>
-    </item>
-    <item>
+    <DD12V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>DEM</INDEXNAME>
+     <AS4LOCAL>A</AS4LOCAL>
      <DDLANGUAGE>E</DDLANGUAGE>
      <DDTEXT>Demand Line</DDTEXT>
-     <UNIQUEFLAG> </UNIQUEFLAG>
-    </item>
-    <item>
+    </DD12V>
+    <DD12V>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <AS4LOCAL>A</AS4LOCAL>
+     <DDLANGUAGE>E</DDLANGUAGE>
+     <DDTEXT>Material and Plant</DDTEXT>
+    </DD12V>
+    <DD12V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>PLA</INDEXNAME>
+     <AS4LOCAL>A</AS4LOCAL>
      <DDLANGUAGE>E</DDLANGUAGE>
      <DDTEXT>Plant and Time Recorded</DDTEXT>
-     <UNIQUEFLAG> </UNIQUEFLAG>
-    </item>
+    </DD12V>
    </DD12V>
    <DD17V>
-    <item>
-     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
-     <INDEXNAME>MAT</INDEXNAME>
-     <POSITION>0001</POSITION>
-     <FIELDNAME>MANDT</FIELDNAME>
-    </item>
-    <item>
-     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
-     <INDEXNAME>MAT</INDEXNAME>
-     <POSITION>0002</POSITION>
-     <FIELDNAME>MATNR</FIELDNAME>
-    </item>
-    <item>
-     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
-     <INDEXNAME>MAT</INDEXNAME>
-     <POSITION>0003</POSITION>
-     <FIELDNAME>WERKS</FIELDNAME>
-    </item>
-    <item>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>DEM</INDEXNAME>
      <POSITION>0001</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>MANDT</FIELDNAME>
-    </item>
-    <item>
+    </DD17V>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>DEM</INDEXNAME>
      <POSITION>0002</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>WERKS</FIELDNAME>
-    </item>
-    <item>
+    </DD17V>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>DEM</INDEXNAME>
      <POSITION>0003</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>DEMAND_ID</FIELDNAME>
-    </item>
-    <item>
+    </DD17V>
+    <DD17V>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0001</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
+     <FIELDNAME>MANDT</FIELDNAME>
+    </DD17V>
+    <DD17V>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0002</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
+     <FIELDNAME>MATNR</FIELDNAME>
+    </DD17V>
+    <DD17V>
+     <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
+     <INDEXNAME>MAT</INDEXNAME>
+     <POSITION>0003</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
+     <FIELDNAME>WERKS</FIELDNAME>
+    </DD17V>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>PLA</INDEXNAME>
      <POSITION>0001</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>MANDT</FIELDNAME>
-    </item>
-    <item>
+    </DD17V>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>PLA</INDEXNAME>
      <POSITION>0002</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>WERKS</FIELDNAME>
-    </item>
-    <item>
+    </DD17V>
+    <DD17V>
      <SQLTAB>ZSTOCK_ALLOC_RES</SQLTAB>
      <INDEXNAME>PLA</INDEXNAME>
      <POSITION>0003</POSITION>
+     <AS4LOCAL>A</AS4LOCAL>
      <FIELDNAME>CREATED_AT</FIELDNAME>
-    </item>
+    </DD17V>
    </DD17V>
   </asx:values>
  </asx:abap>

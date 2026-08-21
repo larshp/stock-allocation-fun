@@ -1,16 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <abapGit version="v1.0.0" serializer="LCL_OBJECT_CLAS" serializer_version="v1.0.0">
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
     <CLSNAME>ZCL_ALLOC_JOB_SPLIT</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>Puts a plant's night into several jobs at once</DESCRIPT>
+    <DESCRIPT>Puts a plant&apos;s night into several jobs at once</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
-    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
     <UNICODE>X</UNICODE>
+    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
   </asx:values>
  </asx:abap>

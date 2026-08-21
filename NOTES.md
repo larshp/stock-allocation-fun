@@ -3144,3 +3144,29 @@ factory calendar from `CREATE_FOR_PLANT` exactly as the run does.
   the run reads is a setting that answer has to read too. Adding one to the
   run is therefore never a one class change -- feature 98 was not finished
   until this was done.
+
+### Feature 100 — the newest rules through the real wiring (done)
+
+Four of the defects found so far were the same one: a setting that existed,
+was tested against the class that carries it, and never reached the object
+graph a run is built from. The classes were right and the wiring was wrong,
+and no test looked at the wiring.
+
+`LTCL_WIRED_RULES` puts the three newest settings through
+`ZCL_ALLOCATION_SERVICE=>CREATE_DEFAULT` with the real readers -- sales orders
+in `VBAK`/`VBAP`/`VBEP`, a receipt in `EKKO`/`EKPO`/`EKET`, stock in `MARD`,
+the plant in `T001W` -- and nothing doubled at all.
+
+- **Each is asserted both ways round.** A receipt landing on the Saturday is
+  in time for a Monday delivery on plain days and too late on working days; a
+  customer gets ten without quotas and four with; the customer at the back of
+  the queue loses without the escalation and wins with ten weeks of waiting
+  behind it. A test that only checked the second half of each pair would pass
+  just as well against a factory that ignored the flag.
+- **It is deliberately small.** One material, one or two orders: what is being
+  tested is that the settings arrive, not what the rules do with them, which
+  is what the property test of feature 90 and the unit tests of each class are
+  for.
+- **The escalation test is the one worth reading.** Ten weeks of being short
+  beats seven places of delivery priority, and a run set up exactly as the
+  night runs it says so.

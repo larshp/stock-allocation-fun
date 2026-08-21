@@ -1080,3 +1080,334 @@ CLASS ltcl_default_sources IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+"! The newest rules through the wiring CREATE_DEFAULT builds, rather than
+"! against the classes that carry them: what is being tested here is that the
+"! settings reach the readers at all, which is the mistake features 73, 74, 92
+"! and 99 were all versions of.
+CLASS ltcl_wired_rules DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'WIRED-RULE-01'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '9001'.
+    CONSTANTS c_vbeln TYPE vbak-vbeln VALUE '0000091001'.
+    CONSTANTS c_other TYPE vbak-vbeln VALUE '0000091002'.
+    CONSTANTS c_ebeln TYPE ekko-ebeln VALUE 'WIREDRULE1'.
+    CONSTANTS c_kunnr TYPE vbak-kunnr VALUE 'WIREDCUST1'.
+    CONSTANTS c_kunn2 TYPE vbak-kunnr VALUE 'WIREDCUST2'.
+
+    "! Monday the 8th of June 2026, the Saturday before it, and the Friday
+    "! before that.
+    CONSTANTS c_monday   TYPE d VALUE '20260608'.
+    CONSTANTS c_saturday TYPE d VALUE '20260606'.
+
+    CONSTANTS c_demand_1 TYPE zif_allocation=>ty_demand_id VALUE '00000910010000100001'.
+
+    METHODS setup.
+    METHODS teardown.
+
+    METHODS given_order
+      IMPORTING
+        iv_vbeln    TYPE vbak-vbeln
+        iv_kunnr    TYPE vbak-kunnr
+        iv_quantity TYPE vbap-kwmeng
+        iv_priority TYPE vbap-lprio
+        iv_edatu    TYPE vbep-edatu DEFAULT c_monday.
+
+    METHODS given_shelf_stock
+      IMPORTING
+        iv_quantity TYPE mard-labst.
+
+    METHODS given_receipt_on_saturday.
+
+    METHODS given_short_history
+      IMPORTING
+        iv_days_ago TYPE i.
+
+    METHODS confirmed_for
+      IMPORTING
+        iv_id              TYPE zif_allocation=>ty_demand_id
+        io_service         TYPE REF TO zif_allocation_service
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity
+      RAISING
+        zcx_allocation.
+
+    METHODS plain_days_take_the_receipt FOR TESTING RAISING cx_static_check.
+    METHODS working_days_leave_it FOR TESTING RAISING cx_static_check.
+    METHODS a_quota_reaches_the_run FOR TESTING RAISING cx_static_check.
+    METHODS waiting_reaches_the_run FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+
+CLASS ltcl_wired_rules IMPLEMENTATION.
+
+  METHOD setup.
+
+    DATA lt_mara  TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_t001w TYPE STANDARD TABLE OF t001w WITH EMPTY KEY.
+
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_t001w = VALUE #(
+      ( mandt = sy-mandt werks = c_werks name1 = 'Wired plant' fabkl = '01' ) ).
+    INSERT t001w FROM TABLE @lt_t001w.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM mard WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM t001w WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM vbak WHERE vbeln = @c_vbeln OR vbeln = @c_other.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM vbap WHERE vbeln = @c_vbeln OR vbeln = @c_other.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM vbep WHERE vbeln = @c_vbeln OR vbeln = @c_other.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM ekko WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM ekpo WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM eket WHERE ebeln = @c_ebeln.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM zstock_alloc_qta WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+    DELETE FROM zstock_alloc_res WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD given_order.
+
+    DATA lt_vbak TYPE STANDARD TABLE OF vbak WITH EMPTY KEY.
+    DATA lt_vbap TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+    DATA lt_vbep TYPE STANDARD TABLE OF vbep WITH EMPTY KEY.
+
+    lt_vbak = VALUE #(
+      ( mandt = sy-mandt vbeln = iv_vbeln auart = 'TA' vkorg = '1000'
+        kunnr = iv_kunnr vdatu = iv_edatu ) ).
+    INSERT vbak FROM TABLE @lt_vbak.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_vbap = VALUE #(
+      ( mandt = sy-mandt vbeln = iv_vbeln posnr = '000010'
+        matnr = c_matnr werks = c_werks vrkme = 'PC'
+        kwmeng = iv_quantity lprio = iv_priority ) ).
+    INSERT vbap FROM TABLE @lt_vbap.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_vbep = VALUE #(
+      ( mandt = sy-mandt vbeln = iv_vbeln posnr = '000010' etenr = '0001'
+        edatu = iv_edatu wmeng = iv_quantity bmeng = 0 ) ).
+    INSERT vbep FROM TABLE @lt_vbep.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD given_shelf_stock.
+
+    DATA lt_mard TYPE STANDARD TABLE OF mard WITH EMPTY KEY.
+
+    lt_mard = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr werks = c_werks
+        lgort = '0001' labst = iv_quantity ) ).
+    INSERT mard FROM TABLE @lt_mard.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD given_receipt_on_saturday.
+
+    DATA lt_ekko TYPE STANDARD TABLE OF ekko WITH EMPTY KEY.
+    DATA lt_ekpo TYPE STANDARD TABLE OF ekpo WITH EMPTY KEY.
+    DATA lt_eket TYPE STANDARD TABLE OF eket WITH EMPTY KEY.
+
+    lt_ekko = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln bsart = 'NB' ) ).
+    INSERT ekko FROM TABLE @lt_ekko.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_ekpo = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' matnr = c_matnr
+        werks = c_werks menge = '10' meins = 'PC' ) ).
+    INSERT ekpo FROM TABLE @lt_ekpo.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_eket = VALUE #(
+      ( mandt = sy-mandt ebeln = c_ebeln ebelp = '00010' etenr = '0001'
+        eindt = c_saturday menge = '10' wamng = 0 ) ).
+    INSERT eket FROM TABLE @lt_eket.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD given_short_history.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_date TYPE d.
+    DATA lv_when TYPE zstock_alloc_res-created_at.
+
+    lv_date = sy-datum - iv_days_ago.
+    CONVERT DATE lv_date TIME '120000'
+      INTO TIME STAMP lv_when TIME ZONE 'UTC'.
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = |WIRED-{ iv_days_ago }|
+        demand_id  = c_demand_1
+        matnr      = c_matnr
+        werks      = c_werks
+        requested  = 10
+        confirmed  = 0
+        shortfall  = 10
+        customer   = c_kunnr
+        created_at = lv_when ) ).
+
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD confirmed_for.
+
+    DATA(ls_run) = io_service->simulate(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    READ TABLE ls_run-allocation INTO DATA(ls_line)
+      WITH KEY demand_id = iv_id.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    rv_quantity = ls_line-confirmed.
+
+  ENDMETHOD.
+
+  METHOD plain_days_take_the_receipt.
+
+    given_order(
+      iv_vbeln    = c_vbeln
+      iv_kunnr    = c_kunnr
+      iv_quantity = 10
+      iv_priority = '02' ).
+    given_receipt_on_saturday( ).
+
+    " goods wanted on the Monday, one day to get them out of the door: on
+    " plain days that is the Sunday, and a receipt landing on the Saturday is
+    " in time for it
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default( iv_ship_days = 1 ) )
+      exp = CONV zif_allocation=>ty_quantity( 10 ) ).
+
+  ENDMETHOD.
+
+  METHOD working_days_leave_it.
+
+    given_order(
+      iv_vbeln    = c_vbeln
+      iv_kunnr    = c_kunnr
+      iv_quantity = 10
+      iv_priority = '02' ).
+    given_receipt_on_saturday( ).
+
+    " the same question of a plant that does not work at the weekend: it has
+    " to start on the Friday, and stock landing on the Saturday is too late
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default(
+          iv_ship_days = 1
+          iv_work_days = abap_true ) )
+      exp = CONV zif_allocation=>ty_quantity( 0 )
+      msg = 'the working day calendar has to reach the demand reader of a real run' ).
+
+  ENDMETHOD.
+
+  METHOD a_quota_reaches_the_run.
+
+    DATA lt_quota TYPE STANDARD TABLE OF zstock_alloc_qta WITH EMPTY KEY.
+
+    given_order(
+      iv_vbeln    = c_vbeln
+      iv_kunnr    = c_kunnr
+      iv_quantity = 10
+      iv_priority = '02' ).
+    given_shelf_stock( 100 ).
+
+    lt_quota = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        kunnr     = c_kunnr
+        date_from = '20260101'
+        date_to   = '20261231'
+        quantity  = 4 ) ).
+    INSERT zstock_alloc_qta FROM TABLE @lt_quota.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default( ) )
+      exp = CONV zif_allocation=>ty_quantity( 10 )
+      msg = 'a plant that has not asked for quotas is not held to them' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default( iv_quota = abap_true ) )
+      exp = CONV zif_allocation=>ty_quantity( 4 )
+      msg = 'and one that has, is' ).
+
+  ENDMETHOD.
+
+  METHOD waiting_reaches_the_run.
+
+    " two customers and five pieces: the one at the back of the queue has been
+    " short in every run for ten weeks, which is ten places
+    given_order(
+      iv_vbeln    = c_vbeln
+      iv_kunnr    = c_kunnr
+      iv_quantity = 5
+      iv_priority = '09' ).
+    given_order(
+      iv_vbeln    = c_other
+      iv_kunnr    = c_kunn2
+      iv_quantity = 5
+      iv_priority = '02' ).
+    given_shelf_stock( 5 ).
+    given_short_history( 70 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default( ) )
+      exp = CONV zif_allocation=>ty_quantity( 0 )
+      msg = 'without the escalation the same customer loses again' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        iv_id      = c_demand_1
+        io_service = zcl_allocation_service=>create_default( iv_age_days = 7 ) )
+      exp = CONV zif_allocation=>ty_quantity( 5 )
+      msg = 'with it, ten weeks of waiting is worth more than seven places of priority' ).
+
+  ENDMETHOD.
+
+ENDCLASS.

@@ -2913,3 +2913,28 @@ example is least likely to catch out.
   the quota actually held back and fails if that count is zero. Without it,
   quotas set generously enough would have turned the whole set green while
   proving nothing.
+
+### Feature 91 — an authorization object of our own (done)
+
+Every check in the solution asked `M_MATE_WRK`, the object the standard
+inventory transactions use for changing material stock at plant level. It is
+the right shape -- activity and plant -- and the wrong object: allocating is
+not maintaining a material master, and guarding a custom process with a
+standard object means a business cannot let somebody allocate without also
+letting them do everything else that object covers.
+
+`ZSTOCK_ALL` ships with the repository, with `ACTVT` and `WERKS`, and
+`ZCL_AUTHORITY_ALLOC` checks it.
+
+- **It replaces rather than adds.** Checking both would mean a planner still
+  needs the material master authorization, which is the thing being fixed.
+- **`ZCL_AUTHORITY_PLANT` stays.** Both implement `ZIF_ALLOCATION_AUTHORITY`,
+  so a business that would rather use the standard object changes one `NEW` in
+  its own factory and nothing else. The seam was there from feature 21; this
+  is the first time anything else has stood in it.
+- **Twelve factory methods changed and no test did**, which is what the seam
+  was for: every test that cares about being refused has always used a double,
+  because open-abap answers every `AUTHORITY-CHECK` with granted.
+- **A role has to be given the object before anybody can run a plant**, and
+  that is now written in the README next to the installation steps rather than
+  discovered on the first night.

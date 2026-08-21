@@ -130,6 +130,19 @@ only has to be told the plant; unticking **Settings come from the plant** hands
 the screen back to somebody trying something out. A plant with no row gets the
 defaults.
 
+## Authorization
+
+Every program here checks `ZSTOCK_ALL` before it reads or writes anything:
+activity `02` to allocate, re-cut or give stock back, `03` to look at what a
+run decided or work out what one would decide, and the plant in `WERKS`. The
+object ships with the repository, so a role needs it before anybody can run a
+plant.
+
+Allocating is not maintaining a material master, which is why this does not
+use `M_MATE_WRK`. A business that would rather guard it with the standard
+object can wire `ZCL_AUTHORITY_PLANT` instead of `ZCL_AUTHORITY_ALLOC`: both
+implement `ZIF_ALLOCATION_AUTHORITY` and nothing else has to change.
+
 ## Installing into SAP
 
 Pull the repository with abapGit. `.abapgit.xml` sets the starting folder to

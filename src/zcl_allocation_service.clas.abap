@@ -239,7 +239,7 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
       io_reservation = NEW zcl_reservation_writer( )
-      io_authority   = NEW zcl_authority_plant( )
+      io_authority   = NEW zcl_authority_alloc( )
       io_lock        = NEW zcl_lock_material( )
       io_commit      = NEW zcl_unit_of_work( )
       iv_recut       = iv_recut

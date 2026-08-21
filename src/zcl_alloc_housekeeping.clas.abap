@@ -110,7 +110,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     ro_housekeeping = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
-      io_authority   = NEW zcl_authority_plant( )
+      io_authority   = NEW zcl_authority_alloc( )
       io_commit      = NEW zcl_unit_of_work( )
       io_log         = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 

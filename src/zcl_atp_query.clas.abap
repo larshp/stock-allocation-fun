@@ -89,7 +89,7 @@ CLASS zcl_atp_query IMPLEMENTATION.
       io_supply    = zcl_allocation_service=>create_default_supply(
         iv_lgort   = iv_lgort
         iv_planned = iv_planned )
-      io_authority = NEW zcl_authority_plant( c_activity_display )
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
       iv_ship_days = iv_ship_days
       io_demand    = COND #( WHEN iv_cautious = abap_true
                              THEN zcl_allocation_service=>create_default_open_demand(

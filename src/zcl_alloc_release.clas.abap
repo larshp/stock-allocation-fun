@@ -96,7 +96,7 @@ CLASS zcl_alloc_release IMPLEMENTATION.
       io_store     = NEW zcl_allocation_store( )
       io_writer    = NEW zcl_reservation_writer( )
       io_reader    = NEW zcl_reservation_reader( )
-      io_authority = NEW zcl_authority_plant( )
+      io_authority = NEW zcl_authority_alloc( )
       io_lock      = NEW zcl_lock_material( )
       io_commit    = NEW zcl_unit_of_work( )
       io_log       = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).

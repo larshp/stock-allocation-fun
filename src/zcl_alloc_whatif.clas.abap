@@ -188,7 +188,7 @@ CLASS zcl_alloc_whatif IMPLEMENTATION.
           iv_cap_percent = iv_cap_percent
           iv_whole_units = iv_whole_units
           iv_quota       = iv_quota ) )
-      io_authority = NEW zcl_authority_plant( c_activity_display )
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
       iv_ship_days = iv_ship_days ).
 
   ENDMETHOD.

@@ -104,7 +104,7 @@ CLASS zcl_alloc_changes IMPLEMENTATION.
 
     ro_changes = NEW zcl_alloc_changes(
       io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_plant( c_activity_display )
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
       io_mass_run  = io_mass_run ).
 
   ENDMETHOD.

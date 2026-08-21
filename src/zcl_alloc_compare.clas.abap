@@ -121,7 +121,7 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
         iv_horizon_days = iv_horizon_days
         iv_ship_days    = iv_ship_days
         iv_age_days     = iv_age_days )
-      io_authority = NEW zcl_authority_plant( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.
 

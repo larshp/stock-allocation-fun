@@ -86,7 +86,7 @@ CLASS zcl_alloc_result_report IMPLEMENTATION.
 
     ro_report = NEW zcl_alloc_result_report(
       io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_plant( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.
 

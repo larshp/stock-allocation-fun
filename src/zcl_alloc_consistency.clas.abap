@@ -85,7 +85,7 @@ CLASS zcl_alloc_consistency IMPLEMENTATION.
     ro_check = NEW zcl_alloc_consistency(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
-      io_authority   = NEW zcl_authority_plant( c_activity_display ) ).
+      io_authority   = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.
 

@@ -162,6 +162,31 @@ arrive rather than waiting to be run.
 because the demand netting reads it, and a real run writes to the same
 application log as an allocation run.
 
+## The night, in order
+
+Nothing here has to be scheduled, and a plant that schedules only the
+allocation gets a working allocation. What follows is the order the programs
+are meant to be used in when a plant runs unattended, and why:
+
+1. **`ZSTOCK_ALLOC_ORPH`** — give back stock still held for demand that has
+   gone from the documents. Before the run rather than after it, so the run
+   distributes that stock tonight instead of tomorrow night.
+2. **`ZSTOCK_ALLOC_JOBS`** — the allocation itself, as one job per package.
+   A plant small enough for one job can schedule `ZSTOCK_ALLOCATION`
+   directly; ticking **Give earlier allocations back first** makes it a
+   re-cut, which is what a plant wanting all of today's demand to compete for
+   all of the stock needs.
+3. **`ZSTOCK_ALLOC_COVER`** with an e-mail address — did the night finish. A
+   package that never ran leaves no trace anywhere else.
+4. **`ZSTOCK_ALLOC_SHORT`** with an e-mail address — the morning list, waiting
+   in an inbox rather than waiting to be run.
+5. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs
+   past the retention time that hold nothing back.
+
+`ZSTOCK_ALLOC_CFGC` belongs in the transport process rather than the nightly
+one: run it after importing Customizing, when what it finds can still be
+corrected before a night acts on it.
+
 ## Customizing
 
 | Table               | What it holds                                             |

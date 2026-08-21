@@ -201,6 +201,7 @@ in, which is also the order they make sense in.
 134. chasing the chronic ones is a different morning
 135. the oldest thing still waiting
 136. stock held for demand that is gone
+137. the night, written down
 
 ## Progress
 
@@ -3995,3 +3996,24 @@ the disagreement and cannot act on it.
 - **It defaults to a test run and writes to the same log as everything else.**
   Stock reappearing in a plant with nothing saying why is the thing this
   solution exists to avoid.
+
+### Feature 137 — the night, written down (done)
+
+Twenty-one programs and no statement anywhere of which of them a plant is
+meant to schedule, in what order, and why. Everybody who has installed
+software like this knows what happens next: the allocation is scheduled, the
+rest is discovered a year later by somebody reading the object list.
+
+The README now has the running order, with the reason for each position.
+
+- **The orphan sweep goes before the run, not after it.** Stock given back
+  after the run has finished sits idle until tomorrow night; given back
+  before, tonight's run distributes it.
+- **The two checks are scheduled with an address**, because a check whose
+  answer nobody reads is not a check.
+- **The Customizing check is not part of the night at all.** It belongs to the
+  transport process, where what it finds can still be corrected before a run
+  acts on it.
+- **None of it is required.** A plant that schedules only the allocation gets
+  a working allocation, and the section says so first: an installation guide
+  that reads as a list of obligations is one people skip.

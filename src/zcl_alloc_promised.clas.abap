@@ -24,6 +24,9 @@ CLASS zcl_alloc_promised DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
+    "! A promise with no last day is kept until somebody removes it.
+    CONSTANTS c_no_end TYPE d VALUE '00000000'.
+
     "! One promise. Declared explicitly rather than inferred with
     "! INTO TABLE @DATA(), see ANOMALIES.md.
     TYPES:
@@ -143,11 +146,16 @@ CLASS zcl_alloc_promised IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " a promise with a day on it is kept until that day and then stops being
+    " one: a row nobody ever removes goes on outranking the rules every night
+    " for a reason that was true in March
     SELECT demand_id,
            quantity
       FROM zstock_alloc_fix
       WHERE werks = @iv_werks
         AND matnr = @iv_matnr
+        AND ( valid_to = @c_no_end
+           OR valid_to >= @sy-datum )
       ORDER BY demand_id
       INTO TABLE @rt_promise.
     IF sy-subrc <> 0.

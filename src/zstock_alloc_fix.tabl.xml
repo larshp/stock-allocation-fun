@@ -80,6 +80,16 @@
      <DDTEXT>Quantity Promised by Hand</DDTEXT>
     </DD03P>
     <DD03P>
+     <FIELDNAME>VALID_TO</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>D</INTTYPE>
+     <INTLEN>000016</INTLEN>
+     <DATATYPE>DATS</DATATYPE>
+     <LENG>000008</LENG>
+     <MASK>  DATS</MASK>
+     <DDTEXT>Last Day the Promise Is Kept, Empty for No End</DDTEXT>
+    </DD03P>
+    <DD03P>
      <FIELDNAME>REASON</FIELDNAME>
      <ADMINFIELD>0</ADMINFIELD>
      <INTTYPE>C</INTTYPE>

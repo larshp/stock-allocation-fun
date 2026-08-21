@@ -3271,3 +3271,25 @@ see the stock.
 - **The line still says what it asked for.** A line promised three of the ten
   it ordered is seven short, and the report says so: a promise is not a way of
   hiding a shortfall.
+
+### Feature 105 — a promise runs out, and can be looked at (done)
+
+A promise made in feature 104 outranks every rule the plant has, and nothing
+in the solution ever took one away again. Two things follow from that, and
+both are now dealt with.
+
+- **A promise can be given a last day.** `VALID_TO` empty means it is kept
+  until somebody removes it, which is what a standing arrangement needs; a
+  date means it stops being a promise the day after. Without it, a row put in
+  for a trade fair in March goes on outranking the rules in November, and the
+  only way anybody finds out is by wondering why the answer is odd.
+- **`ZSTOCK_ALLOC_PROM` lists them**, with what the last run actually gave the
+  line and who promised it and why. A promise that was not kept is the one
+  worth looking at: it means the stock was not there even after the rules were
+  set aside, which is a conversation somebody has to have.
+- **The ones that have run out are counted rather than listed**, and shown on
+  request. They no longer affect anything, but they are still rows somebody
+  has to clear out, and the only way to find them is to ask.
+- **The last day it is kept is a day it is kept.** An off-by-one here is a
+  promise broken on its final morning, which is exactly the morning somebody
+  is watching.

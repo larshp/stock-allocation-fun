@@ -17,7 +17,8 @@ CLASS ltcl_alloc_promised DEFINITION FINAL FOR TESTING
     METHODS given_promise
       IMPORTING
         iv_id       TYPE zstock_alloc_fix-demand_id
-        iv_quantity TYPE zif_allocation=>ty_quantity.
+        iv_quantity TYPE zif_allocation=>ty_quantity
+        iv_valid_to TYPE d DEFAULT '00000000'.
 
     METHODS demand
       IMPORTING
@@ -42,6 +43,8 @@ CLASS ltcl_alloc_promised DEFINITION FINAL FOR TESTING
     METHODS every_line_is_answered_once FOR TESTING.
     METHODS what_was_asked_for_is_kept FOR TESTING.
     METHODS a_promise_is_given_once FOR TESTING.
+    METHODS a_promise_can_run_out FOR TESTING.
+    METHODS a_promise_of_today_holds FOR TESTING.
 
 ENDCLASS.
 
@@ -69,6 +72,7 @@ CLASS ltcl_alloc_promised IMPLEMENTATION.
         matnr     = c_matnr
         demand_id = iv_id
         quantity  = iv_quantity
+        valid_to  = iv_valid_to
         reason    = 'Promised by the sales director' ) ).
 
     INSERT zstock_alloc_fix FROM TABLE @lt_row.
@@ -275,6 +279,60 @@ CLASS ltcl_alloc_promised IMPLEMENTATION.
                           iv_id         = c_first )
       exp = CONV zif_allocation=>ty_quantity( 6 )
       msg = 'two of the promise were left, and the rest of the line competes as usual' ).
+
+  ENDMETHOD.
+
+  METHOD a_promise_can_run_out.
+
+    " typed rather than worked out in the call: a date expression handed to a
+    " parameter is not a date to the transpiler, see ANOMALIES.md
+    DATA lv_yesterday TYPE d.
+
+    lv_yesterday = sy-datum - 1.
+
+    given_promise( iv_id       = c_secnd
+                   iv_quantity = 6
+                   iv_valid_to = lv_yesterday ).
+
+    DATA(lt_answer) = mo_cut->allocate(
+      iv_available = 10
+      it_demand    = VALUE #(
+        ( demand( iv_id       = c_first
+                  iv_quantity = 10
+                  iv_priority = '01' ) )
+        ( demand( iv_id       = c_secnd
+                  iv_quantity = 10
+                  iv_priority = '99' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_answer
+                          iv_id         = c_secnd )
+      exp = CONV zif_allocation=>ty_quantity( 0 )
+      msg = 'a promise nobody removed goes on outranking the rules for ever' ).
+
+  ENDMETHOD.
+
+  METHOD a_promise_of_today_holds.
+
+    given_promise( iv_id       = c_secnd
+                   iv_quantity = 6
+                   iv_valid_to = sy-datum ).
+
+    " the last day it is kept is a day it is kept
+    DATA(lt_answer) = mo_cut->allocate(
+      iv_available = 10
+      it_demand    = VALUE #(
+        ( demand( iv_id       = c_first
+                  iv_quantity = 10
+                  iv_priority = '01' ) )
+        ( demand( iv_id       = c_secnd
+                  iv_quantity = 10
+                  iv_priority = '99' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_of( it_allocation = lt_answer
+                          iv_id         = c_secnd )
+      exp = CONV zif_allocation=>ty_quantity( 6 ) ).
 
   ENDMETHOD.
 

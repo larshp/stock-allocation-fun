@@ -138,6 +138,18 @@ CLASS zcl_alloc_if_supply IMPLEMENTATION.
 
     DATA(lv_date) = iv_date.
 
+    " a material the plant has put on hold reads as a material nobody wants,
+    " because the demand readers leave it out. An answer that goes quiet about
+    " the one thing that explains it is worse than no answer -- the same point
+    " the explanation of feature 66 makes.
+    DATA(lv_hold) = zcl_alloc_hold=>reason_for(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks
+      iv_today = sy-datum ).
+    IF lv_hold IS NOT INITIAL.
+      APPEND |On hold: { lv_hold }| TO rt_line.
+    ENDIF.
+
     " the demand is read once and both answers are worked out from the same
     " of it, as in feature 88: reading it twice would let an order that
     " arrived in between look like something the delivery fixed

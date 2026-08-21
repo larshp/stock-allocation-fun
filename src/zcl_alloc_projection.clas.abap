@@ -259,6 +259,17 @@ CLASS zcl_alloc_projection IMPLEMENTATION.
            |, | &&
            |{ iv_buckets } period(s) of { iv_days } day(s)| TO rt_line.
 
+    " a material on hold is not short of stock, it is out of the run, and a
+    " projection that does not say so is a page of numbers about a material
+    " nothing is going to be allocated for
+    DATA(lv_hold) = zcl_alloc_hold=>reason_for(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks
+      iv_today = mv_today ).
+    IF lv_hold IS NOT INITIAL.
+      APPEND |On hold: { lv_hold }| TO rt_line.
+    ENDIF.
+
     APPEND |{ `From` WIDTH = c_width_date }| &&
            |{ `To` WIDTH = c_width_date }| &&
            |{ `In` WIDTH = c_width_qty ALIGN = RIGHT }| &&

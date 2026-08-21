@@ -194,6 +194,7 @@ in, which is also the order they make sense in.
 127. the answers take the settings as one thing too
 128. and the service itself
 129. the day boundary is where the system is
+130. a material on hold says so wherever it is asked about
 
 ## Progress
 
@@ -3858,3 +3859,23 @@ system usually is.
   told where it is at least agrees with its own stamps.
 - **The stamps stay UTC.** What changed is the reading of them, not the
   writing: the database is unaffected and no run has to be re-recorded.
+
+### Feature 130 — a material on hold says so wherever it is asked about (done)
+
+Feature 66 gave the explanation a line saying a material is on hold, because
+the demand readers leave a held material out and the page would otherwise read
+as "nobody wants this". Four other pages ask the same kind of question and
+none of them said it: the what-if, the supply what-if, the comparison and the
+projection.
+
+The worst of them is the what-if. A salesman asks whether an order for five
+hundred can be taken, the material is on hold for a quality problem, and the
+answer comes back "nothing is waiting for this material" -- which is true, and
+explains nothing, and reads like an invitation.
+
+- **All four now open with the hold and its reason.** The reason is the point:
+  "quality are looking at the last pallet" is an answer somebody can act on,
+  and a bare "on hold" sends them looking for who to ask.
+- **They still answer the rest of the question.** A held material with stock
+  and demand is worth showing the working for -- the hold can be lifted this
+  afternoon -- so the line is added rather than the page being cut short.

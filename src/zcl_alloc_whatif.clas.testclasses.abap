@@ -130,6 +130,7 @@ CLASS ltcl_alloc_whatif DEFINITION FINAL FOR TESTING
     METHODS the_loser_is_named FOR TESTING RAISING cx_static_check.
     METHODS nothing_is_taken_needlessly FOR TESTING RAISING cx_static_check.
     METHODS the_shortfall_says_why FOR TESTING RAISING cx_static_check.
+    METHODS a_hold_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
 
 ENDCLASS.
@@ -306,4 +307,36 @@ CLASS ltcl_alloc_whatif IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD a_hold_is_said_out_loud.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_hld WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt  = sy-mandt
+        werks  = c_werks
+        matnr  = c_matnr
+        reason = 'quality are looking at the last pallet' ) ).
+    INSERT zstock_alloc_hld FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = cut(
+      it_demand = VALUE #( )
+      iv_supply = 100 )->run(
+        iv_matnr    = c_matnr
+        iv_werks    = c_werks
+        iv_quantity = 30
+        iv_req_date = c_today ).
+
+    DELETE FROM zstock_alloc_hld WHERE werks = @c_werks AND matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    " without this the answer is "nothing is waiting", which is true and
+    " explains nothing: what the salesman needs to know is that the material
+    " is out of every run until somebody lifts the hold
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = lt_line
+                  iv_text = `quality are looking at the last pallet` )
+      msg = 'a material out of the run says so wherever it is asked about' ).
+
+  ENDMETHOD.
 ENDCLASS.

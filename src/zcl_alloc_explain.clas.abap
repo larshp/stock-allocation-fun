@@ -42,6 +42,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_gross     | <p class="shorttext synchronized">What the documents ask for, before netting</p>
     "! @parameter io_engine    | <p class="shorttext synchronized">Works out who would get what</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter io_firm      | <p class="shorttext synchronized">What this run may not take back, none if unset</p>
     "! @parameter iv_today     | <p class="shorttext synchronized">Day to measure a hold against, today if empty</p>
     METHODS constructor
       IMPORTING
@@ -50,6 +51,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_gross     TYPE REF TO zif_demand_reader OPTIONAL
         io_engine    TYPE REF TO zcl_allocation_engine
         io_authority TYPE REF TO zif_allocation_authority
+        io_firm      TYPE REF TO zif_alloc_floor OPTIONAL
         iv_today     TYPE d OPTIONAL.
 
     "! <p class="shorttext synchronized">Show the working behind one material's answer</p>
@@ -91,6 +93,7 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_gross     TYPE REF TO zif_demand_reader.
     DATA mo_engine    TYPE REF TO zcl_allocation_engine.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mo_firm      TYPE REF TO zif_alloc_floor.
 
     "! The material being explained, so that the parts of the page that have
     "! to ask the documents something know what to ask about.
@@ -108,6 +111,12 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         iv_matnr       TYPE mard-matnr
         iv_werks       TYPE mard-werks
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
+    METHODS firm_lines
+      IMPORTING
+        it_demand      TYPE zif_allocation=>ty_demand_tab
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -179,6 +188,13 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
       iv_work_days    = is_settings-work_days
       iv_sto_priority = is_settings-sto_priority ).
 
+    " the rule the run would apply, asked the same question the run asks it,
+    " rather than a page working out for itself what is firm
+    DATA lo_firm TYPE REF TO zif_alloc_floor.
+    IF is_settings-firm_days > zcl_alloc_firm=>c_no_firm.
+      lo_firm = NEW zcl_alloc_firm( iv_days = is_settings-firm_days ).
+    ENDIF.
+
     ro_explain = NEW zcl_alloc_explain(
       io_supply    = lo_supply
       io_demand    = lo_demand
@@ -189,7 +205,8 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
         io_strategy      = zcl_allocation_service=>create_default_strategy(
           is_settings = is_settings
           io_strategy = io_strategy ) )
-      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
+      io_firm      = lo_firm ).
 
   ENDMETHOD.
 
@@ -211,6 +228,7 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     mo_gross     = io_gross.
     mo_engine    = io_engine.
     mo_authority = io_authority.
+    mo_firm      = io_firm.
 
     " the day is handed in so a test can say what today is
     mv_today = iv_today.
@@ -266,6 +284,8 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     APPEND LINES OF demand_lines(
       it_demand = lt_demand
       it_gross  = lt_gross ) TO rt_line.
+
+    APPEND LINES OF firm_lines( lt_demand ) TO rt_line.
 
     " the same calculation a run does, thrown away afterwards. Reading it back
     " from the last recorded run would show what was true last night, and the
@@ -328,6 +348,32 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
              |{ ls_quota-quantity } for | &&
              |{ ls_quota-date_from DATE = ISO } to { ls_quota-date_to DATE = ISO }| TO rt_line.
 
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD firm_lines.
+
+    " a page that shows the priorities and not the firm zone explains an
+    " answer that does not follow from the priorities. The rule itself is
+    " asked, with the demand it would be asked with, so what is shown is what
+    " would happen rather than a second reading of the recorded runs.
+    IF mo_firm IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    DATA(lt_floor) = mo_firm->floors_for( it_demand ).
+    IF lt_floor IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    APPEND || TO rt_line.
+    APPEND `Firm, and served before the rules see the stock` TO rt_line.
+
+    LOOP AT lt_floor INTO DATA(ls_floor).
+      APPEND |  { ls_floor-demand_id WIDTH = c_width_id }| &&
+             |{ ls_floor-quantity WIDTH = c_width_qty ALIGN = RIGHT }| &&
+             |  as the last run confirmed it| TO rt_line.
     ENDLOOP.
 
   ENDMETHOD.

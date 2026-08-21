@@ -1,3 +1,32 @@
+"! Says the same thing about every material it is asked about.
+CLASS lcl_firm_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_alloc_floor.
+
+    METHODS constructor
+      IMPORTING
+        it_floor TYPE zif_alloc_floor=>ty_floor_tab.
+
+  PRIVATE SECTION.
+    DATA mt_floor TYPE zif_alloc_floor=>ty_floor_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_firm_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_floor = it_floor.
+  ENDMETHOD.
+
+  METHOD zif_alloc_floor~floors_for.
+    rt_floor = mt_floor.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! Answers with a fixed timeline.
 CLASS lcl_supply_double DEFINITION FINAL.
 
@@ -131,6 +160,8 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS nobody_ever_ordered_it FOR TESTING RAISING cx_static_check.
     METHODS a_deletion_flag_is_said FOR TESTING RAISING cx_static_check.
     METHODS every_line_thrown_out FOR TESTING RAISING cx_static_check.
+    METHODS what_is_firm_is_said FOR TESTING RAISING cx_static_check.
+    METHODS no_firm_zone_says_nothing FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -481,4 +512,45 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
       msg = 'a material with orders and no demand is the confusing case' ).
 
   ENDMETHOD.
+
+  METHOD what_is_firm_is_said.
+
+    DATA(lo_supply) = CAST zif_supply_reader( NEW lcl_supply_double( VALUE #(
+      ( avail_date = '00000000' quantity = '10' ) ) ) ).
+    DATA(lo_demand) = CAST zif_demand_reader( NEW lcl_demand_double( VALUE #(
+      ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+        quantity = '10' req_date = '20260210' priority = '02' ) ) ) ).
+
+    DATA(lo_cut) = NEW zcl_alloc_explain(
+      io_supply    = lo_supply
+      io_demand    = lo_demand
+      io_engine    = NEW zcl_allocation_engine(
+        io_supply_reader = lo_supply
+        io_demand_reader = lo_demand
+        io_strategy      = NEW zcl_alloc_strategy_priority( ) )
+      io_authority = mo_authority
+      io_firm      = NEW lcl_firm_double( VALUE #( ( demand_id = 'D1' quantity = 4 ) ) ) ).
+
+    " "confirmed" contains "firm" and CS does not care about case, so the
+    " whole heading is asked for rather than the word
+    " a page that shows the priorities and not the firm zone explains an
+    " answer that does not follow from the priorities
+    cl_abap_unit_assert=>assert_true( says(
+      it_line = lo_cut->run( iv_matnr = c_matnr
+                             iv_werks = c_werks )
+      iv_text = `Firm, and served` ) ).
+
+  ENDMETHOD.
+
+  METHOD no_firm_zone_says_nothing.
+
+    cl_abap_unit_assert=>assert_false( says(
+      it_line = explained(
+        it_supply = VALUE #( ( avail_date = '00000000' quantity = '10' ) )
+        it_demand = VALUE #( ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+                               quantity = '10' req_date = '20260210' priority = '02' ) ) )
+      iv_text = `Firm, and served` ) ).
+
+  ENDMETHOD.
+
 ENDCLASS.

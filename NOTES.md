@@ -214,6 +214,7 @@ in, which is also the order they make sense in.
 147. the settings line takes the settings as one thing
 148. the floor forgets the material before it
 149. the promise hands over through the same code
+150. the explanation says what is firm
 
 ## Progress
 
@@ -4284,3 +4285,22 @@ rules see, and answering every line exactly once are gone from it.
 - **The chain reads the same as before.** The promise is still outside the
   quota and the share and inside whole units -- what changed is who does the
   handing over, not when.
+
+### Feature 150 — the explanation says what is firm (done)
+
+The explanation of feature 55 exists for the question that follows every
+shortage: are you sure. A firm zone answers a line before the priorities are
+consulted at all, so a page that shows the priorities and not the firm zone
+explains an answer that does not follow from the priorities -- which is the
+same complaint feature 106 fixed for the promise and the quota.
+
+- **The rule itself is asked**, with the demand it would be asked with, rather
+  than the page reading the recorded runs its own way. `ZIF_ALLOC_FLOOR` is
+  the seam that makes that possible: the explanation takes a source and shows
+  what it says.
+- **A plant with no firm zone gets no heading**, because a page listing
+  everything a plant could have set is a page nobody reads twice.
+- **`CS` does not care about case, and "confirmed" contains "firm".** The
+  first version of the negative test passed for the wrong reason; it now asks
+  for the whole heading. Worth writing down because it is the sort of test
+  that would have gone on passing after the feature was broken.

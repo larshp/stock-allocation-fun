@@ -3644,3 +3644,20 @@ and shows who would gain.
   hopeful number.
 - **No line can be worse off for stock arriving**, so only the gainers are
   listed -- the same shape as feature 88, which lists only the losers.
+
+### Feature 121 — how every plant stands, on one page (done)
+
+Every report so far takes a plant, because every job takes a plant. Somebody
+responsible for more than one -- a supply manager, whoever is on call at seven
+in the morning -- has no way of asking the question they actually have: where
+is it worst today, and did everywhere run.
+
+- **Two numbers and a yes or no per plant.** How much is short says where to
+  look; "ran today" says whether the number can be trusted at all, and it is
+  the same read the coverage check of feature 101 does.
+- **A plant that served everything still gets a line.** "Nothing short here"
+  is the answer somebody is looking for, and a page that only lists trouble
+  cannot tell a good night from a job that never started.
+- **Plants the user may not see are left out**, as in feature 115. A page that
+  refuses at the first plant somebody does not own could not be read by
+  anybody at all.

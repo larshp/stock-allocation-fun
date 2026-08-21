@@ -73,7 +73,8 @@ CLASS zcl_allocation_report IMPLEMENTATION.
 
   METHOD run.
 
-    DATA lv_failed TYPE i.
+    DATA lv_failed    TYPE i.
+    DATA lv_materials TYPE i.
 
     DATA(lt_outcome) = mo_mass_run->run(
       iv_werks    = iv_werks
@@ -97,6 +98,15 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     LOOP AT lt_outcome INTO DATA(ls_outcome).
 
       APPEND || TO rt_line.
+
+      " the line saying the run gave up belongs in the list where it happened,
+      " and it is not a material
+      IF ls_outcome-stopped = abap_true.
+        APPEND ls_outcome-reason TO rt_line.
+        CONTINUE.
+      ENDIF.
+
+      lv_materials = lv_materials + 1.
       APPEND |Material { ls_outcome-matnr }| TO rt_line.
 
       IF ls_outcome-failed = abap_true.
@@ -111,7 +121,7 @@ CLASS zcl_allocation_report IMPLEMENTATION.
     ENDLOOP.
 
     APPEND || TO rt_line.
-    APPEND |{ lines( lt_outcome ) } materials, { lv_failed } failed| TO rt_line.
+    APPEND |{ lv_materials } materials, { lv_failed } failed| TO rt_line.
 
   ENDMETHOD.
 

@@ -6,12 +6,19 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! reason instead of a result, so a run can be read as a whole.
     TYPES:
       BEGIN OF ty_outcome,
-        matnr  TYPE mard-matnr,
-        failed TYPE abap_bool,
-        reason TYPE string,
-        run    TYPE zif_allocation_service=>ty_run,
+        matnr   TYPE mard-matnr,
+        failed  TYPE abap_bool,
+        stopped TYPE abap_bool,
+        reason  TYPE string,
+        run     TYPE zif_allocation_service=>ty_run,
       END OF ty_outcome.
     TYPES ty_outcome_tab TYPE STANDARD TABLE OF ty_outcome WITH EMPTY KEY.
+
+    "! How many materials in a row may fail before the run gives up on the
+    "! plant. One material failing is a material; twenty in a row is the lock
+    "! table full, the user without the authorization, the update task down --
+    "! something that is not going to be different for the twenty-first.
+    CONSTANTS c_max_in_a_row TYPE i VALUE 20.
 
     "! <p class="shorttext synchronized">Plant wide run wired up the way a plain SAP system needs it</p>
     "!
@@ -136,6 +143,12 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_count) TYPE i.
 
+    METHODS counted_materials
+      IMPORTING
+        it_outcome      TYPE ty_outcome_tab
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
 ENDCLASS.
 
 
@@ -214,6 +227,8 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
     DATA ls_outcome TYPE ty_outcome.
     DATA lt_matnr   TYPE zif_demand_reader=>ty_matnr_tab.
+    DATA lv_in_a_row TYPE i.
+    DATA lv_left     TYPE i.
 
     lt_matnr = it_matnr.
     IF lt_matnr IS INITIAL.
@@ -267,11 +282,41 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
       APPEND ls_outcome TO rt_outcome.
 
+      " a run that is failing at everything is failing at something that is
+      " not about the material, and grinding through the rest of the plant
+      " turns one problem into five thousand log entries and an hour of a
+      " work process. It stops and says where it stopped.
+      IF ls_outcome-failed = abap_false.
+        CLEAR lv_in_a_row.
+        CONTINUE.
+      ENDIF.
+
+      lv_in_a_row = lv_in_a_row + 1.
+      IF lv_in_a_row < c_max_in_a_row.
+        CONTINUE.
+      ENDIF.
+
+      lv_left = lines( lt_matnr ) - lines( rt_outcome ).
+      IF iv_simulate = abap_false.
+        mo_log->failed(
+          iv_matnr  = lv_matnr
+          iv_reason = |Stopped: { c_max_in_a_row } material(s) failed in a row, | &&
+                      |{ lv_left } not attempted| ).
+      ENDIF.
+
+      APPEND VALUE #(
+        failed  = abap_true
+        stopped = abap_true
+        reason  = |Stopped after { c_max_in_a_row } failures in a row, | &&
+                  |{ lv_left } material(s) not attempted| ) TO rt_outcome.
+
+      EXIT.
+
     ENDLOOP.
 
     IF iv_simulate = abap_false.
       mo_log->finished(
-        iv_materials = lines( rt_outcome )
+        iv_materials = counted_materials( rt_outcome )
         iv_short     = short_materials( rt_outcome )
         iv_failed    = failed_materials( rt_outcome ) ).
       mo_log->save( ).
@@ -326,10 +371,21 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD counted_materials.
+
+    " the line saying the run gave up is not a material: counting it would
+    " make the totals disagree with the list above them
+    LOOP AT it_outcome TRANSPORTING NO FIELDS
+        WHERE stopped = abap_false.
+      rv_count = rv_count + 1.
+    ENDLOOP.
+
+  ENDMETHOD.
+
   METHOD failed_materials.
 
     LOOP AT it_outcome INTO DATA(ls_outcome).
-      IF ls_outcome-failed = abap_true.
+      IF ls_outcome-failed = abap_true AND ls_outcome-stopped = abap_false.
         rv_count = rv_count + 1.
       ENDIF.
     ENDLOOP.

@@ -40,7 +40,8 @@ CLASS lcl_service_double DEFINITION FINAL.
       IMPORTING
         iv_fails_for TYPE mard-matnr OPTIONAL
         iv_short_for TYPE mard-matnr OPTIONAL
-        iv_empty_for TYPE mard-matnr OPTIONAL.
+        iv_empty_for TYPE mard-matnr OPTIONAL
+        iv_fails_all TYPE abap_bool DEFAULT abap_false.
 
     METHODS get_seen
       RETURNING
@@ -48,6 +49,7 @@ CLASS lcl_service_double DEFINITION FINAL.
 
   PRIVATE SECTION.
     DATA mv_fails_for TYPE mard-matnr.
+    DATA mv_fails_all TYPE abap_bool.
     DATA mv_short_for TYPE mard-matnr.
     DATA mv_empty_for TYPE mard-matnr.
     DATA mt_seen      TYPE zif_demand_reader=>ty_matnr_tab.
@@ -59,6 +61,7 @@ CLASS lcl_service_double IMPLEMENTATION.
 
   METHOD constructor.
     mv_fails_for = iv_fails_for.
+    mv_fails_all = iv_fails_all.
     mv_short_for = iv_short_for.
     mv_empty_for = iv_empty_for.
   ENDMETHOD.
@@ -75,7 +78,7 @@ CLASS lcl_service_double IMPLEMENTATION.
 
     APPEND iv_matnr TO mt_seen.
 
-    IF iv_matnr = mv_fails_for.
+    IF iv_matnr = mv_fails_for OR mv_fails_all = abap_true.
       RAISE EXCEPTION NEW zcx_allocation(
         textid     = zcx_allocation=>reserve_failed
         mv_message = `stock is blocked` ).
@@ -204,6 +207,7 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
         iv_short_for      TYPE mard-matnr OPTIONAL
         iv_empty_for      TYPE mard-matnr OPTIONAL
         iv_simulate       TYPE abap_bool DEFAULT abap_false
+        iv_fails_all      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_outcome) TYPE zcl_allocation_mass_run=>ty_outcome_tab.
 
@@ -218,6 +222,14 @@ CLASS ltcl_mass_run DEFINITION FINAL FOR TESTING
     METHODS a_test_run_keeps_no_diary FOR TESTING.
     METHODS an_empty_material_is_not_noted FOR TESTING.
     METHODS the_night_is_summed_up FOR TESTING.
+    METHODS everything_failing_stops FOR TESTING.
+    METHODS the_stop_is_written_down FOR TESTING.
+
+    METHODS many_materials
+      IMPORTING
+        iv_count        TYPE i
+      RETURNING
+        VALUE(rt_matnr) TYPE zif_demand_reader=>ty_matnr_tab.
 
 ENDCLASS.
 
@@ -231,7 +243,8 @@ CLASS ltcl_mass_run IMPLEMENTATION.
     mo_service = NEW #(
       iv_fails_for = iv_fails_for
       iv_short_for = iv_short_for
-      iv_empty_for = iv_empty_for ).
+      iv_empty_for = iv_empty_for
+      iv_fails_all = iv_fails_all ).
     mo_log     = NEW lcl_log_spy( ).
     lo_demand  = NEW lcl_demand_double( it_matnr ).
 
@@ -439,6 +452,54 @@ CLASS ltcl_mass_run IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = mo_log->get_entries( )
       msg = 'a run that changes nothing has nothing to account for afterwards' ).
+
+  ENDMETHOD.
+
+  METHOD many_materials.
+
+    DO iv_count TIMES.
+      APPEND |MAT-{ sy-index }| TO rt_matnr.
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD everything_failing_stops.
+
+    DATA(lt_outcome) = mass_run_over(
+      it_matnr     = many_materials( 40 )
+      iv_fails_all = abap_true ).
+
+    " twenty tried, and one more line saying it stopped: the twenty-first
+    " material would have failed for the same reason as the first twenty, and
+    " a run that grinds through five thousand of those is an hour of a work
+    " process and five thousand log entries nobody reads
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_service->get_seen( ) )
+      exp = zcl_allocation_mass_run=>c_max_in_a_row ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_outcome )
+      exp = zcl_allocation_mass_run=>c_max_in_a_row + 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_stop_is_written_down.
+
+    mass_run_over(
+      it_matnr     = many_materials( 40 )
+      iv_fails_all = abap_true ).
+
+    DATA(lv_said) = abap_false.
+
+    LOOP AT mo_log->get_entries( ) INTO DATA(ls_entry).
+      IF ls_entry-text CS 'not attempted'.
+        lv_said = abap_true.
+      ENDIF.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_said
+      exp = abap_true
+      msg = 'a night that stopped half way has to say so where the night is read' ).
 
   ENDMETHOD.
 

@@ -54,7 +54,10 @@ stock, stock that comes too late, the customer's share, its quota, whole
 units, or the complete delivery rule.
 
 One material failing does not stop the rest of the run; the report says which
-ones failed and why.
+ones failed and why. Twenty in a row does stop it: that is the lock table
+full, the user without the authorization or the update task down, and it will
+not be different for the twenty-first. The run says where it stopped and how
+many materials it did not attempt, in the spool and in the log.
 
 A run that changes something also writes an application log under the object
 `ZSTOCK_ALLOC`, so a scheduled job can be read back in `SLG1` long after its

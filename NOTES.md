@@ -3345,3 +3345,26 @@ material.
 - **The reason goes with the promise.** "Six promised until the thirtieth,
   sales director, trade fair" is an explanation; "six promised" is another
   question.
+
+### Feature 107 — a run that is failing at everything stops (done)
+
+One material failing does not stop the run, which is right: a locked material
+or a rejected reservation is about that material. Twenty in a row is not about
+the materials. It is the lock table full, the user without the authorization,
+the update task down -- something that will be exactly as true for the
+twenty-first, and for the five thousandth.
+
+The run now gives up on the plant after twenty consecutive failures.
+
+- **Consecutive, not total.** A plant where one material in fifty fails all
+  night has fifty failures and no problem; twenty in a row is a different
+  animal, and the counter resets on every material that works.
+- **It says where it stopped and what it did not attempt**, in the spool and
+  in the application log. A run that stopped half way and said nothing is
+  indistinguishable from a run that finished -- which is the failure mode
+  feature 101 exists to catch, and this is the same thing said at the source.
+- **The line saying so is not a material.** It carries its own flag, the
+  report prints it as a line of its own, and the totals count materials --
+  otherwise a night that stopped would report one more material than it has.
+- **Twenty is a constant, not a setting.** A plant that wants to tune how long
+  a broken night grinds on is a plant answering the wrong question.

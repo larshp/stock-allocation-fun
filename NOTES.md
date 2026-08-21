@@ -2863,3 +2863,29 @@ what it would have.
   answer worked out by different rules than the run uses would be answering a
   different question in the same words -- the point the comparison and the
   explanation both make.
+
+### Feature 89 — giving stock back by hand (done)
+
+A re-cut gives an allocation back and takes it again in the same breath, and
+housekeeping only removes records that hold nothing. Neither covers what
+actually happens on a Tuesday afternoon: a material is wanted for something
+the run knows nothing about -- a sample, a rework, a customer collecting --
+and the stock the last run earmarked has to go back into the pool now.
+
+`ZSTOCK_ALLOC_FREE` cancels the reservations of one material in one plant.
+
+- **The recorded runs stay.** They are what was decided at the time, and the
+  netting stops counting a run the moment its reservation is gone: cancelling
+  the reservation is what frees the stock, deleting the record would only lose
+  the history. The same reasoning as the re-cut in feature 49.
+- **It takes the same lock a run takes.** A run reading the material while its
+  reservations are being cancelled one by one would allocate against a pool
+  that is neither the old one nor the new one.
+- **A reservation that is not holding anything is left alone.** One already
+  issued or deleted has nothing to give back, and cancelling it would put a
+  line in the log saying stock came back when none did.
+- **It defaults to a test run**, like every other program here that changes
+  something, and says what it would give back and how much.
+- **It writes to the same application log as a run**, because "where did those
+  forty pieces come from" is a question somebody asks a week later, and `SLG1`
+  is where the rest of the answers are.

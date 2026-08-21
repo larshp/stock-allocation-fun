@@ -3014,3 +3014,24 @@ oldest first.
   optionally the item and matches the ids that begin with it.
 - **How far back it goes is how far back housekeeping keeps**, which is worth
   knowing before setting the retention to a week.
+
+### Feature 95 — the indexes the readers of the recorded runs need (done)
+
+`ZSTOCK_ALLOC_RES` is keyed by the run, and almost nothing reads it that way.
+It has had an index on material and plant since the netting needed one; the
+readers added since do not use it.
+
+- **`DEM` on plant and demand id** is for the history of feature 94, which
+  asks for the runs of one order line and would otherwise read the whole
+  table to find a few dozen rows. The report is the kind somebody runs while
+  a customer is on the telephone.
+- **`PLA` on plant and time recorded** is for housekeeping, which asks for
+  everything in a plant older than a cut-off, and for the display, which asks
+  for everything in a plant. Both were reading past every other plant's runs
+  to find one plant's.
+- **The table grows by every line of every material every night** and is only
+  trimmed by the retention time, so these are reads that get slower the longer
+  a system has been live -- the kind nobody notices in a test system, where
+  the table holds a fortnight of one plant.
+- **No code changed.** The reads were already written the way they should be;
+  it was the table that had not been told what they were.

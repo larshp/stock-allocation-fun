@@ -1335,10 +1335,6 @@
       "exclude": [],
       "severity": "Error"
     },
-    "xml_consistency": {
-      "exclude": [],
-      "severity": "Error",
-      "textAndTranslationLengthSeverity": "Error"
-    }
+    "xml_consistency": true
   }
 }

@@ -6,21 +6,6 @@
     <MASTER_LANGUAGE>E</MASTER_LANGUAGE>
     <STARTING_FOLDER>/src/</STARTING_FOLDER>
     <FOLDER_LOGIC>PREFIX</FOLDER_LOGIC>
-    <IGNORE>
-     <item>/.gitignore</item>
-     <item>/.github/*</item>
-     <item>/LICENSE</item>
-     <item>/README.md</item>
-     <item>/PLAN.md</item>
-     <item>/NOTES.md</item>
-     <item>/ANOMALIES.md</item>
-     <item>/abaplint.json</item>
-     <item>/abaplint-transpile.json</item>
-     <item>/package.json</item>
-     <item>/package-lock.json</item>
-     <item>/sap-stubs/*</item>
-     <item>/test/*</item>
-    </IGNORE>
    </DATA>
   </asx:values>
  </asx:abap>

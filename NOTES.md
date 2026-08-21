@@ -3526,3 +3526,18 @@ joins the run. None of them was logging its changes, so the only answer to
 - **No maintenance views ship with the repository.** A generated table
   maintenance dialogue is a system's own object; the README says to generate
   them in SE11 rather than pretending a `.tabl.xml` can carry one.
+
+### Feature 115 — checking every plant at once (done)
+
+The question after a transport is not "is plant 1000 right" but "did any of
+this land wrongly anywhere", and a check that takes one plant at a time is how
+somebody misses the plant they were not thinking about.
+
+- **A plant the user may not see is left out, not refused.** A check that
+  stops at the first plant somebody is not responsible for cannot be run by
+  anybody; the count at the end says how many were looked at.
+- **Nobody's plants at all is its own answer**, rather than an empty page that
+  reads like a clean bill of health.
+- **It reuses `RUN` per plant** rather than a second pass over the tables:
+  what the one-plant check reports is what the all-plants check reports, and
+  there is no second implementation to drift.

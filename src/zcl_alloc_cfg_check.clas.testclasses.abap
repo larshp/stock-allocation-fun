@@ -88,6 +88,8 @@ CLASS ltcl_alloc_cfg_check DEFINITION FINAL FOR TESTING
     METHODS a_hold_without_a_reason FOR TESTING RAISING cx_static_check.
     METHODS a_priority_of_nothing FOR TESTING RAISING cx_static_check.
     METHODS a_closed_plant_is_refused FOR TESTING.
+    METHODS every_plant_can_be_asked FOR TESTING.
+    METHODS a_plant_not_yours_is_skipped FOR TESTING.
 
 ENDCLASS.
 
@@ -340,6 +342,34 @@ CLASS ltcl_alloc_cfg_check IMPLEMENTATION.
       act = says( it_line = checked( )
                   iv_text = `the row does nothing` )
       msg = 'a customer somebody meant to promote and did not' ).
+
+  ENDMETHOD.
+
+  METHOD every_plant_can_be_asked.
+
+    given_quota( iv_from = '20261231'
+                 iv_to   = '20260101' ).
+
+    DATA(lt_line) = NEW zcl_alloc_cfg_check( NEW lcl_authority_double( ) )->run_everywhere( ).
+
+    " the plant of this test is one of however many the system has, and its
+    " backwards quota has to be in there
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `runs backwards` ) ).
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `plant(s) checked` ) ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_not_yours_is_skipped.
+
+    DATA(lt_line) = NEW zcl_alloc_cfg_check( NEW lcl_authority_double( abap_true )
+      )->run_everywhere( ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = lt_line
+                  iv_text = `No plant here is one you may look at` )
+      msg = 'a check that stops at the first plant somebody is not responsible for is unrunnable' ).
 
   ENDMETHOD.
 ENDCLASS.

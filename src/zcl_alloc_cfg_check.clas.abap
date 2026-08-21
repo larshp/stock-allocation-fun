@@ -41,6 +41,18 @@ CLASS zcl_alloc_cfg_check DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">The same, for every plant the user may see</p>
+    "!
+    "! What somebody wants after a transport: not "is plant 1000 right" but
+    "! "did any of this land wrongly anywhere". A plant the user may not see is
+    "! left out rather than refused, because a check that stops at the first
+    "! plant somebody is not responsible for cannot be run by anybody.
+    "!
+    "! @parameter rt_line | <p class="shorttext synchronized">Lines to display</p>
+    METHODS run_everywhere
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
   PRIVATE SECTION.
 
     "! Reading Customizing, changing none of it.
@@ -144,6 +156,41 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
     ENDIF.
 
     APPEND |{ lines( rt_line ) - 2 } thing(s) to look at| TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD run_everywhere.
+
+    DATA lv_plants TYPE i.
+
+    SELECT werks
+      FROM t001w
+      ORDER BY werks
+      INTO TABLE @DATA(lt_plant).
+    IF sy-subrc <> 0.
+      APPEND `There are no plants at all` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_plant INTO DATA(ls_plant).
+
+      TRY.
+          APPEND LINES OF run( ls_plant-werks ) TO rt_line.
+          APPEND || TO rt_line.
+          lv_plants = lv_plants + 1.
+        CATCH zcx_allocation.
+          " not a plant of this user's, and not their problem
+          CONTINUE.
+      ENDTRY.
+
+    ENDLOOP.
+
+    IF lv_plants = 0.
+      APPEND `No plant here is one you may look at` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    APPEND |{ lv_plants } plant(s) checked| TO rt_line.
 
   ENDMETHOD.
 

@@ -206,6 +206,7 @@ in, which is also the order they make sense in.
 139. which kind of empty
 140. the overview arrives, when it is worth arriving
 141. a confirmation too small to ship is none
+142. and the answers know about the bar too
 
 ## Progress
 
@@ -4102,3 +4103,20 @@ asked for is confirmed nothing.
 - **A bar of a hundred percent or more is refused rather than obeyed**, since
   that is the complete delivery rule, which is a property of the document
   rather than of the plant.
+
+### Feature 142 — and the answers know about the bar too (done)
+
+Feature 141 added a rule and, following the lesson of features 99, 117 and
+125, it is not finished until every answer about a run works the same way.
+Four factories build the strategy chain themselves -- the explanation, the
+comparison, the what-if and the supply what-if -- and all four were building
+it without the plant's minimum.
+
+- **Three of them take it from the settings structure** they already have.
+- **The comparison keeps it as a field of its own**, because its `RUN` takes
+  the cap, whole units and the quota as arguments -- they are the rules it
+  exists to compare -- while the minimum is a setting of the plant like any
+  other and not one of the things being compared.
+- **The rule is now stated in the place a reader will look for it**: adding a
+  decorator to `CREATE_DEFAULT_STRATEGY` means passing it from every caller of
+  that method, and there are five.

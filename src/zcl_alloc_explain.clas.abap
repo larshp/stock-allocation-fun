@@ -190,7 +190,8 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
           io_strategy    = io_strategy
           iv_cap_percent = is_settings-cap_percent
           iv_whole_units = is_settings-whole_units
-          iv_quota       = is_settings-quota ) )
+          iv_quota       = is_settings-quota
+          iv_min_percent = is_settings-min_percent ) )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.

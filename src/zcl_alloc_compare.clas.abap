@@ -40,9 +40,10 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
     METHODS constructor
       IMPORTING
-        io_supply    TYPE REF TO zif_supply_reader
-        io_demand    TYPE REF TO zif_demand_reader
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_supply      TYPE REF TO zif_supply_reader
+        io_demand      TYPE REF TO zif_demand_reader
+        io_authority   TYPE REF TO zif_allocation_authority
+        iv_min_percent TYPE i DEFAULT zcl_alloc_minimum=>c_no_minimum.
 
     "! <p class="shorttext synchronized">What each distribution rule would confirm</p>
     "!
@@ -85,6 +86,10 @@ CLASS zcl_alloc_compare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
+    "! The plant's own bar on a confirmation worth making, which is a setting
+    "! rather than one of the rules this report is comparing.
+    DATA mv_min_percent TYPE i.
+
     METHODS answer_of
       IMPORTING
         io_strategy          TYPE REF TO zif_allocation_strategy
@@ -123,18 +128,19 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
     DATA(lo_converter) = NEW zcl_unit_converter( ).
 
     ro_compare = NEW zcl_alloc_compare(
-      io_supply    = zcl_allocation_service=>create_default_supply(
+      io_supply      = zcl_allocation_service=>create_default_supply(
         io_converter = lo_converter
         iv_lgort     = is_settings-lgort
         iv_planned   = is_settings-planned )
-      io_demand    = zcl_allocation_service=>create_default_open_demand(
+      io_demand      = zcl_allocation_service=>create_default_open_demand(
         io_converter    = lo_converter
         iv_horizon_days = is_settings-horizon_days
         iv_ship_days    = is_settings-ship_days
         iv_age_days     = is_settings-age_days
         iv_work_days    = is_settings-work_days
         iv_sto_priority = is_settings-sto_priority )
-      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+      io_authority   = NEW zcl_authority_alloc( c_activity_display )
+      iv_min_percent = is_settings-min_percent ).
 
   ENDMETHOD.
 
@@ -153,7 +159,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
 
     mo_supply    = io_supply.
     mo_demand    = io_demand.
-    mo_authority = io_authority.
+    mo_authority   = io_authority.
+    mv_min_percent = iv_min_percent.
 
   ENDMETHOD.
 
@@ -257,7 +264,8 @@ CLASS zcl_alloc_compare IMPLEMENTATION.
       io_strategy    = io_strategy
       iv_cap_percent = iv_cap_percent
       iv_whole_units = iv_whole_units
-      iv_quota       = iv_quota ).
+      iv_quota       = iv_quota
+      iv_min_percent = mv_min_percent ).
 
     rt_allocation = NEW zcl_allocation_engine(
       io_supply_reader = mo_supply

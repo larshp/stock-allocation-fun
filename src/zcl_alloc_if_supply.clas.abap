@@ -114,7 +114,8 @@ CLASS zcl_alloc_if_supply IMPLEMENTATION.
         io_strategy    = zcl_alloc_config=>strategy_of( ls_settings )
         iv_cap_percent = ls_settings-cap_percent
         iv_whole_units = ls_settings-whole_units
-        iv_quota       = ls_settings-quota )
+        iv_quota       = ls_settings-quota
+        iv_min_percent = ls_settings-min_percent )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
   ENDMETHOD.

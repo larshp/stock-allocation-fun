@@ -725,7 +725,7 @@ CLASS ltcl_service IMPLEMENTATION.
       msg = 'the strategy must be exchangeable from outside' ).
 
     cl_abap_unit_assert=>assert_bound(
-      act = zcl_allocation_service=>create_default( iv_horizon_days = 30 )
+      act = zcl_allocation_service=>create_default( is_settings = VALUE #( horizon_days = 30 ) )
       msg = 'the horizon must be settable from outside' ).
 
   ENDMETHOD.
@@ -996,7 +996,7 @@ CLASS ltcl_default_sources IMPLEMENTATION.
   METHOD only_named_location_counts.
 
     " the stock sits in 0001, and the run is told to use 0002 only
-    DATA(ls_elsewhere) = zcl_allocation_service=>create_default( iv_lgort = '0002' )->simulate(
+    DATA(ls_elsewhere) = zcl_allocation_service=>create_default( is_settings = VALUE #( lgort = '0002' ) )->simulate(
       iv_matnr = c_matnr
       iv_werks = c_werks ).
 
@@ -1005,7 +1005,7 @@ CLASS ltcl_default_sources IMPLEMENTATION.
       exp = 0
       msg = 'stock outside the named location may not be given away' ).
 
-    DATA(ls_here) = zcl_allocation_service=>create_default( iv_lgort = '0001' )->simulate(
+    DATA(ls_here) = zcl_allocation_service=>create_default( is_settings = VALUE #( lgort = '0001' ) )->simulate(
       iv_matnr = c_matnr
       iv_werks = c_werks ).
 
@@ -1312,7 +1312,7 @@ CLASS ltcl_wired_rules IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = confirmed_for(
         iv_id      = c_demand_1
-        io_service = zcl_allocation_service=>create_default( iv_ship_days = 1 ) )
+        io_service = zcl_allocation_service=>create_default( is_settings = VALUE #( ship_days = 1 ) ) )
       exp = CONV zif_allocation=>ty_quantity( 10 ) ).
 
   ENDMETHOD.
@@ -1331,9 +1331,9 @@ CLASS ltcl_wired_rules IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = confirmed_for(
         iv_id      = c_demand_1
-        io_service = zcl_allocation_service=>create_default(
-          iv_ship_days = 1
-          iv_work_days = abap_true ) )
+        io_service = zcl_allocation_service=>create_default( is_settings = VALUE #(
+          ship_days = 1
+          work_days = abap_true ) ) )
       exp = CONV zif_allocation=>ty_quantity( 0 )
       msg = 'the working day calendar has to reach the demand reader of a real run' ).
 
@@ -1371,7 +1371,7 @@ CLASS ltcl_wired_rules IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = confirmed_for(
         iv_id      = c_demand_1
-        io_service = zcl_allocation_service=>create_default( iv_quota = abap_true ) )
+        io_service = zcl_allocation_service=>create_default( is_settings = VALUE #( quota = abap_true ) ) )
       exp = CONV zif_allocation=>ty_quantity( 4 )
       msg = 'and one that has, is' ).
 
@@ -1404,7 +1404,7 @@ CLASS ltcl_wired_rules IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = confirmed_for(
         iv_id      = c_demand_1
-        io_service = zcl_allocation_service=>create_default( iv_age_days = 7 ) )
+        io_service = zcl_allocation_service=>create_default( is_settings = VALUE #( age_days = 7 ) ) )
       exp = CONV zif_allocation=>ty_quantity( 5 )
       msg = 'with it, ten weeks of waiting is worth more than seven places of priority' ).
 

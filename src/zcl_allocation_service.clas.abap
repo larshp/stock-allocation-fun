@@ -5,36 +5,22 @@ CLASS zcl_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Service wired up the way a plain SAP system needs it</p>
     "!
-    "! @parameter io_strategy      | <p class="shorttext synchronized">Distribution rule, priority by default</p>
-    "! @parameter iv_horizon_days  | <p class="shorttext synchronized">Days ahead to look, 0 for no limit</p>
-    "! @parameter iv_lgort         | <p class="shorttext synchronized">Location to allocate from, all if empty</p>
-    "! @parameter iv_cap_percent   | <p class="shorttext synchronized">Most one customer may take, 0 for no cap</p>
-    "! @parameter iv_planned       | <p class="shorttext synchronized">Planned orders count as supply too</p>
-    "! @parameter iv_whole_units   | <p class="shorttext synchronized">Confirm whole order units only</p>
-    "! @parameter iv_quota         | <p class="shorttext synchronized">Hold customers to the quotas they agreed</p>
-    "! @parameter iv_recut         | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
-    "! @parameter iv_sto_priority  | <p class="shorttext synchronized">Where a transfer stands against an order</p>
-    "! @parameter iv_ship_days     | <p class="shorttext synchronized">Days between the goods being ready and gone</p>
-    "! @parameter iv_age_days      | <p class="shorttext synchronized">Wait that earns a line a place, 0 for none</p>
-    "! @parameter iv_work_days     | <p class="shorttext synchronized">Shipping time counts working days only</p>
-    "! @parameter iv_move_type     | <p class="shorttext synchronized">Movement type the reservation is made under</p>
-    "! @parameter ro_service       | <p class="shorttext synchronized">Ready to use service</p>
+    "!
+    "! The settings travel as one structure, for the reason feature 126 gives.
+    "! A caller that hands in none gets the defaults, which is what a test
+    "! asking about one behaviour wants.
+    "!
+    "! @parameter is_settings | <p class="shorttext synchronized">The plant's settings, as Customizing has them</p>
+    "! @parameter io_strategy | <p class="shorttext synchronized">Distribution rule, priority by default</p>
+    "! @parameter iv_recut    | <p class="shorttext synchronized">Give earlier allocations back and start again</p>
+    "! @parameter io_log      | <p class="shorttext synchronized">Where the run says what it did</p>
+    "! @parameter ro_service  | <p class="shorttext synchronized">Ready to use service</p>
     CLASS-METHODS create_default
       IMPORTING
+        is_settings       TYPE zif_alloc_config=>ty_config OPTIONAL
         io_strategy       TYPE REF TO zif_allocation_strategy OPTIONAL
-        iv_horizon_days   TYPE i DEFAULT zcl_demand_within_horizon=>c_no_horizon
-        iv_lgort          TYPE mard-lgort OPTIONAL
-        iv_cap_percent    TYPE i DEFAULT zcl_alloc_customer_cap=>c_no_cap
-        iv_planned        TYPE abap_bool DEFAULT abap_false
-        iv_whole_units    TYPE abap_bool DEFAULT abap_false
-        iv_quota          TYPE abap_bool DEFAULT abap_false
         iv_recut          TYPE abap_bool DEFAULT abap_false
         io_log            TYPE REF TO zif_allocation_log OPTIONAL
-        iv_sto_priority   TYPE zif_allocation=>ty_priority DEFAULT zcl_sto_demand_reader=>c_default_priority
-        iv_ship_days      TYPE i DEFAULT 0
-        iv_age_days       TYPE i DEFAULT zcl_demand_aging=>c_never
-        iv_work_days      TYPE abap_bool DEFAULT abap_false
-        iv_move_type      TYPE rkpf-bwart DEFAULT zcl_reservation_writer=>c_default_move_type
       RETURNING
         VALUE(ro_service) TYPE REF TO zif_allocation_service.
 
@@ -227,11 +213,18 @@ CLASS zcl_allocation_service IMPLEMENTATION.
 
   METHOD create_default.
 
+    " a caller that named no settings at all still has to reserve under a
+    " movement type the system knows
+    DATA(ls_settings) = is_settings.
+    IF ls_settings-move_type IS INITIAL.
+      ls_settings-move_type = zcl_reservation_writer=>c_default_move_type.
+    ENDIF.
+
     DATA(lo_strategy) = create_default_strategy(
       io_strategy    = io_strategy
-      iv_cap_percent = iv_cap_percent
-      iv_whole_units = iv_whole_units
-      iv_quota       = iv_quota ).
+      iv_cap_percent = ls_settings-cap_percent
+      iv_whole_units = ls_settings-whole_units
+      iv_quota       = ls_settings-quota ).
 
     " one converter serves the whole run: it buffers the material master, and
     " both the demand and the supply side ask it the same questions
@@ -241,19 +234,19 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       io_engine      = NEW zcl_allocation_engine(
         io_supply_reader = create_default_supply(
           io_converter = lo_converter
-          iv_lgort     = iv_lgort
-          iv_planned   = iv_planned )
+          iv_lgort     = ls_settings-lgort
+          iv_planned   = ls_settings-planned )
         io_demand_reader = create_default_open_demand(
           io_converter    = lo_converter
-          iv_horizon_days = iv_horizon_days
-          iv_sto_priority = iv_sto_priority
-          iv_ship_days    = iv_ship_days
-          iv_age_days     = iv_age_days
-          iv_work_days    = iv_work_days )
+          iv_horizon_days = ls_settings-horizon_days
+          iv_sto_priority = ls_settings-sto_priority
+          iv_ship_days    = ls_settings-ship_days
+          iv_age_days     = ls_settings-age_days
+          iv_work_days    = ls_settings-work_days )
         io_strategy      = lo_strategy )
       io_store       = NEW zcl_allocation_store( )
       io_run_id      = NEW zcl_run_id_uuid( )
-      io_reservation = NEW zcl_reservation_writer( iv_move_type )
+      io_reservation = NEW zcl_reservation_writer( ls_settings-move_type )
       io_authority   = NEW zcl_authority_alloc( )
       io_lock        = NEW zcl_lock_material( )
       io_commit      = NEW zcl_unit_of_work( )

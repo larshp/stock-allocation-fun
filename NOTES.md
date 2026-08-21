@@ -192,6 +192,7 @@ in, which is also the order they make sense in.
 125. the movement type is the plant's to choose
 126. the settings travel as one thing
 127. the answers take the settings as one thing too
+128. and the service itself
 
 ## Progress
 
@@ -3812,3 +3813,23 @@ All of them now take `ZIF_ALLOC_CONFIG=>TY_CONFIG`.
   through the constructor with doubles, which is why the defect family was
   invisible to them in the first place -- and why feature 100 tests the wiring
   through the factory instead.
+
+### Feature 128 — and the service itself (done)
+
+The last long parameter list in the production path was
+`ZCL_ALLOCATION_SERVICE=>CREATE_DEFAULT`, the object graph a run is built
+from: twelve parameters, filled in from a structure by the mass run and from
+nothing at all by two dozen tests.
+
+- **`IS_SETTINGS` is optional here, unlike everywhere else.** A test asking
+  about one behaviour wants the defaults and one field, and
+  `create_default( is_settings = VALUE #( ship_days = 1 ) )` says exactly that
+  in one line. The run always passes the plant's.
+- **An unset movement type still becomes `311` inside the factory**, because
+  the defaults of an empty structure are not the defaults of Customizing:
+  `ZCL_ALLOC_CONFIG` fills that one in for a plant with no row, and a caller
+  that passes no structure at all has to get it from somewhere.
+- **The chain is now settings-shaped from end to end**: the report reads
+  Customizing into a structure, the mass run passes it on, the service passes
+  it on, and every reader takes its own field out of it at the bottom. There
+  is no longer a place where a caller lists settings by hand.

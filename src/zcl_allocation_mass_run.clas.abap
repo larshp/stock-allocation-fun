@@ -191,20 +191,10 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
 
     ro_mass_run = NEW zcl_allocation_mass_run(
       io_service  = zcl_allocation_service=>create_default(
-        io_strategy     = io_strategy
-        iv_horizon_days = is_settings-horizon_days
-        iv_lgort        = is_settings-lgort
-        iv_cap_percent  = is_settings-cap_percent
-        iv_planned      = is_settings-planned
-        iv_whole_units  = is_settings-whole_units
-        iv_quota        = is_settings-quota
-        iv_recut        = iv_recut
-        iv_sto_priority = is_settings-sto_priority
-        iv_ship_days    = is_settings-ship_days
-        iv_age_days     = is_settings-age_days
-        iv_work_days    = is_settings-work_days
-        iv_move_type    = is_settings-move_type
-        io_log          = lo_log )
+        is_settings = is_settings
+        io_strategy = io_strategy
+        iv_recut    = iv_recut
+        io_log      = lo_log )
       io_demand   = NEW zcl_demand_in_package(
         io_demand   = NEW zcl_demand_of_controller(
           io_demand = zcl_allocation_service=>create_default_demand(

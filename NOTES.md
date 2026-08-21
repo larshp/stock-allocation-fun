@@ -2889,3 +2889,27 @@ and the stock the last run earmarked has to go back into the pool now.
 - **It writes to the same application log as a run**, because "where did those
   forty pieces come from" is a question somebody asks a week later, and `SLG1`
   is where the rest of the answers are.
+
+### Feature 90 — the quota under the property test (done)
+
+Feature 72 runs a few hundred made up situations through the chain a plant
+runs with and checks the things that have to be true whatever it was asked.
+The quota of feature 86 is the newest rule in that chain and the only one
+that keeps state between calls, which makes it exactly the rule a worked
+example is least likely to catch out.
+
+- **The whole shipped chain, with the quota switched on**: priority, the
+  customer share, whole units and the complete delivery rule, built by
+  `CREATE_DEFAULT_STRATEGY` rather than assembled by the test, so what is
+  tested is what runs.
+- **Two days of supply per case.** A rule that has to hold across the engine's
+  walk is only tested by a walk; one pool would have exercised nothing.
+- **Everything that held without a quota still has to hold with one.** The
+  same `CHECK_CASE` as the other two tests: the rule may take away, and it may
+  not break the answer -- no line over its order, no stock given twice, every
+  short line saying why.
+- **And the test says so when it stops biting.** A property no case ever puts
+  under strain is a property nobody has tested, so the run counts the lines
+  the quota actually held back and fails if that count is zero. Without it,
+  quotas set generously enough would have turned the whole set green while
+  proving nothing.

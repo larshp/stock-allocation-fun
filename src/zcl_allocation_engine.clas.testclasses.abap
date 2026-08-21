@@ -640,6 +640,13 @@ CLASS ltcl_invariants DEFINITION FINAL FOR TESTING
     CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
     CONSTANTS c_cases TYPE i VALUE 120.
 
+    "! Fewer, because each of these writes its quotas to the database and
+    "! reads them back through the rule that is being tested.
+    CONSTANTS c_quota_cases TYPE i VALUE 40.
+
+    CONSTANTS c_customer_a TYPE vbak-kunnr VALUE '0000010001'.
+    CONSTANTS c_customer_b TYPE vbak-kunnr VALUE '0000010002'.
+
     "! One made up situation: the stock there is and the lines waiting for it.
     TYPES:
       BEGIN OF ty_case,
@@ -667,8 +674,32 @@ CLASS ltcl_invariants DEFINITION FINAL FOR TESTING
         is_case       TYPE ty_case
         it_allocation TYPE zif_allocation=>ty_allocation_tab.
 
+    METHODS teardown.
+
+    METHODS given_quota
+      IMPORTING
+        iv_kunnr    TYPE vbak-kunnr
+        iv_quantity TYPE zif_allocation=>ty_quantity.
+
+    METHODS quota_answer_of
+      IMPORTING
+        is_case              TYPE ty_case
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
+      RAISING
+        zcx_allocation.
+
+    METHODS confirmed_for
+      IMPORTING
+        is_case            TYPE ty_case
+        it_allocation      TYPE zif_allocation=>ty_allocation_tab
+        iv_kunnr           TYPE vbak-kunnr
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
     METHODS nothing_is_given_twice FOR TESTING RAISING cx_static_check.
     METHODS fair_share_holds_too FOR TESTING RAISING cx_static_check.
+    METHODS a_quota_is_never_exceeded FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -831,6 +862,132 @@ CLASS ltcl_invariants IMPLEMENTATION.
           iv_fair = abap_true ) ).
 
     ENDDO.
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM zstock_alloc_qta WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD given_quota.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_qta WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        kunnr     = iv_kunnr
+        date_from = '20260101'
+        date_to   = '20261231'
+        quantity  = iv_quantity ) ).
+
+    INSERT zstock_alloc_qta FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD quota_answer_of.
+
+    DATA lv_half TYPE zif_allocation=>ty_quantity.
+
+    " the whole chain a plant that has asked for everything runs with, quota
+    " and all, built for this case alone as CREATE_DEFAULT_STRATEGY builds one
+    " per service
+    DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
+      io_strategy    = NEW zcl_alloc_strategy_priority( )
+      iv_cap_percent = 60
+      iv_whole_units = abap_true
+      iv_quota       = abap_true ).
+
+    " the stock arrives on two days rather than one, because a rule that has
+    " to hold across the engine's walk is only tested by a walk
+    lv_half = is_case-available / 2.
+
+    rt_allocation = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_reader_double( VALUE #(
+        ( avail_date = '00000000' quantity = lv_half )
+        ( avail_date = '20260215' quantity = is_case-available - lv_half ) ) )
+      io_demand_reader = NEW lcl_demand_reader_double( VALUE #( ) )
+      io_strategy      = lo_strategy )->allocate(
+        iv_matnr  = c_matnr
+        iv_werks  = c_werks
+        it_demand = is_case-demand ).
+
+  ENDMETHOD.
+
+  METHOD confirmed_for.
+
+    LOOP AT it_allocation INTO DATA(ls_allocation).
+
+      DATA(ls_demand) = is_case-demand[ demand_id = ls_allocation-demand_id ].
+      IF ls_demand-customer <> iv_kunnr.
+        CONTINUE.
+      ENDIF.
+
+      rv_quantity = rv_quantity + ls_allocation-confirmed.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD a_quota_is_never_exceeded.
+
+    " one pair of quotas, written once, against every case: what varies from
+    " case to case is the demand and the stock, and writing the quotas again
+    " inside the loop would only be reading the same rule back forty times
+    CONSTANTS lc_quota_a TYPE zif_allocation=>ty_quantity VALUE 8.
+    CONSTANTS lc_quota_b TYPE zif_allocation=>ty_quantity VALUE 12.
+
+    DATA lv_bit TYPE i.
+
+    given_quota(
+      iv_kunnr    = c_customer_a
+      iv_quantity = lc_quota_a ).
+    given_quota(
+      iv_kunnr    = c_customer_b
+      iv_quantity = lc_quota_b ).
+
+    DO c_quota_cases TIMES.
+
+      DATA(lv_index) = sy-index.
+      DATA(ls_case)  = case_of( lv_index ).
+
+      DATA(lt_allocation) = quota_answer_of( ls_case ).
+
+      " everything that holds without a quota still holds with one: the rule
+      " may only ever take away, and it may not break the answer
+      check_case(
+        is_case       = ls_case
+        it_allocation = lt_allocation ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( confirmed_for( is_case       = ls_case
+                                      it_allocation = lt_allocation
+                                      iv_kunnr      = c_customer_a ) <= lc_quota_a )
+        msg = |case { lv_index }: a customer was given more than its quota| ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( confirmed_for( is_case       = ls_case
+                                      it_allocation = lt_allocation
+                                      iv_kunnr      = c_customer_b ) <= lc_quota_b )
+        msg = |case { lv_index }: a customer was given more than its quota| ).
+
+      LOOP AT lt_allocation TRANSPORTING NO FIELDS
+          WHERE reason = zif_allocation=>c_reason-quota.
+        lv_bit = lv_bit + 1.
+      ENDLOOP.
+
+    ENDDO.
+
+    " a property that no case ever puts under strain is a property nobody has
+    " tested: some of these have to be lines the quota actually stopped
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_bit > 0 )
+      msg = 'no case in the whole set was held back by its quota' ).
 
   ENDMETHOD.
 

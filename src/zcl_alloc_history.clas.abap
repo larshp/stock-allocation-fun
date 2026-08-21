@@ -55,9 +55,6 @@ CLASS zcl_alloc_history DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Reading what was decided, not deciding anything.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
 
-    "! The recorded runs are stamped in UTC, as they are written.
-    CONSTANTS c_time_zone TYPE timezone VALUE 'UTC'.
-
     "! One recorded line. Declared explicitly rather than inferred with
     "! INTO TABLE @DATA(), see ANOMALIES.md.
     TYPES:
@@ -208,8 +205,7 @@ CLASS zcl_alloc_history IMPLEMENTATION.
 
       lv_runs = lv_runs + 1.
 
-      CONVERT TIME STAMP ls_row-created_at TIME ZONE c_time_zone
-        INTO DATE lv_date.
+      lv_date = zcl_alloc_clock=>date_of( ls_row-created_at ).
 
       " how long it has been going short without a break, which is what the
       " escalation of feature 87 acts on and what a customer is really asking

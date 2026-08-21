@@ -71,9 +71,6 @@ CLASS zcl_alloc_coverage DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Reading what the night did, not doing any of it again.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
 
-    "! The recorded runs are stamped in UTC, as they are written.
-    CONSTANTS c_time_zone TYPE timezone VALUE 'UTC'.
-
     CONSTANTS c_hours_in_day TYPE i VALUE 24.
 
     DATA mo_demand    TYPE REF TO zif_demand_reader.
@@ -166,8 +163,7 @@ CLASS zcl_alloc_coverage IMPLEMENTATION.
     lv_days = ( iv_hours + c_hours_in_day - 1 ) DIV c_hours_in_day.
     lv_date = sy-datum - lv_days.
 
-    CONVERT DATE lv_date TIME '000000'
-      INTO TIME STAMP lv_cutoff TIME ZONE c_time_zone.
+    lv_cutoff = zcl_alloc_clock=>stamp_of( lv_date ).
 
     SELECT DISTINCT matnr
       FROM zstock_alloc_res

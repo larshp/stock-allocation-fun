@@ -34,10 +34,6 @@ CLASS zcl_demand_aging DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    "! The recorded runs are stamped in UTC, as ZCL_ALLOC_HOUSEKEEPING writes
-    "! them, so the age of one is worked out in the same zone.
-    CONSTANTS c_time_zone TYPE timezone VALUE 'UTC'.
-
     "! One recorded line. Declared explicitly rather than inferred with
     "! INTO TABLE @DATA(), see ANOMALIES.md.
     TYPES:
@@ -181,8 +177,7 @@ CLASS zcl_demand_aging IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      CONVERT TIME STAMP ls_recorded-created_at TIME ZONE c_time_zone
-        INTO DATE lv_date.
+      lv_date = zcl_alloc_clock=>date_of( ls_recorded-created_at ).
 
       READ TABLE rt_waiting INTO ls_waiting
         WITH KEY demand_id = ls_recorded-demand_id.

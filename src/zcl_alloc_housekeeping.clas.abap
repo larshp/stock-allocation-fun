@@ -59,10 +59,6 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    "! CREATED_AT is written with GET TIME STAMP, which is UTC, so the cut-off
-    "! is worked out in UTC as well rather than in the local time zone.
-    CONSTANTS c_time_zone TYPE timezone VALUE 'UTC'.
-
     "! A run whose reservation number is still initial never earmarked anything.
     CONSTANTS c_no_reservation TYPE zstock_alloc_res-reservation VALUE '0000000000'.
 
@@ -189,8 +185,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
 
     lv_date = sy-datum - lv_days.
 
-    CONVERT DATE lv_date TIME '000000'
-      INTO TIME STAMP rv_cutoff TIME ZONE c_time_zone.
+    rv_cutoff = zcl_alloc_clock=>stamp_of( lv_date ).
 
   ENDMETHOD.
 

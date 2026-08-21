@@ -193,6 +193,7 @@ in, which is also the order they make sense in.
 126. the settings travel as one thing
 127. the answers take the settings as one thing too
 128. and the service itself
+129. the day boundary is where the system is
 
 ## Progress
 
@@ -3833,3 +3834,27 @@ nothing at all by two dozen tests.
   Customizing into a structure, the mass run passes it on, the service passes
   it on, and every reader takes its own field out of it at the bottom. There
   is no longer a place where a caller lists settings by hand.
+
+### Feature 129 — the day boundary is where the system is (done)
+
+Recorded runs are stamped in UTC, which is right: a time stamp that is not in
+one zone is a time stamp nobody can compare. Four places then turned those
+stamps into days -- the escalation, the order history, the coverage check and
+housekeeping -- and every one of them did the conversion in UTC as well, while
+comparing the result against `SY-DATUM`, which is where the system is.
+
+In Frankfurt in summer those disagree for two hours every night. A run that
+finished at half past midnight is reported as not having run; a line short
+since this morning counts as short since yesterday; housekeeping's cut-off is
+two hours out. None of it is visible in a UTC system, which is what a test
+system usually is.
+
+`ZCL_ALLOC_CLOCK` is now the one place that answers both questions.
+
+- **`DATE_OF` and `STAMP_OF`, and nothing else.** Four copies of a `CONVERT`
+  with a hard-wired zone is four places to get it wrong; the zone is now named
+  once.
+- **The zone is `SY-ZONLO`, falling back to UTC.** A system that has not been
+  told where it is at least agrees with its own stamps.
+- **The stamps stay UTC.** What changed is the reading of them, not the
+  writing: the database is unaffected and no run has to be re-recorded.

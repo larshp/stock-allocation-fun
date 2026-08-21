@@ -36,6 +36,12 @@ CLASS zcl_alloc_floor DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mt_left  TYPE zif_alloc_floor=>ty_floor_tab.
     DATA mv_start TYPE zif_allocation=>ty_quantity.
 
+    "! Which material the walk is of. A run allocates every material in the
+    "! plant through the same strategy chain, and what is left of one
+    "! material's floors means nothing for the next one.
+    DATA mv_matnr TYPE mard-matnr.
+    DATA mv_werks TYPE mard-werks.
+
     METHODS start_over_if_new
       IMPORTING
         it_demand TYPE zif_allocation=>ty_demand_tab
@@ -118,6 +124,7 @@ CLASS zcl_alloc_floor IMPLEMENTATION.
   METHOD start_over_if_new.
 
     DATA lv_total TYPE zif_allocation=>ty_quantity.
+    DATA lv_new   TYPE abap_bool.
 
     LOOP AT it_demand INTO DATA(ls_demand).
       IF ls_demand-quantity > 0.
@@ -125,9 +132,20 @@ CLASS zcl_alloc_floor IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    " a run allocates every material in the plant through this same chain, and
+    " what is left of one material's floors means nothing for the next one --
+    " which the demand total cannot tell us, because the next material may
+    " well be asked for less than this one was
+    READ TABLE it_demand INTO DATA(ls_first) INDEX 1.
+    IF sy-subrc = 0 AND ( ls_first-matnr <> mv_matnr OR ls_first-werks <> mv_werks ).
+      lv_new   = abap_true.
+      mv_matnr = ls_first-matnr.
+      mv_werks = ls_first-werks.
+    ENDIF.
+
     " the demand shrinks as the walk goes on, so a total at least as big as
     " the one the walk started with is a new walk
-    IF lv_total < mv_start.
+    IF lv_new = abap_false AND lv_total < mv_start.
       RETURN.
     ENDIF.
 

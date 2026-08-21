@@ -212,6 +212,7 @@ in, which is also the order they make sense in.
 145. would you take the other size
 146. what ships this week is not taken back
 147. the settings line takes the settings as one thing
+148. the floor forgets the material before it
 
 ## Progress
 
@@ -4234,3 +4235,27 @@ is the defect of feature 103 in a smaller shape.
 - **The bar and the firm zone are on the line**, and both are tested for. What
   a run was set to do is the one thing the log has to be able to say a week
   later, when nobody remembers what the Customizing looked like that night.
+
+### Feature 148 — the floor forgets the material before it (done)
+
+A plant wide run allocates every material through the same strategy chain,
+and `ZCL_ALLOC_FLOOR` carries what is left of a floor from one call of the
+strategy to the next -- it has to, because the engine walks the days of
+supply and asks once per day. Telling the next day of the same material from
+the first day of the next material was left entirely to the demand total, the
+way `ZCL_ALLOC_QUOTA` does it, and that is not enough: the next material may
+simply be asked for less, and then its floors are spent before they are
+handed over.
+
+`ZCL_ALLOC_PROMISED` never had the problem because its buffer cleared the
+leftovers whenever it read a different material, which is the part that did
+not survive coming out into a class of its own.
+
+- **The material is on the demand**, so the decorator can see the change
+  itself rather than being told about it.
+- **The test allocates two materials through one chain** and asks whether the
+  second one's floor was honoured. Without the check it is not: the run
+  confirms the whole ten to the wrong line, and it does it silently.
+- **Found by reading the new class against the old one**, which is the same
+  way the settings defects of features 103 and 117 turned up. A rule moved out
+  of a class is a rule that has to be read twice.

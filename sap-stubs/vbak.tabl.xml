@@ -104,6 +104,16 @@
      <MASK>  CHAR</MASK>
      <DDTEXT>Delivery Block (Document Header)</DDTEXT>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>CMGST</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>000002</INTLEN>
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>000001</LENG>
+     <MASK>  CHAR</MASK>
+     <DDTEXT>Overall Credit Status of Document</DDTEXT>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

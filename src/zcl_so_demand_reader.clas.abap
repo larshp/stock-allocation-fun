@@ -1,6 +1,11 @@
 CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PUBLIC SECTION.
+
+    "! `VBAK-CMGST`: the credit check has blocked the document. The other
+    "! values -- not carried out, released, partly released -- all leave an
+    "! order that can be delivered.
+    CONSTANTS c_credit_blocked TYPE vbak-cmgst VALUE 'B'.
     INTERFACES zif_demand_reader.
 
     "! <p class="shorttext synchronized">Wire up the reader</p>
@@ -213,6 +218,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         AND item~lifsp = @space
         AND item~sobkz = @space
         AND header~lifsk = @space
+        AND header~cmgst <> @c_credit_blocked
       ORDER BY item~matnr
       INTO TABLE @rt_matnr.
     IF sy-subrc <> 0.
@@ -226,6 +232,12 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
 
   METHOD read_items.
 
+    " an order the credit check has blocked cannot be delivered either, and
+    " stock earmarked for one is stock not offered to an order that can ship.
+    " Nothing is lost by leaving it out: the block is released by somebody in
+    " finance rather than by this run, and the next run after that picks the
+    " order up like any other.
+    "
     " a delivery block can sit on the header, on the item or on a single
     " schedule line, and wherever it sits it says the goods are not to leave.
     " Two of the three are answered here; the third is answered per line, in
@@ -254,6 +266,7 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         AND item~lifsp = @space
         AND item~sobkz = @space
         AND header~lifsk = @space
+        AND header~cmgst <> @c_credit_blocked
       ORDER BY item~vbeln, item~posnr
       INTO TABLE @rt_item.
     IF sy-subrc <> 0.

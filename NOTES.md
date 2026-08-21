@@ -3195,3 +3195,25 @@ stock, less everything a run has decided about since a point in time.
 - **A quiet plant says it is quiet.** Nothing waiting is a different answer
   from everything covered, and both are different from a hundred materials
   missed.
+
+### Feature 102 — an order finance has blocked takes no stock (done)
+
+The demand reader leaves out everything that cannot ship: rejected items,
+delivery blocks at all three levels, items served from their own stock
+segment, materials flagged for deletion. It was still reading orders the
+credit check had blocked, which cannot ship either -- and every piece
+earmarked for one is a piece not offered to an order that can.
+
+`VBAK-CMGST = 'B'` is now filtered out, in both the demand read and the list
+of materials worth a run.
+
+- **Only `B` is a block.** Not carried out, released and partly released are
+  all orders that can be delivered, and treating an unset status as a block
+  would starve every plant that does not run a credit check at all.
+- **Nothing is lost by leaving it out.** The block is released by somebody in
+  finance rather than by this run, and the run after that picks the order up
+  like any other -- which is the same argument the delivery block rests on.
+- **It is not a setting.** A plant cannot want to promise stock to an order
+  that is not allowed to leave the building; if the business wants those
+  orders served, the answer is to release them, not to configure the
+  allocation to ignore the block.

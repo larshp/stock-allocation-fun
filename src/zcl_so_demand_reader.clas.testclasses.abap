@@ -6,6 +6,8 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     CONSTANTS c_matnr     TYPE vbap-matnr VALUE 'SO-DEMAND-01'.
     CONSTANTS c_matnr_2   TYPE vbap-matnr VALUE 'SO-DEMAND-02'.
     CONSTANTS c_matnr_blk TYPE vbap-matnr VALUE 'SO-DEMAND-03'.
+    CONSTANTS c_matnr_crd TYPE vbap-matnr VALUE 'SO-DEMAND-06'.
+    CONSTANTS c_matnr_cr2 TYPE vbap-matnr VALUE 'SO-DEMAND-07'.
     CONSTANTS c_matnr_bli TYPE vbap-matnr VALUE 'SO-DEMAND-04'.
     CONSTANTS c_matnr_mto TYPE vbap-matnr VALUE 'SO-DEMAND-05'.
     CONSTANTS c_werks     TYPE vbap-werks VALUE '1000'.
@@ -17,6 +19,9 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS reads_open_items FOR TESTING RAISING cx_static_check.
     METHODS skips_rejected_items FOR TESTING RAISING cx_static_check.
     METHODS skips_blocked_headers FOR TESTING RAISING cx_static_check.
+    METHODS skips_credit_blocked FOR TESTING RAISING cx_static_check.
+    METHODS credit_blocked_not_listed FOR TESTING.
+    METHODS a_released_order_is_read FOR TESTING RAISING cx_static_check.
     METHODS skips_blocked_items FOR TESTING RAISING cx_static_check.
     METHODS skips_blocked_lines FOR TESTING RAISING cx_static_check.
     METHODS all_lines_blocked_is_nothing FOR TESTING RAISING cx_static_check.
@@ -77,6 +82,8 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_2 mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_blk mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_crd mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_cr2 mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_bli mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_mto mtart = 'FERT' meins = 'PC' ) ).
 
@@ -100,7 +107,11 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt vbeln = '0000004711' auart = 'TA' vkorg = '1000' vdatu = '20260210' )
       ( mandt = sy-mandt vbeln = '0000004712' auart = 'TA' vkorg = '1000' vdatu = '20260115' )
       ( mandt = sy-mandt vbeln = '0000004713' auart = 'TA' vkorg = '1000' vdatu = '20260120'
-        lifsk = '01' ) ).
+        lifsk = '01' )
+      ( mandt = sy-mandt vbeln = '0000004714' auart = 'TA' vkorg = '1000' vdatu = '20260125'
+        cmgst = 'B' )
+      ( mandt = sy-mandt vbeln = '0000004715' auart = 'TA' vkorg = '1000' vdatu = '20260125'
+        cmgst = 'C' ) ).
 
     lt_vbap = VALUE #(
       ( mandt = sy-mandt vbeln = '0000004711' posnr = '000010'
@@ -122,7 +133,11 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
         lifsp = '02' )
       ( mandt = sy-mandt vbeln = '0000004711' posnr = '000040'
         matnr = c_matnr_mto werks = c_werks vrkme = 'PC' kwmeng = '8' lprio = '01'
-        sobkz = 'E' ) ).
+        sobkz = 'E' )
+      ( mandt = sy-mandt vbeln = '0000004714' posnr = '000010'
+        matnr = c_matnr_crd werks = c_werks vrkme = 'PC' kwmeng = '4' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004715' posnr = '000010'
+        matnr = c_matnr_cr2 werks = c_werks vrkme = 'PC' kwmeng = '3' lprio = '01' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -140,28 +155,36 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
   METHOD teardown.
 
-    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
+    DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
+                                   @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
+                                   @c_matnr_cr2 ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
       msg = 'VBAP fixture could not be removed' ).
 
-    DELETE FROM vbak WHERE vbeln IN ( '0000004711', '0000004712', '0000004713' ).
+    DELETE FROM vbak WHERE vbeln IN ( '0000004711', '0000004712', '0000004713',
+                                      '0000004714', '0000004715' ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
       msg = 'VBAK fixture could not be removed' ).
 
-    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
+    DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
+                                   @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
+                                   @c_matnr_cr2 ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
-    DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713' ).
+    DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713',
+                                      '0000004714', '0000004715' ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM marm WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
-    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk, @c_matnr_bli, @c_matnr_mto ).
+    DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
+                                   @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
+                                   @c_matnr_cr2 ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -336,7 +359,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = mo_cut->materials_with_demand( c_werks )
-      exp = VALUE zif_demand_reader=>ty_matnr_tab( ( c_matnr ) ( c_matnr_2 ) ) ).
+      exp = VALUE zif_demand_reader=>ty_matnr_tab( ( c_matnr ) ( c_matnr_2 ) ( c_matnr_cr2 ) ) ).
 
   ENDMETHOD.
 
@@ -645,6 +668,44 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand[ demand_id = '00000047120000300000' ]-priority
       exp = '99'
       msg = 'an item without delivery priority must not jump the queue' ).
+
+  ENDMETHOD.
+
+  METHOD skips_credit_blocked.
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->read_open_demand( iv_matnr = c_matnr_crd
+                                      iv_werks = c_werks )
+      msg = 'an order finance has blocked cannot be delivered, so it takes no stock' ).
+
+  ENDMETHOD.
+
+  METHOD credit_blocked_not_listed.
+
+    " assigned first: the parser cannot read an index on a method call, see
+    " ANOMALIES.md
+    DATA(lt_matnr) = mo_cut->materials_with_demand( c_werks ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( line_exists( lt_matnr[ table_line = c_matnr_crd ] ) )
+      msg = 'and a material only such an order wants is not worth a run of its own' ).
+
+  ENDMETHOD.
+
+  METHOD a_released_order_is_read.
+
+    " released, not carried out, partly released: everything but B is an order
+    " that can ship, and leaving those out would starve half the book
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr_cr2
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demand )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ 1 ]-demand_id+0(10)
+      exp = '0000004715' ).
 
   ENDMETHOD.
 

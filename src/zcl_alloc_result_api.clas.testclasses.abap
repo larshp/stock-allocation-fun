@@ -26,6 +26,7 @@ CLASS ltcl_alloc_result_api DEFINITION FINAL FOR TESTING
     METHODS the_reason_is_in_words FOR TESTING.
     METHODS one_item_can_be_asked_for FOR TESTING.
     METHODS another_order_is_not_answered FOR TESTING.
+    METHODS a_transfer_can_be_asked_for FOR TESTING.
 
 ENDCLASS.
 
@@ -171,6 +172,48 @@ CLASS ltcl_alloc_result_api IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = ls_answer-line
       msg = 'somebody else''s order is somebody else''s business' ).
+
+  ENDMETHOD.
+
+  METHOD a_transfer_can_be_asked_for.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_id   TYPE zif_allocation=>ty_demand_id.
+    DATA lv_when TYPE zstock_alloc_res-created_at.
+
+    lv_when = zcl_alloc_clock=>stamp_of(
+      iv_date = sy-datum
+      iv_time = '120000' ).
+
+    lv_id+0(1)  = zcl_sto_demand_reader=>c_source_marker.
+    lv_id+1(10) = '4500009999'.
+    lv_id+11(5) = '00010'.
+    lv_id+16(4) = '0001'.
+
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = 'API-STO-1'
+        demand_id  = lv_id
+        matnr      = c_matnr
+        werks      = c_werks
+        requested  = 100
+        confirmed  = 70
+        shortfall  = 30
+        created_at = lv_when ) ).
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(ls_answer) = zcl_alloc_result_api=>result(
+      iv_werks = c_werks
+      iv_ebeln = '4500009999' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_answer-line )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_answer-line[ 1 ]-confirmed
+      exp = CONV zif_allocation=>ty_quantity( 70 )
+      msg = 'the plant on the other end of a transfer is a caller like any other' ).
 
   ENDMETHOD.
 

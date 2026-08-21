@@ -23,15 +23,21 @@ CLASS zcl_alloc_result_api DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! The newest run per schedule line, because that is the one that stands:
     "! a re-cut replaces what the run before it decided.
     "!
+    "! A stock transport order is asked about by its purchasing document, as
+    "! in feature 131: the plant on the other end of one is a caller like any
+    "! other, and a webshop is not the only thing that asks.
+    "!
     "! @parameter iv_werks  | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_vbeln  | <p class="shorttext synchronized">Sales document</p>
     "! @parameter iv_posnr  | <p class="shorttext synchronized">Item, every one if empty</p>
+    "! @parameter iv_ebeln  | <p class="shorttext synchronized">Purchasing document, instead of a sales one</p>
     "! @parameter rs_answer | <p class="shorttext synchronized">The lines, or why there are none</p>
     CLASS-METHODS result
       IMPORTING
         iv_werks         TYPE mard-werks
-        iv_vbeln         TYPE vbap-vbeln
+        iv_vbeln         TYPE vbap-vbeln OPTIONAL
         iv_posnr         TYPE vbap-posnr OPTIONAL
+        iv_ebeln         TYPE ekko-ebeln OPTIONAL
       RETURNING
         VALUE(rs_answer) TYPE ty_answer.
 
@@ -62,6 +68,7 @@ CLASS zcl_alloc_result_api DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks      TYPE mard-werks
         iv_vbeln      TYPE vbap-vbeln
         iv_posnr      TYPE vbap-posnr
+        iv_ebeln      TYPE ekko-ebeln
       RETURNING
         VALUE(rt_row) TYPE ty_row_tab.
 
@@ -91,7 +98,9 @@ CLASS zcl_alloc_result_api IMPLEMENTATION.
       CATCH zcx_allocation INTO DATA(lx_error).
         rs_answer-message = failed(
           ix_error = lx_error
-          iv_vbeln = iv_vbeln
+          iv_vbeln = COND #( WHEN iv_ebeln IS NOT INITIAL
+                             THEN iv_ebeln
+                             ELSE iv_vbeln )
           iv_werks = iv_werks ).
         RETURN.
     ENDTRY.
@@ -101,7 +110,8 @@ CLASS zcl_alloc_result_api IMPLEMENTATION.
     LOOP AT rows_of(
         iv_werks = iv_werks
         iv_vbeln = iv_vbeln
-        iv_posnr = iv_posnr ) INTO DATA(ls_row).
+        iv_posnr = iv_posnr
+        iv_ebeln = iv_ebeln ) INTO DATA(ls_row).
 
       IF ls_row-demand_id = lv_demand_id.
         CONTINUE.
@@ -132,7 +142,9 @@ CLASS zcl_alloc_result_api IMPLEMENTATION.
 
     " the demand id of a sales order line is the document, then the item, then
     " the schedule line, as ZCL_SO_DEMAND_READER builds it
-    IF iv_posnr IS INITIAL.
+    IF iv_ebeln IS NOT INITIAL.
+      lv_pattern = |{ zcl_sto_demand_reader=>c_source_marker }{ iv_ebeln }%|.
+    ELSEIF iv_posnr IS INITIAL.
       lv_pattern = |{ iv_vbeln }%|.
     ELSE.
       lv_pattern = |{ iv_vbeln }{ iv_posnr }%|.

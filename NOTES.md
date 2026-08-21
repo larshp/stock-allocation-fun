@@ -196,6 +196,7 @@ in, which is also the order they make sense in.
 129. the day boundary is where the system is
 130. a material on hold says so wherever it is asked about
 131. the transfer has a history too
+132. and the answer over RFC knows about transfers too
 
 ## Progress
 
@@ -3898,3 +3899,18 @@ asking what has been happening to it.
 - **One of the two, not both.** The report says so rather than quietly
   preferring one, because a screen where filling in two fields silently
   ignores one is a screen somebody argues with.
+
+### Feature 132 — and the answer over RFC knows about transfers too (done)
+
+Feature 131 taught the history to be asked about a stock transport order and
+left `Z_STOCK_ALLOC_RESULT` -- the same question, for a caller outside ABAP --
+still meaning "sales order". Adding a capability on one path and not the other
+is the defect family this repository keeps finding; this one was two hours
+old.
+
+- **The pattern is built the same way and from the same constant.** Two places
+  now know that a transfer's id carries a marker, and both get the marker from
+  the reader that writes it.
+- **Both documents are optional and one of them is required.** The function
+  module answers nothing rather than guessing when neither is given, and the
+  report says so on the screen.

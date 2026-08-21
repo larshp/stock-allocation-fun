@@ -3,8 +3,9 @@ FUNCTION z_stock_alloc_result.
 *"*"Local Interface:
 *"  IMPORTING
 *"     VALUE(IV_WERKS) TYPE  MARD-WERKS
-*"     VALUE(IV_VBELN) TYPE  VBAP-VBELN
+*"     VALUE(IV_VBELN) TYPE  VBAP-VBELN OPTIONAL
 *"     VALUE(IV_POSNR) TYPE  VBAP-POSNR OPTIONAL
+*"     VALUE(IV_EBELN) TYPE  EKKO-EBELN OPTIONAL
 *"  EXPORTING
 *"     VALUE(ET_LINE) TYPE  ZCL_ALLOC_RESULT_API=>TY_LINE_TAB
 *"     VALUE(ES_RETURN) TYPE  BAPIRET2
@@ -21,7 +22,8 @@ FUNCTION z_stock_alloc_result.
   ls_answer = zcl_alloc_result_api=>result(
     iv_werks = iv_werks
     iv_vbeln = iv_vbeln
-    iv_posnr = iv_posnr ).
+    iv_posnr = iv_posnr
+    iv_ebeln = iv_ebeln ).
 
   et_line   = ls_answer-line.
   es_return = ls_answer-message.

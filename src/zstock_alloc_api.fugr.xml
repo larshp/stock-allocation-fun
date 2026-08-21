@@ -72,12 +72,18 @@
       </RSIMP>
       <RSIMP>
        <PARAMETER>IV_VBELN</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
        <TYP>VBAP-VBELN</TYP>
       </RSIMP>
       <RSIMP>
        <PARAMETER>IV_POSNR</PARAMETER>
        <OPTIONAL>X</OPTIONAL>
        <TYP>VBAP-POSNR</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IV_EBELN</PARAMETER>
+       <OPTIONAL>X</OPTIONAL>
+       <TYP>EKKO-EBELN</TYP>
       </RSIMP>
      </IMPORT>
      <EXPORT>

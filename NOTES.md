@@ -210,6 +210,7 @@ in, which is also the order they make sense in.
 143. the last factory takes the settings too
 144. the check knows the commonest mistake
 145. would you take the other size
+146. what ships this week is not taken back
 
 ## Progress
 
@@ -4179,3 +4180,39 @@ asks each of them the promise question.
   makes about a basket.
 - **A substitute nobody can answer for carries its reason and the others are
   still answered**, exactly as a basket line does.
+
+### Feature 146 — what ships this week is not taken back (done)
+
+A re-cut is the right thing to do to the stock and a hard thing to do to a
+customer, which is why feature 75 exists: somebody reads the differences in
+the morning and telephones the people who lost something. What that list
+cannot help with is the line that was picked yesterday and is loading
+tomorrow. Taking stock away from it moves no goods -- they are on the ramp --
+it only makes the paperwork disagree with the lorry.
+
+`FIRM_DAYS` in the plant's settings is how far ahead its answers are firm. A
+line due within that many days keeps what the last recorded run confirmed for
+it, before the distribution rules see the stock at all; everything further out
+is re-cut every night, which is the point of running again.
+
+- **The mechanics of handing a quantity over came out into `ZCL_ALLOC_FLOOR`.**
+  Taking a quantity off the top, taking it out of the demand the rules then
+  see, and adding it back so that every line is answered exactly once with
+  what its order really asked for -- that is the same work whether the
+  quantity comes from a promise somebody typed or from last night's run. A
+  second copy of it would drift, and the copy that drifted would confirm
+  quantities nobody can explain. `ZIF_ALLOC_FLOOR` is what the copies differ
+  in: which lines get how much.
+- **The requested date is the run's, not the record's.** A line moved out of
+  the firm zone since last night is no longer loading tomorrow, and a line
+  moved into it is.
+- **The recorded runs are read once for the plant**, as the quotas and the
+  promises are. The snapshot is from before this run wrote anything, which is
+  the answer to a question that would otherwise arise: what is firm is what
+  the last run said, not what this one has just decided about the materials it
+  reached first.
+- **It sits outside the share and the quota and inside the hand promise.** A
+  promise made this morning is newer than what the run decided last night and
+  outranks it; both of them outrank the rationing rules.
+- **A floor of nothing is no floor.** A line the last run confirmed nothing
+  for is left to the rules, or it would be answered twice.

@@ -70,7 +70,8 @@ CLASS zcl_alloc_config IMPLEMENTATION.
                   age_days,
                   work_days,
                   move_type,
-                  min_percent
+                  min_percent,
+                  firm_days
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_row).
@@ -131,6 +132,12 @@ CLASS zcl_alloc_config IMPLEMENTATION.
       rs_config-min_percent = COND #( WHEN ls_row-min_percent > c_max_percent
                                       THEN c_max_percent
                                       ELSE ls_row-min_percent ).
+    ENDIF.
+
+    " a firm zone of no days is a plant that re-cuts everything, which is what
+    " it gets until it says otherwise
+    IF ls_row-firm_days > 0.
+      rs_config-firm_days = ls_row-firm_days.
     ENDIF.
 
     IF ls_row-cap_percent > 0.

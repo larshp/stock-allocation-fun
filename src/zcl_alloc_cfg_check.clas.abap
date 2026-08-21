@@ -230,7 +230,8 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
                   keep_days,
                   ship_days,
                   age_days,
-                  min_percent
+                  min_percent,
+                  firm_days
       FROM zstock_alloc_cfg
       WHERE werks = @iv_werks
       INTO @DATA(ls_cfg).
@@ -258,7 +259,8 @@ CLASS zcl_alloc_cfg_check IMPLEMENTATION.
     ENDIF.
 
     IF ls_cfg-horizon_days < 0 OR ls_cfg-ship_days < 0
-        OR ls_cfg-keep_days < 0 OR ls_cfg-age_days < 0.
+        OR ls_cfg-keep_days < 0 OR ls_cfg-age_days < 0
+        OR ls_cfg-firm_days < 0.
       APPEND |A number of days below zero is read as none| TO rt_line.
     ENDIF.
 

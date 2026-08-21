@@ -192,6 +192,16 @@ CLASS zcl_allocation_service IMPLEMENTATION.
       lo_strategy = NEW zcl_alloc_quota( lo_strategy ).
     ENDIF.
 
+    " what the last run confirmed for a line that is about to ship goes
+    " outside the rationing rules and inside the promise: a promise made by
+    " hand this morning is newer than what the run decided last night and has
+    " to outrank it, and both of them outrank the share and the quota
+    IF is_settings-firm_days > zcl_alloc_firm=>c_no_firm.
+      lo_strategy = NEW zcl_alloc_floor(
+        io_strategy = lo_strategy
+        io_floor    = NEW zcl_alloc_firm( iv_days = is_settings-firm_days ) ).
+    ENDIF.
+
     " what somebody promised by hand goes outside the rules that ration stock
     " and inside the two that describe what can actually be shipped: a promise
     " outranks the customer share and the quota, and it does not turn a line

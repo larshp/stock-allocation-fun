@@ -110,6 +110,7 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
         iv_until       TYPE d OPTIONAL
         iv_top         TYPE i DEFAULT 0
         iv_kunnr       TYPE vbak-kunnr OPTIONAL
+        iv_sort        TYPE c DEFAULT space
       RETURNING
         VALUE(rt_line) TYPE zcl_alloc_shortage_list=>ty_line_tab
       RAISING
@@ -127,6 +128,7 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
     METHODS one_customer_can_be_asked FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS how_long_it_has_been_short FOR TESTING RAISING cx_static_check.
+    METHODS the_chronic_can_come_first FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -162,7 +164,8 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
       iv_werks = c_werks
       iv_until = iv_until
       iv_top   = iv_top
-      iv_kunnr = iv_kunnr ).
+      iv_kunnr = iv_kunnr
+      iv_sort  = iv_sort ).
 
   ENDMETHOD.
 
@@ -413,6 +416,55 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 3 ]
       exp = |*{ lv_date DATE = ISO }*| ).
+
+  ENDMETHOD.
+
+  METHOD the_chronic_can_come_first.
+
+    DATA lt_row  TYPE STANDARD TABLE OF zstock_alloc_res WITH EMPTY KEY.
+    DATA lv_date TYPE d.
+    DATA lv_when TYPE zstock_alloc_res-created_at.
+
+    lv_date = sy-datum - 21.
+    lv_when = zcl_alloc_clock=>stamp_of(
+      iv_date = lv_date
+      iv_time = '120000' ).
+
+    " one line wanted next month that has been short for three weeks, and one
+    " wanted tomorrow that went short tonight
+    lt_row = VALUE #(
+      ( mandt      = sy-mandt
+        run_id     = 'CHRONIC-1'
+        demand_id  = 'D-OLD'
+        matnr      = 'CHRONIC-MAT'
+        werks      = c_werks
+        requested  = 10
+        confirmed  = 0
+        shortfall  = 10
+        created_at = lv_when ) ).
+    INSERT zstock_alloc_res FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = list_of(
+      it_recorded = VALUE #(
+        ( recorded( iv_matnr     = 'AAA-URGENT'
+                    iv_demand_id = 'D-NEW'
+                    iv_short     = 10
+                    iv_req_date  = '20260302' ) )
+        ( recorded( iv_matnr     = 'CHRONIC-MAT'
+                    iv_demand_id = 'D-OLD'
+                    iv_short     = 10
+                    iv_req_date  = '20260401' ) ) )
+      iv_sort     = zcl_alloc_shortage_list=>c_by_waiting ).
+
+    DELETE FROM zstock_alloc_res WHERE run_id = 'CHRONIC-1'.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " chasing the chronic ones is a different morning from chasing the urgent
+    " ones, and the line short for three weeks is the one being chased
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*CHRONIC-MAT*' ).
 
   ENDMETHOD.
 ENDCLASS.

@@ -5,6 +5,7 @@ PARAMETERS p_until TYPE d.
 PARAMETERS p_top TYPE i DEFAULT 0.
 PARAMETERS p_dispo TYPE marc-dispo.
 PARAMETERS p_kunnr TYPE vbak-kunnr.
+PARAMETERS p_chron AS CHECKBOX.
 PARAMETERS p_mail TYPE ad_smtpadr.
 
 START-OF-SELECTION.
@@ -15,7 +16,9 @@ START-OF-SELECTION.
         iv_until = p_until
         iv_top   = p_top
         iv_dispo = p_dispo
-        iv_kunnr = p_kunnr ).
+        iv_kunnr = p_kunnr
+        iv_sort  = COND #( WHEN p_chron = abap_true
+                           THEN zcl_alloc_shortage_list=>c_by_waiting ) ).
     CATCH zcx_allocation INTO DATA(lx_error).
       lt_line = VALUE #( ( lx_error->get_text( ) ) ).
   ENDTRY.

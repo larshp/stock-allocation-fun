@@ -198,6 +198,7 @@ in, which is also the order they make sense in.
 131. the transfer has a history too
 132. and the answer over RFC knows about transfers too
 133. the worklist says how long a line has been short
+134. chasing the chronic ones is a different morning
 
 ## Progress
 
@@ -3934,3 +3935,25 @@ and the list a planner actually works through did not show it.
   used for the rest of them.
 - **A line short for the first time tonight shows nothing.** An empty column
   is the answer: there is no wait to report, and a date would suggest one.
+
+### Feature 134 — chasing the chronic ones is a different morning (done)
+
+The worklist is ordered by the day the goods are wanted, which is right for
+the morning somebody is fighting today's deliveries. It is wrong for the other
+morning: the one where a planner sits down to deal with the lines that have
+been short for weeks, none of which is urgent today and all of which will be
+urgent eventually.
+
+Ticking **Longest waiting first** reorders the same list by how long each line
+has been short.
+
+- **A line that has never been short before goes last, not first.** Its wait
+  is empty, and an empty date sorts before every real one; the sort key uses a
+  date far in the future for "no wait at all" so that the list reads the way
+  it says it does.
+- **The wait is now part of the line rather than looked up while printing.**
+  It has to be, to sort by it -- and it is the same read either way, once per
+  material.
+- **The two orders are the two questions.** Nothing about the selection or the
+  filtering changes; a planner who wants both runs the report twice, which is
+  cheaper than a list ordered by neither.

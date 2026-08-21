@@ -20,6 +20,10 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_store     TYPE REF TO zif_allocation_store
         io_authority TYPE REF TO zif_allocation_authority.
 
+    "! Longest waiting first, for a planner chasing the chronic ones rather
+    "! than the urgent ones. Anything else is the soonest wanted first.
+    CONSTANTS c_by_waiting TYPE c LENGTH 1 VALUE 'W'.
+
     "! <p class="shorttext synchronized">Everything in a plant that did not get what it asked for</p>
     "!
     "! The display report answers "what happened to this material". This
@@ -31,6 +35,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_until       | <p class="shorttext synchronized">Only lines wanted by this day, all if empty</p>
     "! @parameter iv_top         | <p class="shorttext synchronized">Most lines to show, all if zero</p>
     "! @parameter iv_dispo       | <p class="shorttext synchronized">MRP controller, every one if empty</p>
+    "! @parameter iv_sort        | <p class="shorttext synchronized">W for longest waiting first</p>
     "! @parameter iv_kunnr       | <p class="shorttext synchronized">Customer, every one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be displayed</p>
@@ -41,6 +46,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_top         TYPE i DEFAULT 0
         iv_dispo       TYPE marc-dispo OPTIONAL
         iv_kunnr       TYPE vbak-kunnr OPTIONAL
+        iv_sort        TYPE c DEFAULT space
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -68,15 +74,28 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mv_since_of TYPE mard-matnr.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
+    "! A short line with the wait that goes with it: what the list shows and
+    "! what one of its two orders sorts by.
+    TYPES:
+      BEGIN OF ty_short,
+        line    TYPE zif_allocation_store=>ty_recorded,
+        waiting TYPE d,
+      END OF ty_short.
+    TYPES ty_short_tab TYPE STANDARD TABLE OF ty_short WITH EMPTY KEY.
+
+    "! A line that has not been short before sorts behind every line that has.
+    CONSTANTS c_no_wait TYPE d VALUE '99991231'.
+
     METHODS short_lines
       IMPORTING
-        it_recorded        TYPE zif_allocation_store=>ty_recorded_tab
-        iv_until           TYPE d
-        iv_werks           TYPE mard-werks
-        iv_dispo           TYPE marc-dispo
-        iv_kunnr           TYPE vbak-kunnr
+        it_recorded     TYPE zif_allocation_store=>ty_recorded_tab
+        iv_until        TYPE d
+        iv_werks        TYPE mard-werks
+        iv_dispo        TYPE marc-dispo
+        iv_kunnr        TYPE vbak-kunnr
+        iv_sort         TYPE c
       RETURNING
-        VALUE(rt_recorded) TYPE zif_allocation_store=>ty_recorded_tab.
+        VALUE(rt_short) TYPE ty_short_tab.
 
     METHODS format_row
       IMPORTING
@@ -103,7 +122,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_demand_id    TYPE zif_allocation=>ty_demand_id
         iv_werks        TYPE mard-werks
       RETURNING
-        VALUE(rv_since) TYPE string.
+        VALUE(rv_since) TYPE d.
 
     METHODS date_text
       IMPORTING
@@ -144,7 +163,8 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       iv_until    = iv_until
       iv_werks    = iv_werks
       iv_dispo    = iv_dispo
-      iv_kunnr    = iv_kunnr ).
+      iv_kunnr    = iv_kunnr
+      iv_sort     = iv_sort ).
 
     APPEND |Plant { iv_werks }, what is short| TO rt_line.
 
@@ -172,19 +192,18 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         EXIT.
       ENDIF.
       lv_shown = lv_shown + 1.
-      lv_short = lv_short + ls_short-shortfall.
+      lv_short = lv_short + ls_short-line-shortfall.
 
       APPEND format_row(
-        iv_date   = date_text( ls_short-req_date )
-        iv_matnr  = |{ ls_short-matnr }|
-        iv_id     = |{ ls_short-demand_id }|
-        iv_kunnr  = |{ ls_short-customer }|
-        iv_short  = |{ ls_short-shortfall }|
-        iv_uom    = unit_of( ls_short-matnr )
-        iv_since  = since_of( iv_matnr     = ls_short-matnr
-                              iv_demand_id = ls_short-demand_id
-                              iv_werks     = iv_werks )
-        iv_reason = zcl_alloc_reason_text=>text( ls_short-reason ) ) TO rt_line.
+        iv_date   = date_text( ls_short-line-req_date )
+        iv_matnr  = |{ ls_short-line-matnr }|
+        iv_id     = |{ ls_short-line-demand_id }|
+        iv_kunnr  = |{ ls_short-line-customer }|
+        iv_short  = |{ ls_short-line-shortfall }|
+        iv_uom    = unit_of( ls_short-line-matnr )
+        iv_since  = COND string( WHEN ls_short-waiting <> c_no_wait
+                                 THEN |{ ls_short-waiting DATE = ISO }| )
+        iv_reason = zcl_alloc_reason_text=>text( ls_short-line-reason ) ) TO rt_line.
 
     ENDLOOP.
 
@@ -235,7 +254,12 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      APPEND ls_recorded TO rt_recorded.
+      APPEND VALUE #(
+        line    = ls_recorded
+        waiting = since_of(
+          iv_matnr     = ls_recorded-matnr
+          iv_demand_id = ls_recorded-demand_id
+          iv_werks     = iv_werks ) ) TO rt_short.
 
     ENDLOOP.
 
@@ -243,10 +267,21 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
     " shortage more urgent than another. A line with no date is wanted now and
     " sorts first, which is what the initial date does anyway. Within a day the
     " biggest hole comes first, and the material keeps the order steady.
-    SORT rt_recorded BY req_date ASCENDING
-                        shortfall DESCENDING
-                        matnr ASCENDING
-                        demand_id ASCENDING.
+    SORT rt_short BY line-req_date ASCENDING
+                     line-shortfall DESCENDING
+                     line-matnr ASCENDING
+                     line-demand_id ASCENDING.
+
+    " unless the planner is chasing the chronic ones instead of the urgent
+    " ones, which is a different morning and a different list. The ones with
+    " no wait at all -- short for the first time tonight -- go to the bottom,
+    " where an initial date would otherwise put them first.
+    IF iv_sort = c_by_waiting.
+      SORT rt_short BY waiting ASCENDING
+                       line-req_date ASCENDING
+                       line-matnr ASCENDING
+                       line-demand_id ASCENDING.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -263,13 +298,15 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       mv_since_of = iv_matnr.
     ENDIF.
 
+    rv_since = c_no_wait.
+
     READ TABLE mt_since INTO DATA(ls_since)
       WITH KEY demand_id = iv_demand_id.
     IF sy-subrc <> 0.
       RETURN.
     ENDIF.
 
-    rv_since = |{ ls_since-since DATE = ISO }|.
+    rv_since = ls_since-since.
 
   ENDMETHOD.
 

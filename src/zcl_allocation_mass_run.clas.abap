@@ -117,22 +117,17 @@ CLASS zcl_allocation_mass_run DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! What the run was told to do, in the words a person would use. Rendered
     "! where the settings are known, which is the only place that knows all of
     "! them at once.
+    "!
+    "! The settings travel as one structure, for the reason feature 126 gives.
+    "! Twelve of them were listed here by hand and two rules added since were
+    "! never added to the list, so the line said less than the run did.
     CLASS-METHODS settings_text
       IMPORTING
-        io_strategy     TYPE REF TO zif_allocation_strategy
-        iv_horizon_days TYPE i
-        iv_lgort        TYPE mard-lgort
-        iv_cap_percent  TYPE i
-        iv_planned      TYPE abap_bool
-        iv_whole_units  TYPE abap_bool
-        iv_quota        TYPE abap_bool
-        iv_recut        TYPE abap_bool
-        iv_sto_priority TYPE zif_allocation=>ty_priority
-        iv_ship_days    TYPE i
-        iv_work_days    TYPE abap_bool
-        iv_age_days     TYPE i
+        is_settings    TYPE zif_alloc_config=>ty_config
+        io_strategy    TYPE REF TO zif_allocation_strategy
+        iv_recut       TYPE abap_bool
       RETURNING
-        VALUE(rv_text)  TYPE string.
+        VALUE(rv_text) TYPE string.
 
     METHODS short_lines
       IMPORTING
@@ -176,18 +171,9 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     " of the report. It was worked out here from the beginning and never
     " passed on, so every scheduled job wrote an empty settings line.
     DATA(lv_settings) = settings_text(
-      io_strategy     = io_strategy
-      iv_horizon_days = is_settings-horizon_days
-      iv_lgort        = is_settings-lgort
-      iv_cap_percent  = is_settings-cap_percent
-      iv_planned      = is_settings-planned
-      iv_whole_units  = is_settings-whole_units
-      iv_quota        = is_settings-quota
-      iv_recut        = iv_recut
-      iv_sto_priority = is_settings-sto_priority
-      iv_ship_days    = is_settings-ship_days
-      iv_work_days    = is_settings-work_days
-      iv_age_days     = is_settings-age_days ).
+      is_settings = is_settings
+      io_strategy = io_strategy
+      iv_recut    = iv_recut ).
 
     ro_mass_run = NEW zcl_allocation_mass_run(
       io_service  = zcl_allocation_service=>create_default(
@@ -360,28 +346,32 @@ CLASS zcl_allocation_mass_run IMPLEMENTATION.
     ENDIF.
 
     rv_text = |{ lv_strategy }| &&
-              COND string( WHEN iv_horizon_days > 0
-                           THEN |, horizon { iv_horizon_days } day(s)| ) &&
-              COND string( WHEN iv_lgort IS NOT INITIAL
-                           THEN |, location { iv_lgort }| ) &&
-              COND string( WHEN iv_cap_percent > 0
-                           THEN |, cap { iv_cap_percent } percent| ) &&
-              COND string( WHEN iv_planned = abap_true
+              COND string( WHEN is_settings-horizon_days > 0
+                           THEN |, horizon { is_settings-horizon_days } day(s)| ) &&
+              COND string( WHEN is_settings-lgort IS NOT INITIAL
+                           THEN |, location { is_settings-lgort }| ) &&
+              COND string( WHEN is_settings-cap_percent > 0
+                           THEN |, cap { is_settings-cap_percent } percent| ) &&
+              COND string( WHEN is_settings-planned = abap_true
                            THEN `, plan counts` ) &&
-              COND string( WHEN iv_whole_units = abap_true
+              COND string( WHEN is_settings-whole_units = abap_true
                            THEN `, whole units` ) &&
-              COND string( WHEN iv_quota = abap_true
+              COND string( WHEN is_settings-min_percent > 0
+                           THEN |, nothing under { is_settings-min_percent } percent of a line| ) &&
+              COND string( WHEN is_settings-quota = abap_true
                            THEN `, quotas` ) &&
-              COND string( WHEN iv_sto_priority IS NOT INITIAL
-                           THEN |, transfers at { iv_sto_priority }| ) &&
-              COND string( WHEN iv_ship_days > 0
-                           THEN |, { iv_ship_days } day(s) to ship| ) &&
-              COND string( WHEN iv_ship_days > 0 AND iv_work_days = abap_true
+              COND string( WHEN is_settings-sto_priority IS NOT INITIAL
+                           THEN |, transfers at { is_settings-sto_priority }| ) &&
+              COND string( WHEN is_settings-ship_days > 0
+                           THEN |, { is_settings-ship_days } day(s) to ship| ) &&
+              COND string( WHEN is_settings-ship_days > 0 AND is_settings-work_days = abap_true
                            THEN ` in working days` ) &&
-              COND string( WHEN iv_age_days > 0
-                           THEN |, a place per { iv_age_days } day(s) waited| ) &&
+              COND string( WHEN is_settings-age_days > 0
+                           THEN |, a place per { is_settings-age_days } day(s) waited| ) &&
               COND string( WHEN iv_recut = abap_true
-                           THEN `, re-cut` ).
+                           THEN `, re-cut` ) &&
+              COND string( WHEN is_settings-firm_days > 0
+                           THEN |, firm for { is_settings-firm_days } day(s)| ).
 
   ENDMETHOD.
 

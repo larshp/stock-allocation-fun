@@ -830,11 +830,15 @@ CLASS ltcl_settings_line DEFINITION FINAL FOR TESTING
         iv_ship_days       TYPE i DEFAULT 0
         iv_work_days       TYPE abap_bool DEFAULT abap_false
         iv_age_days        TYPE i DEFAULT 0
+        iv_min_percent     TYPE i DEFAULT 0
+        iv_firm_days       TYPE i DEFAULT 0
       RETURNING
         VALUE(rv_settings) TYPE string.
 
     METHODS a_default_run_says_its_rule FOR TESTING.
     METHODS the_newest_rules_are_named FOR TESTING.
+    METHODS the_bar_is_named_too FOR TESTING.
+    METHODS the_firm_zone_is_named_too FOR TESTING.
     METHODS what_is_off_is_not_mentioned FOR TESTING.
 
 ENDCLASS.
@@ -845,10 +849,12 @@ CLASS ltcl_settings_line IMPLEMENTATION.
   METHOD settings_of.
 
     rv_settings = zcl_allocation_mass_run=>create_default( VALUE #(
-      quota     = iv_quota
-      ship_days = iv_ship_days
-      work_days = iv_work_days
-      age_days  = iv_age_days ) )->settings( ).
+      quota       = iv_quota
+      ship_days   = iv_ship_days
+      work_days   = iv_work_days
+      age_days    = iv_age_days
+      min_percent = iv_min_percent
+      firm_days   = iv_firm_days ) )->settings( ).
 
   ENDMETHOD.
 
@@ -880,6 +886,25 @@ CLASS ltcl_settings_line IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lv_settings
       exp = '*a place per 7 day(s) waited*' ).
+
+  ENDMETHOD.
+
+  METHOD the_bar_is_named_too.
+
+    " the bar of feature 141 was added to the run and not to the line that
+    " says what the run was set to do, which is the same defect feature 103
+    " was: a header that leaves a rule out is read as a run without it
+    cl_abap_unit_assert=>assert_char_cp(
+      act = settings_of( iv_min_percent = 25 )
+      exp = '*25 percent of a line*' ).
+
+  ENDMETHOD.
+
+  METHOD the_firm_zone_is_named_too.
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = settings_of( iv_firm_days = 3 )
+      exp = '*firm for 3 day(s)*' ).
 
   ENDMETHOD.
 

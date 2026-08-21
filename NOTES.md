@@ -211,6 +211,7 @@ in, which is also the order they make sense in.
 144. the check knows the commonest mistake
 145. would you take the other size
 146. what ships this week is not taken back
+147. the settings line takes the settings as one thing
 
 ## Progress
 
@@ -4216,3 +4217,20 @@ is re-cut every night, which is the point of running again.
   outranks it; both of them outrank the rationing rules.
 - **A floor of nothing is no floor.** A line the last run confirmed nothing
   for is left to the rules, or it would be answered twice.
+
+### Feature 147 — the settings line takes the settings as one thing (done)
+
+`SETTINGS_TEXT` listed twelve settings by hand, and two rules added since --
+the bar of feature 141 and the firm zone of feature 146 -- were never added to
+the list. A header that leaves a rule out is read as a run without it, which
+is the defect of feature 103 in a smaller shape.
+
+- **It takes `TY_CONFIG` now**, like everything else since feature 126. A rule
+  added to the settings is a rule the line can say, rather than a parameter
+  somebody has to remember to add in two places.
+- **`IV_RECUT` stays a parameter of its own**, because it is a property of the
+  run and not of the plant: the same Customizing produces a re-cut or an
+  ordinary night depending on what was asked for.
+- **The bar and the firm zone are on the line**, and both are tested for. What
+  a run was set to do is the one thing the log has to be able to say a week
+  later, when nobody remembers what the Customizing looked like that night.

@@ -91,6 +91,11 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_gross     TYPE REF TO zif_demand_reader.
     DATA mo_engine    TYPE REF TO zcl_allocation_engine.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+
+    "! The material being explained, so that the parts of the page that have
+    "! to ask the documents something know what to ask about.
+    DATA mv_matnr TYPE mard-matnr.
+    DATA mv_werks TYPE mard-werks.
     DATA mv_today     TYPE d.
 
     METHODS unit_of
@@ -109,6 +114,13 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
     METHODS supply_lines
       IMPORTING
         it_supply      TYPE zif_supply_reader=>ty_supply_tab
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab.
+
+    METHODS why_nothing_is_waiting
+      IMPORTING
+        iv_matnr       TYPE mard-matnr
+        iv_werks       TYPE mard-werks
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab.
 
@@ -215,6 +227,9 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
     DATA lt_gross TYPE zif_allocation=>ty_demand_tab.
 
     mo_authority->check_plant( iv_werks ).
+
+    mv_matnr = iv_matnr.
+    mv_werks = iv_werks.
 
     APPEND |Material { iv_matnr } in plant { iv_werks }| &&
            COND string( WHEN unit_of( iv_matnr ) IS NOT INITIAL
@@ -345,6 +360,49 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD why_nothing_is_waiting.
+
+    " "nothing is waiting" is true of a material nobody has ordered and of one
+    " whose every order was thrown out by a filter, and those are not the same
+    " news at all. The readers cannot say which, because by the time they have
+    " finished there is nothing left to say it about, so the explanation asks
+    " the documents itself -- the one place in the solution that reads them a
+    " second way, and the reason is that it is explaining the first way.
+    SELECT SINGLE lvorm
+      FROM mara
+      WHERE matnr = @iv_matnr
+      INTO @DATA(lv_flagged).
+    IF sy-subrc = 0 AND lv_flagged <> space.
+      APPEND `  the material is flagged for deletion` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE lvorm
+      FROM marc
+      WHERE matnr = @iv_matnr
+        AND werks = @iv_werks
+      INTO @DATA(lv_plant_flag).
+    IF sy-subrc = 0 AND lv_plant_flag <> space.
+      APPEND `  the material is flagged for deletion in this plant` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    SELECT COUNT( * )
+      FROM vbap
+      WHERE matnr = @iv_matnr
+        AND werks = @iv_werks
+      INTO @DATA(lv_items).
+    IF sy-subrc <> 0 OR lv_items = 0.
+      APPEND `  no sales order line has ever asked for it here` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    APPEND |  { lv_items } sales order line(s) exist and none of them counts: | &&
+           |delivered, rejected, blocked, credit blocked, on its own stock, | &&
+           |or beyond the horizon| TO rt_line.
+
+  ENDMETHOD.
+
   METHOD demand_lines.
 
     " typed explicitly: an inline declaration from arithmetic loses the
@@ -357,6 +415,9 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
 
     IF it_demand IS INITIAL.
       APPEND `  nothing` TO rt_line.
+      APPEND LINES OF why_nothing_is_waiting(
+        iv_matnr = mv_matnr
+        iv_werks = mv_werks ) TO rt_line.
       RETURN.
     ENDIF.
 

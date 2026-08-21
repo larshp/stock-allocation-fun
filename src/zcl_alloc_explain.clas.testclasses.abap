@@ -101,6 +101,13 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
 
     METHODS setup.
 
+    METHODS says
+      IMPORTING
+        it_line       TYPE zcl_alloc_explain=>ty_line_tab
+        iv_text       TYPE string
+      RETURNING
+        VALUE(rv_has) TYPE abap_bool.
+
     METHODS explained
       IMPORTING
         it_supply      TYPE zif_supply_reader=>ty_supply_tab
@@ -121,6 +128,9 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS a_promise_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS a_quota_is_said_out_loud FOR TESTING RAISING cx_static_check.
     METHODS the_unit_is_on_the_heading FOR TESTING RAISING cx_static_check.
+    METHODS nobody_ever_ordered_it FOR TESTING RAISING cx_static_check.
+    METHODS a_deletion_flag_is_said FOR TESTING RAISING cx_static_check.
+    METHODS every_line_thrown_out FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -129,6 +139,17 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
 
   METHOD setup.
     mo_authority = NEW lcl_authority_double( ).
+  ENDMETHOD.
+
+  METHOD says.
+
+    LOOP AT it_line INTO DATA(lv_line).
+      IF lv_line CS iv_text.
+        rv_has = abap_true.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
   ENDMETHOD.
 
   METHOD explained.
@@ -395,6 +416,69 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
     cl_abap_unit_assert=>assert_char_cp(
       act = lt_line[ 1 ]
       exp = '*quantities in KG*' ).
+
+  ENDMETHOD.
+
+  METHOD nobody_ever_ordered_it.
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    " "nothing is waiting" is true of a material nobody has ordered and of one
+    " whose orders were all thrown out, and they are not the same news
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = lt_line
+                  iv_text = `no sales order line has ever asked for it here` )
+      msg = 'an empty page has to say which kind of empty it is' ).
+
+  ENDMETHOD.
+
+  METHOD a_deletion_flag_is_said.
+
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+
+    lt_mara = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr mtart = 'FERT' meins = 'PC' lvorm = 'X' ) ).
+    INSERT mara FROM TABLE @lt_mara.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM mara WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true( says( it_line = lt_line
+                                            iv_text = `flagged for deletion` ) ).
+
+  ENDMETHOD.
+
+  METHOD every_line_thrown_out.
+
+    DATA lt_vbap TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
+
+    lt_vbap = VALUE #(
+      ( mandt = sy-mandt vbeln = '0000098001' posnr = '000010'
+        matnr = c_matnr werks = c_werks vrkme = 'PC' kwmeng = '10'
+        lprio = '01' abgru = '01' ) ).
+    INSERT vbap FROM TABLE @lt_vbap.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DELETE FROM vbap WHERE vbeln = '0000098001'.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    " a rejected line is still a line somebody typed, and "none of them
+    " counts" is the answer that stops a planner looking for the order
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = lt_line
+                  iv_text = `none of them counts` )
+      msg = 'a material with orders and no demand is the confusing case' ).
 
   ENDMETHOD.
 ENDCLASS.

@@ -203,6 +203,7 @@ in, which is also the order they make sense in.
 136. stock held for demand that is gone
 137. the night, written down
 138. the night check keeps quiet when there is nothing to say
+139. which kind of empty
 
 ## Progress
 
@@ -4034,3 +4035,24 @@ not covered, unless the box is unticked.
   conditional.
 - **The default is to keep quiet.** A check installed by somebody who did not
   read the documentation should behave the way monitoring is supposed to.
+
+### Feature 139 — which kind of empty (done)
+
+"Nothing is waiting for this material" is true of a material nobody has ever
+ordered and of one whose every order was thrown out by a filter, and those are
+not the same news. The second is the case somebody is actually looking at when
+they run the explanation, and the page said nothing about it -- by the time
+the readers have finished there is nothing left to say it about.
+
+The explanation now says which kind of empty it is: flagged for deletion here
+or everywhere, never ordered at all, or so many lines that exist and none of
+them counting.
+
+- **It reads the documents a second way, and that is the point.** Everywhere
+  else in this solution a second reader of the same tables would be a second
+  implementation of a rule. Here the job is to explain the first one, and the
+  question -- "are there any lines at all" -- is one the readers cannot answer
+  because they have already thrown them away.
+- **It does not say which filter.** Listing the six that could have done it is
+  honest and cheap; working out which one did would mean reading every filter
+  a second time and getting one of them subtly wrong.

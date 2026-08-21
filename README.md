@@ -109,6 +109,7 @@ what is no longer holding anything back.
 | `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
+| `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_HIST`  | what every run so far decided about one sales order, run by run, and how long it has been going short |
@@ -132,6 +133,7 @@ one writes to the same application log as an allocation run.
 | `ZSTOCK_ALLOC_CFG`  | the settings of a plant: distribution rule, horizon, storage location, customer cap, whether planned orders and requisitions count as supply, whether confirmations are cut to whole order units, whether customers are held to their quotas, where a stock transport order stands against a customer order, how many days it takes to get goods out of the door and whether those are working days, how long a line may go short before it moves up the queue, whether a promise counts demand nobody has confirmed yet, and how long a recorded run is kept |
 | `ZSTOCK_ALLOC_PRI`  | which customers are served before the rest, once per customer, for one plant or for all of them |
 | `ZSTOCK_ALLOC_HLD`  | materials the plant has put on hold, with a reason and optionally a day the hold lifts by itself |
+| `ZSTOCK_ALLOC_SUB`  | materials that could stand in for another one in a plant, how many of them make one of it, and what a planner should know before offering it |
 | `ZSTOCK_ALLOC_FIX`  | quantities somebody has promised a demand line by hand, served before the distribution rules see the stock, with a last day and a note of who promised it |
 | `ZSTOCK_ALLOC_QTA`  | how much of a material one customer may take in a period, per plant; a row naming no customer is the rule of the house |
 | `ZSTOCK_ALLOC_EXT`  | classes of your own that join the run as a source of supply or of demand, for one plant or for all of them |

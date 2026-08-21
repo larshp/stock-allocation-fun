@@ -3368,3 +3368,30 @@ The run now gives up on the plant after twenty consecutive failures.
   otherwise a night that stopped would report one more material than it has.
 - **Twenty is a constant, not a setting.** A plant that wants to tune how long
   a broken night grinds on is a plant answering the wrong question.
+
+### Feature 108 — what could stand in for what is short (done)
+
+The allocation deals in one material at a time, and it is right to: a
+reservation is against a material, and stock of another one is not the stock
+this line was sold. But the first thing a planner does on a short morning is
+ask whether the customer would take the other size, and answering that means
+looking up half a dozen materials in MMBE one at a time.
+
+`ZSTOCK_ALLOC_ALT` does the looking up: every material short in the last run,
+against what the plant has said could stand in for it.
+
+- **It allocates nothing and reserves nothing.** Deciding to offer a
+  substitute is a person's job, and carrying it out is a change to the order,
+  not to the allocation. Anything else would need the result to say which
+  material a confirmation came off, and that is a different solution.
+- **What a substitute has is read the way the run reads it**, through
+  `CREATE_DEFAULT_SUPPLY` with the plant's own locations and its view of the
+  plan. Offering a planner stock the run would not have allocated is offering
+  stock that is not there.
+- **On the shelf and coming are separate columns.** They are different offers
+  to make a customer, and one column of the two added up is neither.
+- **The factor is part of the arrangement.** Two of the substitute making one
+  of the material is common enough -- a half-size, a twin pack -- and a table
+  that ignored it would show a planner twice the cover there is.
+- **It covers at most the gap.** A warehouse full of the substitute still only
+  answers the shortage in front of it.

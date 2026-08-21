@@ -143,6 +143,33 @@ in, which is also the order they make sense in.
 76. a material on its way out is left alone
 77. a promise that counts what is already on the books
 78. the spool says what the run was set to do
+79. the diary says what was given back
+80. a plant can put a material on hold
+81. an explanation that goes quiet is no explanation
+82. the hold list is read once, not once per material
+83. the rest of the plant's tables, read once
+84. what would change if we re-ran now
+85. a customer can add its own source in Customizing
+86. how much a customer may take in a month
+87. a line that keeps losing moves up the queue
+88. what one more order would cost
+89. giving stock back by hand
+90. the quota under the property test
+91. an authorization object of our own
+92. the preview was previewing something else
+93. reading the plant's settings belongs to the factory
+94. what has been happening to my order
+95. the indexes the readers of the recorded runs need
+96. how the quotas stand
+97. scheduling the split night in one go
+98. the shipping time in working days
+99. the promise and the what-if count the same days
+100. the newest rules through the real wiring
+101. what the night did not get to
+102. an order finance has blocked takes no stock
+103. the settings line nobody was writing
+104. a quantity somebody promised by hand
+105. a promise runs out, and can be looked at
 
 ## Progress
 

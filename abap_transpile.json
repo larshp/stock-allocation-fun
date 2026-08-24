@@ -1,0 +1,15 @@
+{
+  "inputFolder": "/src",
+  "outputFolder": "output",
+  "libs": [
+    {
+      "folder": "/deps/open-abap-core/src",
+      "url": "https://github.com/open-abap/open-abap-core"
+    },
+    {
+      "folder": "/stubs/src"
+    }
+  ],
+  "writeUnitTests": true,
+  "writeSourceMaps": true
+}

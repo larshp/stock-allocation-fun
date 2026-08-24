@@ -37,8 +37,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       exp = '5'
-      act  = ls_result-allocations[ 1 ]-qty_alloc
-      msg  = 'full allocation expected' ).
+      act = condense( val = |{ ls_result-allocations[ 1 ]-qty_alloc }| )
+      msg = 'full allocation expected' ).
     cl_abap_unit_assert=>assert_initial( ls_result-qty_shortage ).
   ENDMETHOD.
 
@@ -55,13 +55,13 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
         iv_matnr = 'MAT2' iv_werks = '1000' ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp  = '3'
-      act  = ls_result-allocations[ 1 ]-qty_alloc
-      msg  = 'partial allocation expected' ).
+      exp = '3'
+      act = condense( val = |{ ls_result-allocations[ 1 ]-qty_alloc }| )
+      msg = 'partial allocation expected' ).
     cl_abap_unit_assert=>assert_equals(
-      exp  = '5'
-      act  = ls_result-qty_shortage
-      msg  = 'shortage of 5 expected' ).
+      exp = '5'
+      act = condense( val = |{ ls_result-qty_shortage }| )
+      msg = 'shortage of 5 expected' ).
   ENDMETHOD.
 
 
@@ -76,9 +76,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_initial( ls_result-allocations[ 1 ]-qty_alloc ).
     cl_abap_unit_assert=>assert_equals(
-      exp  = '4'
-      act  = ls_result-qty_shortage
-      msg  = 'full shortage expected' ).
+      exp = '4'
+      act = condense( val = |{ ls_result-qty_shortage }| )
+      msg = 'full shortage expected' ).
   ENDMETHOD.
 
 
@@ -96,9 +96,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
         iv_matnr = 'MAT4' iv_werks = '1000' ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp  = '7'
-      act  = ls_result-allocations[ 1 ]-qty_alloc
-      msg  = 'combined allocation across locations expected' ).
+      exp = '7'
+      act = condense( val = |{ ls_result-allocations[ 1 ]-qty_alloc }| )
+      msg = 'combined allocation across locations expected' ).
     cl_abap_unit_assert=>assert_initial( ls_result-qty_shortage ).
   ENDMETHOD.
 
@@ -119,13 +119,13 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     SORT ls_result-allocations BY vbeln.
     cl_abap_unit_assert=>assert_equals(
-      exp  = '3'
-      act  = ls_result-allocations[ 1 ]-qty_alloc
-      msg  = 'first FIFO order fully allocated' ).
+      exp = '3'
+      act = condense( val = |{ ls_result-allocations[ 1 ]-qty_alloc }| )
+      msg = 'first FIFO order fully allocated' ).
     cl_abap_unit_assert=>assert_equals(
-      exp  = '2'
-      act  = ls_result-allocations[ 2 ]-qty_alloc
-      msg  = 'second FIFO order partially allocated' ).
+      exp = '2'
+      act = condense( val = |{ ls_result-allocations[ 2 ]-qty_alloc }| )
+      msg = 'second FIFO order partially allocated' ).
   ENDMETHOD.
 
 

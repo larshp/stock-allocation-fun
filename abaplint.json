@@ -8,12 +8,16 @@
   "dependencies": [
     {
       "url": "https://github.com/open-abap/open-abap-core",
-      "folder": "/deps",
+      "folder": "/deps/open-abap-core",
+      "files": "/src/**/*.*"
+    },
+    {
+      "folder": "/stubs",
       "files": "/src/**/*.*"
     }
   ],
   "syntax": {
-    "version": "v750",
+    "version": "open-abap",
     "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)",
     "globalConstants": [],
     "globalMacros": []

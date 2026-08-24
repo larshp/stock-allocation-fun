@@ -8,12 +8,12 @@ CLASS zcl_stock_allocator DEFINITION
 
   PUBLIC SECTION.
     TYPES: BEGIN OF ty_allocation,
-             vbeln     TYPE vbap-vbeln,      " sales order
-             posnr    TYPE vbap-posnr,      " item
-             matnr    TYPE vbap-matnr,      " material
-             werks    TYPE vbap-werks,      " plant
-             lgort    TYPE mard-lgort,      " storage location allocated from
-             qty_req  TYPE kwmeng,          " requested quantity
+             vbeln     TYPE vbap-vbeln,     " sales order
+             posnr     TYPE vbap-posnr,     " item
+             matnr     TYPE vbap-matnr,     " material
+             werks     TYPE vbap-werks,     " plant
+             lgort     TYPE mard-lgort,     " storage location allocated from
+             qty_req   TYPE kwmeng,         " requested quantity
              qty_alloc TYPE kwmeng,         " allocated quantity
            END OF ty_allocation.
     TYPES tt_allocations TYPE STANDARD TABLE OF ty_allocation WITH DEFAULT KEY.
@@ -26,20 +26,21 @@ CLASS zcl_stock_allocator DEFINITION
     "! Run allocation for one material at a plant across all storage locations
     CLASS-METHODS allocate_material
       IMPORTING
-        iv_matnr        TYPE matnr
-        iv_werks        TYPE werks_d
+        iv_matnr         TYPE matnr
+        iv_werks         TYPE werks_d
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
+    TYPES tt_mard TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
     "! Sum available stock across all storage locations for material/plant
     CLASS-METHODS get_available_stock
       IMPORTING
-        iv_matnr          TYPE matnr
-        iv_werks          TYPE werks_d
+        iv_matnr       TYPE matnr
+        iv_werks       TYPE werks_d
       RETURNING
-        VALUE(rt_mard)    TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
+        VALUE(rt_mard) TYPE tt_mard.
 
 ENDCLASS.
 

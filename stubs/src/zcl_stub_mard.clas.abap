@@ -10,23 +10,24 @@ CLASS zcl_stub_mard DEFINITION PUBLIC FINAL CREATE PUBLIC.
              werks TYPE werks_d,
              lgort TYPE lgort_d,
            END OF ty_mard_key.
+    TYPES tt_mard TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
 
     "! Read a single MARD record (simulates SELECT SINGLE from MARD)
     CLASS-METHODS read_single
       IMPORTING
         iv_matnr       TYPE matnr
-        iv_werks        TYPE werks_d
-        iv_lgort        TYPE lgort_d
+        iv_werks       TYPE werks_d
+        iv_lgort       TYPE lgort_d
       RETURNING
-        VALUE(rs_mard)  TYPE mard.
+        VALUE(rs_mard) TYPE mard.
 
     "! Read all MARD records for one material/plant (simulates SELECT from MARD)
     CLASS-METHODS read_by_material_plant
       IMPORTING
-        iv_matnr         TYPE matnr
-        iv_werks         TYPE werks_d
+        iv_matnr       TYPE matnr
+        iv_werks       TYPE werks_d
       RETURNING
-        VALUE(rt_mard)   TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
+        VALUE(rt_mard) TYPE tt_mard.
 
     "! Test helper: insert/overwrite a simulated MARD row (in-memory)
     CLASS-METHODS insert_row
@@ -38,7 +39,7 @@ CLASS zcl_stub_mard DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
-    CLASS-DATA gt_mard TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
+    CLASS-DATA gt_mard TYPE tt_mard.
 
 ENDCLASS.
 

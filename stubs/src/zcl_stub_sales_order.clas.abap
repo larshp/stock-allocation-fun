@@ -5,22 +5,22 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     TYPES: BEGIN OF ty_order_item,
              vbeln  TYPE vbap-vbeln,
-             posnr TYPE vbap-posnr,
-             matnr TYPE vbap-matnr,
+             posnr  TYPE vbap-posnr,
+             matnr  TYPE vbap-matnr,
              kwmeng TYPE vbap-kwmeng,   " order quantity
-             vrkme TYPE vbap-vrkme,     " sales unit
-             werks TYPE vbap-werks,
-             lgort TYPE vbap-lgort,
+             vrkme  TYPE vbap-vrkme,    " sales unit
+             werks  TYPE vbap-werks,
+             lgort  TYPE vbap-lgort,
            END OF ty_order_item.
     TYPES tt_order_items TYPE STANDARD TABLE OF ty_order_item WITH DEFAULT KEY.
 
     "! Read open order items for a material at a plant
     CLASS-METHODS read_open_items
       IMPORTING
-        iv_matnr          TYPE matnr
-        iv_werks          TYPE werks_d
+        iv_matnr        TYPE matnr
+        iv_werks        TYPE werks_d
       RETURNING
-        VALUE(rt_items)   TYPE tt_order_items.
+        VALUE(rt_items) TYPE tt_order_items.
 
     "! Test helper: create a simulated open order item
     CLASS-METHODS add_item
@@ -30,9 +30,9 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Test helper: confirm quantity on an item (simulates delivery confirmation)
     CLASS-METHODS confirm_quantity
       IMPORTING
-        iv_vbeln  TYPE vbap-vbeln
-        iv_posnr  TYPE vbap-posnr
-        iv_qty    TYPE kwmeng.
+        iv_vbeln TYPE vbap-vbeln
+        iv_posnr TYPE vbap-posnr
+        iv_qty   TYPE kwmeng.
 
     "! Test helper: clear all simulated orders
     CLASS-METHODS clear.

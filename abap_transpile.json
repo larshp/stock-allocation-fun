@@ -1,15 +1,18 @@
 {
-  "inputFolder": "/src",
-  "outputFolder": "output",
+  "input_folder": ["src", "stubs/src"],
+  "output_folder": "output",
   "libs": [
     {
-      "folder": "/deps/open-abap-core/src",
       "url": "https://github.com/open-abap/open-abap-core"
-    },
-    {
-      "folder": "/stubs/src"
     }
   ],
-  "writeUnitTests": true,
-  "writeSourceMaps": true
+  "write_unit_tests": true,
+  "write_source_map": true,
+  "options": {
+    "ignoreSyntaxCheck": false,
+    "addFilenames": true,
+    "addCommonJS": true,
+    "unknownTypes": "compileError"
+  }
 }
+

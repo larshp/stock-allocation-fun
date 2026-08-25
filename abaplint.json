@@ -1,0 +1,62 @@
+{
+  "global": {
+    "files": "/src/**/*.*",
+    "skipGeneratedGatewayClasses": true,
+    "skipGeneratedPersistentClasses": true,
+    "skipGeneratedFunctionGroups": true
+  },
+  "dependencies": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": "/deps/open-abap-core",
+      "files": "/src/**/*.*"
+    },
+    {
+      "folder": "/stubs",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "syntax": {
+    "version": "open-abap",
+    "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)",
+    "globalConstants": [],
+    "globalMacros": []
+  },
+  "rules": {
+    "7bit_ascii": true,
+    "avoid_use": true,
+    "begin_end_names": true,
+    "check_syntax": true,
+    "class_attribute_names": true,
+    "colon_missing_space": true,
+    "commented_code": false,
+    "contains_tab": true,
+    "definitions_top": true,
+    "description_empty": true,
+    "empty_line_in_statement": true,
+    "exit_or_check": true,
+    "exporting": true,
+    "functional_writing": true,
+    "line_length": {
+      "length": 120
+    },
+    "max_one_method_parameter_per_line": true,
+    "modify_only_own_db_tables": true,
+    "align_type_expressions": true,
+    "easy_to_find_messages": true,
+    "align_parameters": true,
+    "local_testclass_consistency": true,
+    "allowed_object_naming": true,
+    "obsolete_statement": true,
+    "parser_error": true,
+    "remove_descriptions": false,
+    "sequential_blank": true,
+    "short_case": true,
+    "space_before_colon": true,
+    "space_before_dot": true,
+    "start_at_tab": false,
+    "superfluous_value": true,
+    "unreachable_code": true,
+    "whitespace_end": true
+  }
+}

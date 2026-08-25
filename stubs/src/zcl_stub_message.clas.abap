@@ -29,7 +29,7 @@ CLASS zcl_stub_message DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Build a message row (simulates MESSAGE ... INTO structure)
     CLASS-METHODS build
       IMPORTING
-        iv_msgty         TYPE symsgty
+        iv_msgty          TYPE symsgty
         iv_msgno         TYPE symsgno
         iv_msgv1         TYPE symsgv OPTIONAL
         iv_msgv2         TYPE symsgv OPTIONAL

@@ -11,6 +11,8 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
              vrkme  TYPE vbap-vrkme,    " sales unit
              werks  TYPE vbap-werks,
              lgort  TYPE vbap-lgort,
+             lprio  TYPE lprio,         " delivery priority (1 = highest)
+             auart  TYPE char4,         " sales document type
            END OF ty_order_item.
     TYPES tt_order_items TYPE STANDARD TABLE OF ty_order_item WITH DEFAULT KEY.
 
@@ -37,9 +39,32 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Test helper: clear all simulated orders
     CLASS-METHODS clear.
 
+    "! Test helper: number of open items currently simulated
+    CLASS-METHODS count_items
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+    "! Block an order type: its items are excluded from allocation
+    CLASS-METHODS block_order_type
+      IMPORTING
+        iv_auart TYPE char4.
+
+    "! Unblock an order type
+    CLASS-METHODS unblock_order_type
+      IMPORTING
+        iv_auart TYPE char4.
+
+    "! Check whether an order type is blocked
+    CLASS-METHODS is_blocked
+      IMPORTING
+        iv_auart          TYPE char4
+      RETURNING
+        VALUE(rv_blocked) TYPE abap_bool.
+
   PROTECTED SECTION.
   PRIVATE SECTION.
     CLASS-DATA gt_items TYPE tt_order_items.
+    CLASS-DATA gt_blocked_types TYPE STANDARD TABLE OF char4 WITH DEFAULT KEY.
 
 ENDCLASS.
 
@@ -51,6 +76,10 @@ CLASS zcl_stub_sales_order IMPLEMENTATION.
   METHOD read_open_items.
     LOOP AT gt_items INTO DATA(ls_item)
         WHERE matnr = iv_matnr AND werks = iv_werks.
+      " skip items of blocked order types
+      IF is_blocked( ls_item-auart ) = abap_true.
+        CONTINUE.
+      ENDIF.
       APPEND ls_item TO rt_items.
     ENDLOOP.
   ENDMETHOD.
@@ -75,6 +104,31 @@ CLASS zcl_stub_sales_order IMPLEMENTATION.
 
   METHOD clear.
     CLEAR gt_items.
+    CLEAR gt_blocked_types.
+  ENDMETHOD.
+
+
+  METHOD count_items.
+    rv_count = lines( gt_items ).
+  ENDMETHOD.
+
+
+  METHOD block_order_type.
+    IF is_blocked( iv_auart ) = abap_false.
+      APPEND iv_auart TO gt_blocked_types.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD unblock_order_type.
+    DELETE gt_blocked_types WHERE table_line = iv_auart.
+  ENDMETHOD.
+
+
+  METHOD is_blocked.
+    READ TABLE gt_blocked_types TRANSPORTING NO FIELDS
+      WITH KEY table_line = iv_auart.
+    rv_blocked = boolc( sy-subrc = 0 ).
   ENDMETHOD.
 
 

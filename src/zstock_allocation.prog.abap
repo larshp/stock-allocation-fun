@@ -1,66 +1,67 @@
 REPORT zstock_allocation.
 
 "! Stock allocation report
-"! Selects a material/plant, runs the allocation engine, posts the results
-"! and displays an allocation log.
+"! Selects materials/plant, runs the multi-material allocation engine
+"! (optionally as simulation), posts the results and displays a log.
 TABLES: mara.
 
 SELECT-OPTIONS: s_matnr FOR mara-matnr OBLIGATORY.
 PARAMETERS: p_werks TYPE werks_d OBLIGATORY,
-            p_post  TYPE abap_bool AS CHECKBOX DEFAULT abap_false,
-            p_test  TYPE abap_bool AS CHECKBOX DEFAULT abap_true.
+            p_sim   TYPE abap_bool AS CHECKBOX DEFAULT abap_false.
 
 START-OF-SELECTION.
-  PERFORM run_allocation USING s_matnr[] p_werks p_post.
+  PERFORM run_allocation USING s_matnr[] p_werks p_sim.
 
 FORM run_allocation USING lt_matnr LIKE s_matnr[]
                           lv_werks TYPE werks_d
-                          lv_post TYPE abap_bool.
-  DATA lt_allocations TYPE zcl_stock_allocator=>tt_allocations.
-  DATA lt_messages TYPE zcl_stub_message=>tt_message.
-  DATA lv_total_shortage TYPE kwmeng.
+                          lv_sim TYPE abap_bool.
+  DATA lt_materials TYPE zcl_stock_alloc_run=>tt_materials.
 
   LOOP AT lt_matnr INTO DATA(ls_matnr).
-    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
-        iv_matnr = ls_matnr-low
-        iv_werks = lv_werks ).
-    APPEND LINES OF ls_result-allocations TO lt_allocations.
-    APPEND LINES OF ls_result-messages TO lt_messages.
-    lv_total_shortage = lv_total_shortage + ls_result-qty_shortage.
+    APPEND VALUE zcl_stock_alloc_run=>ty_material( matnr = ls_matnr-low )
+        TO lt_materials.
   ENDLOOP.
 
-  IF lv_post = abap_true.
-    IF zcl_stock_allocator=>post_allocations(
-          it_allocations = lt_allocations ) = abap_true.
-      WRITE: / 'Posting completed successfully'.
-    ELSE.
-      WRITE: / 'Posting failed'.
-    ENDIF.
-    SKIP.
-  ENDIF.
+  DATA(ls_result) = zcl_stock_alloc_run=>run(
+      it_materials = lt_materials
+      iv_werks     = lv_werks
+      iv_simulate  = lv_sim ).
 
-  PERFORM display_results USING lt_allocations lt_messages lv_total_shortage.
+  PERFORM display_results USING ls_result.
 ENDFORM.
 
-FORM display_results USING lt_allocations TYPE zcl_stock_allocator=>tt_allocations
-                           lt_messages TYPE zcl_stub_message=>tt_message
-                           lv_total_shortage TYPE kwmeng.
+FORM display_results USING ls_result TYPE zcl_stock_alloc_run=>ty_run_result.
   WRITE: / 'Stock Allocation Results'.
+  IF ls_result-allocations IS NOT INITIAL AND ls_result-messages IS NOT INITIAL.
+    READ TABLE ls_result-messages INDEX 1 INTO DATA(ls_first_msg).
+    IF ls_first_msg-msgv1 = 'SIMULATION'.
+      WRITE: '(simulation - nothing posted)'.
+    ENDIF.
+  ENDIF.
   WRITE: / '======================='.
   SKIP.
-  LOOP AT lt_allocations ASSIGNING FIELD-SYMBOL(<ls_alloc>).
+  LOOP AT ls_result-allocations ASSIGNING FIELD-SYMBOL(<ls_alloc>).
     WRITE: / <ls_alloc>-vbeln,
              <ls_alloc>-posnr,
              <ls_alloc>-matnr,
+             <ls_alloc>-lprio,
              <ls_alloc>-lgort,
              <ls_alloc>-qty_req,
              <ls_alloc>-qty_alloc.
   ENDLOOP.
   SKIP.
-  LOOP AT lt_messages ASSIGNING FIELD-SYMBOL(<ls_msg>).
+  LOOP AT ls_result-messages ASSIGNING FIELD-SYMBOL(<ls_msg>).
     WRITE: / <ls_msg>-msgty, <ls_msg>-msgid, <ls_msg>-msgno,
              <ls_msg>-msgv1, <ls_msg>-msgv2.
   ENDLOOP.
   SKIP.
-  WRITE: / 'Total shortage:', lv_total_shortage.
+  WRITE: / 'Total shortage:', ls_result-qty_shortage.
+  SKIP.
+  WRITE: / 'Statistics:'.
+  WRITE: / '  Items processed :', ls_result-stats-items_total.
+  WRITE: / '  Fully allocated :', ls_result-stats-items_full.
+  WRITE: / '  Partially alloc.:', ls_result-stats-items_partial.
+  WRITE: / '  Not allocated   :', ls_result-stats-items_none.
+  WRITE: / '  Qty requested   :', ls_result-stats-qty_requested.
+  WRITE: / '  Qty allocated   :', ls_result-stats-qty_allocated.
 ENDFORM.

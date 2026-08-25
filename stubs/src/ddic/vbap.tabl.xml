@@ -49,6 +49,11 @@
      <ROLLNAME>LGORT_D</ROLLNAME>
      <COMPTYPE>E</COMPTYPE>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>LPRIO</FIELDNAME>
+     <ROLLNAME>LPRIO</ROLLNAME>
+     <COMPTYPE>E</COMPTYPE>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

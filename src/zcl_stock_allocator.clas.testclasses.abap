@@ -14,6 +14,13 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS post_reduces_stock FOR TESTING.
     METHODS post_confirms_order_qty FOR TESTING.
     METHODS allocation_messages_logged FOR TESTING.
+    METHODS post_min_qty_threshold FOR TESTING.
+    METHODS preferred_sloc_first FOR TESTING.
+    METHODS fefo_oldest_batch_first FOR TESTING.
+    METHODS fefo_undated_last FOR TESTING.
+    METHODS stats_collected FOR TESTING.
+    METHODS uom_conversion_applied FOR TESTING.
+    METHODS blocked_order_type_skipped FOR TESTING.
 
 ENDCLASS.
 
@@ -23,6 +30,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
   METHOD setup.
     zcl_stub_mard=>clear( ).
+    zcl_stub_uom=>clear( ).
     zcl_stub_sales_order=>clear( ).
   ENDMETHOD.
 
@@ -69,7 +77,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
 
   METHOD no_stock_shortage.
-    " no stock at all -> nothing allocated, full shortage
+    " no stock at all -> no allocation rows, full shortage
     zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
         vbeln = '0000000030' posnr = '000010' matnr = 'MAT3'
         kwmeng = '4' werks = '1000' lgort = '0001' ) ).
@@ -77,7 +85,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     DATA(ls_result) = zcl_stock_allocator=>allocate_material(
         iv_matnr = 'MAT3' iv_werks = '1000' ).
 
-    cl_abap_unit_assert=>assert_initial( ls_result-allocations[ 1 ]-qty_alloc ).
+    cl_abap_unit_assert=>assert_initial( ls_result-allocations ).
     cl_abap_unit_assert=>assert_equals(
       exp = '4.000'
       act = |{ ls_result-qty_shortage }|
@@ -86,7 +94,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
 
   METHOD multi_location_allocation.
-    " stock spread over two storage locations must be combined
+    " stock spread over two storage locations must be combined;
+    " now one allocation row per storage location is created
     zcl_stub_mard=>insert_row( VALUE mard(
         matnr = 'MAT4' werks = '1000' lgort = '0001' labst = '2' ) ).
     zcl_stub_mard=>insert_row( VALUE mard(
@@ -99,9 +108,17 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
         iv_matnr = 'MAT4' iv_werks = '1000' ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = '7.000'
+      exp = 2
+      act = lines( ls_result-allocations )
+      msg = 'two allocation rows expected (one per SLoc)' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
       act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
-      msg = 'combined allocation across locations expected' ).
+      msg = 'first location contributes 2 pieces' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = |{ ls_result-allocations[ 2 ]-qty_alloc }|
+      msg = 'second location covers the remaining 5 pieces' ).
     cl_abap_unit_assert=>assert_initial( ls_result-qty_shortage ).
   ENDMETHOD.
 
@@ -233,6 +250,310 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = zcl_stub_message=>gc_msgno-no_stock
       act = ls_msg2-msgno ).
+  ENDMETHOD.
+
+
+  METHOD post_min_qty_threshold.
+    " allocations below the minimum quantity stay open (not posted)
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATA1' werks = '1000' lgort = '0001' labst = '10' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000110' posnr = '000010' matnr = 'MATA1'
+        kwmeng = '8' werks = '1000' lgort = '0001' lprio = '2' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000111' posnr = '000010' matnr = 'MATA1'
+        kwmeng = '5' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATA1' iv_werks = '1000' ).
+
+    " stock 10: order 110 gets 8, order 111 gets only 2
+    DATA(lv_ok) = zcl_stock_allocator=>post_allocations(
+        it_allocations = ls_result-allocations
+        iv_min_qty     = '3' ).
+
+    cl_abap_unit_assert=>assert_true( lv_ok ).
+
+    " order 111 allocation of 2 is below threshold -> still open with 5
+    DATA(lt_items) = zcl_stub_sales_order=>read_open_items(
+        iv_matnr = 'MATA1' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_items )
+      msg = 'only the below-threshold item stays open' ).
+    IF lines( lt_items ) >= 1.
+      cl_abap_unit_assert=>assert_equals(
+        exp = '5.000'
+        act = |{ lt_items[ 1 ]-kwmeng }|
+        msg = 'open item keeps its full remaining quantity' ).
+    ENDIF.
+
+    " stock was reduced only by the posted 8 pieces
+    DATA(ls_mard) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATA1' iv_werks = '1000' iv_lgort = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = |{ ls_mard-labst }|
+      msg = 'stock reduced only by posted allocations' ).
+  ENDMETHOD.
+
+
+  METHOD preferred_sloc_first.
+    " stock spread over two locations; preferred one must be emptied first
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATB1' werks = '1000' lgort = '0001' labst = '4' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATB1' werks = '1000' lgort = '0002' labst = '6' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000120' posnr = '000010' matnr = 'MATB1'
+        kwmeng = '5' werks = '1000' lgort = '0002' lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material_with_sloc(
+        iv_matnr = 'MATB1'
+        iv_werks = '1000'
+        iv_lgort = '0002' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = 'full allocation across locations expected' ).
+    " everything taken from the preferred location 0002
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-allocations[ 1 ]-lgort
+      msg = 'preferred storage location used first' ).
+
+    " post the allocation: stock in 0002 drops from 6 to 1
+    DATA(lv_ok) = zcl_stock_allocator=>post_allocations(
+        it_allocations = ls_result-allocations ).
+    cl_abap_unit_assert=>assert_true( lv_ok ).
+
+    DATA(ls_mard_pref) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATB1' iv_werks = '1000' iv_lgort = '0002' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1.000'
+      act = |{ ls_mard_pref-labst }|
+      msg = 'preferred location stock reduced by posting' ).
+    DATA(ls_mard_other) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATB1' iv_werks = '1000' iv_lgort = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4.000'
+      act = |{ ls_mard_other-labst }|
+      msg = 'other location untouched by preferred run' ).
+  ENDMETHOD.
+
+
+  METHOD fefo_oldest_batch_first.
+    " three dated batches: FEFO must consume the oldest batch first
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATF1' werks = '1000' lgort = '0001'
+        labst = '3' bdatr = '20260601' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATF1' werks = '1000' lgort = '0002'
+        labst = '5' bdatr = '20260101' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATF1' werks = '1000' lgort = '0003'
+        labst = '7' bdatr = '20261201' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000130' posnr = '000010' matnr = 'MATF1'
+        kwmeng = '6' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material_fefo(
+        iv_matnr = 'MATF1' iv_werks = '1000' ).
+
+    " demand 6 split over two rows: oldest batch (0002) gives 5,
+    " second oldest (0001) covers the remaining 1
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocations )
+      msg = 'two allocation rows expected' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-allocations[ 1 ]-lgort
+      msg = 'oldest batch location used first' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = 'oldest batch fully consumed' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-allocations[ 2 ]-lgort
+      msg = 'second oldest batch covers remaining demand' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1.000'
+      act = |{ ls_result-allocations[ 2 ]-qty_alloc }|
+      msg = 'remaining demand taken from second batch' ).
+
+    " post and verify only the oldest batch was reduced
+    DATA(lv_ok) = zcl_stock_allocator=>post_allocations(
+        it_allocations = ls_result-allocations ).
+    cl_abap_unit_assert=>assert_true( lv_ok ).
+
+    DATA(ls_mard_oldest) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATF1' iv_werks = '1000' iv_lgort = '0002' ).
+    " 5 in oldest batch, 6 allocated: 5 from 0002 + 1 from next batch
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0.000'
+      act = |{ ls_mard_oldest-labst }|
+      msg = 'oldest batch fully consumed' ).
+    DATA(ls_mard_next) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATF1' iv_werks = '1000' iv_lgort = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = |{ ls_mard_next-labst }|
+      msg = 'second oldest batch covers remaining demand' ).
+  ENDMETHOD.
+
+
+  METHOD fefo_undated_last.
+    " undated stock is used only after all dated batches
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATF2' werks = '1000' lgort = '0001'
+        labst = '4' bdatr = '20991231' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATF2' werks = '1000' lgort = '0002'
+        labst = '4' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000140' posnr = '000010' matnr = 'MATF2'
+        kwmeng = '4' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material_fefo(
+        iv_matnr = 'MATF2' iv_werks = '1000' ).
+
+    " demand of 4 is covered by the dated batch (even far future), not the
+    " undated one
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-allocations[ 1 ]-lgort
+      msg = 'dated batch used before undated stock' ).
+  ENDMETHOD.
+
+
+  METHOD stats_collected.
+    " one full, one partial, one empty allocation -> statistics reflect it
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATS1' werks = '1000' lgort = '0001' labst = '6' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000150' posnr = '000010' matnr = 'MATS1'
+        kwmeng = '4' werks = '1000' lgort = '0001' lprio = '2' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000151' posnr = '000010' matnr = 'MATS1'
+        kwmeng = '4' werks = '1000' lgort = '0001' lprio = '2' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000152' posnr = '000010' matnr = 'MATS1'
+        kwmeng = '3' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATS1' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-stats-items_total
+      msg = 'three items processed' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-stats-items_full
+      msg = 'one item fully allocated' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-stats-items_partial
+      msg = 'one item partially allocated' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-stats-items_none
+      msg = 'one item without any allocation' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '11.000'
+      act = |{ ls_result-stats-qty_requested }|
+      msg = 'total requested quantity is 11' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '6.000'
+      act = |{ ls_result-stats-qty_allocated }|
+      msg = 'total allocated quantity equals stock' ).
+  ENDMETHOD.
+
+
+  METHOD uom_conversion_applied.
+    " order item is in sales units (CS), stock in base units (PC)
+    " 1 CS = 12 PC: demand of 2 CS becomes 24 PC against 30 PC stock
+    zcl_stub_uom=>clear( ).
+    zcl_stub_uom=>add_rule( VALUE zcl_stub_uom=>ty_uom_rule(
+        matnr = 'MATU1' vrkme = 'CS' meins = 'PC'
+        umrez = '12' umren = '1' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATU1' werks = '1000' lgort = '0001' labst = '30' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000160' posnr = '000010' matnr = 'MATU1'
+        kwmeng = '2' vrkme = 'CS' werks = '1000' lgort = '0001'
+        lprio = '2' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATU1' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '24.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = '2 CS converted to 24 PC and allocated' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-qty_shortage ).
+
+    " without a conversion rule quantities pass through unchanged
+    zcl_stub_uom=>clear( ).
+    DATA(ls_result_norule) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATU1' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = |{ ls_result_norule-allocations[ 1 ]-qty_alloc }|
+      msg = 'no rule: quantity passes through unchanged' ).
+  ENDMETHOD.
+
+
+  METHOD blocked_order_type_skipped.
+    " items of a blocked order type are excluded from allocation
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATZ1' werks = '1000' lgort = '0001' labst = '10' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000170' posnr = '000010' matnr = 'MATZ1'
+        kwmeng = '3' werks = '1000' lgort = '0001' lprio = '2'
+        auart = 'ZOR' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000171' posnr = '000010' matnr = 'MATZ1'
+        kwmeng = '4' werks = '1000' lgort = '0001' lprio = '2'
+        auart = 'ZBL' ) ).
+
+    " block order type ZBL (e.g. credit block pending)
+    zcl_stub_sales_order=>block_order_type( iv_auart = 'ZBL' ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATZ1' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-allocations )
+      msg = 'only the unblocked order is allocated' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000170'
+      act = ls_result-allocations[ 1 ]-vbeln
+      msg = 'the unblocked order got the allocation' ).
+
+    " unblocking makes the item allocatable again; note that the first
+    " allocation did not consume stock (only posting does), so now BOTH
+    " open orders are allocated from the full stock of 10
+    zcl_stub_sales_order=>unblock_order_type( iv_auart = 'ZBL' ).
+    DATA(ls_result2) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATZ1' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result2-allocations )
+      msg = 'both orders allocated after unblocking' ).
+    SORT ls_result2-allocations BY vbeln.
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000170'
+      act = ls_result2-allocations[ 1 ]-vbeln
+      msg = 'first order still allocated' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000171'
+      act = ls_result2-allocations[ 2 ]-vbeln
+      msg = 'unblocked order receives stock' ).
   ENDMETHOD.
 
 

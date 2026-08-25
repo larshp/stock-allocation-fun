@@ -21,6 +21,13 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS stats_collected FOR TESTING.
     METHODS uom_conversion_applied FOR TESTING.
     METHODS blocked_order_type_skipped FOR TESTING.
+    METHODS reservation_reduces_available FOR TESTING.
+    METHODS strategy_reverses_order FOR TESTING.
+    METHODS date_horizon_filters_items FOR TESTING.
+    METHODS full_delivery_only_skipped FOR TESTING.
+    METHODS max_partial_deliveries FOR TESTING.
+    METHODS substitution_serves_shortage FOR TESTING.
+    METHODS multi_plant_with_safety_stock FOR TESTING.
 
 ENDCLASS.
 
@@ -554,6 +561,380 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       exp = '0000000171'
       act = ls_result2-allocations[ 2 ]-vbeln
       msg = 'unblocked order receives stock' ).
+  ENDMETHOD.
+
+
+  METHOD reservation_reduces_available.
+    " reserved stock is not allocatable until released
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATR1' werks = '1000' lgort = '0001' labst = '10' ) ).
+
+    " reserve 6 pieces for another purpose
+    DATA(lv_ok) = zcl_stub_mard=>reserve_stock(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '6' ).
+    cl_abap_unit_assert=>assert_true( lv_ok ).
+
+    " only 4 pieces remain allocatable
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATR1' iv_werks = '1000' ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000190' posnr = '000010' matnr = 'MATR1'
+        kwmeng = '7' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    ls_result = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATR1' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = 'only unreserved stock allocated' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3.000'
+      act = |{ ls_result-qty_shortage }|
+      msg = 'shortage covers the reserved quantity' ).
+
+    " releasing the reservation makes the stock allocatable again
+    zcl_stub_mard=>release_reservation(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '6' ).
+    ls_result = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATR1' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '7.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = 'full demand allocatable after release' ).
+
+    " over-reserving fails
+    DATA(lv_fail) = zcl_stub_mard=>reserve_stock(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '99' ).
+    cl_abap_unit_assert=>assert_false( lv_fail ).
+
+    " availability check reflects reservations
+    zcl_stub_mard=>reserve_stock(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '2' ).
+    cl_abap_unit_assert=>assert_false( zcl_stub_mard=>is_available(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '10' ) ).
+    cl_abap_unit_assert=>assert_true( zcl_stub_mard=>is_available(
+        iv_matnr = 'MATR1' iv_werks = '1000' iv_lgort = '0001'
+        iv_qty   = '8' ) ).
+  ENDMETHOD.
+
+
+  METHOD strategy_reverses_order.
+    " the pluggable strategy reverses the consumption order
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATST' werks = '1000' lgort = '0001' labst = '5' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATST' werks = '1000' lgort = '0002' labst = '5' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000200' posnr = '000010' matnr = 'MATST'
+        kwmeng = '6' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(lo_strategy) = NEW lcl_reverse_strategy( ).
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material_by_strategy(
+        iv_matnr    = 'MATST'
+        iv_werks    = '1000'
+        io_strategy = lo_strategy ).
+
+    " reverse order: location 0002 is consumed first
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocations )
+      msg = 'two allocation rows expected' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-allocations[ 1 ]-lgort
+      msg = 'strategy reversed: 0002 first' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = |{ ls_result-allocations[ 1 ]-qty_alloc }|
+      msg = 'location 0002 fully consumed' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-allocations[ 2 ]-lgort
+      msg = 'remaining demand from 0001' ).
+
+    " default strategy would use 0001 first - verify difference
+    DATA(ls_default) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATST' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_default-allocations[ 1 ]-lgort
+      msg = 'default strategy uses insertion order' ).
+  ENDMETHOD.
+
+
+  METHOD date_horizon_filters_items.
+    " only items due up to the horizon date are allocated
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATDT' werks = '1000' lgort = '0001' labst = '10' ) ).
+    " urgent item: due tomorrow, no explicit date -> always included
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000210' posnr = '000010' matnr = 'MATDT'
+        kwmeng = '3' werks = '1000' lgort = '0001' lprio = '2' ) ).
+    " item due within horizon
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000211' posnr = '000010' matnr = 'MATDT'
+        kwmeng = '4' werks = '1000' lgort = '0001' lprio = '2'
+        edatu = '20260901' ) ).
+    " item due far in the future - outside horizon
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000212' posnr = '000010' matnr = 'MATDT'
+        kwmeng = '5' werks = '1000' lgort = '0001' lprio = '2'
+        edatu = '20271231' ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material_until(
+        iv_matnr = 'MATDT'
+        iv_werks = '1000'
+        iv_date  = '20261231' ).
+
+    " undated + dated-within-horizon items are allocated; the far-future
+    " item keeps its stock free
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocations )
+      msg = 'only items within horizon allocated' ).
+    SORT ls_result-allocations BY vbeln.
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000210'
+      act = ls_result-allocations[ 1 ]-vbeln ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000211'
+      act = ls_result-allocations[ 2 ]-vbeln ).
+    cl_abap_unit_assert=>assert_initial( ls_result-qty_shortage ).
+
+    " without a horizon all three items compete for the same stock
+    DATA(ls_all) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATDT' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_all-allocations )
+      msg = 'no horizon: all items allocated' ).
+  ENDMETHOD.
+
+
+  METHOD full_delivery_only_skipped.
+    " maxpw = 1: item needs the whole quantity from ONE storage location
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATPD' werks = '1000' lgort = '0001' labst = '3' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATPD' werks = '1000' lgort = '0002' labst = '4' ) ).
+    " demand 5 cannot be covered by a single location -> skipped
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000220' posnr = '000010' matnr = 'MATPD'
+        kwmeng = '5' werks = '1000' lgort = '0001' lprio = '2'
+        maxpw = 1 ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATPD' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_initial( ls_result-allocations ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = |{ ls_result-qty_shortage }|
+      msg = 'full demand counted as shortage' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-stats-items_none
+      msg = 'item counted as not allocated' ).
+
+    " a smaller order CAN be served completely from one location
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000221' posnr = '000010' matnr = 'MATPD'
+        kwmeng = '3' werks = '1000' lgort = '0001' lprio = '2'
+        maxpw = 1 ) ).
+
+    DATA(ls_result2) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATPD' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result2-allocations )
+      msg = 'single-location delivery possible' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3.000'
+      act = |{ ls_result2-allocations[ 1 ]-qty_alloc }|
+      msg = 'full quantity from one location' ).
+  ENDMETHOD.
+
+
+  METHOD max_partial_deliveries.
+    " maxpw = 1: full delivery from ONE storage location only. Demand 7
+    " cannot be covered by any single location -> item skipped entirely
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATMP' werks = '1000' lgort = '0001' labst = '2' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATMP' werks = '1000' lgort = '0002' labst = '6' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000230' posnr = '000010' matnr = 'MATMP'
+        kwmeng = '7' werks = '1000' lgort = '0001' lprio = '2'
+        maxpw = 1 ) ).
+
+    DATA(ls_result) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATMP' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_initial( ls_result-allocations ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '7.000'
+      act = |{ ls_result-qty_shortage }|
+      msg = 'full demand is shortage: no single SLoc covers it' ).
+
+    " a smaller order CAN be served completely from one location: 0001 has
+    " exactly 2 pieces left (allocation works on a copy, stock unchanged)
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000231' posnr = '000010' matnr = 'MATMP'
+        kwmeng = '2' werks = '1000' lgort = '0001' lprio = '2'
+        maxpw = 1 ) ).
+
+    DATA(ls_result2) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATMP' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result2-allocations )
+      msg = 'single allocation row for the coverable order' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = |{ ls_result2-allocations[ 1 ]-qty_alloc }|
+      msg = 'location 0001 covers the whole demand' ).
+
+    " without a limit multiple locations contribute
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000232' posnr = '000010' matnr = 'MATMP'
+        kwmeng = '7' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_unlimited) = zcl_stock_allocator=>allocate_material(
+        iv_matnr = 'MATMP' iv_werks = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_unlimited-allocations )
+      msg = 'no limit: multiple locations used' ).
+  ENDMETHOD.
+
+
+  METHOD substitution_serves_shortage.
+    " requested material covers part of the demand, the substitute serves
+    " the rest; result rows reference both materials
+    zcl_stub_substitution=>clear( ).
+    zcl_stub_substitution=>add_rule( VALUE zcl_stub_substitution=>ty_sub_rule(
+        matnr = 'MATSB' sub_matnr = 'MATS1' priority = 1 ) ).
+
+    " original material has 4 pieces, substitute has 5
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATSB' werks = '1000' lgort = '0001' labst = '4' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATS1' werks = '1000' lgort = '0001' labst = '5' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000240' posnr = '000010' matnr = 'MATSB'
+        kwmeng = '7' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(lt_alloc) = zcl_stock_allocator=>allocate_with_substitution(
+        iv_matnr = 'MATSB' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_alloc )
+      msg = 'two allocation rows: original + substitute' ).
+
+    " find rows by material (order after SORT BY matnr_used is alphabetical:
+    " MATS1 before MATSB)
+    SORT lt_alloc BY matnr_used.
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3.000'
+      act = |{ lt_alloc[ 1 ]-qty_alloc }|
+      msg = 'substitute serves the remaining demand' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4.000'
+      act = |{ lt_alloc[ 2 ]-qty_alloc }|
+      msg = 'original material fully consumed' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000240'
+      act = lt_alloc[ 2 ]-vbeln
+      msg = 'allocation mapped back to the original order' ).
+
+    " no substitution needed when the original material suffices
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATSC' werks = '1000' lgort = '0001' labst = '9' ) ).
+    zcl_stub_substitution=>add_rule( VALUE zcl_stub_substitution=>ty_sub_rule(
+        matnr = 'MATSC' sub_matnr = 'MATS2' priority = 1 ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000241' posnr = '000010' matnr = 'MATSC'
+        kwmeng = '5' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(lt_alloc2) = zcl_stock_allocator=>allocate_with_substitution(
+        iv_matnr = 'MATSC' iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_alloc2 )
+      msg = 'single row when no substitution needed' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MATSC'
+      act = lt_alloc2[ 1 ]-matnr_used
+      msg = 'only the original material used' ).
+  ENDMETHOD.
+
+
+  METHOD multi_plant_with_safety_stock.
+    " demand is served across plants in priority order; each plant keeps
+    " its safety stock untouched
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATPL' werks = '2000' lgort = '0001' labst = '3' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATPL' werks = '3000' lgort = '0001' labst = '8' ) ).
+
+    " create demand at plant 2000 (the first plant in the list)
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000250' posnr = '000010' matnr = 'MATPL'
+        kwmeng = '9' werks = '2000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(lt_plants) = VALUE zcl_stock_allocator=>tt_plants(
+        ( werks = '2000' )
+        ( werks = '3000' ) ).
+
+    DATA(lt_alloc) = zcl_stock_allocator=>allocate_multi_plant(
+        iv_matnr        = 'MATPL'
+        it_plants       = lt_plants
+        iv_safety_stock = '2' ).
+
+    " three rows: MULTI (1 pc, plant 2000 usable after safety), the real
+    " order 250 (2 pcs from plant 2000's safety stock), and MULTI again
+    " (3 pcs from plant 3000). Total allocated = 6 of 9 demanded.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_alloc )
+      msg = 'three allocation rows expected' ).
+
+    SORT lt_alloc BY werks qty_alloc.
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_alloc[ 1 ]-werks
+      msg = 'first plant in list served first' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1.000'
+      act = |{ lt_alloc[ 1 ]-qty_alloc }|
+      msg = 'plant 2000 usable stock is 3 - 2 safety = 1' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3000'
+      act = lt_alloc[ 3 ]-werks
+      msg = 'second plant covers remaining demand' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3.000'
+      act = |{ lt_alloc[ 3 ]-qty_alloc }|
+      msg = 'plant 3000 serves up to its usable stock' ).
+
+    " verify the stub stock state: allocation works on a copy, so without
+    " posting the stock stays untouched (3 and 8)
+    DATA(ls_mard_2000) = zcl_stub_mard=>read_single(
+        iv_matnr = 'MATPL' iv_werks = '2000' iv_lgort = '0001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3.000'
+      act = |{ ls_mard_2000-labst }|
+      msg = 'stock unchanged: only posting reduces stub stock' ).
   ENDMETHOD.
 
 

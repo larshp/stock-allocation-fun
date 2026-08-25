@@ -1,6 +1,110 @@
 # NOTES
 
-## Iteration 14 (current)
+## Iteration 19 (current)
+
+### New features
+- **Multi-plant allocation** (`allocate_multi_plant): plants are consumed in
+  caller-defined order; each plant serves up to its usable stock (total stock
+  minus safety stock). Returns `tt_sub_allocations` rows carrying the plant,
+  so per-plant deliveries can be created. Safety stock per plant is enforced
+  via a run-level class variable set from `iv_safety_stock`.
+
+### Lesson learned
+- Allocation mutates a local copy of the MARD rows - repeated allocations see
+  unchanged stub stock unless posting happens. Tests must assert stub state
+  accordingly (stock only changes through reduce_stock on posting).
+
+### Test status
+- abaplint: 0 issues
+- transpiler unit tests: 33/33 pass
+
+## Iteration 18
+
+### New features
+- **Material substitution** (`zcl_stub_substitution): substitution rules
+  (original material -> substitute, priority ordered). New
+  `allocate_with_substitution( iv_matnr, iv_werks )`: allocates from the
+  requested material first; remaining demand is served by substitutes in
+  priority order. Returns `tt_sub_allocations` with both `matnr_req` and
+  `matnr_used` per row so the caller sees exactly which material covered
+  which part of the demand.
+
+### Lesson learned
+- Alphabetical sort surprises: 'MATS1' < 'MATSB' (digits before letters).
+  When tests rely on sorted order, verify the actual collation or index by
+  content instead of position.
+
+### Test status (iteration 18)
+- abaplint: 0 issues
+- transpiler unit tests: 32/32 pass
+
+## Iteration 17
+
+### New features
+- **Partial delivery control**: order items carry MAXPW (integer).
+  - `maxpw = 0` (initial): unlimited partial deliveries (default)
+  - `maxpw = 1`: full delivery from ONE storage location only; if no single
+    SLoc covers the whole demand the item is skipped entirely with a W
+    message ('FULL') and counted as shortage
+  - `maxpw = N`: at most N allocation rows
+- **Stock transfer suggestions** (`zcl_stock_transfer_sugg): when a preferred
+  storage location cannot cover the demand, `suggest( )` proposes UB-like
+  transfers from other locations. Sources are chosen by descending free
+  stock so fewer transfers are needed; each suggestion carries source,
+  destination and exact quantity.
+
+### Lesson learned
+- Integer flags default to 0 - design flag semantics accordingly (0 =
+  unlimited/unset, not "full delivery only"). The first maxpw design broke
+  every existing test because unset items became full-delivery-only.
+- Allocation works on a copy of stock rows: repeated allocations in one test
+  see the same stub stock unless posting happens.
+
+### Test status (iteration 17)
+- abaplint: 0 issues
+- transpiler unit tests: 31/31 pass
+
+## Iteration 16
+
+### New features
+- **Requested delivery date horizon**: order items carry EDATU (schedule
+  line date, new DDIC stub edatu.dtel.xml). New
+  `allocate_material_until( iv_date )` allocates only items due up to the
+  horizon; items due later keep their stock free. Undated items count as
+  urgent (always included). `read_open_items_until` added to the stub.
+- **Pluggable allocation strategy** (`zif_alloc_strategy): interface with
+  `sort_stock( it_mard, iv_matnr, iv_werks )` returning the consumption
+  order. New `allocate_material_by_strategy( io_strategy )` accepts any
+  implementation - custom strategies (e.g. transport-cost optimized) can be
+  added without touching the engine. Test uses a local `lcl_reverse_strategy`
+  that consumes locations in descending lgort order.
+
+### Fixed
+- align_parameters rule: keyword parameters of a call must align consistently
+  (`iv_matnr    = ...` / `io_strategy = ...`).
+
+### Test status (iteration 16)
+- abaplint: 0 issues
+- transpiler unit tests: 26/26 pass
+
+## Iteration 15
+
+### New features
+- **Stock reservations** (`zcl_stub_mard): `reserve_stock` /
+  `release_reservation` / `get_available` / `is_available`. Reservations
+  reduce the stock visible to allocation (available = unrestricted stock
+  minus reserved). Over-reserving fails with rv_ok = abap_false.
+- **Material availability check**: `is_available( matnr, werks, lgort, qty )`
+  answers whether a quantity is fully allocatable at one storage location -
+  useful for ATP-like checks before promising a delivery date.
+- The allocator's `get_available_stock now subtracts reservations per
+  location, so allocation automatically respects them.
+
+### Test status (iteration 15)
+- abaplint: 0 issues
+- transpiler unit tests: 24/24 pass
+
+## Iteration 14
 
 ### New features
 - **Order type blocking**: sales order items carry an order type (AUART).
@@ -18,7 +122,7 @@
   named local type (`TYPES ty_runnr TYPE n LENGTH 10.`) instead.
 - Packed quantities render as `'10.000'` in string templates - again.
 
-### Test status
+### Test status (iteration 14)
 - abaplint: 0 issues
 - transpiler unit tests: 23/23 pass
 

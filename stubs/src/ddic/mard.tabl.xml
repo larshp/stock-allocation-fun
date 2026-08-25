@@ -40,6 +40,11 @@
      <ROLLNAME>BDATR</ROLLNAME>
      <COMPTYPE>E</COMPTYPE>
     </DD03P>
+    <DD03P>
+     <FIELDNAME>UMLMC</FIELDNAME>
+     <ROLLNAME>LABST</ROLLNAME>
+     <COMPTYPE>E</COMPTYPE>
+    </DD03P>
    </DD03P_TABLE>
   </asx:values>
  </asx:abap>

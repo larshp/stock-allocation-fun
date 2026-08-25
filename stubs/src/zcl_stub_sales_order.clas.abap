@@ -13,6 +13,9 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
              lgort  TYPE vbap-lgort,
              lprio  TYPE lprio,         " delivery priority (1 = highest)
              auart  TYPE char4,         " sales document type
+             edatu  TYPE edatu,         " requested delivery date
+             maxpw  TYPE i,             " max partial deliveries allowed
+                                           " 0 = full delivery only
            END OF ty_order_item.
     TYPES tt_order_items TYPE STANDARD TABLE OF ty_order_item WITH DEFAULT KEY.
 
@@ -21,6 +24,16 @@ CLASS zcl_stub_sales_order DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         iv_matnr        TYPE matnr
         iv_werks        TYPE werks_d
+      RETURNING
+        VALUE(rt_items) TYPE tt_order_items.
+
+    "! Read open items with requested delivery date up to iv_date
+    "! (items due later are excluded - their stock stays free)
+    CLASS-METHODS read_open_items_until
+      IMPORTING
+        iv_matnr        TYPE matnr
+        iv_werks        TYPE werks_d
+        iv_date         TYPE edatu
       RETURNING
         VALUE(rt_items) TYPE tt_order_items.
 
@@ -78,6 +91,20 @@ CLASS zcl_stub_sales_order IMPLEMENTATION.
         WHERE matnr = iv_matnr AND werks = iv_werks.
       " skip items of blocked order types
       IF is_blocked( ls_item-auart ) = abap_true.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_item TO rt_items.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD read_open_items_until.
+    " items without a delivery date are always due (treated as urgent);
+    " dated items are included only if due on or before iv_date
+    LOOP AT read_open_items(
+             iv_matnr = iv_matnr
+             iv_werks = iv_werks ) INTO DATA(ls_item).
+      IF ls_item-edatu IS NOT INITIAL AND ls_item-edatu > iv_date.
         CONTINUE.
       ENDIF.
       APPEND ls_item TO rt_items.

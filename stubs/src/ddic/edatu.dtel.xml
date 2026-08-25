@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_DTEL" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <DD04V>
+    <ROLLNAME>EDATU</ROLLNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
+    <DATATYPE>DATS</DATATYPE>
+    <HEADLEN>10</HEADLEN>
+    <SCRLEN1>10</SCRLEN1>
+    <SCRLEN2>15</SCRLEN2>
+    <SCRLEN3>20</SCRLEN3>
+    <DDTEXT>Schedule Line Date</DDTEXT>
+    <REPTEXT>DlvDate</REPTEXT>
+    <SCRTEXT_S>DlvDate</SCRTEXT_S>
+    <SCRTEXT_M>Deliv.Date</SCRTEXT_M>
+    <SCRTEXT_L>Delivery Date</SCRTEXT_L>
+    <DTELMASTER>E</DTELMASTER>
+    <LENG>000008</LENG>
+    <DECIMALS>000000</DECIMALS>
+   </DD04V>
+  </asx:values>
+ </asx:abap>
+</abapGit>

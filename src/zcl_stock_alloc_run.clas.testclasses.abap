@@ -8,6 +8,7 @@ CLASS ltcl_stock_alloc_run DEFINITION FINAL
     METHODS multi_material_run FOR TESTING.
     METHODS simulation_no_posting FOR TESTING.
     METHODS priority_before_fifo FOR TESTING.
+    METHODS config_strategy_and_backorders FOR TESTING.
 
 ENDCLASS.
 
@@ -16,6 +17,7 @@ CLASS ltcl_stock_alloc_run IMPLEMENTATION.
 
 
   METHOD setup.
+    zcl_alloc_lock=>release( ).
     zcl_stub_mard=>clear( ).
     zcl_stub_sales_order=>clear( ).
   ENDMETHOD.
@@ -134,6 +136,54 @@ CLASS ltcl_stock_alloc_run IMPLEMENTATION.
       exp = '4.000'
       act = |{ ls_result-allocations[ 2 ]-qty_alloc }|
       msg = 'urgent priority order fully allocated' ).
+  ENDMETHOD.
+
+
+  METHOD config_strategy_and_backorders.
+    " run_with_config: LARGEST strategy + backorder detection
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATCF' werks = '1000' lgort = '0001' labst = '2' ) ).
+    zcl_stub_mard=>insert_row( VALUE mard(
+        matnr = 'MATCF' werks = '1000' lgort = '0002' labst = '3' ) ).
+    zcl_stub_sales_order=>add_item( VALUE zcl_stub_sales_order=>ty_order_item(
+        vbeln = '0000000280' posnr = '000010' matnr = 'MATCF'
+        kwmeng = '9' werks = '1000' lgort = '0001' lprio = '2' ) ).
+
+    DATA(ls_config) = VALUE zcl_stock_alloc_run=>ty_run_config(
+        simulate      = abap_true
+        strategy_name = zcl_alloc_strat_factory=>gc_strategy-largest ).
+
+    DATA(ls_result) = zcl_stock_alloc_run=>run_with_config(
+        it_materials = VALUE zcl_stock_alloc_run=>tt_materials(
+            ( matnr = 'MATCF' ) )
+        iv_werks     = '1000'
+        is_config    = ls_config ).
+
+    " LARGEST strategy: location 0002 (3 pcs) consumed first
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-allocations[ 1 ]-lgort
+      msg = 'LARGEST strategy consumed biggest stock first' ).
+
+    " demand 9 vs stock 5 -> backorder of 4 for the order item
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-backorders )
+      msg = 'one backorder detected' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000280'
+      act = ls_result-backorders[ 1 ]-vbeln ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4.000'
+      act = |{ ls_result-backorders[ 1 ]-qty_open }|
+      msg = 'backorder quantity is the unmet demand' ).
+
+    " audit trail records the configured simulation flag
+    DATA(ls_entry) = zcl_alloc_audit=>read_entry(
+        iv_runnr = ls_result-runnr ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_entry-simulate ).
   ENDMETHOD.
 
 

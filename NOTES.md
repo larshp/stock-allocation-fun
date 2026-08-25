@@ -1,6 +1,69 @@
 # NOTES
 
-## Iteration 19 (current)
+## Iteration 22 (current)
+
+### New features
+- **Run configuration** (`ty_run_config): `run_with_config( )` bundles
+  simulation flag, strategy name (resolved via the factory) and delivery-date
+  horizon into one call - the full-featured entry point for production use.
+- **Backorder detection** (`zcl_backorder_check): `detect( )` compares open
+  order items against allocations and reports items with unmet quantity
+  (`qty_open`). Wired into `run_with_config` via `ty_run_result-backorders`.
+
+### Fixed / learned
+- Types referenced in a class's public TYPES must be resolvable: use the
+  qualified name (`zcl_alloc_audit=>ty_runnr`) when the type lives in another
+  class.
+
+### Test status
+- abaplint: 0 issues
+- transpiler unit tests: 40/40 pass
+
+## Iteration 21
+
+### New features
+- **Strategy factory** (`zcl_alloc_strat_factory): creates strategy
+  instances by name (`FIFO`, `LARGEST`); unknown names fall back to FIFO.
+  Built-in strategies: `zcl_alloc_strat_fifo` (insertion order) and
+  `zcl_alloc_strat_largest` (largest free stock first - fewer locations
+  touched per order). Both implement `zif_alloc_strategy`.
+- **JSON export** (`zcl_alloc_result_export): `to_json( ) serializes
+  allocation rows to a JSON array string for external systems / logs.
+
+### Fixed / learned
+- Chained string template concatenation `a = b && |...| && |...|` is not
+  parseable by abaplint - build intermediate strings or use CONCATENATE.
+- Packed quantities must be converted to string via string template before
+  CONCATENATE (source type not compatible otherwise).
+- The transpiled runtime lacks `assert_contains` - use
+  `assert_not_initial( find( val = ... sub = ... ) )`.
+
+### Test status (iteration 21)
+- abaplint: 0 issues
+- transpiler unit tests: 39/39 pass
+
+## Iteration 20
+
+### New features
+- **Run lock** (`zcl_alloc_lock): ENQUEUE-style lock preventing concurrent
+  allocation runs from double-allocating the same stock. `acquire/release/
+  is_locked`. `zcl_stock_alloc_run=>run` acquires the lock at the start and
+  releases at the end; a locked run returns an E message ('LOCKED') and no
+  allocations.
+- **Shortage report** (`zcl_shortage_report): `build( )` groups run
+  allocations per material/plant and reports affected item counts plus the
+  overall run shortage - the planner's view of unmet demand.
+
+### Fixed / learned
+- `LOOP ... GROUP BY is not supported by the transpiler (Void type:
+  todoGroupBy) - use READ TABLE with manual grouping instead.
+- Locks are class state: tests sharing a class must release locks in setup.
+
+### Test status (iteration 20)
+- abaplint: 0 issues
+- transpiler unit tests: 35/35 pass
+
+## Iteration 19
 
 ### New features
 - **Multi-plant allocation** (`allocate_multi_plant): plants are consumed in
@@ -14,7 +77,7 @@
   unchanged stub stock unless posting happens. Tests must assert stub state
   accordingly (stock only changes through reduce_stock on posting).
 
-### Test status
+### Test status (iteration 19)
 - abaplint: 0 issues
 - transpiler unit tests: 33/33 pass
 

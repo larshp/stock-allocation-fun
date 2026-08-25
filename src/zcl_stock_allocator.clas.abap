@@ -21,6 +21,7 @@ CLASS zcl_stock_allocator DEFINITION
     TYPES: BEGIN OF ty_result,
              allocations  TYPE tt_allocations,
              qty_shortage TYPE kwmeng,       " total unallocated quantity
+             messages     TYPE zcl_stub_message=>tt_message, " log messages
            END OF ty_result.
 
     "! Run allocation for one material at a plant across all storage locations
@@ -30,6 +31,14 @@ CLASS zcl_stock_allocator DEFINITION
         iv_werks         TYPE werks_d
       RETURNING
         VALUE(rs_result) TYPE ty_result.
+
+    "! Post allocations: confirm quantities on the sales order items and
+    "! reduce unrestricted stock in the storage locations (goods issue).
+    CLASS-METHODS post_allocations
+      IMPORTING
+        it_allocations TYPE tt_allocations
+      RETURNING
+        VALUE(rv_ok)   TYPE abap_bool.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -90,10 +99,54 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         ls_alloc-lgort     = <ls_mard>-lgort.
         ls_alloc-qty_alloc = ls_alloc-qty_alloc + lv_qty_take.
         lv_remaining       = lv_remaining - lv_qty_take.
+        " consume the stock so following order items see reduced quantity
+        <ls_mard>-labst    = <ls_mard>-labst - lv_qty_take.
       ENDLOOP.
 
       rs_result-qty_shortage = rs_result-qty_shortage + lv_remaining.
+
+      " log the allocation outcome for the order item
+      IF lv_remaining <= 0.
+        APPEND zcl_stub_message=>build(
+            iv_msgty = 'S'
+            iv_msgno = zcl_stub_message=>gc_msgno-full_alloc
+            iv_msgv1 = CONV symsgv( ls_item-vbeln ) ) TO rs_result-messages.
+      ELSEIF ls_alloc-qty_alloc > 0.
+        APPEND zcl_stub_message=>build(
+            iv_msgty = 'W'
+            iv_msgno = zcl_stub_message=>gc_msgno-partial_alloc
+            iv_msgv1 = CONV symsgv( ls_item-vbeln )
+            iv_msgv2 = CONV symsgv( |{ lv_remaining }| ) )
+            TO rs_result-messages.
+      ELSE.
+        APPEND zcl_stub_message=>build(
+            iv_msgty = 'E'
+            iv_msgno = zcl_stub_message=>gc_msgno-no_stock
+            iv_msgv1 = CONV symsgv( ls_item-vbeln ) ) TO rs_result-messages.
+      ENDIF.
+
       APPEND ls_alloc TO rs_result-allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD post_allocations.
+    rv_ok = abap_true.
+    LOOP AT it_allocations INTO DATA(ls_alloc).
+      IF ls_alloc-qty_alloc <= 0.
+        CONTINUE.
+      ENDIF.
+      " confirm the allocated quantity on the sales order item
+      zcl_stub_sales_order=>confirm_quantity(
+          iv_vbeln = ls_alloc-vbeln
+          iv_posnr = ls_alloc-posnr
+          iv_qty   = ls_alloc-qty_alloc ).
+      " reduce unrestricted stock in the storage location (goods issue)
+      zcl_stub_mard=>reduce_stock(
+          iv_matnr = ls_alloc-matnr
+          iv_werks = ls_alloc-werks
+          iv_lgort = ls_alloc-lgort
+          iv_qty   = ls_alloc-qty_alloc ).
     ENDLOOP.
   ENDMETHOD.
 

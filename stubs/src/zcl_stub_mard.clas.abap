@@ -34,6 +34,14 @@ CLASS zcl_stub_mard DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         is_mard TYPE mard.
 
+    "! Reduce unrestricted stock by iv_qty (simulates goods issue posting)
+    CLASS-METHODS reduce_stock
+      IMPORTING
+        iv_matnr TYPE matnr
+        iv_werks TYPE werks_d
+        iv_lgort TYPE lgort_d
+        iv_qty   TYPE labst.
+
     "! Test helper: clear all simulated rows
     CLASS-METHODS clear.
 
@@ -66,7 +74,30 @@ CLASS zcl_stub_mard IMPLEMENTATION.
 
 
   METHOD insert_row.
-    MODIFY TABLE gt_mard FROM is_mard.
+    " note: MODIFY TABLE ... FROM is not used here because the transpiler
+    " runtime does not populate keyFields for standard tables, which makes
+    " the FROM-key lookup match the first row unconditionally (see ANOMALIES.md)
+    READ TABLE gt_mard ASSIGNING FIELD-SYMBOL(<ls_mard>)
+      WITH KEY matnr = is_mard-matnr
+               werks = is_mard-werks
+               lgort = is_mard-lgort.
+    IF sy-subrc = 0.
+      <ls_mard> = is_mard.
+    ELSE.
+      APPEND is_mard TO gt_mard.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD reduce_stock.
+    READ TABLE gt_mard ASSIGNING FIELD-SYMBOL(<ls_mard>)
+      WITH KEY matnr = iv_matnr werks = iv_werks lgort = iv_lgort.
+    IF sy-subrc = 0.
+      <ls_mard>-labst = <ls_mard>-labst - iv_qty.
+      IF <ls_mard>-labst < 0.
+        <ls_mard>-labst = 0.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
 

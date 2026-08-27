@@ -10,6 +10,8 @@ ENDCLASS.
 CLASS zcl_stock_reader_sap IMPLEMENTATION.
   METHOD zif_stock_reader~read_stock.
     IF it_requests IS INITIAL.
+      rs_result-is_success = abap_true.
+      rs_result-message = 'Stock read completed'.
       RETURN.
     ENDIF.
 
@@ -28,6 +30,12 @@ CLASS zcl_stock_reader_sap IMPLEMENTATION.
       FOR ALL ENTRIES IN @it_requests
       WHERE storage_stock~matnr = @it_requests-material
         AND storage_stock~werks = @it_requests-plant
-      INTO CORRESPONDING FIELDS OF TABLE @rt_stock.
+      INTO CORRESPONDING FIELDS OF TABLE @rs_result-stock.
+    IF sy-subrc = 0 OR sy-subrc = 4.
+      rs_result-is_success = abap_true.
+      rs_result-message = 'Stock read completed'.
+    ELSE.
+      rs_result-message = 'Stock read failed'.
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.

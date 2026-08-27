@@ -11,13 +11,17 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
   METHOD zif_idempotency_store~find.
     DATA(lt_request_ids) = VALUE zif_idempotency_store=>ty_request_ids(
       ( iv_request_id ) ).
-    DATA(lt_records) = zif_idempotency_store~find_many( lt_request_ids ).
-    READ TABLE lt_records INTO rs_record
-      WITH TABLE KEY request_id = iv_request_id.
+    DATA(ls_result) = zif_idempotency_store~find_many( lt_request_ids ).
+    IF ls_result-is_success = abap_true.
+      READ TABLE ls_result-records INTO rs_record
+        WITH TABLE KEY request_id = iv_request_id.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~find_many.
     IF it_request_ids IS INITIAL.
+      rs_result-is_success = abap_true.
+      rs_result-message = 'Idempotency lookup completed'.
       RETURN.
     ENDIF.
 
@@ -49,11 +53,17 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
       FROM zstock_alloc
       FOR ALL ENTRIES IN @it_request_ids
       WHERE request_id = @it_request_ids-table_line
-      INTO CORRESPONDING FIELDS OF TABLE @rt_records.
+      INTO CORRESPONDING FIELDS OF TABLE @rs_result-records.
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
+      rs_result-message = 'Idempotency lookup failed'.
+      RETURN.
+    ENDIF.
 
-    LOOP AT rt_records ASSIGNING FIELD-SYMBOL(<ls_record>).
+    LOOP AT rs_result-records ASSIGNING FIELD-SYMBOL(<ls_record>).
       <ls_record>-is_found = abap_true.
     ENDLOOP.
+    rs_result-is_success = abap_true.
+    rs_result-message = 'Idempotency lookup completed'.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~claim.

@@ -15,8 +15,13 @@ CLASS ltcl_allocation_history_reader DEFINITION FINAL
     METHODS rejects_invalid_policy_filter FOR TESTING.
     METHODS rejects_invalid_stock_filter FOR TESTING.
     METHODS rejects_conflicting_stock FOR TESTING.
+    METHODS rejects_conflicting_qty FOR TESTING.
     METHODS rejects_bad_shortfall_filter FOR TESTING.
     METHODS rejects_invalid_fill_filter FOR TESTING.
+    METHODS rejects_invalid_fill_range FOR TESTING.
+    METHODS rejects_invalid_min_fill FOR TESTING.
+    METHODS rejects_invalid_qty_range FOR TESTING.
+    METHODS rejects_invalid_numeric_range FOR TESTING.
     METHODS rejects_invalid_limit FOR TESTING.
 ENDCLASS.
 
@@ -162,6 +167,81 @@ CLASS ltcl_allocation_history_reader IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Audit fill filter is invalid' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_conflicting_qty.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date           = '20260801'
+      iv_to_date             = '20260820'
+      iv_availability_filter = '-'
+      iv_available_qty_to    = 10
+      iv_max_rows            = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit availability filters conflict' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_fill_range.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date     = '20260801'
+      iv_to_date       = '20260820'
+      iv_fill_pct_from = 95
+      iv_fill_pct_to   = 80
+      iv_max_rows      = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit fill percentage range is invalid' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_min_fill.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date     = '20260801'
+      iv_to_date       = '20260820'
+      iv_min_fill_from = 75
+      iv_min_fill_to   = 50
+      iv_max_rows      = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit minimum fill range is invalid' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_qty_range.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date          = '20260801'
+      iv_to_date            = '20260820'
+      iv_shortfall_qty_from = 10
+      iv_shortfall_qty_to   = 5
+      iv_max_rows           = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit quantity range is invalid' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_numeric_range.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date          = '20260801'
+      iv_to_date            = '20260820'
+      iv_allocated_qty_from = 11
+      iv_allocated_qty_to   = 10
+      iv_max_rows           = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit numeric range is invalid' ).
     cl_abap_unit_assert=>assert_initial( ls_result-entries ).
   ENDMETHOD.
 

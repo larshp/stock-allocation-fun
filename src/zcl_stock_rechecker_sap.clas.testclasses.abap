@@ -2,13 +2,15 @@ CLASS lcl_recheck_stock_reader DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_reader.
     DATA mt_stock TYPE zcl_stock_allocator=>ty_stock_balances.
+    DATA ms_result TYPE zif_stock_reader=>ty_result.
     DATA mt_requests TYPE zcl_stock_allocator=>ty_requests.
 ENDCLASS.
 
 CLASS lcl_recheck_stock_reader IMPLEMENTATION.
   METHOD zif_stock_reader~read_stock.
     mt_requests = it_requests.
-    rt_stock = mt_stock.
+    rs_result = ms_result.
+    rs_result-stock = mt_stock.
   ENDMETHOD.
 ENDCLASS.
 
@@ -28,6 +30,9 @@ CLASS ltcl_stock_rechecker_sap DEFINITION FINAL
     METHODS accepts_shared_plant_safety FOR TESTING.
     METHODS rejects_plant_safety_shortage FOR TESTING.
     METHODS rejects_changed_base_unit FOR TESTING.
+    METHODS rejects_failed_stock_read FOR TESTING.
+    METHODS rejects_invalid_stock_state FOR TESTING.
+    METHODS rejects_invalid_snapshot FOR TESTING.
 
     METHODS allocations
       RETURNING
@@ -43,6 +48,7 @@ ENDCLASS.
 CLASS ltcl_stock_rechecker_sap IMPLEMENTATION.
   METHOD setup.
     mo_reader = NEW #( ).
+    mo_reader->ms_result-is_success = abap_true.
     mo_cut = NEW #( mo_reader ).
   ENDMETHOD.
 
@@ -95,6 +101,46 @@ CLASS ltcl_stock_rechecker_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Stock disappeared during allocation posting' ).
+  ENDMETHOD.
+
+  METHOD rejects_failed_stock_read.
+    mo_reader->ms_result-is_success = abap_false.
+    mo_reader->ms_result-message = 'Stock recheck backend unavailable'.
+
+    DATA(ls_result) = mo_cut->zif_stock_rechecker~recheck( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock recheck backend unavailable' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_stock_state.
+    mo_reader->ms_result-is_success = 'Y'.
+    mo_reader->ms_result-message = 'Misleading success'.
+
+    DATA(ls_result) = mo_cut->zif_stock_rechecker~recheck( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock reader returned invalid state during posting' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_snapshot.
+    mo_reader->mt_stock = VALUE #(
+      ( material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        base_unit        = 'EA'
+        unrestricted_qty = '1.2345' ) ).
+
+    DATA(ls_result) = mo_cut->zif_stock_rechecker~recheck( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock snapshot quantity is invalid' ).
   ENDMETHOD.
 
   METHOD accepts_shared_plant_safety.

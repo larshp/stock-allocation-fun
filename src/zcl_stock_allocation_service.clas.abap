@@ -39,6 +39,13 @@ CLASS zcl_stock_allocation_service DEFINITION
     METHODS apply_full_batch_policy
       CHANGING
         ct_allocations TYPE zcl_stock_allocator=>ty_allocations.
+
+    METHODS writer_response_is_valid
+      IMPORTING
+        it_expected     TYPE zcl_stock_allocator=>ty_allocations
+        it_actual       TYPE zcl_stock_allocator=>ty_allocations
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_stock_allocation_service IMPLEMENTATION.
@@ -130,8 +137,21 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         INSERT ls_request-request_id INTO TABLE lt_replay_request_ids.
       ENDLOOP.
       IF lt_replay_request_ids IS NOT INITIAL.
-        lt_replay_records = mo_idempotency_store->find_many(
+        DATA(ls_lookup_result) = mo_idempotency_store->find_many(
           lt_replay_request_ids ).
+        IF ls_lookup_result-is_success <> abap_true.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_lookup
+            iv_message       = COND #(
+              WHEN ls_lookup_result-is_success = abap_false
+                AND ls_lookup_result-message IS NOT INITIAL
+              THEN ls_lookup_result-message
+              ELSE 'Idempotency lookup returned invalid state' ) ).
+          RETURN.
+        ENDIF.
+        lt_replay_records = ls_lookup_result-records.
       ENDIF.
       LOOP AT lt_replay_records ASSIGNING FIELD-SYMBOL(<ls_lookup_record>).
         IF <ls_lookup_record>-is_found <> abap_false
@@ -158,13 +178,57 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       LOOP AT lt_replay_records INTO DATA(ls_replay_record)
         WHERE is_found = abap_true
           AND document_id IS NOT INITIAL.
+        IF ls_replay_record-document_id CN '0123456789'.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_outcome
+            iv_message       = 'Stored reservation document ID is invalid' ).
+          RETURN.
+        ENDIF.
         INSERT ls_replay_record-document_id
           INTO TABLE lt_replay_document_ids.
+        IF sy-subrc <> 0.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_outcome
+            iv_message       = 'Stored reservation document ID is reused' ).
+          RETURN.
+        ENDIF.
       ENDLOOP.
       IF lt_replay_document_ids IS NOT INITIAL.
+        DATA(ls_cancellation_result) =
+          mo_reservation_status->find_cancelled( lt_replay_document_ids ).
+        IF ls_cancellation_result-is_success <> abap_true.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code =
+              zcl_stock_allocator=>gc_decision_cancel_lookup
+            iv_message       = COND #(
+              WHEN ls_cancellation_result-is_success = abap_false
+                AND ls_cancellation_result-message IS NOT INITIAL
+              THEN ls_cancellation_result-message
+              ELSE 'Reservation status lookup returned invalid state' ) ).
+          RETURN.
+        ENDIF.
+        LOOP AT ls_cancellation_result-cancelled_ids
+          INTO DATA(lv_cancelled_document_id).
+          IF NOT line_exists( lt_replay_document_ids[
+            table_line = lv_cancelled_document_id ] ).
+            rt_allocations = reject_batch(
+              it_requests      = it_requests
+              iv_status        = zcl_stock_allocator=>gc_status_config_error
+              iv_decision_code =
+                zcl_stock_allocator=>gc_decision_cancel_lookup
+              iv_message       =
+                |Reservation status returned unexpected document { lv_cancelled_document_id }| ).
+            RETURN.
+          ENDIF.
+        ENDLOOP.
         lt_cancelled_document_ids =
-          mo_reservation_status->find_cancelled(
-            lt_replay_document_ids ).
+          ls_cancellation_result-cancelled_ids.
       ENDIF.
 
       LOOP AT lt_dependency_requests INTO ls_request.
@@ -224,7 +288,33 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
     DATA lt_stock TYPE zcl_stock_allocator=>ty_stock_balances.
     IF lt_stock_requests IS NOT INITIAL.
-      lt_stock = mo_stock_reader->read_stock( lt_stock_requests ).
+      DATA(ls_stock_result) =
+        mo_stock_reader->read_stock( lt_stock_requests ).
+      IF ls_stock_result-is_success <> abap_true.
+        rt_allocations = reject_batch(
+          it_requests      = it_requests
+          iv_status        = zcl_stock_allocator=>gc_status_config_error
+          iv_decision_code = zcl_stock_allocator=>gc_decision_stock_read
+          iv_message       = COND #(
+            WHEN ls_stock_result-is_success = abap_false
+              AND ls_stock_result-message IS NOT INITIAL
+            THEN ls_stock_result-message
+            ELSE 'Stock reader returned invalid state' ) ).
+        RETURN.
+      ENDIF.
+      DATA(ls_snapshot_validation) =
+        zcl_stock_snapshot_validator=>validate(
+          it_requests       = lt_stock_requests
+          it_stock_balances = ls_stock_result-stock ).
+      IF ls_snapshot_validation-is_valid <> abap_true.
+        rt_allocations = reject_batch(
+          it_requests      = it_requests
+          iv_status        = zcl_stock_allocator=>gc_status_config_error
+          iv_decision_code = zcl_stock_allocator=>gc_decision_stock_snapshot
+          iv_message       = ls_snapshot_validation-message ).
+        RETURN.
+      ENDIF.
+      lt_stock = ls_stock_result-stock.
     ENDIF.
     rt_allocations = mo_allocator->allocate(
       it_requests       = it_requests
@@ -256,9 +346,24 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDLOOP.
 
     IF lt_committed_allocations IS NOT INITIAL.
+      DATA(lt_expected_allocations) = lt_committed_allocations.
       mo_allocation_writer->save_allocations(
         CHANGING
           ct_allocations = lt_committed_allocations ).
+
+      IF writer_response_is_valid(
+          it_expected = lt_expected_allocations
+          it_actual   = lt_committed_allocations ) = abap_false.
+        lt_committed_allocations = lt_expected_allocations.
+        LOOP AT lt_committed_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_invalid_writer_result>).
+          <ls_invalid_writer_result>-posting_status =
+            zcl_stock_allocator=>gc_posting_failed.
+          <ls_invalid_writer_result>-posting_message =
+            'Allocation writer returned invalid response'.
+          CLEAR <ls_invalid_writer_result>-document_id.
+        ENDLOOP.
+      ENDIF.
 
       LOOP AT lt_committed_allocations INTO DATA(ls_committed_allocation).
         READ TABLE rt_allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>)
@@ -334,5 +439,51 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       <ls_allocation>-posting_message =
         'Full batch requirement was not met'.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD writer_response_is_valid.
+    IF lines( it_expected ) <> lines( it_actual ).
+      RETURN.
+    ENDIF.
+
+    DATA(lt_expected) = it_expected.
+    DATA(lt_actual) = it_actual.
+    SORT lt_expected BY request_id ASCENDING.
+    SORT lt_actual BY request_id ASCENDING.
+    DATA lv_batch_status TYPE zcl_stock_allocator=>ty_posting_status.
+    LOOP AT lt_expected INTO DATA(ls_expected).
+      READ TABLE lt_actual INTO DATA(ls_actual) INDEX sy-tabix.
+      IF sy-subrc <> 0 OR ls_actual-request_id <> ls_expected-request_id.
+        RETURN.
+      ENDIF.
+      IF ls_actual-posting_status <> zcl_stock_allocator=>gc_posting_posted
+          AND ls_actual-posting_status
+            <> zcl_stock_allocator=>gc_posting_failed.
+        RETURN.
+      ENDIF.
+      IF ( ls_actual-posting_status = zcl_stock_allocator=>gc_posting_posted
+            AND ls_actual-document_id IS INITIAL )
+          OR ( ls_actual-posting_status = zcl_stock_allocator=>gc_posting_failed
+            AND ls_actual-document_id IS NOT INITIAL ).
+        RETURN.
+      ENDIF.
+      IF lv_batch_status IS INITIAL.
+        lv_batch_status = ls_actual-posting_status.
+      ELSEIF lv_batch_status <> ls_actual-posting_status.
+        RETURN.
+      ENDIF.
+
+      CLEAR ls_expected-posting_status.
+      CLEAR ls_expected-document_id.
+      CLEAR ls_expected-posting_message.
+      CLEAR ls_actual-posting_status.
+      CLEAR ls_actual-document_id.
+      CLEAR ls_actual-posting_message.
+      IF ls_expected <> ls_actual.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_valid = abap_true.
   ENDMETHOD.
 ENDCLASS.

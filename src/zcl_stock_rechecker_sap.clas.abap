@@ -102,7 +102,24 @@ CLASS zcl_stock_rechecker_sap IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    DATA(lt_stock) = mo_stock_reader->read_stock( lt_requests ).
+    DATA(ls_stock_result) = mo_stock_reader->read_stock( lt_requests ).
+    IF ls_stock_result-is_success <> abap_true.
+      rs_result-message = COND #(
+        WHEN ls_stock_result-is_success = abap_false
+          AND ls_stock_result-message IS NOT INITIAL
+        THEN ls_stock_result-message
+        ELSE 'Stock reader returned invalid state during posting' ).
+      RETURN.
+    ENDIF.
+    DATA(lt_stock) = ls_stock_result-stock.
+    DATA(ls_snapshot_validation) =
+      zcl_stock_snapshot_validator=>validate(
+        it_requests       = lt_requests
+        it_stock_balances = lt_stock ).
+    IF ls_snapshot_validation-is_valid <> abap_true.
+      rs_result-message = ls_snapshot_validation-message.
+      RETURN.
+    ENDIF.
     LOOP AT lt_required_stocks INTO DATA(ls_required_stock).
       READ TABLE lt_stock INTO DATA(ls_stock)
         WITH TABLE KEY material = ls_required_stock-material

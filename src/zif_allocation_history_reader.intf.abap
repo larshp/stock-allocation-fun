@@ -24,6 +24,7 @@ INTERFACE zif_allocation_history_reader PUBLIC.
       iv_to_time              TYPE t OPTIONAL
       iv_requirement_from     TYPE zstock_algh-requirement_date OPTIONAL
       iv_requirement_to       TYPE zstock_algh-requirement_date OPTIONAL
+      iv_log_uuid             TYPE zstock_algh-log_uuid OPTIONAL
       iv_request_id           TYPE zstock_algh-request_id OPTIONAL
       iv_reservation_id       TYPE zstock_algh-reservation_id OPTIONAL
       iv_prior_reservation_id TYPE zstock_algh-prior_reservation_id OPTIONAL
@@ -42,6 +43,22 @@ INTERFACE zif_allocation_history_reader PUBLIC.
       iv_stock_filter         TYPE ty_boolean_filter OPTIONAL
       iv_shortfall_filter     TYPE ty_boolean_filter OPTIONAL
       iv_fill_filter          TYPE ty_fill_filter OPTIONAL
+      iv_fill_pct_from        TYPE zstock_algh-fill_pct OPTIONAL
+      iv_fill_pct_to          TYPE zstock_algh-fill_pct OPTIONAL
+      iv_min_fill_from        TYPE zstock_algh-minimum_fill_pct OPTIONAL
+      iv_min_fill_to          TYPE zstock_algh-minimum_fill_pct OPTIONAL
+      iv_source_qty_from      TYPE zstock_algh-source_requested_qty OPTIONAL
+      iv_source_qty_to        TYPE zstock_algh-source_requested_qty OPTIONAL
+      iv_available_qty_from   TYPE zstock_algh-available_qty OPTIONAL
+      iv_available_qty_to     TYPE zstock_algh-available_qty OPTIONAL
+      iv_shortfall_qty_from   TYPE zstock_algh-shortfall_qty OPTIONAL
+      iv_shortfall_qty_to     TYPE zstock_algh-shortfall_qty OPTIONAL
+      iv_priority_from        TYPE zstock_algh-priority OPTIONAL
+      iv_priority_to          TYPE zstock_algh-priority OPTIONAL
+      iv_requested_qty_from   TYPE zstock_algh-requested_qty OPTIONAL
+      iv_requested_qty_to     TYPE zstock_algh-requested_qty OPTIONAL
+      iv_allocated_qty_from   TYPE zstock_algh-allocated_qty OPTIONAL
+      iv_allocated_qty_to     TYPE zstock_algh-allocated_qty OPTIONAL
       iv_cost_center          TYPE zstock_algh-cost_center OPTIONAL
       iv_order_id             TYPE zstock_algh-order_id OPTIONAL
       iv_wbs_element          TYPE zstock_algh-wbs_element OPTIONAL
@@ -56,6 +73,7 @@ INTERFACE zif_allocation_history_reader PUBLIC.
       iv_run_mode             TYPE zstock_algh-run_mode OPTIONAL
       iv_run_id               TYPE zstock_algh-run_id OPTIONAL
       iv_decision_code        TYPE zstock_algh-decision_code OPTIONAL
+      iv_log_message          TYPE zstock_algh-log_message OPTIONAL
       iv_logged_by            TYPE zstock_algh-logged_by OPTIONAL
       iv_max_rows             TYPE i
     RETURNING

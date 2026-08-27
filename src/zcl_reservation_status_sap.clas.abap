@@ -26,14 +26,18 @@ CLASS zcl_reservation_status_sap IMPLEMENTATION.
   METHOD zif_reservation_status~is_cancelled.
     DATA(lt_document_ids) = VALUE zif_reservation_status=>ty_document_ids(
       ( iv_document_id ) ).
-    DATA(lt_cancelled_ids) = zif_reservation_status~find_cancelled(
+    DATA(ls_result) = zif_reservation_status~find_cancelled(
       lt_document_ids ).
     rv_is_cancelled = xsdbool(
-      line_exists( lt_cancelled_ids[ table_line = iv_document_id ] ) ).
+      ls_result-is_success = abap_true
+      AND line_exists( ls_result-cancelled_ids[
+        table_line = iv_document_id ] ) ).
   ENDMETHOD.
 
   METHOD zif_reservation_status~find_cancelled.
     IF it_document_ids IS INITIAL.
+      rs_result-is_success = abap_true.
+      rs_result-message = 'Reservation status lookup completed'.
       RETURN.
     ENDIF.
 
@@ -44,6 +48,10 @@ CLASS zcl_reservation_status_sap IMPLEMENTATION.
       FOR ALL ENTRIES IN @it_document_ids
       WHERE rsnum = @it_document_ids-table_line
       INTO CORRESPONDING FIELDS OF TABLE @lt_items.
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
+      rs_result-message = 'Reservation status lookup failed'.
+      RETURN.
+    ENDIF.
 
     DATA lt_statuses TYPE ty_document_statuses.
     LOOP AT lt_items INTO DATA(ls_item).
@@ -60,7 +68,9 @@ CLASS zcl_reservation_status_sap IMPLEMENTATION.
 
     LOOP AT lt_statuses INTO DATA(ls_status)
       WHERE has_active_item = abap_false.
-      INSERT ls_status-document_id INTO TABLE rt_cancelled_ids.
+      INSERT ls_status-document_id INTO TABLE rs_result-cancelled_ids.
     ENDLOOP.
+    rs_result-is_success = abap_true.
+    rs_result-message = 'Reservation status lookup completed'.
   ENDMETHOD.
 ENDCLASS.

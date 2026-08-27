@@ -32,6 +32,12 @@ INTERFACE zif_idempotency_store PUBLIC.
     WITH UNIQUE KEY request_id.
   TYPES ty_request_ids TYPE SORTED TABLE OF
     zcl_stock_allocator=>ty_request_id WITH UNIQUE KEY table_line.
+  TYPES:
+    BEGIN OF ty_lookup_result,
+      is_success TYPE abap_bool,
+      message    TYPE string,
+      records    TYPE ty_records,
+    END OF ty_lookup_result.
 
   METHODS find
     IMPORTING
@@ -41,9 +47,9 @@ INTERFACE zif_idempotency_store PUBLIC.
 
   METHODS find_many
     IMPORTING
-      it_request_ids    TYPE ty_request_ids
+      it_request_ids   TYPE ty_request_ids
     RETURNING
-      VALUE(rt_records) TYPE ty_records.
+      VALUE(rs_result) TYPE ty_lookup_result.
 
   METHODS claim
     IMPORTING

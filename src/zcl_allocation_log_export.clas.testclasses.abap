@@ -8,6 +8,7 @@ CLASS lcl_allocation_history_reader DEFINITION FINAL.
     DATA mv_to_time TYPE t.
     DATA mv_requirement_from TYPE zstock_algh-requirement_date.
     DATA mv_requirement_to TYPE zstock_algh-requirement_date.
+    DATA mv_log_uuid TYPE zstock_algh-log_uuid.
     DATA mv_request_id TYPE zstock_algh-request_id.
     DATA mv_reservation_id TYPE zstock_algh-reservation_id.
     DATA mv_prior_reservation_id TYPE zstock_algh-prior_reservation_id.
@@ -31,6 +32,22 @@ CLASS lcl_allocation_history_reader DEFINITION FINAL.
     DATA mv_shortfall_filter
       TYPE zif_allocation_history_reader=>ty_boolean_filter.
     DATA mv_fill_filter TYPE zif_allocation_history_reader=>ty_fill_filter.
+    DATA mv_fill_pct_from TYPE zstock_algh-fill_pct.
+    DATA mv_fill_pct_to TYPE zstock_algh-fill_pct.
+    DATA mv_min_fill_from TYPE zstock_algh-minimum_fill_pct.
+    DATA mv_min_fill_to TYPE zstock_algh-minimum_fill_pct.
+    DATA mv_source_qty_from TYPE zstock_algh-source_requested_qty.
+    DATA mv_source_qty_to TYPE zstock_algh-source_requested_qty.
+    DATA mv_available_qty_from TYPE zstock_algh-available_qty.
+    DATA mv_available_qty_to TYPE zstock_algh-available_qty.
+    DATA mv_shortfall_qty_from TYPE zstock_algh-shortfall_qty.
+    DATA mv_shortfall_qty_to TYPE zstock_algh-shortfall_qty.
+    DATA mv_priority_from TYPE zstock_algh-priority.
+    DATA mv_priority_to TYPE zstock_algh-priority.
+    DATA mv_requested_qty_from TYPE zstock_algh-requested_qty.
+    DATA mv_requested_qty_to TYPE zstock_algh-requested_qty.
+    DATA mv_allocated_qty_from TYPE zstock_algh-allocated_qty.
+    DATA mv_allocated_qty_to TYPE zstock_algh-allocated_qty.
     DATA mv_cost_center TYPE zstock_algh-cost_center.
     DATA mv_order_id TYPE zstock_algh-order_id.
     DATA mv_wbs_element TYPE zstock_algh-wbs_element.
@@ -45,6 +62,7 @@ CLASS lcl_allocation_history_reader DEFINITION FINAL.
     DATA mv_run_mode TYPE zstock_algh-run_mode.
     DATA mv_run_id TYPE zstock_algh-run_id.
     DATA mv_decision_code TYPE zstock_algh-decision_code.
+    DATA mv_log_message TYPE zstock_algh-log_message.
     DATA mv_logged_by TYPE zstock_algh-logged_by.
     DATA mv_max_rows TYPE i.
     DATA mv_calls TYPE i.
@@ -59,6 +77,7 @@ CLASS lcl_allocation_history_reader IMPLEMENTATION.
     mv_to_time = iv_to_time.
     mv_requirement_from = iv_requirement_from.
     mv_requirement_to = iv_requirement_to.
+    mv_log_uuid = iv_log_uuid.
     mv_request_id = iv_request_id.
     mv_reservation_id = iv_reservation_id.
     mv_prior_reservation_id = iv_prior_reservation_id.
@@ -77,6 +96,22 @@ CLASS lcl_allocation_history_reader IMPLEMENTATION.
     mv_stock_filter = iv_stock_filter.
     mv_shortfall_filter = iv_shortfall_filter.
     mv_fill_filter = iv_fill_filter.
+    mv_fill_pct_from = iv_fill_pct_from.
+    mv_fill_pct_to = iv_fill_pct_to.
+    mv_min_fill_from = iv_min_fill_from.
+    mv_min_fill_to = iv_min_fill_to.
+    mv_source_qty_from = iv_source_qty_from.
+    mv_source_qty_to = iv_source_qty_to.
+    mv_available_qty_from = iv_available_qty_from.
+    mv_available_qty_to = iv_available_qty_to.
+    mv_shortfall_qty_from = iv_shortfall_qty_from.
+    mv_shortfall_qty_to = iv_shortfall_qty_to.
+    mv_priority_from = iv_priority_from.
+    mv_priority_to = iv_priority_to.
+    mv_requested_qty_from = iv_requested_qty_from.
+    mv_requested_qty_to = iv_requested_qty_to.
+    mv_allocated_qty_from = iv_allocated_qty_from.
+    mv_allocated_qty_to = iv_allocated_qty_to.
     mv_cost_center = iv_cost_center.
     mv_order_id = iv_order_id.
     mv_wbs_element = iv_wbs_element.
@@ -91,6 +126,7 @@ CLASS lcl_allocation_history_reader IMPLEMENTATION.
     mv_run_mode = iv_run_mode.
     mv_run_id = iv_run_id.
     mv_decision_code = iv_decision_code.
+    mv_log_message = iv_log_message.
     mv_logged_by = iv_logged_by.
     mv_max_rows = iv_max_rows.
     rs_result = ms_result.
@@ -117,13 +153,20 @@ CLASS ltcl_allocation_log_export DEFINITION FINAL
     METHODS rejects_invalid_policy_filter FOR TESTING.
     METHODS rejects_invalid_stock_filter FOR TESTING.
     METHODS rejects_conflicting_stock FOR TESTING.
+    METHODS rejects_conflicting_qty FOR TESTING.
     METHODS rejects_bad_shortfall_filter FOR TESTING.
     METHODS rejects_invalid_fill_filter FOR TESTING.
+    METHODS rejects_invalid_fill_range FOR TESTING.
+    METHODS rejects_invalid_min_fill FOR TESTING.
+    METHODS rejects_invalid_qty_range FOR TESTING.
+    METHODS rejects_invalid_numeric_range FOR TESTING.
     METHODS rejects_invalid_limit FOR TESTING.
     METHODS rejects_truncated_result FOR TESTING.
     METHODS rejects_invalid_mode FOR TESTING.
     METHODS propagates_read_failure FOR TESTING.
     METHODS rejects_invalid_reader_state FOR TESTING.
+    METHODS rejects_reader_date_leak FOR TESTING.
+    METHODS rejects_reader_filter_leak FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
 
@@ -135,9 +178,11 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD exports_filtered_csv.
+    DATA(lv_log_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
     mo_reader->ms_result-entries = VALUE #(
       ( logged_on            = '20260801'
         logged_at            = '123456'
+        log_uuid             = lv_log_uuid
         run_id               = '00112233445566778899AABBCCDDEEFF'
         request_id           = 'REQ;1'
         run_mode             = 'P'
@@ -185,6 +230,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       iv_to_time              = '144500'
       iv_requirement_from     = '20260810'
       iv_requirement_to       = '20260820'
+      iv_log_uuid             = lv_log_uuid
       iv_request_id           = 'REQ;1'
       iv_reservation_id       = '0000000001'
       iv_prior_reservation_id = '0000000041'
@@ -198,11 +244,26 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       iv_horizon_from         = '20260801'
       iv_horizon_to           = '20260831'
       iv_partial_filter       = 'X'
-      iv_full_batch_filter    = '-'
+      iv_full_batch_filter    = 'X'
       iv_availability_filter  = 'X'
       iv_stock_filter         = 'X'
       iv_shortfall_filter     = '-'
-      iv_fill_filter          = 'P'
+      iv_fill_filter          = 'F'
+      iv_fill_pct_from        = 100
+      iv_fill_pct_to          = 100
+      iv_min_fill_from        = 60
+      iv_min_fill_to          = 80
+      iv_source_qty_from      = 1
+      iv_source_qty_to        = 2
+      iv_available_qty_from   = 4
+      iv_available_qty_to     = 8
+      iv_shortfall_qty_to     = 6
+      iv_priority_from        = 5
+      iv_priority_to          = 15
+      iv_requested_qty_from   = 4
+      iv_requested_qty_to     = 6
+      iv_allocated_qty_from   = 3
+      iv_allocated_qty_to     = 5
       iv_cost_center          = 'CC1000'
       iv_order_id             = 'ORDER-1'
       iv_wbs_element          = 'PROJECT-1'
@@ -217,6 +278,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       iv_run_mode             = 'P'
       iv_run_id               = '00112233445566778899AABBCCDDEEFF'
       iv_decision_code        = 'FULLY_ALLOCATED'
+      iv_log_message          = 'Text "quoted"'
       iv_logged_by            = 'TESTER'
       iv_max_rows             = 50 ).
 
@@ -328,6 +390,12 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       act = mo_reader->mv_logged_by
       exp = 'TESTER' ).
     cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_log_uuid
+      exp = lv_log_uuid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_log_message
+      exp = 'Text "quoted"' ).
+    cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_requirement_from
       exp = '20260810' ).
     cl_abap_unit_assert=>assert_equals(
@@ -371,7 +439,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = 'X' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_full_batch_filter
-      exp = '-' ).
+      exp = 'X' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_availability_filter
       exp = 'X' ).
@@ -383,7 +451,55 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = '-' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_fill_filter
-      exp = 'P' ).
+      exp = 'F' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_fill_pct_from
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_fill_pct_to
+      exp = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_min_fill_from
+      exp = 60 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_min_fill_to
+      exp = 80 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_source_qty_from
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_source_qty_to
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_available_qty_from
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_available_qty_to
+      exp = 8 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_shortfall_qty_from
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_shortfall_qty_to
+      exp = 6 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_priority_from
+      exp = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_priority_to
+      exp = 15 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_requested_qty_from
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_requested_qty_to
+      exp = 6 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_allocated_qty_from
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_allocated_qty_to
+      exp = 5 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_cost_center
       exp = 'CC1000' ).
@@ -464,6 +580,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
 
   METHOD neutralizes_csv_formulas.
     DATA(ls_entry) = VALUE zstock_algh(
+      logged_on   = '20260818'
       request_id  = '=2+3'
       material    = '+SUM(A1:A2)'
       order_id    = '-1+1'
@@ -617,6 +734,78 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD rejects_conflicting_qty.
+    DATA(ls_result) = mo_cut->run(
+      iv_availability_filter = '-'
+      iv_available_qty_from  = 5
+      iv_today               = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Availability filters conflict' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_fill_range.
+    DATA(ls_result) = mo_cut->run(
+      iv_fill_pct_from = 101
+      iv_today         = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Fill percentage range is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_min_fill.
+    DATA(ls_result) = mo_cut->run(
+      iv_min_fill_to = 101
+      iv_today       = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Minimum fill range is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_qty_range.
+    DATA(ls_result) = mo_cut->run(
+      iv_source_qty_from = -1
+      iv_today           = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Quantity range is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_numeric_range.
+    DATA(ls_result) = mo_cut->run(
+      iv_requested_qty_from = 20
+      iv_requested_qty_to   = 10
+      iv_today              = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Numeric filters are invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD rejects_invalid_limit.
     DATA(ls_result) = mo_cut->run(
       iv_max_rows = zcl_allocation_log_export=>gc_max_rows + 1
@@ -684,6 +873,35 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = 'Audit history reader returned invalid state' ).
     cl_abap_unit_assert=>assert_initial( ls_result-lines ).
     cl_abap_unit_assert=>assert_initial( ls_result-exported_rows ).
+  ENDMETHOD.
+
+  METHOD rejects_reader_date_leak.
+    mo_reader->ms_result-entries = VALUE #(
+      ( logged_on = '20260701' ) ).
+
+    DATA(ls_result) = mo_cut->run( iv_today = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit history reader returned out-of-scope rows' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-lines ).
+  ENDMETHOD.
+
+  METHOD rejects_reader_filter_leak.
+    mo_reader->ms_result-entries = VALUE #(
+      ( logged_on = '20260818'
+        material  = 'MAT-2' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_material = 'MAT-1'
+      iv_today    = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit history reader returned out-of-scope rows' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-lines ).
   ENDMETHOD.
 
   METHOD creates_sap_composition.

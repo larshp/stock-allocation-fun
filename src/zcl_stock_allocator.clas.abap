@@ -76,10 +76,16 @@ CLASS zcl_stock_allocator DEFINITION
       VALUE 'RESERVATION_REPLAYED'.
     CONSTANTS gc_decision_replay_lookup TYPE ty_decision_code
       VALUE 'REPLAY_LOOKUP_INVALID'.
+    CONSTANTS gc_decision_cancel_lookup TYPE ty_decision_code
+      VALUE 'CANCELLATION_LOOKUP_INVALID'.
     CONSTANTS gc_decision_replay_outcome TYPE ty_decision_code
       VALUE 'REPLAY_OUTCOME_INVALID'.
     CONSTANTS gc_decision_outside_horizon TYPE ty_decision_code
       VALUE 'OUTSIDE_HORIZON'.
+    CONSTANTS gc_decision_stock_read TYPE ty_decision_code
+      VALUE 'STOCK_READ_INVALID'.
+    CONSTANTS gc_decision_stock_snapshot TYPE ty_decision_code
+      VALUE 'STOCK_SNAPSHOT_INVALID'.
     CONSTANTS gc_decision_stock_not_found TYPE ty_decision_code
       VALUE 'STOCK_NOT_FOUND'.
     CONSTANTS gc_decision_base_unit_missing TYPE ty_decision_code
@@ -219,6 +225,12 @@ CLASS zcl_stock_allocator DEFINITION
       RETURNING
         VALUE(rs_validation) TYPE ty_validation.
 
+    CLASS-METHODS get_account_error
+      IMPORTING
+        is_request        TYPE ty_request
+      RETURNING
+        VALUE(rv_message) TYPE string.
+
     METHODS allocate
       IMPORTING
         it_requests           TYPE ty_requests
@@ -261,13 +273,7 @@ CLASS zcl_stock_allocator DEFINITION
       RETURNING
         VALUE(rs_allocation) TYPE ty_allocation.
 
-    METHODS get_account_error
-      IMPORTING
-        is_request        TYPE ty_request
-      RETURNING
-        VALUE(rv_message) TYPE string.
-
-    METHODS has_conflicting_assignment
+    CLASS-METHODS has_conflicting_assignment
       IMPORTING
         is_request            TYPE ty_request
       RETURNING

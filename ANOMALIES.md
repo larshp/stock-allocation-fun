@@ -599,3 +599,160 @@ The authorized reader, export facade, and report now accept `P_STOCK`: `X`
 selects positive observed stock, `-` selects observed zero, and blank is
 unrestricted. Every nonblank selection also requires the canonical checked flag.
 A contradictory `P_AVAIL = -` combination fails before authorization or SQL.
+
+## RESOLVED-060: audit export could not bound allocation magnitude
+
+History retained priority and canonical requested and allocated quantities, but
+operators could not constrain any of them before the bounded SQL read. Capacity
+analysis and high-value-demand investigations therefore had to export unrelated
+rows and could hit the row ceiling first. Independent inclusive lower and upper
+endpoints now flow through the public reader, export facade, and executable
+report. Either endpoint may be blank for an open interval, while both public
+layers reject an inverted closed interval before authorization or data access.
+
+## RESOLVED-061: cancellation lookup failure looked like an active reservation
+
+The reservation-status port previously returned only a set of cancelled
+documents. It could not distinguish a successful empty classification from a
+database or adapter failure, and the service did not reject document IDs outside
+the requested scope. The port now returns a canonical success envelope. Failed
+or malformed states and unexpected document IDs reject the batch with
+`CANCELLATION_LOOKUP_INVALID` before stock access, while genuine empty results
+retain the conservative replay behavior.
+
+## RESOLVED-062: stock reader failure looked like missing stock
+
+The stock-reader port returned only balances, so an empty result could mean
+either a successful query with no `MARD` rows or failure in a replaceable
+adapter. Allocation could report `STOCK_NOT_FOUND`, and posting revalidation
+could report that stock disappeared, even though infrastructure had not
+affirmed a read. The port now returns a canonical success envelope. Failed or
+malformed initial reads produce `STOCK_READ_INVALID` before conversion and
+posting; the same states fail transactional revalidation without advancing the
+writer. Canonical successful empty reads preserve the legitimate missing-stock
+behavior.
+
+## RESOLVED-063: successful stock responses were not structurally validated
+
+A replaceable reader could affirm success while returning unrelated stock
+domains, incomplete identities, quantities outside the persisted three-decimal
+domain, conflicting base units for one material, or different copies of the
+same plant safety reserve. Those rows could distort shared-plant arithmetic or
+later overflow audit persistence. A shared pure validator now protects both the
+initial allocation snapshot and the locked recheck. Initial violations produce
+`STOCK_SNAPSHOT_INVALID` before conversion or posting, and recheck violations
+stop the transactional writer gate.
+
+## RESOLVED-064: replay lookup failure looked like no persisted claim
+
+Although individual replay rows had canonical found flags and scope checks, the
+set-oriented store method returned only a record table. A backend or replaceable
+adapter failure could therefore be indistinguishable from a successful empty
+lookup, allowing allocation and posting to proceed without affirmative
+idempotency evidence. The lookup now returns a canonical batch success envelope.
+Failed and malformed states produce `REPLAY_LOOKUP_INVALID` before cancellation,
+stock, conversion, or posting; successful empty results remain valid new work.
+
+## RESOLVED-065: writer responses could corrupt orchestration results
+
+The replaceable allocation writer mutates a table in place, but the service
+previously merged whatever it returned. A custom implementation could drop a
+row, change allocation identity or quantities, leave a pending or unknown
+status, attach a document to failure, omit a posted document, or report mixed
+success and failure despite the atomic batch contract. The service now compares
+the response with its original posting input and accepts only a cardinality-
+preserving, identity-preserving, internally consistent atomic result. Violations
+are normalized to failed posting outcomes over the untouched original rows.
+
+## RESOLVED-066: malformed reservation messages were treated as success
+
+The writer recognized BAPI error types `E`, `A`, and `X`, but silently ignored
+unknown or blank types. A replaceable gateway returning a malformed create or
+commit response could therefore advance or complete the transactional flow
+without a recognized success/warning/error contract. Both phases now accept
+only the standard `S`, `I`, `W`, `E`, `A`, and `X` types. Any other value rolls
+back, releases locks, clears provisional document IDs, and fails the batch with
+a deterministic phase-specific message.
+
+## RESOLVED-067: reservation document IDs lacked domain and uniqueness checks
+
+The writer rejected an initial BAPI reservation number but accepted arbitrary
+characters and allowed the same number to be returned for multiple create calls
+in one batch. Such gateway responses could be persisted against unrelated
+request IDs and committed despite violating the SAP reservation identity. Each
+new document must now contain only ten numeric characters and must be unique in
+the pending batch. A violation rolls back before commit and clears all
+provisional document evidence.
+
+## RESOLVED-068: malformed persisted reservation IDs were replayable
+
+Replay preflight treated every noninitial stored reservation ID as a candidate
+for cancellation classification. A nonnumeric legacy or corrupted value could
+therefore survive a missing `RESB` lookup and be returned as a completed
+reservation; two persisted requests could also replay one shared document.
+Completed records now require ten numeric characters and unique document
+ownership within the batch. Violations produce `REPLAY_OUTCOME_INVALID` before
+the reservation-status or stock ports are called.
+
+## RESOLVED-069: audit could not isolate a fulfillment percentage interval
+
+The fulfillment-band selector separated full, partial, and none outcomes but
+could not express operational thresholds such as 80 through 95 percent. An
+independent inclusive fill-percentage interval now flows through the authorized
+reader, bounded SQL, export facade, and executable report. Either endpoint may
+be blank, and a supplied interval intersects with any selected fulfillment band.
+Both public layers reject inverted endpoints and values outside 0 through 100.
+
+## RESOLVED-070: audit could not isolate minimum-fill policy thresholds
+
+History retained each request's minimum acceptable fulfillment percentage, but
+the bounded reader could not select a policy interval independently of the fill
+that was actually achieved. An inclusive minimum-fill range now flows through
+the authorized reader, SQL, export facade, and executable report. Either
+endpoint may be blank; both public layers reject inverted endpoints and values
+outside 0 through 100 before authorization or data access.
+
+## RESOLVED-071: audit could not bound demand, availability, or shortfall
+
+History retained original source demand, observed available stock, and
+shortfall, but the bounded reader could not select intervals over those
+quantities. Independent inclusive ranges now flow through the authorized
+reader, SQL, export facade, and executable report. Either endpoint may be
+blank; negative or inverted ranges are rejected at both public layers. An
+available-stock interval also requires `AVAILABILITY_CHECKED = X`, and is
+rejected when combined with an explicit false availability-evidence filter.
+
+## RESOLVED-072: audit rows lacked identity and diagnostic selectors
+
+The append-only UUID and persisted diagnostic message were present in CSV but
+could not constrain the bounded history read. Investigators therefore had to
+export a wider operational window to isolate one immutable row or one exact
+diagnostic. `P_UUID` and `P_MSG` now flow as independent exact predicates
+through the authorized reader, export facade, and executable report.
+
+## RESOLVED-073: a custom audit reader could widen export scope
+
+The export facade validated its input and row ceiling but trusted the
+replaceable history reader to apply every requested predicate. A malformed or
+incorrect custom reader could return rows outside the authorized time window or
+filters and have them serialized to CSV. The facade now revalidates every row
+against the complete temporal, exact, policy, evidence, band, and numeric scope.
+Any mismatch rejects the entire export before a header or data row is emitted.
+
+## RESOLVED-074: direct writer calls trusted allocator invariants
+
+The production writer normally receives allocator output through orchestration,
+but its public interface also accepted direct pending rows without validating
+their posting identity or quantitative consistency. Such a caller could reach
+idempotency claims and locks with missing keys, excessive precision, a
+pre-attached document, or contradictory full/partial status. The writer now
+preflights those invariants and fails malformed pending rows before invoking any
+replaceable or transactional dependency.
+
+## RESOLVED-075: retention accepted impossible affected-row evidence
+
+The retention facade rejected malformed success flags but passed through any
+affected-row count supplied by a replaceable store. It could therefore report a
+negative count or a failed operation that simultaneously claimed rows were
+affected. Counts must now be nonnegative, and a canonical failure must report
+zero affected rows; contradictions become a deterministic invalid-store result.

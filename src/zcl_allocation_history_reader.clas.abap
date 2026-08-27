@@ -63,7 +63,9 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
       rs_result-message = 'Audit policy filter is invalid'.
       RETURN.
     ENDIF.
-    IF iv_stock_filter IS NOT INITIAL
+    IF ( iv_stock_filter IS NOT INITIAL
+          OR iv_available_qty_from IS NOT INITIAL
+          OR iv_available_qty_to IS NOT INITIAL )
         AND iv_availability_filter
           = zif_allocation_history_reader=>gc_filter_false.
       rs_result-message = 'Audit availability filters conflict'.
@@ -77,6 +79,62 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         AND iv_fill_filter
           <> zif_allocation_history_reader=>gc_fill_none.
       rs_result-message = 'Audit fill filter is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_fill_pct_from < 0
+        OR iv_fill_pct_from > 100
+        OR iv_fill_pct_to < 0
+        OR iv_fill_pct_to > 100
+        OR ( iv_fill_pct_from IS NOT INITIAL
+          AND iv_fill_pct_to IS NOT INITIAL
+          AND iv_fill_pct_from > iv_fill_pct_to ).
+      rs_result-message = 'Audit fill percentage range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_min_fill_from < 0
+        OR iv_min_fill_from > 100
+        OR iv_min_fill_to < 0
+        OR iv_min_fill_to > 100
+        OR ( iv_min_fill_from IS NOT INITIAL
+          AND iv_min_fill_to IS NOT INITIAL
+          AND iv_min_fill_from > iv_min_fill_to ).
+      rs_result-message = 'Audit minimum fill range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_source_qty_from < 0
+        OR iv_source_qty_to < 0
+        OR iv_available_qty_from < 0
+        OR iv_available_qty_to < 0
+        OR iv_shortfall_qty_from < 0
+        OR iv_shortfall_qty_to < 0
+        OR ( iv_source_qty_from IS NOT INITIAL
+          AND iv_source_qty_to IS NOT INITIAL
+          AND iv_source_qty_from > iv_source_qty_to )
+        OR ( iv_available_qty_from IS NOT INITIAL
+          AND iv_available_qty_to IS NOT INITIAL
+          AND iv_available_qty_from > iv_available_qty_to )
+        OR ( iv_shortfall_qty_from IS NOT INITIAL
+          AND iv_shortfall_qty_to IS NOT INITIAL
+          AND iv_shortfall_qty_from > iv_shortfall_qty_to ).
+      rs_result-message = 'Audit quantity range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_priority_from < 0
+        OR iv_priority_to < 0
+        OR iv_requested_qty_from < 0
+        OR iv_requested_qty_to < 0
+        OR iv_allocated_qty_from < 0
+        OR iv_allocated_qty_to < 0
+        OR ( iv_priority_from IS NOT INITIAL
+          AND iv_priority_to IS NOT INITIAL
+          AND iv_priority_from > iv_priority_to )
+        OR ( iv_requested_qty_from IS NOT INITIAL
+          AND iv_requested_qty_to IS NOT INITIAL
+          AND iv_requested_qty_from > iv_requested_qty_to )
+        OR ( iv_allocated_qty_from IS NOT INITIAL
+          AND iv_allocated_qty_to IS NOT INITIAL
+          AND iv_allocated_qty_from > iv_allocated_qty_to ).
+      rs_result-message = 'Audit numeric range is invalid'.
       RETURN.
     ENDIF.
     IF iv_max_rows <= 0
@@ -96,6 +154,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
     ENDIF.
 
     DATA lt_requirement_dates TYPE RANGE OF zstock_algh-requirement_date.
+    DATA lt_log_uuids TYPE RANGE OF zstock_algh-log_uuid.
     DATA lt_request_ids TYPE RANGE OF zstock_algh-request_id.
     DATA lt_reservation_ids TYPE RANGE OF zstock_algh-reservation_id.
     DATA lt_prior_reservation_ids
@@ -114,8 +173,17 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
     DATA lt_availability_checked
       TYPE RANGE OF zstock_algh-availability_checked.
     DATA lt_available_quantities TYPE RANGE OF zstock_algh-available_qty.
+    DATA lt_available_quantity_range TYPE RANGE OF zstock_algh-available_qty.
     DATA lt_shortfall_quantities TYPE RANGE OF zstock_algh-shortfall_qty.
+    DATA lt_shortfall_quantity_range TYPE RANGE OF zstock_algh-shortfall_qty.
+    DATA lt_source_quantity_range
+      TYPE RANGE OF zstock_algh-source_requested_qty.
     DATA lt_fill_percentages TYPE RANGE OF zstock_algh-fill_pct.
+    DATA lt_fill_percentage_range TYPE RANGE OF zstock_algh-fill_pct.
+    DATA lt_minimum_fill_range TYPE RANGE OF zstock_algh-minimum_fill_pct.
+    DATA lt_priorities TYPE RANGE OF zstock_algh-priority.
+    DATA lt_requested_quantities TYPE RANGE OF zstock_algh-requested_qty.
+    DATA lt_allocated_quantities TYPE RANGE OF zstock_algh-allocated_qty.
     DATA lt_cost_centers TYPE RANGE OF zstock_algh-cost_center.
     DATA lt_order_ids TYPE RANGE OF zstock_algh-order_id.
     DATA lt_wbs_elements TYPE RANGE OF zstock_algh-wbs_element.
@@ -130,6 +198,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
     DATA lt_run_modes TYPE RANGE OF zstock_algh-run_mode.
     DATA lt_run_ids TYPE RANGE OF zstock_algh-run_id.
     DATA lt_decision_codes TYPE RANGE OF zstock_algh-decision_code.
+    DATA lt_log_messages TYPE RANGE OF zstock_algh-log_message.
     DATA lt_logged_by_users TYPE RANGE OF zstock_algh-logged_by.
     IF iv_requirement_from IS NOT INITIAL
         AND iv_requirement_to IS NOT INITIAL.
@@ -148,6 +217,12 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         sign   = 'I'
         option = 'LE'
         low    = iv_requirement_to ) TO lt_requirement_dates.
+    ENDIF.
+    IF iv_log_uuid IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = iv_log_uuid ) TO lt_log_uuids.
     ENDIF.
     IF iv_request_id IS NOT INITIAL.
       APPEND VALUE #(
@@ -256,21 +331,43 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
           THEN abap_true
           ELSE abap_false ) ) TO lt_availability_checked.
     ENDIF.
-    IF iv_stock_filter IS NOT INITIAL.
+    IF iv_stock_filter IS NOT INITIAL
+        OR iv_available_qty_from IS NOT INITIAL
+        OR iv_available_qty_to IS NOT INITIAL.
       IF iv_availability_filter IS INITIAL.
         APPEND VALUE #(
           sign   = 'I'
           option = 'EQ'
           low    = abap_true ) TO lt_availability_checked.
       ENDIF.
+      IF iv_stock_filter IS NOT INITIAL.
+        APPEND VALUE #(
+          sign   = 'I'
+          option = COND #(
+            WHEN iv_stock_filter
+              = zif_allocation_history_reader=>gc_filter_true
+            THEN 'GT'
+            ELSE 'EQ' )
+          low    = 0 ) TO lt_available_quantities.
+      ENDIF.
+    ENDIF.
+    IF iv_available_qty_from IS NOT INITIAL
+        AND iv_available_qty_to IS NOT INITIAL.
       APPEND VALUE #(
         sign   = 'I'
-        option = COND #(
-          WHEN iv_stock_filter
-            = zif_allocation_history_reader=>gc_filter_true
-          THEN 'GT'
-          ELSE 'EQ' )
-        low    = 0 ) TO lt_available_quantities.
+        option = 'BT'
+        low    = iv_available_qty_from
+        high   = iv_available_qty_to ) TO lt_available_quantity_range.
+    ELSEIF iv_available_qty_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_available_qty_from ) TO lt_available_quantity_range.
+    ELSEIF iv_available_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_available_qty_to ) TO lt_available_quantity_range.
     ENDIF.
     IF iv_shortfall_filter IS NOT INITIAL.
       APPEND VALUE #(
@@ -300,6 +397,128 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
           option = 'EQ'
           low    = 0 ) TO lt_fill_percentages.
     ENDCASE.
+    IF iv_fill_pct_from IS NOT INITIAL AND iv_fill_pct_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_fill_pct_from
+        high   = iv_fill_pct_to ) TO lt_fill_percentage_range.
+    ELSEIF iv_fill_pct_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_fill_pct_from ) TO lt_fill_percentage_range.
+    ELSEIF iv_fill_pct_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_fill_pct_to ) TO lt_fill_percentage_range.
+    ENDIF.
+    IF iv_shortfall_qty_from IS NOT INITIAL
+        AND iv_shortfall_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_shortfall_qty_from
+        high   = iv_shortfall_qty_to ) TO lt_shortfall_quantity_range.
+    ELSEIF iv_shortfall_qty_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_shortfall_qty_from ) TO lt_shortfall_quantity_range.
+    ELSEIF iv_shortfall_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_shortfall_qty_to ) TO lt_shortfall_quantity_range.
+    ENDIF.
+    IF iv_source_qty_from IS NOT INITIAL AND iv_source_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_source_qty_from
+        high   = iv_source_qty_to ) TO lt_source_quantity_range.
+    ELSEIF iv_source_qty_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_source_qty_from ) TO lt_source_quantity_range.
+    ELSEIF iv_source_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_source_qty_to ) TO lt_source_quantity_range.
+    ENDIF.
+    IF iv_min_fill_from IS NOT INITIAL AND iv_min_fill_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_min_fill_from
+        high   = iv_min_fill_to ) TO lt_minimum_fill_range.
+    ELSEIF iv_min_fill_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_min_fill_from ) TO lt_minimum_fill_range.
+    ELSEIF iv_min_fill_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_min_fill_to ) TO lt_minimum_fill_range.
+    ENDIF.
+    IF iv_priority_from IS NOT INITIAL AND iv_priority_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_priority_from
+        high   = iv_priority_to ) TO lt_priorities.
+    ELSEIF iv_priority_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_priority_from ) TO lt_priorities.
+    ELSEIF iv_priority_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_priority_to ) TO lt_priorities.
+    ENDIF.
+    IF iv_requested_qty_from IS NOT INITIAL
+        AND iv_requested_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_requested_qty_from
+        high   = iv_requested_qty_to ) TO lt_requested_quantities.
+    ELSEIF iv_requested_qty_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_requested_qty_from ) TO lt_requested_quantities.
+    ELSEIF iv_requested_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_requested_qty_to ) TO lt_requested_quantities.
+    ENDIF.
+    IF iv_allocated_qty_from IS NOT INITIAL
+        AND iv_allocated_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'BT'
+        low    = iv_allocated_qty_from
+        high   = iv_allocated_qty_to ) TO lt_allocated_quantities.
+    ELSEIF iv_allocated_qty_from IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'GE'
+        low    = iv_allocated_qty_from ) TO lt_allocated_quantities.
+    ELSEIF iv_allocated_qty_to IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'LE'
+        low    = iv_allocated_qty_to ) TO lt_allocated_quantities.
+    ENDIF.
     IF iv_cost_center IS NOT INITIAL.
       APPEND VALUE #(
         sign   = 'I'
@@ -384,6 +603,12 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         option = 'EQ'
         low    = iv_decision_code ) TO lt_decision_codes.
     ENDIF.
+    IF iv_log_message IS NOT INITIAL.
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = iv_log_message ) TO lt_log_messages.
+    ENDIF.
     IF iv_logged_by IS NOT INITIAL.
       APPEND VALUE #(
         sign   = 'I'
@@ -402,6 +627,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         AND ( logged_on < @iv_to_date
           OR logged_at <= @lv_to_time )
         AND requirement_date IN @lt_requirement_dates
+        AND log_uuid IN @lt_log_uuids
         AND request_id IN @lt_request_ids
         AND reservation_id IN @lt_reservation_ids
         AND prior_reservation_id IN @lt_prior_reservation_ids
@@ -417,8 +643,16 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         AND require_full_batch IN @lt_require_full_batch
         AND availability_checked IN @lt_availability_checked
         AND available_qty IN @lt_available_quantities
+        AND available_qty IN @lt_available_quantity_range
         AND shortfall_qty IN @lt_shortfall_quantities
+        AND shortfall_qty IN @lt_shortfall_quantity_range
+        AND source_requested_qty IN @lt_source_quantity_range
         AND fill_pct IN @lt_fill_percentages
+        AND fill_pct IN @lt_fill_percentage_range
+        AND minimum_fill_pct IN @lt_minimum_fill_range
+        AND priority IN @lt_priorities
+        AND requested_qty IN @lt_requested_quantities
+        AND allocated_qty IN @lt_allocated_quantities
         AND cost_center IN @lt_cost_centers
         AND order_id IN @lt_order_ids
         AND wbs_element IN @lt_wbs_elements
@@ -433,6 +667,7 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
         AND run_mode IN @lt_run_modes
         AND run_id IN @lt_run_ids
         AND decision_code IN @lt_decision_codes
+        AND log_message IN @lt_log_messages
         AND logged_by IN @lt_logged_by_users
       ORDER BY logged_on ASCENDING,
                logged_at ASCENDING,

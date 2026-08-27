@@ -2,6 +2,7 @@ CLASS lcl_stock_reader DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_reader.
     DATA mt_stock TYPE zcl_stock_allocator=>ty_stock_balances.
+    DATA ms_result TYPE zif_stock_reader=>ty_result.
     DATA mt_requests TYPE zcl_stock_allocator=>ty_requests.
     DATA mv_calls TYPE i.
 ENDCLASS.
@@ -10,7 +11,8 @@ CLASS lcl_stock_reader IMPLEMENTATION.
   METHOD zif_stock_reader~read_stock.
     mv_calls = mv_calls + 1.
     mt_requests = it_requests.
-    rt_stock = mt_stock.
+    rs_result = ms_result.
+    rs_result-stock = mt_stock.
   ENDMETHOD.
 ENDCLASS.
 
@@ -18,6 +20,7 @@ CLASS lcl_idempotency_store DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_idempotency_store.
     DATA mt_records TYPE zif_idempotency_store=>ty_records.
+    DATA ms_lookup_result TYPE zif_idempotency_store=>ty_lookup_result.
     DATA mt_find_request_ids TYPE zif_idempotency_store=>ty_request_ids.
     DATA mv_find_calls TYPE i.
     DATA mv_return_all TYPE abap_bool.
@@ -33,15 +36,16 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
   METHOD zif_idempotency_store~find_many.
     mv_find_calls = mv_find_calls + 1.
     mt_find_request_ids = it_request_ids.
+    rs_result = ms_lookup_result.
     IF mv_return_all = abap_true.
-      rt_records = mt_records.
+      rs_result-records = mt_records.
       RETURN.
     ENDIF.
     LOOP AT it_request_ids INTO DATA(lv_request_id).
       READ TABLE mt_records INTO DATA(ls_record)
         WITH TABLE KEY request_id = lv_request_id.
       IF sy-subrc = 0.
-        INSERT ls_record INTO TABLE rt_records.
+        INSERT ls_record INTO TABLE rs_result-records.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -80,6 +84,7 @@ CLASS lcl_reservation_status DEFINITION FINAL.
     INTERFACES zif_reservation_status.
     DATA mv_is_cancelled TYPE abap_bool.
     DATA mt_document_ids TYPE zif_reservation_status=>ty_document_ids.
+    DATA ms_result TYPE zif_reservation_status=>ty_result.
     DATA mv_find_calls TYPE i.
 ENDCLASS.
 
@@ -93,8 +98,10 @@ CLASS lcl_reservation_status IMPLEMENTATION.
   METHOD zif_reservation_status~find_cancelled.
     mv_find_calls = mv_find_calls + 1.
     mt_document_ids = it_document_ids.
-    IF mv_is_cancelled = abap_true.
-      rt_cancelled_ids = it_document_ids.
+    rs_result = ms_result.
+    IF mv_is_cancelled = abap_true
+        AND rs_result-is_success = abap_true.
+      rs_result-cancelled_ids = it_document_ids.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.
@@ -125,6 +132,7 @@ CLASS lcl_allocation_writer DEFINITION FINAL.
     DATA mt_saved TYPE zcl_stock_allocator=>ty_allocations.
     DATA mv_call_count TYPE i.
     DATA mv_fail TYPE abap_bool.
+    DATA mv_response_mode TYPE c LENGTH 1.
 ENDCLASS.
 
 CLASS lcl_allocation_writer IMPLEMENTATION.
@@ -140,6 +148,12 @@ CLASS lcl_allocation_writer IMPLEMENTATION.
     ENDLOOP.
     mt_saved = ct_allocations.
     mv_call_count = mv_call_count + 1.
+    CASE mv_response_mode.
+      WHEN 'D'.
+        DELETE ct_allocations INDEX 1.
+      WHEN 'M'.
+        ct_allocations[ 1 ]-material = 'CHANGED'.
+    ENDCASE.
   ENDMETHOD.
 ENDCLASS.
 
@@ -165,19 +179,31 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS skips_invalid_dependencies FOR TESTING.
     METHODS skips_all_invalid_reads FOR TESTING.
     METHODS skips_unpersistable_numeric FOR TESTING.
+    METHODS rejects_failed_stock_read FOR TESTING.
+    METHODS rejects_invalid_stock_state FOR TESTING.
+    METHODS rejects_invalid_snapshot FOR TESTING.
     METHODS deduplicates_replay_lookups FOR TESTING.
     METHODS batches_replay_lookups FOR TESTING.
     METHODS rejects_invalid_replay_state FOR TESTING.
+    METHODS rejects_failed_replay_lookup FOR TESTING.
+    METHODS rejects_malformed_lookup FOR TESTING.
     METHODS rejects_unexpected_replay_id FOR TESTING.
     METHODS ignores_not_found_document FOR TESTING.
     METHODS batches_status_lookups FOR TESTING.
+    METHODS rejects_failed_status_lookup FOR TESTING.
+    METHODS rejects_invalid_status_state FOR TESTING.
+    METHODS rejects_unexpected_status_id FOR TESTING.
     METHODS writes_successful_allocations FOR TESTING.
     METHODS returns_posting_failure FOR TESTING.
+    METHODS rejects_dropped_writer_row FOR TESTING.
+    METHODS rejects_mutated_writer_row FOR TESTING.
     METHODS skips_empty_write FOR TESTING.
     METHODS converts_before_write FOR TESTING.
     METHODS replays_completed_request FOR TESTING.
     METHODS rejects_incomplete_replay FOR TESTING.
     METHODS rejects_invalid_replay_outcome FOR TESTING.
+    METHODS rejects_bad_replay_document FOR TESTING.
+    METHODS rejects_reused_replay_document FOR TESTING.
     METHODS replay_does_not_reduce_stock FOR TESTING.
     METHODS rejects_reused_id_changes FOR TESTING.
     METHODS rejects_reused_assignment FOR TESTING.
@@ -200,16 +226,23 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
         iv_unit_of_measure TYPE zcl_stock_allocator=>ty_unit DEFAULT 'EA'
       RETURNING
         VALUE(rt_requests) TYPE zcl_stock_allocator=>ty_requests.
+
+    METHODS completed_record
+      RETURNING
+        VALUE(rs_record) TYPE zif_idempotency_store=>ty_record.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD setup.
     mo_reader = NEW #( ).
+    mo_reader->ms_result-is_success = abap_true.
     mo_writer = NEW #( ).
     mo_converter = NEW #( ).
     mo_store = NEW #( ).
+    mo_store->ms_lookup_result-is_success = abap_true.
     mo_authority = NEW #( ).
     mo_reservation_status = NEW #( ).
+    mo_reservation_status->ms_result-is_success = abap_true.
     mo_reader->mt_stock = VALUE #(
       ( material         = 'MAT-1'
         plant            = '1000'
@@ -280,6 +313,37 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'Posting failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_dropped_writer_row.
+    mo_writer->mv_response_mode = 'D'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation writer returned invalid response' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-document_id ).
+  ENDMETHOD.
+
+  METHOD rejects_mutated_writer_row.
+    mo_writer->mv_response_mode = 'M'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation writer returned invalid response' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-material
+      exp = 'MAT-1' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-document_id ).
   ENDMETHOD.
 
   METHOD converts_before_write.
@@ -524,6 +588,73 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD rejects_failed_stock_read.
+    mo_reader->ms_result-is_success = abap_false.
+    mo_reader->ms_result-message = 'Stock backend unavailable'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_stock_read ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stock backend unavailable' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_converter->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_stock_state.
+    mo_reader->ms_result-is_success = 'Y'.
+    mo_reader->ms_result-message = 'Misleading success'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_stock_read ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stock reader returned invalid state' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_converter->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_snapshot.
+    mo_reader->mt_stock = VALUE #(
+      ( material         = 'MAT-2'
+        plant            = '1000'
+        storage_location = '0001'
+        base_unit        = 'EA'
+        unrestricted_qty = 5 ) ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_stock_snapshot ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stock snapshot contains an unrequested domain' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_converter->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD deduplicates_replay_lookups.
     DATA(lt_requests) = requests( 5 ).
     DATA(ls_duplicate) = lt_requests[ 1 ].
@@ -614,6 +745,52 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_converter->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_failed_replay_lookup.
+    mo_store->ms_lookup_result-is_success = abap_false.
+    mo_store->ms_lookup_result-message = 'Idempotency backend unavailable'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Idempotency backend unavailable' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation_status->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_malformed_lookup.
+    mo_store->ms_lookup_result-is_success = 'Y'.
+    mo_store->ms_lookup_result-message = 'Misleading success'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Idempotency lookup returned invalid state' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation_status->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_writer->mv_call_count
@@ -731,6 +908,72 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD rejects_failed_status_lookup.
+    INSERT completed_record( ) INTO TABLE mo_store->mt_records.
+    mo_reservation_status->ms_result-is_success = abap_false.
+    mo_reservation_status->ms_result-message = 'Status lookup failed'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_cancel_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Status lookup failed' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_status_state.
+    INSERT completed_record( ) INTO TABLE mo_store->mt_records.
+    mo_reservation_status->ms_result-is_success = 'Y'.
+    mo_reservation_status->ms_result-message = 'Misleading success'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_cancel_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Reservation status lookup returned invalid state' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_unexpected_status_id.
+    INSERT completed_record( ) INTO TABLE mo_store->mt_records.
+    mo_reservation_status->ms_result-cancelled_ids = VALUE #(
+      ( '0000000099' ) ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_cancel_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Reservation status returned unexpected document 0000000099' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD rejects_incomplete_replay.
     mo_store->mt_records = VALUE #(
       ( is_found             = abap_true
@@ -802,6 +1045,54 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_replay_document.
+    DATA(ls_record) = completed_record( ).
+    ls_record-document_id = 'BAD-DOC-ID'.
+    INSERT ls_record INTO TABLE mo_store->mt_records.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stored reservation document ID is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation_status->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_reused_replay_document.
+    DATA(lt_requests) = requests( 5 ).
+    DATA(ls_second_request) = lt_requests[ 1 ].
+    ls_second_request-request_id = 'REQUEST-2'.
+    APPEND ls_second_request TO lt_requests.
+    DATA(ls_first_record) = completed_record( ).
+    INSERT ls_first_record INTO TABLE mo_store->mt_records.
+    DATA(ls_second_record) = ls_first_record.
+    ls_second_record-request_id = 'REQUEST-2'.
+    INSERT ls_second_record INTO TABLE mo_store->mt_records.
+
+    DATA(lt_result) = mo_cut->execute( lt_requests ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stored reservation document ID is reused' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reservation_status->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
       exp = 0 ).
   ENDMETHOD.
 
@@ -1231,5 +1522,25 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
         requested_qty    = iv_quantity
         priority         = 100
         allow_partial    = iv_allow_partial ) ).
+  ENDMETHOD.
+
+  METHOD completed_record.
+    rs_record = VALUE #(
+      is_found             = abap_true
+      payload_version      = zcl_stock_allocator=>gc_payload_version
+      request_id           = 'REQUEST-1'
+      material             = 'MAT-1'
+      plant                = '1000'
+      storage_location     = '0001'
+      movement_type        = '201'
+      cost_center          = 'CC1000'
+      requirement_date     = '20260818'
+      source_requested_qty = 5
+      source_unit          = 'EA'
+      priority             = 100
+      requested_qty        = 5
+      allocated_qty        = 5
+      unit_of_measure      = 'EA'
+      document_id          = '0000000041' ).
   ENDMETHOD.
 ENDCLASS.

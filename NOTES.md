@@ -520,3 +520,91 @@
   but no evidence are excluded. Combining a stock band with an explicit
   unchecked-availability filter fails before authorization or reader access.
   Four focused scenarios bring the suite to one hundred sixty-four.
+- Audit history can now be narrowed by independent inclusive ranges for
+  priority, canonical requested quantity, and allocated quantity. Each endpoint
+  is optional, inverted closed ranges fail in both public layers before
+  authorization or SQL, and the executable report carries all six endpoints.
+  Two focused scenarios bring the suite to one hundred sixty-six.
+- Cancellation classification now returns an explicit success envelope rather
+  than making lookup failure indistinguishable from an active reservation. The
+  service accepts only canonical success, rejects reservation IDs outside the
+  requested lookup set, and emits `CANCELLATION_LOOKUP_INVALID` before stock
+  access on any contract violation. Three scenarios bring the suite to one
+  hundred sixty-nine.
+- Stock reads now return a canonical success envelope. Initial allocation maps
+  failed or malformed reader states to `STOCK_READ_INVALID` before conversion
+  or posting, while transactional revalidation fails the writer gate with the
+  reader diagnostic. A successful empty result still means genuinely missing
+  stock and retains the established business outcome. Four scenarios bring the
+  suite to one hundred seventy-three.
+- Added `zcl_stock_snapshot_validator` and apply it to both initial stock reads
+  and the locked posting recheck. Successful snapshots must contain only
+  requested material/plant domains, complete stock keys, `DEC(13,3)` quantities,
+  one base unit per material, and one safety-stock value per material/plant.
+  Initial violations emit `STOCK_SNAPSHOT_INVALID`; posting-time violations
+  fail the writer gate. Eight scenarios bring the suite to one hundred
+  eighty-one.
+- Set-oriented idempotency lookup now returns a canonical batch success envelope
+  in addition to its individually validated records. Backend failures preserve
+  their diagnostics, malformed success flags produce a deterministic
+  `REPLAY_LOOKUP_INVALID` outcome, and neither case can continue to cancellation
+  classification or stock reads. Two scenarios bring the suite to one hundred
+  eighty-three.
+- The orchestration service now validates every replaceable writer response
+  before merging it into results. Cardinality and request IDs must match, all
+  allocation inputs remain immutable, posted rows require documents, failed
+  rows forbid them, and the atomic batch cannot mix posting states. An invalid
+  response is normalized to failed posting evidence over the original rows.
+  Two scenarios bring the suite to one hundred eighty-five.
+- Reservation creation and commit now accept only standard BAPI message types
+  `S`, `I`, `W`, `E`, `A`, and `X`. Unknown or blank types roll back the LUW,
+  release stock locks, clear provisional documents, and fail every pending row
+  with a phase-specific diagnostic. Two scenarios bring the suite to one
+  hundred eighty-seven.
+- New reservation documents must be exactly numeric in the ten-character SAP
+  domain and unique across one writer batch. Nonnumeric or repeated IDs roll
+  back before commit, clear all provisional documents, and fail the atomic
+  batch. Two scenarios bring the suite to one hundred eighty-nine.
+- Persisted completed outcomes now apply the same numeric reservation-number
+  contract before cancellation classification. A document ID reused by two
+  distinct replay claims in the same lookup is also rejected. Both conditions
+  return `REPLAY_OUTCOME_INVALID` without reservation-status or stock reads.
+  Two scenarios bring the suite to one hundred ninety-one.
+- Audit history now supports an independent inclusive fill-percentage range
+  alongside the full/partial/none selector. Either endpoint may be open, the
+  range composes as an intersection with a selected band, and both public layers
+  reject inverted endpoints or values outside 0 through 100. Two scenarios
+  bring the suite to one hundred ninety-three.
+- Audit history now supports a separate inclusive range for the request's
+  configured minimum-fill policy. Open endpoints are supported, values must
+  remain within 0 through 100, and both the export facade and direct reader
+  reject inverted ranges before authorization or SQL. Two scenarios bring the
+  suite to one hundred ninety-five.
+- Audit history now supports independent inclusive ranges for original source
+  demand, observed available stock, and shortfall. Open endpoints are
+  supported, while negative or inverted ranges are rejected at both public
+  layers. An available-stock range automatically requires affirmative
+  availability evidence and conflicts with an explicit false evidence filter.
+  Four scenarios bring the suite to one hundred ninety-nine.
+- Every persisted audit column can now participate in bounded investigation:
+  the remaining immutable row UUID and diagnostic message flow as exact
+  selectors through the authorized reader, export facade, and report. Existing
+  export-forwarding coverage verifies both additions; the suite remains at one
+  hundred ninety-nine focused scenarios.
+- The CSV facade no longer assumes that an injected history reader honored its
+  request. Before formatting any output, it rechecks each row against the log
+  and requirement windows, every exact selector, tri-state and fill-band
+  semantics, availability evidence, and every numeric range. A mismatch fails
+  the whole export without returning a header or partial data. Two adapter-leak
+  scenarios bring the suite to two hundred one.
+- The SAP allocation writer now preflights every positive pending row even when
+  called outside the orchestration service. Required posting identity, the
+  persistable `DEC(13,3)` quantity domain, requested-versus-allocated ordering,
+  full/partial status consistency, and an initially blank document are required
+  before any idempotency claim, lock, stock recheck, or reservation call. Two
+  direct-call scenarios bring the suite to two hundred three.
+- Retention result validation now covers quantitative evidence as well as the
+  canonical success flag. Negative affected-row counts and failed responses
+  claiming nonzero affected rows are rejected instead of being surfaced as
+  trustworthy cleanup outcomes. Two scenarios bring the suite to two hundred
+  five.

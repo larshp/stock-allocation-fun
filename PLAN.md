@@ -143,3 +143,35 @@ best practices.
       minimum-fill policy, priority, and converted canonical quantities.
 - [x] Add evidence-aware positive and zero usable-stock filtering to authorized
       audit reads and the executable CSV export pipeline.
+- [x] Add inclusive priority, requested-quantity, and allocated-quantity ranges
+      to authorized audit reads and the executable CSV export pipeline.
+- [x] Require an affirmative, scope-valid cancellation-status lookup before
+      reopening persisted reservation requests.
+- [x] Distinguish successful empty stock reads from failed or malformed reader
+      results during allocation and transactional stock revalidation.
+- [x] Validate successful stock snapshots for requested scope, persistable
+      quantities, material-unit consistency, and shared safety-stock identity.
+- [x] Require canonical batch-level success before interpreting set-oriented
+      idempotency replay lookup rows.
+- [x] Validate allocation-writer response cardinality, immutable payload,
+      posting states, document evidence, and atomic batch consistency.
+- [x] Fail closed on unknown or blank reservation API message types during both
+      reservation creation and transactional commit.
+- [x] Reject nonnumeric or duplicate reservation document IDs before linking
+      them to idempotency claims or committing a posting batch.
+- [x] Reject malformed or cross-request reused reservation IDs in persisted
+      replay outcomes before cancellation classification or stock access.
+- [x] Add an independent inclusive fulfillment-percentage range to authorized
+      audit reads and CSV export, composable with fulfillment bands.
+- [x] Add an independent inclusive minimum-fulfillment-policy range to
+      authorized audit reads and the executable CSV export.
+- [x] Add inclusive original-demand, observed-availability, and shortfall
+      quantity ranges to authorized audit reads and CSV export.
+- [x] Add exact immutable-row UUID and diagnostic-message selectors to
+      authorized audit reads and the executable CSV export.
+- [x] Revalidate every returned audit row against the complete requested export
+      scope before producing CSV from a replaceable history reader.
+- [x] Preflight pending allocation identity, quantity precision, status, and
+      document state inside the public SAP writer before protected side effects.
+- [x] Reject impossible retention-store affected-row evidence at the public
+      cleanup facade.

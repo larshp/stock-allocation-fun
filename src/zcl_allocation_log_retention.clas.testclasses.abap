@@ -33,6 +33,8 @@ CLASS ltcl_allocation_log_retention DEFINITION FINAL
     METHODS rejects_invalid_simulation FOR TESTING.
     METHODS rejects_future_effective_date FOR TESTING.
     METHODS rejects_invalid_store_state FOR TESTING.
+    METHODS rejects_negative_store_count FOR TESTING.
+    METHODS rejects_failed_store_count FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
 
@@ -143,6 +145,42 @@ CLASS ltcl_allocation_log_retention IMPLEMENTATION.
     DATA(ls_result) = mo_cut->run(
       iv_retention_days = 30
       iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_initial( ls_result-affected_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention store returned invalid state' ).
+  ENDMETHOD.
+
+  METHOD rejects_negative_store_count.
+    mo_store->ms_result = VALUE #(
+      is_success    = abap_true
+      affected_rows = -1
+      message       = 'Misleading count' ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_initial( ls_result-affected_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention store returned invalid state' ).
+  ENDMETHOD.
+
+  METHOD rejects_failed_store_count.
+    mo_store->ms_result = VALUE #(
+      is_success    = abap_false
+      affected_rows = 7
+      message       = 'Failed after rows' ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_false
       iv_today          = '20260818' ).
 
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).

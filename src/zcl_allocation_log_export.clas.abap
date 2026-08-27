@@ -32,6 +32,7 @@ CLASS zcl_allocation_log_export DEFINITION
         iv_to_time              TYPE t OPTIONAL
         iv_requirement_from     TYPE zstock_algh-requirement_date OPTIONAL
         iv_requirement_to       TYPE zstock_algh-requirement_date OPTIONAL
+        iv_log_uuid             TYPE zstock_algh-log_uuid OPTIONAL
         iv_request_id           TYPE zstock_algh-request_id OPTIONAL
         iv_reservation_id       TYPE zstock_algh-reservation_id OPTIONAL
         iv_prior_reservation_id TYPE zstock_algh-prior_reservation_id OPTIONAL
@@ -50,6 +51,22 @@ CLASS zcl_allocation_log_export DEFINITION
         iv_stock_filter         TYPE zif_allocation_history_reader=>ty_boolean_filter OPTIONAL
         iv_shortfall_filter     TYPE zif_allocation_history_reader=>ty_boolean_filter OPTIONAL
         iv_fill_filter          TYPE zif_allocation_history_reader=>ty_fill_filter OPTIONAL
+        iv_fill_pct_from        TYPE zstock_algh-fill_pct OPTIONAL
+        iv_fill_pct_to          TYPE zstock_algh-fill_pct OPTIONAL
+        iv_min_fill_from        TYPE zstock_algh-minimum_fill_pct OPTIONAL
+        iv_min_fill_to          TYPE zstock_algh-minimum_fill_pct OPTIONAL
+        iv_source_qty_from      TYPE zstock_algh-source_requested_qty OPTIONAL
+        iv_source_qty_to        TYPE zstock_algh-source_requested_qty OPTIONAL
+        iv_available_qty_from   TYPE zstock_algh-available_qty OPTIONAL
+        iv_available_qty_to     TYPE zstock_algh-available_qty OPTIONAL
+        iv_shortfall_qty_from   TYPE zstock_algh-shortfall_qty OPTIONAL
+        iv_shortfall_qty_to     TYPE zstock_algh-shortfall_qty OPTIONAL
+        iv_priority_from        TYPE zstock_algh-priority OPTIONAL
+        iv_priority_to          TYPE zstock_algh-priority OPTIONAL
+        iv_requested_qty_from   TYPE zstock_algh-requested_qty OPTIONAL
+        iv_requested_qty_to     TYPE zstock_algh-requested_qty OPTIONAL
+        iv_allocated_qty_from   TYPE zstock_algh-allocated_qty OPTIONAL
+        iv_allocated_qty_to     TYPE zstock_algh-allocated_qty OPTIONAL
         iv_cost_center          TYPE zstock_algh-cost_center OPTIONAL
         iv_order_id             TYPE zstock_algh-order_id OPTIONAL
         iv_wbs_element          TYPE zstock_algh-wbs_element OPTIONAL
@@ -64,6 +81,7 @@ CLASS zcl_allocation_log_export DEFINITION
         iv_run_mode             TYPE zstock_algh-run_mode OPTIONAL
         iv_run_id               TYPE zstock_algh-run_id OPTIONAL
         iv_decision_code        TYPE zstock_algh-decision_code OPTIONAL
+        iv_log_message          TYPE zstock_algh-log_message OPTIONAL
         iv_logged_by            TYPE zstock_algh-logged_by OPTIONAL
         iv_max_rows             TYPE i DEFAULT gc_default_max_rows
         iv_today                TYPE d OPTIONAL
@@ -165,7 +183,9 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       rs_result-message = 'Policy filters must be blank, X, or -'.
       RETURN.
     ENDIF.
-    IF iv_stock_filter IS NOT INITIAL
+    IF ( iv_stock_filter IS NOT INITIAL
+          OR iv_available_qty_from IS NOT INITIAL
+          OR iv_available_qty_to IS NOT INITIAL )
         AND iv_availability_filter
           = zif_allocation_history_reader=>gc_filter_false.
       rs_result-message = 'Availability filters conflict'.
@@ -179,6 +199,62 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
         AND iv_fill_filter
           <> zif_allocation_history_reader=>gc_fill_none.
       rs_result-message = 'Fill filter must be blank, F, P, or N'.
+      RETURN.
+    ENDIF.
+    IF iv_fill_pct_from < 0
+        OR iv_fill_pct_from > 100
+        OR iv_fill_pct_to < 0
+        OR iv_fill_pct_to > 100
+        OR ( iv_fill_pct_from IS NOT INITIAL
+          AND iv_fill_pct_to IS NOT INITIAL
+          AND iv_fill_pct_from > iv_fill_pct_to ).
+      rs_result-message = 'Fill percentage range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_min_fill_from < 0
+        OR iv_min_fill_from > 100
+        OR iv_min_fill_to < 0
+        OR iv_min_fill_to > 100
+        OR ( iv_min_fill_from IS NOT INITIAL
+          AND iv_min_fill_to IS NOT INITIAL
+          AND iv_min_fill_from > iv_min_fill_to ).
+      rs_result-message = 'Minimum fill range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_source_qty_from < 0
+        OR iv_source_qty_to < 0
+        OR iv_available_qty_from < 0
+        OR iv_available_qty_to < 0
+        OR iv_shortfall_qty_from < 0
+        OR iv_shortfall_qty_to < 0
+        OR ( iv_source_qty_from IS NOT INITIAL
+          AND iv_source_qty_to IS NOT INITIAL
+          AND iv_source_qty_from > iv_source_qty_to )
+        OR ( iv_available_qty_from IS NOT INITIAL
+          AND iv_available_qty_to IS NOT INITIAL
+          AND iv_available_qty_from > iv_available_qty_to )
+        OR ( iv_shortfall_qty_from IS NOT INITIAL
+          AND iv_shortfall_qty_to IS NOT INITIAL
+          AND iv_shortfall_qty_from > iv_shortfall_qty_to ).
+      rs_result-message = 'Quantity range is invalid'.
+      RETURN.
+    ENDIF.
+    IF iv_priority_from < 0
+        OR iv_priority_to < 0
+        OR iv_requested_qty_from < 0
+        OR iv_requested_qty_to < 0
+        OR iv_allocated_qty_from < 0
+        OR iv_allocated_qty_to < 0
+        OR ( iv_priority_from IS NOT INITIAL
+          AND iv_priority_to IS NOT INITIAL
+          AND iv_priority_from > iv_priority_to )
+        OR ( iv_requested_qty_from IS NOT INITIAL
+          AND iv_requested_qty_to IS NOT INITIAL
+          AND iv_requested_qty_from > iv_requested_qty_to )
+        OR ( iv_allocated_qty_from IS NOT INITIAL
+          AND iv_allocated_qty_to IS NOT INITIAL
+          AND iv_allocated_qty_from > iv_allocated_qty_to ).
+      rs_result-message = 'Numeric filters are invalid'.
       RETURN.
     ENDIF.
     IF iv_max_rows <= 0 OR iv_max_rows > gc_max_rows.
@@ -201,6 +277,7 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       iv_to_time              = lv_to_time
       iv_requirement_from     = iv_requirement_from
       iv_requirement_to       = iv_requirement_to
+      iv_log_uuid             = iv_log_uuid
       iv_request_id           = iv_request_id
       iv_reservation_id       = iv_reservation_id
       iv_prior_reservation_id = iv_prior_reservation_id
@@ -219,6 +296,22 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       iv_stock_filter         = iv_stock_filter
       iv_shortfall_filter     = iv_shortfall_filter
       iv_fill_filter          = iv_fill_filter
+      iv_fill_pct_from        = iv_fill_pct_from
+      iv_fill_pct_to          = iv_fill_pct_to
+      iv_min_fill_from        = iv_min_fill_from
+      iv_min_fill_to          = iv_min_fill_to
+      iv_source_qty_from      = iv_source_qty_from
+      iv_source_qty_to        = iv_source_qty_to
+      iv_available_qty_from   = iv_available_qty_from
+      iv_available_qty_to     = iv_available_qty_to
+      iv_shortfall_qty_from   = iv_shortfall_qty_from
+      iv_shortfall_qty_to     = iv_shortfall_qty_to
+      iv_priority_from        = iv_priority_from
+      iv_priority_to          = iv_priority_to
+      iv_requested_qty_from   = iv_requested_qty_from
+      iv_requested_qty_to     = iv_requested_qty_to
+      iv_allocated_qty_from   = iv_allocated_qty_from
+      iv_allocated_qty_to     = iv_allocated_qty_to
       iv_cost_center          = iv_cost_center
       iv_order_id             = iv_order_id
       iv_wbs_element          = iv_wbs_element
@@ -233,6 +326,7 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       iv_run_mode             = iv_run_mode
       iv_run_id               = iv_run_id
       iv_decision_code        = iv_decision_code
+      iv_log_message          = iv_log_message
       iv_logged_by            = iv_logged_by
       iv_max_rows             = lv_read_limit ).
     IF ls_read_result-is_success <> abap_true.
@@ -246,6 +340,167 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       rs_result-message = 'Export row limit exceeded; narrow the filters'.
       RETURN.
     ENDIF.
+
+    LOOP AT ls_read_result-entries INTO DATA(ls_scoped_entry).
+      IF ls_scoped_entry-logged_on < lv_from_date
+          OR ls_scoped_entry-logged_on > lv_to_date
+          OR ( ls_scoped_entry-logged_on = lv_from_date
+            AND ls_scoped_entry-logged_at < iv_from_time )
+          OR ( ls_scoped_entry-logged_on = lv_to_date
+            AND ls_scoped_entry-logged_at > lv_to_time )
+          OR ( iv_requirement_from IS NOT INITIAL
+            AND ls_scoped_entry-requirement_date < iv_requirement_from )
+          OR ( iv_requirement_to IS NOT INITIAL
+            AND ls_scoped_entry-requirement_date > iv_requirement_to )
+          OR ( iv_horizon_from IS NOT INITIAL
+            AND ls_scoped_entry-horizon_date < iv_horizon_from )
+          OR ( iv_horizon_to IS NOT INITIAL
+            AND ls_scoped_entry-horizon_date > iv_horizon_to ).
+        rs_result-message = 'Audit history reader returned out-of-scope rows'.
+        RETURN.
+      ENDIF.
+      IF ( iv_log_uuid IS NOT INITIAL
+            AND ls_scoped_entry-log_uuid <> iv_log_uuid )
+          OR ( iv_request_id IS NOT INITIAL
+            AND ls_scoped_entry-request_id <> iv_request_id )
+          OR ( iv_reservation_id IS NOT INITIAL
+            AND ls_scoped_entry-reservation_id <> iv_reservation_id )
+          OR ( iv_prior_reservation_id IS NOT INITIAL
+            AND ls_scoped_entry-prior_reservation_id
+              <> iv_prior_reservation_id )
+          OR ( iv_material IS NOT INITIAL
+            AND ls_scoped_entry-material <> iv_material )
+          OR ( iv_plant IS NOT INITIAL
+            AND ls_scoped_entry-plant <> iv_plant )
+          OR ( iv_storage_location IS NOT INITIAL
+            AND ls_scoped_entry-storage_location <> iv_storage_location )
+          OR ( iv_movement_type IS NOT INITIAL
+            AND ls_scoped_entry-movement_type <> iv_movement_type )
+          OR ( iv_source_unit IS NOT INITIAL
+            AND ls_scoped_entry-source_unit <> iv_source_unit )
+          OR ( iv_unit_of_measure IS NOT INITIAL
+            AND ls_scoped_entry-unit_of_measure <> iv_unit_of_measure )
+          OR ( iv_allocation_strategy IS NOT INITIAL
+            AND ls_scoped_entry-allocation_strategy
+              <> iv_allocation_strategy )
+          OR ( iv_cost_center IS NOT INITIAL
+            AND ls_scoped_entry-cost_center <> iv_cost_center )
+          OR ( iv_order_id IS NOT INITIAL
+            AND ls_scoped_entry-order_id <> iv_order_id )
+          OR ( iv_wbs_element IS NOT INITIAL
+            AND ls_scoped_entry-wbs_element <> iv_wbs_element )
+          OR ( iv_sales_order IS NOT INITIAL
+            AND ls_scoped_entry-sales_order <> iv_sales_order )
+          OR ( iv_sales_order_item IS NOT INITIAL
+            AND ls_scoped_entry-sales_order_item <> iv_sales_order_item )
+          OR ( iv_asset_number IS NOT INITIAL
+            AND ls_scoped_entry-asset_number <> iv_asset_number )
+          OR ( iv_asset_subnumber IS NOT INITIAL
+            AND ls_scoped_entry-asset_subnumber <> iv_asset_subnumber )
+          OR ( iv_network_id IS NOT INITIAL
+            AND ls_scoped_entry-network_id <> iv_network_id )
+          OR ( iv_network_activity IS NOT INITIAL
+            AND ls_scoped_entry-network_activity <> iv_network_activity )
+          OR ( iv_allocation_status IS NOT INITIAL
+            AND ls_scoped_entry-allocation_status <> iv_allocation_status )
+          OR ( iv_posting_status IS NOT INITIAL
+            AND ls_scoped_entry-posting_status <> iv_posting_status )
+          OR ( iv_run_mode IS NOT INITIAL
+            AND ls_scoped_entry-run_mode <> iv_run_mode )
+          OR ( iv_run_id IS NOT INITIAL
+            AND ls_scoped_entry-run_id <> iv_run_id )
+          OR ( iv_decision_code IS NOT INITIAL
+            AND ls_scoped_entry-decision_code <> iv_decision_code )
+          OR ( iv_log_message IS NOT INITIAL
+            AND ls_scoped_entry-log_message <> iv_log_message )
+          OR ( iv_logged_by IS NOT INITIAL
+            AND ls_scoped_entry-logged_by <> iv_logged_by ).
+        rs_result-message = 'Audit history reader returned out-of-scope rows'.
+        RETURN.
+      ENDIF.
+      IF ( iv_partial_filter IS NOT INITIAL
+            AND ls_scoped_entry-allow_partial <> COND abap_bool(
+              WHEN iv_partial_filter
+                = zif_allocation_history_reader=>gc_filter_true
+              THEN abap_true
+              ELSE abap_false ) )
+          OR ( iv_full_batch_filter IS NOT INITIAL
+            AND ls_scoped_entry-require_full_batch <> COND abap_bool(
+              WHEN iv_full_batch_filter
+                = zif_allocation_history_reader=>gc_filter_true
+              THEN abap_true
+              ELSE abap_false ) )
+          OR ( iv_availability_filter IS NOT INITIAL
+            AND ls_scoped_entry-availability_checked <> COND abap_bool(
+              WHEN iv_availability_filter
+                = zif_allocation_history_reader=>gc_filter_true
+              THEN abap_true
+              ELSE abap_false ) )
+          OR ( ( iv_stock_filter IS NOT INITIAL
+              OR iv_available_qty_from IS NOT INITIAL
+              OR iv_available_qty_to IS NOT INITIAL )
+            AND ls_scoped_entry-availability_checked <> abap_true )
+          OR ( iv_stock_filter
+              = zif_allocation_history_reader=>gc_filter_true
+            AND ls_scoped_entry-available_qty <= 0 )
+          OR ( iv_stock_filter
+              = zif_allocation_history_reader=>gc_filter_false
+            AND ls_scoped_entry-available_qty <> 0 )
+          OR ( iv_shortfall_filter
+              = zif_allocation_history_reader=>gc_filter_true
+            AND ls_scoped_entry-shortfall_qty <= 0 )
+          OR ( iv_shortfall_filter
+              = zif_allocation_history_reader=>gc_filter_false
+            AND ls_scoped_entry-shortfall_qty <> 0 )
+          OR ( iv_fill_filter
+              = zif_allocation_history_reader=>gc_fill_full
+            AND ls_scoped_entry-fill_pct <> 100 )
+          OR ( iv_fill_filter
+              = zif_allocation_history_reader=>gc_fill_partial
+            AND ( ls_scoped_entry-fill_pct <= 0
+              OR ls_scoped_entry-fill_pct >= 100 ) )
+          OR ( iv_fill_filter
+              = zif_allocation_history_reader=>gc_fill_none
+            AND ls_scoped_entry-fill_pct <> 0 ).
+        rs_result-message = 'Audit history reader returned out-of-scope rows'.
+        RETURN.
+      ENDIF.
+      IF ( iv_fill_pct_from IS NOT INITIAL
+            AND ls_scoped_entry-fill_pct < iv_fill_pct_from )
+          OR ( iv_fill_pct_to IS NOT INITIAL
+            AND ls_scoped_entry-fill_pct > iv_fill_pct_to )
+          OR ( iv_min_fill_from IS NOT INITIAL
+            AND ls_scoped_entry-minimum_fill_pct < iv_min_fill_from )
+          OR ( iv_min_fill_to IS NOT INITIAL
+            AND ls_scoped_entry-minimum_fill_pct > iv_min_fill_to )
+          OR ( iv_source_qty_from IS NOT INITIAL
+            AND ls_scoped_entry-source_requested_qty < iv_source_qty_from )
+          OR ( iv_source_qty_to IS NOT INITIAL
+            AND ls_scoped_entry-source_requested_qty > iv_source_qty_to )
+          OR ( iv_available_qty_from IS NOT INITIAL
+            AND ls_scoped_entry-available_qty < iv_available_qty_from )
+          OR ( iv_available_qty_to IS NOT INITIAL
+            AND ls_scoped_entry-available_qty > iv_available_qty_to )
+          OR ( iv_shortfall_qty_from IS NOT INITIAL
+            AND ls_scoped_entry-shortfall_qty < iv_shortfall_qty_from )
+          OR ( iv_shortfall_qty_to IS NOT INITIAL
+            AND ls_scoped_entry-shortfall_qty > iv_shortfall_qty_to )
+          OR ( iv_priority_from IS NOT INITIAL
+            AND ls_scoped_entry-priority < iv_priority_from )
+          OR ( iv_priority_to IS NOT INITIAL
+            AND ls_scoped_entry-priority > iv_priority_to )
+          OR ( iv_requested_qty_from IS NOT INITIAL
+            AND ls_scoped_entry-requested_qty < iv_requested_qty_from )
+          OR ( iv_requested_qty_to IS NOT INITIAL
+            AND ls_scoped_entry-requested_qty > iv_requested_qty_to )
+          OR ( iv_allocated_qty_from IS NOT INITIAL
+            AND ls_scoped_entry-allocated_qty < iv_allocated_qty_from )
+          OR ( iv_allocated_qty_to IS NOT INITIAL
+            AND ls_scoped_entry-allocated_qty > iv_allocated_qty_to ).
+        rs_result-message = 'Audit history reader returned out-of-scope rows'.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
 
     DATA(lv_header) =
       'LOGGED_ON;LOGGED_AT;LOG_UUID;RUN_ID;REQUEST_ID;RUN_MODE;'

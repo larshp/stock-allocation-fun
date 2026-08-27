@@ -208,14 +208,21 @@ use `INVALID_REQUEST`, `REQUEST_FLAG_INVALID`, `REQUEST_RULE_INVALID`,
 `DUPLICATE_REQUEST_ID`, `RUN_POLICY_INVALID`, and `STRATEGY_UNSUPPORTED`.
 Replay outcomes use `REPLAY_VERSION_UNSUPPORTED`,
 `REPLAY_PAYLOAD_CONFLICT`, `REPLAY_RESERVATION_MISSING`,
-`REPLAY_LOOKUP_INVALID`, `REPLAY_OUTCOME_INVALID`, and
+`REPLAY_LOOKUP_INVALID`, `CANCELLATION_LOOKUP_INVALID`,
+`REPLAY_OUTCOME_INVALID`, and
 `RESERVATION_REPLAYED`. A replay lookup row must have a canonical found flag and
 a request ID from the queried set; violations stop the batch before cancellation
-or stock reads. Completed replay quantities must be positive, allocated quantity
-must not exceed requested quantity, and the canonical unit must be present.
-Violations return `REPLAY_OUTCOME_INVALID`. Boundary outcomes use
+or stock reads. The batch lookup itself must also affirm canonical success;
+backend failure or a malformed success state produces `REPLAY_LOOKUP_INVALID`
+rather than being interpreted as no prior claim. Completed replay quantities
+must be positive, allocated quantity must not exceed requested quantity, and the
+canonical unit must be present. The stored reservation number must contain ten
+numeric characters and cannot be shared by distinct replay records in one
+batch. Violations return `REPLAY_OUTCOME_INVALID`. Boundary outcomes use
 `OUTSIDE_HORIZON`,
-`STOCK_NOT_FOUND`, `BASE_UNIT_MISSING`, `UNIT_CONVERSION_FAILED`,
+`STOCK_READ_INVALID`, `STOCK_SNAPSHOT_INVALID`, `STOCK_NOT_FOUND`,
+`BASE_UNIT_MISSING`,
+`UNIT_CONVERSION_FAILED`,
 `CANONICAL_QUANTITY_INVALID`, `PLANT_UNAUTHORIZED`,
 `AUTHORIZATION_RESULT_INVALID`, and `FULL_BATCH_ABORTED`.
 `UNIT_CONVERSION_FAILED` reports a rejected conversion, including a
@@ -231,6 +238,17 @@ checked plus zero. Replays, deferred demand, authorization or validation
 failures, missing stock rows, and unit-configuration failures leave the flag
 blank because no comparable availability was established. Consumers must not
 interpret an initial quantity as observed stock unless the flag is set.
+The replaceable stock-reader boundary must explicitly affirm success. A failed
+or malformed initial read returns `STOCK_READ_INVALID` before conversion or
+posting, while the same condition during the locked recheck fails the writer
+gate. A canonical successful read with no matching rows remains the ordinary
+`STOCK_NOT_FOUND` business outcome.
+Every affirmed snapshot is then checked for requested material/plant scope,
+complete material/plant/location identity, persistable three-decimal stock
+quantities, one base unit per material, and one repeated safety-stock value per
+material/plant. `STOCK_SNAPSHOT_INVALID` identifies an initial contract
+violation; the same validation is repeated under the posting lock and stops the
+writer if fresh data is inconsistent.
 Audit rows also retain `material`, `plant`, `storage_location`, `movement_type`,
 `requirement_date`, `minimum_fill_pct`, `priority`, `allow_partial`, allocation
 strategy, horizon date, full-batch policy, and any prior reservation replaced
@@ -261,15 +279,28 @@ are loaded with one guarded `FOR ALL ENTRIES` query. Only an existing
 reservation whose items are all marked for deletion is considered cancelled
 and reopened. Fully or partially consumed reservations, reservations with any
 undeleted item, and missing or archived `RESB` rows remain fail-safe replays.
-Reopening does not relax payload matching.
+The cancellation lookup must explicitly report canonical success and may return
+only IDs from the requested set; failures, malformed states, and unexpected IDs
+return `CANCELLATION_LOOKUP_INVALID` before stock access. Reopening does not
+relax payload matching.
 The writer conditionally removes the exact old request/document pair and
 inserts the replacement claim in its posting LUW; a concurrent retry that no
 longer finds that pair rolls back before reservation creation.
+The public SAP writer independently preflights every positive pending row before
+that LUW begins. Required posting identity, `DEC(13,3)` quantity precision,
+requested-versus-allocated ordering, full/partial status consistency, and a
+blank initial document must all hold; malformed direct-call input is failed
+before idempotency, locking, stock recheck, or reservation APIs.
 Every replaceable writer gate must prove success with exact `abap_true`:
 idempotency claim, stock lock, fresh-stock recheck, and reservation-document
 persistence. Canonical failures retain their business diagnostics; malformed
 boolean acknowledgements roll back the LUW, release locks, fail every pending
 allocation, and never advance to the next posting phase.
+After the writer returns, orchestration also verifies that the response has the
+same request set and immutable allocation payload, contains only atomic posted
+or failed states, requires a document for every posted row, and forbids one for
+failed rows. A malformed response is surfaced as failed posting evidence using
+the original allocations instead of trusting mutated adapter data.
 Before stock recheck, the writer acquires one exclusive `MARD` lock for each
 unique material/plant in ascending lexical order. `LGORT` is initial and its
 X-flag is blank, making the lock generic across every storage location in that
@@ -288,6 +319,12 @@ row retains the first warning from its create call, and every posted row retains
 the first warning from the shared commit. When present, the posting message is
 ordered as replacement lineage, create warning, then commit warning. Current
 audit, history, and CSV export preserve that composed diagnostic.
+Both response tables may contain only standard BAPI message types `S`, `I`,
+`W`, `E`, `A`, and `X`. An unknown or blank type is a malformed gateway
+response and triggers rollback instead of being ignored as successful.
+Every returned reservation number must also contain exactly ten numeric
+characters and be unique across the writer batch. Invalid or repeated document
+IDs roll back before commit and are removed from every failed result.
 
 Run `ZSTOCK_ALGH_RETENTION` interactively or schedule it as a background job.
 Keep `P_TEST` selected to preview the number of rows older than `P_DAYS`; clear
@@ -299,7 +336,8 @@ Retention accepts 1 through 36,500 days and rejects a supplied effective date
 later than the application server date before performing date arithmetic. The
 store independently requires a noninitial cutoff strictly before `sy-datum`
 before authorization or SQL. The retention facade accepts only canonical store
-success states and reports malformed adapter responses as failure.
+success states and reports malformed adapter responses as failure. Store counts
+must be nonnegative, and a failed store response cannot claim affected rows.
 
 Run `ZSTOCK_ALGH_EXPORT` to produce semicolon-delimited CSV in an SAP list or
 background spool. Blank `P_FROM` and `P_TO` select the latest 30-day audit
@@ -307,12 +345,15 @@ window. `P_FTIME` and `P_TTIME` optionally narrow the first and last log dates;
 blank values include the complete boundary days. `P_RFROM` and `P_RTO`
 independently bound the underlying requirement
 date; either endpoint may be blank for an open interval, and both endpoints are
-inclusive. `P_REQ`, `P_RES`, `P_PRIOR`, `P_MAT`, `P_PLANT`, `P_SLOC`,
+inclusive. `P_UUID`, `P_REQ`, `P_RES`, `P_PRIOR`, `P_MAT`, `P_PLANT`, `P_SLOC`,
 `P_MOVE`, `P_SUNIT`, `P_UNIT`, `P_STRAT`, `P_HFROM`, `P_HTO`, `P_PART`,
-`P_FULL`, `P_AVAIL`, `P_STOCK`, `P_SHORT`, `P_FILL`, `P_COST`, `P_ORD`, `P_WBS`,
+`P_FULL`, `P_AVAIL`, `P_STOCK`, `P_SHORT`, `P_FILL`, `P_FPFROM`, `P_FPTO`,
+`P_MFFROM`, `P_MFTO`, `P_PRIFRM`, `P_PRITO`,
+`P_RQFROM`, `P_RQTO`, `P_AQFROM`, `P_AQTO`, `P_COST`, `P_ORD`, `P_WBS`,
+`P_SQFROM`, `P_SQTO`, `P_VQFROM`, `P_VQTO`, `P_SHFROM`, `P_SHTO`,
 `P_SALES`, `P_SITEM`,
 `P_ASSET`, `P_ASUB`, `P_NET`, `P_NACT`, `P_ASTAT`, `P_PSTAT`, `P_MODE`,
-`P_RUN`, `P_DECIDE`, and `P_USER` further narrow the result, while `P_MAX`
+`P_RUN`, `P_DECIDE`, `P_MSG`, and `P_USER` further narrow the result, while `P_MAX`
 bounds it to at most 10,000 rows.
 `P_RES`
 matches the reservation produced by an outcome; `P_PRIOR` matches the cancelled
@@ -341,15 +382,36 @@ unrestricted. Pre-upgrade rows have an initial shortfall and are included by
 `-`. `P_FILL` selects fulfillment bands: `F` is exactly 100 percent, `P` is
 0.001 through 99.999 percent, `N` is zero, and blank is unrestricted. Pre-upgrade
 rows have an initial fill percentage and are included by `N`.
+`P_FPFROM` and `P_FPTO` independently bound stored fill percentage from 0
+through 100. The interval is inclusive, may have one blank endpoint, and
+intersects with `P_FILL` when both are supplied.
+`P_MFFROM` and `P_MFTO` form a separate inclusive 0-through-100 interval over
+the request's configured minimum-fill policy; either endpoint may be blank.
+`P_PRIFRM`/`P_PRITO`, `P_RQFROM`/`P_RQTO`, and `P_AQFROM`/`P_AQTO` form
+independent inclusive ranges for priority, canonical requested quantity, and
+allocated quantity. A blank endpoint leaves that side open; an inverted closed
+range is rejected before authorization or history access.
+`P_SQFROM`/`P_SQTO`, `P_VQFROM`/`P_VQTO`, and `P_SHFROM`/`P_SHTO` form
+independent inclusive ranges for original source demand, observed available
+stock, and shortfall. Source demand uses `P_SUNIT`; available stock and
+shortfall use the canonical base unit selected by `P_UNIT`. An available-stock
+range automatically requires affirmative availability evidence and cannot be
+combined with `P_AVAIL = -`. Blank endpoints are open; negative and inverted
+closed ranges are rejected before authorization or history access.
 `P_MODE` accepts `P` for
 productive, `S` for simulation, or `I` for a
 call rejected because its simulation flag was invalid. Leave any dimension
 blank to keep it unrestricted. `P_DECIDE` performs an exact match against the
 stable decision code; leave it blank to include every code and pre-upgrade
-blank row. `P_USER` performs an exact match against the SAP user recorded in
-`LOGGED_BY`.
+blank row. `P_UUID` selects one immutable append-only audit record, and `P_MSG`
+performs an exact match against the persisted diagnostic text. `P_USER`
+performs an exact match against the SAP user recorded in `LOGGED_BY`.
 If more rows match than `P_MAX`, the report stops and asks for narrower filters
 instead of silently producing an incomplete archive.
+The export facade also revalidates every row returned by the history reader
+against the complete requested scope before producing the CSV header. This
+fail-closed boundary prevents a replaceable reader from leaking out-of-window
+or out-of-filter audit records; one mismatch rejects the entire export.
 The underlying public history reader independently requires noninitial ordered
 log dates, rejects an inverted time interval when both endpoints fall on the
 same date, rejects inverted closed requirement- and horizon-date intervals, and

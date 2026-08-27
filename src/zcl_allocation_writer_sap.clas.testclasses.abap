@@ -73,6 +73,7 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~find_many.
+    rs_result-is_success = abap_true.
     LOOP AT it_request_ids INTO DATA(lv_request_id).
       READ TABLE mt_documents INTO DATA(ls_document)
         WITH KEY request_id = lv_request_id.
@@ -80,7 +81,8 @@ CLASS lcl_idempotency_store IMPLEMENTATION.
         INSERT VALUE #(
           is_found    = abap_true
           request_id  = lv_request_id
-          document_id = ls_document-document_id ) INTO TABLE rt_records.
+          document_id = ls_document-document_id )
+          INTO TABLE rs_result-records.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -180,8 +182,12 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS orders_claims_before_posting FOR TESTING.
     METHODS preserves_success_warnings FOR TESTING.
     METHODS rolls_back_create_error FOR TESTING.
+    METHODS rejects_bad_create_message FOR TESTING.
     METHODS rolls_back_missing_document FOR TESTING.
+    METHODS rejects_invalid_document FOR TESTING.
+    METHODS rejects_duplicate_document FOR TESTING.
     METHODS rolls_back_commit_error FOR TESTING.
+    METHODS rejects_bad_commit_message FOR TESTING.
     METHODS rejects_duplicate_claim FOR TESTING.
     METHODS rolls_back_store_failure FOR TESTING.
     METHODS rejects_stale_stock FOR TESTING.
@@ -190,6 +196,11 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS rejects_invalid_lock_state FOR TESTING.
     METHODS rejects_invalid_recheck_state FOR TESTING.
     METHODS rejects_invalid_update_state FOR TESTING.
+    METHODS rejects_invalid_pending_input FOR TESTING.
+    METHODS rejects_imprecise_allocation FOR TESTING.
+    METHODS rejects_missing_assignment FOR TESTING.
+    METHODS rejects_conflicting_assignment FOR TESTING.
+    METHODS forwards_sales_assignment FOR TESTING.
     METHODS ignores_empty_batch FOR TESTING.
     METHODS ignores_already_posted FOR TESTING.
     METHODS replaces_cancelled_claim FOR TESTING.
@@ -257,15 +268,6 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_gateway->mt_requests[ 1 ]-cost_center
       exp = 'CC1000' ).
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_gateway->mt_requests[ 1 ]-sales_order_item
-      exp = '000010' ).
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_gateway->mt_requests[ 1 ]-asset_subnumber
-      exp = '0000' ).
-    cl_abap_unit_assert=>assert_equals(
-      act = mo_gateway->mt_requests[ 1 ]-network_activity
-      exp = '0010' ).
   ENDMETHOD.
 
   METHOD rolls_back_create_error.
@@ -295,6 +297,32 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
       exp = 'Insufficient stock during posting' ).
   ENDMETHOD.
 
+  METHOD rejects_bad_create_message.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001'
+        messages    = VALUE #(
+          ( type = 'Y' message = 'Unknown create state' ) ) ) ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_commit_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Reservation API returned invalid message type' ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 1 ]-document_id ).
+  ENDMETHOD.
+
   METHOD rolls_back_commit_error.
     mo_gateway->mt_responses = VALUE #(
       ( document_id = '0000000001' ) ).
@@ -317,6 +345,32 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
       exp = zcl_stock_allocator=>gc_posting_failed ).
   ENDMETHOD.
 
+  METHOD rejects_bad_commit_message.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001' ) ).
+    mo_gateway->mt_commit_messages = VALUE #(
+      ( message = 'Missing commit message type' ) ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_commit_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Reservation commit returned invalid message type' ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 1 ]-document_id ).
+  ENDMETHOD.
+
   METHOD rolls_back_missing_document.
     mo_gateway->mt_responses = VALUE #( ( ) ).
     DATA(lt_allocations) = allocations( ).
@@ -334,6 +388,53 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_allocations[ 1 ]-posting_message
       exp = 'Reservation API returned no document ID' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_document.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = 'BAD-DOC-ID' ) ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_commit_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Reservation API returned invalid document ID' ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 1 ]-document_id ).
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_document.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001' )
+      ( document_id = '0000000001' ) ).
+    DATA(lt_allocations) = allocations( 2 ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_commit_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 2 ]-posting_message
+      exp = 'Reservation API returned duplicate document ID' ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 1 ]-document_id ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 2 ]-document_id ).
   ENDMETHOD.
 
   METHOD ignores_empty_batch.
@@ -629,6 +730,103 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
       exp = 1 ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_pending_input.
+    DATA(lt_allocations) = allocations( ).
+    CLEAR lt_allocations[ 1 ]-material.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer input is invalid' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_acquire_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_imprecise_allocation.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-allocated_qty = '1.0001'.
+    lt_allocations[ 1 ]-status = zcl_stock_allocator=>gc_status_partial.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer input is invalid' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_assignment.
+    DATA(lt_allocations) = allocations( ).
+    CLEAR lt_allocations[ 1 ]-cost_center.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer input is invalid' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_conflicting_assignment.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-order_id = 'ORDER-1'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD forwards_sales_assignment.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000001' ) ).
+    DATA(lt_allocations) = allocations( ).
+    CLEAR lt_allocations[ 1 ]-cost_center.
+    lt_allocations[ 1 ]-movement_type = '231'.
+    lt_allocations[ 1 ]-sales_order = '0000123456'.
+    lt_allocations[ 1 ]-sales_order_item = '000010'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_posted ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-sales_order
+      exp = '0000123456' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mt_requests[ 1 ]-sales_order_item
+      exp = '000010' ).
+  ENDMETHOD.
+
   METHOD allocations.
     DO iv_count TIMES.
       APPEND VALUE #(
@@ -638,12 +836,6 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
         storage_location = '0001'
         movement_type    = '201'
         cost_center      = 'CC1000'
-        sales_order      = '0000123456'
-        sales_order_item = '000010'
-        asset_number     = '000000123456'
-        asset_subnumber  = '0000'
-        network_id       = '000001234567'
-        network_activity = '0010'
         unit_of_measure  = 'EA'
         requirement_date = '20260818'
         requested_qty    = 5

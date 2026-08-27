@@ -6,6 +6,7 @@ PARAMETERS p_ftime TYPE t.
 PARAMETERS p_ttime TYPE t.
 PARAMETERS p_rfrom TYPE zstock_algh-requirement_date.
 PARAMETERS p_rto TYPE zstock_algh-requirement_date.
+PARAMETERS p_uuid TYPE zstock_algh-log_uuid.
 PARAMETERS p_req TYPE zstock_algh-request_id.
 PARAMETERS p_res TYPE zstock_algh-reservation_id.
 PARAMETERS p_prior TYPE zstock_algh-prior_reservation_id.
@@ -24,6 +25,22 @@ PARAMETERS p_avail TYPE zif_allocation_history_reader=>ty_boolean_filter.
 PARAMETERS p_stock TYPE zif_allocation_history_reader=>ty_boolean_filter.
 PARAMETERS p_short TYPE zif_allocation_history_reader=>ty_boolean_filter.
 PARAMETERS p_fill TYPE zif_allocation_history_reader=>ty_fill_filter.
+PARAMETERS p_fpfrom TYPE zstock_algh-fill_pct.
+PARAMETERS p_fpto TYPE zstock_algh-fill_pct.
+PARAMETERS p_mffrom TYPE zstock_algh-minimum_fill_pct.
+PARAMETERS p_mfto TYPE zstock_algh-minimum_fill_pct.
+PARAMETERS p_sqfrom TYPE zstock_algh-source_requested_qty.
+PARAMETERS p_sqto TYPE zstock_algh-source_requested_qty.
+PARAMETERS p_vqfrom TYPE zstock_algh-available_qty.
+PARAMETERS p_vqto TYPE zstock_algh-available_qty.
+PARAMETERS p_shfrom TYPE zstock_algh-shortfall_qty.
+PARAMETERS p_shto TYPE zstock_algh-shortfall_qty.
+PARAMETERS p_prifrm TYPE zstock_algh-priority.
+PARAMETERS p_prito TYPE zstock_algh-priority.
+PARAMETERS p_rqfrom TYPE zstock_algh-requested_qty.
+PARAMETERS p_rqto TYPE zstock_algh-requested_qty.
+PARAMETERS p_aqfrom TYPE zstock_algh-allocated_qty.
+PARAMETERS p_aqto TYPE zstock_algh-allocated_qty.
 PARAMETERS p_cost TYPE zstock_algh-cost_center.
 PARAMETERS p_ord TYPE zstock_algh-order_id.
 PARAMETERS p_wbs TYPE zstock_algh-wbs_element.
@@ -38,6 +55,7 @@ PARAMETERS p_pstat TYPE zstock_algh-posting_status.
 PARAMETERS p_mode TYPE zstock_algh-run_mode.
 PARAMETERS p_run TYPE zstock_algh-run_id.
 PARAMETERS p_decide TYPE zstock_algh-decision_code.
+PARAMETERS p_msg TYPE zstock_algh-log_message.
 PARAMETERS p_user TYPE zstock_algh-logged_by.
 PARAMETERS p_max TYPE i DEFAULT 1000.
 
@@ -50,6 +68,7 @@ START-OF-SELECTION.
     iv_to_time              = p_ttime
     iv_requirement_from     = p_rfrom
     iv_requirement_to       = p_rto
+    iv_log_uuid             = p_uuid
     iv_request_id           = p_req
     iv_reservation_id       = p_res
     iv_prior_reservation_id = p_prior
@@ -68,6 +87,22 @@ START-OF-SELECTION.
     iv_stock_filter         = p_stock
     iv_shortfall_filter     = p_short
     iv_fill_filter          = p_fill
+    iv_fill_pct_from        = p_fpfrom
+    iv_fill_pct_to          = p_fpto
+    iv_min_fill_from        = p_mffrom
+    iv_min_fill_to          = p_mfto
+    iv_source_qty_from      = p_sqfrom
+    iv_source_qty_to        = p_sqto
+    iv_available_qty_from   = p_vqfrom
+    iv_available_qty_to     = p_vqto
+    iv_shortfall_qty_from   = p_shfrom
+    iv_shortfall_qty_to     = p_shto
+    iv_priority_from        = p_prifrm
+    iv_priority_to          = p_prito
+    iv_requested_qty_from   = p_rqfrom
+    iv_requested_qty_to     = p_rqto
+    iv_allocated_qty_from   = p_aqfrom
+    iv_allocated_qty_to     = p_aqto
     iv_cost_center          = p_cost
     iv_order_id             = p_ord
     iv_wbs_element          = p_wbs
@@ -82,6 +117,7 @@ START-OF-SELECTION.
     iv_run_mode             = p_mode
     iv_run_id               = p_run
     iv_decision_code        = p_decide
+    iv_log_message          = p_msg
     iv_logged_by            = p_user
     iv_max_rows             = p_max ).
 

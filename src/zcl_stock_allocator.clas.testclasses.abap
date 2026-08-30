@@ -64,6 +64,8 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS rejects_bad_conversion_flag FOR TESTING.
     METHODS rejects_zero_conversion FOR TESTING.
     METHODS rejects_large_conversion FOR TESTING.
+    METHODS rejects_missing_converter FOR TESTING.
+    METHODS normalizes_empty_conversion FOR TESTING.
     METHODS rejects_missing_cost_center FOR TESTING.
     METHODS rejects_mixed_assignments FOR TESTING.
     METHODS accepts_order_assignment FOR TESTING.
@@ -1047,6 +1049,51 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_message
       exp = 'Converted base quantity exceeds supported precision' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_converter.
+    DATA lo_converter TYPE REF TO zif_unit_converter.
+    mo_cut = NEW #( lo_converter ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'MISSING-CONVERTER'
+            iv_quantity = 1 ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Unit converter is required' ).
+    cl_abap_unit_assert=>assert_false(
+      lt_result[ 1 ]-availability_checked ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_conversion.
+    mo_converter->mv_use_result = abap_true.
+    CLEAR mo_converter->ms_result.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #(
+        ( request(
+            iv_id       = 'EMPTY-CONVERSION'
+            iv_quantity = 1 ) ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Unit conversion failed' ).
     cl_abap_unit_assert=>assert_false(
       lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.

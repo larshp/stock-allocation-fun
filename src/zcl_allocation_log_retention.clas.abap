@@ -62,6 +62,12 @@ CLASS zcl_allocation_log_retention IMPLEMENTATION.
     DATA lv_cutoff_date TYPE d.
     lv_cutoff_date = lv_today - iv_retention_days.
 
+    IF mo_store IS NOT BOUND.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention store is required'.
+      RETURN.
+    ENDIF.
+
     DATA(ls_store_result) = mo_store->remove_before(
       iv_cutoff_date = lv_cutoff_date
       iv_simulation  = iv_simulation ).
@@ -72,6 +78,12 @@ CLASS zcl_allocation_log_retention IMPLEMENTATION.
           AND ls_store_result-affected_rows <> 0 ).
       rs_result-is_success = abap_false.
       rs_result-message = 'Retention store returned invalid state'.
+      RETURN.
+    ENDIF.
+    IF ls_store_result-is_success = abap_false
+        AND ls_store_result-message IS INITIAL.
+      rs_result = ls_store_result.
+      rs_result-message = 'Retention cleanup failed'.
       RETURN.
     ENDIF.
     rs_result = ls_store_result.

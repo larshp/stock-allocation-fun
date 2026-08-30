@@ -10,6 +10,30 @@ ENDCLASS.
 
 CLASS zcl_allocation_log_store_sap IMPLEMENTATION.
   METHOD zif_allocation_log_store~save.
+    IF lines( it_current ) <> lines( it_history ).
+      rv_saved = abap_false.
+      RETURN.
+    ENDIF.
+
+    DATA lt_log_uuids TYPE HASHED TABLE OF zstock_algh-log_uuid
+      WITH UNIQUE KEY table_line.
+    LOOP AT it_history INTO DATA(ls_history).
+      DATA(lv_index) = sy-tabix.
+      READ TABLE it_current INTO DATA(ls_current) INDEX lv_index.
+      DATA ls_expected_current TYPE zstock_alog.
+      MOVE-CORRESPONDING ls_history TO ls_expected_current.
+      IF ls_history-log_uuid IS INITIAL
+          OR ls_expected_current <> ls_current.
+        rv_saved = abap_false.
+        RETURN.
+      ENDIF.
+      INSERT ls_history-log_uuid INTO TABLE lt_log_uuids.
+      IF sy-subrc <> 0.
+        rv_saved = abap_false.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
     IF it_current IS INITIAL.
       rv_saved = abap_true.
       RETURN.

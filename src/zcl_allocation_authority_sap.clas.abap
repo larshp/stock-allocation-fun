@@ -9,6 +9,11 @@ ENDCLASS.
 
 CLASS zcl_allocation_authority_sap IMPLEMENTATION.
   METHOD zif_allocation_authority~is_authorized.
+    IF iv_plant IS INITIAL.
+      rv_authorized = abap_false.
+      RETURN.
+    ENDIF.
+
     AUTHORITY-CHECK OBJECT 'M_MATE_WRK'
       ID 'ACTVT' FIELD '02'
       ID 'WERKS' FIELD iv_plant.

@@ -165,6 +165,9 @@ CLASS ltcl_allocation_log_export DEFINITION FINAL
     METHODS rejects_invalid_mode FOR TESTING.
     METHODS propagates_read_failure FOR TESTING.
     METHODS rejects_invalid_reader_state FOR TESTING.
+    METHODS rejects_missing_reader FOR TESTING.
+    METHODS validates_before_reader FOR TESTING.
+    METHODS normalizes_empty_read_failure FOR TESTING.
     METHODS rejects_reader_date_leak FOR TESTING.
     METHODS rejects_reader_filter_leak FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
@@ -873,6 +876,46 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = 'Audit history reader returned invalid state' ).
     cl_abap_unit_assert=>assert_initial( ls_result-lines ).
     cl_abap_unit_assert=>assert_initial( ls_result-exported_rows ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_reader.
+    DATA lo_reader TYPE REF TO zif_allocation_history_reader.
+    mo_cut = NEW #( lo_reader ).
+
+    DATA(ls_result) = mo_cut->run( iv_today = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit history reader is required' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-lines ).
+  ENDMETHOD.
+
+  METHOD validates_before_reader.
+    DATA lo_reader TYPE REF TO zif_allocation_history_reader.
+    mo_cut = NEW #( lo_reader ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_from_date = '20260819'
+      iv_to_date   = '20260818'
+      iv_today     = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Export start date must not exceed end date' ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_read_failure.
+    CLEAR mo_reader->ms_result.
+
+    DATA(ls_result) = mo_cut->run( iv_today = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit history read failed' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-lines ).
   ENDMETHOD.
 
   METHOD rejects_reader_date_leak.

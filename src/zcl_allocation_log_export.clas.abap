@@ -269,6 +269,11 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF mo_reader IS NOT BOUND.
+      rs_result-message = 'Audit history reader is required'.
+      RETURN.
+    ENDIF.
+
     DATA(lv_read_limit) = iv_max_rows + 1.
     DATA(ls_read_result) = mo_reader->read(
       iv_from_date            = lv_from_date
@@ -332,7 +337,10 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
     IF ls_read_result-is_success <> abap_true.
       rs_result-message = COND string(
         WHEN ls_read_result-is_success = abap_false
+          AND ls_read_result-message IS NOT INITIAL
         THEN ls_read_result-message
+        WHEN ls_read_result-is_success = abap_false
+        THEN 'Audit history read failed'
         ELSE 'Audit history reader returned invalid state' ).
       RETURN.
     ENDIF.

@@ -608,3 +608,132 @@
   claiming nonzero affected rows are rejected instead of being surfaced as
   trustworthy cleanup outcomes. Two scenarios bring the suite to two hundred
   five.
+- Operational logging now verifies all seven decimal allocation-evidence
+  fields against the audit tables' `DEC(13,3)` domain before constructing a
+  DDIC row. Oversized values and values requiring rounding return a failed log
+  acknowledgement without calling the store, preventing rejected input or a
+  malformed service adapter from causing a conversion overflow or changing
+  evidence during persistence. Two scenarios bring the suite to two hundred
+  seven.
+- The public SAP audit store now requires current-state and append-only history
+  batches to have equal cardinality. Empty paired batches remain successful,
+  while either kind of orphan batch fails before Open SQL; this closes the
+  former empty-current early return that could silently discard supplied
+  history. Three scenarios bring the suite to two hundred ten.
+- Equal audit batch sizes are no longer sufficient at the SAP store boundary.
+  Each history row is projected to the current-row structure and compared with
+  the row at the same batch position, while every history UUID must be
+  noninitial and unique within the batch. Mismatched evidence and duplicate or
+  missing immutable identities fail before SQL. Three scenarios bring the suite
+  to two hundred thirteen.
+- Operational logging now requires each nonempty batch to carry the exact
+  32-character hexadecimal run identity produced by the application root.
+  Initial, shortened, or nonhexadecimal correlation values fail before audit
+  row construction and store access; empty no-op batches remain compatible.
+  Two scenarios bring the suite to two hundred fifteen.
+- Added `zcl_allocation_persistence` as the shared pure contract for pending
+  posting rows and reservation document IDs. Both the writer and direct SAP
+  idempotency claim now require complete identity and account assignment,
+  positive exact `DEC(13,3)` source/canonical quantities, bounded exact
+  minimum-fill policy, positive priority, canonical partial policy, consistent
+  full/partial status, pending document state, and valid replacement lineage.
+  Six focused scenarios exercise the shared contract.
+- The SAP idempotency store independently rejects initial IDs in set-oriented
+  lookup scope, incomplete direct claims, and a replacement parameter that
+  differs from the allocation's lineage. Document assignment requires a valid
+  request and ten-digit reservation, updates only an initial reservation field,
+  and accepts exactly one affected row; completed claims cannot be overwritten.
+  Five direct-boundary scenarios bring the suite to two hundred twenty-six.
+- The shared persistence contract now validates the narrower reservation
+  gateway request as well: correlation and stock identity, requirement date,
+  unit, exact positive `DEC(13,3)` quantity, supported movement type, and its
+  exclusive account-assignment family are required before the SAP function is
+  called. Three focused contract scenarios cover valid, imprecise, and
+  conflicting-assignment requests.
+- `zcl_reservation_gateway_sap` clears outputs before work, returns an explicit
+  error for malformed direct input, normalizes blank or unknown BAPI message
+  types to an error, clears provisional documents whenever the BAPI reports an
+  error, and requires a ten-digit document after otherwise successful create.
+  The local standard-function stubs exercise request rejection, the successful
+  empty commit response, and fail-closed missing-document behavior. Five
+  gateway scenarios bring the suite to two hundred thirty-four.
+- Added `zcl_reservation_status_eval` to separate cancellation evidence from
+  Open SQL. Every requested and returned reservation ID must be a ten-digit
+  document, returned rows must belong to the exact requested set, and
+  `RESB-XLOEK` must be canonical `X` or blank. A document is cancelled only
+  when at least one item exists and every item is deletion-flagged; missing and
+  mixed active/deleted documents remain conservative non-cancellations. Six
+  evaluator scenarios cover each state.
+- The SAP reservation-status adapter runs the pure evaluator once with empty
+  evidence to reject malformed scope before `FOR ALL ENTRIES`, then delegates
+  the returned `RESB` rows to the same evaluator. Empty scopes remain successful
+  no-ops, and the legacy single-document helper stays conservatively false for
+  invalid IDs. Three adapter scenarios bring the suite to two hundred
+  forty-three.
+- `zcl_stock_snapshot_validator` now treats every material/plant pair as an
+  explicit read capability: an initial component makes the entire scope invalid
+  even when no stock rows are returned. This prevents an unsafe direct adapter
+  request from being mistaken for a successful empty snapshot. One focused
+  validator scenario covers the new scope rule.
+- `zcl_stock_reader_sap` applies the shared validator before its guarded
+  `MARD`/`MARC`/`MARA` query and again to the returned balances. It clears a
+  malformed snapshot and reports failure instead of exposing it as successful
+  to a direct caller. Service and transactional rechecker validation remain in
+  place for replaceable readers. Empty scope and both incomplete key variants
+  are covered directly; three adapter scenarios bring the suite to two hundred
+  forty-seven.
+- The cached SAP `MARM` reader now rejects initial material or alternative-unit
+  keys before SQL and does not cache a found factor whose numerator or
+  denominator is nonpositive. Invalid database evidence is normalized to the
+  canonical not-found envelope with zero factors. Two direct-boundary scenarios
+  bring the suite to two hundred forty-nine.
+- Unit conversion now owns its complete arithmetic domain even when called
+  outside allocation: identity and units must be present, source quantity must
+  fit exact positive `DEC(13,3)`, factors must be positive whole values within
+  the modeled `MARM` `DEC(5,0)` range, and a not-found response must carry no
+  factor payload. The intermediate result is capped before packed rounding and
+  the rounded result uses the same persisted `DEC(13,3)` type. Seven focused
+  scenarios bring the suite to two hundred fifty-six.
+- The SAP authorization adapter now rejects an initial plant before
+  `AUTHORITY-CHECK`, preventing blank scope from being interpreted as a broad
+  plant authorization. Stock-lock coordination independently requires a bound
+  gateway, complete material/plant keys, exact persistable positive allocation
+  quantities, and a released lifecycle before another acquisition. The SAP
+  gateway blocks incomplete enqueue keys and silently refuses unsafe incomplete
+  dequeue keys; blank failure diagnostics receive a deterministic fallback.
+  Seven focused scenarios bring the suite to two hundred sixty-three.
+- The transactional writer now validates that its reservation gateway,
+  idempotency store, stock rechecker, and stock lock are all bound after pending
+  input validation but before the first claim. A missing collaborator fails the
+  pending batch without rollback, release, or persistence calls because no
+  transaction has started. The direct rechecker likewise returns an explicit
+  failure when its stock reader is absent. Blank messages on canonical negative
+  lock and recheck results are normalized at the writer, so an auditable posting
+  failure never loses its diagnostic. Seven focused scenarios bring the suite
+  to two hundred seventy.
+- Unit conversion now checks its factor-reader dependency only when source and
+  base units differ, preserving the no-lookup path for identical units. The
+  allocator likewise checks its converter at the point a valid stocked request
+  reaches normalization, so invalid, replayed, deferred, missing-stock, and
+  missing-base-unit paths keep their existing precedence. A missing converter
+  or blank canonical conversion failure produces an explicit
+  `UNIT_CONVERSION_FAILED` result and never reaches the writer. Five direct and
+  orchestration scenarios bring the suite to two hundred seventy-five.
+- The orchestration service now validates each optional composition reference
+  at the phase that first needs it. Missing authority, idempotency store,
+  reservation-status reader, or stock reader returns the existing phase-specific
+  configuration decision before dereference; a missing writer preserves the
+  completed allocation decision but marks pending posting as failed. Simulation
+  still needs authorization and live stock, but bypasses productive replay,
+  cancellation, and writing dependencies. Invalid requests and deferred
+  simulation can run with no operational collaborators at all. Eight focused
+  scenarios bring the suite to two hundred eighty-three.
+- The application result now includes an additive diagnostic that distinguishes
+  a missing allocation service, a missing logger, a canonical logger rejection,
+  and a malformed logger acknowledgement while retaining the generated run ID
+  whenever composition fails. The SAP logger treats an empty allocation table
+  as a successful no-op without requiring its store, but rejects a missing store
+  for nonempty validated work. Export and retention validate all caller input
+  before checking their reader/store, then report missing backends and blank
+  canonical failures explicitly. Ten focused scenarios bring the suite to two
+  hundred ninety-three.

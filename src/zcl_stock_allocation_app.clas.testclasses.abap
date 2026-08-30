@@ -58,6 +58,8 @@ CLASS ltcl_stock_allocation_app DEFINITION FINAL
     METHODS delegates_and_logs FOR TESTING.
     METHODS returns_log_failure FOR TESTING.
     METHODS normalizes_invalid_log_state FOR TESTING.
+    METHODS rejects_missing_service FOR TESTING.
+    METHODS rejects_missing_logger FOR TESTING.
     METHODS returns_unique_run_ids FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
@@ -124,6 +126,9 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
     cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation log could not be saved' ).
   ENDMETHOD.
 
   METHOD normalizes_invalid_log_state.
@@ -134,6 +139,51 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
       iv_simulation = abap_true ).
 
     cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation logger returned invalid state' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_service.
+    DATA lo_service TYPE REF TO zif_stock_allocation_service.
+    mo_cut = NEW #(
+      io_service = lo_service
+      io_logger  = mo_logger ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #( )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
+    cl_abap_unit_assert=>assert_initial( ls_result-allocations ).
+    cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation service is required' ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_logger.
+    mo_service->mt_result = VALUE #(
+      ( request_id = 'REQUEST-1'
+        status     = zcl_stock_allocator=>gc_status_invalid ) ).
+    DATA lo_logger TYPE REF TO zif_allocation_logger.
+    mo_cut = NEW #(
+      io_service = mo_service
+      io_logger  = lo_logger ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #( )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-allocations[ 1 ]-request_id
+      exp = 'REQUEST-1' ).
+    cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation logger is required' ).
   ENDMETHOD.
 
   METHOD returns_unique_run_ids.

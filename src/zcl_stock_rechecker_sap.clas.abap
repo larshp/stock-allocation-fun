@@ -42,6 +42,12 @@ CLASS zcl_stock_rechecker_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_rechecker~recheck.
+    IF mo_stock_reader IS NOT BOUND.
+      rs_result-is_valid = abap_false.
+      rs_result-message = 'Stock reader is required during posting'.
+      RETURN.
+    ENDIF.
+
     DATA lt_requests TYPE zcl_stock_allocator=>ty_requests.
     DATA lt_required_stocks TYPE ty_required_stocks.
     DATA lt_required_plants TYPE ty_plant_quantities.

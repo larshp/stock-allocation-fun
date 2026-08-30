@@ -200,6 +200,12 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS rejects_imprecise_allocation FOR TESTING.
     METHODS rejects_missing_assignment FOR TESTING.
     METHODS rejects_conflicting_assignment FOR TESTING.
+    METHODS rejects_missing_gateway FOR TESTING.
+    METHODS rejects_missing_store FOR TESTING.
+    METHODS rejects_missing_rechecker FOR TESTING.
+    METHODS rejects_missing_lock FOR TESTING.
+    METHODS normalizes_empty_lock_failure FOR TESTING.
+    METHODS normalizes_empty_recheck FOR TESTING.
     METHODS forwards_sales_assignment FOR TESTING.
     METHODS ignores_empty_batch FOR TESTING.
     METHODS ignores_already_posted FOR TESTING.
@@ -803,6 +809,122 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
   ENDMETHOD.
 
+  METHOD rejects_missing_gateway.
+    DATA lo_gateway TYPE REF TO zif_reservation_gateway.
+    mo_cut = NEW #(
+      io_gateway           = lo_gateway
+      io_idempotency_store = mo_store
+      io_stock_rechecker   = mo_rechecker
+      io_stock_lock        = mo_lock ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer dependencies are required' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_acquire_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_store.
+    DATA lo_store TYPE REF TO zif_idempotency_store.
+    mo_cut = NEW #(
+      io_gateway           = mo_gateway
+      io_idempotency_store = lo_store
+      io_stock_rechecker   = mo_rechecker
+      io_stock_lock        = mo_lock ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer dependencies are required' ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_acquire_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_rechecker.
+    DATA lo_rechecker TYPE REF TO zif_stock_rechecker.
+    mo_cut = NEW #(
+      io_gateway           = mo_gateway
+      io_idempotency_store = mo_store
+      io_stock_rechecker   = lo_rechecker
+      io_stock_lock        = mo_lock ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer dependencies are required' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_lock.
+    DATA lo_lock TYPE REF TO zif_stock_lock.
+    mo_cut = NEW #(
+      io_gateway           = mo_gateway
+      io_idempotency_store = mo_store
+      io_stock_rechecker   = mo_rechecker
+      io_stock_lock        = lo_lock ).
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Allocation writer dependencies are required' ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_claim_order ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_lock_failure.
+    mo_lock->ms_result-acquired = abap_false.
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Stock lock acquisition failed' ).
+    cl_abap_unit_assert=>assert_initial( mo_rechecker->mt_checked ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_recheck.
+    mo_rechecker->ms_result-is_valid = abap_false.
+    DATA(lt_allocations) = allocations( ).
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Stock recheck failed' ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_requests ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_lock->mv_release_count
+      exp = 1 ).
+  ENDMETHOD.
+
   METHOD forwards_sales_assignment.
     mo_gateway->mt_responses = VALUE #(
       ( document_id = '0000000001' ) ).
@@ -830,18 +952,23 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
   METHOD allocations.
     DO iv_count TIMES.
       APPEND VALUE #(
-        request_id       = |REQUEST-{ sy-index }|
-        material         = 'MAT-1'
-        plant            = '1000'
-        storage_location = '0001'
-        movement_type    = '201'
-        cost_center      = 'CC1000'
-        unit_of_measure  = 'EA'
-        requirement_date = '20260818'
-        requested_qty    = 5
-        allocated_qty    = 5
-        status           = zcl_stock_allocator=>gc_status_allocated
-        posting_status   = zcl_stock_allocator=>gc_posting_pending )
+        request_id             = |REQUEST-{ sy-index }|
+        material               = 'MAT-1'
+        plant                  = '1000'
+        storage_location       = '0001'
+        movement_type          = '201'
+        cost_center            = 'CC1000'
+        source_requested_qty   = 5
+        source_unit_of_measure = 'EA'
+        minimum_fill_pct       = 80
+        priority               = 1
+        allow_partial          = abap_true
+        unit_of_measure        = 'EA'
+        requirement_date       = '20260818'
+        requested_qty          = 5
+        allocated_qty          = 5
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        posting_status         = zcl_stock_allocator=>gc_posting_pending )
         TO rt_allocations.
     ENDDO.
   ENDMETHOD.

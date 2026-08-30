@@ -5,21 +5,6 @@ CLASS zcl_reservation_status_sap DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_reservation_status.
-
-  PRIVATE SECTION.
-    TYPES:
-      BEGIN OF ty_item,
-        document_id   TYPE zcl_stock_allocator=>ty_document_id,
-        deletion_flag TYPE resb-xloek,
-      END OF ty_item.
-    TYPES ty_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_document_status,
-        document_id     TYPE zcl_stock_allocator=>ty_document_id,
-        has_active_item TYPE abap_bool,
-      END OF ty_document_status.
-    TYPES ty_document_statuses TYPE HASHED TABLE OF ty_document_status
-      WITH UNIQUE KEY document_id.
 ENDCLASS.
 
 CLASS zcl_reservation_status_sap IMPLEMENTATION.
@@ -35,13 +20,16 @@ CLASS zcl_reservation_status_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_reservation_status~find_cancelled.
-    IF it_document_ids IS INITIAL.
-      rs_result-is_success = abap_true.
-      rs_result-message = 'Reservation status lookup completed'.
+    DATA(ls_scope_result) = zcl_reservation_status_eval=>evaluate(
+      it_document_ids = it_document_ids
+      it_items        = VALUE #( ) ).
+    IF ls_scope_result-is_success = abap_false
+        OR it_document_ids IS INITIAL.
+      rs_result = ls_scope_result.
       RETURN.
     ENDIF.
 
-    DATA lt_items TYPE ty_items.
+    DATA lt_items TYPE zcl_reservation_status_eval=>ty_items.
     SELECT rsnum AS document_id,
            xloek AS deletion_flag
       FROM resb
@@ -53,24 +41,8 @@ CLASS zcl_reservation_status_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA lt_statuses TYPE ty_document_statuses.
-    LOOP AT lt_items INTO DATA(ls_item).
-      READ TABLE lt_statuses ASSIGNING FIELD-SYMBOL(<ls_status>)
-        WITH TABLE KEY document_id = ls_item-document_id.
-      IF sy-subrc <> 0.
-        INSERT VALUE #( document_id = ls_item-document_id )
-          INTO TABLE lt_statuses ASSIGNING <ls_status>.
-      ENDIF.
-      IF ls_item-deletion_flag IS INITIAL.
-        <ls_status>-has_active_item = abap_true.
-      ENDIF.
-    ENDLOOP.
-
-    LOOP AT lt_statuses INTO DATA(ls_status)
-      WHERE has_active_item = abap_false.
-      INSERT ls_status-document_id INTO TABLE rs_result-cancelled_ids.
-    ENDLOOP.
-    rs_result-is_success = abap_true.
-    rs_result-message = 'Reservation status lookup completed'.
+    rs_result = zcl_reservation_status_eval=>evaluate(
+      it_document_ids = it_document_ids
+      it_items        = lt_items ).
   ENDMETHOD.
 ENDCLASS.

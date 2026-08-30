@@ -33,6 +33,7 @@ CLASS ltcl_stock_rechecker_sap DEFINITION FINAL
     METHODS rejects_failed_stock_read FOR TESTING.
     METHODS rejects_invalid_stock_state FOR TESTING.
     METHODS rejects_invalid_snapshot FOR TESTING.
+    METHODS rejects_missing_reader FOR TESTING.
 
     METHODS allocations
       RETURNING
@@ -141,6 +142,18 @@ CLASS ltcl_stock_rechecker_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Stock snapshot quantity is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_reader.
+    DATA lo_reader TYPE REF TO zif_stock_reader.
+    mo_cut = NEW #( lo_reader ).
+
+    DATA(ls_result) = mo_cut->zif_stock_rechecker~recheck( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock reader is required during posting' ).
   ENDMETHOD.
 
   METHOD accepts_shared_plant_safety.

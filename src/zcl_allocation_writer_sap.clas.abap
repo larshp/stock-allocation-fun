@@ -14,7 +14,6 @@ CLASS zcl_allocation_writer_sap DEFINITION
         io_stock_lock        TYPE REF TO zif_stock_lock.
 
   PRIVATE SECTION.
-    TYPES ty_persisted_quantity TYPE p LENGTH 7 DECIMALS 3.
     TYPES ty_document_ids TYPE SORTED TABLE OF
       zcl_stock_allocator=>ty_document_id WITH UNIQUE KEY table_line.
     DATA mo_gateway TYPE REF TO zif_reservation_gateway.
@@ -61,11 +60,6 @@ CLASS zcl_allocation_writer_sap DEFINITION
 
     METHODS rollback_and_release.
 
-    METHODS pending_allocation_is_valid
-      IMPORTING
-        is_allocation   TYPE zcl_stock_allocator=>ty_allocation
-      RETURNING
-        VALUE(rv_valid) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_allocation_writer_sap IMPLEMENTATION.
@@ -89,7 +83,8 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     ENDIF.
 
     LOOP AT lt_pending_allocations INTO ls_pending_allocation.
-      IF pending_allocation_is_valid( ls_pending_allocation ) = abap_false.
+      IF zcl_allocation_persistence=>pending_allocation_is_valid(
+          ls_pending_allocation ) = abap_false.
         fail_all(
           EXPORTING
             iv_message     = 'Allocation writer input is invalid'
@@ -98,6 +93,18 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
         RETURN.
       ENDIF.
     ENDLOOP.
+
+    IF mo_gateway IS NOT BOUND
+        OR mo_idempotency_store IS NOT BOUND
+        OR mo_stock_rechecker IS NOT BOUND
+        OR mo_stock_lock IS NOT BOUND.
+      fail_all(
+        EXPORTING
+          iv_message     = 'Allocation writer dependencies are required'
+        CHANGING
+          ct_allocations = ct_allocations ).
+      RETURN.
+    ENDIF.
 
     DATA(lt_claim_allocations) = lt_pending_allocations.
     SORT lt_claim_allocations BY request_id ASCENDING.
@@ -124,7 +131,10 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     IF ls_lock-acquired <> abap_true.
       DATA(lv_lock_message) = COND string(
         WHEN ls_lock-acquired = abap_false
+          AND ls_lock-message IS NOT INITIAL
         THEN ls_lock-message
+        WHEN ls_lock-acquired = abap_false
+        THEN 'Stock lock acquisition failed'
         ELSE 'Stock lock returned invalid state' ).
       rollback_and_release( ).
       fail_all(
@@ -139,7 +149,10 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     IF ls_recheck-is_valid <> abap_true.
       DATA(lv_recheck_message) = COND string(
         WHEN ls_recheck-is_valid = abap_false
+          AND ls_recheck-message IS NOT INITIAL
         THEN ls_recheck-message
+        WHEN ls_recheck-is_valid = abap_false
+        THEN 'Stock recheck failed'
         ELSE 'Stock recheck returned invalid state' ).
       rollback_and_release( ).
       fail_all(
@@ -201,7 +214,8 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
             ct_allocations = ct_allocations ).
         RETURN.
       ENDIF.
-      IF <ls_allocation>-document_id CN '0123456789'.
+      IF zcl_allocation_persistence=>document_id_is_valid(
+          <ls_allocation>-document_id ) = abap_false.
         rollback_and_release( ).
         fail_all(
           EXPORTING
@@ -367,48 +381,4 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
     mo_stock_lock->release( ).
   ENDMETHOD.
 
-  METHOD pending_allocation_is_valid.
-    DATA lv_rounded_requested TYPE ty_persisted_quantity.
-    DATA lv_rounded_allocated TYPE ty_persisted_quantity.
-    DATA(ls_request) = CORRESPONDING zcl_stock_allocator=>ty_request(
-      is_allocation ).
-    DATA(lv_account_error) =
-      zcl_stock_allocator=>get_account_error( ls_request ).
-    IF is_allocation-requested_qty > 0
-        AND is_allocation-requested_qty
-          <= zcl_stock_allocator=>gc_max_quantity.
-      lv_rounded_requested = is_allocation-requested_qty.
-    ENDIF.
-    IF is_allocation-allocated_qty > 0
-        AND is_allocation-allocated_qty
-          <= zcl_stock_allocator=>gc_max_quantity.
-      lv_rounded_allocated = is_allocation-allocated_qty.
-    ENDIF.
-
-    rv_valid = xsdbool(
-      is_allocation-request_id IS NOT INITIAL
-      AND is_allocation-material IS NOT INITIAL
-      AND is_allocation-plant IS NOT INITIAL
-      AND is_allocation-storage_location IS NOT INITIAL
-      AND is_allocation-movement_type IS NOT INITIAL
-      AND is_allocation-unit_of_measure IS NOT INITIAL
-      AND is_allocation-requirement_date IS NOT INITIAL
-      AND lv_account_error IS INITIAL
-      AND is_allocation-requested_qty > 0
-      AND is_allocation-requested_qty
-        <= zcl_stock_allocator=>gc_max_quantity
-      AND lv_rounded_requested = is_allocation-requested_qty
-      AND is_allocation-allocated_qty > 0
-      AND is_allocation-allocated_qty <= is_allocation-requested_qty
-      AND is_allocation-allocated_qty
-        <= zcl_stock_allocator=>gc_max_quantity
-      AND lv_rounded_allocated = is_allocation-allocated_qty
-      AND is_allocation-posting_status
-        = zcl_stock_allocator=>gc_posting_pending
-      AND is_allocation-document_id IS INITIAL
-      AND ( ( is_allocation-allocated_qty = is_allocation-requested_qty
-          AND is_allocation-status = zcl_stock_allocator=>gc_status_allocated )
-        OR ( is_allocation-allocated_qty < is_allocation-requested_qty
-          AND is_allocation-status = zcl_stock_allocator=>gc_status_partial ) ) ).
-  ENDMETHOD.
 ENDCLASS.

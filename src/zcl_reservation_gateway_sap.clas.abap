@@ -16,10 +16,25 @@ CLASS zcl_reservation_gateway_sap DEFINITION
         it_messages        TYPE ty_bapi_messages
       RETURNING
         VALUE(rt_messages) TYPE zif_reservation_gateway=>ty_messages.
+
+    METHODS has_error
+      IMPORTING
+        it_messages         TYPE zif_reservation_gateway=>ty_messages
+      RETURNING
+        VALUE(rv_has_error) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_reservation_gateway_sap IMPLEMENTATION.
   METHOD zif_reservation_gateway~create_reservation.
+    CLEAR: ev_document_id, et_messages.
+    IF zcl_allocation_persistence=>reservation_request_is_valid(
+        is_request ) = abap_false.
+      et_messages = VALUE #(
+        ( type    = 'E'
+          message = 'Reservation request is invalid' ) ).
+      RETURN.
+    ENDIF.
+
     DATA(ls_header) = VALUE bapi2093_res_head(
       res_date    = sy-datum
       move_type   = is_request-movement_type
@@ -52,6 +67,18 @@ CLASS zcl_reservation_gateway_sap IMPLEMENTATION.
         return             = lt_return.
 
     et_messages = map_messages( lt_return ).
+    IF has_error( et_messages ) = abap_true.
+      CLEAR ev_document_id.
+      RETURN.
+    ENDIF.
+    IF zcl_allocation_persistence=>document_id_is_valid(
+        ev_document_id ) = abap_false.
+      CLEAR ev_document_id.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Reservation API returned invalid document ID' )
+        TO et_messages.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_reservation_gateway~commit.
@@ -63,10 +90,9 @@ CLASS zcl_reservation_gateway_sap IMPLEMENTATION.
       IMPORTING
         return = ls_return.
 
-    IF ls_return-type IS NOT INITIAL.
-      rt_messages = VALUE #(
-        ( type    = ls_return-type
-          message = ls_return-message ) ).
+    IF ls_return-type IS NOT INITIAL
+        OR ls_return-message IS NOT INITIAL.
+      rt_messages = map_messages( VALUE #( ( ls_return ) ) ).
     ENDIF.
   ENDMETHOD.
 
@@ -75,9 +101,29 @@ CLASS zcl_reservation_gateway_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD map_messages.
-    rt_messages = VALUE #(
-      FOR ls_message IN it_messages
-      ( type    = ls_message-type
-        message = ls_message-message ) ).
+    LOOP AT it_messages INTO DATA(ls_message).
+      IF ls_message-type = 'S'
+          OR ls_message-type = 'I'
+          OR ls_message-type = 'W'
+          OR ls_message-type = 'E'
+          OR ls_message-type = 'A'
+          OR ls_message-type = 'X'.
+        APPEND VALUE #(
+          type    = ls_message-type
+          message = ls_message-message ) TO rt_messages.
+      ELSE.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Reservation API returned invalid message type' )
+          TO rt_messages.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD has_error.
+    rv_has_error = xsdbool(
+      line_exists( it_messages[ type = 'E' ] )
+      OR line_exists( it_messages[ type = 'A' ] )
+      OR line_exists( it_messages[ type = 'X' ] ) ).
   ENDMETHOD.
 ENDCLASS.

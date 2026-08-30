@@ -175,3 +175,53 @@ best practices.
       document state inside the public SAP writer before protected side effects.
 - [x] Reject impossible retention-store affected-row evidence at the public
       cleanup facade.
+- [x] Preflight every decimal audit value against the persisted `DEC(13,3)`
+      domain before constructing current or historical log rows.
+- [x] Reject one-sided current/history audit batches at the public SAP log
+      store before any database operation.
+- [x] Validate complete current/history audit row pairing and require unique,
+      noninitial history UUIDs before persistence.
+- [x] Require a valid 32-character hexadecimal run ID before logging a
+      nonempty allocation result batch.
+- [x] Share complete pending-allocation persistence validation across the SAP
+      writer and direct idempotency-store claim boundary.
+- [x] Reject invalid idempotency lookup scope and replacement lineage, and make
+      reservation-document assignment a validated write-once transition.
+- [x] Preflight direct SAP reservation-gateway requests with the shared posting
+      identity, account-assignment, quantity, and precision contract.
+- [x] Normalize reservation BAPI message types and reject error/document
+      contradictions or missing and malformed document IDs at the gateway.
+- [x] Validate every reservation-status lookup document before the guarded
+      set-oriented `RESB` read.
+- [x] Classify cancellation through a pure evaluator that rejects out-of-scope
+      rows and noncanonical deletion flags.
+- [x] Reject incomplete material/plant stock-read scope before guarded SAP
+      `FOR ALL ENTRIES` access.
+- [x] Validate the production SAP stock reader's returned snapshot before
+      reporting direct-call success.
+- [x] Reject incomplete material/unit MARM lookup keys and prevent invalid
+      conversion factors from entering the SAP reader cache.
+- [x] Validate direct converter identity, source precision, MARM integer-factor
+      domains, not-found envelopes, and converted quantity bounds.
+- [x] Reject an initial plant at the direct SAP authorization boundary before
+      evaluating the plant-level authorization object.
+- [x] Validate direct stock-lock identities, quantities, dependencies, and
+      acquisition lifecycle before enqueue or dequeue side effects.
+- [x] Require every transactional writer collaborator before the first
+      idempotency claim and fail pending rows without partial side effects.
+- [x] Guard the direct stock rechecker's reader dependency and normalize blank
+      lock or recheck failure diagnostics at the writer boundary.
+- [x] Require a factor reader only when direct unit conversion needs a
+      material-specific alternative-unit lookup.
+- [x] Fail stocked allocation deterministically when its converter is absent or
+      returns a canonical failure without diagnostic text.
+- [x] Guard authority, idempotency, reservation-status, stock-reader, and writer
+      dependencies at their exact orchestration phases.
+- [x] Preserve dependency-free invalid, deferred-simulation, simulation, replay,
+      and no-pending-write paths while hardening service composition.
+- [x] Add application-level diagnostics for missing service/logger composition
+      and rejected or malformed logging acknowledgements.
+- [x] Treat empty audit logging as a dependency-free no-op while requiring a
+      store for every nonempty validated allocation batch.
+- [x] Guard export-reader and retention-store dependencies after facade input
+      validation and normalize blank backend failure diagnostics.

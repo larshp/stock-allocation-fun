@@ -24,6 +24,11 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
       rs_result-message = 'Idempotency lookup completed'.
       RETURN.
     ENDIF.
+    LOOP AT it_request_ids TRANSPORTING NO FIELDS
+      WHERE table_line IS INITIAL.
+      rs_result-message = 'Idempotency lookup scope is invalid'.
+      RETURN.
+    ENDLOOP.
 
     SELECT payload_version,
            request_id,
@@ -67,11 +72,19 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~claim.
+    IF zcl_allocation_persistence=>pending_allocation_is_valid(
+        is_allocation ) = abap_false
+        OR iv_replaced_document_id
+          <> is_allocation-replaced_document_id.
+      rv_acquired = abap_false.
+      RETURN.
+    ENDIF.
+
     IF iv_replaced_document_id IS NOT INITIAL.
       DELETE FROM zstock_alloc
         WHERE request_id = @is_allocation-request_id
           AND reservation_id = @iv_replaced_document_id.
-      IF sy-subrc <> 0.
+      IF sy-subrc <> 0 OR sy-dbcnt <> 1.
         rv_acquired = abap_false.
         RETURN.
       ENDIF.
@@ -111,9 +124,18 @@ CLASS zcl_idempotency_store_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_idempotency_store~set_document.
+    IF iv_request_id IS INITIAL
+        OR zcl_allocation_persistence=>document_id_is_valid(
+          iv_document_id ) = abap_false.
+      rv_updated = abap_false.
+      RETURN.
+    ENDIF.
+
+    DATA lv_initial_document TYPE zstock_alloc-reservation_id.
     UPDATE zstock_alloc
       SET reservation_id = @iv_document_id
-      WHERE request_id = @iv_request_id.
-    rv_updated = xsdbool( sy-subrc = 0 ).
+      WHERE request_id = @iv_request_id
+        AND reservation_id = @lv_initial_document.
+    rv_updated = xsdbool( sy-subrc = 0 AND sy-dbcnt = 1 ).
   ENDMETHOD.
 ENDCLASS.

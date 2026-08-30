@@ -9,6 +9,14 @@ ENDCLASS.
 
 CLASS zcl_stock_reader_sap IMPLEMENTATION.
   METHOD zif_stock_reader~read_stock.
+    DATA(ls_scope) = zcl_stock_snapshot_validator=>validate(
+      it_requests       = it_requests
+      it_stock_balances = VALUE #( ) ).
+    IF ls_scope-is_valid = abap_false.
+      rs_result-message = ls_scope-message.
+      RETURN.
+    ENDIF.
+
     IF it_requests IS INITIAL.
       rs_result-is_success = abap_true.
       rs_result-message = 'Stock read completed'.
@@ -31,11 +39,21 @@ CLASS zcl_stock_reader_sap IMPLEMENTATION.
       WHERE storage_stock~matnr = @it_requests-material
         AND storage_stock~werks = @it_requests-plant
       INTO CORRESPONDING FIELDS OF TABLE @rs_result-stock.
-    IF sy-subrc = 0 OR sy-subrc = 4.
-      rs_result-is_success = abap_true.
-      rs_result-message = 'Stock read completed'.
-    ELSE.
+    IF sy-subrc <> 0 AND sy-subrc <> 4.
       rs_result-message = 'Stock read failed'.
+      RETURN.
     ENDIF.
+
+    DATA(ls_snapshot) = zcl_stock_snapshot_validator=>validate(
+      it_requests       = it_requests
+      it_stock_balances = rs_result-stock ).
+    IF ls_snapshot-is_valid = abap_false.
+      CLEAR rs_result-stock.
+      rs_result-message = ls_snapshot-message.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_success = abap_true.
+    rs_result-message = 'Stock read completed'.
   ENDMETHOD.
 ENDCLASS.

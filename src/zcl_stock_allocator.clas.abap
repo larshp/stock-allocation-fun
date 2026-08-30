@@ -693,15 +693,23 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       ENDIF.
 
       DATA(ls_normalized_request) = ls_request.
-      DATA(ls_conversion) = mo_unit_converter->to_base(
-        iv_material    = ls_request-material
-        iv_quantity    = ls_request-requested_qty
-        iv_source_unit = ls_request-unit_of_measure
-        iv_base_unit   = <ls_stock>-base_unit ).
+      DATA ls_conversion TYPE zif_unit_converter=>ty_result.
+      IF mo_unit_converter IS NOT BOUND.
+        ls_conversion-message = 'Unit converter is required'.
+      ELSE.
+        ls_conversion = mo_unit_converter->to_base(
+          iv_material    = ls_request-material
+          iv_quantity    = ls_request-requested_qty
+          iv_source_unit = ls_request-unit_of_measure
+          iv_base_unit   = <ls_stock>-base_unit ).
+      ENDIF.
       IF ls_conversion-is_success <> abap_true.
         DATA(lv_conversion_message) = COND string(
           WHEN ls_conversion-is_success = abap_false
+            AND ls_conversion-message IS NOT INITIAL
           THEN ls_conversion-message
+          WHEN ls_conversion-is_success = abap_false
+          THEN 'Unit conversion failed'
           ELSE 'Unit converter returned invalid state' ).
         APPEND VALUE #(
           request_id             = ls_request-request_id

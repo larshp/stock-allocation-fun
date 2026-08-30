@@ -756,3 +756,170 @@ affected-row count supplied by a replaceable store. It could therefore report a
 negative count or a failed operation that simultaneously claimed rows were
 affected. Counts must now be nonnegative, and a canonical failure must report
 zero affected rows; contradictions become a deterministic invalid-store result.
+
+## RESOLVED-076: audit mapping could overflow or round rejected quantities
+
+Allocation results use `DECFLOAT34` so malformed source requests can be
+returned with their original values, while current and historical audit fields
+use `DEC(13,3)`. An oversized or four-decimal value could therefore be rejected
+correctly and then overflow or be rounded while the rejection was logged. The
+logger now preflights every decimal evidence field for magnitude and exact
+three-decimal persistence before constructing any DDIC row. Invalid evidence
+returns a failed logging acknowledgement without calling the store.
+
+## RESOLVED-077: an orphan history batch could be reported as saved
+
+The SAP log store treated an empty current-state table as a successful no-op
+without checking the history table. A direct or replaceable caller could
+therefore supply history rows alone, receive success, and silently persist
+nothing. The store now requires equal current/history cardinality before its
+empty-batch path or any database statement, rejecting orphan rows on either
+side.
+
+## RESOLVED-078: equal audit batch sizes could still contain unrelated rows
+
+The SAP store's cardinality check prevented orphan rows but did not establish
+that each current-state row and history row described the same decision. A
+direct caller could pair unrelated evidence, omit a history UUID, or reuse one
+UUID within the batch and reach Open SQL. The store now compares the complete
+shared row projection in positional order and requires every immutable history
+identity to be noninitial and unique before persistence.
+
+## RESOLVED-079: audit rows could lose application-call correlation
+
+The production application generates a 16-byte UUID rendered as 32 hexadecimal
+characters, but the public logger accepted initial, shortened, or arbitrary run
+IDs. Direct or malformed replaceable callers could therefore persist decisions
+that could not be correlated reliably to one application call. Every nonempty
+logger batch now requires the canonical 32-character hexadecimal form before
+row construction or store access.
+
+## RESOLVED-080: direct idempotency claims bypassed posting preflight
+
+The writer validated pending allocation identity and canonical quantity before
+claiming a request ID, but the public SAP idempotency store could be called
+directly with incomplete identity, malformed policy, imprecise source values,
+or inconsistent posting state. DDIC mapping could then overflow, round, or
+persist a claim the writer itself would reject. A shared pure persistence
+validator now covers every stored claim component and is required by both
+boundaries, preventing their contracts from drifting.
+
+## RESOLVED-081: idempotency transitions did not enforce their scope
+
+Set-oriented lookup accepted an initial request ID, replacement deletion did
+not require its parameter to match the allocation lineage, and document update
+could overwrite an already completed claim. The SAP store now rejects invalid
+lookup scope before SQL, requires exact replacement identity and one deleted
+row, and assigns only a valid ten-digit document to an initial field for exactly
+one request. This makes reservation linkage a write-once transition.
+
+## RESOLVED-082: direct reservation gateway calls trusted caller and BAPI state
+
+The writer normally supplied validated posting rows and interpreted BAPI
+messages, but the public SAP gateway admitted incomplete or imprecise direct
+requests and exposed whatever document/message combination the standard
+function returned. A non-writer caller could therefore reach the BAPI without
+the modeled movement and account-assignment contract or treat malformed output
+as success. The gateway now preflights requests, recognizes only standard
+message types, clears documents on errors, and requires a valid ten-digit
+document after a non-error create response.
+
+## RESOLVED-083: malformed RESB evidence could reopen a reservation
+
+The cancellation reader assumed its requested documents were valid and treated
+every noninitial `RESB-XLOEK` value as deleted. A direct caller could send an
+invalid lookup key, while corrupted or noncanonical deletion evidence such as
+`Y` could classify all returned items as cancelled and permit a request to be
+reopened. A pure evaluator now validates exact document scope, returned-row
+membership, and canonical deletion flags. Any malformed evidence fails the
+batch; missing rows or any active item remain non-cancelled.
+
+## RESOLVED-084: direct SAP stock reads lacked boundary validation
+
+The orchestration service and transactional rechecker validated successful
+snapshots from replaceable readers, but the production SAP reader itself could
+be called with an initial material or plant and returned database evidence
+without independently checking it. An incomplete scope could reach
+`FOR ALL ENTRIES`, and a direct caller could trust malformed stock identity,
+quantity, unit, or shared-safety evidence. The SAP adapter now preflights every
+material/plant pair and applies the shared snapshot validator again before
+affirming read success; invalid output is cleared.
+
+## RESOLVED-085: invalid MARM requests and factors entered the cache
+
+The SAP factor reader queried and cached initial material/unit keys and marked
+any selected row as found even when its numerator or denominator was not
+positive. Although the converter rejected zero factors, direct reader callers
+could observe malformed found evidence and every later request reused it. The
+reader now short-circuits incomplete keys and caches invalid selected factors
+only as a canonical empty not-found result.
+
+## RESOLVED-086: direct unit conversion had unbounded arithmetic inputs
+
+Allocation preflight normally supplied persistable quantities and later capped
+converter output, but the public converter itself accepted missing identity,
+over-precise or oversized source quantities, fractional or oversized factor
+payloads from a replaceable reader, and contradictory not-found evidence. A
+direct call could silently round source demand or return a quantity outside the
+stock/audit domain. The converter now validates every input and factor domain,
+bounds the intermediate result before packed assignment, and returns only exact
+persistable canonical quantities.
+
+## RESOLVED-087: direct authorization and lock calls admitted broad identities
+
+The normal service path supplied validated plants and writer allocations, but
+the public SAP authorization adapter still passed an initial plant to
+`AUTHORITY-CHECK`, and direct lock calls could pass blank material or plant keys
+to generated enqueue and dequeue functions. The stateful coordinator also
+trusted a bound gateway, persistable positive quantities, a released lifecycle,
+and nonempty failure diagnostics without enforcing them. The adapters now stop
+incomplete identities before SAP side effects, while the coordinator validates
+its dependency, lock-key inputs, quantity precision, acquisition state, and
+failure envelope before claiming lock ownership.
+
+## RESOLVED-088: incomplete posting composition caused runtime dereferences
+
+The production composition supplied every writer and rechecker collaborator,
+but their public constructors accepted initial references and the operational
+methods dereferenced them without validation. A direct caller could therefore
+terminate after valid input instead of producing an allocation outcome. The
+writer now verifies all four transactional dependencies before the first claim,
+and the rechecker verifies its reader before building or reading stock scope.
+Canonical negative lock and recheck results with blank messages also receive
+stable fallback diagnostics rather than producing failed audit rows without an
+explanation.
+
+## RESOLVED-089: conversion dependencies were dereferenced conditionally
+
+The converter and allocator constructors accepted replaceable collaborators,
+but neither guarded an initial reference before the path that needed it. A
+matching-unit conversion did not need a factor reader, and replayed or deferred
+allocation did not need a converter, so rejecting the entire component at
+construction would also change valid dependency-free paths. The checks now sit
+immediately before their respective lookups: alternative units require a factor
+reader, while valid stocked requests require a converter. Missing dependencies
+and blank canonical conversion failures return stable per-request conversion
+diagnostics without weakening earlier validation or replay precedence.
+
+## RESOLVED-090: service composition assumed every collaborator was bound
+
+The productive application supplied all six orchestration collaborators, but a
+directly constructed service dereferenced missing authority, idempotency,
+reservation-status, stock-reader, or writer references as requests advanced
+through their phases. A single eager constructor rejection would have broken
+valid short circuits where those dependencies are deliberately unnecessary.
+The service now checks each reference immediately before its first required
+operation and reports the established phase-specific decision. Invalid input,
+deferred simulation, ordinary simulation, replay-only work, and batches without
+pending writes continue to skip collaborators they do not consume.
+
+## RESOLVED-091: application and audit facades dereferenced missing backends
+
+Directly constructed application, logger, export, and retention facades trusted
+their injected references. Missing composition could therefore terminate a run,
+while canonical negative audit backends could return no diagnostic and leave an
+operator unable to distinguish rejection from malformed state. The application
+now retains its run ID and exposes an additive composition/logging message; the
+logger requires a store only for nonempty validated rows. Export and retention
+check their backends after caller validation, preserve invalid-input precedence,
+and provide stable fallbacks for blank canonical failure responses.

@@ -11,7 +11,15 @@ CLASS zcl_allocation_logger_sap DEFINITION
         io_store TYPE REF TO zif_allocation_log_store.
 
   PRIVATE SECTION.
+    TYPES ty_persisted_quantity TYPE p LENGTH 7 DECIMALS 3.
+
     DATA mo_store TYPE REF TO zif_allocation_log_store.
+
+    METHODS is_persistable_quantity
+      IMPORTING
+        iv_quantity           TYPE zcl_stock_allocator=>ty_quantity
+      RETURNING
+        VALUE(rv_persistable) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_allocation_logger_sap IMPLEMENTATION.
@@ -20,6 +28,42 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_logger~write.
+    IF it_allocations IS INITIAL.
+      rv_saved = abap_true.
+      RETURN.
+    ENDIF.
+
+    IF strlen( iv_run_id ) <> 32
+        OR iv_run_id CN '0123456789ABCDEFabcdef'.
+      rv_saved = abap_false.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_allocations INTO DATA(ls_input_allocation).
+      IF is_persistable_quantity(
+          ls_input_allocation-minimum_fill_pct ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-available_qty ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-source_requested_qty ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-requested_qty ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-allocated_qty ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-shortfall_qty ) = abap_false
+          OR is_persistable_quantity(
+            ls_input_allocation-fill_pct ) = abap_false.
+        rv_saved = abap_false.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    IF mo_store IS NOT BOUND.
+      rv_saved = abap_false.
+      RETURN.
+    ENDIF.
+
     DATA(lv_run_mode) = COND #(
       WHEN iv_simulation = abap_true
       THEN 'S'
@@ -121,5 +165,16 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
       it_current = lt_log_entries
       it_history = lt_log_history ).
     rv_saved = xsdbool( lv_saved = abap_true ).
+  ENDMETHOD.
+
+  METHOD is_persistable_quantity.
+    IF iv_quantity > zcl_stock_allocator=>gc_max_quantity
+        OR iv_quantity < - zcl_stock_allocator=>gc_max_quantity.
+      RETURN.
+    ENDIF.
+
+    DATA lv_persisted TYPE ty_persisted_quantity.
+    lv_persisted = iv_quantity.
+    rv_persistable = xsdbool( lv_persisted = iv_quantity ).
   ENDMETHOD.
 ENDCLASS.

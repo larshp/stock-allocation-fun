@@ -6,6 +6,7 @@ CLASS ltcl_stock_snapshot_validator DEFINITION FINAL
   PRIVATE SECTION.
     METHODS accepts_consistent_snapshot FOR TESTING.
     METHODS rejects_unrequested_domain FOR TESTING.
+    METHODS rejects_invalid_request_scope FOR TESTING.
     METHODS rejects_incomplete_identity FOR TESTING.
     METHODS rejects_invalid_quantity FOR TESTING.
     METHODS rejects_conflicting_units FOR TESTING.
@@ -55,6 +56,20 @@ CLASS ltcl_stock_snapshot_validator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Stock snapshot contains an unrequested domain' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_request_scope.
+    DATA(lt_requests) = requests( ).
+    CLEAR lt_requests[ 1 ]-plant.
+
+    DATA(ls_result) = zcl_stock_snapshot_validator=>validate(
+      it_requests       = lt_requests
+      it_stock_balances = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock request scope is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_incomplete_identity.

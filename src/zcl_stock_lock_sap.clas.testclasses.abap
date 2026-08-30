@@ -11,6 +11,7 @@ CLASS lcl_stock_lock_gateway DEFINITION FINAL.
     DATA mt_acquired TYPE ty_calls.
     DATA mt_released TYPE ty_calls.
     DATA mv_fail_at TYPE i.
+    DATA mv_empty_failure_at TYPE i.
     DATA mv_invalid_at TYPE i.
 ENDCLASS.
 
@@ -23,6 +24,10 @@ CLASS lcl_stock_lock_gateway IMPLEMENTATION.
     IF lines( mt_acquired ) = mv_fail_at.
       rs_result-acquired = abap_false.
       rs_result-message = 'Test lock collision'.
+      RETURN.
+    ENDIF.
+    IF lines( mt_acquired ) = mv_empty_failure_at.
+      rs_result-acquired = abap_false.
       RETURN.
     ENDIF.
     IF lines( mt_acquired ) = mv_invalid_at.
@@ -56,6 +61,12 @@ CLASS ltcl_stock_lock_sap DEFINITION FINAL
     METHODS rejects_invalid_wait_flag FOR TESTING.
     METHODS rejects_invalid_gateway_result FOR TESTING.
     METHODS rejects_direct_gateway_wait FOR TESTING.
+    METHODS rejects_missing_gateway FOR TESTING.
+    METHODS rejects_incomplete_lock_key FOR TESTING.
+    METHODS rejects_imprecise_lock_qty FOR TESTING.
+    METHODS rejects_reentrant_acquire FOR TESTING.
+    METHODS normalizes_empty_failure FOR TESTING.
+    METHODS rejects_direct_gateway_key FOR TESTING.
     METHODS allocations
       RETURNING
         VALUE(rt_allocations) TYPE zcl_stock_allocator=>ty_allocations.
@@ -167,6 +178,85 @@ CLASS ltcl_stock_lock_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Stock lock wait flag must be X or blank' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_gateway.
+    DATA lo_gateway TYPE REF TO zif_stock_lock_gateway.
+    mo_cut = NEW #(
+      io_gateway       = lo_gateway
+      iv_wait_for_lock = abap_false ).
+
+    DATA(ls_result) = mo_cut->zif_stock_lock~acquire( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock lock gateway is required' ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_lock_key.
+    DATA(lt_allocations) = allocations( ).
+    CLEAR lt_allocations[ 1 ]-material.
+
+    DATA(ls_result) = mo_cut->zif_stock_lock~acquire( lt_allocations ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock lock allocation is invalid' ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_acquired ).
+  ENDMETHOD.
+
+  METHOD rejects_imprecise_lock_qty.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-allocated_qty = '0.0001'.
+
+    DATA(ls_result) = mo_cut->zif_stock_lock~acquire( lt_allocations ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock lock allocation is invalid' ).
+    cl_abap_unit_assert=>assert_initial( mo_gateway->mt_acquired ).
+  ENDMETHOD.
+
+  METHOD rejects_reentrant_acquire.
+    mo_cut->zif_stock_lock~acquire( allocations( ) ).
+
+    DATA(ls_result) = mo_cut->zif_stock_lock~acquire( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock locks are already held' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_gateway->mt_acquired )
+      exp = 3 ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_failure.
+    mo_gateway->mv_empty_failure_at = 1.
+
+    DATA(ls_result) = mo_cut->zif_stock_lock~acquire( allocations( ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock lock acquisition failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_direct_gateway_key.
+    DATA(lo_gateway) = NEW zcl_stock_lock_gateway_sap( ).
+
+    DATA(ls_result) = lo_gateway->zif_stock_lock_gateway~acquire(
+      iv_material      = space
+      iv_plant         = '1000'
+      iv_wait_for_lock = abap_false ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-acquired ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Stock lock material and plant are required' ).
   ENDMETHOD.
 
   METHOD allocations.

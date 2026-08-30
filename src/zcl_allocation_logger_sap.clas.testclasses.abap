@@ -4,10 +4,12 @@ CLASS lcl_allocation_log_store DEFINITION FINAL.
     DATA mt_current TYPE zif_allocation_log_store=>ty_current_entries.
     DATA mt_history TYPE zif_allocation_log_store=>ty_history_entries.
     DATA mv_saved TYPE abap_bool VALUE abap_true.
+    DATA mv_calls TYPE i.
 ENDCLASS.
 
 CLASS lcl_allocation_log_store IMPLEMENTATION.
   METHOD zif_allocation_log_store~save.
+    mv_calls = mv_calls + 1.
     mt_current = it_current.
     mt_history = it_history.
     rv_saved = mv_saved.
@@ -27,7 +29,13 @@ CLASS ltcl_allocation_logger_sap DEFINITION FINAL
     METHODS writes_current_and_history FOR TESTING.
     METHODS propagates_store_failure FOR TESTING.
     METHODS rejects_invalid_store_state FOR TESTING.
+    METHODS rejects_initial_run_id FOR TESTING.
+    METHODS rejects_nonhex_run_id FOR TESTING.
+    METHODS rejects_oversized_quantity FOR TESTING.
+    METHODS rejects_imprecise_quantity FOR TESTING.
     METHODS records_invalid_run_mode FOR TESTING.
+    METHODS rejects_missing_store FOR TESTING.
+    METHODS accepts_empty_without_store FOR TESTING.
 
     METHODS allocations
       RETURNING
@@ -158,6 +166,60 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( lv_saved ).
   ENDMETHOD.
 
+  METHOD rejects_initial_run_id.
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( )
+      iv_simulation  = abap_false
+      iv_run_id      = ''
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+  ENDMETHOD.
+
+  METHOD rejects_nonhex_run_id.
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( )
+      iv_simulation  = abap_false
+      iv_run_id      = '00112233445566778899AABBCCDDEEFG'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+  ENDMETHOD.
+
+  METHOD rejects_oversized_quantity.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-source_requested_qty = '10000000000'.
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = lt_allocations
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_current ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_history ).
+  ENDMETHOD.
+
+  METHOD rejects_imprecise_quantity.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-requested_qty = '1.0001'.
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = lt_allocations
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_current ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mt_history ).
+  ENDMETHOD.
+
   METHOD records_invalid_run_mode.
     DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
       it_allocations = allocations( )
@@ -172,6 +234,32 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mt_history[ 1 ]-run_mode
       exp = 'I' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_store.
+    DATA lo_store TYPE REF TO zif_allocation_log_store.
+    mo_cut = NEW #( lo_store ).
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( )
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+  ENDMETHOD.
+
+  METHOD accepts_empty_without_store.
+    DATA lo_store TYPE REF TO zif_allocation_log_store.
+    mo_cut = NEW #( lo_store ).
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = VALUE #( )
+      iv_simulation  = abap_false
+      iv_run_id      = ''
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_true( lv_saved ).
   ENDMETHOD.
 
   METHOD allocations.

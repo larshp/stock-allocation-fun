@@ -23,6 +23,10 @@ ENDCLASS.
 
 CLASS zcl_unit_factor_reader_sap IMPLEMENTATION.
   METHOD zif_unit_factor_reader~read.
+    IF iv_material IS INITIAL OR iv_source_unit IS INITIAL.
+      RETURN.
+    ENDIF.
+
     READ TABLE mt_factors INTO DATA(ls_factor)
       WITH TABLE KEY material = iv_material
                      source_unit = iv_source_unit.
@@ -36,6 +40,13 @@ CLASS zcl_unit_factor_reader_sap IMPLEMENTATION.
       ls_factor-material = iv_material.
       ls_factor-source_unit = iv_source_unit.
       ls_factor-is_found = xsdbool( sy-subrc = 0 ).
+      IF ls_factor-is_found = abap_true
+          AND ( ls_factor-numerator <= 0
+            OR ls_factor-denominator <= 0 ).
+        CLEAR: ls_factor-is_found,
+               ls_factor-numerator,
+               ls_factor-denominator.
+      ENDIF.
       INSERT ls_factor INTO TABLE mt_factors.
     ENDIF.
 

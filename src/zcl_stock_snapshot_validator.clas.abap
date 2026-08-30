@@ -52,6 +52,10 @@ CLASS zcl_stock_snapshot_validator IMPLEMENTATION.
     DATA lv_rounded_safety TYPE ty_persisted_quantity.
 
     LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-material IS INITIAL OR ls_request-plant IS INITIAL.
+        rs_result-message = 'Stock request scope is invalid'.
+        RETURN.
+      ENDIF.
       INSERT VALUE #(
         material = ls_request-material
         plant    = ls_request-plant ) INTO TABLE lt_domains.

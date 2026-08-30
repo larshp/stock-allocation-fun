@@ -102,6 +102,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WHERE plant IS NOT INITIAL.
       INSERT ls_plant_request-plant INTO TABLE lt_plants.
     ENDLOOP.
+    IF lt_plants IS NOT INITIAL AND mo_authority IS NOT BOUND.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_authority_invalid
+        iv_message       = 'Allocation authority is required' ).
+      RETURN.
+    ENDIF.
     LOOP AT lt_plants INTO DATA(lv_plant).
       DATA(lv_authorized) = mo_authority->is_authorized( lv_plant ).
       IF lv_authorized <> abap_false AND lv_authorized <> abap_true.
@@ -137,6 +145,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         INSERT ls_request-request_id INTO TABLE lt_replay_request_ids.
       ENDLOOP.
       IF lt_replay_request_ids IS NOT INITIAL.
+        IF mo_idempotency_store IS NOT BOUND.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code = zcl_stock_allocator=>gc_decision_replay_lookup
+            iv_message       = 'Idempotency store is required' ).
+          RETURN.
+        ENDIF.
         DATA(ls_lookup_result) = mo_idempotency_store->find_many(
           lt_replay_request_ids ).
         IF ls_lookup_result-is_success <> abap_true.
@@ -178,7 +194,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       LOOP AT lt_replay_records INTO DATA(ls_replay_record)
         WHERE is_found = abap_true
           AND document_id IS NOT INITIAL.
-        IF ls_replay_record-document_id CN '0123456789'.
+        IF zcl_allocation_persistence=>document_id_is_valid(
+            ls_replay_record-document_id ) = abap_false.
           rt_allocations = reject_batch(
             it_requests      = it_requests
             iv_status        = zcl_stock_allocator=>gc_status_config_error
@@ -198,6 +215,15 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
       IF lt_replay_document_ids IS NOT INITIAL.
+        IF mo_reservation_status IS NOT BOUND.
+          rt_allocations = reject_batch(
+            it_requests      = it_requests
+            iv_status        = zcl_stock_allocator=>gc_status_config_error
+            iv_decision_code =
+              zcl_stock_allocator=>gc_decision_cancel_lookup
+            iv_message       = 'Reservation status reader is required' ).
+          RETURN.
+        ENDIF.
         DATA(ls_cancellation_result) =
           mo_reservation_status->find_cancelled( lt_replay_document_ids ).
         IF ls_cancellation_result-is_success <> abap_true.
@@ -288,6 +314,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
     DATA lt_stock TYPE zcl_stock_allocator=>ty_stock_balances.
     IF lt_stock_requests IS NOT INITIAL.
+      IF mo_stock_reader IS NOT BOUND.
+        rt_allocations = reject_batch(
+          it_requests      = it_requests
+          iv_status        = zcl_stock_allocator=>gc_status_config_error
+          iv_decision_code = zcl_stock_allocator=>gc_decision_stock_read
+          iv_message       = 'Stock reader is required' ).
+        RETURN.
+      ENDIF.
       DATA(ls_stock_result) =
         mo_stock_reader->read_stock( lt_stock_requests ).
       IF ls_stock_result-is_success <> abap_true.
@@ -347,22 +381,33 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
 
     IF lt_committed_allocations IS NOT INITIAL.
       DATA(lt_expected_allocations) = lt_committed_allocations.
-      mo_allocation_writer->save_allocations(
-        CHANGING
-          ct_allocations = lt_committed_allocations ).
-
-      IF writer_response_is_valid(
-          it_expected = lt_expected_allocations
-          it_actual   = lt_committed_allocations ) = abap_false.
-        lt_committed_allocations = lt_expected_allocations.
+      IF mo_allocation_writer IS NOT BOUND.
         LOOP AT lt_committed_allocations
           ASSIGNING FIELD-SYMBOL(<ls_invalid_writer_result>).
           <ls_invalid_writer_result>-posting_status =
             zcl_stock_allocator=>gc_posting_failed.
           <ls_invalid_writer_result>-posting_message =
-            'Allocation writer returned invalid response'.
+            'Allocation writer is required'.
           CLEAR <ls_invalid_writer_result>-document_id.
         ENDLOOP.
+      ELSE.
+        mo_allocation_writer->save_allocations(
+          CHANGING
+            ct_allocations = lt_committed_allocations ).
+
+        IF writer_response_is_valid(
+            it_expected = lt_expected_allocations
+            it_actual   = lt_committed_allocations ) = abap_false.
+          lt_committed_allocations = lt_expected_allocations.
+          LOOP AT lt_committed_allocations
+            ASSIGNING <ls_invalid_writer_result>.
+            <ls_invalid_writer_result>-posting_status =
+              zcl_stock_allocator=>gc_posting_failed.
+            <ls_invalid_writer_result>-posting_message =
+              'Allocation writer returned invalid response'.
+            CLEAR <ls_invalid_writer_result>-document_id.
+          ENDLOOP.
+        ENDIF.
       ENDIF.
 
       LOOP AT lt_committed_allocations INTO DATA(ls_committed_allocation).

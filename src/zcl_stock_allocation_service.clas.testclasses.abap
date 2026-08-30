@@ -199,6 +199,15 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS rejects_mutated_writer_row FOR TESTING.
     METHODS skips_empty_write FOR TESTING.
     METHODS converts_before_write FOR TESTING.
+    METHODS rejects_missing_converter FOR TESTING.
+    METHODS rejects_missing_authority FOR TESTING.
+    METHODS rejects_missing_store FOR TESTING.
+    METHODS rejects_missing_status_reader FOR TESTING.
+    METHODS rejects_missing_stock_reader FOR TESTING.
+    METHODS rejects_missing_writer FOR TESTING.
+    METHODS simulation_skips_prod_deps FOR TESTING.
+    METHODS deferred_skips_runtime_deps FOR TESTING.
+    METHODS invalid_skips_all_deps FOR TESTING.
     METHODS replays_completed_request FOR TESTING.
     METHODS rejects_incomplete_replay FOR TESTING.
     METHODS rejects_invalid_replay_outcome FOR TESTING.
@@ -369,6 +378,243 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_converter->mv_calls
       exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_converter.
+    DATA lo_converter TYPE REF TO zif_unit_converter.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = lo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = mo_authority
+      io_reservation_status = mo_reservation_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_conversion_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Unit converter is required' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_authority.
+    DATA lo_authority TYPE REF TO zif_allocation_authority.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = lo_authority
+      io_reservation_status = mo_reservation_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_authority_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation authority is required' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_store.
+    DATA lo_store TYPE REF TO zif_idempotency_store.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = lo_store
+      io_authority          = mo_authority
+      io_reservation_status = mo_reservation_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Idempotency store is required' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_status_reader.
+    INSERT completed_record( ) INTO TABLE mo_store->mt_records.
+    DATA lo_status TYPE REF TO zif_reservation_status.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = mo_authority
+      io_reservation_status = lo_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_cancel_lookup ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Reservation status reader is required' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_stock_reader.
+    DATA lo_reader TYPE REF TO zif_stock_reader.
+    mo_cut = NEW #(
+      io_stock_reader       = lo_reader
+      io_allocation_writer  = mo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = mo_authority
+      io_reservation_status = mo_reservation_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_stock_read ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Stock reader is required' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_writer.
+    DATA lo_writer TYPE REF TO zif_allocation_writer.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = mo_store
+      io_authority          = mo_authority
+      io_reservation_status = mo_reservation_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_fully_allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation writer is required' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-document_id ).
+  ENDMETHOD.
+
+  METHOD simulation_skips_prod_deps.
+    DATA lo_writer TYPE REF TO zif_allocation_writer.
+    DATA lo_store TYPE REF TO zif_idempotency_store.
+    DATA lo_status TYPE REF TO zif_reservation_status.
+    mo_cut = NEW #(
+      io_stock_reader       = mo_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = mo_converter
+      io_idempotency_store  = lo_store
+      io_authority          = mo_authority
+      io_reservation_status = lo_status ).
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests   = requests( 5 )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_simulated ).
+  ENDMETHOD.
+
+  METHOD deferred_skips_runtime_deps.
+    DATA lo_reader TYPE REF TO zif_stock_reader.
+    DATA lo_writer TYPE REF TO zif_allocation_writer.
+    DATA lo_converter TYPE REF TO zif_unit_converter.
+    DATA lo_store TYPE REF TO zif_idempotency_store.
+    DATA lo_status TYPE REF TO zif_reservation_status.
+    mo_cut = NEW #(
+      io_stock_reader       = lo_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = lo_converter
+      io_idempotency_store  = lo_store
+      io_authority          = mo_authority
+      io_reservation_status = lo_status ).
+
+    DATA(lt_result) = mo_cut->execute(
+      it_requests     = requests( 5 )
+      iv_simulation   = abap_true
+      iv_horizon_date = '20260817' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_deferred ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_outside_horizon ).
+  ENDMETHOD.
+
+  METHOD invalid_skips_all_deps.
+    DATA lo_reader TYPE REF TO zif_stock_reader.
+    DATA lo_writer TYPE REF TO zif_allocation_writer.
+    DATA lo_converter TYPE REF TO zif_unit_converter.
+    DATA lo_store TYPE REF TO zif_idempotency_store.
+    DATA lo_authority TYPE REF TO zif_allocation_authority.
+    DATA lo_status TYPE REF TO zif_reservation_status.
+    mo_cut = NEW #(
+      io_stock_reader       = lo_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = lo_converter
+      io_idempotency_store  = lo_store
+      io_authority          = lo_authority
+      io_reservation_status = lo_status ).
+
+    DATA(lt_result) = mo_cut->execute( requests( 0 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
   ENDMETHOD.
 
   METHOD replays_completed_request.

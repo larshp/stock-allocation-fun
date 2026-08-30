@@ -9,6 +9,7 @@ CLASS zcl_stock_allocation_app DEFINITION
         allocations TYPE zcl_stock_allocator=>ty_allocations,
         run_id      TYPE zif_allocation_logger=>ty_run_id,
         log_saved   TYPE abap_bool,
+        message     TYPE string,
       END OF ty_result.
 
     METHODS constructor
@@ -45,12 +46,22 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
   METHOD run.
     DATA(lv_run_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
     rs_result-run_id = |{ lv_run_uuid }|.
+    IF mo_service IS NOT BOUND.
+      rs_result-message = 'Allocation service is required'.
+      RETURN.
+    ENDIF.
+
     rs_result-allocations = mo_service->execute(
       it_requests           = it_requests
       iv_simulation         = iv_simulation
       iv_horizon_date       = iv_horizon_date
       iv_require_full_batch = iv_require_full_batch
       iv_strategy           = iv_strategy ).
+    IF mo_logger IS NOT BOUND.
+      rs_result-message = 'Allocation logger is required'.
+      RETURN.
+    ENDIF.
+
     DATA(lv_log_saved) = mo_logger->write(
       it_allocations        = rs_result-allocations
       iv_simulation         = iv_simulation
@@ -59,6 +70,11 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       iv_horizon_date       = iv_horizon_date
       iv_require_full_batch = iv_require_full_batch ).
     rs_result-log_saved = xsdbool( lv_log_saved = abap_true ).
+    IF lv_log_saved = abap_false.
+      rs_result-message = 'Allocation log could not be saved'.
+    ELSEIF lv_log_saved <> abap_true.
+      rs_result-message = 'Allocation logger returned invalid state'.
+    ENDIF.
   ENDMETHOD.
 
   METHOD create_sap.

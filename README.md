@@ -20,6 +20,9 @@ writes.
 - Explicit quantity units with `MARA-MEINS` as the canonical base unit and
   material-specific alternative-unit conversion through `MARM-UMREZ/UMREN`.
   Factor lookup and conversion success require exact affirmative results.
+  Direct conversion validates source `DEC(13,3)` precision, the modeled
+  positive integer factor domain, empty not-found envelopes, and the converted
+  maximum before rounding or returning a canonical quantity.
 - Shared plant-level safety-stock protection using `MARC-EISBE`, without
   repeated deductions for multiple storage locations.
 - Rejection of invalid quantities, missing request IDs, duplicate request IDs,
@@ -29,15 +32,24 @@ writes.
 - Fail-closed plant authorization through `M_MATE_WRK` activity `02`, checked
   once per plant before idempotency replay or stock access for productive and
   simulation runs. A replaceable authority must return a canonical boolean;
-  malformed results stop the batch before protected reads.
+  malformed results stop the batch before protected reads. The SAP adapter
+  rejects an initial plant instead of allowing a broadened authorization check.
 - Simulation mode that calculates allocations without writing them.
 - An orchestration service with injectable stock-reader and allocation-writer
-  ports.
+  ports. Every collaborator is checked at its first required phase: authority
+  for valid plant scope, idempotency for productive replay, reservation status
+  for persisted documents, stock reading for live demand, conversion for
+  stocked requests, and writing for productive pending allocations. Invalid
+  work, deferred simulation, replay-only results, and simulation keep their
+  dependency-free short circuits.
 - Shared pure request preflight that excludes malformed rows from authorization,
   replay, reservation-status, and stock dependencies while preserving their
   final allocator outcomes.
 - An SAP stock reader using `MARD-LABST` and `MARC-EISBE` with one set-oriented
-  query, joined to `MARA-MEINS` for the material base unit.
+  query, joined to `MARA-MEINS` for the material base unit. It rejects
+  incomplete material/plant scope before SQL and validates returned stock
+  identity, quantities, units, and shared safety evidence before direct-call
+  success.
 - Transactional reservation posting through `BAPI_RESERVATION_CREATE1`, with
   batch commit, rollback on any create/commit error, and returned document IDs
   and retained warning diagnostics. Allocated quantities are posted with
@@ -45,10 +57,17 @@ writes.
   consumption reservations carry cost center (201/251), WBS element (221),
   sales order and item (231), asset and subnumber (241), order (261), or network
   and optional activity (281) account assignments in the reservation header.
-  Each movement accepts only its modeled assignment family.
+  Each movement accepts only its modeled assignment family. The public SAP
+  gateway repeats request preflight for direct callers and normalizes malformed
+  BAPI messages or document evidence to explicit errors. The writer requires
+  its gateway, idempotency store, stock rechecker, and stock lock before the
+  first claim; an incomplete composition fails every pending row without
+  transactional side effects.
 - Persistent request-ID claims in the owned `ZSTOCK_ALLOC` table, committed in
   the same LUW as reservation creation and acquired in deterministic request-ID
-  order across each batch.
+  order across each batch. A shared persistence validator protects both writer
+  and direct store calls, and reservation IDs are assigned only once to an
+  initial claim using an exact ten-digit document identity.
 - Payload-aware idempotent replay: identical productive retries return the
   original allocation and reservation without consuming current stock, while
   changed input under an existing request ID is rejected.
@@ -57,18 +76,29 @@ writes.
 - Cancellation-aware replay: a persisted reservation whose existing `RESB`
   items are all deletion-flagged is allocated again, with its old idempotency
   claim conditionally replaced in the same LUW as the new reservation. Status
-  for all unique persisted reservation IDs is read in one guarded query.
+  for all unique persisted reservation IDs is read in one guarded query. Lookup
+  keys, returned scope, and every deletion flag are validated before an exact
+  all-items-cancelled classification is accepted.
 - Versioned idempotency payloads: current claims store payload version `001`;
   legacy or unsupported rows are rejected explicitly before stock is read or a
   reservation can be posted.
 - Aggregate availability revalidation after claims and before any BAPI call.
+  The rechecker rejects a missing stock reader explicitly, and the writer
+  supplies deterministic diagnostics when a replaceable lock or rechecker
+  reports a valid negative outcome without explanatory text.
 - Exclusive generic-location `MARD` locks acquired once per material/plant in
-  deterministic key order and held through BAPI commit or rollback.
+  deterministic key order and held through BAPI commit or rollback. Direct
+  lock calls require complete material/plant identities and exact persistable
+  positive quantities; missing gateways and re-entrant acquisition fail before
+  enqueue work, while invalid release keys never reach the dequeue function.
 - A production composition entry point with current-state operational audit in
   `ZSTOCK_ALOG` and append-only UUID-keyed history in `ZSTOCK_ALGH`, covering
-  both productive and simulation runs.
+  both productive and simulation runs. Decimal evidence is preflighted against
+  the persisted `DEC(13,3)` domain, and the SAP store verifies complete paired
+  row equality plus unique, noninitial history UUIDs before database access.
 - One generated run ID per application call, returned to the caller and stored
-  on every current-state and history row produced by that call.
+  on every current-state and history row produced by that call. Nonempty logger
+  batches require its canonical 32-character hexadecimal form.
 - Reconstructable audit context covering material, plant, storage location,
   movement, requirement date, request controls, run controls, account
   assignment, quantities, outcomes, and reservation replacement lineage.
@@ -163,8 +193,12 @@ do not participate in the new-work completeness decision.
 Each request must provide `unit_of_measure` equal to the material base unit
 returned by `MARA-MEINS` or an internal SAP alternative unit maintained for the
 material in `MARM`. Alternative quantities are converted and rounded to the
-three-decimal stock precision before allocation. Results expose canonical
-`requested_qty`, `allocated_qty`, `shortfall_qty`, `fill_pct`, and
+three-decimal stock precision before allocation. A matching source/base unit
+can bypass factor lookup even without a configured reader; an alternative unit
+requires the reader, and stocked work requires a converter. Missing conversion
+dependencies and blank negative converter results become explicit per-request
+`UNIT_CONVERSION_FAILED` outcomes instead of runtime dereferences. Results
+expose canonical `requested_qty`, `allocated_qty`, `shortfall_qty`, `fill_pct`, and
 `unit_of_measure`, while `source_requested_qty` and `source_unit_of_measure`
 retain the caller's input. Fill percentage is actual allocated quantity divided
 by requested quantity: 100 for full allocation, proportional for partial
@@ -190,14 +224,17 @@ needs `M_MATE_WRK` activity `02` for every requested plant. If any plant check
 fails, the complete call is returned as invalid before replay records or stock
 are read, preserving the service's atomic batch boundary.
 The returned result contains all allocation/posting results, a 32-character
-hexadecimal `run_id`, and `log_saved` so callers can detect an operational-audit
-failure independently of posting. The run ID is generated before allocation
+hexadecimal `run_id`, `log_saved`, and an application-level diagnostic so
+callers can distinguish missing service/logger composition, rejected logging,
+and malformed logging acknowledgements. The run ID is generated before allocation
 and remains available even if audit saving fails. Every audit row from that
 call carries the same run ID, while each history row retains its separate
 `LOG_UUID`. Only an exact affirmative logger acknowledgement sets `log_saved`;
 malformed custom logger or store results are normalized to false. Current-state
 and history records are saved atomically in one audit
-LUW. Existing audit rows from before this additive schema change have a blank
+LUW. An empty allocation batch is a successful logging no-op and does not
+require a store; every nonempty validated batch does. Existing audit rows from
+before this additive schema change have a blank
 run ID.
 Each allocation also carries `decision_code`, a stable allocation-layer reason
 that is independent of `posting_status` and the human-readable
@@ -338,6 +375,8 @@ store independently requires a noninitial cutoff strictly before `sy-datum`
 before authorization or SQL. The retention facade accepts only canonical store
 success states and reports malformed adapter responses as failure. Store counts
 must be nonnegative, and a failed store response cannot claim affected rows.
+After input validation, a missing store or a blank negative store diagnostic is
+returned as an explicit retention failure.
 
 Run `ZSTOCK_ALGH_EXPORT` to produce semicolon-delimited CSV in an SAP list or
 background spool. Blank `P_FROM` and `P_TO` select the latest 30-day audit
@@ -418,7 +457,9 @@ same date, rejects inverted closed requirement- and horizon-date intervals, and
 rejects policy selectors outside blank, `X`, and `-`. It permits at most 10,001
 rows. The export limit remains 10,000; its one additional reader row is used
 only as a truncation sentinel. Export also requires an exact affirmative reader
-result before emitting a CSV header or data row.
+result before emitting a CSV header or data row. A missing reader and a blank
+negative reader response produce explicit failures, while malformed filters
+retain precedence and never attempt a read.
 The executing user needs `S_TABU_NAM` activity `03` for `ZSTOCK_ALGH`. Exported
 fields, including the complete decision context, are quoted and embedded quotes
 are doubled. Values beginning with `=`, `+`, `-`, `@`, tab, carriage return, or

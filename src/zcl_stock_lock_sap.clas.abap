@@ -38,10 +38,31 @@ CLASS zcl_stock_lock_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF mo_gateway IS NOT BOUND.
+      rs_result-acquired = abap_false.
+      rs_result-message = 'Stock lock gateway is required'.
+      RETURN.
+    ENDIF.
+
+    IF mt_locked_keys IS NOT INITIAL.
+      rs_result-acquired = abap_false.
+      rs_result-message = 'Stock locks are already held'.
+      RETURN.
+    ENDIF.
+
     DATA lt_requested_keys TYPE ty_plant_keys.
 
     LOOP AT it_allocations INTO DATA(ls_allocation)
       WHERE allocated_qty > 0.
+      IF ls_allocation-material IS INITIAL
+          OR ls_allocation-plant IS INITIAL
+          OR zcl_allocation_persistence=>quantity_is_persistable(
+            ls_allocation-allocated_qty ) = abap_false.
+        rs_result-acquired = abap_false.
+        rs_result-message = 'Stock lock allocation is invalid'.
+        RETURN.
+      ENDIF.
+
       INSERT VALUE #(
         material = ls_allocation-material
         plant    = ls_allocation-plant )
@@ -57,6 +78,9 @@ CLASS zcl_stock_lock_sap IMPLEMENTATION.
         zif_stock_lock~release( ).
         IF ls_lock-acquired = abap_false.
           rs_result = ls_lock.
+          IF rs_result-message IS INITIAL.
+            rs_result-message = 'Stock lock acquisition failed'.
+          ENDIF.
         ELSE.
           rs_result-acquired = abap_false.
           rs_result-message = 'Stock lock gateway returned invalid state'.

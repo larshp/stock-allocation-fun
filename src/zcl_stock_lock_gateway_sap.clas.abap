@@ -15,6 +15,12 @@ CLASS zcl_stock_lock_gateway_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL.
+      rs_result-acquired = abap_false.
+      rs_result-message = 'Stock lock material and plant are required'.
+      RETURN.
+    ENDIF.
+
     CALL FUNCTION 'ENQUEUE_EZSTOCK_POOL'
       EXPORTING
         matnr          = iv_material
@@ -37,6 +43,10 @@ CLASS zcl_stock_lock_gateway_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_lock_gateway~release.
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL.
+      RETURN.
+    ENDIF.
+
     CALL FUNCTION 'DEQUEUE_EZSTOCK_POOL'
       EXPORTING
         matnr   = iv_material

@@ -35,6 +35,9 @@ CLASS ltcl_allocation_log_retention DEFINITION FINAL
     METHODS rejects_invalid_store_state FOR TESTING.
     METHODS rejects_negative_store_count FOR TESTING.
     METHODS rejects_failed_store_count FOR TESTING.
+    METHODS rejects_missing_store FOR TESTING.
+    METHODS validates_before_store FOR TESTING.
+    METHODS normalizes_empty_store_failure FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
 
@@ -188,6 +191,54 @@ CLASS ltcl_allocation_log_retention IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Retention store returned invalid state' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_store.
+    DATA lo_store TYPE REF TO zif_allocation_history_store.
+    mo_cut = NEW #( lo_store ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention store is required' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-affected_rows ).
+  ENDMETHOD.
+
+  METHOD validates_before_store.
+    DATA lo_store TYPE REF TO zif_allocation_history_store.
+    mo_cut = NEW #( lo_store ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 0
+      iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention days must be between 1 and 36500' ).
+  ENDMETHOD.
+
+  METHOD normalizes_empty_store_failure.
+    mo_store->ms_result = VALUE #(
+      is_success    = abap_false
+      affected_rows = 0 ).
+
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '20260818' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention cleanup failed' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-affected_rows ).
   ENDMETHOD.
 
   METHOD creates_sap_composition.

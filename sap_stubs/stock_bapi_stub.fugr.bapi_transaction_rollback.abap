@@ -1,0 +1,2 @@
+FUNCTION bapi_transaction_rollback.
+ENDFUNCTION.

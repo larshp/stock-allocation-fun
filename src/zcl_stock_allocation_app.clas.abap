@@ -1,0 +1,110 @@
+CLASS zcl_stock_allocation_app DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_result,
+        allocations TYPE zcl_stock_allocator=>ty_allocations,
+        run_id      TYPE zif_allocation_logger=>ty_run_id,
+        log_saved   TYPE abap_bool,
+        message     TYPE string,
+      END OF ty_result.
+
+    METHODS constructor
+      IMPORTING
+        io_service TYPE REF TO zif_stock_allocation_service
+        io_logger  TYPE REF TO zif_allocation_logger.
+
+    METHODS run
+      IMPORTING
+        it_requests           TYPE zcl_stock_allocator=>ty_requests
+        iv_simulation         TYPE abap_bool DEFAULT abap_false
+        iv_horizon_date       TYPE d OPTIONAL
+        iv_require_full_batch TYPE abap_bool DEFAULT abap_false
+        iv_strategy           TYPE zcl_stock_allocator=>ty_strategy
+          DEFAULT zcl_stock_allocator=>gc_strategy_priority_due
+      RETURNING
+        VALUE(rs_result)      TYPE ty_result.
+
+    CLASS-METHODS create_sap
+      RETURNING
+        VALUE(ro_app) TYPE REF TO zcl_stock_allocation_app.
+
+  PRIVATE SECTION.
+    DATA mo_service TYPE REF TO zif_stock_allocation_service.
+    DATA mo_logger TYPE REF TO zif_allocation_logger.
+ENDCLASS.
+
+CLASS zcl_stock_allocation_app IMPLEMENTATION.
+  METHOD constructor.
+    mo_service = io_service.
+    mo_logger = io_logger.
+  ENDMETHOD.
+
+  METHOD run.
+    DATA(lv_run_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
+    rs_result-run_id = |{ lv_run_uuid }|.
+    IF mo_service IS NOT BOUND.
+      rs_result-message = 'Allocation service is required'.
+      RETURN.
+    ENDIF.
+
+    rs_result-allocations = mo_service->execute(
+      it_requests           = it_requests
+      iv_simulation         = iv_simulation
+      iv_horizon_date       = iv_horizon_date
+      iv_require_full_batch = iv_require_full_batch
+      iv_strategy           = iv_strategy ).
+    IF mo_logger IS NOT BOUND.
+      rs_result-message = 'Allocation logger is required'.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_log_saved) = mo_logger->write(
+      it_allocations        = rs_result-allocations
+      iv_simulation         = iv_simulation
+      iv_run_id             = rs_result-run_id
+      iv_strategy           = iv_strategy
+      iv_horizon_date       = iv_horizon_date
+      iv_require_full_batch = iv_require_full_batch ).
+    rs_result-log_saved = xsdbool( lv_log_saved = abap_true ).
+    IF lv_log_saved = abap_false.
+      rs_result-message = 'Allocation log could not be saved'.
+    ELSEIF lv_log_saved <> abap_true.
+      rs_result-message = 'Allocation logger returned invalid state'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD create_sap.
+    DATA(lo_stock_reader) = NEW zcl_stock_reader_sap( ).
+    DATA(lo_factor_reader) = NEW zcl_unit_factor_reader_sap( ).
+    DATA(lo_unit_converter) = NEW zcl_unit_converter( lo_factor_reader ).
+    DATA(lo_stock_rechecker) = NEW zcl_stock_rechecker_sap( lo_stock_reader ).
+    DATA(lo_lock_gateway) = NEW zcl_stock_lock_gateway_sap( ).
+    DATA(lo_stock_lock) = NEW zcl_stock_lock_sap( lo_lock_gateway ).
+    DATA(lo_gateway) = NEW zcl_reservation_gateway_sap( ).
+    DATA(lo_idempotency_store) = NEW zcl_idempotency_store_sap( ).
+    DATA(lo_authority) = NEW zcl_allocation_authority_sap( ).
+    DATA(lo_reservation_status) = NEW zcl_reservation_status_sap( ).
+    DATA(lo_writer) = NEW zcl_allocation_writer_sap(
+      io_gateway           = lo_gateway
+      io_idempotency_store = lo_idempotency_store
+      io_stock_rechecker   = lo_stock_rechecker
+      io_stock_lock        = lo_stock_lock ).
+    DATA(lo_service) = NEW zcl_stock_allocation_service(
+      io_stock_reader       = lo_stock_reader
+      io_allocation_writer  = lo_writer
+      io_unit_converter     = lo_unit_converter
+      io_idempotency_store  = lo_idempotency_store
+      io_authority          = lo_authority
+      io_reservation_status = lo_reservation_status ).
+    DATA(lo_log_store) = NEW zcl_allocation_log_store_sap( ).
+    DATA(lo_logger) = NEW zcl_allocation_logger_sap( lo_log_store ).
+
+    ro_app = NEW #(
+      io_service = lo_service
+      io_logger  = lo_logger ).
+  ENDMETHOD.
+ENDCLASS.

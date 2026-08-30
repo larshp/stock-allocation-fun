@@ -1,0 +1,739 @@
+# Implementation notes
+
+## 2026-08-18
+
+- Created the Node-based ABAP development toolchain with pinned abaplint and
+  transpiler versions. Both configurations load `open-abap-core`; SAP standard
+  stubs are also transpiler inputs.
+- Added `zcl_stock_allocator` as a side-effect-free domain service. Smaller
+  numeric priorities run first, with request ID as a deterministic tie-breaker.
+- Available quantity is bounded by both the selected location's `MARD-LABST`
+  and the material/plant total remaining after one shared `MARC-EISBE` reserve.
+  Quality and blocked stock are intentionally excluded.
+- Stock reads join `MARA-MEINS`, and every request must name an internal SAP
+  unit. `zcl_unit_converter` normalizes alternative units with cached
+  material-specific `MARM-UMREZ/UMREN` factors and three-decimal rounding.
+  Revalidation checks the canonical unit again, reservation items set
+  `ENTRY_UOM`, and audit/export retain source and canonical quantities and units.
+- All-or-nothing shortages consume no stock, so lower-priority requests can
+  still use the balance. Partial requests consume only the available quantity.
+- Added `zcl_stock_allocation_service`, `zif_stock_reader`, and
+  `zif_allocation_writer`. Simulation uses the same calculation but skips the
+  writer. Only positive allocations are sent to the writer.
+- Added `zcl_stock_reader_sap`, which reads all requested stock keys in one
+  `FOR ALL ENTRIES` query. Minimal `MARD` and `MARC` definitions live under
+  `sap_stubs/` and are not deployable custom objects.
+- Added `zcl_allocation_writer_sap` and `zcl_reservation_gateway_sap`.
+  Successful allocations create individual material reservations, then commit
+  once for the batch. Any BAPI create error, missing reservation number, or
+  commit error rolls back the LUW and marks every allocation as failed.
+- Allocation results now retain posting inputs and return posting status,
+  reservation number, and error text. Simulation results are explicitly marked
+  `SIMULATED`.
+- Equal-priority requests are ordered by earliest requirement date before the
+  request-ID tie-breaker.
+- Added minimal standard stubs for `BAPI_RESERVATION_CREATE1`,
+  `BAPI_TRANSACTION_COMMIT`, `BAPI_TRANSACTION_ROLLBACK`, and their reservation
+  structures under `sap_stubs/`.
+- Added `zif_idempotency_store`, `zcl_idempotency_store_sap`, and the owned
+  `ZSTOCK_ALLOC` table. The unique request-ID key is claimed before a BAPI call;
+  the reservation number is recorded before the same batch commit. A duplicate
+  claim or failed update triggers BAPI rollback, which also rolls back the
+  database changes in the shared SAP LUW.
+- `ZSTOCK_ALLOC` now retains request identity, allocation policy, canonical
+  quantities, and the committed outcome. Productive execution loads completed
+  records before stock allocation: an identical retry reuses its reservation
+  without consuming current stock, while changed input under the same ID is
+  rejected. A claim collision arising after that pre-read remains fail-safe and
+  rolls back, allowing a later retry to observe the completed record.
+- Added standard consumption account assignments across request validation,
+  allocation results, stock recheck, reservation headers, idempotency identity,
+  audit storage, and CSV export. Movement 201 requires a cost center, 221 a WBS
+  element, and 261 an order.
+- Extended the same account-assignment contract to movement 231 (sales order
+  and item), 241 (asset and subnumber), 251 (cost center), and 281 (network,
+  with optional activity). The reservation gateway uses the corresponding
+  `BAPI2093_RES_HEAD` fields. External WBS identifiers are mapped through
+  `WBS_ELEMENT`, rather than the internal numeric `WBS_ELEM` representation.
+- Added `PAYLOAD_VERSION` to `ZSTOCK_ALLOC`. New claims persist version `001`;
+  completed rows are replayable only when their version is supported. Blank
+  pre-upgrade rows and future unknown versions now produce a distinct invalid
+  result before the stock read and writer, making the deployment boundary
+  explicit without risking a duplicate reservation.
+- Added a per-request minimum fulfillment percentage. A partial request below
+  its threshold is rejected without consuming stock.
+- Added three allocation ordering strategies: priority then requirement date,
+  requirement date then priority, and priority then request ID. Unsupported
+  strategy values return `CONFIG_ERROR` results without posting.
+- Added `zcl_stock_rechecker_sap`. After all idempotency claims and before the
+  first BAPI call, it rereads stock and compares the aggregate allocation for
+  each material/plant/storage-location with its unrestricted stock and the
+  material/plant total with one shared safety reserve. Missing or reduced stock
+  rolls back the whole batch.
+- Added the `EZSTOCK_POOL` enqueue object and `zcl_stock_lock_sap`. Unique stock
+  safety domains are locked exclusively in sorted material/plant order before
+  revalidation. `LGORT` remains generic so different storage locations sharing
+  one plant reserve serialize. Locks use scope 3 and are explicitly released
+  after commit or rollback. A collision fails before any reservation BAPI.
+- Added `zcl_stock_allocation_app=>create_sap( )` as the production composition
+  root. It wires the reader, rechecker, idempotency store, reservation gateway,
+  writer, service, and operational logger.
+- Added the owned `ZSTOCK_ALOG` table and `zcl_allocation_logger_sap`. It keeps
+  the latest productive and simulation outcome per request and reports logging
+  success separately from allocation/posting success.
+- Added append-only `ZSTOCK_ALGH` audit history and
+  `zif_allocation_log_store`. Each outcome receives a RAW16 UUID; the SAP store
+  saves current-state and history rows atomically, rolling both back if either
+  write fails. Its client/date/UUID primary-key order supports retention scans
+  by cutoff date without a separate database index.
+- Added `zcl_allocation_log_retention`,
+  `zif_allocation_history_store`, and executable report
+  `ZSTOCK_ALGH_RETENTION`. Cleanup defaults to a 365-day simulation, validates
+  positive retention periods, checks table display/delete authorization, and
+  reports affected rows before a separately requested productive deletion.
+- Added `zif_allocation_history_reader`, `zcl_allocation_history_reader`,
+  `zcl_allocation_log_export`, and report `ZSTOCK_ALGH_EXPORT`. Reads require
+  table-display authorization and accept date, request-ID, and run-mode filters
+  with a hard 10,000-row ceiling. The reader fetches one extra row and rejects a
+  would-be truncated export instead of presenting it as complete. The report
+  emits quote-escaped, semicolon-delimited CSV to a 1023-character SAP list or
+  background spool.
+- SAP reads now return all storage locations for requested material/plant pairs.
+  Allocation and posting revalidation sum unrestricted stock by plant, take the
+  maximum repeated `MARC-EISBE` value as one reserve, and still enforce each
+  requested location's physical quantity.
+- Added seventy-six transpiled ABAP Unit scenarios covering allocation policy,
+  validation, orchestration, posting success, create failure, missing document
+  IDs, commit failure, rollback, idempotency, persistence failure, and empty
+  batches, stale-stock rechecks, strategy selection, application composition,
+  and logging delegation.
+- Added `zif_allocation_authority` and the SAP implementation
+  `zcl_allocation_authority_sap`. The orchestration service deduplicates plants
+  and checks `M_MATE_WRK` change activity before idempotency lookup or stock
+  access. One denied plant invalidates the whole atomic batch, including a
+  simulation, without calling the reader, converter, or writer.
+- Closed the custom-movement gap with an explicit allowlist for movements 201,
+  221, 231, 241, 251, 261, and 281. Any other movement is invalid before unit
+  conversion or stock consumption. The suite now contains eighty transpiled
+  ABAP Unit scenarios.
+- Added an optional inclusive allocation horizon to the app, service, and pure
+  allocator. New requests beyond the cutoff return `DEFERRED` and are removed
+  from the stock-reader input; completed productive requests are resolved first
+  and still replay. The horizon is run policy rather than idempotency payload,
+  so deferred requests remain eligible as the cutoff advances. The suite now
+  contains eighty-three transpiled ABAP Unit scenarios.
+- Added `zif_reservation_status` and `zcl_reservation_status_sap` to distinguish
+  explicitly cancelled reservations from replayable outcomes. When every
+  existing `RESB` item is deletion-flagged, an exact request retry re-enters
+  allocation and carries the prior reservation ID into posting. The writer
+  conditionally replaces that exact old claim in the same LUW as the new BAPI
+  reservation and document update. Missing rows and consumed but undeleted
+  reservations remain replays. The suite now contains eighty-six transpiled
+  ABAP Unit scenarios, including a concurrent replacement loser.
+- Added `iv_require_full_batch` to the app and service as an opt-in run policy.
+  After allocation, any incomplete new result changes every pending allocation
+  to `ABORTED`, restores its full shortfall, and prevents the writer call.
+  Rejected or invalid rows retain their root-cause result, and committed replay
+  rows remain untouched. Productive, simulation, abort, and success paths bring
+  the suite to eighty-nine transpiled ABAP Unit scenarios.
+- Added a 32-character hexadecimal run ID to application results and both audit
+  tables. One ID is generated before each app call, passed to the logger, shared
+  by every current/history row from that call, and retained in the result even
+  when logging fails. History reads, the export class, CSV output, and report
+  parameter `P_RUN` support direct correlation filtering. Per-row `LOG_UUID`
+  remains the append-only history key. Separate-call uniqueness coverage brings
+  the suite to ninety transpiled ABAP Unit scenarios.
+- Expanded both audit tables and CSV output with the complete allocation
+  identity and policy: stock key, movement and requirement date, minimum fill,
+  priority, partial flag, strategy, horizon, strict-batch flag, and prior
+  reservation replaced after cancellation. The application passes run policy
+  explicitly to the logger, so persisted outcomes can be reconstructed without
+  the original in-memory request. The schema change is additive.
+- Added a stable `DECISION_CODE` to allocation results, current audit, history,
+  and CSV export. It classifies allocation-layer outcomes independently of
+  mutable diagnostic text and posting/BAPI status, including distinct shortage,
+  replay, horizon, authorization, validation, and strict-batch reasons. Four
+  boundary scenarios for zero stock, missing stock, missing base-unit setup,
+  and incomplete replay bring the suite to ninety-four transpiled ABAP Unit
+  scenarios. The audit schema change is additive.
+- Added optional exact decision-code filtering to the history-reader port, SAP
+  SQL reader, export service, and `ZSTOCK_ALGH_EXPORT` report parameter
+  `P_DECIDE`. The existing bounded-read and table-display authorization rules
+  continue to apply after the additional predicate.
+- Added `AVAILABILITY_CHECKED` and `AVAILABLE_QTY` to allocation results,
+  current audit, history, and CSV export. The allocator records the usable
+  canonical balance immediately before each numeric decision, so sequential
+  requests expose their actual declining balance. Missing stock/configuration,
+  replay, deferral, validation, and authorization paths remain explicitly
+  unchecked. Existing allocator, logger, and export scenarios cover the new
+  evidence without changing the ninety-four-scenario suite size.
+- Added independent exact material, plant, and storage-location predicates to
+  the history-reader interface and SQL, carried through the export service to
+  report parameters `P_MAT`, `P_PLANT`, and `P_SLOC`. Existing authorization,
+  date-window, deterministic ordering, and row-limit behavior is unchanged.
+- Added exact movement-type, allocation-status, and posting-status predicates
+  through the same path, exposed by `P_MOVE`, `P_ASTAT`, and `P_PSTAT`. The
+  export test double verifies all filters compose in one bounded reader call.
+- Added `CANONICAL_QUANTITY_INVALID` as a defensive allocator outcome for any
+  converter that reports success with a zero or negative base quantity. The SAP
+  converter also rejects source quantities that round to zero at three-decimal
+  stock precision. Two focused scenarios bring the suite to ninety-six
+  transpiled ABAP Unit scenarios.
+- Added exact reservation lineage predicates to the history-reader interface
+  and SQL, the export service, and `ZSTOCK_ALGH_EXPORT`. `P_RES` selects the
+  produced reservation and `P_PRIOR` selects a cancelled reservation referenced
+  by its replacement. Existing filter-composition coverage now asserts both.
+- Added an optional requirement-date interval through the history reader,
+  export service, and report parameters `P_RFROM` and `P_RTO`. Each endpoint is
+  inclusive and independently optional. An inverted closed interval is rejected
+  before the reader call, bringing the suite to ninety-seven transpiled ABAP
+  Unit scenarios.
+- Added strict canonical validation for `allow_partial`, `iv_simulation`, and
+  `iv_require_full_batch`. Invalid request flags return `REQUEST_FLAG_INVALID`;
+  invalid run flags return batch-level `RUN_POLICY_INVALID` before authority,
+  replay, stock, conversion, or writer calls. Audit logging records malformed
+  simulation input as run mode `I`, which export filtering accepts. Four focused
+  scenarios bring the suite to one hundred one transpiled ABAP Unit scenarios.
+- Enforced account-assignment exclusivity for all seven supported consumption
+  movements. After required fields are present, any field from another modeled
+  assignment family returns `REQUEST_RULE_INVALID` before conversion or stock
+  evaluation. One matrix scenario covers every family and brings the suite to
+  one hundred two transpiled ABAP Unit scenarios.
+- Moved allocation-strategy validation to the orchestration boundary while
+  retaining the allocator's direct-call safeguard. Unsupported values now
+  return `STRATEGY_UNSUPPORTED` before authority, replay, reservation-status,
+  stock, conversion, or writer calls. Focused dependency-counter coverage
+  brings the suite to one hundred three transpiled ABAP Unit scenarios.
+- Extracted structural request rules into `validate_request`, a public pure
+  allocator method reused by orchestration preflight. Invalid rows no longer
+  reach authorization, idempotency, reservation-status, or stock dependencies,
+  but the allocator still returns their established per-row outcomes. Replay
+  lookup is deduplicated by request ID while all valid duplicate stock keys are
+  preserved for allocator ordering. Invalid-only, mixed-validity, and duplicate
+  scenarios bring the suite to one hundred six transpiled ABAP Unit scenarios.
+- Idempotency claims are now acquired from a request-ID-sorted copy of pending
+  allocations before stock locking. Recheck and BAPI processing retain the
+  allocator's business order. A focused two-order scenario brings the suite to
+  one hundred seven transpiled ABAP Unit scenarios.
+- Successful reservation posting now retains the first warning from each item
+  create call and the first warning from the shared commit. Replacement
+  lineage, create warning, and commit warning are composed in that order and
+  flow through the existing audit and CSV message fields. Warning-only success
+  coverage brings the suite to one hundred eight transpiled ABAP Unit
+  scenarios.
+- Added a bulk idempotency lookup contract and a guarded `FOR ALL ENTRIES`
+  implementation for `ZSTOCK_ALLOC`. Productive replay preflight now loads all
+  unique structurally valid request IDs in one store call after authorization;
+  simulations and empty valid sets still skip the store. Multi-ID and duplicate
+  coverage brings the suite to one hundred nine transpiled ABAP Unit scenarios.
+- Added bulk reservation cancellation classification. Productive preflight now
+  deduplicates persisted reservation IDs, loads their `RESB` deletion flags in
+  one guarded query, and returns only IDs having at least one item with every
+  item deleted. Multi-reservation coverage brings the suite to one hundred ten
+  transpiled ABAP Unit scenarios.
+- Added `zif_stock_lock_gateway` and moved generated enqueue calls behind its
+  SAP adapter. The lock coordinator now deduplicates allocations by
+  material/plant and requests a generic storage-location lock for each key,
+  matching the scope of shared `MARC-EISBE`. Ordering, deduplication, complete
+  release, and partial-failure cleanup coverage bring the suite to one hundred
+  thirteen transpiled ABAP Unit scenarios.
+- Hardened audit CSV cells against spreadsheet formula execution. The shared
+  field encoder prefixes values beginning with formula operators or control
+  characters with an apostrophe before applying existing quote escaping. One
+  end-to-end scenario covers all seven prefixes and brings the suite to one
+  hundred fourteen transpiled ABAP Unit scenarios.
+- Hardened `zcl_allocation_history_reader` as an independent public boundary.
+  It now rejects initial or inverted log dates, inverted closed requirement
+  dates, and row limits outside 1 through 10,001 before authorization or SQL.
+  Four direct scenarios bring the suite to one hundred eighteen transpiled
+  ABAP Unit scenarios.
+- Made audit retention fail closed at both public layers. A simulation value
+  other than `X` or blank is rejected before cutoff calculation in the facade
+  and before authorization in the SAP store; the store also rejects an initial
+  cutoff. Three scenarios bring the suite to one hundred twenty-one transpiled
+  ABAP Unit scenarios.
+- Bounded retention to 1 through 36,500 days, rejected caller-supplied effective
+  dates later than `sy-datum`, and required every store cutoff to be strictly in
+  the past. These guards precede date arithmetic, authorization, and SQL as
+  applicable. Three scenarios bring the suite to one hundred twenty-four
+  transpiled ABAP Unit scenarios.
+- Added an optional exact `LOGGED_BY` predicate to the history-reader port, SAP
+  SQL reader, export service, and report parameter `P_USER`. The default export
+  start now subtracts 29 days from its inclusive end date, so the documented
+  window contains exactly 30 calendar dates. Existing filter-composition and
+  default-date scenarios cover both behaviors; the suite remains at one hundred
+  twenty-four transpiled ABAP Unit scenarios.
+- Added optional log-time endpoints to the public history reader, export facade,
+  and report parameters `P_FTIME` and `P_TTIME`. The SQL combines them with the
+  first and last log dates as one inclusive timestamp interval; blank endpoints
+  mean midnight and 23:59:59. Both public layers reject an inverted same-day
+  interval before dependencies, authorization, or SQL. Two focused scenarios
+  bring the suite to one hundred twenty-six transpiled ABAP Unit scenarios.
+- Added independent exact audit predicates for cost center, order, WBS element,
+  sales order/item, asset/subnumber, and network/activity. They flow through the
+  history-reader port, one bounded SQL query, the export facade, and report
+  parameters `P_COST`, `P_ORD`, `P_WBS`, `P_SALES`, `P_SITEM`, `P_ASSET`,
+  `P_ASUB`, `P_NET`, and `P_NACT`. Existing composition coverage asserts every
+  field together; the suite remains at one hundred twenty-six scenarios.
+- Added exact source-unit, canonical-unit, and allocation-strategy predicates,
+  plus an independently optional inclusive horizon-date interval. The reader,
+  export facade, and report expose these as `P_SUNIT`, `P_UNIT`, `P_STRAT`,
+  `P_HFROM`, and `P_HTO`. Both public layers reject an inverted closed horizon
+  interval before dependencies, authorization, or SQL. Two focused scenarios
+  bring the suite to one hundred twenty-eight transpiled ABAP Unit scenarios.
+- Added a shared tri-state selector for `ALLOW_PARTIAL`, `REQUIRE_FULL_BATCH`,
+  and `AVAILABILITY_CHECKED`. Blank means unrestricted, `X` means true, and `-`
+  maps to the exact stored blank false value. The reader, facade, and report
+  expose `P_PART`, `P_FULL`, and `P_AVAIL`; malformed selectors fail before
+  dependencies, authorization, or SQL. Two focused scenarios bring the suite
+  to one hundred thirty transpiled ABAP Unit scenarios.
+- Hardened the stock-lock coordinator and SAP gateway around canonical boolean
+  values. A wait flag outside `X` or blank fails before enqueue access, and only
+  an exact `X` gateway result counts as acquired. A malformed result releases
+  earlier locks and returns a deterministic failure. Three focused scenarios
+  bring the suite to one hundred thirty-three transpiled ABAP Unit scenarios.
+- Hardened all boolean acknowledgements consumed by the transactional writer.
+  Idempotency claim, stock-lock acquisition, fresh-stock recheck, and document
+  update now require exact `X`; any other nonblank value follows rollback,
+  release, and batch failure with a phase-specific diagnostic. Four scenarios
+  bring the suite to one hundred thirty-seven transpiled ABAP Unit scenarios.
+
+## Policy decisions
+
+- Allocation results are returned in processing order, not input order.
+- A missing stock row is treated as zero available stock.
+- Request IDs are unique within one execution and persist across productive
+  executions. Exact completed retries are replayed; payload conflicts are
+  invalid, and simulations deliberately ignore replay state.
+- Persisted replay compatibility is opt-in by payload version. Missing or
+  unsupported versions are never inferred from partially populated fields.
+- The allocation writer is a required dependency even for a service commonly
+  used in simulation; this keeps productive construction explicit.
+- Reservation posting is atomic at the allocation batch level: one failed item
+  rolls back all reservation creations in that call.
+- Idempotency claims deliberately use the same SAP LUW as reservation creation;
+  no independent commit is issued by the store.
+- Cost center, order, and WBS element are identity-bearing request fields.
+  Productive retries must match the original account assignment exactly.
+- Operational audit persistence occurs after posting and has its own commit.
+  An audit failure is surfaced through `log_saved` but cannot undo an already
+  committed reservation batch. Within that audit LUW, current-state and
+  append-only history records succeed or roll back together.
+- Audit-history cleanup is a separate administrative LUW. The executable report
+  defaults to simulation; productive deletion must be explicitly selected and
+  authorized through `S_TABU_NAM` for `ZSTOCK_ALGH`.
+- Audit export is read-only and destination-neutral: the report produces an SAP
+  list/spool so each landscape can apply its own approved transfer and archive
+  controls without granting the allocation application filesystem access.
+- Audit CSV safety takes precedence over byte-for-byte reproduction for values
+  beginning with `=`, `+`, `-`, `@`, tab, carriage return, or line feed. A
+  leading apostrophe is part of the exported representation and prevents common
+  spreadsheet clients from evaluating the cell as a formula.
+- The history-reader ceiling is one row above the public export ceiling. This
+  allows the export service to detect a would-be 10,001st row without granting
+  direct callers an unbounded `UP TO` value. Reader validation is repeated even
+  though the export facade validates its own parameters.
+- Retention simulation is a destructive-control flag and accepts only canonical
+  ABAP boolean values. The concrete store repeats facade validation so a direct
+  caller cannot turn an intended dry run into deletion by supplying an arbitrary
+  nonblank character; initial cutoffs are invalid at that boundary as well.
+- Retention date arithmetic is capped at 100 years. A supplied effective date
+  may be current or historical but never future, while the store accepts only a
+  cutoff earlier than its own application-server date. This protects direct
+  callers and prevents future-dated test seams from widening deletion scope.
+- Canonical allocation arithmetic always uses `MARA-MEINS`. Base-unit requests
+  bypass factor lookup; alternative requests use the material's `MARM` factor.
+  Missing, zero, or invalid factors and nonpositive rounded results reject the
+  request without consuming stock. The allocator independently enforces a
+  positive canonical quantity before calculating fill percentages.
+  The caller's original request quantity/unit remains on the result and audit
+  row alongside the converted request and allocation.
+- The transpiler configuration explicitly renames the JavaScript keyword
+  `return`; this preserves the standard BAPI `RETURN` parameter during local
+  transpilation.
+- Authorization is fail-closed at the service call boundary. A mixed-plant
+  batch is not split into separately authorized writes because reservation
+  posting is atomic for the batch and partial authorization would make that
+  contract ambiguous.
+- Movement-type support is opt-in. Unknown and customized types are rejected
+  even when they happen not to require an account assignment in the standard
+  system; admitting one requires an explicit validation and gateway mapping.
+- The allocation horizon is inclusive and optional. It affects only new work:
+  exact completed retries retain their committed result, while deferred
+  requests create no persistent claim and may be reconsidered later.
+- Reservation cancellation is recognized only from explicit deletion flags on
+  an existing `RESB` document. Absence is not proof of cancellation because
+  the document may have been archived; consumption is fulfillment, not a reason
+  to create the demand again.
+- A cancelled claim is replaced with a conditional delete followed by an insert
+  in the reservation LUW. The database row lock arbitrates concurrent retries,
+  and rollback restores the old claim if locking, stock recheck, BAPI creation,
+  document persistence, or commit fails.
+- Full-batch enforcement applies to new work only. It cannot and does not roll
+  back an earlier committed replay; those rows are excluded when deciding
+  whether the current run's pending allocations may be posted.
+- Run IDs identify one application invocation, not one request or reservation.
+  They are correlation metadata and never participate in allocation ordering,
+  request idempotency, reservation posting, or table keys.
+- Audit policy fields describe the call that produced the outcome. They are
+  evidence for diagnosis and export, not inputs read back into allocation or
+  replay decisions.
+- Decision codes are a stable integration contract for allocation-layer
+  outcomes. Posting status and message remain separate because a successfully
+  calculated allocation can still fail during locking, recheck, BAPI creation,
+  or commit.
+- Decision-code export filtering accepts any noninitial exact value instead of
+  validating against the current catalog. This permits diagnosis of rows from
+  newer producers during staggered deployments; a blank parameter deliberately
+  means no predicate and includes legacy rows whose code is blank.
+- Availability quantity is meaningful only when its companion checked flag is
+  set. This distinguishes a measured zero usable balance from paths that never
+  established a canonical stock quantity and from pre-upgrade audit rows.
+- Stock-key export filters are independent and exact. Blank means no predicate
+  for that dimension; supplied values compare with the internal values stored
+  in the audit row and can be combined with every existing filter.
+- Movement and outcome filters accept any noninitial exact value instead of
+  rejecting values outside the current producer catalog. This preserves access
+  to history from newer producers during staggered deployments; blank means no
+  predicate.
+- Produced- and prior-reservation filters are independent exact predicates.
+  This supports both forward tracing from a new reservation and reverse tracing
+  from a cancelled claim without conflating the two roles; blank means no
+  predicate.
+- Audit log dates and requirement dates are separate filter dimensions. Log
+  dates bound when the decision was recorded and retain the default 30-day
+  window; requirement dates bound when demand was due and have no implicit
+  default. One blank requirement endpoint creates an open interval.
+- Logging-user filtering is an optional exact predicate over the stored SAP
+  user. A blank value deliberately keeps both legacy blank rows and all named
+  users in scope.
+- Log-time filters qualify only the first and last dates of the log-date window.
+  Intermediate dates remain complete even when the start time is later than the
+  end time, because the combined timestamp interval is still ordered.
+- Account-assignment filters are independent. A parent value without its
+  subordinate component intentionally selects all matching sales-order items,
+  asset subnumbers, or network activities; blank dimensions remain
+  unrestricted and include legacy audit rows.
+- Unit predicates distinguish the original request unit from the canonical base
+  unit used for allocation and posting. Strategy filtering accepts any exact
+  noninitial value so newer producers remain diagnosable during staggered
+  deployments. A one-sided horizon endpoint creates an open interval.
+- Boolean audit filters cannot use ordinary optional `abap_bool` parameters
+  because blank must represent both false and omission. The explicit `-`
+  selector makes false queryable; it also includes pre-upgrade blank rows, which
+  share the persisted representation.
+- Public boolean inputs accept only `abap_true` and `abap_false`. Treating an
+  arbitrary nonblank character as false is unsafe for simulation because it can
+  turn intended dry runs into productive calls; run-policy validation therefore
+  precedes authorization and every persistence or stock dependency.
+- Audit run mode `I` denotes a call rejected for a malformed simulation flag.
+  It is distinct from `P` and `S`, remains filterable, and prevents invalid input
+  from being recorded as a productive execution.
+- Reservation account assignment is exclusive by movement type. The gateway
+  maps every populated header field, so accepting a required assignment plus
+  foreign fields would delegate an ambiguous request to the BAPI. Validation
+  rejects the ambiguity in the pure allocator instead.
+- Run-level configuration is validated before request-dependent infrastructure.
+  The service owns the early strategy check because otherwise an invalid value
+  would still trigger authorization, replay, and stock reads; the allocator
+  repeats the check because it remains independently callable.
+- Structural validation has one implementation in the allocator and two uses:
+  result construction and service dependency preflight. Preflight does not
+  remove invalid rows from the call result or make valid rows atomic with them;
+  `iv_require_full_batch` remains the explicit atomic-completeness policy.
+- Duplicate request IDs are deduplicated only for request-ID keyed replay
+  lookup. Their stock keys are deliberately retained because rows sharing an ID
+  may differ in material, plant, location, priority, or requirement date, and
+  allocator ordering decides which row receives the duplicate outcome.
+- Transactional lock acquisition has two independent deterministic orders:
+  request IDs for `ZSTOCK_ALLOC` row claims, then material/plant for enqueue
+  locks. The location component is deliberately generic because safety stock is
+  shared by every location in that material/plant. Reservation creation still
+  follows allocation order because lock ordering is concurrency control, not
+  business priority.
+- Lock configuration and acquisition state are fail-closed at both replaceable
+  boundaries. This prevents a noncanonical character from changing enqueue wait
+  behavior or being interpreted as successful lock ownership.
+- Transactional adapter success is affirmative, not inferred from non-false.
+  This keeps a malformed test double, custom implementation, or staggered
+  deployment from advancing the reservation LUW without proven ownership,
+  revalidation, or persistence.
+- Decision-path adapter booleans are also affirmative. Plant authorization,
+  factor lookup, and unit conversion accept only canonical results. Malformed
+  authorization returns `CONFIG_ERROR` / `AUTHORIZATION_RESULT_INVALID` before
+  replay or stock access; malformed factor and converter flags fail conversion
+  before arithmetic or availability evaluation. Three focused scenarios bring
+  the transpiled suite to one hundred forty.
+- Reservation messages of type `E`, `A`, or `X` roll back the batch. Type `W`
+  does not change a successful posting status; only the first create warning
+  per row and first batch commit warning are retained to keep the operational
+  message deterministic and bounded.
+- Idempotency replay lookup is set-oriented by unique request ID, but replay
+  application still follows first request appearance. The SAP store guards an
+  empty input before `FOR ALL ENTRIES` so an empty batch can never broaden into
+  a full-table read.
+- Replay lookup results are an exact response envelope. Every returned row must
+  use a canonical found flag and belong to the requested ID set; otherwise the
+  whole batch returns `CONFIG_ERROR` / `REPLAY_LOOKUP_INVALID` before
+  cancellation classification or stock access. Canonical not-found rows never
+  contribute document IDs to cancellation reads.
+- Audit reader and retention-store results require canonical success states.
+  Logger-store and application-logger acknowledgements are normalized to exact
+  true or false so malformed custom adapters cannot report persisted audit data.
+  Seven focused scenarios bring the transpiled suite to one hundred forty-seven.
+- Fulfillment evidence now includes `shortfall_qty` and `fill_pct` in allocation
+  results, current audit, append-only history, and CSV. Fill is allocated divided
+  by requested on the result's quantity basis: 100 for full, proportional for
+  partial, and zero for rejected or strict-batch-aborted work. Replays derive
+  both values from persisted canonical quantities only after validating a
+  positive request, a positive allocation no greater than the request, and a
+  noninitial canonical unit. Two scenarios bring the suite to one hundred
+  forty-nine.
+- Shortage filtering reuses the audit tri-state convention across the public SQL
+  reader, export facade, and report: blank is unrestricted, `X` selects positive
+  `SHORTFALL_QTY`, and `-` selects zero. Both public layers reject other values
+  before authorization or data access. Pre-upgrade rows have an initial
+  shortfall and therefore belong to the zero selection. Two scenarios bring the
+  suite to one hundred fifty-one.
+- Fulfillment-band filtering is separate from shortage presence. `F` selects an
+  exact 100 percent fill, `P` selects the stored three-decimal interval from
+  0.001 through 99.999 percent, `N` selects zero, and blank is unrestricted.
+  Reader and export validation are independent; pre-upgrade rows have an initial
+  fill percentage and therefore appear in the `N` band. Two scenarios bring the
+  suite to one hundred fifty-three.
+- Reservation cancellation status is set-oriented by unique document ID. A
+  document is returned as cancelled only when its `RESB` result has at least one
+  row and no row with an initial deletion flag; missing rows and any active item
+  remain conservative replays. Empty input bypasses Open SQL.
+- Request quantities now fit the persisted `DEC(13,3)` domain exactly: they must
+  be positive, no greater than 9,999,999,999.999, and have at most three decimal
+  places. Minimum-fill percentages must be from 0 through 100 with the same
+  precision, and priorities must be positive. Shared service preflight rejects
+  invalid input before authorization, replay, stock, conversion, or posting.
+  Successful converter output is independently capped at the same maximum.
+  Six allocator boundaries and one orchestration scenario bring the suite to
+  one hundred sixty.
+- Usable-stock filtering now complements the availability-evidence selector.
+  Blank leaves observed stock unrestricted, `X` selects positive
+  `AVAILABLE_QTY`, and `-` selects an observed zero. Both nonblank choices also
+  require `AVAILABILITY_CHECKED = X`, so pre-upgrade rows with an initial value
+  but no evidence are excluded. Combining a stock band with an explicit
+  unchecked-availability filter fails before authorization or reader access.
+  Four focused scenarios bring the suite to one hundred sixty-four.
+- Audit history can now be narrowed by independent inclusive ranges for
+  priority, canonical requested quantity, and allocated quantity. Each endpoint
+  is optional, inverted closed ranges fail in both public layers before
+  authorization or SQL, and the executable report carries all six endpoints.
+  Two focused scenarios bring the suite to one hundred sixty-six.
+- Cancellation classification now returns an explicit success envelope rather
+  than making lookup failure indistinguishable from an active reservation. The
+  service accepts only canonical success, rejects reservation IDs outside the
+  requested lookup set, and emits `CANCELLATION_LOOKUP_INVALID` before stock
+  access on any contract violation. Three scenarios bring the suite to one
+  hundred sixty-nine.
+- Stock reads now return a canonical success envelope. Initial allocation maps
+  failed or malformed reader states to `STOCK_READ_INVALID` before conversion
+  or posting, while transactional revalidation fails the writer gate with the
+  reader diagnostic. A successful empty result still means genuinely missing
+  stock and retains the established business outcome. Four scenarios bring the
+  suite to one hundred seventy-three.
+- Added `zcl_stock_snapshot_validator` and apply it to both initial stock reads
+  and the locked posting recheck. Successful snapshots must contain only
+  requested material/plant domains, complete stock keys, `DEC(13,3)` quantities,
+  one base unit per material, and one safety-stock value per material/plant.
+  Initial violations emit `STOCK_SNAPSHOT_INVALID`; posting-time violations
+  fail the writer gate. Eight scenarios bring the suite to one hundred
+  eighty-one.
+- Set-oriented idempotency lookup now returns a canonical batch success envelope
+  in addition to its individually validated records. Backend failures preserve
+  their diagnostics, malformed success flags produce a deterministic
+  `REPLAY_LOOKUP_INVALID` outcome, and neither case can continue to cancellation
+  classification or stock reads. Two scenarios bring the suite to one hundred
+  eighty-three.
+- The orchestration service now validates every replaceable writer response
+  before merging it into results. Cardinality and request IDs must match, all
+  allocation inputs remain immutable, posted rows require documents, failed
+  rows forbid them, and the atomic batch cannot mix posting states. An invalid
+  response is normalized to failed posting evidence over the original rows.
+  Two scenarios bring the suite to one hundred eighty-five.
+- Reservation creation and commit now accept only standard BAPI message types
+  `S`, `I`, `W`, `E`, `A`, and `X`. Unknown or blank types roll back the LUW,
+  release stock locks, clear provisional documents, and fail every pending row
+  with a phase-specific diagnostic. Two scenarios bring the suite to one
+  hundred eighty-seven.
+- New reservation documents must be exactly numeric in the ten-character SAP
+  domain and unique across one writer batch. Nonnumeric or repeated IDs roll
+  back before commit, clear all provisional documents, and fail the atomic
+  batch. Two scenarios bring the suite to one hundred eighty-nine.
+- Persisted completed outcomes now apply the same numeric reservation-number
+  contract before cancellation classification. A document ID reused by two
+  distinct replay claims in the same lookup is also rejected. Both conditions
+  return `REPLAY_OUTCOME_INVALID` without reservation-status or stock reads.
+  Two scenarios bring the suite to one hundred ninety-one.
+- Audit history now supports an independent inclusive fill-percentage range
+  alongside the full/partial/none selector. Either endpoint may be open, the
+  range composes as an intersection with a selected band, and both public layers
+  reject inverted endpoints or values outside 0 through 100. Two scenarios
+  bring the suite to one hundred ninety-three.
+- Audit history now supports a separate inclusive range for the request's
+  configured minimum-fill policy. Open endpoints are supported, values must
+  remain within 0 through 100, and both the export facade and direct reader
+  reject inverted ranges before authorization or SQL. Two scenarios bring the
+  suite to one hundred ninety-five.
+- Audit history now supports independent inclusive ranges for original source
+  demand, observed available stock, and shortfall. Open endpoints are
+  supported, while negative or inverted ranges are rejected at both public
+  layers. An available-stock range automatically requires affirmative
+  availability evidence and conflicts with an explicit false evidence filter.
+  Four scenarios bring the suite to one hundred ninety-nine.
+- Every persisted audit column can now participate in bounded investigation:
+  the remaining immutable row UUID and diagnostic message flow as exact
+  selectors through the authorized reader, export facade, and report. Existing
+  export-forwarding coverage verifies both additions; the suite remains at one
+  hundred ninety-nine focused scenarios.
+- The CSV facade no longer assumes that an injected history reader honored its
+  request. Before formatting any output, it rechecks each row against the log
+  and requirement windows, every exact selector, tri-state and fill-band
+  semantics, availability evidence, and every numeric range. A mismatch fails
+  the whole export without returning a header or partial data. Two adapter-leak
+  scenarios bring the suite to two hundred one.
+- The SAP allocation writer now preflights every positive pending row even when
+  called outside the orchestration service. Required posting identity, the
+  persistable `DEC(13,3)` quantity domain, requested-versus-allocated ordering,
+  full/partial status consistency, and an initially blank document are required
+  before any idempotency claim, lock, stock recheck, or reservation call. Two
+  direct-call scenarios bring the suite to two hundred three.
+- Retention result validation now covers quantitative evidence as well as the
+  canonical success flag. Negative affected-row counts and failed responses
+  claiming nonzero affected rows are rejected instead of being surfaced as
+  trustworthy cleanup outcomes. Two scenarios bring the suite to two hundred
+  five.
+- Operational logging now verifies all seven decimal allocation-evidence
+  fields against the audit tables' `DEC(13,3)` domain before constructing a
+  DDIC row. Oversized values and values requiring rounding return a failed log
+  acknowledgement without calling the store, preventing rejected input or a
+  malformed service adapter from causing a conversion overflow or changing
+  evidence during persistence. Two scenarios bring the suite to two hundred
+  seven.
+- The public SAP audit store now requires current-state and append-only history
+  batches to have equal cardinality. Empty paired batches remain successful,
+  while either kind of orphan batch fails before Open SQL; this closes the
+  former empty-current early return that could silently discard supplied
+  history. Three scenarios bring the suite to two hundred ten.
+- Equal audit batch sizes are no longer sufficient at the SAP store boundary.
+  Each history row is projected to the current-row structure and compared with
+  the row at the same batch position, while every history UUID must be
+  noninitial and unique within the batch. Mismatched evidence and duplicate or
+  missing immutable identities fail before SQL. Three scenarios bring the suite
+  to two hundred thirteen.
+- Operational logging now requires each nonempty batch to carry the exact
+  32-character hexadecimal run identity produced by the application root.
+  Initial, shortened, or nonhexadecimal correlation values fail before audit
+  row construction and store access; empty no-op batches remain compatible.
+  Two scenarios bring the suite to two hundred fifteen.
+- Added `zcl_allocation_persistence` as the shared pure contract for pending
+  posting rows and reservation document IDs. Both the writer and direct SAP
+  idempotency claim now require complete identity and account assignment,
+  positive exact `DEC(13,3)` source/canonical quantities, bounded exact
+  minimum-fill policy, positive priority, canonical partial policy, consistent
+  full/partial status, pending document state, and valid replacement lineage.
+  Six focused scenarios exercise the shared contract.
+- The SAP idempotency store independently rejects initial IDs in set-oriented
+  lookup scope, incomplete direct claims, and a replacement parameter that
+  differs from the allocation's lineage. Document assignment requires a valid
+  request and ten-digit reservation, updates only an initial reservation field,
+  and accepts exactly one affected row; completed claims cannot be overwritten.
+  Five direct-boundary scenarios bring the suite to two hundred twenty-six.
+- The shared persistence contract now validates the narrower reservation
+  gateway request as well: correlation and stock identity, requirement date,
+  unit, exact positive `DEC(13,3)` quantity, supported movement type, and its
+  exclusive account-assignment family are required before the SAP function is
+  called. Three focused contract scenarios cover valid, imprecise, and
+  conflicting-assignment requests.
+- `zcl_reservation_gateway_sap` clears outputs before work, returns an explicit
+  error for malformed direct input, normalizes blank or unknown BAPI message
+  types to an error, clears provisional documents whenever the BAPI reports an
+  error, and requires a ten-digit document after otherwise successful create.
+  The local standard-function stubs exercise request rejection, the successful
+  empty commit response, and fail-closed missing-document behavior. Five
+  gateway scenarios bring the suite to two hundred thirty-four.
+- Added `zcl_reservation_status_eval` to separate cancellation evidence from
+  Open SQL. Every requested and returned reservation ID must be a ten-digit
+  document, returned rows must belong to the exact requested set, and
+  `RESB-XLOEK` must be canonical `X` or blank. A document is cancelled only
+  when at least one item exists and every item is deletion-flagged; missing and
+  mixed active/deleted documents remain conservative non-cancellations. Six
+  evaluator scenarios cover each state.
+- The SAP reservation-status adapter runs the pure evaluator once with empty
+  evidence to reject malformed scope before `FOR ALL ENTRIES`, then delegates
+  the returned `RESB` rows to the same evaluator. Empty scopes remain successful
+  no-ops, and the legacy single-document helper stays conservatively false for
+  invalid IDs. Three adapter scenarios bring the suite to two hundred
+  forty-three.
+- `zcl_stock_snapshot_validator` now treats every material/plant pair as an
+  explicit read capability: an initial component makes the entire scope invalid
+  even when no stock rows are returned. This prevents an unsafe direct adapter
+  request from being mistaken for a successful empty snapshot. One focused
+  validator scenario covers the new scope rule.
+- `zcl_stock_reader_sap` applies the shared validator before its guarded
+  `MARD`/`MARC`/`MARA` query and again to the returned balances. It clears a
+  malformed snapshot and reports failure instead of exposing it as successful
+  to a direct caller. Service and transactional rechecker validation remain in
+  place for replaceable readers. Empty scope and both incomplete key variants
+  are covered directly; three adapter scenarios bring the suite to two hundred
+  forty-seven.
+- The cached SAP `MARM` reader now rejects initial material or alternative-unit
+  keys before SQL and does not cache a found factor whose numerator or
+  denominator is nonpositive. Invalid database evidence is normalized to the
+  canonical not-found envelope with zero factors. Two direct-boundary scenarios
+  bring the suite to two hundred forty-nine.
+- Unit conversion now owns its complete arithmetic domain even when called
+  outside allocation: identity and units must be present, source quantity must
+  fit exact positive `DEC(13,3)`, factors must be positive whole values within
+  the modeled `MARM` `DEC(5,0)` range, and a not-found response must carry no
+  factor payload. The intermediate result is capped before packed rounding and
+  the rounded result uses the same persisted `DEC(13,3)` type. Seven focused
+  scenarios bring the suite to two hundred fifty-six.
+- The SAP authorization adapter now rejects an initial plant before
+  `AUTHORITY-CHECK`, preventing blank scope from being interpreted as a broad
+  plant authorization. Stock-lock coordination independently requires a bound
+  gateway, complete material/plant keys, exact persistable positive allocation
+  quantities, and a released lifecycle before another acquisition. The SAP
+  gateway blocks incomplete enqueue keys and silently refuses unsafe incomplete
+  dequeue keys; blank failure diagnostics receive a deterministic fallback.
+  Seven focused scenarios bring the suite to two hundred sixty-three.
+- The transactional writer now validates that its reservation gateway,
+  idempotency store, stock rechecker, and stock lock are all bound after pending
+  input validation but before the first claim. A missing collaborator fails the
+  pending batch without rollback, release, or persistence calls because no
+  transaction has started. The direct rechecker likewise returns an explicit
+  failure when its stock reader is absent. Blank messages on canonical negative
+  lock and recheck results are normalized at the writer, so an auditable posting
+  failure never loses its diagnostic. Seven focused scenarios bring the suite
+  to two hundred seventy.
+- Unit conversion now checks its factor-reader dependency only when source and
+  base units differ, preserving the no-lookup path for identical units. The
+  allocator likewise checks its converter at the point a valid stocked request
+  reaches normalization, so invalid, replayed, deferred, missing-stock, and
+  missing-base-unit paths keep their existing precedence. A missing converter
+  or blank canonical conversion failure produces an explicit
+  `UNIT_CONVERSION_FAILED` result and never reaches the writer. Five direct and
+  orchestration scenarios bring the suite to two hundred seventy-five.
+- The orchestration service now validates each optional composition reference
+  at the phase that first needs it. Missing authority, idempotency store,
+  reservation-status reader, or stock reader returns the existing phase-specific
+  configuration decision before dereference; a missing writer preserves the
+  completed allocation decision but marks pending posting as failed. Simulation
+  still needs authorization and live stock, but bypasses productive replay,
+  cancellation, and writing dependencies. Invalid requests and deferred
+  simulation can run with no operational collaborators at all. Eight focused
+  scenarios bring the suite to two hundred eighty-three.
+- The application result now includes an additive diagnostic that distinguishes
+  a missing allocation service, a missing logger, a canonical logger rejection,
+  and a malformed logger acknowledgement while retaining the generated run ID
+  whenever composition fails. The SAP logger treats an empty allocation table
+  as a successful no-op without requiring its store, but rejects a missing store
+  for nonempty validated work. Export and retention validate all caller input
+  before checking their reader/store, then report missing backends and blank
+  canonical failures explicitly. Ten focused scenarios bring the suite to two
+  hundred ninety-three.

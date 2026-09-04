@@ -218,6 +218,7 @@ in, which is also the order they make sense in.
 151. the comparison keeps the rest of the settings
 152. the readers take the settings as one thing too
 153. the whole order leaves together
+154. the page says which lines cannot leave alone
 
 ## Progress
 
@@ -4388,3 +4389,23 @@ the stock behind them was tied up until somebody noticed.
   customer on the answer and feature 71 reads it; this is the one path that
   never had it, found by reading the method against the rest of the family
   rather than by a test.
+
+### Feature 154 — the page says which lines cannot leave alone (done)
+
+Feature 153 gave the answer a reason that reads "ships with the rest of the
+order", and the explanation of feature 55 shows it. What the page did not show
+was which lines those are, so a planner reading it saw a line asking for four
+with ten on the shelf and nothing confirmed, and had to go to VA03 to find out
+which order it belonged to and what else was on it.
+
+- **It goes on the demand listing, not the answer.** The answer already says
+  why; what was missing was the fact about the line that makes the answer
+  follow. The two halves of the page are the working and the result, and this
+  is working.
+- **A line free to ship says nothing at all.** The same rule as feature 150 and
+  for the same reason: a page that notes what every line is allowed to do is a
+  wall, and a wall gets skimmed.
+- **The order rule names the order.** "In one delivery" is enough for a line
+  under the item rule, because there is nowhere else to look. A line under the
+  order rule is waiting for lines this page does not show -- they are other
+  materials -- so the number of the order it is waiting for is the whole point.

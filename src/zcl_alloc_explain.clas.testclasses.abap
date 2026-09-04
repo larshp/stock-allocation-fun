@@ -150,6 +150,9 @@ CLASS ltcl_alloc_explain DEFINITION FINAL FOR TESTING
     METHODS the_demand_is_listed FOR TESTING RAISING cx_static_check.
     METHODS the_answer_is_worked_out FOR TESTING RAISING cx_static_check.
     METHODS a_short_line_says_why FOR TESTING RAISING cx_static_check.
+    METHODS a_grouped_line_says_so FOR TESTING RAISING cx_static_check.
+    METHODS a_complete_line_says_so FOR TESTING RAISING cx_static_check.
+    METHODS a_plain_line_says_nothing FOR TESTING RAISING cx_static_check.
     METHODS an_empty_material_says_so FOR TESTING RAISING cx_static_check.
     METHODS what_is_taken_care_of_shows FOR TESTING RAISING cx_static_check.
     METHODS a_hold_is_said_out_loud FOR TESTING RAISING cx_static_check.
@@ -267,6 +270,51 @@ CLASS ltcl_alloc_explain IMPLEMENTATION.
       act = lt_line[ 12 ]
       exp = '*not enough stock*'
       msg = 'the working and the reason belong on the same page' ).
+
+  ENDMETHOD.
+
+  METHOD a_grouped_line_says_so.
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( ( avail_date = '00000000' quantity = '10' ) )
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '4' req_date = '20260210' priority = '02'
+          ship_group = '0000004716' ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 8 ]
+      exp = '*ships with 0000004716*'
+      msg = 'a line waiting for the rest of its order has to say which order' ).
+
+  ENDMETHOD.
+
+  METHOD a_complete_line_says_so.
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( ( avail_date = '00000000' quantity = '10' ) )
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '4' req_date = '20260210' priority = '02'
+          complete = abap_true ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 8 ]
+      exp = '*in one delivery*' ).
+
+  ENDMETHOD.
+
+  METHOD a_plain_line_says_nothing.
+
+    DATA(lt_line) = explained(
+      it_supply = VALUE #( ( avail_date = '00000000' quantity = '10' ) )
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '4' req_date = '20260210' priority = '02' ) ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( lt_line[ 8 ] CS `delivery` OR lt_line[ 8 ] CS `ships with` )
+      msg = 'a page that notes what every line is free to do is a page nobody reads' ).
 
   ENDMETHOD.
 

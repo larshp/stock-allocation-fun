@@ -147,6 +147,12 @@ CLASS zcl_alloc_explain DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
 
+    METHODS together_text
+      IMPORTING
+        is_demand      TYPE zif_allocation=>ty_demand
+      RETURNING
+        VALUE(rv_text) TYPE string.
+
     METHODS answer_lines
       IMPORTING
         it_allocation  TYPE zif_allocation=>ty_allocation_tab
@@ -480,13 +486,31 @@ CLASS zcl_alloc_explain IMPLEMENTATION.
              |{ COND string( WHEN lv_served > 0
                              THEN |{ lv_served }|
                              ELSE `` ) WIDTH = c_width_qty ALIGN = RIGHT }| &&
-             |  { ls_demand-priority }  { ls_demand-customer }| TO rt_line.
+             |  { ls_demand-priority }  { ls_demand-customer }| &&
+             together_text( ls_demand ) TO rt_line.
 
     ENDLOOP.
 
     APPEND |  { `Total` WIDTH = c_width_id }| &&
            |{ `` WIDTH = c_width_date }| &&
            |{ lv_total WIDTH = c_width_qty ALIGN = RIGHT }| TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD together_text.
+
+    " a line that cannot leave on its own is the commonest surprise on this
+    " page: it asks for four, four are on the shelf, and it is confirmed
+    " nothing because a line somebody else's order is waiting for is short.
+    " Saying it here means the reason on the answer can be followed up.
+    IF is_demand-ship_group IS NOT INITIAL.
+      rv_text = |  ships with { is_demand-ship_group }|.
+      RETURN.
+    ENDIF.
+
+    IF is_demand-complete = abap_true.
+      rv_text = `  in one delivery`.
+    ENDIF.
 
   ENDMETHOD.
 

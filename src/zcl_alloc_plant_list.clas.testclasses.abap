@@ -129,6 +129,8 @@ CLASS ltcl_alloc_plant_list DEFINITION FINAL FOR TESTING
     METHODS plants_not_yours_are_left_out FOR TESTING.
     METHODS the_oldest_wait_is_shown FOR TESTING.
     METHODS the_figures_can_be_asked_for FOR TESTING.
+    METHODS waiting_transfers_are_counted FOR TESTING RAISING cx_static_check.
+    METHODS no_transfer_waiting_is_blank FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -149,6 +151,9 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
   METHOD teardown.
 
     DELETE FROM t001w WHERE werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM zstock_alloc_trf WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
   ENDMETHOD.
@@ -172,7 +177,8 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
 
     rt_line = NEW zcl_alloc_plant_list(
       io_store     = NEW lcl_store_double( it_recorded )
-      io_authority = NEW lcl_authority_double( iv_refuse ) )->run( ).
+      io_authority = NEW lcl_authority_double( iv_refuse )
+      io_transfer  = NEW zcl_alloc_transfer( ) )->run( ).
 
   ENDMETHOD.
 
@@ -255,7 +261,8 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
       io_store     = NEW lcl_store_double( VALUE #(
         ( recorded( iv_matnr     = c_matnr
                     iv_shortfall = 40 ) ) ) )
-      io_authority = NEW lcl_authority_double( ) ).
+      io_authority = NEW lcl_authority_double( )
+      io_transfer  = NEW zcl_alloc_transfer( ) ).
 
     " an overview that writes to somebody only when a plant is short has to be
     " able to ask before it decides whether to send
@@ -269,4 +276,51 @@ CLASS ltcl_alloc_plant_list IMPLEMENTATION.
       exp = 1 ).
 
   ENDMETHOD.
+
+  METHOD waiting_transfers_are_counted.
+
+    " a plant that is short and has a note about it sitting unread is in
+    " different trouble from one that is short with nothing anybody could do
+    NEW zcl_alloc_transfer( )->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_werks
+      iv_from_werks = '2000'
+      iv_quantity   = '40' ).
+
+    DATA(lo_list) = NEW zcl_alloc_plant_list(
+      io_store     = NEW lcl_store_double( VALUE #(
+        ( recorded( iv_matnr     = c_matnr
+                    iv_shortfall = 40 ) ) ) )
+      io_authority = NEW lcl_authority_double( )
+      io_transfer  = NEW zcl_alloc_transfer( ) ).
+
+    DATA(lt_stands) = lo_list->stands( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_stands[ 1 ]-waiting
+      exp = 1
+      msg = 'the page exists to say where the morning is worst' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = says( it_line = lo_list->run( )
+                  iv_text = |{ c_werks }| )
+      msg = 'and the plant is still on it' ).
+
+  ENDMETHOD.
+
+  METHOD no_transfer_waiting_is_blank.
+
+    DATA(lt_stands) = NEW zcl_alloc_plant_list(
+      io_store     = NEW lcl_store_double( VALUE #(
+        ( recorded( iv_matnr     = c_matnr
+                    iv_shortfall = 40 ) ) ) )
+      io_authority = NEW lcl_authority_double( )
+      io_transfer  = NEW zcl_alloc_transfer( ) )->stands( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_stands[ 1 ]-waiting
+      exp = 0 ).
+
+  ENDMETHOD.
+
 ENDCLASS.

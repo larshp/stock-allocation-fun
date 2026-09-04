@@ -19,12 +19,14 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
-  " a plant that is short of something or did not run is worth writing to
-  " somebody about at seven in the morning; a page of noughts is not, and a
-  " page of noughts that arrives every day is why nobody reads the one that
-  " matters
+  " a plant that is short of something, did not run, or has a proposed
+  " transfer nobody has answered is worth writing to somebody about at seven
+  " in the morning; a page of noughts is not, and a page of noughts that
+  " arrives every day is why nobody reads the one that matters
   LOOP AT lo_list->stands( ) INTO DATA(ls_plant).
-    IF ls_plant-short > 0 OR ls_plant-ran_today = abap_false.
+    IF ls_plant-short > 0
+        OR ls_plant-ran_today = abap_false
+        OR ls_plant-waiting > 0.
       lv_worth_sending = abap_true.
     ENDIF.
   ENDLOOP.

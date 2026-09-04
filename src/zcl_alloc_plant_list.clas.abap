@@ -4,7 +4,10 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_line_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
-    "! What one plant came to.
+    "! What one plant came to. WAITING is how many proposed transfers nobody
+    "! there has answered: a plant that is short and has three notes about it
+    "! sitting unread is in different trouble from one that is short and has
+    "! nothing anybody could do about it.
     TYPES:
       BEGIN OF ty_plant,
         werks     TYPE mard-werks,
@@ -13,6 +16,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         quantity  TYPE zif_allocation=>ty_quantity,
         oldest    TYPE d,
         ran_today TYPE abap_bool,
+        waiting   TYPE i,
       END OF ty_plant.
     TYPES ty_plant_tab TYPE STANDARD TABLE OF ty_plant WITH EMPTY KEY.
 
@@ -27,10 +31,12 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposed transfers are written down</p>
     METHODS constructor
       IMPORTING
         io_store     TYPE REF TO zif_allocation_store
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_authority TYPE REF TO zif_allocation_authority
+        io_transfer  TYPE REF TO zcl_alloc_transfer.
 
     "! <p class="shorttext synchronized">How every plant stands, on one page</p>
     "!
@@ -73,6 +79,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
 
     METHODS stands_of
       IMPORTING
@@ -88,6 +95,7 @@ CLASS zcl_alloc_plant_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_quantity    TYPE string
         iv_oldest      TYPE string
         iv_today       TYPE string
+        iv_waiting     TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
 
@@ -100,7 +108,8 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
 
     ro_list = NEW zcl_alloc_plant_list(
       io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
+      io_transfer  = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
@@ -108,6 +117,7 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
 
     mo_store     = io_store.
     mo_authority = io_authority.
+    mo_transfer  = io_transfer.
 
   ENDMETHOD.
 
@@ -128,7 +138,8 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
       iv_short     = `Short lines`
       iv_quantity  = `Short`
       iv_oldest    = `Oldest wanted`
-      iv_today     = `Ran today` ) TO rt_line.
+      iv_today     = `Ran today`
+      iv_waiting   = `Transfers` ) TO rt_line.
 
     LOOP AT lt_stands INTO DATA(ls_stands).
 
@@ -141,7 +152,9 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
                                     THEN |{ ls_stands-oldest DATE = ISO }| )
         iv_today     = COND string( WHEN ls_stands-ran_today = abap_true
                                     THEN `yes`
-                                    ELSE `no` ) ) TO rt_line.
+                                    ELSE `no` )
+        iv_waiting   = COND string( WHEN ls_stands-waiting > 0
+                                    THEN |{ ls_stands-waiting }| ) ) TO rt_line.
 
     ENDLOOP.
 
@@ -183,6 +196,11 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
 
     rs_plant-werks = iv_werks.
 
+    " what somebody there has been asked and has not answered. It is on this
+    " page because the page exists to say where the morning is worst, and a
+    " question nobody has answered is a morning nobody has had.
+    rs_plant-waiting = lines( mo_transfer->open_for( iv_werks ) ).
+
     LOOP AT mo_store->latest_per_material( iv_werks ) INTO DATA(ls_recorded).
 
       " the lines of one material come together, so counting the materials is
@@ -222,7 +240,8 @@ CLASS zcl_alloc_plant_list IMPLEMENTATION.
            && |{ iv_short WIDTH = c_width_count ALIGN = RIGHT }|
            && |{ iv_quantity WIDTH = c_width_qty ALIGN = RIGHT }|
            && |  { iv_oldest WIDTH = c_width_date }|
-           && |{ iv_today }|.
+           && |{ iv_today WIDTH = c_width_count }|
+           && |{ iv_waiting WIDTH = c_width_count ALIGN = RIGHT }|.
 
   ENDMETHOD.
 

@@ -230,6 +230,7 @@ in, which is also the order they make sense in.
 163. a proposal whose shortage has gone
 164. closing the ones whose shortage has gone
 165. the proposing closes the stale notes itself
+166. the overview counts what nobody has answered
 
 ## Progress
 
@@ -4742,3 +4743,25 @@ that exists because of a note about the one that does not.
 - **The night order gained a step.** After the allocation rather than before
   it: the proposing reads what the run decided, and run before it, it would
   propose against last night's answer.
+
+### Feature 166 — the overview counts what nobody has answered (done)
+
+The seven-in-the-morning page of feature 121 exists to say where the morning is
+worst. Since feature 160 there is a kind of trouble it could not see: a plant
+that is short, with three notes about it that nobody has read. That is not the
+same morning as a plant that is short with nothing anybody could do about it,
+and it is the one where somebody is waiting for an answer.
+
+- **It is a column, not a page.** The worklist itself is
+  `ZSTOCK_ALLOC_MOVE`, per plant. What the overview needs is the number, so
+  that whoever reads it knows which plant to open.
+- **A plant with nothing waiting shows a blank rather than a nought**, the
+  same choice the oldest-wanted column made: a column of noughts is a column
+  the eye stops reading.
+- **The mail now goes out for it too.** A proposal waiting for an answer is
+  exactly what the "only when it is worth arriving" rule of feature 140 exists
+  for: something has to be done and nothing else will say so. A page of
+  noughts still does not arrive.
+- **The count comes from `ZCL_ALLOC_TRANSFER`**, which the page now takes
+  through its constructor like everything else, so a test can put a proposal
+  in front of it without writing a run.

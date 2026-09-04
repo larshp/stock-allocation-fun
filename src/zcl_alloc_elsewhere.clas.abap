@@ -14,11 +14,13 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! <p class="shorttext synchronized">Wire up the list</p>
     "!
     "! @parameter io_supply    | <p class="shorttext synchronized">What a material has to give away, per plant</p>
+    "! @parameter io_demand    | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
+        io_demand    TYPE REF TO zif_demand_reader
         io_store     TYPE REF TO zif_allocation_store
         io_authority TYPE REF TO zif_allocation_authority.
 
@@ -30,9 +32,17 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! material, so there is nothing to agree with the customer -- only a
     "! transfer to raise, which is somebody's decision and not this program's.
     "!
-    "! Every plant's stock is read the way that plant reads its own: its
-    "! storage locations, its view of its own plan. A number worked out any
-    "! other way is stock the other plant would not have given away either.
+    "! Every plant's stock and demand are read the way that plant reads its
+    "! own: its storage locations, its view of its own plan, its horizon. A
+    "! number worked out any other way is stock the other plant would not have
+    "! given away either.
+    "!
+    "! What a plant has is not what it can spare. A plant sitting on a hundred
+    "! with a hundred waiting for them has nothing to send, and a page that
+    "! offered them would send a planner to ask for stock that is already
+    "! somebody else's. Both numbers are shown, because the shelf is where a
+    "! conversation between two planners starts and the spare is where it
+    "! ends.
     "!
     "! A plant the user may not see is left out rather than refused: this is a
     "! list about the plant that is short, and a user allowed to see that one
@@ -53,8 +63,8 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    CONSTANTS c_width_werks TYPE i VALUE 10.
-    CONSTANTS c_width_qty   TYPE i VALUE 14.
+    CONSTANTS c_width_werks TYPE i VALUE 8.
+    CONSTANTS c_width_qty   TYPE i VALUE 13.
 
     "! Reading what is short and what other plants have, changing neither.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
@@ -70,6 +80,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
 
     DATA mo_supply    TYPE REF TO zif_supply_reader.
+    DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
 
@@ -114,11 +125,22 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    METHODS wanted_at
+      IMPORTING
+        iv_matnr           TYPE mard-matnr
+        iv_werks           TYPE mard-werks
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity
+      RAISING
+        zcx_allocation.
+
     METHODS format_row
       IMPORTING
         iv_werks       TYPE string
         iv_now         TYPE string
         iv_later       TYPE string
+        iv_wanted      TYPE string
+        iv_spare       TYPE string
         iv_covers      TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
@@ -132,6 +154,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
     ro_list = NEW zcl_alloc_elsewhere(
       io_supply    = NEW zcl_supply_per_plant( )
+      io_demand    = NEW zcl_demand_per_plant( )
       io_store     = NEW zcl_allocation_store( )
       io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
 
@@ -140,6 +163,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
   METHOD constructor.
 
     mo_supply    = io_supply.
+    mo_demand    = io_demand.
     mo_store     = io_store.
     mo_authority = io_authority.
 
@@ -242,10 +266,27 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD wanted_at.
+
+    " what that plant has still to serve, read as it reads it: net of what has
+    " already been delivered and of what its own earlier runs set aside, and
+    " only as far ahead as it looks. A plant is not holding stock back for a
+    " line it is not going to serve this month either.
+    LOOP AT mo_demand->read_open_demand(
+        iv_matnr = iv_matnr
+        iv_werks = iv_werks ) INTO DATA(ls_demand).
+      IF ls_demand-quantity > 0.
+        rv_quantity = rv_quantity + ls_demand-quantity.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
   METHOD lines_for.
 
     DATA lv_now    TYPE zif_allocation=>ty_quantity.
     DATA lv_later  TYPE zif_allocation=>ty_quantity.
+    DATA lv_spare  TYPE zif_allocation=>ty_quantity.
     DATA lv_covers TYPE zif_allocation=>ty_quantity.
     DATA lt_row    TYPE ty_line_tab.
 
@@ -278,7 +319,19 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      lv_covers = lv_now + lv_later.
+      DATA(lv_wanted) = wanted_at(
+        iv_matnr = is_short-matnr
+        iv_werks = lv_werks ).
+
+      " a plant that owes more than it has spares nothing rather than a
+      " negative amount: what it is short of itself is its own problem and is
+      " not part of this answer
+      lv_spare = lv_now + lv_later - lv_wanted.
+      IF lv_spare < 0.
+        lv_spare = 0.
+      ENDIF.
+
+      lv_covers = lv_spare.
       IF lv_covers > is_short-quantity.
         lv_covers = is_short-quantity.
       ENDIF.
@@ -287,6 +340,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         iv_werks  = |{ lv_werks }|
         iv_now    = |{ lv_now }|
         iv_later  = |{ lv_later }|
+        iv_wanted = |{ lv_wanted }|
+        iv_spare  = |{ lv_spare }|
         iv_covers = |{ lv_covers }| ) TO lt_row.
 
     ENDLOOP.
@@ -303,6 +358,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       iv_werks  = `Plant`
       iv_now    = `On the shelf`
       iv_later  = `Coming`
+      iv_wanted = `Wanted there`
+      iv_spare  = `Spare`
       iv_covers = `Covers` ) TO rt_line.
     APPEND LINES OF lt_row TO rt_line.
 
@@ -313,6 +370,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
     rv_line = |{ iv_werks WIDTH = c_width_werks }|
       && |{ iv_now WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_later WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |{ iv_wanted WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |{ iv_spare WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_covers WIDTH = c_width_qty ALIGN = RIGHT }|.
 
   ENDMETHOD.

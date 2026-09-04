@@ -222,6 +222,7 @@ in, which is also the order they make sense in.
 155. the converter goes back the other way
 156. where the shortfall goes
 157. where else the stock is
+158. what the other plant can spare
 
 ## Progress
 
@@ -4507,3 +4508,31 @@ looking the material up in MMBE one plant at a time.
   sitting on a hundred when forty are missing covers forty. The two numbers are
   both on the line because they answer different questions -- whether to raise
   a transfer, and how big to make it.
+
+### Feature 158 — what the other plant can spare (done)
+
+Feature 157 shipped a page that said plant 2000 has a hundred of what plant
+1000 is short of. What it did not say was that plant 2000 has a hundred lines
+waiting for those hundred. A planner reading it would ring up and ask for
+stock that is already somebody else's, which is a worse morning than not
+having asked: the answer takes a day to arrive and is no.
+
+- **The demand side got the same treatment as the supply side.**
+  `ZCL_DEMAND_PER_PLANT` is `ZCL_SUPPLY_PER_PLANT` for what is waiting: it
+  builds the reader each plant's own settings ask for, buffered per plant. The
+  horizon is what makes it necessary -- a plant that looks a month ahead is not
+  holding stock back for a line in a year, and read through the asking plant's
+  settings it would look as though it were.
+- **Both numbers are on the line.** What the other plant has is where a
+  conversation between two planners starts; what it can spare is where it
+  ends. A page that showed only the spare would be answering a question nobody
+  had asked yet, and one that showed only the shelf is what feature 157 was.
+- **A plant that owes more than it has spares nothing, not a negative amount.**
+  What that plant is short of itself is its own problem; a negative spare on
+  the page would read as a quantity somebody could ask for.
+- **A plant with everything promised is still listed.** It has stock, the two
+  planners may well decide that one line matters more than another, and that is
+  a decision for people. What the page must not do is imply the stock is going
+  spare.
+- **`COVERS` now comes off the spare rather than the shelf**, which is the
+  number it always meant: what a transfer from there would actually fix.

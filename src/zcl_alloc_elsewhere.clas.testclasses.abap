@@ -154,6 +154,49 @@ CLASS lcl_supply_double IMPLEMENTATION.
 ENDCLASS.
 
 
+"! Hands out the demand it was told, per plant.
+CLASS lcl_demand_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_row TYPE lcl_supply_double=>ty_row_tab.
+
+  PRIVATE SECTION.
+    DATA mt_row TYPE lcl_supply_double=>ty_row_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_row = it_row.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr
+          AND werks = iv_werks.
+      APPEND VALUE #(
+        demand_id = |{ ls_row-werks }|
+        matnr     = ls_row-matnr
+        werks     = ls_row-werks
+        quantity  = ls_row-quantity ) TO rt_demand.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    CLEAR rt_matnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -173,6 +216,7 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
       IMPORTING
         it_supply      TYPE lcl_supply_double=>ty_row_tab
         it_allowed     TYPE lcl_authority_double=>ty_werks_tab
+        it_demand      TYPE lcl_supply_double=>ty_row_tab OPTIONAL
         iv_short       TYPE zif_allocation=>ty_quantity DEFAULT '40'
       RETURNING
         VALUE(rt_line) TYPE zcl_alloc_elsewhere=>ty_line_tab
@@ -195,6 +239,10 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
     METHODS nothing_short_says_so FOR TESTING RAISING cx_static_check.
     METHODS nobody_else_has_it_is_quiet FOR TESTING RAISING cx_static_check.
     METHODS a_plant_is_checked_once FOR TESTING RAISING cx_static_check.
+    METHODS its_own_demand_is_shown FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_that_owes_it_all FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_owing_more_than_it_has FOR TESTING RAISING cx_static_check.
+    METHODS the_spare_is_what_covers FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -230,6 +278,7 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
       io_supply    = NEW lcl_supply_double( it_supply )
+      io_demand    = NEW lcl_demand_double( it_demand )
       io_store     = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = iv_short
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
@@ -318,7 +367,7 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( found(
       it_line    = lt_line
-      iv_pattern = '*100.000*40.000*' ) ).
+      iv_pattern = '*100.000*0.000*100.000*40.000*' ) ).
 
   ENDMETHOD.
 
@@ -334,7 +383,7 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( found(
       it_line    = lt_line
-      iv_pattern = '*2000*10.000*15.000*25.000*' ) ).
+      iv_pattern = '*2000*10.000*15.000*0.000*25.000*25.000*' ) ).
 
   ENDMETHOD.
 
@@ -344,6 +393,7 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
       io_supply    = NEW lcl_supply_double( VALUE #( ) )
+      io_demand    = NEW lcl_demand_double( VALUE #( ) )
       io_store     = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = '10'
           confirmed = '10' shortfall = 0 ) ) )
@@ -383,6 +433,69 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_authority->asked( )
       exp = 3 ).
+
+  ENDMETHOD.
+
+  METHOD its_own_demand_is_shown.
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_demand  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '30' ) ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*100.000*0.000*30.000*70.000*40.000*' )
+      msg = 'the shelf, what is waiting for it there, and what is left of it' ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_that_owes_it_all.
+
+    " the plant has a hundred and a hundred waiting for them. It is still
+    " worth listing -- the two planners may decide whose line matters more --
+    " but nothing is on offer and the page must not pretend otherwise.
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_demand  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*100.000*0.000*100.000*0.000*0.000*' )
+      msg = 'a plant with everything promised already has nothing to send' ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_owing_more_than_it_has.
+
+    " what that plant is short of itself is its own problem, and a negative
+    " spare would read as a quantity somebody could ask for
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '10' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_demand  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '50' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*2000*10.000*0.000*50.000*0.000*0.000*' ) ).
+
+  ENDMETHOD.
+
+  METHOD the_spare_is_what_covers.
+
+    " forty missing here, sixty on the shelf there and fifty of them wanted
+    " there: ten to be had, and ten is what this would fix
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '60' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_demand  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '50' ) )
+      iv_short   = '40' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*60.000*0.000*50.000*10.000*10.000*' )
+      msg = 'covers is what the other plant can spare, not what it has' ).
 
   ENDMETHOD.
 

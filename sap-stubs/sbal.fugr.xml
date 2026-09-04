@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>SBAL</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LSBALTOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLSBAL</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>BAL_LOG_CREATE</FUNCNAME>
+     <SHORT_TEXT>Log: Create with header data</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>I_S_LOG</PARAMETER>
+       <TYP>BAL_S_LOG</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>E_LOG_HANDLE</PARAMETER>
+       <TYP>BALLOGHNDL</TYP>
+      </RSEXP>
+     </EXPORT>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>LOG_HEADER_INCONSISTENT</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+    <item>
+     <FUNCNAME>BAL_LOG_MSG_ADD</FUNCNAME>
+     <SHORT_TEXT>Message: Add to log</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>I_LOG_HANDLE</PARAMETER>
+       <TYP>BALLOGHNDL</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>I_S_MSG</PARAMETER>
+       <TYP>BAL_S_MSG</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>LOG_NOT_FOUND</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>MSG_INCONSISTENT</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>LOG_IS_FULL</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+    <item>
+     <FUNCNAME>BAL_DB_SAVE</FUNCNAME>
+     <SHORT_TEXT>Log: Save to the database</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>I_T_LOG_HANDLE</PARAMETER>
+       <TYP>BAL_T_LOGH</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>I_SAVE_ALL</PARAMETER>
+       <DEFAULT>SPACE</DEFAULT>
+       <TYP>ABAP_BOOL</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>LOG_NOT_FOUND</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>SAVE_NOT_ALLOWED</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>NUMBERING_ERROR</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

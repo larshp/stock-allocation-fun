@@ -1,0 +1,157 @@
+CLASS zcl_alloc_config DEFINITION PUBLIC FINAL CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES zif_alloc_config.
+
+    "! ZSTOCK_ALLOC_CFG-STRATEGY: distribute as a fair share. Anything else,
+    "! including a plant with no setting at all, is served by priority.
+    CONSTANTS c_fair_share TYPE zstock_alloc_cfg-strategy VALUE 'F'.
+
+    "! What a plant that nobody has configured gets: everything off, which is
+    "! what the report parameters defaulted to before there was a table.
+    CONSTANTS c_default_keep_days TYPE i VALUE 90.
+
+    "! A share of the pool cannot be more than the whole of it.
+    CONSTANTS c_max_percent TYPE i VALUE 100.
+
+    "! Where a transfer stands against a customer order when the plant has not
+    "! said. The middle of the range: a transfer is neither the first thing to
+    "! serve nor the last.
+    CONSTANTS c_default_sto_prio TYPE zif_allocation=>ty_priority
+      VALUE zcl_sto_demand_reader=>c_default_priority.
+
+    "! <p class="shorttext synchronized">The distribution rule a plant has chosen</p>
+    "!
+    "! The class that knows what an `F` in the table means is the one that
+    "! turns it into the object, rather than each caller reading the flag and
+    "! writing the same two lines.
+    "!
+    "! @parameter is_config   | <p class="shorttext synchronized">Settings of the plant</p>
+    "! @parameter ro_strategy | <p class="shorttext synchronized">Fair share, or none for the default</p>
+    CLASS-METHODS strategy_of
+      IMPORTING
+        is_config          TYPE zif_alloc_config=>ty_config
+      RETURNING
+        VALUE(ro_strategy) TYPE REF TO zif_allocation_strategy.
+
+ENDCLASS.
+
+
+CLASS zcl_alloc_config IMPLEMENTATION.
+
+  METHOD strategy_of.
+
+    " a plant that has not chosen is served by priority, and the factories
+    " take an unbound strategy to mean exactly that
+    IF is_config-fair_share = abap_true.
+      ro_strategy = NEW zcl_alloc_strategy_fairshare( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD zif_alloc_config~for_plant.
+
+    rs_config-werks        = iv_werks.
+    rs_config-move_type    = zcl_reservation_writer=>c_default_move_type.
+    rs_config-keep_days    = c_default_keep_days.
+    rs_config-sto_priority = c_default_sto_prio.
+
+    SELECT SINGLE strategy,
+                  horizon_days,
+                  lgort,
+                  cap_percent,
+                  keep_days,
+                  planned,
+                  whole_units,
+                  sto_prio,
+                  ship_days,
+                  atp_net,
+                  quota,
+                  age_days,
+                  work_days,
+                  move_type,
+                  min_percent,
+                  firm_days
+      FROM zstock_alloc_cfg
+      WHERE werks = @iv_werks
+      INTO @DATA(ls_row).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    rs_config-fair_share = xsdbool( ls_row-strategy = c_fair_share ).
+    rs_config-lgort      = ls_row-lgort.
+
+    " anything but the flag being set means no, including the flag holding
+    " something that is not X: a switch that promises stock nobody has ordered
+    " yet is one to be sure about
+    rs_config-planned     = xsdbool( ls_row-planned = abap_true ).
+    rs_config-whole_units  = xsdbool( ls_row-whole_units = abap_true ).
+    rs_config-cautious_atp = xsdbool( ls_row-atp_net = abap_true ).
+    rs_config-quota        = xsdbool( ls_row-quota = abap_true ).
+    rs_config-work_days    = xsdbool( ls_row-work_days = abap_true ).
+
+    " a plant that has not named one reserves under the movement type the
+    " writer has always used, rather than under a blank one, which the BAPI
+    " would refuse for every material in the plant
+    IF ls_row-move_type IS NOT INITIAL.
+      rs_config-move_type = ls_row-move_type.
+    ELSE.
+      rs_config-move_type = zcl_reservation_writer=>c_default_move_type.
+    ENDIF.
+
+    " a shipping time below zero would mean the goods leave before they are
+    " picked, and is read as none
+    IF ls_row-ship_days > 0.
+      rs_config-ship_days = ls_row-ship_days.
+    ENDIF.
+
+    " a priority of zero is not a priority, it is a field nobody filled: the
+    " strategies read 01 as first, so taking it literally would put every
+    " transfer in front of every customer
+    IF ls_row-sto_prio IS NOT INITIAL.
+      rs_config-sto_priority = ls_row-sto_prio.
+    ENDIF.
+
+    " a setting that cannot be honoured is corrected rather than obeyed: none
+    " of these has a sensible meaning below zero, and a nightly run must not
+    " stop because somebody typed a minus
+    IF ls_row-horizon_days > 0.
+      rs_config-horizon_days = ls_row-horizon_days.
+    ENDIF.
+
+    " a wait of no days would move every short line to the front of the queue
+    " on the night it first fell short, which is not a queue at all
+    IF ls_row-age_days > 0.
+      rs_config-age_days = ls_row-age_days.
+    ENDIF.
+
+    " a bar above the whole line would confirm nothing anywhere, which is not
+    " a setting anybody means
+    IF ls_row-min_percent > 0.
+      rs_config-min_percent = COND #( WHEN ls_row-min_percent > c_max_percent
+                                      THEN c_max_percent
+                                      ELSE ls_row-min_percent ).
+    ENDIF.
+
+    " a firm zone of no days is a plant that re-cuts everything, which is what
+    " it gets until it says otherwise
+    IF ls_row-firm_days > 0.
+      rs_config-firm_days = ls_row-firm_days.
+    ENDIF.
+
+    IF ls_row-cap_percent > 0.
+      rs_config-cap_percent = COND #( WHEN ls_row-cap_percent > c_max_percent
+                                      THEN c_max_percent
+                                      ELSE ls_row-cap_percent ).
+    ENDIF.
+
+    " zero days is a real answer here, meaning keep nothing beyond today, so
+    " the default only applies where the plant has no row at all
+    IF ls_row-keep_days >= 0.
+      rs_config-keep_days = ls_row-keep_days.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.

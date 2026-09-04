@@ -52,7 +52,8 @@ Every answered line says how much was confirmed, how much is short, the day the
 confirmed quantity is there — `now` when it comes off the shelf, otherwise the
 day the last of its supply arrives — and, where it fell short, why: not enough
 stock, stock that comes too late, the customer's share, its quota, too little
-to be worth shipping, whole units, or the complete delivery rule.
+to be worth shipping, whole units, the complete delivery rule, or waiting for
+the rest of an order that ships in one go.
 
 One material failing does not stop the rest of the run; the report says which
 ones failed and why. Twenty in a row does stop it: that is the lock table
@@ -99,7 +100,7 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Twenty programs is a lot to meet at once, so they are grouped by who runs
+Twenty one programs is a lot to meet at once, so they are grouped by who runs
 them. Everything reads and changes nothing, except the three at the bottom,
 which say so on their selection screens and default to a test run.
 
@@ -132,6 +133,7 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_COVER` | which materials with demand the last night did not get to at all, which is what a job that never ran looks like |
 | `ZSTOCK_ALLOC_CHECK` | which recorded runs no longer agree with the reservation they claim |
 | `ZSTOCK_ALLOC_CFGC`  | what is wrong with the Customizing of one plant or of every plant you may see: periods that run backwards, materials that are gone, classes nobody transported |
+| `ZSTOCK_ALLOC_MIX`   | where a plant's shortfall goes: how many short lines each reason accounts for and how many materials it touched, with the stock that is not there kept apart from the rules the plant chose |
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
 
@@ -158,7 +160,8 @@ answers the question afterwards — what the last run actually gave an order —
 for the same kind of caller, and takes a stock transport order as readily as a
 sales one.
 
-`ZSTOCK_ALLOC_SHORT` and `ZSTOCK_ALLOC_COVER` both take an e-mail address.
+`ZSTOCK_ALLOC_SHORT`, `ZSTOCK_ALLOC_COVER` and `ZSTOCK_ALLOC_MIX` all take an
+e-mail address.
 Scheduled with one, the morning list and the "did the night finish" check
 arrive rather than waiting to be run. The coverage check sends only when
 something is missing unless the box is unticked: a nightly mail saying

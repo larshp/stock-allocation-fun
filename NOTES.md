@@ -220,6 +220,7 @@ in, which is also the order they make sense in.
 153. the whole order leaves together
 154. the page says which lines cannot leave alone
 155. the converter goes back the other way
+156. where the shortfall goes
 
 ## Progress
 
@@ -4436,3 +4437,37 @@ what needs it; this is the seam it needs.
 - **The round trip is a test.** What a demand reader read and what a write back
   would put on the document have to be the same number; a test that asserts
   only the two conversions separately would pass for a pair that disagreed.
+
+### Feature 156 — where the shortfall goes (done)
+
+Every report so far answers a planner's question: what is short, why is this
+line short, what would fix it. Nobody had asked the question a manager asks
+about the same night, which is not about a line at all: is this plant short
+because the goods are not there, or because we are rationing them ourselves.
+Those are two different conversations -- one with purchasing, one with whoever
+set the rules -- and a list of short lines does not separate them, because the
+reason is a column in it rather than the thing it is ordered by.
+
+- **Two blocks, and that is the report.** Stock that is not there on one side,
+  rules this plant chose on the other. The reasons were already there and
+  already distinguished; what was missing was the one place that says which of
+  them is somebody else's problem.
+- **A third block for a reason nobody here knows.** A customer's own strategy
+  answers with a letter of its own -- `ZCL_ALLOC_REASON_TEXT` has said so since
+  feature 47 -- and a page that dropped those would report a plant as short of
+  less than it is. It gets its own heading rather than being counted as a rule
+  of the plant's, because this code does not know whose it is.
+- **It counts lines, not quantities, and says so on the page.** A plant's
+  materials are in pieces, kilos and litres at the same time; adding those up
+  gives a number that looks like an answer and is not one. Lines are
+  comparable, and the quantity with its unit next to it is what the worklist of
+  feature 48 is for. Writing the reason for that on the report rather than only
+  here means the next person to want a total reads it first.
+- **Materials touched is the second column that matters.** A reason that cost
+  forty lines across one material is a material to look at; the same forty
+  across forty materials is a rule to look at. Lines alone cannot tell those
+  apart, and they are not the same morning's work.
+- **An empty block has no heading**, the rule features 81, 150 and 154 all
+  settled, and a plant that has never run says that rather than saying nothing
+  is wrong -- the distinction feature 139 drew for a material and feature 121
+  for a plant.

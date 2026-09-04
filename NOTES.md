@@ -221,6 +221,7 @@ in, which is also the order they make sense in.
 154. the page says which lines cannot leave alone
 155. the converter goes back the other way
 156. where the shortfall goes
+157. where else the stock is
 
 ## Progress
 
@@ -4471,3 +4472,38 @@ reason is a column in it rather than the thing it is ordered by.
   settled, and a plant that has never run says that rather than saying nothing
   is wrong -- the distinction feature 139 drew for a material and feature 121
   for a plant.
+
+### Feature 157 — where else the stock is (done)
+
+Feature 108 answers one of the two questions a planner asks on a short
+morning: would the customer take something else. The other one is whether the
+material is simply sitting in another plant, and it was being answered by
+looking the material up in MMBE one plant at a time.
+
+- **The reading of another plant's stock is its own class.**
+  `ZCL_SUPPLY_PER_PLANT` implements `ZIF_SUPPLY_READER` and builds the reader
+  each plant's settings ask for, buffered per plant. Every factory in this
+  repository takes one plant's settings and is right to -- a run is about one
+  plant -- and a report that asks about several would otherwise read the others
+  through the settings of the first, which is a number that plant would never
+  have given away.
+- **It is not a new interface.** The seam already existed: `READ_SUPPLY` takes
+  the plant. What was missing was an implementation that treats that parameter
+  as the question rather than as a fact it was configured with.
+- **A plant the user may not see is left out rather than refused.** A user
+  allowed to see the plant that is short is not thereby allowed to see the rest
+  of the company, and a page that raised would answer nothing about the plant
+  that was asked about. The authority object answers by raising, so asking
+  whether a plant may be seen means asking and catching the no -- worth writing
+  down because it is the one place in this repository that treats a refusal as
+  data.
+- **The answer per plant is cached.** Forty short materials across the same
+  three plants is three authority checks, not a hundred and twenty.
+- **A material nobody else has says nothing**, which is why the heading is
+  written after the rows rather than before them: the rule of features 81, 150
+  and 154, and the first version of this class had it wrong for exactly the
+  reason those did.
+- **COVERS is what this would fix, not what the other plant has.** A plant
+  sitting on a hundred when forty are missing covers forty. The two numbers are
+  both on the line because they answer different questions -- whether to raise
+  a transfer, and how big to make it.

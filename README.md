@@ -100,7 +100,7 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Twenty one programs is a lot to meet at once, so they are grouped by who runs
+Twenty two programs is a lot to meet at once, so they are grouped by who runs
 them. Everything reads and changes nothing, except the three at the bottom,
 which say so on their selection screens and default to a test run.
 
@@ -112,6 +112,7 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the unit, how long it has been short, the reason and the customer on every line, narrowed to one MRP controller or one customer, and orderable by what has waited longest instead of what is wanted soonest: the list to work through |
 | `ZSTOCK_ALLOC_DISPLAY` | what the last run decided, per material, with the customer on every line — narrowed to the short lines, one MRP controller or one customer |
 | `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |
+| `ZSTOCK_ALLOC_ELSE`  | which other plants you may see are sitting on what this one is short of, read the way each of those plants reads its own stock |
 | `ZSTOCK_ALLOC_WHY`   | the working behind one material — what has been promised or agreed for it by hand, every day of supply, every line competing for it, and what the three come to right now; and where nothing is waiting, why not |
 | `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
 

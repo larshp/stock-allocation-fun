@@ -223,6 +223,8 @@ in, which is also the order they make sense in.
 156. where the shortfall goes
 157. where else the stock is
 158. what the other plant can spare
+159. a transfer somebody can answer
+160. the transfers worth raising, written down
 
 ## Progress
 
@@ -4536,3 +4538,65 @@ having asked: the answer takes a day to arrive and is no.
   spare.
 - **`COVERS` now comes off the spare rather than the shelf**, which is the
   number it always meant: what a transfer from there would actually fix.
+
+### Feature 159 — a transfer somebody can answer (done)
+
+Features 157 and 158 shipped a page worked out from scratch every morning. It
+is the right way to answer "where else is it", and the wrong shape for
+anything to be done about it: a transfer somebody raised yesterday shows up
+again as though it were new, and one they decided against shows up as a fresh
+idea. Twenty three programs read, four change something, and nothing in
+between could be ticked off.
+
+`ZSTOCK_ALLOC_TRF` is the first table in this solution that holds a decision a
+person made rather than one a run made.
+
+- **A proposal has three states and two of them are answers.** Not yet, yes,
+  no. `ANSWER` refuses anything else, `OPEN` included: putting a proposal back
+  to open would lose who had already decided and when.
+- **Only an open proposal is answered.** The `UPDATE` carries the status in its
+  `WHERE`, so two people answering at once end with one answer rather than with
+  the second overwriting the first. The same trick as feature 49's release, and
+  worth the one extra line for the same reason.
+- **`IS_OPEN` asks about a pair of plants, not about a material.** Two plants
+  can both be able to help and a planner may well want to ask both. A check on
+  the material alone would silently make the second one impossible.
+- **Nothing is posted and nothing is committed here.** A transfer between
+  plants is a document somebody raises; this is the note that says it is worth
+  raising. And the caller decides what one unit of work is, as it does
+  everywhere else in this solution.
+- **The table is delivery class `A` and is not reorganised.** A run's result
+  goes stale and `ZSTOCK_ALLOC_REORG` clears it; an answered proposal is the
+  record of who decided what, and it is also what stops the proposal being
+  made again next week.
+
+### Feature 160 — the transfers worth raising, written down (done)
+
+`ZSTOCK_ALLOC_TRF` the program, on top of `ZSTOCK_ALLOC_TRF` the table: for
+everything a plant is short of, the transfers that would help, written down
+once each so the list can be worked through.
+
+- **It defaults to a test run**, like the other three programs that change
+  something. A test run says what it would write down and writes nothing.
+- **An open proposal is said out loud, not made again.** That is what makes
+  this schedulable nightly: a job that made the same note every night would be
+  a worklist nobody could work through, and a job that went silent about the
+  note it already made would look as though the transfer were no longer worth
+  raising.
+- **One commit for the run, not one per proposal.** A proposal is a note,
+  nothing downstream reads it while the program is running, and a job that dies
+  half way leaves the notes it had already made. That is a different answer
+  from the one feature 37 gave the allocation itself, and for a defensible
+  reason: there, each material's answer has to be readable on its own before
+  the next material is decided.
+- **A run with nothing to write down commits nothing**, which is the rule
+  feature 37 settled and feature 49 repeated: a program with nothing of its own
+  to make durable must not make somebody else's work durable for them.
+- **The quantity is capped at the shortfall**, because a transfer of everything
+  the other plant can spare would move a shortage rather than fix one.
+- **The page of feature 158 now marks what has been proposed.** The two have to
+  agree: a page read after the nightly proposing has run would otherwise read
+  as a list of things nobody has thought about yet. It is also why the spare
+  arithmetic sits in both classes rather than the proposal working it out its
+  own way -- a proposal offering a quantity the page does not show is a
+  proposal nobody can check.

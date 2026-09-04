@@ -208,6 +208,7 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
     CONSTANTS c_far   TYPE mard-werks VALUE '3000'.
 
     DATA mo_authority TYPE REF TO lcl_authority_double.
+    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
 
     METHODS setup.
     METHODS teardown.
@@ -243,6 +244,8 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
     METHODS a_plant_that_owes_it_all FOR TESTING RAISING cx_static_check.
     METHODS a_plant_owing_more_than_it_has FOR TESTING RAISING cx_static_check.
     METHODS the_spare_is_what_covers FOR TESTING RAISING cx_static_check.
+    METHODS a_proposed_one_says_so FOR TESTING RAISING cx_static_check.
+    METHODS an_unproposed_one_is_quiet FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -252,6 +255,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
   METHOD setup.
 
     DATA lt_marc TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
+
+    mo_transfer = NEW zcl_alloc_transfer( ).
 
     " the material is extended to three plants, one of which has it flagged
     " for deletion and is therefore nowhere to move goods from
@@ -270,6 +275,9 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
     DELETE FROM marc WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
+    DELETE FROM zstock_alloc_trf WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
   ENDMETHOD.
 
   METHOD list_of.
@@ -282,7 +290,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
       io_store     = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = iv_short
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
-      io_authority = mo_authority ).
+      io_authority = mo_authority
+      io_transfer  = mo_transfer ).
 
     rt_line = lo_cut->run( c_here ).
 
@@ -397,7 +406,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
       io_store     = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = '10'
           confirmed = '10' shortfall = 0 ) ) )
-      io_authority = mo_authority ).
+      io_authority = mo_authority
+      io_transfer  = mo_transfer ).
 
     DATA(lt_line) = lo_cut->run( c_here ).
 
@@ -496,6 +506,37 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
       act = found( it_line    = lt_line
                    iv_pattern = '*2000*60.000*0.000*50.000*10.000*10.000*' )
       msg = 'covers is what the other plant can spare, not what it has' ).
+
+  ENDMETHOD.
+
+  METHOD a_proposed_one_says_so.
+
+    " a page read after the nightly proposing has run must not read as a list
+    " of things nobody has thought about yet
+    mo_transfer = NEW zcl_alloc_transfer( ).
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*already proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD an_unproposed_one_is_quiet.
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*already proposed*' ) ).
 
   ENDMETHOD.
 

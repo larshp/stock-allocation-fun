@@ -100,9 +100,9 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Twenty two programs is a lot to meet at once, so they are grouped by who runs
-them. Everything reads and changes nothing, except the three at the bottom,
-which say so on their selection screens and default to a test run.
+Twenty three programs is a lot to meet at once, so they are grouped by who runs
+them. Everything reads and changes nothing, except the five at the bottom,
+four of which say so on their selection screens and default to a test run.
 
 ### For the planner, in the morning
 
@@ -112,7 +112,7 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_SHORT` | what is short across the plant, soonest and biggest first, with the unit, how long it has been short, the reason and the customer on every line, narrowed to one MRP controller or one customer, and orderable by what has waited longest instead of what is wanted soonest: the list to work through |
 | `ZSTOCK_ALLOC_DISPLAY` | what the last run decided, per material, with the customer on every line — narrowed to the short lines, one MRP controller or one customer |
 | `ZSTOCK_ALLOC_ALT`   | what the plant has said could stand in for each material that came up short, and what those have |
-| `ZSTOCK_ALLOC_ELSE`  | which other plants you may see are sitting on what this one is short of, what is waiting for it there, and what is therefore spare — each plant's stock and demand read the way that plant reads its own |
+| `ZSTOCK_ALLOC_ELSE`  | which other plants you may see are sitting on what this one is short of, what is waiting for it there, and what is therefore spare — each plant's stock and demand read the way that plant reads its own, with the ones somebody has already made a note about marked |
 | `ZSTOCK_ALLOC_WHY`   | the working behind one material — what has been promised or agreed for it by hand, every day of supply, every line competing for it, and what the three come to right now; and where nothing is waiting, why not |
 | `ZSTOCK_ALLOC_PROJ`  | how a material stands week by week, and the first week it runs out |
 
@@ -138,11 +138,12 @@ which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
 
-### The four that change something
+### The five that change something
 
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
+| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
@@ -231,6 +232,21 @@ Both allocation programs read `ZSTOCK_ALLOC_CFG` by default, so a scheduled job
 only has to be told the plant; unticking **Settings come from the plant** hands
 the screen back to somebody trying something out. A plant with no row gets the
 defaults.
+
+## What the solution records
+
+Two tables hold what the solution has decided rather than what somebody has
+configured, so both are delivery class `A` and neither belongs in a transport:
+
+| Table                | What it holds                                            |
+| -------------------- | -------------------------------------------------------- |
+| `ZSTOCK_ALLOC_RES`   | what every run confirmed, per demand line, with the reservation it produced |
+| `ZSTOCK_ALLOC_TRF`   | transfers somebody has proposed between plants, and whether they were raised, dropped or are still waiting for an answer |
+
+`ZSTOCK_ALLOC_RES` is cleared by `ZSTOCK_ALLOC_REORG` once a run is past the
+retention time and holds nothing back. `ZSTOCK_ALLOC_TRF` is not: a proposal
+answered last year is the record of who decided what, and it is what stops the
+same proposal being made again.
 
 ## Authorization
 

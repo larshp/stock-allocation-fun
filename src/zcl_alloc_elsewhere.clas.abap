@@ -17,12 +17,14 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_demand    | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
     METHODS constructor
       IMPORTING
         io_supply    TYPE REF TO zif_supply_reader
         io_demand    TYPE REF TO zif_demand_reader
         io_store     TYPE REF TO zif_allocation_store
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_authority TYPE REF TO zif_allocation_authority
+        io_transfer  TYPE REF TO zcl_alloc_transfer.
 
     "! <p class="shorttext synchronized">Which other plants have what this one is short of</p>
     "!
@@ -43,6 +45,10 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! somebody else's. Both numbers are shown, because the shelf is where a
     "! conversation between two planners starts and the spare is where it
     "! ends.
+    "!
+    "! A row somebody has already made a note about says so, so that a page
+    "! read after `ZSTOCK_ALLOC_TRF` has run does not read as a list of things
+    "! nobody has thought about yet.
     "!
     "! A plant the user may not see is left out rather than refused: this is a
     "! list about the plant that is short, and a user allowed to see that one
@@ -83,6 +89,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_demand    TYPE REF TO zif_demand_reader.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
 
     "! The plants already asked about, and whether the user may see them: a
     "! material short in forty materials of the same plants would otherwise be
@@ -142,6 +149,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_wanted      TYPE string
         iv_spare       TYPE string
         iv_covers      TYPE string
+        iv_note        TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
 
@@ -156,7 +164,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       io_supply    = NEW zcl_supply_per_plant( )
       io_demand    = NEW zcl_demand_per_plant( )
       io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
+      io_transfer  = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
@@ -166,6 +175,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
     mo_demand    = io_demand.
     mo_store     = io_store.
     mo_authority = io_authority.
+    mo_transfer  = io_transfer.
 
   ENDMETHOD.
 
@@ -342,7 +352,13 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         iv_later  = |{ lv_later }|
         iv_wanted = |{ lv_wanted }|
         iv_spare  = |{ lv_spare }|
-        iv_covers = |{ lv_covers }| ) TO lt_row.
+        iv_covers = |{ lv_covers }|
+        iv_note   = COND string(
+          WHEN mo_transfer->is_open( iv_matnr      = is_short-matnr
+                                     iv_to_werks   = iv_werks
+                                     iv_from_werks = lv_werks ) = abap_true
+          THEN `already proposed`
+          ELSE `` ) ) TO lt_row.
 
     ENDLOOP.
 
@@ -360,7 +376,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       iv_later  = `Coming`
       iv_wanted = `Wanted there`
       iv_spare  = `Spare`
-      iv_covers = `Covers` ) TO rt_line.
+      iv_covers = `Covers`
+      iv_note   = `` ) TO rt_line.
     APPEND LINES OF lt_row TO rt_line.
 
   ENDMETHOD.
@@ -372,7 +389,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       && |{ iv_later WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_wanted WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_spare WIDTH = c_width_qty ALIGN = RIGHT }|
-      && |{ iv_covers WIDTH = c_width_qty ALIGN = RIGHT }|.
+      && |{ iv_covers WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |  { iv_note }|.
 
   ENDMETHOD.
 

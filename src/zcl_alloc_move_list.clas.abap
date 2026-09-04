@@ -99,11 +99,18 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr       TYPE string
         iv_from        TYPE string
         iv_quantity    TYPE string
+        iv_needed      TYPE string
         iv_who         TYPE string
         iv_when        TYPE string
         iv_note        TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
+
+    METHODS date_text
+      IMPORTING
+        iv_date        TYPE d
+      RETURNING
+        VALUE(rv_text) TYPE string.
 
 ENDCLASS.
 
@@ -149,6 +156,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
       iv_matnr    = `Material`
       iv_from     = `From`
       iv_quantity = `Quantity`
+      iv_needed   = `Needed by`
       iv_who      = `Proposed by`
       iv_when     = `On`
       iv_note     = `Note` ) TO rt_line.
@@ -159,6 +167,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
         iv_matnr    = |{ ls_open-matnr }|
         iv_from     = |{ ls_open-from_werks }|
         iv_quantity = |{ ls_open-quantity }|
+        iv_needed   = date_text( ls_open-needed_by )
         iv_who      = |{ ls_open-created_by }|
         iv_when     = |{ zcl_alloc_clock=>date_of( ls_open-created_at ) DATE = ISO }|
         iv_note     = |{ ls_open-note }| ) TO rt_line.
@@ -202,13 +211,27 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD date_text.
+
+    " a proposal with no day is wanted now, which is what the worklist of
+    " feature 48 says about a demand line with no date
+    IF iv_date IS INITIAL.
+      rv_text = `now`.
+      RETURN.
+    ENDIF.
+
+    rv_text = |{ iv_date DATE = ISO }|.
+
+  ENDMETHOD.
+
   METHOD format_row.
 
     rv_line = |{ iv_id WIDTH = c_width_id }|
       && |{ iv_matnr WIDTH = c_width_matnr }|
       && |{ iv_from WIDTH = c_width_werks }|
       && |{ iv_quantity WIDTH = c_width_qty ALIGN = RIGHT }|
-      && |  { iv_who WIDTH = c_width_who }|
+      && |  { iv_needed WIDTH = c_width_date }|
+      && |{ iv_who WIDTH = c_width_who }|
       && |{ iv_when WIDTH = c_width_date }|
       && |{ iv_note }|.
 

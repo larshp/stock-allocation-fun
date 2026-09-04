@@ -66,6 +66,8 @@ CLASS ltcl_alloc_transfer DEFINITION FINAL FOR TESTING
     METHODS another_plant_sees_nothing FOR TESTING RAISING cx_static_check.
     METHODS the_newest_comes_first FOR TESTING RAISING cx_static_check.
     METHODS the_note_is_kept FOR TESTING RAISING cx_static_check.
+    METHODS the_soonest_comes_first FOR TESTING RAISING cx_static_check.
+    METHODS no_day_is_wanted_now FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -94,7 +96,8 @@ CLASS ltcl_alloc_transfer IMPLEMENTATION.
       iv_matnr      = c_matnr
       iv_to_werks   = c_here
       iv_from_werks = c_there
-      iv_quantity   = '40' ).
+      iv_quantity   = '40'
+      iv_needed_by  = '20260401' ).
 
     DATA(lt_open) = mo_cut->open_for( c_here ).
 
@@ -106,6 +109,7 @@ CLASS ltcl_alloc_transfer IMPLEMENTATION.
           to_werks   = c_here
           from_werks = c_there
           quantity   = '40'
+          needed_by  = '20260401'
           status     = zcl_alloc_transfer=>c_status-open
           created_by = sy-uname
           created_at = lt_open[ 1 ]-created_at ) )
@@ -328,6 +332,56 @@ CLASS ltcl_alloc_transfer IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_open[ 1 ]-note
       exp = 'agreed with the plant manager' ).
+
+  ENDMETHOD.
+
+  METHOD the_soonest_comes_first.
+
+    " what makes one shortage more urgent than another is the day it is
+    " wanted, not the morning somebody wrote the note
+    mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40'
+      iv_needed_by  = '20260601' ).
+    mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_far
+      iv_quantity   = '10'
+      iv_needed_by  = '20260401' ).
+
+    DATA(lt_open) = mo_cut->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-from_werks
+      exp = c_far
+      msg = 'the transfer wanted in April comes before the one wanted in June' ).
+
+  ENDMETHOD.
+
+  METHOD no_day_is_wanted_now.
+
+    " a proposal somebody typed in without a day is one they are talking
+    " about this morning, and an initial date already sorts as first
+    mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40'
+      iv_needed_by  = '20260401' ).
+    mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_far
+      iv_quantity   = '10' ).
+
+    DATA(lt_open) = mo_cut->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-from_werks
+      exp = c_far ).
 
   ENDMETHOD.
 

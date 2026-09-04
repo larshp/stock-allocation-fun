@@ -10,6 +10,7 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
         to_werks   TYPE zstock_alloc_trf-to_werks,
         from_werks TYPE zstock_alloc_trf-from_werks,
         quantity   TYPE zif_allocation=>ty_quantity,
+        needed_by  TYPE zstock_alloc_trf-needed_by,
         status     TYPE zstock_alloc_trf-status,
         note       TYPE zstock_alloc_trf-note,
         created_by TYPE zstock_alloc_trf-created_by,
@@ -50,6 +51,7 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter iv_to_werks    | <p class="shorttext synchronized">Plant that is short</p>
     "! @parameter iv_from_werks  | <p class="shorttext synchronized">Plant that can spare it</p>
     "! @parameter iv_quantity    | <p class="shorttext synchronized">Quantity in the base unit</p>
+    "! @parameter iv_needed_by   | <p class="shorttext synchronized">Day the shortage is for, empty for now</p>
     "! @parameter iv_note        | <p class="shorttext synchronized">What somebody should know</p>
     "! @parameter rv_proposal    | <p class="shorttext synchronized">The proposal written down</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">It could not be written down</p>
@@ -59,6 +61,7 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_to_werks        TYPE mard-werks
         iv_from_werks      TYPE mard-werks
         iv_quantity        TYPE zif_allocation=>ty_quantity
+        iv_needed_by       TYPE zstock_alloc_trf-needed_by OPTIONAL
         iv_note            TYPE zstock_alloc_trf-note OPTIONAL
       RETURNING
         VALUE(rv_proposal) TYPE zstock_alloc_trf-proposal
@@ -68,8 +71,11 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! <p class="shorttext synchronized">Proposals nobody has answered yet</p>
     "!
     "! For the plant that is short, because that is who is waiting for the
-    "! answer. Newest first: a proposal made this morning is the one somebody
-    "! is talking about.
+    "! answer. Soonest wanted first, which is what makes one shortage more
+    "! urgent than another; a proposal with no day is wanted now and sorts
+    "! first, which is also what an initial date does. Within a day the
+    "! newest is first, because a proposal made this morning is the one
+    "! somebody is talking about.
     "!
     "! @parameter iv_werks    | <p class="shorttext synchronized">Plant that is short</p>
     "! @parameter iv_matnr    | <p class="shorttext synchronized">Material, every one if empty</p>
@@ -149,6 +155,7 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
       to_werks   = iv_to_werks
       from_werks = iv_from_werks
       quantity   = iv_quantity
+      needed_by  = iv_needed_by
       status     = c_status-open
       note       = iv_note
       created_by = sy-uname
@@ -179,6 +186,7 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
            to_werks,
            from_werks,
            quantity,
+           needed_by,
            status,
            note,
            created_by,
@@ -187,7 +195,7 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
       WHERE to_werks = @iv_werks
         AND matnr IN @lt_matnr
         AND status = @c_status-open
-      ORDER BY created_at DESCENDING, proposal
+      ORDER BY needed_by, created_at DESCENDING, proposal
       INTO TABLE @rt_proposal.
     IF sy-subrc <> 0.
       CLEAR rt_proposal.

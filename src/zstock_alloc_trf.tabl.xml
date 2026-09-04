@@ -86,6 +86,16 @@
      <DDTEXT>Quantity in the Base Unit of Measure</DDTEXT>
     </DD03P>
     <DD03P>
+     <FIELDNAME>NEEDED_BY</FIELDNAME>
+     <ADMINFIELD>0</ADMINFIELD>
+     <INTTYPE>D</INTTYPE>
+     <INTLEN>000016</INTLEN>
+     <DATATYPE>DATS</DATATYPE>
+     <LENG>000008</LENG>
+     <MASK>  DATS</MASK>
+     <DDTEXT>Day the Shortage Is For, Empty for Now</DDTEXT>
+    </DD03P>
+    <DD03P>
      <FIELDNAME>STATUS</FIELDNAME>
      <ADMINFIELD>0</ADMINFIELD>
      <INTTYPE>C</INTTYPE>

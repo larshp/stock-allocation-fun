@@ -226,6 +226,7 @@ in, which is also the order they make sense in.
 159. a transfer somebody can answer
 160. the transfers worth raising, written down
 161. reading the proposals, and answering them
+162. the worklist is in the order the goods are needed
 
 ## Progress
 
@@ -4630,3 +4631,28 @@ transfer had been raised, so the only thing the table could do was accumulate.
   raised is dealt with; one that was decided against is worth thinking about
   again when the plant is short of the same thing next month. The table has
   said so since feature 159 and now something writes both.
+
+### Feature 162 — the worklist is in the order the goods are needed (done)
+
+Feature 161's list came back newest first, which is the order the notes were
+written and not the order they matter in. A transfer for a line wanted next
+week and one for a line wanted in October read the same, and the October one
+was at the top because somebody happened to type it in this morning.
+
+- **The day the shortage is for is on the proposal.** It has to be: a worklist
+  cannot be put in order of urgency from a table that does not know when
+  anything is wanted. `ZSTOCK_ALLOC_TRF` gains `NEEDED_BY` and the proposing
+  fills it from the soonest of the material's short lines.
+- **Soonest first, then newest within a day.** The second half is what feature
+  161 had, kept as the tie-break rather than dropped: two transfers wanted the
+  same week are read in the order somebody raised them.
+- **A proposal with no day is wanted now**, and an initial date already sorts
+  first, so nothing had to be written to make that true -- the same accident
+  the worklist of feature 48 relies on. The page prints `now` rather than a
+  blank, because a blank where a date belongs reads as a date nobody filled
+  in and this one means something.
+- **The soonest of the material's lines, not the soonest of the plant's.**
+  A proposal is about a material, so the day it has to be there by is the day
+  the earliest of that material's short lines wanted it. Taking the plant's
+  earliest would have put every proposal on the same day and sorted none of
+  them.

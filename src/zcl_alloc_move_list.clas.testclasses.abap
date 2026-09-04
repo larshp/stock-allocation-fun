@@ -110,6 +110,7 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
       IMPORTING
         iv_matnr           TYPE mard-matnr DEFAULT c_matnr
         iv_from            TYPE mard-werks DEFAULT c_there
+        iv_needed_by       TYPE d DEFAULT '20260401'
         iv_note            TYPE zstock_alloc_trf-note OPTIONAL
       RETURNING
         VALUE(rv_proposal) TYPE zstock_alloc_trf-proposal
@@ -134,6 +135,7 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
     METHODS reading_needs_only_display FOR TESTING RAISING cx_static_check.
     METHODS answering_needs_the_change FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked_first FOR TESTING RAISING cx_static_check.
+    METHODS no_day_reads_as_now FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -178,6 +180,7 @@ CLASS ltcl_move_list IMPLEMENTATION.
       iv_to_werks   = c_here
       iv_from_werks = iv_from
       iv_quantity   = '40'
+      iv_needed_by  = iv_needed_by
       iv_note       = iv_note ).
 
   ENDMETHOD.
@@ -212,7 +215,7 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true(
       act = found( it_line    = lt_line
-                   iv_pattern = |*{ lv_proposal }*{ c_matnr }*2000*40.000*| )
+                   iv_pattern = |*{ lv_proposal }*{ c_matnr }*2000*40.000*2026-04-01*| )
       msg = 'the id is on the line because it is what answering one needs' ).
     cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
                                              iv_pattern = '*1 waiting*' ) ).
@@ -380,6 +383,19 @@ CLASS ltcl_move_list IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_commit->commits( )
       exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD no_day_reads_as_now.
+
+    " a blank column where a date belongs reads as a date nobody filled in,
+    " and this one means something: as soon as possible
+    given_proposal( iv_needed_by = '00000000' ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*now*' ) ).
 
   ENDMETHOD.
 

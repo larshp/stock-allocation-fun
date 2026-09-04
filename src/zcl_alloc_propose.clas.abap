@@ -72,11 +72,13 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! What the note on a proposal says when this made it rather than a person.
     CONSTANTS c_note TYPE zstock_alloc_trf-note VALUE 'proposed by the nightly check'.
 
-    "! One material that is short, and by how much.
+    "! One material that is short, by how much, and the soonest day any of it
+    "! was wanted: what makes one proposal more urgent than another.
     TYPES:
       BEGIN OF ty_short,
-        matnr    TYPE mard-matnr,
-        quantity TYPE zif_allocation=>ty_quantity,
+        matnr     TYPE mard-matnr,
+        quantity  TYPE zif_allocation=>ty_quantity,
+        needed_by TYPE d,
       END OF ty_short.
     TYPES ty_short_tab TYPE STANDARD TABLE OF ty_short WITH EMPTY KEY.
 
@@ -242,14 +244,24 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
         WITH KEY matnr = ls_recorded-matnr.
       IF sy-subrc = 0.
         ls_short-quantity = ls_short-quantity + ls_recorded-shortfall.
+
+        " the soonest of the material's short lines is the day the transfer
+        " has to be there by. A line with no date is wanted now, which an
+        " initial date already sorts as, so it wins whatever else there is.
+        IF ls_recorded-req_date IS INITIAL
+            OR ls_recorded-req_date < ls_short-needed_by.
+          ls_short-needed_by = ls_recorded-req_date.
+        ENDIF.
+
         MODIFY rt_short FROM ls_short
-          TRANSPORTING quantity
+          TRANSPORTING quantity needed_by
           WHERE matnr = ls_short-matnr.
         CONTINUE.
       ENDIF.
 
-      ls_short-matnr    = ls_recorded-matnr.
-      ls_short-quantity = ls_recorded-shortfall.
+      ls_short-matnr     = ls_recorded-matnr.
+      ls_short-quantity  = ls_recorded-shortfall.
+      ls_short-needed_by = ls_recorded-req_date.
       APPEND ls_short TO rt_short.
 
     ENDLOOP.
@@ -370,6 +382,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
           iv_to_werks   = iv_werks
           iv_from_werks = lv_werks
           iv_quantity   = lv_quantity
+          iv_needed_by  = is_short-needed_by
           iv_note       = c_note ).
       ENDIF.
 

@@ -232,6 +232,7 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
         it_demand      TYPE lcl_supply_double=>ty_row_tab OPTIONAL
         it_allowed     TYPE lcl_authority_double=>ty_werks_tab OPTIONAL
         iv_short       TYPE zif_allocation=>ty_quantity DEFAULT '40'
+        iv_req_date    TYPE d DEFAULT '20260401'
         iv_test        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_line) TYPE zcl_alloc_propose=>ty_line_tab
@@ -255,6 +256,7 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS one_commit_for_the_run FOR TESTING RAISING cx_static_check.
     METHODS nothing_written_is_no_commit FOR TESTING RAISING cx_static_check.
     METHODS a_plant_nobody_may_see FOR TESTING RAISING cx_static_check.
+    METHODS the_day_it_is_wanted_carries FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -299,8 +301,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       io_supply    = NEW lcl_supply_double( it_supply )
       io_demand    = NEW lcl_demand_double( it_demand )
       io_store     = NEW lcl_store_double( VALUE #(
-        ( matnr = c_matnr demand_id = 'D1' requested = iv_short
-          confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
+        ( matnr = c_matnr demand_id = 'D1' req_date = iv_req_date
+          requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
       io_authority = NEW lcl_authority_double( lt_allowed )
       io_transfer  = mo_transfer
       io_commit    = mo_commit ).
@@ -460,6 +462,23 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial(
       act = mo_transfer->open_for( c_here )
       msg = 'nobody makes a note about a plant they may not know about' ).
+
+  ENDMETHOD.
+
+  METHOD the_day_it_is_wanted_carries.
+
+    " a proposal without the day it is for cannot be put in order of urgency,
+    " and a worklist in the order the notes were written is a worklist read
+    " from the wrong end
+    run_of(
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_req_date = '20260515' ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-needed_by
+      exp = '20260515' ).
 
   ENDMETHOD.
 

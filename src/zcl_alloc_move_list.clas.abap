@@ -81,6 +81,30 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">Close every proposal whose shortage has gone</p>
+    "!
+    "! Feature 163 marks them and leaves them, because closing a proposal is
+    "! a person's decision. This is that person deciding, for all of them at
+    "! once: the alternative is answering a hundred notes one at a time to say
+    "! the same thing about each, which is how a worklist stops being worked.
+    "!
+    "! They lapse rather than being answered. Nobody decided against these
+    "! transfers; the shortage they were written against went away, and a year
+    "! later that is a different thing to find in the table.
+    "!
+    "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
+    "! @parameter iv_test        | <p class="shorttext synchronized">Say what would be closed, close nothing</p>
+    "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be acted in, or it failed</p>
+    METHODS tidy
+      IMPORTING
+        iv_werks       TYPE mard-werks
+        iv_test        TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab
+      RAISING
+        zcx_allocation.
+
   PRIVATE SECTION.
 
     CONSTANTS c_width_id    TYPE i VALUE 24.
@@ -242,6 +266,53 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
            COND string( WHEN iv_raised = abap_true
                         THEN `is raised`
                         ELSE `was decided against` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD tidy.
+
+    DATA lv_closed TYPE i.
+
+    mo_change->check_plant( iv_werks ).
+
+    APPEND |Plant { iv_werks }, proposals whose shortage has gone| &&
+           COND string( WHEN iv_test = abap_true
+                        THEN ` (test run, nothing closed)`
+                        ELSE `` ) TO rt_line.
+
+    LOOP AT mo_transfer->open_for( iv_werks ) INTO DATA(ls_open).
+
+      IF still_short(
+          iv_werks = iv_werks
+          iv_matnr = ls_open-matnr ) = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      IF iv_test = abap_false.
+        mo_transfer->lapse( ls_open-proposal ).
+      ENDIF.
+
+      lv_closed = lv_closed + 1.
+
+      APPEND |{ ls_open-proposal } { ls_open-matnr } from { ls_open-from_werks }| TO rt_line.
+
+    ENDLOOP.
+
+    IF lv_closed = 0.
+      APPEND `Every proposal still has a shortage behind it` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    " one commit for the run, for the reason feature 160 gives
+    IF iv_test = abap_false.
+      mo_commit->commit( ).
+    ENDIF.
+
+    APPEND || TO rt_line.
+    APPEND |{ lv_closed } proposal(s) | &&
+           COND string( WHEN iv_test = abap_true
+                        THEN `would be closed`
+                        ELSE `closed` ) TO rt_line.
 
   ENDMETHOD.
 

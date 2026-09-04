@@ -68,6 +68,9 @@ CLASS ltcl_alloc_transfer DEFINITION FINAL FOR TESTING
     METHODS the_note_is_kept FOR TESTING RAISING cx_static_check.
     METHODS the_soonest_comes_first FOR TESTING RAISING cx_static_check.
     METHODS no_day_is_wanted_now FOR TESTING RAISING cx_static_check.
+    METHODS a_lapsed_one_is_not_open FOR TESTING RAISING cx_static_check.
+    METHODS lapsing_twice_is_refused FOR TESTING RAISING cx_static_check.
+    METHODS an_answered_one_never_lapses FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -382,6 +385,67 @@ CLASS ltcl_alloc_transfer IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_open[ 1 ]-from_werks
       exp = c_far ).
+
+  ENDMETHOD.
+
+  METHOD a_lapsed_one_is_not_open.
+
+    DATA(lv_proposal) = mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    mo_cut->lapse( lv_proposal ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_cut->open_for( c_here )
+      msg = 'a question that stopped being one is off the worklist' ).
+    cl_abap_unit_assert=>assert_false(
+      mo_cut->is_open( iv_matnr      = c_matnr
+                       iv_to_werks   = c_here
+                       iv_from_werks = c_there ) ).
+
+  ENDMETHOD.
+
+  METHOD lapsing_twice_is_refused.
+
+    DATA(lv_proposal) = mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    mo_cut->lapse( lv_proposal ).
+
+    TRY.
+        mo_cut->lapse( lv_proposal ).
+        cl_abap_unit_assert=>fail( 'only an open proposal is closed' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD an_answered_one_never_lapses.
+
+    " a decision somebody made must survive a housekeeping run: whoever
+    " raised that transfer is not to be told a week later that the question
+    " went away
+    DATA(lv_proposal) = mo_cut->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    mo_cut->answer(
+      iv_proposal = lv_proposal
+      iv_status   = zcl_alloc_transfer=>c_status-done ).
+
+    TRY.
+        mo_cut->lapse( lv_proposal ).
+        cl_abap_unit_assert=>fail( 'an answered proposal is not open to be closed' ).
+      CATCH zcx_allocation.
+    ENDTRY.
 
   ENDMETHOD.
 

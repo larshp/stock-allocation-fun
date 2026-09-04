@@ -201,6 +201,12 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
     METHODS a_shortage_that_has_gone FOR TESTING RAISING cx_static_check.
     METHODS a_material_nobody_ran FOR TESTING RAISING cx_static_check.
     METHODS a_live_one_says_nothing FOR TESTING RAISING cx_static_check.
+    METHODS tidying_closes_the_gone_ones FOR TESTING RAISING cx_static_check.
+    METHODS tidying_keeps_the_live_ones FOR TESTING RAISING cx_static_check.
+    METHODS a_tidy_test_run_closes_none FOR TESTING RAISING cx_static_check.
+    METHODS nothing_to_tidy_says_so FOR TESTING RAISING cx_static_check.
+    METHODS tidying_needs_the_change FOR TESTING RAISING cx_static_check.
+    METHODS one_commit_for_the_tidy FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -537,6 +543,141 @@ CLASS ltcl_move_list IMPLEMENTATION.
                                               iv_pattern = '*no longer short*' ) ).
     cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
                                               iv_pattern = '*shortage that has gone*' ) ).
+
+  ENDMETHOD.
+
+  METHOD tidying_closes_the_gone_ones.
+
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = '40' shortfall = 0 ) ) ).
+
+    DATA(lt_line) = mo_cut->tidy(
+      iv_werks = c_here
+      iv_test  = abap_false ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*1 proposal(s) closed*' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'answering a hundred notes one at a time is how a worklist stops being worked' ).
+
+  ENDMETHOD.
+
+  METHOD tidying_keeps_the_live_ones.
+
+    given_proposal( ).
+    given_proposal( iv_matnr = c_other ).
+
+    " the first material has been served, the second is still short
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = '40' shortfall = 0 )
+        ( matnr = c_other demand_id = 'D2' requested = '10'
+          confirmed = 0 shortfall = '10' reason = 'S' ) ) ).
+
+    mo_cut->tidy(
+      iv_werks = c_here
+      iv_test  = abap_false ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-matnr
+      exp = c_other
+      msg = 'a proposal with a shortage behind it is not housekeeping' ).
+
+  ENDMETHOD.
+
+  METHOD a_tidy_test_run_closes_none.
+
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #( ) ).
+
+    DATA(lt_line) = mo_cut->tidy( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be closed*' ) ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'a program that changes something defaults to changing nothing' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->commits( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD nothing_to_tidy_says_so.
+
+    given_proposal( ).
+
+    DATA(lt_line) = mo_cut->tidy(
+      iv_werks = c_here
+      iv_test  = abap_false ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*Every proposal still has a shortage behind it*' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->commits( )
+      exp = 0
+      msg = 'a run with nothing of its own to make durable commits nothing' ).
+
+  ENDMETHOD.
+
+  METHOD tidying_needs_the_change.
+
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( )
+      it_recorded = VALUE #( ) ).
+
+    TRY.
+        mo_cut->tidy(
+          iv_werks = c_here
+          iv_test  = abap_false ).
+        cl_abap_unit_assert=>fail( 'closing somebody else s notes is not a display activity' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_not_initial( mo_transfer->open_for( c_here ) ).
+
+  ENDMETHOD.
+
+  METHOD one_commit_for_the_tidy.
+
+    given_proposal( ).
+    given_proposal( iv_from = c_far ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #( ) ).
+
+    mo_cut->tidy(
+      iv_werks = c_here
+      iv_test  = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->commits( )
+      exp = 1 ).
 
   ENDMETHOD.
 

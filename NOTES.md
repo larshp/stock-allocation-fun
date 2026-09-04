@@ -228,6 +228,7 @@ in, which is also the order they make sense in.
 161. reading the proposals, and answering them
 162. the worklist is in the order the goods are needed
 163. a proposal whose shortage has gone
+164. closing the ones whose shortage has gone
 
 ## Progress
 
@@ -4683,3 +4684,30 @@ worklist becomes a list nobody opens.
   the first time these two tables are asked about together. The store came in
   through the constructor like everything else, so the tests can say what the
   last run decided without writing one.
+
+### Feature 164 — closing the ones whose shortage has gone (done)
+
+Feature 163 marks the stale proposals and leaves them, on the grounds that
+closing one is a person's decision. That is right about the page and wrong
+about the person: a hundred notes to be answered one at a time, all with the
+same answer, is how a worklist stops being worked. This is the same person
+deciding, once, for all of them.
+
+- **They lapse, they are not answered.** A fourth status rather than reusing
+  "dropped": nobody decided against these transfers, the question they asked
+  went away. A year later the table is read to find out what was decided, and
+  "we said no" and "it stopped mattering" are different answers to that.
+  `LAPSE` is a method of its own, so nothing can lapse a proposal by passing a
+  status through `ANSWER`.
+- **Only an open proposal lapses.** A test says an answered one does not:
+  whoever raised that transfer must not be told a week later by a housekeeping
+  run that the question went away. Both paths now go through one private
+  `CLOSE`, which is where the "and status is open" guard lives -- two copies of
+  that guard is the sort of thing features 148 and 149 were about.
+- **It defaults to a test run** and says what it would close, like the other
+  programs that change something.
+- **One commit for the run**, and none at all when there was nothing to close:
+  the rule feature 37 settled and features 49 and 160 repeated.
+- **Three verbs on one screen.** Naming a proposal answers it, ticking the box
+  tidies, naming neither reads the list. Three programs would be three things
+  to find, and all three are done while looking at the same list.

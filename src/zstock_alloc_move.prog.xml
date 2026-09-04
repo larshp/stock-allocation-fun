@@ -36,6 +36,18 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_TEST</KEY>
+     <ENTRY>Test run, close nothing</ENTRY>
+     <LENGTH>31</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TIDY</KEY>
+     <ENTRY>Close the ones no longer short</ENTRY>
+     <LENGTH>38</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_WERKS</KEY>
      <ENTRY>Plant that is short</ENTRY>
      <LENGTH>27</LENGTH>

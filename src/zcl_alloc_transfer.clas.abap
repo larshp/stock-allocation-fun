@@ -19,14 +19,21 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
     TYPES ty_proposal_tab TYPE STANDARD TABLE OF ty_proposal WITH EMPTY KEY.
 
     "! What has become of a proposal. A proposal is a question put to a
-    "! person, so it has exactly three answers: not yet, yes and no. Nothing
-    "! here posts a transfer -- moving stock between plants is a document
-    "! somebody raises, and this is the note that says it is worth raising.
+    "! person, so it has three answers: not yet, yes and no. Nothing here
+    "! posts a transfer -- moving stock between plants is a document somebody
+    "! raises, and this is the note that says it is worth raising.
+    "!
+    "! LAPSED is not a fourth answer but the question going away: the shortage
+    "! it was written against is gone. It is kept apart from DROPPED because
+    "! "we decided against this" and "this stopped being a question" are
+    "! different things to find in the table a year later, and the second one
+    "! says nothing about what anybody thought of the idea.
     CONSTANTS:
       BEGIN OF c_status,
         open    TYPE zstock_alloc_trf-status VALUE 'O',
         done    TYPE zstock_alloc_trf-status VALUE 'D',
         dropped TYPE zstock_alloc_trf-status VALUE 'X',
+        lapsed  TYPE zstock_alloc_trf-status VALUE 'L',
       END OF c_status.
 
     "! <p class="shorttext synchronized">Wire up the worklist</p>
@@ -103,6 +110,20 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">Close a proposal whose shortage has gone</p>
+    "!
+    "! Not an answer: nobody decided anything, the question stopped being one.
+    "! Only an open proposal lapses, so a decision somebody has already made
+    "! is never overwritten by a housekeeping run.
+    "!
+    "! @parameter iv_proposal    | <p class="shorttext synchronized">The proposal</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">No such open proposal</p>
+    METHODS lapse
+      IMPORTING
+        iv_proposal TYPE zstock_alloc_trf-proposal
+      RAISING
+        zcx_allocation.
+
     "! <p class="shorttext synchronized">Whether this transfer is already on somebody's list</p>
     "!
     "! What stops the same proposal being written down every morning. It asks
@@ -124,6 +145,13 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PRIVATE SECTION.
 
     DATA mo_run_id TYPE REF TO zif_run_id_supplier.
+
+    METHODS close
+      IMPORTING
+        iv_proposal TYPE zstock_alloc_trf-proposal
+        iv_status   TYPE zstock_alloc_trf-status
+      RAISING
+        zcx_allocation.
 
 ENDCLASS.
 
@@ -203,12 +231,21 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD lapse.
+
+    " the same write as an answer, and deliberately the same guard: two
+    " people closing a proposal at once end with one of them doing it
+    close(
+      iv_proposal = iv_proposal
+      iv_status   = c_status-lapsed ).
+
+  ENDMETHOD.
+
   METHOD answer.
 
-    DATA lv_timestamp TYPE zstock_alloc_trf-closed_at.
-
-    " a proposal is a question, and only two of the three states are answers.
-    " Putting one back to open would lose who had already decided.
+    " a proposal is a question, and only two of its states are answers.
+    " Putting one back to open would lose who had already decided, and
+    " lapsing is not something a person does.
     IF iv_status <> c_status-done
         AND iv_status <> c_status-dropped.
       RAISE EXCEPTION NEW zcx_allocation(
@@ -216,10 +253,20 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
         mv_message = |{ iv_proposal } { iv_status }| ).
     ENDIF.
 
+    close(
+      iv_proposal = iv_proposal
+      iv_status   = iv_status ).
+
+  ENDMETHOD.
+
+  METHOD close.
+
+    DATA lv_timestamp TYPE zstock_alloc_trf-closed_at.
+
     GET TIME STAMP FIELD lv_timestamp.
 
-    " only an open one is answered, so two people answering at once end with
-    " one answer rather than with the second overwriting the first
+    " only an open one is closed, so two people closing at once end with one
+    " of them doing it rather than with the second overwriting the first
     UPDATE zstock_alloc_trf
       SET status    = @iv_status,
           closed_by = @sy-uname,

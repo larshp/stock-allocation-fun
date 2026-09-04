@@ -103,7 +103,7 @@
      <DATATYPE>CHAR</DATATYPE>
      <LENG>000001</LENG>
      <MASK>  CHAR</MASK>
-     <DDTEXT>O Open, D Done, X Dropped</DDTEXT>
+     <DDTEXT>O Open, D Done, X Dropped, L Lapsed</DDTEXT>
     </DD03P>
     <DD03P>
      <FIELDNAME>NOTE</FIELDNAME>

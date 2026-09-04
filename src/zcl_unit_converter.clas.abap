@@ -68,6 +68,26 @@ CLASS zcl_unit_converter IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_unit_converter~from_base.
+
+    " typed explicitly, for the reason TO_BASE gives
+    DATA lv_converted TYPE zif_allocation=>ty_quantity.
+
+    DATA(lv_base) = zif_unit_converter~base_unit( iv_matnr ).
+    IF lv_base = iv_uom.
+      rv_quantity = iv_quantity.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_factor) = factor(
+      iv_matnr = iv_matnr
+      iv_uom   = iv_uom ).
+
+    lv_converted = iv_quantity * ls_factor-umren / ls_factor-umrez.
+    rv_quantity  = lv_converted.
+
+  ENDMETHOD.
+
   METHOD zif_unit_converter~base_unit.
 
     " a demand reader converts every schedule line it reads, and one material
@@ -115,9 +135,11 @@ CLASS zcl_unit_converter IMPLEMENTATION.
         iv_uom   = iv_uom ).
     ENDIF.
 
-    " a denominator of zero is broken master data, not a conversion of nothing.
-    " It is refused rather than buffered: nothing may convert with it.
-    IF rs_factor-umren = 0.
+    " a zero on either side is broken master data, not a conversion of nothing.
+    " It is refused rather than buffered: nothing may convert with it. The
+    " numerator matters as much as the denominator, because one of the two
+    " directions divides by each of them.
+    IF rs_factor-umren = 0 OR rs_factor-umrez = 0.
       refuse(
         iv_matnr = iv_matnr
         iv_uom   = iv_uom ).

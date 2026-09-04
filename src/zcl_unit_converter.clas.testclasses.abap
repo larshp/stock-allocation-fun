@@ -26,6 +26,12 @@ CLASS ltcl_unit_converter DEFINITION FINAL FOR TESTING
     METHODS unknown_unit_is_refused FOR TESTING.
     METHODS unknown_material_is_refused FOR TESTING.
     METHODS zero_denominator_is_refused FOR TESTING.
+    METHODS zero_numerator_is_refused FOR TESTING.
+    METHODS back_to_the_base_is_unchanged FOR TESTING RAISING cx_static_check.
+    METHODS back_to_the_sales_unit FOR TESTING RAISING cx_static_check.
+    METHODS back_keeps_the_fraction FOR TESTING RAISING cx_static_check.
+    METHODS back_and_forth_is_the_same FOR TESTING RAISING cx_static_check.
+    METHODS back_refuses_an_unknown_unit FOR TESTING.
     METHODS master_data_is_read_once FOR TESTING RAISING cx_static_check.
     METHODS another_converter_reads_again FOR TESTING RAISING cx_static_check.
 
@@ -162,6 +168,112 @@ CLASS ltcl_unit_converter IMPLEMENTATION.
           iv_quantity = '3'
           iv_uom      = 'CAR' ).
         cl_abap_unit_assert=>fail( 'broken master data must be reported, not divided by' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD zero_numerator_is_refused.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 0 umren = 1 ) ) ).
+
+    TRY.
+        mo_cut->from_base(
+          iv_matnr    = c_matnr
+          iv_quantity = '12'
+          iv_uom      = 'CAR' ).
+        cl_abap_unit_assert=>fail( 'a carton of no pieces is broken master data, not a division' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+  ENDMETHOD.
+
+  METHOD back_to_the_base_is_unchanged.
+
+    given_material( 'PC' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->from_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '7'
+        iv_uom      = 'PC' )
+      exp = '7'
+      msg = 'a quantity already in the unit asked for needs no conversion at all' ).
+
+  ENDMETHOD.
+
+  METHOD back_to_the_sales_unit.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->from_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '24'
+        iv_uom      = 'CAR' )
+      exp = '2'
+      msg = 'twenty four pieces are two cartons of twelve' ).
+
+  ENDMETHOD.
+
+  METHOD back_keeps_the_fraction.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 4 umren = 1 ) ) ).
+
+    " five of a material sold in fours is not a whole number of them, and a
+    " converter that rounded would either promise a piece nobody has or drop
+    " one that was confirmed. Which of those a plant can live with is what the
+    " whole order units rule is for, and it runs before this.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->from_base(
+        iv_matnr    = c_matnr
+        iv_quantity = '5'
+        iv_uom      = 'CAR' )
+      exp = '1.250' ).
+
+  ENDMETHOD.
+
+  METHOD back_and_forth_is_the_same.
+
+    given_material(
+      iv_base = 'PC'
+      it_marm = VALUE #(
+        ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ) ).
+
+    " what a demand reader read and what a write back would put on the
+    " document have to be the same number, or the run promises something the
+    " order does not say
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->from_base(
+        iv_matnr    = c_matnr
+        iv_quantity = mo_cut->to_base(
+          iv_matnr    = c_matnr
+          iv_quantity = '3'
+          iv_uom      = 'CAR' )
+        iv_uom      = 'CAR' )
+      exp = '3' ).
+
+  ENDMETHOD.
+
+  METHOD back_refuses_an_unknown_unit.
+
+    given_material( 'PC' ).
+
+    TRY.
+        mo_cut->from_base(
+          iv_matnr    = c_matnr
+          iv_quantity = '12'
+          iv_uom      = 'CAR' ).
+        cl_abap_unit_assert=>fail( 'a unit with no conversion cannot be written back either' ).
       CATCH zcx_allocation.
     ENDTRY.
 

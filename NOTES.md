@@ -219,6 +219,7 @@ in, which is also the order they make sense in.
 152. the readers take the settings as one thing too
 153. the whole order leaves together
 154. the page says which lines cannot leave alone
+155. the converter goes back the other way
 
 ## Progress
 
@@ -4409,3 +4410,29 @@ which order it belonged to and what else was on it.
   under the item rule, because there is nowhere else to look. A line under the
   order rule is waiting for lines this page does not show -- they are other
   materials -- so the number of the order it is waiting for is the whole point.
+
+### Feature 155 — the converter goes back the other way (done)
+
+`ZIF_UNIT_CONVERTER` had one direction, because everything the solution did
+with a quantity was compare it with stock and stock is in the base unit. A
+quantity that goes back onto the document it came from needs the other
+direction: a line ordered in cartons of twelve is confirmed in cartons, and
+twelve pieces written onto it would be a twelvefold promise. Feature 156 is
+what needs it; this is the seam it needs.
+
+- **It refuses what `TO_BASE` refuses.** Same lookup, same buffer, same
+  exception. A caller that could read a quantity can write it back, and one
+  that could not read it never gets as far as writing.
+- **It does not round, and says so where the interface is read.** Five of a
+  material sold in fours is one and a quarter of them. Rounding up promises a
+  piece nobody has, rounding down drops one that was confirmed, and choosing
+  either quietly is worse than the fraction. Which of the two a plant can live
+  with is the whole order units rule of feature 43, and it runs before this.
+- **A numerator of zero is now refused as well.** `FACTOR` guarded the
+  denominator only, which was enough while one direction divided by it. The
+  other direction divides by the numerator, and a `MARM` row saying a carton
+  holds no pieces would have converted every confirmation to nought and said
+  nothing. Two lines, found by asking what the new arithmetic could divide by.
+- **The round trip is a test.** What a demand reader read and what a write back
+  would put on the document have to be the same number; a test that asserts
+  only the two conversions separately would pass for a pair that disagreed.

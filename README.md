@@ -100,8 +100,8 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Twenty three programs is a lot to meet at once, so they are grouped by who runs
-them. Everything reads and changes nothing, except the five at the bottom,
+Twenty four programs is a lot to meet at once, so they are grouped by who runs
+them. Everything reads and changes nothing, except the six at the bottom,
 four of which say so on their selection screens and default to a test run.
 
 ### For the planner, in the morning
@@ -138,12 +138,13 @@ four of which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
 
-### The five that change something
+### The six that change something
 
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again |
+| `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, with who proposed each one and why; naming one of them answers it, raised or decided against |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |

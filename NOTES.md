@@ -225,6 +225,7 @@ in, which is also the order they make sense in.
 158. what the other plant can spare
 159. a transfer somebody can answer
 160. the transfers worth raising, written down
+161. reading the proposals, and answering them
 
 ## Progress
 
@@ -4600,3 +4601,32 @@ once each so the list can be worked through.
   arithmetic sits in both classes rather than the proposal working it out its
   own way -- a proposal offering a quantity the page does not show is a
   proposal nobody can check.
+
+### Feature 161 — reading the proposals, and answering them (done)
+
+Feature 160 wrote proposals down and nothing could read them back. Running it
+again in test mode says what it would propose now, which is a different
+question: it does not say who proposed what, what they wrote on it, or how
+long it has been sitting there. And there was no way at all to say that a
+transfer had been raised, so the only thing the table could do was accumulate.
+
+- **Two authority objects, not one.** Reading what a plant has decided and
+  deciding for it are different activities -- `03` and `02`, as everywhere else
+  here -- and one object used for both would either lock a display user out of
+  the worklist or let them answer it. This is the first class in the solution
+  that does both kinds of thing, so it is the first that needs both.
+- **The plant is checked before the proposal is read.** Reading the proposal
+  first to find out which plant it belongs to would let somebody discover what
+  another plant is short of by trying its proposal numbers. A test asserts the
+  order by asking for a proposal that does not exist and checking that the
+  authority object was still consulted.
+- **A proposal has to belong to the plant it is answered for.** The id is a
+  UUID, so guessing one is not the risk; answering one somebody happens to have
+  the number for is.
+- **Naming a proposal answers it, naming none lists them.** One screen for the
+  two verbs because the answer is always given while looking at the list, and
+  two programs to find would be one program nobody finds.
+- **Raised and decided against are different answers.** A transfer that was
+  raised is dealt with; one that was decided against is worth thinking about
+  again when the plant is short of the same thing next month. The table has
+  said so since feature 159 and now something writes both.

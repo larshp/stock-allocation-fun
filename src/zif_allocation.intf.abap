@@ -17,6 +17,12 @@ INTERFACE zif_allocation PUBLIC.
   "! Order in which demand is served, 01 first.
   TYPES ty_priority TYPE n LENGTH 2.
 
+  "! Names a set of demand lines that leave the plant together. Initial for a
+  "! line that is free to ship on its own, which is most of them. Wide enough
+  "! for a document number, because an order the customer takes in one delivery
+  "! is the case it exists for.
+  TYPES ty_ship_group TYPE c LENGTH 10.
+
   "! Why a line did not get everything it asked for. Initial when it did.
   TYPES ty_reason TYPE c LENGTH 1.
 
@@ -34,6 +40,7 @@ INTERFACE zif_allocation PUBLIC.
       complete_only TYPE ty_reason VALUE 'D',
       quota         TYPE ty_reason VALUE 'Q',
       too_little    TYPE ty_reason VALUE 'M',
+      ship_together TYPE ty_reason VALUE 'G',
     END OF c_reason.
 
   "! A single requirement competing for stock. COMPLETE means the line is only
@@ -50,18 +57,24 @@ INTERFACE zif_allocation PUBLIC.
   "! line ordered in cartons of twelve pieces, 1 where the document is in the
   "! base unit already. It is what makes a confirmation shippable as ordered,
   "! and only ZCL_ALLOC_WHOLE_UNITS reads it.
+  "!
+  "! SHIP_GROUP names the lines that have to leave together, where COMPLETE
+  "! says the same thing about one line on its own: a part of the group ships
+  "! nothing, so every line of it is served in full or none of it is. It is
+  "! initial for a line that may ship whenever it is ready.
   TYPES:
     BEGIN OF ty_demand,
-      demand_id TYPE ty_demand_id,
-      matnr     TYPE mard-matnr,
-      werks     TYPE mard-werks,
-      quantity  TYPE ty_quantity,
-      req_date  TYPE d,
-      ready_by  TYPE d,
-      priority  TYPE ty_priority,
-      complete  TYPE abap_bool,
-      customer  TYPE vbak-kunnr,
-      unit_size TYPE ty_quantity,
+      demand_id  TYPE ty_demand_id,
+      matnr      TYPE mard-matnr,
+      werks      TYPE mard-werks,
+      quantity   TYPE ty_quantity,
+      req_date   TYPE d,
+      ready_by   TYPE d,
+      priority   TYPE ty_priority,
+      complete   TYPE abap_bool,
+      customer   TYPE vbak-kunnr,
+      unit_size  TYPE ty_quantity,
+      ship_group TYPE ty_ship_group,
     END OF ty_demand.
   TYPES ty_demand_tab TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
 

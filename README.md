@@ -38,7 +38,8 @@ controller. For each material waiting for stock it
    as a fair share, handing over first whatever somebody has promised a line
    by hand, optionally holding every customer to a share of the pool, to the
    quota it agreed for the period, and to whole order units, and giving an
-   item that may only ship complete either all of it or none of it,
+   item that may only ship complete either all of it or none of it, and doing
+   the same for a whole order the customer takes in one delivery,
 5. records the outcome in `ZSTOCK_ALLOC_RES` and commits it,
 6. reserves the confirmed quantities through `BAPI_RESERVATION_CREATE1`, links
    the reservation back onto the recorded run and commits that.

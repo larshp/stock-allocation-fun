@@ -217,6 +217,7 @@ in, which is also the order they make sense in.
 150. the explanation says what is firm
 151. the comparison keeps the rest of the settings
 152. the readers take the settings as one thing too
+153. the whole order leaves together
 
 ## Progress
 
@@ -4349,3 +4350,41 @@ demand than the run does, and nothing says so.
   every line that is waiting, however far out; the horizon says how far ahead
   a run bothers to look, which is a different question. Before, that
   difference was invisible -- two fields simply were not passed.
+
+### Feature 153 — the whole order leaves together (done)
+
+Feature 25 answered the item that ships in one go or not at all, `VBAP-KZTLF`.
+The stronger form of the same rule is on the header: `VBAK-AUTLF` says the
+customer takes the whole order in one delivery, which ties the lines of the
+order to each other rather than each line to itself. Until now a run confirmed
+those lines one by one, so an order with four lines and stock for three was
+answered with three confirmations that could never leave the building -- and
+the stock behind them was tied up until somebody noticed.
+
+- **One rule answers both.** `ZCL_ALLOC_ALL_OR_NOTHING` now distributes over
+  groups: a line marked for complete delivery is a group of one, and an order
+  with `AUTLF` is a group of its lines. Writing a second decorator alongside
+  the first was the obvious move and the wrong one -- feature 148 is what
+  happens when the same arithmetic lives in two places, and it happened within
+  the hour.
+- **The group frees all of its stock, not the last line's.** That is the part a
+  per-line rule cannot do: dropping the order has to give back the six the
+  first line was holding as well as the nothing the second one was, and the
+  test that says so would pass for a rule that only looked at one line at a
+  time if the group had one line in it. It has three.
+- **The order outranks the line.** A line can be under both rules at once, and
+  the reason a dropped line carries is the wider one: `SHIP_TOGETHER` rather
+  than `COMPLETE_ONLY`, because a planner told the item is the problem will go
+  looking at the item, and the item is not the problem.
+- **`SHIP_GROUP` is a name, not a flag.** The rule is "these lines go
+  together", and what makes an order a group is that its lines share a document
+  number. A flag would have said "this line is in a group" without saying
+  which, and a second grouping rule -- a delivery group, an order somebody
+  wants shipped with another one -- would then have had nowhere to put itself.
+- **A dropped line keeps its customer.** It did not before: the answer built
+  for a dropped line filled in five fields and the customer was not one of
+  them, so a line the complete delivery rule refused came back with the
+  customer blank while every other short line carried it. Feature 70 put the
+  customer on the answer and feature 71 reads it; this is the one path that
+  never had it, found by reading the method against the rest of the family
+  rather than by a test.

@@ -34,6 +34,7 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
         kztlf  TYPE vbap-kztlf,
         kunnr  TYPE vbak-kunnr,
         vdatu  TYPE vbak-vdatu,
+        autlf  TYPE vbak-autlf,
       END OF ty_item.
     TYPES ty_item_tab TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
 
@@ -70,6 +71,11 @@ CLASS zcl_so_demand_reader DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! VBAP-KZTLF: the customer takes this item in one delivery or not at all.
     "! Every other value allows the item to ship in parts.
     CONSTANTS c_complete_delivery TYPE vbap-kztlf VALUE 'C'.
+
+    "! VBAK-AUTLF: the customer takes the whole order in one delivery. It is a
+    "! stronger rule than the one on the item, because it ties the lines of the
+    "! order to each other rather than each line to itself.
+    CONSTANTS c_complete_order TYPE vbak-autlf VALUE 'X'.
 
     METHODS build_demand_id
       IMPORTING
@@ -184,20 +190,26 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
         ENDIF.
 
         APPEND VALUE #(
-          demand_id = build_demand_id(
+          demand_id  = build_demand_id(
             iv_vbeln = ls_line-vbeln
             iv_posnr = ls_line-posnr
             iv_etenr = ls_line-etenr )
-          matnr     = ls_item-matnr
-          werks     = ls_item-werks
-          quantity  = lv_open
-          req_date  = ls_line-edatu
-          priority  = COND #( WHEN ls_item-lprio IS INITIAL
-                              THEN c_lowest_priority
-                              ELSE ls_item-lprio )
-          complete  = xsdbool( ls_item-kztlf = c_complete_delivery )
-          customer  = ls_item-kunnr
-          unit_size = lv_unit ) TO rt_demand.
+          matnr      = ls_item-matnr
+          werks      = ls_item-werks
+          quantity   = lv_open
+          req_date   = ls_line-edatu
+          priority   = COND #( WHEN ls_item-lprio IS INITIAL
+                               THEN c_lowest_priority
+                               ELSE ls_item-lprio )
+          complete   = xsdbool( ls_item-kztlf = c_complete_delivery )
+          customer   = ls_item-kunnr
+          unit_size  = lv_unit
+          " an order the customer takes in one delivery makes every line of it
+          " wait for the others, so the document number is what the lines of
+          " the group have in common
+          ship_group = COND #( WHEN ls_item-autlf = c_complete_order
+                               THEN ls_line-vbeln
+                               ELSE space ) ) TO rt_demand.
 
       ENDLOOP.
 
@@ -257,7 +269,8 @@ CLASS zcl_so_demand_reader IMPLEMENTATION.
            item~lprio,
            item~kztlf,
            header~kunnr,
-           header~vdatu
+           header~vdatu,
+           header~autlf
       FROM vbap AS item
       INNER JOIN vbak AS header ON header~vbeln = item~vbeln
       WHERE item~matnr = @iv_matnr

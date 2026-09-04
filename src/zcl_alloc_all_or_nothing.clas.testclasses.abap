@@ -13,6 +13,7 @@ CLASS ltcl_all_or_nothing DEFINITION FINAL FOR TESTING
         iv_quantity      TYPE zif_allocation=>ty_quantity
         iv_priority      TYPE zif_allocation=>ty_priority DEFAULT '01'
         iv_complete      TYPE abap_bool DEFAULT abap_false
+        iv_group         TYPE zif_allocation=>ty_ship_group OPTIONAL
       RETURNING
         VALUE(rs_demand) TYPE zif_allocation=>ty_demand.
 
@@ -26,6 +27,13 @@ CLASS ltcl_all_or_nothing DEFINITION FINAL FOR TESTING
     METHODS no_stock_is_not_a_dropped_line FOR TESTING.
     METHODS no_demand_gives_empty_result FOR TESTING.
     METHODS a_dropped_line_says_why FOR TESTING.
+    METHODS a_whole_order_that_fits_wins FOR TESTING.
+    METHODS a_part_of_an_order_is_none FOR TESTING.
+    METHODS the_group_frees_all_its_stock FOR TESTING.
+    METHODS one_short_line_takes_the_order FOR TESTING.
+    METHODS a_dropped_order_says_why FOR TESTING.
+    METHODS two_orders_are_two_groups FOR TESTING.
+    METHODS the_order_outranks_the_line FOR TESTING.
 
 ENDCLASS.
 
@@ -38,13 +46,196 @@ CLASS ltcl_all_or_nothing IMPLEMENTATION.
 
   METHOD demand.
     rs_demand = VALUE #(
-      demand_id = iv_id
-      matnr     = 'MAT-1'
-      werks     = '1000'
-      quantity  = iv_quantity
-      req_date  = '20260101'
-      priority  = iv_priority
-      complete  = iv_complete ).
+      demand_id  = iv_id
+      matnr      = 'MAT-1'
+      werks      = '1000'
+      quantity   = iv_quantity
+      req_date   = '20260101'
+      priority   = iv_priority
+      complete   = iv_complete
+      ship_group = iv_group ).
+  ENDMETHOD.
+
+  METHOD a_whole_order_that_fits_wins.
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '10'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '6'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'D2'
+                  iv_quantity = '4'
+                  iv_group    = 'ORDER-1' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-confirmed
+      exp = '6' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D2' ]-confirmed
+      exp = '4'
+      msg = 'an order that fits in full is served like any other' ).
+
+  ENDMETHOD.
+
+  METHOD a_part_of_an_order_is_none.
+
+    " six of the ten the order wants: the first line can be served and the
+    " second cannot, and an order that ships in one go can do neither
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '6'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '6'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'D2'
+                  iv_quantity = '4'
+                  iv_group    = 'ORDER-1' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-confirmed
+      exp = 0
+      msg = 'a line that could ship on its own still waits for the order' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-shortfall
+      exp = '6'
+      msg = 'the whole line is short, not the part that was not confirmed' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D2' ]-confirmed
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD the_group_frees_all_its_stock.
+
+    " the order needs ten and only six are there. Dropping it has to free the
+    " six the first of its lines was holding, not the nothing the second was.
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '6'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'GROUPED-1'
+                  iv_quantity = '6'
+                  iv_priority = '01'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'GROUPED-2'
+                  iv_quantity = '4'
+                  iv_priority = '01'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'PLAIN'
+                  iv_quantity = '6'
+                  iv_priority = '02' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'PLAIN' ]-confirmed
+      exp = '6'
+      msg = 'stock the order cannot use is offered to the rest, all of it' ).
+
+  ENDMETHOD.
+
+  METHOD one_short_line_takes_the_order.
+
+    " everything the order asked for is there except one unit on its last
+    " line, which is enough to stop the delivery and so the whole order
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '9'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '6'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'D2'
+                  iv_quantity = '4'
+                  iv_group    = 'ORDER-1' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-confirmed
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D2' ]-confirmed
+      exp = 0
+      msg = 'one unit short on one line is the whole order short' ).
+
+  ENDMETHOD.
+
+  METHOD a_dropped_order_says_why.
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '6'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '6'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'D2'
+                  iv_quantity = '4'
+                  iv_group    = 'ORDER-1' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-reason
+      exp = zif_allocation=>c_reason-ship_together
+      msg = 'the line was not short of stock, it was waiting for its order' ).
+
+  ENDMETHOD.
+
+  METHOD two_orders_are_two_groups.
+
+    " ten to give away and two orders of six. One of them can ship whole and
+    " the other cannot, and the higher priority one is the one that does.
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '10'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'FIRST-1'
+                  iv_quantity = '3'
+                  iv_priority = '01'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'FIRST-2'
+                  iv_quantity = '3'
+                  iv_priority = '01'
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'SECOND-1'
+                  iv_quantity = '3'
+                  iv_priority = '02'
+                  iv_group    = 'ORDER-2' ) )
+        ( demand( iv_id       = 'SECOND-2'
+                  iv_quantity = '3'
+                  iv_priority = '02'
+                  iv_group    = 'ORDER-2' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'FIRST-1' ]-confirmed
+      exp = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'FIRST-2' ]-confirmed
+      exp = '3'
+      msg = 'the order that came first keeps what it can ship' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'SECOND-1' ]-confirmed
+      exp = 0
+      msg = 'dropping one order does not drop the other' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 4
+      msg = 'every line is still answered exactly once' ).
+
+  ENDMETHOD.
+
+  METHOD the_order_outranks_the_line.
+
+    " both rules apply to this line. The order is the wider one, so it is the
+    " one the planner is told about: chasing the line alone would not help.
+    DATA(lt_result) = mo_cut->allocate(
+      iv_available = '6'
+      it_demand    = VALUE #(
+        ( demand( iv_id       = 'D1'
+                  iv_quantity = '6'
+                  iv_complete = abap_true
+                  iv_group    = 'ORDER-1' ) )
+        ( demand( iv_id       = 'D2'
+                  iv_quantity = '4'
+                  iv_group    = 'ORDER-1' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ demand_id = 'D1' ]-reason
+      exp = zif_allocation=>c_reason-ship_together ).
+
   ENDMETHOD.
 
   METHOD a_dropped_line_says_why.

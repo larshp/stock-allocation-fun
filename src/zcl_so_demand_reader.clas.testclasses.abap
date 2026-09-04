@@ -10,6 +10,7 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     CONSTANTS c_matnr_cr2 TYPE vbap-matnr VALUE 'SO-DEMAND-07'.
     CONSTANTS c_matnr_bli TYPE vbap-matnr VALUE 'SO-DEMAND-04'.
     CONSTANTS c_matnr_mto TYPE vbap-matnr VALUE 'SO-DEMAND-05'.
+    CONSTANTS c_matnr_aut TYPE vbap-matnr VALUE 'SO-DEMAND-08'.
     CONSTANTS c_werks     TYPE vbap-werks VALUE '1000'.
 
     DATA mo_cut TYPE REF TO zif_demand_reader.
@@ -42,6 +43,8 @@ CLASS ltcl_so_demand_reader DEFINITION FINAL FOR TESTING
     METHODS each_schedule_line_apart FOR TESTING RAISING cx_static_check.
     METHODS delivered_covers_earliest FOR TESTING RAISING cx_static_check.
     METHODS no_schedule_uses_order_date FOR TESTING RAISING cx_static_check.
+    METHODS complete_order_is_grouped FOR TESTING RAISING cx_static_check.
+    METHODS a_plain_order_is_not_grouped FOR TESTING RAISING cx_static_check.
 
     "! A schedule line of order 0000004712 item 000010, whose order quantity is
     "! 7 and whose header asks for 15 January.
@@ -85,7 +88,8 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt matnr = c_matnr_crd mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_cr2 mtart = 'FERT' meins = 'PC' )
       ( mandt = sy-mandt matnr = c_matnr_bli mtart = 'FERT' meins = 'PC' )
-      ( mandt = sy-mandt matnr = c_matnr_mto mtart = 'FERT' meins = 'PC' ) ).
+      ( mandt = sy-mandt matnr = c_matnr_mto mtart = 'FERT' meins = 'PC' )
+      ( mandt = sy-mandt matnr = c_matnr_aut mtart = 'FERT' meins = 'PC' ) ).
 
     lt_marm = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr meinh = 'CAR' umrez = 12 umren = 1 ) ).
@@ -111,7 +115,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt vbeln = '0000004714' auart = 'TA' vkorg = '1000' vdatu = '20260125'
         cmgst = 'B' )
       ( mandt = sy-mandt vbeln = '0000004715' auart = 'TA' vkorg = '1000' vdatu = '20260125'
-        cmgst = 'C' ) ).
+        cmgst = 'C' )
+      ( mandt = sy-mandt vbeln = '0000004716' auart = 'TA' vkorg = '1000' vdatu = '20260130'
+        autlf = 'X' ) ).
 
     lt_vbap = VALUE #(
       ( mandt = sy-mandt vbeln = '0000004711' posnr = '000010'
@@ -137,7 +143,9 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       ( mandt = sy-mandt vbeln = '0000004714' posnr = '000010'
         matnr = c_matnr_crd werks = c_werks vrkme = 'PC' kwmeng = '4' lprio = '01' )
       ( mandt = sy-mandt vbeln = '0000004715' posnr = '000010'
-        matnr = c_matnr_cr2 werks = c_werks vrkme = 'PC' kwmeng = '3' lprio = '01' ) ).
+        matnr = c_matnr_cr2 werks = c_werks vrkme = 'PC' kwmeng = '3' lprio = '01' )
+      ( mandt = sy-mandt vbeln = '0000004716' posnr = '000010'
+        matnr = c_matnr_aut werks = c_werks vrkme = 'PC' kwmeng = '5' lprio = '01' ) ).
 
     INSERT vbak FROM TABLE @lt_vbak.
     cl_abap_unit_assert=>assert_equals(
@@ -157,14 +165,14 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     DELETE FROM vbap WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
                                    @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
-                                   @c_matnr_cr2 ).
+                                   @c_matnr_cr2, @c_matnr_aut ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
       msg = 'VBAP fixture could not be removed' ).
 
     DELETE FROM vbak WHERE vbeln IN ( '0000004711', '0000004712', '0000004713',
-                                      '0000004714', '0000004715' ).
+                                      '0000004714', '0000004715', '0000004716' ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -172,11 +180,11 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     DELETE FROM lips WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
                                    @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
-                                   @c_matnr_cr2 ).
+                                   @c_matnr_cr2, @c_matnr_aut ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM vbep WHERE vbeln IN ( '0000004711', '0000004712', '0000004713',
-                                      '0000004714', '0000004715' ).
+                                      '0000004714', '0000004715', '0000004716' ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM marm WHERE matnr = @c_matnr.
@@ -184,7 +192,7 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     DELETE FROM mara WHERE matnr IN ( @c_matnr, @c_matnr_2, @c_matnr_blk,
                                    @c_matnr_bli, @c_matnr_mto, @c_matnr_crd,
-                                   @c_matnr_cr2 ).
+                                   @c_matnr_cr2, @c_matnr_aut ).
     cl_abap_unit_assert=>assert_equals(
       act = sy-subrc
       exp = 0
@@ -359,7 +367,8 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
       act = mo_cut->materials_with_demand( c_werks )
-      exp = VALUE zif_demand_reader=>ty_matnr_tab( ( c_matnr ) ( c_matnr_2 ) ( c_matnr_cr2 ) ) ).
+      exp = VALUE zif_demand_reader=>ty_matnr_tab(
+        ( c_matnr ) ( c_matnr_2 ) ( c_matnr_cr2 ) ( c_matnr_aut ) ) ).
 
   ENDMETHOD.
 
@@ -544,6 +553,31 @@ CLASS ltcl_so_demand_reader IMPLEMENTATION.
       act = lt_demand[ demand_id = '00000047120000100000' ]-complete
       exp = abap_false
       msg = 'an item without the indicator may ship in parts' ).
+
+  ENDMETHOD.
+
+  METHOD complete_order_is_grouped.
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr_aut
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_demand[ demand_id = '00000047160000100000' ]-ship_group
+      exp = '0000004716'
+      msg = 'AUTLF = X ties the lines of the order to each other, so the order names the group' ).
+
+  ENDMETHOD.
+
+  METHOD a_plain_order_is_not_grouped.
+
+    DATA(lt_demand) = mo_cut->read_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_demand[ demand_id = '00000047120000100000' ]-ship_group
+      msg = 'an order without the indicator ships its lines whenever they are ready' ).
 
   ENDMETHOD.
 

@@ -1,3 +1,64 @@
+"! Answers with a fixed set of recorded lines.
+CLASS lcl_store_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_store.
+
+    METHODS constructor
+      IMPORTING
+        it_recorded TYPE zif_allocation_store=>ty_recorded_tab.
+
+  PRIVATE SECTION.
+    DATA mt_recorded TYPE zif_allocation_store=>ty_recorded_tab.
+    DATA mv_written  TYPE abap_bool.
+
+ENDCLASS.
+
+
+CLASS lcl_store_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_recorded = it_recorded.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~latest_per_material.
+
+    LOOP AT mt_recorded INTO DATA(ls_recorded).
+      IF iv_matnr IS NOT INITIAL AND ls_recorded-matnr <> iv_matnr.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_recorded TO rt_recorded.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~save.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~read.
+    CLEAR rt_allocation.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~runs_recorded_before.
+    CLEAR rt_run.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~runs_of_material.
+    CLEAR rt_run.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~record_reservation.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~delete_run.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! Allows the plants it was told to allow, and refuses the rest.
 CLASS lcl_authority_double DEFINITION FINAL.
 
@@ -103,8 +164,9 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
 
     METHODS wire
       IMPORTING
-        it_display TYPE lcl_authority_double=>ty_werks_tab
-        it_change  TYPE lcl_authority_double=>ty_werks_tab.
+        it_display  TYPE lcl_authority_double=>ty_werks_tab
+        it_change   TYPE lcl_authority_double=>ty_werks_tab
+        it_recorded TYPE zif_allocation_store=>ty_recorded_tab OPTIONAL.
 
     METHODS given_proposal
       IMPORTING
@@ -136,6 +198,9 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
     METHODS answering_needs_the_change FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked_first FOR TESTING RAISING cx_static_check.
     METHODS no_day_reads_as_now FOR TESTING RAISING cx_static_check.
+    METHODS a_shortage_that_has_gone FOR TESTING RAISING cx_static_check.
+    METHODS a_material_nobody_ran FOR TESTING RAISING cx_static_check.
+    METHODS a_live_one_says_nothing FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -146,9 +211,16 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     mo_transfer = NEW zcl_alloc_transfer( ).
 
+    " every material this test class proposes for is short by default, which
+    " is the state a proposal is made in
     wire(
-      it_display = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
-      it_change  = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+      it_display  = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_change   = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = 0 shortfall = '40' reason = 'S' )
+        ( matnr = c_other demand_id = 'D2' requested = '10'
+          confirmed = 0 shortfall = '10' reason = 'S' ) ) ).
 
   ENDMETHOD.
 
@@ -167,6 +239,7 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     mo_cut = NEW zcl_alloc_move_list(
       io_transfer = mo_transfer
+      io_store    = NEW lcl_store_double( it_recorded )
       io_display  = mo_display
       io_change   = mo_change
       io_commit   = mo_commit ).
@@ -332,8 +405,11 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     " somebody who may look at a plant may read what is waiting for an answer
     wire(
-      it_display = VALUE #( ( c_here ) )
-      it_change  = VALUE #( ) ).
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = 0 shortfall = '40' reason = 'S' ) ) ).
 
     given_proposal( ).
 
@@ -346,8 +422,11 @@ CLASS ltcl_move_list IMPLEMENTATION.
     DATA(lv_proposal) = given_proposal( ).
 
     wire(
-      it_display = VALUE #( ( c_here ) )
-      it_change  = VALUE #( ) ).
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = 0 shortfall = '40' reason = 'S' ) ) ).
 
     TRY.
         mo_cut->answer(
@@ -365,8 +444,11 @@ CLASS ltcl_move_list IMPLEMENTATION.
     " nothing is read for a plant the user may not act in, so a refusal
     " cannot tell them what that plant is short of
     wire(
-      it_display = VALUE #( ( c_here ) )
-      it_change  = VALUE #( ) ).
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = 0 shortfall = '40' reason = 'S' ) ) ).
 
     TRY.
         mo_cut->answer(
@@ -396,6 +478,65 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
                                              iv_pattern = '*now*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_shortage_that_has_gone.
+
+    " stock arrived, or a re-cut gave the line what it wanted. The note is
+    " then one somebody would act on for no reason.
+    DATA(lv_proposal) = given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #(
+        ( matnr = c_matnr demand_id = 'D1' requested = '40'
+          confirmed = '40' shortfall = 0 ) ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*no longer short*' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*1 of them for a shortage that has gone*' )
+      msg = 'the footer says how many, so a long list can be scanned for it' ).
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = |*{ lv_proposal }*| )
+      msg = 'and the proposal stays on the list: it is a person who closes it' ).
+
+  ENDMETHOD.
+
+  METHOD a_material_nobody_ran.
+
+    " a material the newest run has nothing to say about is one nothing is
+    " waiting for, which is a shortage that has gone as surely as one served
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = VALUE #( ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*no longer short*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_live_one_says_nothing.
+
+    given_proposal( ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*no longer short*' ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*shortage that has gone*' ) ).
 
   ENDMETHOD.
 

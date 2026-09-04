@@ -144,7 +144,7 @@ four of which say so on their selection screens and default to a test run.
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again |
-| `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why; naming one of them answers it, raised or decided against |
+| `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, and which of them are for a shortage that has since gone; naming one of them answers it, raised or decided against |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |

@@ -227,6 +227,7 @@ in, which is also the order they make sense in.
 160. the transfers worth raising, written down
 161. reading the proposals, and answering them
 162. the worklist is in the order the goods are needed
+163. a proposal whose shortage has gone
 
 ## Progress
 
@@ -4656,3 +4657,29 @@ was at the top because somebody happened to type it in this morning.
   the earliest of that material's short lines wanted it. Taking the plant's
   earliest would have put every proposal on the same day and sorted none of
   them.
+
+### Feature 163 — a proposal whose shortage has gone (done)
+
+A proposal is written down against a shortage, and shortages resolve
+themselves: stock arrives, an order is cancelled, a re-cut gives the line what
+it wanted. The note then asks somebody to raise a transfer for no reason, and
+because nothing ever closed it, the worklist could only grow. That is how a
+worklist becomes a list nobody opens.
+
+- **The last run of the material is what says whether the note still stands.**
+  Not the shortfall the proposal was written with -- that is what was true when
+  it was made, and the point is what is true now.
+- **A material the newest run has nothing to say about counts as no longer
+  short.** Nothing is waiting for it, which is a shortage that has gone as
+  surely as one that was served. The alternative -- treating silence as "still
+  short" -- would keep exactly the notes that have least behind them.
+- **It stays on the list.** A proposal is a question put to a person and it is
+  theirs to close; a page that quietly dropped it would take the decision away
+  and lose the record of who was asked. What the page does is stop pretending
+  the note is live.
+- **The footer counts them**, because a long list is scanned rather than read
+  and the number is the thing worth acting on.
+- **The class now reads the recorded runs as well as the proposals**, which is
+  the first time these two tables are asked about together. The store came in
+  through the constructor like everything else, so the tests can say what the
+  last run decided without writing one.

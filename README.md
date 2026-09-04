@@ -143,7 +143,7 @@ five of which say so on their selection screens and default to a test run.
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
-| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again |
+| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
 | `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, and which of them are for a shortage that has since gone; naming one of them answers it, raised or decided against, and ticking the box closes every one whose shortage has gone |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
@@ -197,7 +197,11 @@ are meant to be used in when a plant runs unattended, and why:
 5. **`ZSTOCK_ALLOC_PLTS`** with an e-mail address, once for all plants rather
    than once per plant — the seven-in-the-morning page, sent only when a plant
    is short or did not run.
-6. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs
+6. **`ZSTOCK_ALLOC_TRF`** with the test run unticked — the transfers worth
+   raising for what is still short, and closing the notes whose shortage has
+   gone. After the allocation rather than before it, so it proposes against
+   what the night decided and not against last night's answer.
+7. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs
    past the retention time that hold nothing back.
 
 `ZSTOCK_ALLOC_CFGC` belongs in the transport process rather than the nightly

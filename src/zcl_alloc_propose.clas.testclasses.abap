@@ -22,7 +22,17 @@ CLASS lcl_store_double IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_allocation_store~latest_per_material.
-    rt_recorded = mt_recorded.
+
+    " the material is honoured, because the closing of feature 165 asks about
+    " one material at a time and a double that answered with all of them
+    " would call every shortage live
+    LOOP AT mt_recorded INTO DATA(ls_recorded).
+      IF iv_matnr IS NOT INITIAL AND ls_recorded-matnr <> iv_matnr.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_recorded TO rt_recorded.
+    ENDLOOP.
+
   ENDMETHOD.
 
   METHOD zif_allocation_store~save.
@@ -216,6 +226,7 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
     CONSTANTS c_matnr TYPE mard-matnr VALUE 'PROPOSE-01'.
+    CONSTANTS c_other TYPE mard-matnr VALUE 'PROPOSE-02'.
     CONSTANTS c_here  TYPE mard-werks VALUE '1000'.
     CONSTANTS c_there TYPE mard-werks VALUE '2000'.
     CONSTANTS c_far   TYPE mard-werks VALUE '3000'.
@@ -257,6 +268,9 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS nothing_written_is_no_commit FOR TESTING RAISING cx_static_check.
     METHODS a_plant_nobody_may_see FOR TESTING RAISING cx_static_check.
     METHODS the_day_it_is_wanted_carries FOR TESTING RAISING cx_static_check.
+    METHODS a_stale_note_is_closed_first FOR TESTING RAISING cx_static_check.
+    METHODS and_stops_blocking_a_new_one FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_closes_nothing FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -285,7 +299,7 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
     DELETE FROM marc WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
-    DELETE FROM zstock_alloc_trf WHERE matnr = @c_matnr.
+    DELETE FROM zstock_alloc_trf WHERE matnr IN ( @c_matnr, @c_other ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
   ENDMETHOD.
@@ -297,14 +311,19 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       lt_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ).
     ENDIF.
 
+    DATA(lo_store) = NEW lcl_store_double( VALUE #(
+      ( matnr = c_matnr demand_id = 'D1' req_date = iv_req_date
+        requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) ).
+
     DATA(lo_cut) = NEW zcl_alloc_propose(
       io_supply    = NEW lcl_supply_double( it_supply )
       io_demand    = NEW lcl_demand_double( it_demand )
-      io_store     = NEW lcl_store_double( VALUE #(
-        ( matnr = c_matnr demand_id = 'D1' req_date = iv_req_date
-          requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
+      io_store     = lo_store
       io_authority = NEW lcl_authority_double( lt_allowed )
       io_transfer  = mo_transfer
+      io_lapse     = NEW zcl_alloc_lapse(
+        io_transfer = mo_transfer
+        io_store    = lo_store )
       io_commit    = mo_commit ).
 
     rt_line = lo_cut->run(
@@ -479,6 +498,81 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_open[ 1 ]-needed_by
       exp = '20260515' ).
+
+  ENDMETHOD.
+
+  METHOD a_stale_note_is_closed_first.
+
+    " the store double this class wires says the material is short, so a note
+    " about another material has nothing behind it
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*the shortage behind them has gone*' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = mo_transfer->is_open( iv_matnr      = c_other
+                                  iv_to_werks   = c_here
+                                  iv_from_werks = c_there )
+      msg = 'a note with nothing behind it is closed before anything new is written' ).
+
+  ENDMETHOD.
+
+  METHOD and_stops_blocking_a_new_one.
+
+    " this is the defect the feature exists for. A note for the pair is open,
+    " its shortage has gone, and the material is short again for a different
+    " quantity: without the closing, IS_OPEN says "already proposed" and the
+    " new shortage is never written down.
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '5' ).
+
+    DATA(lt_before) = mo_transfer->open_for( c_here ).
+    mo_transfer->lapse( lt_before[ 1 ]-proposal ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '40'
+      msg = 'the note that is open is the one for the shortage there is now' ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_closes_nothing.
+
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    DATA(lt_line) = run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be closed*' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = mo_transfer->is_open( iv_matnr      = c_other
+                                  iv_to_werks   = c_here
+                                  iv_from_werks = c_there )
+      msg = 'a test run of a program that changes something changes nothing' ).
 
   ENDMETHOD.
 

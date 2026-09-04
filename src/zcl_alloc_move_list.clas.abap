@@ -18,14 +18,14 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! display user may read the worklist and may not answer it.
     "!
     "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
-    "! @parameter io_store    | <p class="shorttext synchronized">Where runs are recorded</p>
+    "! @parameter io_lapse    | <p class="shorttext synchronized">Knows which shortages have gone</p>
     "! @parameter io_display  | <p class="shorttext synchronized">Decides who may read a plant</p>
     "! @parameter io_change   | <p class="shorttext synchronized">Decides who may answer for a plant</p>
     "! @parameter io_commit   | <p class="shorttext synchronized">Makes an answer durable</p>
     METHODS constructor
       IMPORTING
         io_transfer TYPE REF TO zcl_alloc_transfer
-        io_store    TYPE REF TO zif_allocation_store
+        io_lapse    TYPE REF TO zcl_alloc_lapse
         io_display  TYPE REF TO zif_allocation_authority
         io_change   TYPE REF TO zif_allocation_authority
         io_commit   TYPE REF TO zif_unit_of_work.
@@ -121,7 +121,7 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_activity_change TYPE activ_auth VALUE '02'.
 
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
-    DATA mo_store    TYPE REF TO zif_allocation_store.
+    DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
     DATA mo_display  TYPE REF TO zif_allocation_authority.
     DATA mo_change   TYPE REF TO zif_allocation_authority.
     DATA mo_commit   TYPE REF TO zif_unit_of_work.
@@ -145,13 +145,6 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_text) TYPE string.
 
-    METHODS still_short
-      IMPORTING
-        iv_werks        TYPE mard-werks
-        iv_matnr        TYPE mard-matnr
-      RETURNING
-        VALUE(rv_short) TYPE abap_bool.
-
 ENDCLASS.
 
 
@@ -159,9 +152,13 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
   METHOD create_default.
 
+    DATA(lo_transfer) = NEW zcl_alloc_transfer( ).
+
     ro_list = NEW zcl_alloc_move_list(
-      io_transfer = NEW zcl_alloc_transfer( )
-      io_store    = NEW zcl_allocation_store( )
+      io_transfer = lo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = lo_transfer
+        io_store    = NEW zcl_allocation_store( ) )
       io_display  = NEW zcl_authority_alloc( c_activity_display )
       io_change   = NEW zcl_authority_alloc( c_activity_change )
       io_commit   = NEW zcl_unit_of_work( ) ).
@@ -171,7 +168,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
   METHOD constructor.
 
     mo_transfer = io_transfer.
-    mo_store    = io_store.
+    mo_lapse    = io_lapse.
     mo_display  = io_display.
     mo_change   = io_change.
     mo_commit   = io_commit.
@@ -207,7 +204,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
     LOOP AT lt_open INTO DATA(ls_open).
 
-      DATA(lv_stale) = xsdbool( still_short(
+      DATA(lv_stale) = xsdbool( mo_lapse->still_short(
         iv_werks = iv_werks
         iv_matnr = ls_open-matnr ) = abap_false ).
       IF lv_stale = abap_true.
@@ -271,8 +268,6 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
   METHOD tidy.
 
-    DATA lv_closed TYPE i.
-
     mo_change->check_plant( iv_werks ).
 
     APPEND |Plant { iv_werks }, proposals whose shortage has gone| &&
@@ -280,23 +275,12 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
                         THEN ` (test run, nothing closed)`
                         ELSE `` ) TO rt_line.
 
-    LOOP AT mo_transfer->open_for( iv_werks ) INTO DATA(ls_open).
+    DATA(ls_outcome) = mo_lapse->run(
+      iv_werks = iv_werks
+      iv_test  = iv_test ).
 
-      IF still_short(
-          iv_werks = iv_werks
-          iv_matnr = ls_open-matnr ) = abap_true.
-        CONTINUE.
-      ENDIF.
-
-      IF iv_test = abap_false.
-        mo_transfer->lapse( ls_open-proposal ).
-      ENDIF.
-
-      lv_closed = lv_closed + 1.
-
-      APPEND |{ ls_open-proposal } { ls_open-matnr } from { ls_open-from_werks }| TO rt_line.
-
-    ENDLOOP.
+    APPEND LINES OF ls_outcome-line TO rt_line.
+    DATA(lv_closed) = ls_outcome-closed.
 
     IF lv_closed = 0.
       APPEND `Every proposal still has a shortage behind it` TO rt_line.
@@ -313,23 +297,6 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
            COND string( WHEN iv_test = abap_true
                         THEN `would be closed`
                         ELSE `closed` ) TO rt_line.
-
-  ENDMETHOD.
-
-  METHOD still_short.
-
-    " the last run of the material is what stands, so that is what says
-    " whether the note is still worth acting on. A material the newest run
-    " has nothing to say about is one nothing is waiting for, which is a
-    " shortage that has gone as surely as one that was served.
-    LOOP AT mo_store->latest_per_material(
-        iv_werks = iv_werks
-        iv_matnr = iv_matnr ) INTO DATA(ls_recorded).
-      IF ls_recorded-shortfall > 0.
-        rv_short = abap_true.
-        RETURN.
-      ENDIF.
-    ENDLOOP.
 
   ENDMETHOD.
 

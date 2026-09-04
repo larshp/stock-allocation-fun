@@ -229,6 +229,7 @@ in, which is also the order they make sense in.
 162. the worklist is in the order the goods are needed
 163. a proposal whose shortage has gone
 164. closing the ones whose shortage has gone
+165. the proposing closes the stale notes itself
 
 ## Progress
 
@@ -4711,3 +4712,33 @@ deciding, once, for all of them.
 - **Three verbs on one screen.** Naming a proposal answers it, ticking the box
   tidies, naming neither reads the list. Three programs would be three things
   to find, and all three are done while looking at the same list.
+
+### Feature 165 — the proposing closes the stale notes itself (done)
+
+Writing down the night order for the README turned up a defect in feature 160.
+`IS_OPEN` stops the same transfer being proposed twice, which is what makes
+the program schedulable. But a proposal that is open and *stale* blocks a new
+one for the same pair of plants just as effectively -- so a material that was
+served last week, went short again this week for a different quantity on a
+different day, gets no note at all. The worklist is silent about the shortage
+that exists because of a note about the one that does not.
+
+- **The proposing closes them itself, before it writes anything.** Feature 164
+  gave a person a button for this, and the README could have said "schedule
+  the tidy before the proposing". Leaving a correctness property to whoever
+  sets up the job is leaving it to chance, and the first plant to schedule
+  them the other way round would have a silent hole.
+- **The rule moved into `ZCL_ALLOC_LAPSE`.** Two callers now ask what "the
+  shortage has gone" means, and two copies of that would drift -- which is
+  what features 148 and 149 are about, and the answer they reached. The
+  worklist's marking asks the same object as its closing, so a row cannot read
+  as stale on the page and live to the closing.
+- **The test names the defect.** A note is open, its shortage has gone, and the
+  material is short again for a different quantity; the assertion is that the
+  proposal left open is the one for the shortage there is now. Without the
+  closing that test fails with "already proposed" and one stale note.
+- **Still one commit.** Closing and proposing are the same run's work, and
+  either of them happening is enough to make it worth committing.
+- **The night order gained a step.** After the allocation rather than before
+  it: the proposing reads what the run decided, and run before it, it would
+  propose against last night's answer.

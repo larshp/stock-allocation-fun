@@ -18,6 +18,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may allocate in a plant</p>
     "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
+    "! @parameter io_lapse     | <p class="shorttext synchronized">Closes the ones whose shortage has gone</p>
     "! @parameter io_commit    | <p class="shorttext synchronized">What makes a proposal durable</p>
     METHODS constructor
       IMPORTING
@@ -26,6 +27,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_store     TYPE REF TO zif_allocation_store
         io_authority TYPE REF TO zif_allocation_authority
         io_transfer  TYPE REF TO zcl_alloc_transfer
+        io_lapse     TYPE REF TO zcl_alloc_lapse
         io_commit    TYPE REF TO zif_unit_of_work.
 
     "! <p class="shorttext synchronized">Write down the transfers that would help</p>
@@ -39,6 +41,12 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! A transfer already waiting for an answer is not proposed again, so this
     "! can be scheduled nightly and only says something when something has
     "! changed.
+    "!
+    "! The proposals whose shortage has gone are closed first, and they have
+    "! to be: an open note blocks a new one for the same pair of plants, so a
+    "! stale one would hide a shortage that came back with a different
+    "! quantity and a different day. Leaving that to whoever schedules the
+    "! programs in the right order is leaving it to chance.
     "!
     "! Nothing is posted. A transfer between plants is a document somebody
     "! raises; this is the note that says it is worth raising, and who said so.
@@ -89,6 +97,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
+    DATA mo_lapse     TYPE REF TO zcl_alloc_lapse.
     DATA mo_commit    TYPE REF TO zif_unit_of_work.
 
     "! The plants already asked about, and whether the user may see them.
@@ -160,12 +169,18 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
   METHOD create_default.
 
+    DATA(lo_transfer) = NEW zcl_alloc_transfer( ).
+    DATA(lo_store)    = NEW zcl_allocation_store( ).
+
     ro_propose = NEW zcl_alloc_propose(
       io_supply    = NEW zcl_supply_per_plant( )
       io_demand    = NEW zcl_demand_per_plant( )
-      io_store     = NEW zcl_allocation_store( )
+      io_store     = lo_store
       io_authority = NEW zcl_authority_alloc( c_activity_change )
-      io_transfer  = NEW zcl_alloc_transfer( )
+      io_transfer  = lo_transfer
+      io_lapse     = NEW zcl_alloc_lapse(
+        io_transfer = lo_transfer
+        io_store    = lo_store )
       io_commit    = NEW zcl_unit_of_work( ) ).
 
   ENDMETHOD.
@@ -177,6 +192,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     mo_store     = io_store.
     mo_authority = io_authority.
     mo_transfer  = io_transfer.
+    mo_lapse     = io_lapse.
     mo_commit    = io_commit.
 
   ENDMETHOD.
@@ -192,12 +208,33 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
                         THEN ` (test run, nothing written down)`
                         ELSE `` ) TO rt_line.
 
+    " the stale notes go first: one of them would otherwise block a new note
+    " for the same pair of plants, and a shortage that came back with a
+    " different quantity would go unproposed
+    DATA(ls_lapsed) = mo_lapse->run(
+      iv_werks = iv_werks
+      iv_test  = iv_test ).
+
+    IF ls_lapsed-closed > 0.
+      APPEND || TO rt_line.
+      APPEND |{ ls_lapsed-closed } proposal(s) | &&
+             COND string( WHEN iv_test = abap_true
+                          THEN `would be closed, `
+                          ELSE `closed, ` ) &&
+             `the shortage behind them has gone` TO rt_line.
+      APPEND LINES OF ls_lapsed-line TO rt_line.
+    ENDIF.
+
     DATA(lt_short) = short_materials(
       iv_werks = iv_werks
       iv_matnr = iv_matnr ).
 
     IF lt_short IS INITIAL.
+      APPEND || TO rt_line.
       APPEND `Nothing was short in the last run` TO rt_line.
+      IF ls_lapsed-closed > 0 AND iv_test = abap_false.
+        mo_commit->commit( ).
+      ENDIF.
       RETURN.
     ENDIF.
 
@@ -211,7 +248,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     " one commit for the run rather than one per proposal: a proposal is a
     " note, nothing downstream reads it while this is running, and a job that
     " dies half way leaves the notes it had already made rather than none
-    IF mv_written > 0.
+    IF mv_written > 0 OR ls_lapsed-closed > 0.
       mo_commit->commit( ).
     ENDIF.
 

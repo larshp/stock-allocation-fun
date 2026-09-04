@@ -245,7 +245,9 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
     mo_cut = NEW zcl_alloc_move_list(
       io_transfer = mo_transfer
-      io_store    = NEW lcl_store_double( it_recorded )
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = mo_transfer
+        io_store    = NEW lcl_store_double( it_recorded ) )
       io_display  = mo_display
       io_change   = mo_change
       io_commit   = mo_commit ).

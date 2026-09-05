@@ -56,6 +56,14 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         ELSEIF request-allow_partial = abap_true.
           result-allocated = <stock>-quantity.
         ENDIF.
+        IF request-lot_size > 0.
+          " Integer thousandths avoid fractional MOD rounding in both runtimes.
+          DATA available_ticks TYPE p LENGTH 9 DECIMALS 0.
+          DATA lot_ticks TYPE p LENGTH 9 DECIMALS 0.
+          available_ticks = result-allocated * 1000.
+          lot_ticks = request-lot_size * 1000.
+          result-allocated = ( available_ticks DIV lot_ticks ) * lot_ticks / 1000.
+        ENDIF.
         <stock>-quantity = <stock>-quantity - result-allocated.
       ENDIF.
       result-shortage = result-requested - result-allocated.
@@ -92,11 +100,22 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           OR request-plant IS INITIAL OR request-storage IS INITIAL
           OR request-unit IS INITIAL OR request-quantity <= 0
           OR request-priority < 0 OR request-required_date IS INITIAL
+          OR request-lot_size < 0
           OR ( request-allow_partial <> abap_true AND request-allow_partial <> abap_false ).
         RAISE EXCEPTION TYPE zcx_stock_alloc
           EXPORTING reason = 'Invalid request key, date, policy or quantity'.
       ENDIF.
       zcl_stock_alloc_date=>validate( request-required_date ).
+      IF request-lot_size > 0.
+        DATA requested_ticks TYPE p LENGTH 9 DECIMALS 0.
+        DATA lot_ticks TYPE p LENGTH 9 DECIMALS 0.
+        requested_ticks = request-quantity * 1000.
+        lot_ticks = request-lot_size * 1000.
+        IF requested_ticks MOD lot_ticks <> 0.
+          RAISE EXCEPTION TYPE zcx_stock_alloc
+            EXPORTING reason = |Request { request-request_id } is not a whole number of lots|.
+        ENDIF.
+      ENDIF.
       INSERT request INTO TABLE seen_requests.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_stock_alloc

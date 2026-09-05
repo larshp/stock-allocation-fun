@@ -20,6 +20,7 @@ INTERFACE zif_stock_alloc_types PUBLIC.
            priority      TYPE i,
            required_date TYPE d,
            allow_partial TYPE abap_bool,
+           lot_size      TYPE ty_quantity,
          END OF ty_request.
   TYPES ty_requests TYPE STANDARD TABLE OF ty_request WITH DEFAULT KEY.
   TYPES: BEGIN OF ty_allocation,

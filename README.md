@@ -7,6 +7,7 @@ Custom objects live in `src/`; local SAP substitutes live in `stubs/`.
 
 - Allocate by ascending numeric priority, requirement date, then request ID.
 - Support partial fulfillment or complete-only requests; report every shortage.
+- Optionally enforce whole-lot demand and round partial allocation down to lot size.
 - Preserve a safety-stock floor and isolate material/plant/storage combinations.
 - Subtract externally supplied commitments before allocating remaining stock.
 - Reject duplicate keys, nonpositive demand and incompatible units.
@@ -56,6 +57,11 @@ Use SAP internal material, cost-center and unit representations; the current
 material contract is 18 characters. No unit conversion, batch selection or special
 stock handling is performed. For a pure calculation with safety stock, call
 `zcl_stock_allocator->allocate` with your own stock rows.
+
+Request `lot_size` defaults to zero (no lot constraint). A positive value requires
+the requested quantity to be an exact multiple. For example, demand 12 with lot
+size 4 and stock 10 allocates 8, leaving 2 for later requests. Quantities use three
+decimal places; fractional lots such as 0.100 are supported.
 
 Each stock row may specify `committed` and `safety_stock`. Available quantity is
 `max(0, physical - committed - safety_stock)`. To apply these to a SAP source,

@@ -17,6 +17,11 @@
   contracts, but cannot validate SAP authorizations, customizing, locking or updates.
 - A MARD unrestricted-stock snapshot is not ATP. Production callers must account
   for existing requirements and obtain appropriate locks before making reservations.
+- The RESB adapter reads explicitly selected order components but does not check
+  order release/TECO status. It excludes special stock rather than allocating it;
+  callers must select eligible orders and use the appropriate downstream process.
+- The stock reader currently performs one MARD read per distinct location and one
+  MARA read per found location. Large selection performance needs SAP measurement.
 
 ## Resolved
 

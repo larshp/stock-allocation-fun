@@ -1,0 +1,6 @@
+{
+  "open-abap-core": {
+    "url": "https://github.com/open-abap/open-abap-core",
+    "commit": "73399856030a849c849dfa303a8ac896acc9241a"
+  }
+}

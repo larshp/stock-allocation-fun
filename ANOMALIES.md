@@ -1,0 +1,62 @@
+# Anomalies and limitations
+
+## Open
+
+- Transpiler 2.13.74 emits `let return = INPUT.tables?.return` for a BAPI TABLES
+  parameter, while its references correctly use `$return`. The local test command
+  applies an exact, single-line correction per generated function group in
+  `mb_bus2093.fugr.mjs` and `mb_bus2017.fugr.mjs`.
+  The SAP ABAP signature is unchanged, and lint/transpile syntax checks stay enabled.
+  Remove `test/fix-transpiled-bapi.mjs` after an upstream release fixes declarations.
+
+- The transpiler does not emit implicit SAP client predicates for this SELECT.
+  SQLite fixtures therefore use one client; native SAP client isolation needs an
+  ABAP Unit/integration check in the target system. Production uses normal Open SQL
+  automatic client handling, with no CLIENT SPECIFIED or cross-client access.
+
+- No SAP system is connected. Transpiled tests can validate algorithm and adapter
+  contracts, but cannot validate SAP authorizations, customizing, locking or updates.
+- A MARD unrestricted-stock snapshot is not ATP. Production callers must account
+  for existing requirements and obtain appropriate locks before making reservations.
+- The goods-issue adapter covers independent cost-center consumption only (201),
+  with no batch, serial number, special stock or reservation reference support.
+  Its local standard stub always returns an error; real SAP posting and accounting
+  behavior require development-system integration validation.
+- The RESB adapter reads explicitly selected order components but does not check
+  order release/TECO status. It excludes special stock rather than allocating it;
+  callers must select eligible orders and use the appropriate downstream process.
+- The stock reader currently performs one MARD read per distinct location and one
+  MARA read per distinct found material per call. Large selection performance
+  still needs SAP measurement; repeated material-master reads across locations
+  were removed without introducing a cache across calls.
+
+## Resolved
+
+- Reservation validation rejected valid decimal allocations in the transpiled
+  runtime: `0.300 - 0.100` compared directly with `0.200` used binary floating-point
+  expression precision. Assigning the expected shortage to the three-decimal
+  quantity type before comparison restores the ABAP quantity contract. Added a
+  fractional reservation regression test.
+- Inline DATA declarations in START-OF-SELECTION transpiled without JavaScript
+  variable declarations. The demo uses explicit global declarations and has a
+  report execution smoke check in addition to ABAP Unit tests.
+- Windows PowerShell execution policy blocks npm.ps1 on this workstation. Use
+  `npm.cmd test` to run the same validation without changing execution policy.
+
+- Initial validation accepted impossible dates such as 2026-02-29. Added Gregorian
+  calendar validation, including century leap-year cases, at allocation and BAPI
+  boundaries.
+
+- The reservation stub initially transpiled to an empty function group because
+  the SAPL main program and UXX include reference were missing. Added standard
+  abapGit function-group program/include metadata so the BAPI is registered.
+
+- Initial transpiled execution failed with `cl_abap_objectdescr is not defined`.
+  The transpiler requires `addCommonJS: true` to emit class dependency imports.
+  Enabled this option; all 12 initial ABAP Unit tests passed.
+- Escaped `@requests-field` in a joined FOR ALL ENTRIES query was emitted as
+  JavaScript object text followed by SQL subtraction. Classic syntax was also
+  rejected by strict syntax checking. Replaced it with deduplicated, fully keyed
+  SELECT SINGLE reads. A future bulk reader should retest FAE support first.
+- The SQLite driver has an independent published version (2.13.40), rather than
+  the transpiler/runtime version (2.13.74); pinned the available driver.

@@ -18,28 +18,14 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         EXPORTING reason = 'Cost center, base date and valid test mode are required'.
     ENDIF.
     zcl_stock_alloc_date=>validate( base_date ).
+    zcl_stock_alloc_result=>validate( allocations ).
+    zcl_stock_alloc_origin=>require_independent( allocations ).
     DATA header TYPE bapi2093_res_head.
     header-res_date = base_date.
     header-move_type = '201'.
     header-cost_ctr = cost_center.
     DATA items TYPE ty_items.
-    DATA seen TYPE HASHED TABLE OF zif_stock_alloc_types=>ty_allocation WITH UNIQUE KEY request_id.
     LOOP AT allocations INTO DATA(allocation).
-      IF allocation-request_id IS INITIAL OR allocation-material IS INITIAL
-          OR allocation-plant IS INITIAL OR allocation-storage IS INITIAL
-          OR allocation-unit IS INITIAL OR allocation-required_date IS INITIAL
-          OR allocation-requested <= 0 OR allocation-allocated < 0
-          OR allocation-allocated > allocation-requested
-          OR allocation-shortage <> allocation-requested - allocation-allocated.
-        RAISE EXCEPTION TYPE zcx_stock_alloc
-          EXPORTING reason = 'Invalid allocation cannot be reserved'.
-      ENDIF.
-      zcl_stock_alloc_date=>validate( allocation-required_date ).
-      INSERT allocation INTO TABLE seen.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_stock_alloc
-          EXPORTING reason = 'Duplicate allocation cannot be reserved'.
-      ENDIF.
       IF allocation-allocated = 0.
         CONTINUE.
       ENDIF.

@@ -25,9 +25,188 @@ CLASS ltcl_allocator DEFINITION FINAL FOR TESTING
     METHODS fractional_lot_sizes FOR TESTING RAISING zcx_stock_alloc.
     METHODS rejects_incomplete_lot_request FOR TESTING.
     METHODS decimal_stock_conservation FOR TESTING RAISING zcx_stock_alloc.
+    METHODS minimum_preserves_stock FOR TESTING RAISING zcx_stock_alloc.
+    METHODS minimum_boundary FOR TESTING RAISING zcx_stock_alloc.
+    METHODS minimum_after_lot_rounding FOR TESTING RAISING zcx_stock_alloc.
+    METHODS fractional_minimum FOR TESTING RAISING zcx_stock_alloc.
+    METHODS rejects_invalid_minimum FOR TESTING.
+    METHODS explains_allocation_decisions FOR TESTING RAISING zcx_stock_alloc.
+    METHODS explains_policy_precedence FOR TESTING RAISING zcx_stock_alloc.
+    METHODS preserves_request_origin FOR TESTING RAISING zcx_stock_alloc.
+    METHODS rejects_incomplete_origin FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_allocator IMPLEMENTATION.
+  METHOD preserves_request_origin.
+    requests[ 2 ]-origin = VALUE #( order_id         = '000000001000'
+                                    reservation      = '0000000100'
+                                    reservation_item = '0001'
+                                    reservation_type = '1' ).
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-origin
+                                      exp   = requests[ 2 ]-origin ).
+    cl_abap_unit_assert=>assert_initial( result[ 2 ]-origin ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_origin.
+    DATA origins TYPE STANDARD TABLE OF zif_stock_alloc_types=>ty_origin WITH DEFAULT KEY.
+    origins = VALUE #( ( reservation = '0000000100' )
+                       ( reservation_item = '0001' )
+                       ( reservation_type = '1' ) ).
+    LOOP AT origins INTO DATA(origin).
+      requests[ 1 ]-origin = origin.
+      TRY.
+          allocator->allocate( stocks   = stocks
+                               requests = requests ).
+          cl_abap_unit_assert=>fail( 'Incomplete reservation origin accepted' ).
+        CATCH zcx_stock_alloc.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD explains_allocation_decisions.
+    requests = VALUE #( ( request_id = 'A' material = 'MAT1' plant = '1000' storage = '0001'
+                          unit = 'EA' quantity = 12 required_date = '20260906' allow_partial = abap_true ) ).
+    stocks = VALUE #( ( material = 'MAT1' plant = '1000' storage = '0001'
+                        unit = 'EA' quantity = 20 safety_stock = 2 committed = 3 ) ).
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_full ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_before
+                                      exp   = 15 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_after
+                                      exp   = 3 ).
+    stocks[ 1 ]-quantity = 10.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_insufficient ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_before
+                                      exp   = 5 ).
+    cl_abap_unit_assert=>assert_initial( result[ 1 ]-available_after ).
+    stocks[ 1 ]-quantity = 0.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_empty ).
+    CLEAR stocks.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_missing ).
+    cl_abap_unit_assert=>assert_initial( result[ 1 ]-available_before ).
+    cl_abap_unit_assert=>assert_initial( result[ 1 ]-available_after ).
+  ENDMETHOD.
+
+  METHOD explains_policy_precedence.
+    requests = VALUE #( ( request_id = 'A' material = 'MAT1' plant = '1000' storage = '0001'
+                          unit = 'EA' quantity = 12 required_date = '20260906'
+                          lot_size = 4 min_allocation = 9 ) ).
+    stocks = VALUE #( ( material = 'MAT1' plant = '1000' storage = '0001' unit = 'EA' quantity = 10 ) ).
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_complete ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_after
+                                      exp   = 10 ).
+    requests[ 1 ]-allow_partial = abap_true.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_minimum ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_after
+                                      exp   = 10 ).
+    requests[ 1 ]-min_allocation = 0.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_lot ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-available_after
+                                      exp   = 2 ).
+    stocks[ 1 ]-quantity = 3.
+    requests[ 1 ]-min_allocation = 9.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_lot ).
+    stocks[ 1 ]-quantity = 0.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-reason
+                                      exp   = zif_stock_alloc_types=>reason_empty ).
+  ENDMETHOD.
+
+  METHOD minimum_preserves_stock.
+    stocks[ 1 ]-quantity = 4.
+    requests[ 2 ]-min_allocation = 5.
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-shortage
+                                      exp   = 6 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-allocated
+                                      exp   = 4 ).
+  ENDMETHOD.
+
+  METHOD minimum_boundary.
+    stocks[ 1 ]-quantity = 5.
+    requests[ 2 ]-min_allocation = 5.
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 5 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-status
+                                      exp   = zif_stock_alloc_types=>status_partial ).
+    stocks[ 1 ]-quantity = 10.
+    result = allocator->allocate( stocks   = stocks
+                                  requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 6 ).
+  ENDMETHOD.
+
+  METHOD minimum_after_lot_rounding.
+    stocks[ 1 ]-quantity = 7.
+    requests[ 2 ]-quantity = 8.
+    requests[ 2 ]-lot_size = 4.
+    requests[ 2 ]-min_allocation = 5.
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-allocated
+                                      exp   = 7 ).
+  ENDMETHOD.
+
+  METHOD fractional_minimum.
+    stocks[ 1 ]-quantity = '0.250'.
+    requests[ 2 ]-quantity = '0.300'.
+    requests[ 2 ]-min_allocation = '0.200'.
+    requests[ 2 ]-lot_size = '0.100'.
+    DATA(result) = allocator->allocate( stocks = stocks
+                                      requests = requests ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = '0.200' ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-allocated
+                                      exp   = '0.050' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_minimum.
+    DATA values TYPE STANDARD TABLE OF zif_stock_alloc_types=>ty_quantity WITH DEFAULT KEY.
+    values = VALUE #( ( -1 ) ( 7 ) ).
+    LOOP AT values INTO DATA(minimum).
+      requests[ 2 ]-min_allocation = minimum.
+      TRY.
+          allocator->allocate( stocks   = stocks
+                               requests = requests ).
+          cl_abap_unit_assert=>fail( 'Invalid minimum accepted' ).
+        CATCH zcx_stock_alloc.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD rounds_down_to_whole_lots.
     requests[ 2 ]-quantity = 12.
     requests[ 2 ]-lot_size = 4.

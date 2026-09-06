@@ -8,7 +8,8 @@
     "prelint": "npm run deps",
     "preunit": "npm run deps",
     "lint": "abaplint",
-    "unit": "abap_transpile abap_transpile.json && node test/fix-transpiled-bapi.mjs && node output/index.mjs",
+    "unit": "abap_transpile abap_transpile.json && node test/fix-transpiled-bapi.mjs && node output/index.mjs && node test/demo.mjs && node test/stock-read-performance.mjs",
+    "demo": "npm run unit",
     "test": "npm run lint && npm run unit"
   },
   "devDependencies": {

@@ -5,21 +5,9 @@ ENDCLASS.
 
 CLASS zcl_stock_order_source_sap IMPLEMENTATION.
   METHOD zif_stock_order_source~read.
-    zcl_stock_alloc_date=>validate( through_date ).
-    DATA seen TYPE HASHED TABLE OF zif_stock_order_source=>ty_order WITH UNIQUE KEY order_id.
+    zcl_stock_order_policy=>validate( orders       = orders
+                                      through_date = through_date ).
     LOOP AT orders INTO DATA(order).
-      IF order-order_id IS INITIAL OR order-priority < 0
-          OR ( order-allow_partial <> abap_true AND order-allow_partial <> abap_false ).
-        RAISE EXCEPTION TYPE zcx_stock_alloc
-          EXPORTING reason = 'Invalid order selection or allocation policy'.
-      ENDIF.
-      INSERT order INTO TABLE seen.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_stock_alloc
-          EXPORTING reason = |Duplicate order selection { order-order_id }|.
-      ENDIF.
-    ENDLOOP.
-    LOOP AT orders INTO order.
       DATA components TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
       SELECT rsnum, rspos, rsart, matnr, werks, lgort, meins, bdmng, enmng, bdter
         FROM resb
@@ -45,6 +33,10 @@ CLASS zcl_stock_order_source_sap IMPLEMENTATION.
                         unit          = component-meins
                         quantity      = component-bdmng - component-enmng
                         required_date = component-bdter
+                        origin        = VALUE #( order_id         = order-order_id
+                                                 reservation      = component-rsnum
+                                                 reservation_item = component-rspos
+                                                 reservation_type = component-rsart )
                         priority      = order-priority
                         allow_partial = order-allow_partial ) TO requests.
       ENDLOOP.

@@ -10,6 +10,7 @@ CLASS ltcl_source DEFINITION FINAL FOR TESTING DURATION SHORT RISK LEVEL HARMLES
     METHODS deleted_location FOR TESTING RAISING zcx_stock_alloc.
     METHODS missing_master FOR TESTING.
     METHODS service_simulation FOR TESTING RAISING zcx_stock_alloc.
+    METHODS multiple_material_locations FOR TESTING RAISING zcx_stock_alloc.
 ENDCLASS.
 
 CLASS ltcl_source IMPLEMENTATION.
@@ -71,5 +72,25 @@ CLASS ltcl_source IMPLEMENTATION.
                                        exp  = 10 ).
     cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-shortage
                                        exp  = 2 ).
+  ENDMETHOD.
+
+  METHOD multiple_material_locations.
+    DATA(extra) = requests[ 1 ].
+    extra-storage = '0002'.
+    APPEND extra TO requests.
+    extra-storage = '0001'.
+    extra-material = 'NEGATIVE'.
+    APPEND extra TO requests.
+    DATA(stocks) = source->read( requests ).
+    cl_abap_unit_assert=>assert_equals( act = lines( stocks )
+                                      exp   = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = stocks[ 1 ]-quantity
+                                      exp   = 10 ).
+    cl_abap_unit_assert=>assert_equals( act = stocks[ 2 ]-quantity
+                                      exp   = 25 ).
+    cl_abap_unit_assert=>assert_equals( act = stocks[ 2 ]-unit
+                                      exp   = 'EA' ).
+    cl_abap_unit_assert=>assert_equals( act = stocks[ 3 ]-unit
+                                      exp   = 'KG' ).
   ENDMETHOD.
 ENDCLASS.

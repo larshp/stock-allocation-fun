@@ -20,11 +20,49 @@
   modulo differences between native ABAP and JavaScript.
 - Goal was observed paused after the passing lot-size run; recording this checkpoint.
 
+## 2026-09-06
+
+- Added executable report ZSTOCK_ALLOC_DEMO and a transpiled output smoke check;
+  fixed sample demand demonstrates the pure engine without database access.
+- Added six portable service tests for unbound sources, read avoidance, error
+  propagation, duplicate stock rejection and fresh snapshots on repeated calls.
+- Added six reservation tests for abort/exit messages, duplicate allocations,
+  invalid dates, empty writes, invalid test mode and preservation of SAP warnings.
+- `npm.cmd test` passed 58 ABAP Unit methods plus the demo smoke check with zero
+  abaplint issues. Documented report transpiler and PowerShell execution findings.
+- Added optional request min_allocation, checked after lot rounding. Rejected
+  small allocations leave stock for later demand; invalid minimum bounds fail validation.
+- Minimum-quantity suite passed: 63 ABAP Unit methods and demo smoke, zero lint issues.
+- Added structured allocation reason codes and per-request availability before/after
+  allocation, with policy-precedence tests. 65 ABAP Unit methods and demo smoke pass.
+- Added injectable order simulation service, shared selection validation and horizon
+  checks. Empty work skips reads; source errors propagate. SAP fixture integration
+  now exercises the service. 72 ABAP Unit methods plus demo smoke pass, zero lint issues.
+- Fixed a reproduced fractional reservation validation failure in the transpiled
+  runtime; the 0.300/0.100/0.200 regression passes (73 methods).
+- Added grouped allocation summaries with counts, earliest shortage date, unit/key
+  isolation, deterministic ordering and quantity overflow checks. Shared allocation
+  result validation now serves summaries and reservations. All 79 unit methods and
+  demo smoke pass with zero lint issues, including maximum-quantity boundaries.
+- Added cost-center goods-issue BAPI adapter (GM code 03, movement 201), default
+  simulation, complete material-document key validation and caller-owned LUW.
+  Added separate SAP standard BAPI2017 stubs that always fail locally. Eight new
+  tests cover field mapping, decimal quantities, test mode, SAP errors/warnings,
+  invalid inputs, incomplete document keys and the standard stub. All 87 methods
+  plus the demo smoke pass; zero lint issues. SAP documentation linked in README.
+- Stock reads now reuse MARA units across sorted locations within each call. 88
+  ABAP Unit methods pass. Added SQL-read-count checks proving three location reads
+  use only two material reads and that a second call sees changed base units.
+- Demo execution now imports only the pure runtime/classes and needs no database
+  fixtures. Its output smoke check still passes.
+- Added inclusive from_date/through_date to general simulations. All input demand
+  is validated before filtering; out-of-window demand does not consume stock or
+  trigger reads. 92 ABAP Unit methods, demo and SQL-count checks pass; zero lint issues.
+
 ## Next iterations
 
-- Add a read-only executable example using the pure allocation engine.
-- Broaden SAP adapter failure-path coverage (abort messages, duplicate allocations,
-  invalid dates and empty writes) and portable service test-double coverage.
+- Preserve SAP order/reservation provenance and reject accidental independent
+  cost-center writes for demand that already references a reservation.
 - Validate real SAP integration contracts, authorizations and client handling when
   a development system becomes available; do not treat local stubs as SAP proof.
 - Revisit bulk stock reads when the transpiler supports the joined FAE expression.

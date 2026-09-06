@@ -32,6 +32,17 @@ CLASS ltcl_reservation DEFINITION FINAL FOR TESTING DURATION SHORT RISK LEVEL HA
     METHODS rejects_invalid_results FOR TESTING.
     METHODS skips_zero_allocations FOR TESTING RAISING zcx_stock_alloc.
     METHODS standard_stub_fails_closed FOR TESTING.
+    METHODS rejects_abort_messages FOR TESTING.
+    METHODS rejects_duplicate_allocations FOR TESTING.
+    METHODS rejects_invalid_dates FOR TESTING.
+    METHODS rejects_empty_writes FOR TESTING.
+    METHODS rejects_invalid_test_mode FOR TESTING.
+    METHODS preserves_warnings FOR TESTING RAISING zcx_stock_alloc.
+    METHODS accepts_fractional_results FOR TESTING RAISING zcx_stock_alloc.
+    METHODS rejects_referenced_demand FOR TESTING.
+    METHODS assert_rejected_before_call
+      IMPORTING base_date TYPE d DEFAULT '20260905'
+                test_run  TYPE abap_bool DEFAULT abap_true.
 ENDCLASS.
 
 CLASS ltcl_reservation IMPLEMENTATION.
@@ -130,5 +141,92 @@ CLASS ltcl_reservation IMPLEMENTATION.
         cl_abap_unit_assert=>assert_equals( act = error->messages[ 1 ]-type
                                             exp = 'E' ).
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD assert_rejected_before_call.
+    TRY.
+        writer->create( allocations = allocations
+                        cost_center = '0000001000'
+                        base_date   = base_date
+                        test_run    = test_run ).
+        cl_abap_unit_assert=>fail( 'Invalid reservation input accepted' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_equals( act = gateway->calls
+                                          exp   = 0 ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_abort_messages.
+    TYPES ty_message_type TYPE c LENGTH 1.
+    DATA types TYPE STANDARD TABLE OF ty_message_type WITH DEFAULT KEY.
+    types = VALUE #( ( 'A' ) ( 'X' ) ).
+    LOOP AT types INTO DATA(message_type).
+      gateway->response-messages = VALUE #( ( type = 'W' message = 'Warning' )
+        ( type = message_type id = 'M7' number = '001' message = 'Processing aborted' ) ).
+      TRY.
+          writer->create( allocations = allocations
+                          cost_center = '0000001000'
+                          base_date   = '20260905'
+                          test_run    = abap_false ).
+          cl_abap_unit_assert=>fail( 'SAP abort was ignored' ).
+        CATCH zcx_stock_alloc INTO DATA(error).
+          cl_abap_unit_assert=>assert_equals( act = error->messages
+                                            exp   = gateway->response-messages ).
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_allocations.
+    APPEND allocations[ 1 ] TO allocations.
+    assert_rejected_before_call( ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_dates.
+    assert_rejected_before_call( base_date = '20260229' ).
+    allocations[ 1 ]-required_date = '20260431'.
+    assert_rejected_before_call( ).
+  ENDMETHOD.
+
+  METHOD rejects_empty_writes.
+    allocations[ 1 ]-allocated = 0.
+    allocations[ 1 ]-shortage = 10.
+    assert_rejected_before_call( ).
+    CLEAR allocations.
+    assert_rejected_before_call( ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_test_mode.
+    assert_rejected_before_call( test_run = 'Y' ).
+  ENDMETHOD.
+
+  METHOD preserves_warnings.
+    gateway->response-messages = VALUE #( ( type = 'W' id = 'M7' number = '001' message = 'Review stock' ) ).
+    DATA(result) = writer->create( allocations = allocations
+                                  cost_center  = '0000001000'
+                                  base_date    = '20260905'
+                                  test_run     = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = result-messages
+                                      exp   = gateway->response-messages ).
+    cl_abap_unit_assert=>assert_equals( act = result-reservation
+                                      exp   = gateway->response-reservation ).
+    cl_abap_unit_assert=>assert_false( result-simulated ).
+  ENDMETHOD.
+
+  METHOD accepts_fractional_results.
+    allocations[ 1 ]-requested = '0.300'.
+    allocations[ 1 ]-allocated = '0.100'.
+    allocations[ 1 ]-shortage = '0.200'.
+    writer->create( allocations = allocations
+                    cost_center = '0000001000'
+                    base_date   = '20260905' ).
+    cl_abap_unit_assert=>assert_equals( act = gateway->captured_items[ 1 ]-entry_qnt
+                                      exp   = '0.100' ).
+  ENDMETHOD.
+
+  METHOD rejects_referenced_demand.
+    allocations[ 1 ]-origin-order_id = '000000001000'.
+    assert_rejected_before_call( ).
+    allocations[ 1 ]-origin = VALUE #( reservation = '0000000100' reservation_item = '0001' ).
+    assert_rejected_before_call( ).
   ENDMETHOD.
 ENDCLASS.

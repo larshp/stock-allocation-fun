@@ -39,9 +39,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         storage       = request-storage
         unit          = request-unit
         required_date = request-required_date
+        origin        = request-origin
         requested     = request-quantity
         shortage      = request-quantity
-        status        = zif_stock_alloc_types=>status_short ).
+        status        = zif_stock_alloc_types=>status_short
+        reason        = zif_stock_alloc_types=>reason_missing ).
       READ TABLE remaining ASSIGNING <stock>
         WITH TABLE KEY material = request-material
                        plant    = request-plant
@@ -51,10 +53,18 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_stock_alloc
             EXPORTING reason = |Unit mismatch for request { request-request_id }|.
         ENDIF.
+        result-available_before = <stock>-quantity.
+        result-reason = zif_stock_alloc_types=>reason_empty.
+        IF <stock>-quantity > 0.
+          result-reason = zif_stock_alloc_types=>reason_insufficient.
+        ENDIF.
         IF <stock>-quantity >= request-quantity.
           result-allocated = request-quantity.
+          result-reason = zif_stock_alloc_types=>reason_full.
         ELSEIF request-allow_partial = abap_true.
           result-allocated = <stock>-quantity.
+        ELSEIF <stock>-quantity > 0.
+          result-reason = zif_stock_alloc_types=>reason_complete.
         ENDIF.
         IF request-lot_size > 0.
           " Integer thousandths avoid fractional MOD rounding in both runtimes.
@@ -62,9 +72,17 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           DATA lot_ticks TYPE p LENGTH 9 DECIMALS 0.
           available_ticks = result-allocated * 1000.
           lot_ticks = request-lot_size * 1000.
+          IF available_ticks MOD lot_ticks <> 0.
+            result-reason = zif_stock_alloc_types=>reason_lot.
+          ENDIF.
           result-allocated = ( available_ticks DIV lot_ticks ) * lot_ticks / 1000.
         ENDIF.
+        IF result-allocated > 0 AND result-allocated < request-min_allocation.
+          CLEAR result-allocated.
+          result-reason = zif_stock_alloc_types=>reason_minimum.
+        ENDIF.
         <stock>-quantity = <stock>-quantity - result-allocated.
+        result-available_after = <stock>-quantity.
       ENDIF.
       result-shortage = result-requested - result-allocated.
       IF result-shortage = 0.
@@ -101,11 +119,13 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
           OR request-unit IS INITIAL OR request-quantity <= 0
           OR request-priority < 0 OR request-required_date IS INITIAL
           OR request-lot_size < 0
+          OR request-min_allocation < 0 OR request-min_allocation > request-quantity
           OR ( request-allow_partial <> abap_true AND request-allow_partial <> abap_false ).
         RAISE EXCEPTION TYPE zcx_stock_alloc
           EXPORTING reason = 'Invalid request key, date, policy or quantity'.
       ENDIF.
       zcl_stock_alloc_date=>validate( request-required_date ).
+      zcl_stock_alloc_origin=>validate( request-origin ).
       IF request-lot_size > 0.
         DATA requested_ticks TYPE p LENGTH 9 DECIMALS 0.
         DATA lot_ticks TYPE p LENGTH 9 DECIMALS 0.

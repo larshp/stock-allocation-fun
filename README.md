@@ -7,15 +7,21 @@ Custom objects live in `src/`; local SAP substitutes live in `stubs/`.
 
 - Allocate by ascending numeric priority, requirement date, then request ID.
 - Support partial fulfillment or complete-only requests; report every shortage.
+- Explain each decision with a reason code and remaining availability before/after.
+- Summarize demand, fulfillment and earliest shortages per material/location/unit.
 - Optionally enforce whole-lot demand and round partial allocation down to lot size.
+- Optionally skip partial allocations below a caller-defined minimum quantity.
 - Preserve a safety-stock floor and isolate material/plant/storage combinations.
 - Subtract externally supplied commitments before allocating remaining stock.
 - Reject duplicate keys, nonpositive demand and incompatible units.
 - Read unrestricted stock from MARD and base units from MARA.
 - Simulate through an injectable stock source.
+- Limit general simulations to an inclusive requirement-date window.
 - Read outstanding RESB order components with an optional requirement-date horizon.
 - Create cost-center reservations through `BAPI_RESERVATION_CREATE1` (movement 201).
   BAPI test mode is the default; SAP errors retain the complete return-message table.
+- Stage cost-center goods issues through `BAPI_GOODSMVT_CREATE`, also defaulting
+  to test mode and leaving transaction completion to the integrating application.
 
 ## Local development
 
@@ -32,6 +38,12 @@ required by PLAN.md are enabled. The first run fetches the open-abap-core commit
 `dependencies.lock.json`; subsequent runs verify and reuse the clean `.deps/` cache.
 The lock and both tool configurations must point to the same revision. Generated
 JavaScript, dependency caches and node_modules are ignored. CI executes the same command.
+
+Run `npm run demo` for a verified, read-only example with fixed sample data. On
+Windows with restricted PowerShell scripts, use `npm.cmd run demo` or `npm.cmd test`.
+In SAP, execute report `ZSTOCK_ALLOC_DEMO`. Its three requests demonstrate priority,
+safety stock, commitments, partial fulfillment and whole-lot rounding. Available
+stock is 15 ST; allocations are 8, 4 and 3 ST. No database or BAPI is called.
 
 ## SAP installation and use
 
@@ -58,10 +70,51 @@ material contract is 18 characters. No unit conversion, batch selection or speci
 stock handling is performed. For a pure calculation with safety stock, call
 `zcl_stock_allocator->allocate` with your own stock rows.
 
+`zcl_stock_alloc_service->simulate` accepts optional `from_date` and `through_date`
+boundaries. Both are inclusive and default to the full supported calendar range.
+Only requests in that window are passed to the stock source and returned as
+allocations. Empty selections skip stock reads. All supplied requests are validated
+before filtering, so a date window cannot conceal duplicate IDs or invalid demand.
+The pure allocator continues to process every request it receives.
+
 Request `lot_size` defaults to zero (no lot constraint). A positive value requires
 the requested quantity to be an exact multiple. For example, demand 12 with lot
 size 4 and stock 10 allocates 8, leaving 2 for later requests. Quantities use three
 decimal places; fractional lots such as 0.100 are supported.
+
+Request `min_allocation` defaults to zero. Set it to the smallest useful partial
+quantity, between zero and the requested quantity. The allocator checks it after
+lot rounding: demand 8, lot size 4, minimum 5 and stock 7 receives zero, leaving all
+7 for later requests. The minimum need not be a whole lot; allocations still must
+respect `lot_size`. Full fulfillment and complete-only requests retain their behavior.
+
+Each allocation includes `available_before` and `available_after` for its location,
+after commitments and safety stock and after earlier requests in allocation order.
+These are snapshot diagnostics, not new SAP ATP promises. The `reason` field uses
+constants from `zif_stock_alloc_types`:
+
+| Reason | Meaning |
+| --- | --- |
+| `FULLY_ALLOCATED` | Entire requested quantity supplied. |
+| `MISSING_STOCK` | No stock row was supplied for the location. |
+| `NO_AVAILABLE_STOCK` | The location has no remaining allocatable quantity. |
+| `INSUFFICIENT_STOCK` | Remaining quantity supplied as a partial allocation. |
+| `COMPLETE_ONLY` | Positive stock is insufficient for a complete-only request. |
+| `LOT_ROUNDED` | Lot rounding reduced the quantity, possibly to zero. |
+| `BELOW_MINIMUM` | A positive quantity after lot rounding fell below the minimum. |
+
+The last effective policy supplies the reason: a minimum can override lot rounding
+when it rejects a positive rounded quantity. If rounding already produced zero,
+the reason remains `LOT_ROUNDED`. Zero availability takes precedence over policies.
+
+`NEW zcl_stock_alloc_summary( )->summarize( allocations )` returns rows sorted by
+material, plant, storage and unit. Each contains requested, allocated and shortage
+totals, counts of full/partial/unfilled requests, and the earliest date with a
+shortage. Units are separate groups. Counts derive from quantities; optional display
+status and reason fields are not required. Duplicate IDs, inconsistent quantities
+and invalid dates are rejected through the same result validation as reservations.
+Totals use the public quantity range (up to 9,999,999,999.999); exceeding it raises
+`zcx_stock_alloc` before assignment. Empty input returns an empty summary.
 
 Each stock row may specify `committed` and `safety_stock`. Available quantity is
 `max(0, physical - committed - safety_stock)`. To apply these to a SAP source,
@@ -78,6 +131,22 @@ is not evaluated here. Existing order-component reservations are for simulation
 and downstream order processing; do not create new cost-center reservations for
 them through the separate movement-201 adapter.
 
+`zcl_stock_order_service` connects the order and stock readers with the same pure
+allocator. It validates order selections and dates before reading, skips empty
+work, and rejects returned demand outside the horizon. Both sources are injectable:
+
+```abap
+DATA(order_service) = NEW zcl_stock_order_service(
+  order_source = NEW zcl_stock_order_source_sap( )
+  stock_source = NEW zcl_stock_source_sap( ) ).
+DATA(order_allocations) = order_service->simulate(
+  orders = VALUE #( ( order_id = '000000001000' priority = 1 allow_partial = abap_true ) )
+  through_date = '20260930' ).
+```
+
+Wrap these calls in the same `TRY`/`CATCH zcx_stock_alloc` boundary shown above.
+An adjusted stock source can account for caller-supplied external commitments.
+
 The stock reader supplies a physical snapshot. It does not subtract existing
 commitments or constitute an ATP promise. The BAPI adapter requests an SAP ATP check;
 actual behavior depends on target-system customizing. SAP describes MARD-LABST as
@@ -93,6 +162,33 @@ The integrating application owns authorization checks, locking/revalidation,
 idempotency, and `BAPI_TRANSACTION_COMMIT` or `BAPI_TRANSACTION_ROLLBACK` handling.
 Do not reuse an old simulation as a concurrent-stock guarantee or retry a write
 blindly after an uncertain commit. Review BAPI warnings before committing.
+
+For direct cost-center consumption, use `zif_stock_goods_issue~create` on
+`zcl_stock_goods_issue_sap` with allocations, cost center, posting date and document
+date. It maps positive allocated quantities to movement 201 and GM code 03 with a
+blank movement indicator, following SAP's
+[goods-issue BAPI contract](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html?locale=en-US).
+It does not consume an existing reservation or order-component reservation. Use
+the proper reservation-referenced process for those demands, rather than posting
+them again as independent cost-center consumption.
+
+```abap
+DATA issuer TYPE REF TO zif_stock_goods_issue.
+issuer = NEW zcl_stock_goods_issue_sap( ).
+DATA(issue_result) = issuer->create(
+  allocations = allocations
+  cost_center = '0000001000'
+  posting_date = '20260906'
+  document_date = '20260905' ). " Default: test mode only
+```
+
+Use `TRY`/`CATCH zcx_stock_alloc` as above. Explicit `test_run = abap_false` stages
+an actual material document in the SAP LUW. A successful actual call returns both
+material document and year; simulation clears both. SAP errors/aborts retain all
+messages, and warnings are returned for caller review. The adapter never commits
+or rolls back. The same authorization, fresh-stock, locking and retry responsibilities
+apply. Batch/serial-managed materials, special stock and reservation references
+are outside this adapter's contract; use a specialized integration for them.
 
 Pure allocator and test-double tests are portable ABAP Unit tests. Database fixture
 and standard-stub tests run locally through the transpiler; they are not native SAP

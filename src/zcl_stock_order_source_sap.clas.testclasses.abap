@@ -28,6 +28,12 @@ CLASS ltcl_order_source IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = requests[ 1 ]-priority
                                         exp = 5 ).
     cl_abap_unit_assert=>assert_true( requests[ 1 ]-allow_partial ).
+    cl_abap_unit_assert=>assert_equals( act = requests[ 1 ]-origin-order_id
+                                      exp   = '000000001000' ).
+    cl_abap_unit_assert=>assert_equals( act = requests[ 1 ]-origin-reservation
+                                      exp   = '0000000100' ).
+    cl_abap_unit_assert=>assert_equals( act = requests[ 1 ]-origin-reservation_item
+                                      exp   = '0001' ).
   ENDMETHOD.
 
   METHOD filters_date_horizon.
@@ -61,13 +67,16 @@ CLASS ltcl_order_source IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD allocates_order_demand.
-    DATA(service) = NEW zcl_stock_alloc_service( NEW zcl_stock_source_sap( ) ).
-    DATA(result) = service->simulate( source->read( orders ) ).
+    DATA(service) = NEW zcl_stock_order_service( order_source = source
+                                                stock_source  = NEW zcl_stock_source_sap( ) ).
+    DATA(result) = service->simulate( orders ).
     cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
                                         exp = 8 ).
     cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-allocated
                                         exp = 2 ).
     cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-shortage
                                         exp = 4 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-origin-reservation_item
+                                      exp   = '0002' ).
   ENDMETHOD.
 ENDCLASS.

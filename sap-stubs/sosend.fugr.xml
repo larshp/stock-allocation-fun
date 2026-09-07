@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>SOSEND</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LSOSENDTOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLSOSEND</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>SO_NEW_DOCUMENT_SEND_API1</FUNCNAME>
+     <SHORT_TEXT>SAPoffice: Send new document</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>DOCUMENT_DATA</PARAMETER>
+       <TYP>SODOCCHGI1</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>DOCUMENT_TYPE</PARAMETER>
+       <TYP>SO_OBJ_TP</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>COMMIT_WORK</PARAMETER>
+       <TYP>ABAP_BOOL</TYP>
+      </RSIMP>
+     </IMPORT>
+     <TABLES>
+      <RSTBL>
+       <PARAMETER>OBJECT_CONTENT</PARAMETER>
+       <DBSTRUCT>SOLISTI1</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RECEIVERS</PARAMETER>
+       <DBSTRUCT>SOMLRECI1</DBSTRUCT>
+      </RSTBL>
+     </TABLES>
+     <EXCEPTION>
+      <RSEXC>
+       <EXCEPTION>TOO_MANY_RECEIVERS</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>DOCUMENT_NOT_SENT</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>DOCUMENT_TYPE_NOT_EXIST</EXCEPTION>
+      </RSEXC>
+      <RSEXC>
+       <EXCEPTION>OPERATION_NO_AUTHORIZATION</EXCEPTION>
+      </RSEXC>
+     </EXCEPTION>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

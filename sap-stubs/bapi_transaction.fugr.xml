@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>BAPI_TRANSACTION</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LBAPI_TRANSACTIONTOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLBAPI_TRANSACTION</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>BAPI_TRANSACTION_COMMIT</FUNCNAME>
+     <SHORT_TEXT>Execute external Commit when using BAPIs</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>WAIT</PARAMETER>
+       <DEFAULT>SPACE</DEFAULT>
+       <TYP>BAPITA-WAIT</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>RETURN</PARAMETER>
+       <TYP>BAPIRET2</TYP>
+      </RSEXP>
+     </EXPORT>
+    </item>
+    <item>
+     <FUNCNAME>BAPI_TRANSACTION_ROLLBACK</FUNCNAME>
+     <SHORT_TEXT>Rollback of a BAPI transaction</SHORT_TEXT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>RETURN</PARAMETER>
+       <TYP>BAPIRET2</TYP>
+      </RSEXP>
+     </EXPORT>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

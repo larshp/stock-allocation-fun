@@ -11,8 +11,8 @@
   },
   "devDependencies": {
     "@abaplint/cli": "2.120.44",
-    "@abaplint/runtime": "2.13.78",
-    "@abaplint/transpiler-cli": "2.13.78",
+    "@abaplint/runtime": "2.13.79",
+    "@abaplint/transpiler-cli": "2.13.80",
     "rimraf": "6.1.3"
   },
   "license": "MIT"

@@ -23,15 +23,11 @@
     "allowed_object_naming": true,
     "check_syntax": true,
     "easy_to_find_messages": true,
-    "keyword_case": {
-      "style": "upper"
-    },
-    "line_length": {
-      "length": 120
-    },
+    "keyword_case": true,
     "local_testclass_consistency": true,
     "max_one_method_parameter_per_line": true,
     "modify_only_own_db_tables": true,
+    "xml_consistency": true,
     "parser_error": true,
     "unknown_types": true
   }

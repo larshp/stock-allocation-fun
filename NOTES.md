@@ -816,3 +816,95 @@
   construction or store access when their results are malformed or contradict
   a canonical run mode. Malformed run flags remain auditable as mode `I`. Two
   logger scenarios bring the suite to three hundred twenty-nine.
+- The shared result checker now binds availability evidence to the decision:
+  live full, partial, stock-exhausted, policy-rejected, and batch-aborted work
+  must carry the matching checked quantity, while replay and every non-stock
+  outcome must remain unchecked. Canonical simulations also reject predecessor
+  reservation lineage. One application scenario brings the suite to three
+  hundred thirty.
+- The public SAP audit store now reconstructs allocations from paired current
+  rows and applies the shared result contract independently. It also requires a
+  valid hexadecimal run ID, one consistent run ID/mode across the batch, and
+  real calendar/clock timestamps before Open SQL. Three pre-SQL scenarios bring
+  the suite to three hundred thirty-three; successful nonempty SQL execution
+  remains a target-runtime integration check because the local unit harness has
+  no initialized database.
+- Application summaries now expose submitted and returned row counts
+  separately, while retaining `TOTAL_REQUESTS` as the returned-row count for
+  compatibility. Existing missing-row and summary scenarios cover the change,
+  so the suite remains at three hundred thirty-three scenarios.
+- The SAP logger rejects posting diagnostics beyond the persisted 220-character
+  width before constructing audit rows. Inclusive-boundary and overflow
+  scenarios bring the suite to three hundred thirty-five.
+- Direct audit-store batches now require one strategy, horizon, strict-batch
+  setting, and logging user for a shared run ID. One pre-SQL scenario brings the
+  suite to three hundred thirty-six.
+- Direct logger and SAP store calls now share the service's 1,000-row batch
+  ceiling and reject overflow before semantic scans, row construction, pairing,
+  or SQL. Two scenarios bring the suite to three hundred thirty-eight.
+- The shared decision map now admits the allocator's canonical
+  `STOCK_NOT_FOUND` rejection with unchecked availability evidence. One
+  application-path regression scenario brings the suite to three hundred
+  thirty-nine.
+- Shared result validation now binds partial allocation to an affirmative
+  partial flag and a met minimum-fill threshold, and binds partial-policy
+  rejection to either disabled partials or a genuinely missed threshold. Two
+  direct-logger scenarios bring the suite to three hundred forty-one.
+- Batch-abort evidence must now describe stock that originally qualified for a
+  pending allocation. Posting failure is reserved for allocation attempts and
+  the missing-replay-document decision, while non-posting decisions require
+  `NOT_REQUIRED`. Two scenarios bring the suite to three hundred forty-three.
+- Replacement predecessor evidence now requires an evaluated stock outcome;
+  validation, configuration, replay, deferred, and missing-snapshot results
+  cannot claim cancellation lineage. One scenario brings the suite to three
+  hundred forty-four.
+- Partial replay outcomes now revalidate the persisted partial permission and
+  minimum-fill threshold in both the allocator and shared result boundary. Two
+  scenarios bring the suite to three hundred forty-six.
+- Stock and replay decisions now require a complete source-request identity,
+  valid Gregorian requirement date, positive priority, persistable original and
+  canonical quantities, canonical flags, and a valid movement-specific account
+  assignment. The logger fixture now models six separate valid movement
+  families instead of one conflicting hybrid. Two scenarios bring the suite to
+  three hundred forty-eight.
+- `REPLAY_OUTCOME_INVALID` now accepts its allocator-produced `INVALID` form and
+  its service-produced batch `CONFIG_ERROR` form. One application scenario
+  brings the suite to three hundred forty-nine.
+- Invalid simulation flags remain auditable as run mode `I`, but only with the
+  exact `RUN_POLICY_INVALID` configuration result the service produces. Logger
+  and direct-store rejection scenarios bring the suite to three hundred
+  fifty-one.
+- Run-context validation now mirrors service precedence across simulation,
+  full-batch policy, strategy, and horizon date. The application, logger, and
+  direct store reject spurious or mismatched configuration decisions while
+  retaining exact invalid-control diagnostics. Seven scenarios bring the suite
+  to three hundred fifty-eight.
+- Run-policy validation now requires `OUTSIDE_HORIZON` to carry a structurally
+  valid request whose requirement date is strictly later than a supplied valid
+  horizon. `FULL_BATCH_ABORTED` requires strict-batch mode, and once any row
+  makes that strict batch incomplete, no new full or partial allocation
+  decision may survive. The positive strict fixture was corrected to contain
+  only complete new allocations. Six scenarios bring the suite to three
+  hundred sixty-four.
+- Simulation result validation now rejects the complete replay decision family,
+  including lookup, payload, cancellation, missing-document, corrupt-outcome,
+  and successful-reuse states. This matches the service's deliberate bypass of
+  all productive idempotency work. Application, logger, and direct-store
+  scenarios bring the suite to three hundred sixty-seven.
+- `BATCH_SIZE_EXCEEDED` is now accepted only when the complete result contains
+  more than 1,000 rows, and every row of a valid-control oversized result must
+  carry that decision. Earlier malformed run controls retain precedence. A
+  positive oversized application response plus rejection coverage at the app,
+  logger, and direct store bring the suite to three hundred seventy-one.
+- Shared batch validation now requires every new full or partial allocation to
+  carry one posting state, matching the writer's all-or-nothing transaction.
+  Posted replay decisions are excluded from that comparison, so they remain
+  valid beside a uniformly failed new batch. Two negative boundary scenarios
+  and one positive replay/new-write scenario bring the suite to three hundred
+  seventy-four.
+- Shared result validation now reconstructs source requests and derives the
+  allocator's exact flag, movement-rule, structural, and numeric validation
+  decision. Valid inputs can no longer be mislabeled as invalid, and malformed
+  inputs must use the decision selected by allocator precedence. One existing
+  minimal fixture was corrected from generic invalid to its actual unsupported-
+  movement rule. Three scenarios bring the suite to three hundred seventy-seven.

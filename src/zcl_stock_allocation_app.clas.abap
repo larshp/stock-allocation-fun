@@ -6,6 +6,8 @@ CLASS zcl_stock_allocation_app DEFINITION
   PUBLIC SECTION.
     TYPES:
       BEGIN OF ty_summary,
+        submitted_requests        TYPE i,
+        returned_results          TYPE i,
         total_requests            TYPE i,
         fully_allocated           TYPE i,
         partially_allocated       TYPE i,
@@ -70,11 +72,14 @@ CLASS zcl_stock_allocation_app DEFINITION
 
     METHODS service_response_is_valid
       IMPORTING
-        it_requests     TYPE zcl_stock_allocator=>ty_requests
-        it_allocations  TYPE zcl_stock_allocator=>ty_allocations
-        iv_simulation   TYPE abap_bool
+        it_requests           TYPE zcl_stock_allocator=>ty_requests
+        it_allocations        TYPE zcl_stock_allocator=>ty_allocations
+        iv_simulation         TYPE abap_bool
+        iv_strategy           TYPE zcl_stock_allocator=>ty_strategy
+        iv_horizon_date       TYPE d OPTIONAL
+        iv_require_full_batch TYPE abap_bool
       RETURNING
-        VALUE(rv_valid) TYPE abap_bool.
+        VALUE(rv_valid)       TYPE abap_bool.
 
 ENDCLASS.
 
@@ -87,6 +92,7 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
   METHOD run.
     DATA(lv_run_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
     rs_result-run_id = |{ lv_run_uuid }|.
+    rs_result-summary-submitted_requests = lines( it_requests ).
     IF mo_service IS NOT BOUND.
       rs_result-message = 'Allocation service is required'.
       RETURN.
@@ -99,10 +105,14 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       iv_require_full_batch = iv_require_full_batch
       iv_strategy           = iv_strategy ).
     rs_result-summary = summarize( rs_result-allocations ).
+    rs_result-summary-submitted_requests = lines( it_requests ).
     IF service_response_is_valid(
-        it_requests    = it_requests
-        it_allocations = rs_result-allocations
-        iv_simulation  = iv_simulation ) = abap_false.
+        it_requests           = it_requests
+        it_allocations        = rs_result-allocations
+        iv_simulation         = iv_simulation
+        iv_strategy           = iv_strategy
+        iv_horizon_date       = iv_horizon_date
+        iv_require_full_batch = iv_require_full_batch ) = abap_false.
       rs_result-message = 'Allocation service returned invalid result'.
       RETURN.
     ENDIF.
@@ -159,6 +169,7 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD summarize.
+    rs_summary-returned_results = lines( it_allocations ).
     rs_summary-total_requests = lines( it_allocations ).
     LOOP AT it_allocations INTO DATA(ls_allocation).
       CASE ls_allocation-status.
@@ -277,9 +288,12 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
 
     IF zcl_allocation_result_check=>batch_is_valid(
         it_allocations ) = abap_false
-        OR zcl_allocation_result_check=>run_mode_is_valid(
-          it_allocations = it_allocations
-          iv_simulation  = iv_simulation ) = abap_false.
+        OR zcl_allocation_result_check=>run_context_is_valid(
+          it_allocations        = it_allocations
+          iv_simulation         = iv_simulation
+          iv_strategy           = iv_strategy
+          iv_horizon_date       = iv_horizon_date
+          iv_require_full_batch = iv_require_full_batch ) = abap_false.
       RETURN.
     ENDIF.
 

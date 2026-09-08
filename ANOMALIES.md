@@ -1055,3 +1055,179 @@ documents, lineage, or run-mode evidence. The rules now live in the reusable
 pure `ZCL_ALLOCATION_RESULT_CHECK` class. Both application and logger invoke
 that boundary, and the logger rejects malformed batches before constructing
 current/history rows or calling its store.
+
+## RESOLVED-106: availability evidence was not tied to decision semantics
+
+The shared checker required a canonical availability flag and safe quantity,
+but a service could still mark a live allocation as unchecked, attach checked
+stock to replay or validation outcomes, or report a partial allocation that did
+not equal the available balance. It could also attach cancelled-reservation
+lineage to simulation even though simulation bypasses replay status. Decision-
+specific stock rules and simulation lineage validation now reject those
+contradictions before results are returned as valid or persisted.
+
+## RESOLVED-107: direct audit-store calls trusted paired but invalid rows
+
+The SAP store verified current/history equality and history UUIDs, but a direct
+caller could submit perfectly paired rows with malformed outcomes, mixed run
+IDs or modes, or impossible timestamps. The store now reconstructs the
+allocation batch, invokes the shared result and run-mode checks, validates a
+single hexadecimal run identity, and checks calendar/clock values before any
+Open SQL statement.
+
+## RESOLVED-108: malformed service cardinality was hidden in one summary count
+
+The application rejected a service response whose row count differed from the
+request batch, but its summary only counted returned allocations. A dropped
+row therefore appeared as a zero-sized batch unless callers separately retained
+their input. Summaries now expose submitted and returned counts independently;
+the original total field remains a compatibility alias for returned results.
+
+## RESOLVED-109: logger diagnostics could be silently truncated
+
+Allocation results carry an unrestricted string diagnostic, while the audit
+schema stores 220 characters. Direct logger assignment could silently discard
+the suffix, weakening operational evidence and making exported text differ from
+the source result. The logger now accepts the complete field-width boundary and
+rejects longer diagnostics before store access.
+
+## RESOLVED-110: one audit run could contain contradictory run policies
+
+The direct SAP store required a shared run ID and mode but did not compare the
+other controls established once per logger call. A caller could persist one run
+with mixed strategies, horizons, strict-batch settings, or logging users. The
+store now treats those fields as a coherent run context and rejects a mixed
+batch before Open SQL.
+
+## RESOLVED-111: direct audit batches bypassed the service size ceiling
+
+The allocation service bounded calls to 1,000 requests, but independently
+callable logger and store boundaries accepted arbitrarily large tables. Such a
+call could consume unbounded validation and persistence work despite belonging
+to the same operational batch model. Both audit boundaries now reuse the public
+service limit and reject overflow before deeper processing.
+
+## RESOLVED-112: the shared checker omitted a canonical allocator decision
+
+The allocator emits `STOCK_NOT_FOUND` when no requested stock snapshot exists,
+but the extracted decision/status map did not recognize that supported rejected
+outcome. Application-mediated logging would therefore reject a legitimate
+service result. The shared boundary now maps it to `REJECTED` and retains its
+canonical unchecked availability evidence.
+
+## RESOLVED-113: allocation decisions could contradict request policy
+
+Availability validation proved that partial and policy-rejected results carried
+the expected stock quantity, but did not bind them to `ALLOW_PARTIAL` or the
+configured minimum-fill threshold. A replaceable service or direct logger could
+therefore claim a partial allocation for an all-or-nothing request, or a missed
+threshold that had actually been met. The shared checker now enforces those
+decision-specific policy relationships.
+
+## RESOLVED-114: abort and failure evidence was too broadly interchangeable
+
+Status-level validation allowed any invalid decision to report failed posting,
+even though only a missing replay reservation uses that combination. It also
+accepted a full-batch abort whose availability could never have produced a
+pending allocation. Decision-specific posting and pre-abort stock checks now
+reject both contradictions.
+
+## RESOLVED-115: non-stock outcomes could claim replacement lineage
+
+A predecessor document was individually validated but not tied to the path that
+discovers it. Direct callers could attach a cancelled reservation to validation,
+configuration, replay, deferred, or missing-snapshot outcomes. Replacement
+lineage now requires affirmative availability evaluation, matching the only
+allocator path that attaches it.
+
+## RESOLVED-116: corrupted partial replays could bypass allocation policy
+
+Replay validation bounded stored quantities but did not prove that a partial
+historical allocation had been permitted or met its minimum-fill threshold.
+The allocator could therefore reproduce a policy-impossible reservation, and
+the shared result boundary would accept it. Both layers now revalidate partial
+permission and fulfillment policy before admitting a replay.
+
+## RESOLVED-117: stock decisions did not prove their source request was valid
+
+The shared result boundary checked outcome arithmetic but allowed stock and
+replay decisions with incomplete stock identity, impossible requirement dates,
+unpersistable source quantities, nonpositive priority, or invalid account
+assignment. Those decisions are reachable only after normal request preflight.
+The checker now reconstructs the source request and repeats the complete
+structural, numeric, date, flag, and movement-account contract.
+
+## RESOLVED-118: replay outcome errors have two legitimate status scopes
+
+The allocator uses `REPLAY_OUTCOME_INVALID` with row-level `INVALID` when stored
+quantities are corrupt. The service uses the same decision with batch-level
+`CONFIG_ERROR` when stored reservation documents are malformed or reused. The
+shared map recognized only the first form and caused the application to reject
+the service's canonical batch error. Both explicit forms are now accepted.
+
+## RESOLVED-119: invalid run mode could conceal ordinary allocation outcomes
+
+The audit model reserves mode `I` for a call rejected because its simulation
+flag was malformed, but the shared checker previously accepted every result
+when that flag was noncanonical. A direct logger or store caller could therefore
+label posted, simulated, or unrelated failures as invalid-mode audit data. Both
+boundaries now require the exact `CONFIG_ERROR`, `RUN_POLICY_INVALID`, and
+`NOT_REQUIRED` envelope emitted by the service.
+
+## RESOLVED-120: run controls were persisted without outcome correspondence
+
+Result validation bound posting state to productive, simulation, or invalid
+mode, but did not connect full-batch policy, strategy, or horizon date to the
+service's configuration decisions. Replaceable services and direct audit
+callers could pair valid work with invalid controls, or report a configuration
+error when every control was valid. A shared run-context validator now mirrors
+service precedence and is applied by the application, logger, and SAP store.
+
+## RESOLVED-121: policy decisions were not bound to applicable run settings
+
+The shared result boundary accepted an `OUTSIDE_HORIZON` decision when no
+horizon was supplied or when the request date was inside it, and accepted
+`FULL_BATCH_ABORTED` while strict batching was disabled. It also allowed a
+replaceable service to retain new full or partial allocation decisions beside
+an incomplete strict batch even though the core service aborts every pending
+new allocation. Run-context validation now enforces the horizon relation,
+requires a structurally valid deferred request, binds aborts to strict mode,
+and applies the strict policy across the complete result batch.
+
+## RESOLVED-122: simulations could claim productive replay outcomes
+
+Simulation bypasses idempotency lookup and cancellation classification, but
+the shared mode checker previously rejected only the posted form of successful
+replay. Non-posting replay conflicts, lookup failures, invalid versions,
+missing documents, and corrupt outcomes could therefore enter simulation audit
+history through a replaceable service or direct caller. Every replay-family
+decision is now prohibited in simulation mode at all three shared boundaries.
+
+## RESOLVED-123: batch-limit errors were accepted for ordinary calls
+
+The batch decision had a valid status and posting envelope but was not tied to
+the number of returned rows. A replaceable service or direct audit caller could
+therefore label a small batch as `BATCH_SIZE_EXCEEDED`. Shared run validation
+now requires the decision exactly above 1,000 rows and prohibits it at or below
+the limit, while retaining simulation, full-batch, strategy, and horizon error
+precedence for oversized calls with malformed controls.
+
+## RESOLVED-124: custom results could contradict atomic writer completion
+
+The SAP writer and orchestration adapter require one posted or failed outcome
+for the complete new-reservation transaction, but shared result validation
+previously checked each row independently. A custom service could return one
+new reservation as posted and another as failed, creating audit evidence for a
+partial commit the core writer cannot produce. Batch validation now requires a
+single posting state across full and partial new-allocation decisions, without
+mistaking independently completed replay rows for members of that transaction.
+
+## RESOLVED-125: request-error decisions were not derived from source input
+
+The shared checker recognized all three row-level request-error codes but did
+not prove that the immutable source request was invalid or that the reported
+code matched validation precedence. Replaceable services could therefore
+reject valid demand or misclassify malformed flags and movement assignments.
+The checker now reconstructs and validates the source request with the same
+flag-first, account-rule-second precedence as the allocator and requires the
+reported decision to match exactly.

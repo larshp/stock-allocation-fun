@@ -11,7 +11,8 @@ writes.
 - Earliest-requirement-date ordering within the same priority.
 - Selectable priority/date, date/priority, and priority/request-ID strategies.
 - Optional inclusive allocation horizon with an explicit `DEFERRED` outcome for
-  later demand.
+  later demand. Accepted deferred results must carry a valid source request and
+  a requirement date strictly beyond the supplied horizon.
 - Gregorian calendar validation for every requirement date and optional
   horizon, including century-aware leap years. Invalid horizons fail the batch
   before authorization or business-data access.
@@ -20,9 +21,12 @@ writes.
 - All-or-nothing and partial-fulfillment requests.
 - Optional full-batch enforcement that prevents every new posting when any new
   request is partial, rejected, invalid, deferred, or otherwise incomplete.
+  Shared response validation binds abort decisions to this mode and rejects any
+  surviving new full or partial allocation beside an incomplete strict batch.
 - An inclusive 1,000-request service limit. Larger calls fail as
   `BATCH_SIZE_EXCEEDED` before authorization, replay, stock, conversion, or
-  posting dependencies are invoked.
+  posting dependencies are invoked. Replaceable responses must use that
+  decision on every row above the limit and cannot use it for ordinary calls.
 - Per-request minimum fulfillment percentages for partial allocations.
 - Plant and storage-location-specific stock pools.
 - Explicit quantity units with `MARA-MEINS` as the canonical base unit and
@@ -43,6 +47,8 @@ writes.
   malformed results stop the batch before protected reads. The SAP adapter
   rejects an initial plant instead of allowing a broadened authorization check.
 - Simulation mode that calculates allocations without writing them.
+  Result validation also prohibits every idempotency replay or cancellation
+  decision because simulation bypasses those productive data sources entirely.
 - An orchestration service with injectable stock-reader and allocation-writer
   ports. Every collaborator is checked at its first required phase: authority
   for valid plant scope, idempotency for productive replay, reservation status
@@ -52,7 +58,9 @@ writes.
   dependency-free short circuits.
 - Shared pure request preflight that excludes malformed rows from authorization,
   replay, reservation-status, and stock dependencies while preserving their
-  final allocator outcomes.
+  final allocator outcomes. Shared response validation re-derives the same
+  source-request decision, including flag and movement-rule precedence, before
+  accepting replaceable-service or direct audit results.
 - An SAP stock reader using `MARD-LABST` and `MARC-EISBE` with one set-oriented
   query, joined to `MARA-MEINS` for the material base unit. It rejects
   incomplete material/plant scope before SQL and validates returned stock
@@ -60,7 +68,9 @@ writes.
   success.
 - Transactional reservation posting through `BAPI_RESERVATION_CREATE1`, with
   batch commit, rollback on any create/commit error, and returned document IDs
-  and retained warning diagnostics. Allocated quantities are posted with
+  and retained warning diagnostics. Shared result validation requires one
+  posting outcome across all new allocations, while permitting existing posted
+  replays beside a uniformly failed new batch. Allocated quantities are posted with
   `ENTRY_UOM`; standard
   consumption reservations carry cost center (201/251), WBS element (221),
   sales order and item (231), asset and subnumber (241), order (261), or network
@@ -104,9 +114,20 @@ writes.
   both productive and simulation runs. Decimal evidence is preflighted against
   the persisted `DEC(13,3)` domain, and the SAP store verifies complete paired
   row equality plus unique, noninitial history UUIDs before database access.
-  The public logger independently applies the shared allocation-result and run-
-  mode contract before constructing rows, so direct callers cannot persist
-  malformed outcome arithmetic, states, documents, or lineage.
+  The public logger independently applies the shared allocation-result and
+  run-mode contract before constructing rows, so direct callers cannot persist
+  malformed outcome arithmetic, states, documents, or lineage. It also rejects
+  diagnostic text longer than the audit table's 220-character field rather
+  than silently truncating it. Nonempty direct logger and store batches share
+  the allocation service's 1,000-row ceiling. Application, logger, and direct-
+  store boundaries also bind the recorded run controls to service validation
+  precedence: simulation, full-batch policy, strategy, then horizon date.
+  Invalid controls remain auditable only with the exact configuration decision
+  produced at the first failing control.
+  The SAP store repeats semantic validation after reconstructing allocations
+  from current rows, requires one hexadecimal run ID and run mode per batch,
+  requires one strategy, horizon, full-batch policy, and logging user per run,
+  and validates log dates and times before any Open SQL operation.
 - One generated run ID per application call, returned to the caller and stored
   on every current-state and history row produced by that call. Nonempty logger
   batches require its canonical 32-character hexadecimal form.
@@ -247,7 +268,9 @@ are read, preserving the service's atomic batch boundary.
 The returned result contains all allocation/posting results, a 32-character
 hexadecimal `run_id`, `service_result_valid`, `log_saved`, an application-level
 diagnostic, and a count-only summary of every modeled allocation and posting
-state. The summary also counts rows with evaluated availability, reservation
+state. `submitted_requests` and `returned_results` expose service response
+cardinality directly; the legacy `total_requests` remains the returned-row
+count. The summary also counts rows with evaluated availability, reservation
 documents, idempotent replays, newly created reservations, replacement
 attempts, and successfully posted replacements. Separate unknown-state counters
 expose malformed custom adapter values. Quantities are not totaled because one
@@ -270,6 +293,22 @@ fulfillment percentages must match their quantities; and an unchecked
 availability flag cannot carry stock evidence. These validations retain
 faithful invalid-input results, including nonpositive source demand, while
 rejecting contradictions introduced by a replaceable service.
+Live full allocations require availability at least equal to the allocation;
+live partial allocations require availability equal to the allocated quantity;
+and stock-policy rejections require their corresponding zero or insufficient
+positive balance. Partial success also requires affirmative partial permission
+and a met minimum-fill threshold; policy rejection requires disabled partials
+or a genuinely missed threshold. Replay and all non-stock decisions must remain
+unchecked. A partial replay is accepted only when its persisted partial flag is
+affirmative and its original minimum-fill threshold was met.
+Every stock or completed-replay decision also repeats source-request preflight:
+identity and stock scope must be complete, source and canonical quantities must
+fit the persisted precision, the requirement date and priority must be valid,
+and the movement-specific account assignment must be complete and exclusive.
+Simulation results cannot carry cancellation-replacement lineage because that
+path deliberately bypasses productive replay and reservation status. Productive
+predecessor lineage is likewise limited to outcomes that actually evaluated
+stock after reopening a cancelled claim.
 Callers can distinguish missing service/logger
 composition, invalid service output, rejected logging, and malformed logging
 acknowledgements. The run ID is generated before allocation and remains
@@ -488,7 +527,9 @@ closed ranges are rejected before authorization or history access.
 `P_MODE` accepts `P` for
 productive, `S` for simulation, or `I` for a
 call rejected because its simulation flag was invalid. Leave any dimension
-blank to keep it unrestricted. `P_DECIDE` performs an exact match against the
+blank to keep it unrestricted. Mode `I` rows are restricted to the canonical
+run-policy configuration error at both logger and direct-store boundaries;
+they cannot conceal productive or simulated outcomes. `P_DECIDE` performs an exact match against the
 stable decision code; leave it blank to include every code and pre-upgrade
 blank row. `P_UUID` selects one immutable append-only audit record, and `P_MSG`
 performs an exact match against the persisted diagnostic text. `P_USER`

@@ -534,6 +534,11 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         ELSEIF ls_replay-requested_qty <= 0
             OR ls_replay-allocated_qty <= 0
             OR ls_replay-allocated_qty > ls_replay-requested_qty
+            OR ( ls_replay-allocated_qty < ls_replay-requested_qty
+              AND ( ls_replay-allow_partial <> abap_true
+                OR ls_replay-allocated_qty * 100 <
+                  ls_replay-minimum_fill_pct *
+                    ls_replay-requested_qty ) )
             OR ls_replay-unit_of_measure IS INITIAL.
           APPEND VALUE #(
             request_id             = ls_request-request_id

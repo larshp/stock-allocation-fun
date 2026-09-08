@@ -253,3 +253,41 @@ best practices.
       and the productive or simulation mode of the application call.
 - [x] Extract result-envelope validation into a shared pure boundary and apply
       it to direct audit-logger calls before constructing persistence rows.
+- [x] Bind availability evidence to allocation decision semantics and prohibit
+      cancellation-replacement lineage in simulation results.
+- [x] Reconstruct and validate semantic outcomes, timestamps, and coherent run
+      context at the direct SAP audit-store boundary before Open SQL.
+- [x] Expose submitted and returned application-row counts independently when
+      a replaceable service violates the response-cardinality contract.
+- [x] Reject diagnostic messages that exceed the audit schema width instead of
+      silently truncating them during logger row construction.
+- [x] Require strategy, horizon, full-batch policy, and logging user to remain
+      coherent across every row sharing an audit run identity.
+- [x] Apply the service's 1,000-row batch ceiling to direct logger and SAP
+      audit-store calls before validation scans or persistence work.
+- [x] Preserve the allocator's supported missing-stock rejection through the
+      shared result boundary and application audit path.
+- [x] Bind partial-allocation and below-minimum decisions to the request's
+      canonical partial permission and minimum-fill threshold.
+- [x] Bind batch-abort and posting-failure evidence to their originating
+      decisions and restrict replacement lineage to stock-evaluated outcomes.
+- [x] Revalidate replayed partial permission and minimum-fill policy before
+      emitting or accepting a completed idempotent allocation.
+- [x] Require stock and replay decisions to carry a structurally valid,
+      persistable source request with valid movement account assignment.
+- [x] Preserve both row-level invalid and batch-level configuration-error forms
+      of malformed replay outcome decisions through shared validation.
+- [x] Restrict malformed simulation-mode audit runs to the exact run-policy
+      configuration error that the service can produce.
+- [x] Repeat invalid-mode outcome validation at the independently callable SAP
+      audit-store boundary before Open SQL.
+- [x] Bind deferred and full-batch-abort decisions to their run policies and
+      reject surviving new allocations when a strict batch is incomplete.
+- [x] Reject every idempotency replay and cancellation decision in simulation
+      results at application, logger, and direct audit-store boundaries.
+- [x] Bind the batch-size configuration decision bidirectionally to the public
+      1,000-row limit while preserving earlier run-control precedence.
+- [x] Require one atomic posting outcome across every new allocation result
+      while allowing existing posted replays beside a failed new batch.
+- [x] Bind row-level request-validation decisions to the immutable source
+      request and preserve the allocator's exact validation precedence.

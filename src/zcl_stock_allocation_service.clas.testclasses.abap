@@ -228,6 +228,7 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS replays_completed_request FOR TESTING.
     METHODS rejects_incomplete_replay FOR TESTING.
     METHODS rejects_invalid_replay_outcome FOR TESTING.
+    METHODS rejects_invalid_replay_policy FOR TESTING.
     METHODS rejects_bad_replay_document FOR TESTING.
     METHODS rejects_reused_replay_document FOR TESTING.
     METHODS replay_does_not_reduce_stock FOR TESTING.
@@ -1436,6 +1437,27 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 5 ).
     cl_abap_unit_assert=>assert_initial(
       lt_result[ 1 ]-fill_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_replay_policy.
+    DATA(ls_record) = completed_record( ).
+    ls_record-allocated_qty = 4.
+    INSERT ls_record INTO TABLE mo_store->mt_records.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_replay_outcome ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_calls
       exp = 0 ).

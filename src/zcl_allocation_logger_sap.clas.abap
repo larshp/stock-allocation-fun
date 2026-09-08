@@ -12,6 +12,7 @@ CLASS zcl_allocation_logger_sap DEFINITION
 
   PRIVATE SECTION.
     TYPES ty_persisted_quantity TYPE p LENGTH 7 DECIMALS 3.
+    CONSTANTS gc_max_log_message_length TYPE i VALUE 220.
 
     DATA mo_store TYPE REF TO zif_allocation_log_store.
 
@@ -33,6 +34,12 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF lines( it_allocations ) >
+        zcl_stock_allocation_service=>gc_max_batch_size.
+      rv_saved = abap_false.
+      RETURN.
+    ENDIF.
+
     IF strlen( iv_run_id ) <> 32
         OR iv_run_id CN '0123456789ABCDEFabcdef'.
       rv_saved = abap_false.
@@ -41,9 +48,12 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
 
     IF zcl_allocation_result_check=>batch_is_valid(
         it_allocations ) = abap_false
-        OR zcl_allocation_result_check=>run_mode_is_valid(
-          it_allocations = it_allocations
-          iv_simulation  = iv_simulation ) = abap_false.
+        OR zcl_allocation_result_check=>run_context_is_valid(
+          it_allocations        = it_allocations
+          iv_simulation         = iv_simulation
+          iv_strategy           = iv_strategy
+          iv_horizon_date       = iv_horizon_date
+          iv_require_full_batch = iv_require_full_batch ) = abap_false.
       rv_saved = abap_false.
       RETURN.
     ENDIF.
@@ -63,6 +73,11 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
             ls_input_allocation-shortfall_qty ) = abap_false
           OR is_persistable_quantity(
             ls_input_allocation-fill_pct ) = abap_false.
+        rv_saved = abap_false.
+        RETURN.
+      ENDIF.
+      IF strlen( ls_input_allocation-posting_message ) >
+          gc_max_log_message_length.
         rv_saved = abap_false.
         RETURN.
       ENDIF.

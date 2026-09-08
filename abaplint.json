@@ -15,7 +15,7 @@
   ],
   "syntax": {
     "version": "open-abap",
-    "errorNamespace": "^(Z|Y|LCL_|LIF_|TY_)"
+    "errorNamespace": "."
   },
   "rules": {
     "align_parameters": true,

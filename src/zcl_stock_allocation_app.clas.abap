@@ -5,11 +5,37 @@ CLASS zcl_stock_allocation_app DEFINITION
 
   PUBLIC SECTION.
     TYPES:
+      BEGIN OF ty_summary,
+        total_requests            TYPE i,
+        fully_allocated           TYPE i,
+        partially_allocated       TYPE i,
+        rejected                  TYPE i,
+        invalid                   TYPE i,
+        deferred                  TYPE i,
+        aborted                   TYPE i,
+        configuration_errors      TYPE i,
+        unknown_allocation_status TYPE i,
+        posting_pending           TYPE i,
+        posted                    TYPE i,
+        posting_failed            TYPE i,
+        simulated                 TYPE i,
+        posting_not_required      TYPE i,
+        unknown_posting_status    TYPE i,
+        availability_evaluated    TYPE i,
+        reservation_documents     TYPE i,
+        idempotent_replays        TYPE i,
+        new_reservations          TYPE i,
+        replacement_attempts      TYPE i,
+        replacement_posted        TYPE i,
+      END OF ty_summary.
+    TYPES:
       BEGIN OF ty_result,
-        allocations TYPE zcl_stock_allocator=>ty_allocations,
-        run_id      TYPE zif_allocation_logger=>ty_run_id,
-        log_saved   TYPE abap_bool,
-        message     TYPE string,
+        allocations          TYPE zcl_stock_allocator=>ty_allocations,
+        summary              TYPE ty_summary,
+        run_id               TYPE zif_allocation_logger=>ty_run_id,
+        service_result_valid TYPE abap_bool,
+        log_saved            TYPE abap_bool,
+        message              TYPE string,
       END OF ty_result.
 
     METHODS constructor
@@ -32,9 +58,24 @@ CLASS zcl_stock_allocation_app DEFINITION
       RETURNING
         VALUE(ro_app) TYPE REF TO zcl_stock_allocation_app.
 
+    CLASS-METHODS summarize
+      IMPORTING
+        it_allocations    TYPE zcl_stock_allocator=>ty_allocations
+      RETURNING
+        VALUE(rs_summary) TYPE ty_summary.
+
   PRIVATE SECTION.
     DATA mo_service TYPE REF TO zif_stock_allocation_service.
     DATA mo_logger TYPE REF TO zif_allocation_logger.
+
+    METHODS service_response_is_valid
+      IMPORTING
+        it_requests     TYPE zcl_stock_allocator=>ty_requests
+        it_allocations  TYPE zcl_stock_allocator=>ty_allocations
+        iv_simulation   TYPE abap_bool
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
+
 ENDCLASS.
 
 CLASS zcl_stock_allocation_app IMPLEMENTATION.
@@ -57,6 +98,15 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       iv_horizon_date       = iv_horizon_date
       iv_require_full_batch = iv_require_full_batch
       iv_strategy           = iv_strategy ).
+    rs_result-summary = summarize( rs_result-allocations ).
+    IF service_response_is_valid(
+        it_requests    = it_requests
+        it_allocations = rs_result-allocations
+        iv_simulation  = iv_simulation ) = abap_false.
+      rs_result-message = 'Allocation service returned invalid result'.
+      RETURN.
+    ENDIF.
+    rs_result-service_result_valid = abap_true.
     IF mo_logger IS NOT BOUND.
       rs_result-message = 'Allocation logger is required'.
       RETURN.
@@ -107,4 +157,133 @@ CLASS zcl_stock_allocation_app IMPLEMENTATION.
       io_service = lo_service
       io_logger  = lo_logger ).
   ENDMETHOD.
+
+  METHOD summarize.
+    rs_summary-total_requests = lines( it_allocations ).
+    LOOP AT it_allocations INTO DATA(ls_allocation).
+      CASE ls_allocation-status.
+        WHEN zcl_stock_allocator=>gc_status_allocated.
+          rs_summary-fully_allocated = rs_summary-fully_allocated + 1.
+        WHEN zcl_stock_allocator=>gc_status_partial.
+          rs_summary-partially_allocated =
+            rs_summary-partially_allocated + 1.
+        WHEN zcl_stock_allocator=>gc_status_rejected.
+          rs_summary-rejected = rs_summary-rejected + 1.
+        WHEN zcl_stock_allocator=>gc_status_invalid.
+          rs_summary-invalid = rs_summary-invalid + 1.
+        WHEN zcl_stock_allocator=>gc_status_deferred.
+          rs_summary-deferred = rs_summary-deferred + 1.
+        WHEN zcl_stock_allocator=>gc_status_aborted.
+          rs_summary-aborted = rs_summary-aborted + 1.
+        WHEN zcl_stock_allocator=>gc_status_config_error.
+          rs_summary-configuration_errors =
+            rs_summary-configuration_errors + 1.
+        WHEN OTHERS.
+          rs_summary-unknown_allocation_status =
+            rs_summary-unknown_allocation_status + 1.
+      ENDCASE.
+
+      CASE ls_allocation-posting_status.
+        WHEN zcl_stock_allocator=>gc_posting_pending.
+          rs_summary-posting_pending = rs_summary-posting_pending + 1.
+        WHEN zcl_stock_allocator=>gc_posting_posted.
+          rs_summary-posted = rs_summary-posted + 1.
+        WHEN zcl_stock_allocator=>gc_posting_failed.
+          rs_summary-posting_failed = rs_summary-posting_failed + 1.
+        WHEN zcl_stock_allocator=>gc_posting_simulated.
+          rs_summary-simulated = rs_summary-simulated + 1.
+        WHEN zcl_stock_allocator=>gc_posting_not_required.
+          rs_summary-posting_not_required =
+            rs_summary-posting_not_required + 1.
+        WHEN OTHERS.
+          rs_summary-unknown_posting_status =
+            rs_summary-unknown_posting_status + 1.
+      ENDCASE.
+
+      IF ls_allocation-availability_checked = abap_true.
+        rs_summary-availability_evaluated =
+          rs_summary-availability_evaluated + 1.
+      ENDIF.
+      IF ls_allocation-document_id IS NOT INITIAL.
+        rs_summary-reservation_documents =
+          rs_summary-reservation_documents + 1.
+      ENDIF.
+      IF ls_allocation-decision_code =
+          zcl_stock_allocator=>gc_decision_replayed.
+        rs_summary-idempotent_replays =
+          rs_summary-idempotent_replays + 1.
+      ELSEIF ls_allocation-posting_status =
+          zcl_stock_allocator=>gc_posting_posted.
+        rs_summary-new_reservations = rs_summary-new_reservations + 1.
+      ENDIF.
+      IF ls_allocation-replaced_document_id IS NOT INITIAL.
+        rs_summary-replacement_attempts =
+          rs_summary-replacement_attempts + 1.
+        IF ls_allocation-posting_status =
+            zcl_stock_allocator=>gc_posting_posted.
+          rs_summary-replacement_posted =
+            rs_summary-replacement_posted + 1.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD service_response_is_valid.
+    IF lines( it_requests ) <> lines( it_allocations ).
+      RETURN.
+    ENDIF.
+
+    DATA(lt_requests) = it_requests.
+    SORT lt_requests BY request_id material plant storage_location
+      movement_type cost_center order_id wbs_element sales_order
+      sales_order_item asset_number asset_subnumber network_id
+      network_activity unit_of_measure requirement_date requested_qty
+      minimum_fill_pct priority allow_partial.
+    DATA(lt_allocations) = it_allocations.
+    SORT lt_allocations BY request_id material plant storage_location
+      movement_type cost_center order_id wbs_element sales_order
+      sales_order_item asset_number asset_subnumber network_id
+      network_activity source_unit_of_measure requirement_date
+      source_requested_qty minimum_fill_pct priority allow_partial.
+
+    LOOP AT lt_requests INTO DATA(ls_request).
+      DATA(lv_index) = sy-tabix.
+      READ TABLE lt_allocations INDEX lv_index INTO DATA(ls_allocation).
+      IF sy-subrc <> 0
+          OR ls_allocation-request_id <> ls_request-request_id
+          OR ls_allocation-material <> ls_request-material
+          OR ls_allocation-plant <> ls_request-plant
+          OR ls_allocation-storage_location <> ls_request-storage_location
+          OR ls_allocation-movement_type <> ls_request-movement_type
+          OR ls_allocation-cost_center <> ls_request-cost_center
+          OR ls_allocation-order_id <> ls_request-order_id
+          OR ls_allocation-wbs_element <> ls_request-wbs_element
+          OR ls_allocation-sales_order <> ls_request-sales_order
+          OR ls_allocation-sales_order_item <> ls_request-sales_order_item
+          OR ls_allocation-asset_number <> ls_request-asset_number
+          OR ls_allocation-asset_subnumber <> ls_request-asset_subnumber
+          OR ls_allocation-network_id <> ls_request-network_id
+          OR ls_allocation-network_activity <> ls_request-network_activity
+          OR ls_allocation-source_unit_of_measure <>
+            ls_request-unit_of_measure
+          OR ls_allocation-requirement_date <> ls_request-requirement_date
+          OR ls_allocation-source_requested_qty <> ls_request-requested_qty
+          OR ls_allocation-minimum_fill_pct <> ls_request-minimum_fill_pct
+          OR ls_allocation-priority <> ls_request-priority
+          OR ls_allocation-allow_partial <> ls_request-allow_partial.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    IF zcl_allocation_result_check=>batch_is_valid(
+        it_allocations ) = abap_false
+        OR zcl_allocation_result_check=>run_mode_is_valid(
+          it_allocations = it_allocations
+          iv_simulation  = iv_simulation ) = abap_false.
+      RETURN.
+    ENDIF.
+
+    rv_valid = abap_true.
+  ENDMETHOD.
+
 ENDCLASS.

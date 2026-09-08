@@ -737,3 +737,82 @@
   before checking their reader/store, then report missing backends and blank
   canonical failures explicitly. Ten focused scenarios bring the suite to two
   hundred ninety-three.
+- Allocation service calls now have an inclusive 1,000-request ceiling. A
+  larger input returns one `CONFIG_ERROR` outcome per supplied row with the
+  stable `BATCH_SIZE_EXCEEDED` decision and does not call authorization,
+  idempotency, reservation-status, stock, conversion, or posting collaborators.
+  The exact boundary and first rejected size bring the suite to two hundred
+  ninety-five.
+- Requirement dates and the optional allocation horizon now use one pure
+  Gregorian validator, including century-aware leap-year handling. Impossible
+  dates are rejected before business dependencies, and the same requirement
+  rule protects direct pending-allocation and reservation-gateway validation.
+  Four scenarios bring the suite to two hundred ninety-nine.
+- Audit reading and CSV export now reject impossible log, requirement, and
+  horizon dates as well as invalid clock times before backend access. Retention
+  validates its effective date before subtraction, and the destructive SAP
+  store validates its cutoff independently before authorization or SQL. Six
+  scenarios bring the suite to three hundred five.
+- Orchestration now applies the shared ten-digit reservation-number contract to
+  successful responses from every replaceable allocation writer and rejects a
+  document reused across two requests in the same batch. Invalid evidence is
+  replaced by the original immutable allocation rows marked as failed. Two
+  scenarios bring the suite to three hundred seven.
+- Cancellation replacement now requires a genuinely new reservation number.
+  The SAP writer rolls back if its gateway returns the cancelled predecessor,
+  and orchestration independently rejects the same contradiction from a
+  replaceable writer before merging results. Two scenarios bring the suite to
+  three hundred nine.
+- Application results now include a count-only batch summary covering every
+  modeled allocation and posting status plus explicit unknown-state buckets.
+  Counts are derived before audit logging, remain available when logging fails,
+  and deliberately avoid adding quantities across incompatible material units.
+  One scenario was added. A direct runtime count, correcting earlier narrative
+  count drift, reports three hundred thirteen scenarios at this point.
+- The application now verifies the cardinality and request-ID multiset returned
+  by its replaceable allocation service before invoking the audit logger. A
+  dropped row, added row, substituted ID, or changed duplicate multiplicity
+  leaves `service_result_valid` false and returns a stable diagnostic without
+  logging untrusted output. Exact duplicate multiplicity remains supported.
+  Three focused scenarios bring the suite to three hundred sixteen.
+- Service-result validation now compares a sorted multiset of every immutable
+  request field rather than request IDs alone. This permits ranked or otherwise
+  reordered output, but catches changes to stock identity, movement and account
+  assignment, requirement date, source quantity/unit, minimum-fill policy,
+  priority, or partial-allocation control. One scenario brings the suite to
+  three hundred seventeen.
+- Application acceptance now also requires canonical allocation and posting
+  states in a compatible pair, an exact ABAP availability boolean, and coherent
+  reservation evidence. Posted results require a valid ten-digit document;
+  other posting states cannot carry one, and replacement lineage must be valid
+  and non-self-referential. Unknown summary buckets are still calculated before
+  rejection for diagnostics. Four scenarios bring the suite to three hundred
+  twenty-one.
+- Service-result acceptance now requires a decision code and reconciles
+  allocated quantity, shortfall, fulfillment percentage, and availability
+  evidence. The rules are status-aware and intentionally permit a faithfully
+  returned invalid source quantity while preventing negative/oversized
+  allocations, impossible full or partial outcomes, and unchecked stock
+  evidence. Typed decimal intermediates preserve exact behavior in SAP and the
+  local runtime. Three scenarios bring the suite to three hundred twenty-four.
+- Application response validation now applies one uniqueness set to every
+  current and predecessor reservation number in the batch. This independently
+  rejects duplicate posted documents, duplicate cancelled predecessors, and a
+  document appearing as current on one row and prior on another. One scenario
+  brings the suite to three hundred twenty-five.
+- The count-only application summary now includes availability-evaluated rows,
+  reservation-linked rows, idempotent replays, new reservation postings,
+  cancellation-replacement attempts, and the successfully posted replacement
+  subset. The existing exhaustive summary scenario covers the additions, so the
+  executable suite remains at three hundred twenty-five scenarios.
+- Application response validation now maps every supported decision code to
+  its permitted allocation status and binds posting states to run mode.
+  Simulations accept only simulated or not-required posting, while synchronous
+  productive calls reject simulated and still-pending outcomes. Two scenarios
+  bring the suite to three hundred twenty-seven.
+- Allocation outcome, decision, document, lineage, and run-mode rules now live
+  in the pure `ZCL_ALLOCATION_RESULT_CHECK` boundary used by both the
+  application and SAP logger. Direct logger calls therefore fail before row
+  construction or store access when their results are malformed or contradict
+  a canonical run mode. Malformed run flags remain auditable as mode `I`. Two
+  logger scenarios bring the suite to three hundred twenty-nine.

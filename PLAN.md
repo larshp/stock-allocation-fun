@@ -225,3 +225,31 @@ best practices.
       store for every nonempty validated allocation batch.
 - [x] Guard export-reader and retention-store dependencies after facade input
       validation and normalize blank backend failure diagnostics.
+- [x] Bound allocation calls to 1,000 requests and reject oversized batches
+      before authorization, replay, stock, conversion, or posting work.
+- [x] Validate requirement and horizon dates as real Gregorian calendar dates
+      across allocation, orchestration, and direct posting boundaries.
+- [x] Validate audit/export date and time filters plus retention dates before
+      range arithmetic, authorization, SQL reads, or destructive cleanup.
+- [x] Require numeric, unique reservation documents in every successful
+      replaceable writer response before merging it into service results.
+- [x] Prevent a reopened request from linking its replacement claim to the
+      same cancelled reservation at both writer and orchestration boundaries.
+- [x] Return application-level allocation and posting status counts for every
+      run, including explicit unknown-state buckets for custom adapters.
+- [x] Validate replaceable service result cardinality and request-ID
+      multiplicity before application results can reach audit logging.
+- [x] Bind every replaceable service result to the complete immutable input
+      payload without requiring the service to preserve input row order.
+- [x] Validate replaceable service outcome states, boolean evidence, posting
+      compatibility, and reservation lineage before application audit logging.
+- [x] Reconcile replaceable service allocation, shortfall, fulfillment, and
+      availability evidence before accepting or auditing application results.
+- [x] Require reservation documents and replacement predecessors to be unique
+      across the complete application service result.
+- [x] Add batch-summary counters for availability evaluation, reservation
+      creation, replay, and cancellation-replacement activity.
+- [x] Bind result decision codes and posting states to their allocation status
+      and the productive or simulation mode of the application call.
+- [x] Extract result-envelope validation into a shared pure boundary and apply
+      it to direct audit-logger calls before constructing persistence rows.

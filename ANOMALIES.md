@@ -923,3 +923,135 @@ now retains its run ID and exposes an additive composition/logging message; the
 logger requires a store only for nonempty validated rows. Export and retention
 check their backends after caller validation, preserve invalid-input precedence,
 and provide stable fallbacks for blank canonical failure responses.
+
+## RESOLVED-092: allocation calls admitted unbounded request batches
+
+The public allocation service previously accepted an arbitrarily large request
+table before entering authorization, replay, stock, conversion, and posting
+phases. A malformed or accidental bulk call could therefore amplify database,
+enqueue, BAPI, and audit work. The service now accepts at most 1,000 rows and
+returns an auditable `BATCH_SIZE_EXCEEDED` configuration result for every row
+in a larger batch before any operational collaborator is called.
+
+## RESOLVED-093: allocation dates were checked only for presence
+
+Requirement and horizon fields used the ABAP date type, but the service only
+checked that a requirement date was noninitial and compared a supplied horizon
+without proving that either value represented a real calendar date. Impossible
+dates could therefore affect ordering, deferral, persisted claims, or direct
+reservation calls. A shared Gregorian validator now rejects invalid days,
+months, years, and non-leap February 29 values at every allocation and posting
+boundary before operational side effects.
+
+## RESOLVED-094: operational date and time filters were only ordered
+
+Audit reads and exports checked whether their temporal boundaries were ordered,
+but impossible calendar dates and clock values could still reach authorization
+and SQL. Retention also subtracted days from an unchecked effective date, and
+its destructive store accepted any noninitial cutoff earlier than the server's
+lexical date. All operational date ranges now use the shared Gregorian
+validator, audit times must be valid 24-hour values, and retention validates at
+both facade and store boundaries before arithmetic or data access.
+
+## RESOLVED-095: custom writer documents were weakly validated
+
+The production writer rejected malformed or duplicate reservation numbers, but
+the orchestration boundary accepted any nonblank document from a replaceable
+writer and did not detect cross-request reuse. A custom adapter could therefore
+inject an invalid reservation reference into returned and audited results even
+though its status and immutable allocation payload passed validation. Every
+posted writer row now requires the shared ten-digit numeric document contract,
+and reservation IDs must be unique across the writer batch before any response
+is merged.
+
+## RESOLVED-096: replacement could point back to the cancelled reservation
+
+Cancellation reopening validated both the prior and newly returned reservation
+numbers independently, but did not require them to differ. A malformed gateway
+or replaceable writer could therefore report the cancelled document as its own
+replacement and persist contradictory lineage. The transactional writer now
+rolls back before document assignment when the IDs match, and orchestration
+repeats the invariant before accepting a custom writer response.
+
+## RESOLVED-097: application callers had no batch-level outcome summary
+
+The application returned detailed rows but required every caller to rescan the
+table to determine how many requests were allocated, rejected, deferred, or
+posted. It now returns counts for all modeled allocation and posting states,
+plus explicit unknown-state buckets so malformed custom adapter values cannot
+silently disappear from the totals. The summary contains counts only because
+quantities across different materials and units are not safely additive.
+
+## RESOLVED-098: replaceable services could return a different request set
+
+The application trusted the allocation table returned by its injected service.
+A custom adapter could drop an input, add an unrelated output, or alter the
+multiplicity of duplicate request IDs, and those rows would be returned and
+offered to audit persistence as though they represented the requested batch.
+The application now compares result cardinality and the complete request-ID
+multiset before logging. Invalid responses retain their generated run ID,
+detail rows, and diagnostic summary, expose a false `service_result_valid`
+flag, and cannot reach the logger.
+
+## RESOLVED-099: matching request IDs could conceal mutated service payloads
+
+Cardinality and request-ID multiplicity proved that a replaceable service
+returned the requested keys, but did not prove that those rows still described
+the same demand. An adapter could retain an ID while changing its material,
+stock scope, movement, account assignment, date, source quantity or unit, or
+allocation controls. The application now compares the full immutable payload
+as an order-independent multiset before accepting or logging the result.
+
+## RESOLVED-100: application accepted malformed service outcome envelopes
+
+Even a payload-matched custom result could contain unknown statuses, a
+noncanonical availability flag, an impossible allocation/posting combination,
+or contradictory reservation evidence. Such rows could be summarized and sent
+to the audit logger despite not representing a supported service outcome. The
+application now validates those state and document invariants before logging;
+its precomputed summary remains available to expose unknown-state counts when
+the response is rejected.
+
+## RESOLVED-101: service outcomes could contain contradictory quantities
+
+Payload and state validation did not prove that a custom service's numeric
+evidence described the claimed outcome. It could return an allocation with no
+decision, a negative or oversized allocation, a shortfall that did not
+reconcile, an impossible fill percentage, or availability without affirming
+that stock was checked. Application validation now enforces those universal
+and status-specific relationships before audit logging while retaining exact
+invalid-input results that may legitimately contain nonpositive source demand.
+
+## RESOLVED-102: cross-row reservation lineage was not checked by the app
+
+Individual application outcomes validated their current and predecessor
+reservation numbers, but did not compare them with other rows. A custom service
+could therefore reuse a valid document across posted results or alias a current
+reservation to another row's cancelled predecessor. The application now uses
+one batch-wide uniqueness set for both document roles before audit logging.
+
+## RESOLVED-103: batch summaries omitted replay and replacement activity
+
+Status counts described final allocation and posting states but did not reveal
+how much work used live availability, reused prior reservations, or reopened
+cancelled claims. Callers therefore had to rescan detailed rows for common
+operational metrics. The summary now reports availability evaluation,
+reservation evidence, replay, new-reservation, replacement-attempt, and
+successful-replacement counts without adding quantities across mixed units.
+
+## RESOLVED-104: result decisions and posting modes were context-free
+
+A custom service could attach an unrelated decision code to a valid status or
+report a productive reservation during simulation. It could likewise return a
+simulated or still-pending posting from the synchronous productive application
+path. The application now maps each supported decision to its allocation status
+and checks posting state against the canonical run mode before audit logging.
+
+## RESOLVED-105: direct logger calls bypassed result-envelope validation
+
+Application-mediated logging received validated outcomes, but the public SAP
+logger could be called directly with contradictory quantities, statuses,
+documents, lineage, or run-mode evidence. The rules now live in the reusable
+pure `ZCL_ALLOCATION_RESULT_CHECK` class. Both application and logger invoke
+that boundary, and the logger rejects malformed batches before constructing
+current/history rows or calling its store.

@@ -147,7 +147,9 @@ CLASS ltcl_allocation_log_export DEFINITION FINAL
     METHODS neutralizes_csv_formulas FOR TESTING.
     METHODS supplies_default_dates FOR TESTING.
     METHODS rejects_invalid_range FOR TESTING.
+    METHODS rejects_impossible_dates FOR TESTING.
     METHODS rejects_invalid_time_range FOR TESTING.
+    METHODS rejects_impossible_time FOR TESTING.
     METHODS rejects_invalid_req_range FOR TESTING.
     METHODS rejects_invalid_horizon FOR TESTING.
     METHODS rejects_invalid_policy_filter FOR TESTING.
@@ -565,6 +567,39 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD rejects_impossible_dates.
+    DATA(ls_effective_result) = mo_cut->run(
+      iv_today = '20260230' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_effective_result-message
+      exp = 'Export effective date is invalid' ).
+
+    DATA(ls_log_result) = mo_cut->run(
+      iv_from_date = '20260230'
+      iv_to_date   = '20260301'
+      iv_today     = '20260301' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_log_result-message
+      exp = 'Export date range is invalid' ).
+
+    DATA(ls_requirement_result) = mo_cut->run(
+      iv_requirement_to = '20260230'
+      iv_today          = '20260301' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_requirement_result-message
+      exp = 'Requirement date range is invalid' ).
+
+    DATA(ls_horizon_result) = mo_cut->run(
+      iv_horizon_from = '20260230'
+      iv_today        = '20260301' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_horizon_result-message
+      exp = 'Horizon date range is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD rejects_invalid_time_range.
     DATA(ls_result) = mo_cut->run(
       iv_from_date = '20260818'
@@ -575,7 +610,22 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
-      exp = 'Export start time must not exceed end time' ).
+      exp = 'Export time range is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_impossible_time.
+    DATA(ls_result) = mo_cut->run(
+      iv_from_date = '20260818'
+      iv_to_date   = '20260818'
+      iv_to_time   = '236060' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Export time range is invalid' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_calls
       exp = 0 ).
@@ -645,7 +695,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
-      exp = 'Requirement start date must not exceed end date' ).
+      exp = 'Requirement date range is invalid' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_calls
       exp = 0 ).
@@ -660,7 +710,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
-      exp = 'Horizon start date must not exceed end date' ).
+      exp = 'Horizon date range is invalid' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_reader->mv_calls
       exp = 0 ).
@@ -903,7 +953,7 @@ CLASS ltcl_allocation_log_export IMPLEMENTATION.
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
-      exp = 'Export start date must not exceed end date' ).
+      exp = 'Export date range is invalid' ).
   ENDMETHOD.
 
   METHOD normalizes_empty_read_failure.

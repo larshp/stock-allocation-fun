@@ -54,6 +54,11 @@ CLASS zcl_allocation_log_retention IMPLEMENTATION.
       WHEN iv_today IS INITIAL
       THEN sy-datum
       ELSE iv_today ).
+    IF zcl_stock_allocator=>date_is_valid( lv_today ) = abap_false.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention effective date is invalid'.
+      RETURN.
+    ENDIF.
     IF lv_today > sy-datum.
       rs_result-is_success = abap_false.
       rs_result-message = 'Retention effective date must not be in the future'.

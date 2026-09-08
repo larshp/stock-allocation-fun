@@ -67,6 +67,12 @@ CLASS zcl_allocation_log_store_sap IMPLEMENTATION.
       rs_result-message = 'Retention cutoff date must not be initial'.
       RETURN.
     ENDIF.
+    IF zcl_stock_allocator=>date_is_valid(
+        iv_cutoff_date ) = abap_false.
+      rs_result-is_success = abap_false.
+      rs_result-message = 'Retention cutoff date is invalid'.
+      RETURN.
+    ENDIF.
     IF iv_cutoff_date >= sy-datum.
       rs_result-is_success = abap_false.
       rs_result-message = 'Retention cutoff date must be before today'.

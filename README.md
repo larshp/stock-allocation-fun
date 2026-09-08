@@ -12,9 +12,17 @@ writes.
 - Selectable priority/date, date/priority, and priority/request-ID strategies.
 - Optional inclusive allocation horizon with an explicit `DEFERRED` outcome for
   later demand.
+- Gregorian calendar validation for every requirement date and optional
+  horizon, including century-aware leap years. Invalid horizons fail the batch
+  before authorization or business-data access.
+- Calendar and 24-hour clock validation for audit/export filters, plus
+  independent effective-date and cutoff validation for retention cleanup.
 - All-or-nothing and partial-fulfillment requests.
 - Optional full-batch enforcement that prevents every new posting when any new
   request is partial, rejected, invalid, deferred, or otherwise incomplete.
+- An inclusive 1,000-request service limit. Larger calls fail as
+  `BATCH_SIZE_EXCEEDED` before authorization, replay, stock, conversion, or
+  posting dependencies are invoked.
 - Per-request minimum fulfillment percentages for partial allocations.
 - Plant and storage-location-specific stock pools.
 - Explicit quantity units with `MARA-MEINS` as the canonical base unit and
@@ -96,9 +104,22 @@ writes.
   both productive and simulation runs. Decimal evidence is preflighted against
   the persisted `DEC(13,3)` domain, and the SAP store verifies complete paired
   row equality plus unique, noninitial history UUIDs before database access.
+  The public logger independently applies the shared allocation-result and run-
+  mode contract before constructing rows, so direct callers cannot persist
+  malformed outcome arithmetic, states, documents, or lineage.
 - One generated run ID per application call, returned to the caller and stored
   on every current-state and history row produced by that call. Nonempty logger
   batches require its canonical 32-character hexadecimal form.
+- Application-level validation of replaceable service results. Returned rows
+  must preserve the input count and exact immutable request-payload multiset,
+  including identity, quantity, unit, date, policy, and account assignment;
+  malformed responses are marked invalid and never reach audit persistence.
+  Outcome rows must also use modeled allocation/posting combinations, a
+  canonical availability flag, consistent ten-digit reservation evidence, a
+  recognized decision code compatible with the allocation status, and
+  reconciled allocation arithmetic. Posting state must also match the run:
+  simulations cannot claim productive posting, while synchronous productive
+  calls cannot return simulated or still-pending work.
 - Reconstructable audit context covering material, plant, storage location,
   movement, requirement date, request controls, run controls, account
   assignment, quantities, outcomes, and reservation replacement lineage.
@@ -224,14 +245,39 @@ needs `M_MATE_WRK` activity `02` for every requested plant. If any plant check
 fails, the complete call is returned as invalid before replay records or stock
 are read, preserving the service's atomic batch boundary.
 The returned result contains all allocation/posting results, a 32-character
-hexadecimal `run_id`, `log_saved`, and an application-level diagnostic so
-callers can distinguish missing service/logger composition, rejected logging,
-and malformed logging acknowledgements. The run ID is generated before allocation
-and remains available even if audit saving fails. Every audit row from that
-call carries the same run ID, while each history row retains its separate
-`LOG_UUID`. Only an exact affirmative logger acknowledgement sets `log_saved`;
-malformed custom logger or store results are normalized to false. Current-state
-and history records are saved atomically in one audit
+hexadecimal `run_id`, `service_result_valid`, `log_saved`, an application-level
+diagnostic, and a count-only summary of every modeled allocation and posting
+state. The summary also counts rows with evaluated availability, reservation
+documents, idempotent replays, newly created reservations, replacement
+attempts, and successfully posted replacements. Separate unknown-state counters
+expose malformed custom adapter values. Quantities are not totaled because one
+run can span incompatible material units. Before logging, the application
+requires the service response to contain
+exactly one result per input row with the same immutable request-payload
+multiset. This admits reordered results and exact duplicate-input validation
+outcomes without allowing a replaceable service to drop, add, substitute, or
+mutate requests. A malformed response retains its run ID, allocations, and
+summary for diagnosis, but `service_result_valid` remains false and the logger
+is not called. Unknown-state summary counters therefore remain useful for
+diagnosis without admitting those states into the audit tables. Posted rows
+require a valid reservation number, non-posted rows cannot carry one, and any
+replacement reservation must be valid and distinct from the current document.
+The combined set of current and predecessor reservation numbers must also be
+unique across the batch, preventing cross-row replay or replacement aliases.
+Allocation quantities must be nonnegative and within the supported domain;
+shortfall must equal requested minus allocated quantity; full and partial
+fulfillment percentages must match their quantities; and an unchecked
+availability flag cannot carry stock evidence. These validations retain
+faithful invalid-input results, including nonpositive source demand, while
+rejecting contradictions introduced by a replaceable service.
+Callers can distinguish missing service/logger
+composition, invalid service output, rejected logging, and malformed logging
+acknowledgements. The run ID is generated before allocation and remains
+available even if audit saving fails. Every audit row from that call carries
+the same run ID, while each history row retains its separate `LOG_UUID`.
+Only an exact affirmative logger acknowledgement sets `log_saved`; malformed
+custom logger or store results are normalized to false. Current-state and
+history records are saved atomically in one audit
 LUW. An empty allocation batch is a successful logging no-op and does not
 require a store; every nonempty validated batch does. Existing audit rows from
 before this additive schema change have a blank
@@ -335,9 +381,11 @@ boolean acknowledgements roll back the LUW, release locks, fail every pending
 allocation, and never advance to the next posting phase.
 After the writer returns, orchestration also verifies that the response has the
 same request set and immutable allocation payload, contains only atomic posted
-or failed states, requires a document for every posted row, and forbids one for
-failed rows. A malformed response is surfaced as failed posting evidence using
-the original allocations instead of trusting mutated adapter data.
+or failed states, requires one unique ten-digit numeric document for every
+posted row, requires a replacement document to differ from its cancelled
+predecessor, and forbids a document for failed rows. A malformed response is
+surfaced as failed posting evidence using the original allocations instead of
+trusting mutated adapter data.
 Before stock recheck, the writer acquires one exclusive `MARD` lock for each
 unique material/plant in ascending lexical order. `LGORT` is initial and its
 X-flag is blank, making the lock generic across every storage location in that

@@ -47,7 +47,8 @@ CLASS zcl_allocation_persistence IMPLEMENTATION.
       AND is_allocation-movement_type IS NOT INITIAL
       AND is_allocation-source_unit_of_measure IS NOT INITIAL
       AND is_allocation-unit_of_measure IS NOT INITIAL
-      AND is_allocation-requirement_date IS NOT INITIAL
+      AND zcl_stock_allocator=>date_is_valid(
+        is_allocation-requirement_date ) = abap_true
       AND lv_account_error IS INITIAL
       AND is_allocation-source_requested_qty > 0
       AND quantity_is_persistable(
@@ -97,7 +98,8 @@ CLASS zcl_allocation_persistence IMPLEMENTATION.
       AND is_request-storage_location IS NOT INITIAL
       AND is_request-movement_type IS NOT INITIAL
       AND is_request-unit_of_measure IS NOT INITIAL
-      AND is_request-requirement_date IS NOT INITIAL
+      AND zcl_stock_allocator=>date_is_valid(
+        is_request-requirement_date ) = abap_true
       AND lv_account_error IS INITIAL
       AND is_request-quantity > 0
       AND quantity_is_persistable( is_request-quantity ) = abap_true ).

@@ -100,6 +100,10 @@ CLASS zcl_stock_allocator DEFINITION
       VALUE 'AUTHORIZATION_RESULT_INVALID'.
     CONSTANTS gc_decision_full_batch_aborted TYPE ty_decision_code
       VALUE 'FULL_BATCH_ABORTED'.
+    CONSTANTS gc_decision_batch_too_large TYPE ty_decision_code
+      VALUE 'BATCH_SIZE_EXCEEDED'.
+    CONSTANTS gc_decision_horizon_invalid TYPE ty_decision_code
+      VALUE 'HORIZON_DATE_INVALID'.
 
     TYPES:
       BEGIN OF ty_request,
@@ -230,6 +234,18 @@ CLASS zcl_stock_allocator DEFINITION
         is_request        TYPE ty_request
       RETURNING
         VALUE(rv_message) TYPE string.
+
+    CLASS-METHODS date_is_valid
+      IMPORTING
+        iv_date         TYPE d
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
+
+    CLASS-METHODS time_is_valid
+      IMPORTING
+        iv_time         TYPE t
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
 
     METHODS allocate
       IMPORTING
@@ -833,7 +849,7 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       OR is_request-storage_location IS INITIAL
       OR is_request-movement_type IS INITIAL
       OR is_request-unit_of_measure IS INITIAL
-      OR is_request-requirement_date IS INITIAL ).
+      OR date_is_valid( is_request-requirement_date ) = abap_false ).
     DATA lv_rounded_requested TYPE ty_persisted_quantity.
     IF is_request-requested_qty > 0
         AND is_request-requested_qty <= gc_max_quantity.
@@ -890,7 +906,60 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
       WHEN lv_structural_invalid = abap_false
         AND is_request-priority <= 0
       THEN 'Priority must be greater than zero'
+      WHEN is_request-requirement_date IS NOT INITIAL
+        AND date_is_valid( is_request-requirement_date ) = abap_false
+      THEN 'Requirement date is invalid'
       ELSE '' ).
+  ENDMETHOD.
+
+  METHOD date_is_valid.
+    DATA lv_date_text TYPE c LENGTH 8.
+    lv_date_text = iv_date.
+    IF lv_date_text CN '0123456789'.
+      RETURN.
+    ENDIF.
+
+    DATA lv_year TYPE i.
+    DATA lv_month TYPE i.
+    DATA lv_day TYPE i.
+    lv_year = lv_date_text+0(4).
+    lv_month = lv_date_text+4(2).
+    lv_day = lv_date_text+6(2).
+    IF lv_year <= 0 OR lv_month < 1 OR lv_month > 12 OR lv_day < 1.
+      RETURN.
+    ENDIF.
+
+    DATA lv_days_in_month TYPE i.
+    CASE lv_month.
+      WHEN 1 OR 3 OR 5 OR 7 OR 8 OR 10 OR 12.
+        lv_days_in_month = 31.
+      WHEN 4 OR 6 OR 9 OR 11.
+        lv_days_in_month = 30.
+      WHEN 2.
+        lv_days_in_month = 28.
+        IF lv_year MOD 400 = 0
+            OR ( lv_year MOD 4 = 0 AND lv_year MOD 100 <> 0 ).
+          lv_days_in_month = 29.
+        ENDIF.
+    ENDCASE.
+    rv_valid = xsdbool( lv_day <= lv_days_in_month ).
+  ENDMETHOD.
+
+  METHOD time_is_valid.
+    DATA lv_time_text TYPE c LENGTH 6.
+    lv_time_text = iv_time.
+    IF lv_time_text CN '0123456789'.
+      RETURN.
+    ENDIF.
+
+    DATA lv_hour TYPE i.
+    DATA lv_minute TYPE i.
+    DATA lv_second TYPE i.
+    lv_hour = lv_time_text+0(2).
+    lv_minute = lv_time_text+2(2).
+    lv_second = lv_time_text+4(2).
+    rv_valid = xsdbool(
+      lv_hour <= 23 AND lv_minute <= 59 AND lv_second <= 59 ).
   ENDMETHOD.
 
   METHOD calculate_available.

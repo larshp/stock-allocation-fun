@@ -33,11 +33,15 @@ CLASS ltcl_allocation_logger_sap DEFINITION FINAL
     METHODS rejects_nonhex_run_id FOR TESTING.
     METHODS rejects_oversized_quantity FOR TESTING.
     METHODS rejects_imprecise_quantity FOR TESTING.
+    METHODS rejects_invalid_outcome FOR TESTING.
+    METHODS rejects_wrong_run_mode FOR TESTING.
     METHODS records_invalid_run_mode FOR TESTING.
     METHODS rejects_missing_store FOR TESTING.
     METHODS accepts_empty_without_store FOR TESTING.
 
     METHODS allocations
+      IMPORTING
+        iv_simulation         TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_allocations) TYPE zcl_stock_allocator=>ty_allocations.
 ENDCLASS.
@@ -50,7 +54,7 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
 
   METHOD writes_current_and_history.
     DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
-      it_allocations        = allocations( )
+      it_allocations        = allocations( abap_true )
       iv_simulation         = abap_true
       iv_run_id             = '00112233445566778899AABBCCDDEEFF'
       iv_strategy           = zcl_stock_allocator=>gc_strategy_due_priority
@@ -220,6 +224,31 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( mo_store->mt_history ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_outcome.
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-shortfall_qty = 1.
+
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = lt_allocations
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+  ENDMETHOD.
+
+  METHOD rejects_wrong_run_mode.
+    DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
+      it_allocations = allocations( abap_true )
+      iv_simulation  = abap_false
+      iv_run_id      = 'FFEEDDCCBBAA99887766554433221100'
+      iv_strategy    = zcl_stock_allocator=>gc_strategy_priority_due ).
+
+    cl_abap_unit_assert=>assert_false( lv_saved ).
+    cl_abap_unit_assert=>assert_initial( mo_store->mv_calls ).
+  ENDMETHOD.
+
   METHOD records_invalid_run_mode.
     DATA(lv_saved) = mo_cut->zif_allocation_logger~write(
       it_allocations = allocations( )
@@ -289,22 +318,35 @@ CLASS ltcl_allocation_logger_sap IMPLEMENTATION.
         source_unit_of_measure = 'BOX'
         status                 = zcl_stock_allocator=>gc_status_allocated
         decision_code          = zcl_stock_allocator=>gc_decision_fully_allocated
-        posting_status         = zcl_stock_allocator=>gc_posting_posted
+        posting_status         = COND #(
+          WHEN iv_simulation = abap_true
+          THEN zcl_stock_allocator=>gc_posting_simulated
+          ELSE zcl_stock_allocator=>gc_posting_posted )
         availability_checked   = abap_true
         available_qty          = 9
-        document_id            = '0000000001'
+        document_id            = COND #(
+          WHEN iv_simulation = abap_false
+          THEN '0000000001'
+          ELSE '' )
         replaced_document_id   = '0000000041' )
       ( request_id             = 'LOG-2'
-        allocated_qty          = 2
+        allocated_qty          = 1
         requested_qty          = 2
-        shortfall_qty          = 0
-        fill_pct               = 100
+        shortfall_qty          = 1
+        fill_pct               = 50
         unit_of_measure        = 'EA'
         source_requested_qty   = 2
         source_unit_of_measure = 'EA'
         status                 = zcl_stock_allocator=>gc_status_partial
         decision_code          = zcl_stock_allocator=>gc_decision_partial
-        posting_status         = zcl_stock_allocator=>gc_posting_simulated
+        posting_status         = COND #(
+          WHEN iv_simulation = abap_true
+          THEN zcl_stock_allocator=>gc_posting_simulated
+          ELSE zcl_stock_allocator=>gc_posting_posted )
+        document_id            = COND #(
+          WHEN iv_simulation = abap_false
+          THEN '0000000002'
+          ELSE '' )
         posting_message        = 'Simulation only' ) ).
   ENDMETHOD.
 ENDCLASS.

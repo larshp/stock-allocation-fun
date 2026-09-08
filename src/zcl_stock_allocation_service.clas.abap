@@ -6,6 +6,7 @@ CLASS zcl_stock_allocation_service DEFINITION
   PUBLIC SECTION.
     INTERFACES zif_stock_allocation_service.
     ALIASES execute FOR zif_stock_allocation_service~execute.
+    CONSTANTS gc_max_batch_size TYPE i VALUE 1000.
 
     METHODS constructor
       IMPORTING
@@ -26,6 +27,8 @@ CLASS zcl_stock_allocation_service DEFINITION
 
     TYPES ty_plants TYPE SORTED TABLE OF zcl_stock_allocator=>ty_plant
       WITH UNIQUE KEY table_line.
+    TYPES ty_document_ids TYPE SORTED TABLE OF
+      zcl_stock_allocator=>ty_document_id WITH UNIQUE KEY table_line.
 
     METHODS reject_batch
       IMPORTING
@@ -84,6 +87,24 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_status        = zcl_stock_allocator=>gc_status_config_error
         iv_decision_code = zcl_stock_allocator=>gc_decision_bad_strategy
         iv_message       = 'Unsupported allocation strategy' ).
+      RETURN.
+    ENDIF.
+    IF iv_horizon_date IS NOT INITIAL
+        AND zcl_stock_allocator=>date_is_valid(
+          iv_horizon_date ) = abap_false.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_horizon_invalid
+        iv_message       = 'Allocation horizon date is invalid' ).
+      RETURN.
+    ENDIF.
+    IF lines( it_requests ) > gc_max_batch_size.
+      rt_allocations = reject_batch(
+        it_requests      = it_requests
+        iv_status        = zcl_stock_allocator=>gc_status_config_error
+        iv_decision_code = zcl_stock_allocator=>gc_decision_batch_too_large
+        iv_message       = |Allocation batch exceeds { gc_max_batch_size } requests| ).
       RETURN.
     ENDIF.
 
@@ -496,6 +517,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     SORT lt_expected BY request_id ASCENDING.
     SORT lt_actual BY request_id ASCENDING.
     DATA lv_batch_status TYPE zcl_stock_allocator=>ty_posting_status.
+    DATA lt_document_ids TYPE ty_document_ids.
     LOOP AT lt_expected INTO DATA(ls_expected).
       READ TABLE lt_actual INTO DATA(ls_actual) INDEX sy-tabix.
       IF sy-subrc <> 0 OR ls_actual-request_id <> ls_expected-request_id.
@@ -511,6 +533,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           OR ( ls_actual-posting_status = zcl_stock_allocator=>gc_posting_failed
             AND ls_actual-document_id IS NOT INITIAL ).
         RETURN.
+      ENDIF.
+      IF ls_actual-posting_status = zcl_stock_allocator=>gc_posting_posted.
+        IF zcl_allocation_persistence=>document_id_is_valid(
+            ls_actual-document_id ) = abap_false.
+          RETURN.
+        ENDIF.
+        IF ls_actual-replaced_document_id IS NOT INITIAL
+            AND ls_actual-document_id = ls_actual-replaced_document_id.
+          RETURN.
+        ENDIF.
+        INSERT ls_actual-document_id INTO TABLE lt_document_ids.
+        IF sy-subrc <> 0.
+          RETURN.
+        ENDIF.
       ENDIF.
       IF lv_batch_status IS INITIAL.
         lv_batch_status = ls_actual-posting_status.

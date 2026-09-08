@@ -39,6 +39,15 @@ CLASS zcl_allocation_logger_sap IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF zcl_allocation_result_check=>batch_is_valid(
+        it_allocations ) = abap_false
+        OR zcl_allocation_result_check=>run_mode_is_valid(
+          it_allocations = it_allocations
+          iv_simulation  = iv_simulation ) = abap_false.
+      rv_saved = abap_false.
+      RETURN.
+    ENDIF.
+
     LOOP AT it_allocations INTO DATA(ls_input_allocation).
       IF is_persistable_quantity(
           ls_input_allocation-minimum_fill_pct ) = abap_false

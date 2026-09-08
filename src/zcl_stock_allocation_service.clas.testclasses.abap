@@ -143,7 +143,9 @@ CLASS lcl_allocation_writer IMPLEMENTATION.
         <ls_allocation>-posting_message = 'Posting failed'.
       ELSE.
         <ls_allocation>-posting_status = zcl_stock_allocator=>gc_posting_posted.
-        <ls_allocation>-document_id = '0000000042'.
+        DATA lv_document_id TYPE n LENGTH 10.
+        lv_document_id = 41 + sy-tabix.
+        <ls_allocation>-document_id = lv_document_id.
       ENDIF.
     ENDLOOP.
     mt_saved = ct_allocations.
@@ -153,6 +155,15 @@ CLASS lcl_allocation_writer IMPLEMENTATION.
         DELETE ct_allocations INDEX 1.
       WHEN 'M'.
         ct_allocations[ 1 ]-material = 'CHANGED'.
+      WHEN 'I'.
+        ct_allocations[ 1 ]-document_id = 'BAD-DOC'.
+      WHEN 'U'.
+        LOOP AT ct_allocations ASSIGNING <ls_allocation>.
+          <ls_allocation>-document_id = '0000000042'.
+        ENDLOOP.
+      WHEN 'R'.
+        ct_allocations[ 1 ]-document_id =
+          ct_allocations[ 1 ]-replaced_document_id.
     ENDCASE.
   ENDMETHOD.
 ENDCLASS.
@@ -176,6 +187,9 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS rejects_invalid_simulation FOR TESTING.
     METHODS rejects_invalid_full_batch FOR TESTING.
     METHODS rejects_strategy_before_reads FOR TESTING.
+    METHODS rejects_oversized_batch FOR TESTING.
+    METHODS accepts_batch_size_boundary FOR TESTING.
+    METHODS rejects_invalid_horizon_date FOR TESTING.
     METHODS skips_invalid_dependencies FOR TESTING.
     METHODS skips_all_invalid_reads FOR TESTING.
     METHODS skips_unpersistable_numeric FOR TESTING.
@@ -197,6 +211,9 @@ CLASS ltcl_stock_allocation_service DEFINITION FINAL
     METHODS returns_posting_failure FOR TESTING.
     METHODS rejects_dropped_writer_row FOR TESTING.
     METHODS rejects_mutated_writer_row FOR TESTING.
+    METHODS rejects_bad_writer_document FOR TESTING.
+    METHODS rejects_reused_writer_document FOR TESTING.
+    METHODS rejects_reused_replacement FOR TESTING.
     METHODS skips_empty_write FOR TESTING.
     METHODS converts_before_write FOR TESTING.
     METHODS rejects_missing_converter FOR TESTING.
@@ -743,6 +760,139 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_writer_document.
+    mo_writer->mv_response_mode = 'I'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation writer returned invalid response' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-document_id ).
+  ENDMETHOD.
+
+  METHOD rejects_reused_writer_document.
+    mo_writer->mv_response_mode = 'U'.
+    DATA(lt_requests) = requests( 1 ).
+    DATA(lt_second_request) = requests( 1 ).
+    lt_second_request[ 1 ]-request_id = 'REQUEST-2'.
+    APPEND lt_second_request[ 1 ] TO lt_requests.
+
+    DATA(lt_result) = mo_cut->execute( lt_requests ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 2 ).
+    LOOP AT lt_result INTO DATA(ls_result).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_result-posting_status
+        exp = zcl_stock_allocator=>gc_posting_failed ).
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_result-posting_message
+        exp = 'Allocation writer returned invalid response' ).
+      cl_abap_unit_assert=>assert_initial( ls_result-document_id ).
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD rejects_reused_replacement.
+    mo_reservation_status->mv_is_cancelled = abap_true.
+    INSERT completed_record( ) INTO TABLE mo_store->mt_records.
+    mo_writer->mv_response_mode = 'R'.
+
+    DATA(lt_result) = mo_cut->execute( requests( 5 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation writer returned invalid response' ).
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-document_id ).
+  ENDMETHOD.
+
+  METHOD rejects_oversized_batch.
+    DATA lt_requests TYPE zcl_stock_allocator=>ty_requests.
+    DO zcl_stock_allocation_service=>gc_max_batch_size + 1 TIMES.
+      DATA(lt_request) = requests( 1 ).
+      lt_request[ 1 ]-request_id = |REQ-{ sy-index }|.
+      APPEND lt_request[ 1 ] TO lt_requests.
+    ENDDO.
+
+    DATA(lt_result) = mo_cut->execute( lt_requests ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-status
+      exp = zcl_stock_allocator=>gc_status_config_error ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_batch_too_large ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation batch exceeds 1000 requests' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_authority->mt_checked_plants )
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_writer->mv_call_count
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD accepts_batch_size_boundary.
+    DATA lt_requests TYPE zcl_stock_allocator=>ty_requests.
+    DO zcl_stock_allocation_service=>gc_max_batch_size TIMES.
+      APPEND INITIAL LINE TO lt_requests.
+    ENDDO.
+
+    DATA(lt_result) = mo_cut->execute( lt_requests ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = zcl_stock_allocation_service=>gc_max_batch_size ).
+    cl_abap_unit_assert=>assert_differs(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_batch_too_large ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_authority->mt_checked_plants )
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_horizon_date.
+    DATA(lt_result) = mo_cut->execute(
+      it_requests     = requests( 1 )
+      iv_horizon_date = '20260229' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_horizon_invalid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Allocation horizon date is invalid' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_authority->mt_checked_plants )
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_find_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_reader->mv_calls
       exp = 0 ).
   ENDMETHOD.
 

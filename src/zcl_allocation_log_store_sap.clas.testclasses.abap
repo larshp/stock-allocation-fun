@@ -15,6 +15,7 @@ CLASS ltcl_allocation_log_store_sap DEFINITION FINAL
     METHODS rejects_duplicate_history_uuid FOR TESTING.
     METHODS rejects_invalid_simulation FOR TESTING.
     METHODS rejects_initial_cutoff FOR TESTING.
+    METHODS rejects_invalid_cutoff FOR TESTING.
     METHODS rejects_current_cutoff FOR TESTING.
 ENDCLASS.
 
@@ -104,6 +105,17 @@ CLASS ltcl_allocation_log_store_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Retention cutoff date must not be initial' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_cutoff.
+    DATA(ls_result) = mo_cut->zif_allocation_history_store~remove_before(
+      iv_cutoff_date = '20260230'
+      iv_simulation  = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention cutoff date is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_current_cutoff.

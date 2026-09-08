@@ -58,6 +58,8 @@ CLASS ltcl_stock_allocator DEFINITION FINAL
     METHODS rejects_nonpositive_priority FOR TESTING.
     METHODS rejects_invalid_partial_flag FOR TESTING.
     METHODS rejects_missing_posting_data FOR TESTING.
+    METHODS validates_calendar_dates FOR TESTING.
+    METHODS rejects_invalid_requirement FOR TESTING.
     METHODS rejects_missing_unit FOR TESTING.
     METHODS converts_alternative_unit FOR TESTING.
     METHODS rejects_missing_conversion FOR TESTING.
@@ -639,6 +641,45 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_result[ 1 ]-posting_status
       exp = zcl_stock_allocator=>gc_posting_not_required ).
+  ENDMETHOD.
+
+  METHOD validates_calendar_dates.
+    cl_abap_unit_assert=>assert_true(
+      zcl_stock_allocator=>date_is_valid( '20280229' ) ).
+    cl_abap_unit_assert=>assert_false(
+      zcl_stock_allocator=>date_is_valid( '20260229' ) ).
+    cl_abap_unit_assert=>assert_false(
+      zcl_stock_allocator=>date_is_valid( '20261301' ) ).
+    cl_abap_unit_assert=>assert_false(
+      zcl_stock_allocator=>date_is_valid( '00000000' ) ).
+    cl_abap_unit_assert=>assert_true(
+      zcl_stock_allocator=>time_is_valid( '235959' ) ).
+    cl_abap_unit_assert=>assert_true(
+      zcl_stock_allocator=>time_is_valid( '000000' ) ).
+    cl_abap_unit_assert=>assert_false(
+      zcl_stock_allocator=>time_is_valid( '240000' ) ).
+    cl_abap_unit_assert=>assert_false(
+      zcl_stock_allocator=>time_is_valid( '126060' ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_requirement.
+    DATA(ls_request) = request(
+      iv_id       = 'BAD-DATE'
+      iv_quantity = 1 ).
+    ls_request-requirement_date = '20260229'.
+
+    DATA(lt_result) = mo_cut->allocate(
+      it_requests       = VALUE #( ( ls_request ) )
+      it_stock_balances = stock( 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-decision_code
+      exp = zcl_stock_allocator=>gc_decision_invalid_request ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-posting_message
+      exp = 'Requirement date is invalid' ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_result[ 1 ]-availability_checked ).
   ENDMETHOD.
 
   METHOD rejects_missing_unit.

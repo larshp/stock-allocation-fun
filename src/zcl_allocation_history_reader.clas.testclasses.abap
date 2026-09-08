@@ -9,7 +9,9 @@ CLASS ltcl_allocation_history_reader DEFINITION FINAL
     METHODS setup.
     METHODS rejects_initial_dates FOR TESTING.
     METHODS rejects_inverted_dates FOR TESTING.
+    METHODS rejects_impossible_dates FOR TESTING.
     METHODS rejects_inverted_times FOR TESTING.
+    METHODS rejects_impossible_times FOR TESTING.
     METHODS rejects_invalid_req_range FOR TESTING.
     METHODS rejects_invalid_horizon FOR TESTING.
     METHODS rejects_invalid_policy_filter FOR TESTING.
@@ -55,12 +57,55 @@ CLASS ltcl_allocation_history_reader IMPLEMENTATION.
       exp = 'Audit history date range is invalid' ).
   ENDMETHOD.
 
+  METHOD rejects_impossible_dates.
+    DATA(ls_log_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date = '20260230'
+      iv_to_date   = '20260301'
+      iv_max_rows  = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_log_result-message
+      exp = 'Audit history date range is invalid' ).
+
+    DATA(ls_requirement_result) =
+      mo_cut->zif_allocation_history_reader~read(
+        iv_from_date        = '20260201'
+        iv_to_date          = '20260301'
+        iv_requirement_from = '20260230'
+        iv_max_rows         = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_requirement_result-message
+      exp = 'Audit requirement date range is invalid' ).
+
+    DATA(ls_horizon_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date  = '20260201'
+      iv_to_date    = '20260301'
+      iv_horizon_to = '20260230'
+      iv_max_rows   = 100 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_horizon_result-message
+      exp = 'Audit horizon date range is invalid' ).
+  ENDMETHOD.
+
   METHOD rejects_inverted_times.
     DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
       iv_from_date = '20260820'
       iv_to_date   = '20260820'
       iv_from_time = '120001'
       iv_to_time   = '120000'
+      iv_max_rows  = 100 ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Audit history time range is invalid' ).
+    cl_abap_unit_assert=>assert_initial( ls_result-entries ).
+  ENDMETHOD.
+
+  METHOD rejects_impossible_times.
+    DATA(ls_result) = mo_cut->zif_allocation_history_reader~read(
+      iv_from_date = '20260820'
+      iv_to_date   = '20260820'
+      iv_from_time = '246000'
       iv_max_rows  = 100 ).
 
     cl_abap_unit_assert=>assert_false( ls_result-is_success ).

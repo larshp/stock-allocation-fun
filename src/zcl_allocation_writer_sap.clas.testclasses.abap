@@ -210,6 +210,7 @@ CLASS ltcl_allocation_writer_sap DEFINITION FINAL
     METHODS ignores_empty_batch FOR TESTING.
     METHODS ignores_already_posted FOR TESTING.
     METHODS replaces_cancelled_claim FOR TESTING.
+    METHODS rejects_reused_replacement FOR TESTING.
     METHODS rolls_back_replacement_race FOR TESTING.
 
     METHODS allocations
@@ -559,6 +560,31 @@ CLASS ltcl_allocation_writer_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lt_allocations[ 1 ]-posting_message
       exp = 'Cancelled reservation 0000000041 replaced' ).
+  ENDMETHOD.
+
+  METHOD rejects_reused_replacement.
+    mo_gateway->mt_responses = VALUE #(
+      ( document_id = '0000000041' ) ).
+    DATA(lt_allocations) = allocations( ).
+    lt_allocations[ 1 ]-replaced_document_id = '0000000041'.
+
+    mo_cut->zif_allocation_writer~save_allocations(
+      CHANGING
+        ct_allocations = lt_allocations ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_commit_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_gateway->mv_rollback_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_status
+      exp = zcl_stock_allocator=>gc_posting_failed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_allocations[ 1 ]-posting_message
+      exp = 'Reservation API reused cancelled document ID' ).
+    cl_abap_unit_assert=>assert_initial( lt_allocations[ 1 ]-document_id ).
   ENDMETHOD.
 
   METHOD rolls_back_replacement_race.

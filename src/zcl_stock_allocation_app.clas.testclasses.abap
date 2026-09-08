@@ -60,7 +60,22 @@ CLASS ltcl_stock_allocation_app DEFINITION FINAL
     METHODS normalizes_invalid_log_state FOR TESTING.
     METHODS rejects_missing_service FOR TESTING.
     METHODS rejects_missing_logger FOR TESTING.
+    METHODS rejects_missing_result_row FOR TESTING.
+    METHODS rejects_foreign_result_id FOR TESTING.
+    METHODS rejects_mutated_result FOR TESTING.
+    METHODS rejects_unknown_result_state FOR TESTING.
+    METHODS rejects_bad_result_pair FOR TESTING.
+    METHODS rejects_bad_result_flag FOR TESTING.
+    METHODS rejects_bad_result_document FOR TESTING.
+    METHODS rejects_blank_decision FOR TESTING.
+    METHODS rejects_bad_result_math FOR TESTING.
+    METHODS rejects_unchecked_stock FOR TESTING.
+    METHODS rejects_reused_result_doc FOR TESTING.
+    METHODS rejects_bad_decision_pair FOR TESTING.
+    METHODS rejects_wrong_run_mode FOR TESTING.
+    METHODS accepts_duplicate_id_counts FOR TESTING.
     METHODS returns_unique_run_ids FOR TESTING.
+    METHODS returns_batch_summary FOR TESTING.
     METHODS creates_sap_composition FOR TESTING.
 ENDCLASS.
 
@@ -75,11 +90,22 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
 
   METHOD delegates_and_logs.
     mo_service->mt_result = VALUE #(
-      ( request_id     = 'REQUEST-1'
-        status         = zcl_stock_allocator=>gc_status_allocated
-        posting_status = zcl_stock_allocator=>gc_posting_simulated ) ).
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         =
+          zcl_stock_allocator=>gc_posting_simulated ) ).
     DATA(lt_requests) = VALUE zcl_stock_allocator=>ty_requests(
-      ( request_id = 'REQUEST-1' ) ).
+      ( request_id      = 'REQUEST-1'
+        unit_of_measure = 'EA'
+        requested_qty   = 1 ) ).
 
     DATA(ls_result) = mo_cut->run(
       it_requests           = lt_requests
@@ -156,6 +182,7 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
     cl_abap_unit_assert=>assert_initial( ls_result-allocations ).
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
     cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
@@ -165,25 +192,326 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
 
   METHOD rejects_missing_logger.
     mo_service->mt_result = VALUE #(
-      ( request_id = 'REQUEST-1'
-        status     = zcl_stock_allocator=>gc_status_invalid ) ).
+      ( request_id     = 'REQUEST-1'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        decision_code  = zcl_stock_allocator=>gc_decision_invalid_request
+        posting_status =
+          zcl_stock_allocator=>gc_posting_not_required ) ).
     DATA lo_logger TYPE REF TO zif_allocation_logger.
     mo_cut = NEW #(
       io_service = mo_service
       io_logger  = lo_logger ).
 
     DATA(ls_result) = mo_cut->run(
-      it_requests   = VALUE #( )
+      it_requests   = VALUE #( ( request_id = 'REQUEST-1' ) )
       iv_simulation = abap_true ).
 
     cl_abap_unit_assert=>assert_not_initial( ls_result-run_id ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-allocations[ 1 ]-request_id
       exp = 'REQUEST-1' ).
+    cl_abap_unit_assert=>assert_true( ls_result-service_result_valid ).
     cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Allocation logger is required' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_result_row.
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_false( ls_result-log_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation service returned invalid result' ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_foreign_result_id.
+    mo_service->mt_result = VALUE #(
+      ( request_id = 'REQUEST-2'
+        status     = zcl_stock_allocator=>gc_status_invalid ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation service returned invalid result' ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_mutated_result.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        material               = 'MATERIAL-2'
+        source_requested_qty   = 5
+        source_unit_of_measure = 'EA'
+        status                 = zcl_stock_allocator=>gc_status_invalid ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          material        = 'MATERIAL-1'
+          requested_qty   = 5
+          unit_of_measure = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Allocation service returned invalid result' ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_result_state.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'REQUEST-1'
+        status         = 'CUSTOM'
+        decision_code  = 'CUSTOM'
+        posting_status = 'CUSTOM' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-unknown_allocation_status
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-unknown_posting_status
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_result_pair.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'REQUEST-1'
+        status         = zcl_stock_allocator=>gc_status_rejected
+        decision_code  = zcl_stock_allocator=>gc_decision_no_available_stock
+        posting_status = zcl_stock_allocator=>gc_posting_simulated ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_result_flag.
+    mo_service->mt_result = VALUE #(
+      ( request_id           = 'REQUEST-1'
+        status               = zcl_stock_allocator=>gc_status_invalid
+        decision_code        =
+          zcl_stock_allocator=>gc_decision_invalid_request
+        posting_status       =
+          zcl_stock_allocator=>gc_posting_not_required
+        availability_checked = 'Y' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_result_document.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         = zcl_stock_allocator=>gc_posting_posted
+        document_id            = 'BAD-DOC' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          unit_of_measure = 'EA'
+          requested_qty   = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_blank_decision.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'REQUEST-1'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        posting_status =
+          zcl_stock_allocator=>gc_posting_not_required ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_result_math.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 5
+        source_requested_qty   = 5
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 4
+        shortfall_qty          = 0
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         =
+          zcl_stock_allocator=>gc_posting_simulated ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          unit_of_measure = 'EA'
+          requested_qty   = 5 ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_unchecked_stock.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'REQUEST-1'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        decision_code  = zcl_stock_allocator=>gc_decision_invalid_request
+        posting_status = zcl_stock_allocator=>gc_posting_not_required
+        available_qty  = 5 ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #( ( request_id = 'REQUEST-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_reused_result_doc.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         = zcl_stock_allocator=>gc_posting_posted
+        document_id            = '0000000042' )
+      ( request_id             = 'REQUEST-2'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         = zcl_stock_allocator=>gc_posting_posted
+        document_id            = '0000000042' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          unit_of_measure = 'EA'
+          requested_qty   = 1 )
+        ( request_id      = 'REQUEST-2'
+          unit_of_measure = 'EA'
+          requested_qty   = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_decision_pair.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_invalid_request
+        posting_status         =
+          zcl_stock_allocator=>gc_posting_simulated ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          unit_of_measure = 'EA'
+          requested_qty   = 1 ) )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD rejects_wrong_run_mode.
+    mo_service->mt_result = VALUE #(
+      ( request_id             = 'REQUEST-1'
+        unit_of_measure        = 'EA'
+        requested_qty          = 1
+        source_requested_qty   = 1
+        source_unit_of_measure = 'EA'
+        allocated_qty          = 1
+        fill_pct               = 100
+        status                 = zcl_stock_allocator=>gc_status_allocated
+        decision_code          =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        posting_status         = zcl_stock_allocator=>gc_posting_posted
+        document_id            = '0000000042' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #(
+        ( request_id      = 'REQUEST-1'
+          unit_of_measure = 'EA'
+          requested_qty   = 1 ) )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_initial( mo_logger->mv_run_id ).
+  ENDMETHOD.
+
+  METHOD accepts_duplicate_id_counts.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'DUPLICATE'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        decision_code  = zcl_stock_allocator=>gc_decision_duplicate_request
+        posting_status =
+          zcl_stock_allocator=>gc_posting_not_required )
+      ( request_id     = 'DUPLICATE'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        decision_code  = zcl_stock_allocator=>gc_decision_duplicate_request
+        posting_status =
+          zcl_stock_allocator=>gc_posting_not_required ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests = VALUE #(
+        ( request_id = 'DUPLICATE' )
+        ( request_id = 'DUPLICATE' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( ls_result-service_result_valid ).
+    cl_abap_unit_assert=>assert_true( ls_result-log_saved ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_logger->mt_allocations )
+      exp = 2 ).
   ENDMETHOD.
 
   METHOD returns_unique_run_ids.
@@ -197,6 +525,113 @@ CLASS ltcl_stock_allocation_app IMPLEMENTATION.
     cl_abap_unit_assert=>assert_differs(
       act = ls_first-run_id
       exp = ls_second-run_id ).
+  ENDMETHOD.
+
+  METHOD returns_batch_summary.
+    mo_service->mt_result = VALUE #(
+      ( request_id     = 'REQUEST-1'
+        status         = zcl_stock_allocator=>gc_status_allocated
+        decision_code  = zcl_stock_allocator=>gc_decision_replayed
+        posting_status = zcl_stock_allocator=>gc_posting_posted
+        document_id    = '0000000001' )
+      ( request_id           = 'REQUEST-2'
+        status               = zcl_stock_allocator=>gc_status_partial
+        availability_checked = abap_true
+        posting_status       = zcl_stock_allocator=>gc_posting_simulated )
+      ( request_id           = 'REQUEST-3'
+        status               = zcl_stock_allocator=>gc_status_rejected
+        availability_checked = abap_true
+        posting_status       =
+          zcl_stock_allocator=>gc_posting_not_required )
+      ( request_id     = 'REQUEST-4'
+        status         = zcl_stock_allocator=>gc_status_invalid
+        posting_status = zcl_stock_allocator=>gc_posting_failed )
+      ( request_id     = 'REQUEST-5'
+        status         = zcl_stock_allocator=>gc_status_deferred
+        posting_status = zcl_stock_allocator=>gc_posting_pending )
+      ( request_id     = 'REQUEST-6'
+        status         = zcl_stock_allocator=>gc_status_aborted
+        posting_status = zcl_stock_allocator=>gc_posting_not_required )
+      ( request_id     = 'REQUEST-7'
+        status         = zcl_stock_allocator=>gc_status_config_error
+        posting_status = zcl_stock_allocator=>gc_posting_not_required )
+      ( request_id           = 'REQUEST-8'
+        status               = 'CUSTOM'
+        posting_status       = 'CUSTOM'
+        replaced_document_id = '0000000002' )
+      ( request_id           = 'REQUEST-9'
+        status               = zcl_stock_allocator=>gc_status_allocated
+        decision_code        =
+          zcl_stock_allocator=>gc_decision_fully_allocated
+        availability_checked = abap_true
+        posting_status       = zcl_stock_allocator=>gc_posting_posted
+        document_id          = '0000000003'
+        replaced_document_id = '0000000004' ) ).
+
+    DATA(ls_result) = mo_cut->run(
+      it_requests   = VALUE #(
+        ( request_id = 'REQUEST-1' )
+        ( request_id = 'REQUEST-2' )
+        ( request_id = 'REQUEST-3' )
+        ( request_id = 'REQUEST-4' )
+        ( request_id = 'REQUEST-5' )
+        ( request_id = 'REQUEST-6' )
+        ( request_id = 'REQUEST-7' )
+        ( request_id = 'REQUEST-8' )
+        ( request_id = 'REQUEST-9' ) )
+      iv_simulation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-total_requests
+      exp = 9 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-fully_allocated
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-partially_allocated
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-rejected
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-invalid
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-deferred
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-aborted
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-configuration_errors
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-unknown_allocation_status
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-posting_not_required
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-unknown_posting_status
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-availability_evaluated
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-reservation_documents
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-idempotent_replays
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-new_reservations
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-replacement_attempts
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-summary-replacement_posted
+      exp = 1 ).
   ENDMETHOD.
 
   METHOD creates_sap_composition.

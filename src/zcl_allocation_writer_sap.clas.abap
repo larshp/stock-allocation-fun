@@ -224,6 +224,17 @@ CLASS zcl_allocation_writer_sap IMPLEMENTATION.
             ct_allocations = ct_allocations ).
         RETURN.
       ENDIF.
+      IF <ls_allocation>-replaced_document_id IS NOT INITIAL
+          AND <ls_allocation>-document_id
+            = <ls_allocation>-replaced_document_id.
+        rollback_and_release( ).
+        fail_all(
+          EXPORTING
+            iv_message     = 'Reservation API reused cancelled document ID'
+          CHANGING
+            ct_allocations = ct_allocations ).
+        RETURN.
+      ENDIF.
       INSERT <ls_allocation>-document_id
         INTO TABLE lt_created_document_ids.
       IF sy-subrc <> 0.

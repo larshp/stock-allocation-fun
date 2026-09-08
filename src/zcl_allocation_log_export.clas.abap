@@ -119,10 +119,18 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       WHEN iv_today IS INITIAL
       THEN sy-datum
       ELSE iv_today ).
+    IF zcl_stock_allocator=>date_is_valid( lv_today ) = abap_false.
+      rs_result-message = 'Export effective date is invalid'.
+      RETURN.
+    ENDIF.
     DATA(lv_to_date) = COND d(
       WHEN iv_to_date IS INITIAL
       THEN lv_today
       ELSE iv_to_date ).
+    IF zcl_stock_allocator=>date_is_valid( lv_to_date ) = abap_false.
+      rs_result-message = 'Export date range is invalid'.
+      RETURN.
+    ENDIF.
     DATA(lv_to_time) = COND t(
       WHEN iv_to_time IS INITIAL
       THEN '235959'
@@ -134,25 +142,39 @@ CLASS zcl_allocation_log_export IMPLEMENTATION.
       lv_from_date = iv_from_date.
     ENDIF.
 
-    IF lv_from_date > lv_to_date.
-      rs_result-message = 'Export start date must not exceed end date'.
+    IF zcl_stock_allocator=>date_is_valid( lv_from_date ) = abap_false
+        OR lv_from_date > lv_to_date.
+      rs_result-message = 'Export date range is invalid'.
       RETURN.
     ENDIF.
-    IF lv_from_date = lv_to_date AND iv_from_time > lv_to_time.
-      rs_result-message = 'Export start time must not exceed end time'.
+    IF zcl_stock_allocator=>time_is_valid( iv_from_time ) = abap_false
+        OR zcl_stock_allocator=>time_is_valid( lv_to_time ) = abap_false
+        OR ( lv_from_date = lv_to_date AND iv_from_time > lv_to_time ).
+      rs_result-message = 'Export time range is invalid'.
       RETURN.
     ENDIF.
-    IF iv_requirement_from IS NOT INITIAL
-        AND iv_requirement_to IS NOT INITIAL
-        AND iv_requirement_from > iv_requirement_to.
-      rs_result-message =
-        'Requirement start date must not exceed end date'.
+    IF ( iv_requirement_from IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_requirement_from ) = abap_false )
+        OR ( iv_requirement_to IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_requirement_to ) = abap_false )
+        OR ( iv_requirement_from IS NOT INITIAL
+          AND iv_requirement_to IS NOT INITIAL
+          AND iv_requirement_from > iv_requirement_to ).
+      rs_result-message = 'Requirement date range is invalid'.
       RETURN.
     ENDIF.
-    IF iv_horizon_from IS NOT INITIAL
-        AND iv_horizon_to IS NOT INITIAL
-        AND iv_horizon_from > iv_horizon_to.
-      rs_result-message = 'Horizon start date must not exceed end date'.
+    IF ( iv_horizon_from IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_horizon_from ) = abap_false )
+        OR ( iv_horizon_to IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_horizon_to ) = abap_false )
+        OR ( iv_horizon_from IS NOT INITIAL
+          AND iv_horizon_to IS NOT INITIAL
+          AND iv_horizon_from > iv_horizon_to ).
+      rs_result-message = 'Horizon date range is invalid'.
       RETURN.
     ENDIF.
     IF ( iv_partial_filter IS NOT INITIAL

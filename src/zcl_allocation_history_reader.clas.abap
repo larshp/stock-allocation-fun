@@ -13,25 +13,40 @@ CLASS zcl_allocation_history_reader IMPLEMENTATION.
       WHEN iv_to_time IS INITIAL
       THEN '235959'
       ELSE iv_to_time ).
-    IF iv_from_date IS INITIAL
-        OR iv_to_date IS INITIAL
+    IF zcl_stock_allocator=>date_is_valid( iv_from_date ) = abap_false
+        OR zcl_stock_allocator=>date_is_valid(
+          iv_to_date ) = abap_false
         OR iv_from_date > iv_to_date.
       rs_result-message = 'Audit history date range is invalid'.
       RETURN.
     ENDIF.
-    IF iv_from_date = iv_to_date AND iv_from_time > lv_to_time.
+    IF zcl_stock_allocator=>time_is_valid( iv_from_time ) = abap_false
+        OR zcl_stock_allocator=>time_is_valid( lv_to_time ) = abap_false
+        OR ( iv_from_date = iv_to_date AND iv_from_time > lv_to_time ).
       rs_result-message = 'Audit history time range is invalid'.
       RETURN.
     ENDIF.
-    IF iv_requirement_from IS NOT INITIAL
-        AND iv_requirement_to IS NOT INITIAL
-        AND iv_requirement_from > iv_requirement_to.
+    IF ( iv_requirement_from IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_requirement_from ) = abap_false )
+        OR ( iv_requirement_to IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_requirement_to ) = abap_false )
+        OR ( iv_requirement_from IS NOT INITIAL
+          AND iv_requirement_to IS NOT INITIAL
+          AND iv_requirement_from > iv_requirement_to ).
       rs_result-message = 'Audit requirement date range is invalid'.
       RETURN.
     ENDIF.
-    IF iv_horizon_from IS NOT INITIAL
-        AND iv_horizon_to IS NOT INITIAL
-        AND iv_horizon_from > iv_horizon_to.
+    IF ( iv_horizon_from IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_horizon_from ) = abap_false )
+        OR ( iv_horizon_to IS NOT INITIAL
+          AND zcl_stock_allocator=>date_is_valid(
+            iv_horizon_to ) = abap_false )
+        OR ( iv_horizon_from IS NOT INITIAL
+          AND iv_horizon_to IS NOT INITIAL
+          AND iv_horizon_from > iv_horizon_to ).
       rs_result-message = 'Audit horizon date range is invalid'.
       RETURN.
     ENDIF.

@@ -32,6 +32,7 @@ CLASS ltcl_allocation_log_retention DEFINITION FINAL
     METHODS rejects_excessive_retention FOR TESTING.
     METHODS rejects_invalid_simulation FOR TESTING.
     METHODS rejects_future_effective_date FOR TESTING.
+    METHODS rejects_invalid_effective_date FOR TESTING.
     METHODS rejects_invalid_store_state FOR TESTING.
     METHODS rejects_negative_store_count FOR TESTING.
     METHODS rejects_failed_store_count FOR TESTING.
@@ -134,6 +135,21 @@ CLASS ltcl_allocation_log_retention IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message
       exp = 'Retention effective date must not be in the future' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_store->mv_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_effective_date.
+    DATA(ls_result) = mo_cut->run(
+      iv_retention_days = 30
+      iv_simulation     = abap_true
+      iv_today          = '20260230' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_success ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-message
+      exp = 'Retention effective date is invalid' ).
     cl_abap_unit_assert=>assert_equals(
       act = mo_store->mv_calls
       exp = 0 ).

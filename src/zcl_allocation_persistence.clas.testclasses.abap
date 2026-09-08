@@ -13,6 +13,7 @@ CLASS ltcl_allocation_persistence DEFINITION FINAL
     METHODS accepts_reservation_request FOR TESTING.
     METHODS rejects_bad_reservation_qty FOR TESTING.
     METHODS rejects_bad_reservation_rule FOR TESTING.
+    METHODS rejects_invalid_dates FOR TESTING.
 
     METHODS allocation
       RETURNING
@@ -97,6 +98,22 @@ CLASS ltcl_allocation_persistence IMPLEMENTATION.
     ls_request-quantity = 5.
     ls_request-order_id = 'ORDER-1'.
 
+    cl_abap_unit_assert=>assert_false(
+      zcl_allocation_persistence=>reservation_request_is_valid(
+        ls_request ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_dates.
+    DATA(ls_allocation) = allocation( ).
+    ls_allocation-requirement_date = '20260431'.
+    cl_abap_unit_assert=>assert_false(
+      zcl_allocation_persistence=>pending_allocation_is_valid(
+        ls_allocation ) ).
+
+    DATA(ls_request) = CORRESPONDING zif_reservation_gateway=>ty_request(
+      allocation( ) ).
+    ls_request-quantity = 5.
+    ls_request-requirement_date = '20260431'.
     cl_abap_unit_assert=>assert_false(
       zcl_allocation_persistence=>reservation_request_is_valid(
         ls_request ) ).

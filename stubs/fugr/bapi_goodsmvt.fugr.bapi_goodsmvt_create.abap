@@ -35,9 +35,10 @@ FUNCTION bapi_goodsmvt_create.
       CONTINUE.
     ENDIF.
 
-    READ TABLE mard INTO ls_mard WITH KEY matnr = ls_item-material
-                                          werks = ls_item-plant
-                                          lgort = ls_item-stge_loc.
+    SELECT SINGLE * FROM mard INTO @ls_mard
+      WHERE matnr = @ls_item-material
+        AND werks = @ls_item-plant
+        AND lgort = @ls_item-stge_loc.
     IF sy-subrc <> 0.
       CONTINUE.
     ENDIF.

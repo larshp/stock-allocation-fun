@@ -1,3 +1,25 @@
+CLASS lcl_uom_stub DEFINITION
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES zif_uom_converter.
+
+ENDCLASS.
+
+
+CLASS lcl_uom_stub IMPLEMENTATION.
+
+  METHOD zif_uom_converter~to_base_qty.
+    rv_base_qty = iv_qty.
+    IF iv_meinh = 'CS'.
+      rv_base_qty = iv_qty * 12.
+    ENDIF.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS lcl_stock_reader_stub DEFINITION
   FINAL
   CREATE PUBLIC.
@@ -12,7 +34,9 @@ CLASS lcl_stock_reader_stub DEFINITION
         iv_insme TYPE menge_d DEFAULT 0
         iv_speme TYPE menge_d DEFAULT 0
         iv_einme TYPE menge_d DEFAULT 0
-        iv_umlme TYPE menge_d DEFAULT 0.
+        iv_umlme TYPE menge_d DEFAULT 0
+        iv_charg TYPE zif_stock_reader=>ty_stock-charg DEFAULT ''
+        iv_vfdat TYPE zif_stock_reader=>ty_stock-expiry_date DEFAULT '00000000'.
 
   PRIVATE SECTION.
     DATA mt_stock TYPE zif_stock_reader=>ty_stock_tt.
@@ -32,6 +56,8 @@ CLASS lcl_stock_reader_stub IMPLEMENTATION.
     ls_stock-matnr            = 'MAT-1'.
     ls_stock-werks            = '1000'.
     ls_stock-lgort            = iv_lgort.
+    ls_stock-charg            = iv_charg.
+    ls_stock-expiry_date      = iv_vfdat.
     ls_stock-unrestricted_qty = iv_labst.
     ls_stock-quality_qty      = iv_insme.
     ls_stock-blocked_qty      = iv_speme.
@@ -61,7 +87,9 @@ CLASS ltcl_stock_allocator DEFINITION
         iv_lgort TYPE lgort_d
         iv_labst TYPE menge_d DEFAULT 0
         iv_insme TYPE menge_d DEFAULT 0
-        iv_speme TYPE menge_d DEFAULT 0.
+        iv_speme TYPE menge_d DEFAULT 0
+        iv_charg TYPE zif_stock_reader=>ty_stock-charg DEFAULT ''
+        iv_vfdat TYPE zif_stock_reader=>ty_stock-expiry_date DEFAULT '00000000'.
 
     METHODS cut
       IMPORTING
@@ -78,7 +106,20 @@ CLASS ltcl_stock_allocator DEFINITION
         iv_id       TYPE zif_requirement_reader=>ty_requirement-id
         iv_qty      TYPE menge_d
         iv_priority TYPE i DEFAULT 1
-        iv_date     TYPE d OPTIONAL.
+        iv_date     TYPE d OPTIONAL
+        iv_unit     TYPE zif_requirement_reader=>ty_requirement-unit DEFAULT ''.
+
+    METHODS fefo_policy
+      RETURNING
+        VALUE(rs_policy) TYPE zcl_stock_allocator=>ty_policy.
+
+    METHODS whole_units_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+        iv_unit          TYPE zif_requirement_reader=>ty_requirement-unit DEFAULT 'CS'
+        iv_whole         TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
 
     METHODS priority_order_wins          FOR TESTING.
     METHODS shortage_is_reported         FOR TESTING.
@@ -88,6 +129,16 @@ CLASS ltcl_stock_allocator DEFINITION
     METHODS never_over_allocates         FOR TESTING.
     METHODS no_stock_all_shortage        FOR TESTING.
     METHODS equal_priority_uses_date     FOR TESTING.
+    METHODS fefo_uses_earliest_batch     FOR TESTING.
+    METHODS fefo_unknown_expiry_last     FOR TESTING.
+    METHODS default_order_ignores_dates  FOR TESTING.
+    METHODS converts_sales_unit_to_base  FOR TESTING.
+    METHODS unit_without_converter_kept  FOR TESTING.
+    METHODS whole_units_rounds_down      FOR TESTING.
+    METHODS whole_units_full_demand      FOR TESTING.
+    METHODS whole_units_spans_bins       FOR TESTING.
+    METHODS whole_units_off_by_default   FOR TESTING.
+    METHODS whole_units_ignored_no_unit  FOR TESTING.
 ENDCLASS.
 
 
@@ -102,7 +153,9 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     mo_reader->add_stock( iv_lgort = iv_lgort
                           iv_labst = iv_labst
                           iv_insme = iv_insme
-                          iv_speme = iv_speme ).
+                          iv_speme = iv_speme
+                          iv_charg = iv_charg
+                          iv_vfdat = iv_vfdat ).
   ENDMETHOD.
 
   METHOD cut.
@@ -132,9 +185,33 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     ls_requirement-id             = iv_id.
     ls_requirement-priority       = iv_priority.
     ls_requirement-requested_date = lv_date.
+    ls_requirement-unit           = iv_unit.
     ls_requirement-requested_qty  = iv_qty.
 
     APPEND ls_requirement TO mt_requirements.
+  ENDMETHOD.
+
+  METHOD fefo_policy.
+    rs_policy-use_fefo = abap_true.
+  ENDMETHOD.
+
+  METHOD whole_units_result.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    ls_policy-whole_sales_units = iv_whole.
+
+    add_requirement( iv_id   = 'A'
+                     iv_qty  = iv_qty
+                     iv_unit = iv_unit ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator(
+      io_stock_reader  = mo_reader
+      io_uom_converter = NEW lcl_uom_stub( )
+      is_policy        = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
   ENDMETHOD.
 
   METHOD priority_order_wins.
@@ -262,6 +339,148 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
                                         exp = '1' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty
+                                        exp = '0' ).
+  ENDMETHOD.
+
+  METHOD fefo_uses_earliest_batch.
+    add_stock( iv_lgort = '0001' iv_labst = '3' iv_charg = 'OLD'
+               iv_vfdat = '20260101' ).
+    add_stock( iv_lgort = '0001' iv_labst = '3' iv_charg = 'NEW'
+               iv_vfdat = '20261231' ).
+    add_requirement( iv_id = 'A' iv_qty = '4' ).
+
+    DATA(lt_result) = cut( fefo_policy( ) )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+    DATA(lt_allocations) = lt_result[ 1 ]-allocations.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_allocations[ 1 ]-charg
+                                        exp = 'OLD' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_allocations[ 1 ]-quantity
+                                        exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_allocations[ 2 ]-charg
+                                        exp = 'NEW' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_allocations[ 2 ]-quantity
+                                        exp = '1' ).
+  ENDMETHOD.
+
+  METHOD fefo_unknown_expiry_last.
+    add_stock( iv_lgort = '0001' iv_labst = '2' iv_charg = 'UNKNOWN' ).
+    add_stock( iv_lgort = '0001' iv_labst = '2' iv_charg = 'DATED'
+               iv_vfdat = '20261231' ).
+    add_requirement( iv_id = 'A' iv_qty = '2' ).
+
+    DATA(lt_result) = cut( fefo_policy( ) )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-allocations[ 1 ]-charg exp = 'DATED' ).
+  ENDMETHOD.
+
+  METHOD default_order_ignores_dates.
+    add_stock( iv_lgort = '0001' iv_labst = '5' iv_charg = 'LATE'
+               iv_vfdat = '20261231' ).
+    add_stock( iv_lgort = '0001' iv_labst = '5' iv_charg = 'EARLY'
+               iv_vfdat = '20260101' ).
+    add_requirement( iv_id = 'A' iv_qty = '2' ).
+
+    DATA(lt_result) = run_allocation( ).
+
+    " without the FEFO policy the reader order is kept
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-allocations[ 1 ]-charg exp = 'LATE' ).
+  ENDMETHOD.
+
+  METHOD converts_sales_unit_to_base.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id = 'A' iv_qty = '2' iv_unit = 'CS' ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator(
+      io_stock_reader  = mo_reader
+      io_uom_converter = NEW lcl_uom_stub( ) ).
+
+    DATA(lt_result) = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                        iv_werks        = '1000'
+                                        it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-requested_qty
+                                        exp = '24' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '14' ).
+  ENDMETHOD.
+
+  METHOD unit_without_converter_kept.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id = 'A' iv_qty = '5' iv_unit = 'CS' ).
+
+    DATA(lt_result) = run_allocation( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-requested_qty
+                                        exp = '5' ).
+  ENDMETHOD.
+
+  METHOD whole_units_rounds_down.
+    add_stock( iv_lgort = '0001' iv_labst = '30' ).
+
+    DATA(lt_result) = whole_units_result( iv_qty = '4' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-requested_qty
+                                        exp = '48' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '24' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '24' ).
+  ENDMETHOD.
+
+  METHOD whole_units_full_demand.
+    add_stock( iv_lgort = '0001' iv_labst = '100' ).
+
+    DATA(lt_result) = whole_units_result( iv_qty = '4' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '48' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '0' ).
+  ENDMETHOD.
+
+  METHOD whole_units_spans_bins.
+    add_stock( iv_lgort = '0001' iv_labst = '24' ).
+    add_stock( iv_lgort = '0002' iv_labst = '24' ).
+
+    DATA(lt_result) = whole_units_result( iv_qty = '3' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '36' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result[ 1 ]-allocations ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD whole_units_off_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '30' ).
+
+    DATA(lt_result) = whole_units_result( iv_qty   = '4'
+                                          iv_whole = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '30' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '18' ).
+  ENDMETHOD.
+
+  METHOD whole_units_ignored_no_unit.
+    add_stock( iv_lgort = '0001' iv_labst = '30' ).
+
+    DATA(lt_result) = whole_units_result( iv_qty  = '30'
+                                          iv_unit = '' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '30' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
                                         exp = '0' ).
   ENDMETHOD.
 

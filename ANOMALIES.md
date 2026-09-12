@@ -84,3 +84,44 @@ Each entry notes the symptom, the cause and the workaround used.
   type. abaplint did not report this, the transpiler did.
 * Workaround: declare `TYPES ty_log_tt TYPE STANDARD TABLE OF zstockalloc WITH
   DEFAULT KEY.` in the class and use `TYPE ty_log_tt` in the signature.
+
+## A9 - `modify_only_own_db_tables` has no file-level exclusion
+
+* Symptom: `Modify only own DB tables (modify_only_own_db_tables) [E]` for
+  `MODIFY mard FROM ls_mard` in the standard stub
+  `stubs/fugr/bapi_goodsmvt.fugr.bapi_goodsmvt_create.abap`, although the stub
+  *emulates* SAP standard behaviour (the real BAPI updates `MARD`).
+* Cause: the rule is driven by a single global regex (`ownTables`, default
+  `^[yz]`) and abaplint's config has no per-rule `exclude`, so a stub cannot be
+  exempted separately. Because the stub declares `MARD` itself, the table
+  resolves as a local reference and is reported.
+* Workaround: configure the rule in `abaplint.jsonc` and extend `ownTables` with
+  the stubbed standard tables that own code legitimately posts through:
+  `"ownTables": "^(?:[yz]|mard)"`. Keep the regex anchored at the start (do not
+  add `$`) so `Z*`/`Y*` tables still match.
+
+## A10 - `READ TABLE <ddic-table>` is not valid, the transpiler catches it
+
+* Symptom: `check_syntax, "mard" not found, findTop,
+  bapi_goodsmvt.fugr.bapi_goodsmvt_create.abap:38` at the line
+  `READ TABLE mard INTO ls_mard WITH KEY ...`.
+* Cause: `MARD` is a transparent DDIC table, not an internal table. `READ TABLE`
+  requires an internal table; abaplint happened to not flag it, but the
+  transpiler's syntax check rejects it.
+* Workaround: read single rows with `SELECT SINGLE * FROM mard INTO @ls_mard
+  WHERE ...` (host variables escaped with `@`). Direct `MODIFY mard FROM ls_mard`
+  is valid and stays as is.
+
+## A11 - Method parameter typed with a data element vs. an inferred SELECT field
+
+* Symptom: `check_syntax, Method parameter type not compatible, IV_MATNR,
+  zcl_stock_reader_mchb.clas.abap:57` at the call
+  `read_expiry( iv_matnr = ls_mchb-matnr ... )`, where `ls_mchb` comes from
+  `SELECT matnr, ... FROM mchb INTO TABLE @DATA(lt_mchb)` and the parameter was
+  declared `iv_matnr TYPE matnr`.
+* Cause: the transpiler types the inferred SELECT structure component as a plain
+  character type, and its call compatibility check does not treat that as
+  identical to the data element `MATNR`. A component reference to the very table
+  being read is accepted.
+* Workaround: declare the parameter with the component reference of the source
+  table, e.g. `iv_matnr TYPE mchb-matnr`.

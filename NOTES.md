@@ -53,7 +53,13 @@ open-abap-core already ships (otherwise `errorOnDuplicateFilenames` fails).
 Currently stubbed:
 
 * Tables: `MARD` (storage location stock), `RESB` (reservations / dependent
-  requirements)
+  requirements), `VBAP` (sales order item, used by the alternative requirement
+  reader), `MCHB` (batch stock), `MCHA` (batch master, carries the expiry date
+  `VFDAT`) and `MARM` (alternative units of measure, `UMREZ`/`UMREN` ratios)
+* Structures: `BAPI2017_GM_HEAD_01`, `BAPI2017_GM_HEAD_RET`,
+  `BAPI2017_GM_CODE`, `BAPI2017_GM_ITEM_CREATE`
+* Function group: `BAPI_GOODSMVT` with `BAPI_GOODSMVT_CREATE` (movement types
+  601/101, updates `MARD`)
 * Data elements: `WERKS_D`, `LGORT_D` (`MATNR`, `MEINS`, `MENGE_D`, `MANDT` come
   from open-abap-core)
 
@@ -83,26 +89,83 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
 5. **Allocation log** - `zif_allocation_writer` + `zcl_allocation_writer_db`.
    Writes one row per allocation into `ZSTOCKALLOC`; usable through
    `zcl_stock_allocation_service=>allocate_and_record( )`.
+6. **Goods movement posting** - `zif_allocation_poster` +
+   `zcl_allocation_poster_bapi` were already stubbed; the facade now wires them
+   in. `post_allocation( )` posts the allocated quantities as a goods issue
+   (movement type 601 by default) through `BAPI_GOODSMVT_CREATE`, and
+   `run_with_posting( )` performs the full flow in one call: allocate from
+   `MARD`, post the goods issue, write the `ZSTOCKALLOC` audit rows. It returns
+   `ty_run_result` with both the allocations and the posting result (document
+   number). Nothing is posted when the allocation is empty.
+7. **Sales order requirement source** - `zcl_requirement_reader_vbap` implements
+   `zif_requirement_reader` on top of the new `VBAP` stub. It reads open sales
+   order items (rejected items with an `ABGRU` reason and zero quantities are
+   skipped), maps `KWMENG` to the requested quantity, `EDATU` to the requirement
+   date and `LPRIO` to the priority (an initial priority is treated as 1), and
+   builds the requirement id from `VBELN` + `POSNR`. It can be injected into
+   `zcl_stock_allocation_service` in place of the `RESB` reader.
+8. **Batch stock and FEFO** - `zif_stock_reader=>ty_stock` gained `charg` and
+   `expiry_date`, and `zcl_stock_allocator=>ty_allocation` reports them back, so
+   one allocation row exists per batch. `zcl_stock_reader_mchb` reads batch
+   stock from `MCHB` and looks the expiry date up in `MCHA`. The new
+   `ty_policy-use_fefo` flag switches the allocator from "first storage location
+   first" to FEFO: batches are consumed in ascending expiry date order, and
+   batches without a date sort last. FEFO is opt-in, the default keeps the
+   reader order.
+9. **Unit of measure conversion** - requirements now carry a `unit`
+   (`zif_requirement_reader=>ty_requirement-unit`), populated by the `VBAP`
+   reader from `MEINS`. `zif_uom_converter` + `zcl_uom_converter` convert a
+   requirement quantity into the material base unit through the new `MARM` stub
+   (`base = qty * UMREZ / UMREN`). The allocator takes an optional converter and
+   converts every requirement that has a unit, so `requested_qty`,
+   `allocated_qty` and `shortage_qty` are all reported in base units. Without a
+   converter, or without a `MARM` entry, the quantity is passed through
+   unchanged. This also fixed a latent bug: `allocated_qty` was computed from
+   the raw (unconverted) requirement quantity.
+10. **Multi-material run and shortage report** - `zcl_stock_alloc_run` drives the
+    facade for a list of material/plant requests. `run( )` returns a
+    `ty_run_result` with the per-material allocation results, aggregate
+    `ty_stats` (number of materials and requirements, requested/allocated/
+    shortage totals, count of materials with a shortfall) and a flat
+    `ty_shortage_tt` shortage report listing every requirement that could not be
+    fully covered, including its material and plant.
+11. **Allocation log reporting** - `zcl_alloc_log_reader` reads the recorded
+    `ZSTOCKALLOC` rows. `read_run( run_id )` returns the rows of a single run,
+    `summarize_run( run_id )` aggregates them (distinct materials, number of
+    positions, total allocated quantity) and `summarize_all( )` produces one
+    summary per run id, ordered by run id. Grouping is done by sorting and
+    comparing instead of `LOOP GROUP BY`, which the transpiler does not support.
 
-Test coverage (30 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (75 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
-  protection, empty stock, date tie-break
+  protection, empty stock, date tie-break, FEFO order, unknown expiry last,
+  FEFO opt-in, unit conversion, unit without converter
 * RESB reader: open items, withdrawn quantity, deletion/final-issue flags,
   material filter, id construction, date sorting
+* VBAP reader: open item, rejection reason, zero quantity, material filter,
+  date sorting, delivery priority, sales unit, id construction
+* MCHB reader: batch with expiry, quantity mapping, plant filter, empty result,
+  batch without batch master, one row per batch
+* UoM converter: conversion, missing entry, base unit, zero denominator,
+  fractional ratio, other material
 * Writer: one row per allocation, header fields, empty result
 * Service: end-to-end MARD + RESB allocation, shortage, bin spill-over,
-  available quantity, total shortage, full recorded run
+  available quantity, total shortage, full recorded run, posting run (with a
+  poster double), empty run skips posting, allocation from sales orders, batch
+  FEFO through the facade, sales unit conversion through the facade
+* Run: two materials, aggregated shortage report, materials-with-shortage count,
+  requested/allocated/shortage totals, empty request list
+* Log reader: run filter, position and quantity totals, distinct material count,
+  per-run summaries, empty run
 
 ## Next candidates
 
-* Stock movement posting through a BAPI stub (`BAPI_GOODSMVT_CREATE`) instead of
-  touching `MARD` directly.
-* Read requirements from `VBAP`/`VBBE` (sales orders) as an alternative
-  requirement source.
-* Rounding of allocated quantities to sales units of measure.
+* Rounding of allocated quantities up to whole sales units of measure.
+* Persist run headers and a status (started / finished / posted).
 * Report/ALV on `ZSTOCKALLOC` runs.
+* Parallel or package-wise processing for large material lists.
 
 ## Conventions
 

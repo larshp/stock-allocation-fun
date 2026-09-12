@@ -7,6 +7,7 @@ INTERFACE zif_requirement_reader
            id             TYPE c LENGTH 20,
            priority       TYPE i,
            requested_date TYPE d,
+           unit           TYPE c LENGTH 3,
            requested_qty  TYPE ty_quantity,
          END OF ty_requirement.
 

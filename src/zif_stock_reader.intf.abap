@@ -7,6 +7,8 @@ INTERFACE zif_stock_reader
            matnr            TYPE matnr,
            werks            TYPE werks_d,
            lgort            TYPE lgort_d,
+           charg            TYPE c LENGTH 10,
+           expiry_date      TYPE d,
            unrestricted_qty TYPE ty_quantity,
            quality_qty      TYPE ty_quantity,
            blocked_qty      TYPE ty_quantity,

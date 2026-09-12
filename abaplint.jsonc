@@ -17,7 +17,10 @@
     }
   ],
   "rules": {
-    "modify_only_own_db_tables": true,
+    "modify_only_own_db_tables": {
+      "severity": "error",
+      "ownTables": "^(?:[yz]|mard)"
+    },
     "align_type_expressions": true,
     "easy_to_find_messages": true,
     "max_one_method_parameter_per_line": true,

@@ -37,30 +37,61 @@ connection is set up in `test/setup.mjs`.
 ```mermaid
 flowchart LR
   SVC[zcl_stock_allocation_service]
-  SR[zif_stock_reader / zcl_stock_reader_mard]
-  RR[zif_requirement_reader / zcl_requirement_reader_resb]
+  SR[zif_stock_reader]
+  SRM[zcl_stock_reader_mard]
+  SRB[zcl_stock_reader_mchb]
+  RR[zif_requirement_reader]
+  RRS[zcl_requirement_reader_resb]
+  RRV[zcl_requirement_reader_vbap]
   AL[zcl_stock_allocator]
+  UC[zif_uom_converter / zcl_uom_converter]
   WR[zif_allocation_writer / zcl_allocation_writer_db]
+  PO[zif_allocation_poster / zcl_allocation_poster_bapi]
+  RUN[zcl_stock_alloc_run]
+  LR[zcl_alloc_log_reader]
 
+  RUN --> SVC
   SVC --> SR
   SVC --> RR
   SVC --> AL
-  AL --> SR
   SVC --> WR
-  SR --> MARD[(MARD)]
-  RR --> RESB[(RESB)]
+  SVC --> PO
+  AL --> SR
+  AL --> UC
+  SR --> SRM
+  SR --> SRB
+  RR --> RRS
+  RR --> RRV
+  SRM --> MARD[(MARD)]
+  SRB --> MCHB[(MCHB / MCHA)]
+  RRS --> RESB[(RESB)]
+  RRV --> VBAP[(VBAP)]
+  UC --> MARM[(MARM)]
   WR --> LOG[(ZSTOCKALLOC)]
+  LR --> LOG[(ZSTOCKALLOC)]
+  PO --> BAPI[BAPI_GOODSMVT_CREATE]
 ```
 
-* `zif_stock_reader` / `zcl_stock_reader_mard` - read stock per storage location.
+* `zif_stock_reader` / `zcl_stock_reader_mard` - read the usable stock per
+  storage location. `zcl_stock_reader_mchb` is the batch-level alternative
+  (one row per batch, with the expiry date from `MCHA`).
 * `zif_requirement_reader` / `zcl_requirement_reader_resb` - read open
-  requirements from reservations.
+  requirements from reservations. `zcl_requirement_reader_vbap` reads open sales
+  order items instead, including their sales unit of measure.
 * `zcl_stock_allocator` - the allocation engine. Requirements are processed by
   priority, then requirement date, then id; each one consumes usable stock from
   the storage locations in turn. A policy switches which stock categories
-  (quality inspection, blocked, restricted, in transit) may be used.
+  (quality inspection, blocked, restricted, in transit) may be used, whether
+  batches are consumed FEFO, and requirement quantities are converted to the
+  base unit through `zif_uom_converter` / `zcl_uom_converter` (`MARM`).
 * `zif_allocation_writer` / `zcl_allocation_writer_db` - persist the result.
+* `zif_allocation_poster` / `zcl_allocation_poster_bapi` - post the allocated
+  quantities as a goods movement through `BAPI_GOODSMVT_CREATE`.
 * `zcl_stock_allocation_service` - facade that wires the defaults together.
+* `zcl_stock_alloc_run` - runs the facade for a list of material/plant requests
+  and aggregates the results into statistics and a shortage report.
+* `zcl_alloc_log_reader` - reads and summarizes the recorded `ZSTOCKALLOC` run
+  log (per-run totals and material counts).
 
 ## Usage
 
@@ -81,6 +112,38 @@ To persist the run:
 DATA(lt_result) = lo_service->allocate_and_record( iv_run_id = 'RUN-0001'
                                                    iv_matnr  = 'MAT-1'
                                                    iv_werks  = '1000' ).
+```
+
+To allocate, post the goods issue and record the run in one call:
+
+```abap
+DATA(ls_run) = lo_service->run_with_posting( iv_run_id = 'RUN-0001'
+                                             iv_matnr  = 'MAT-1'
+                                             iv_werks  = '1000' ).
+" ls_run-allocations / ls_run-posting-document_number
+```
+
+To use batch-level FEFO, enable it in the allocation policy and inject the batch
+reader:
+
+```abap
+DATA(ls_policy) = VALUE zcl_stock_allocator=>ty_policy( use_fefo = abap_true ).
+
+DATA(lo_service) = NEW zcl_stock_allocation_service(
+  io_stock_reader = NEW zcl_stock_reader_mchb( )
+  is_policy       = ls_policy ).
+```
+
+To process several materials at once:
+
+```abap
+DATA(lo_run) = NEW zcl_stock_alloc_run( ).
+
+DATA(ls_overview) = lo_run->run( VALUE zcl_stock_alloc_run=>ty_request_tt(
+  ( matnr = 'MAT-1' werks = '1000' )
+  ( matnr = 'MAT-2' werks = '1000' ) ) ).
+
+" ls_overview-materials / ls_overview-stats / ls_overview-shortages
 ```
 
 All dependencies can be injected through the constructor for testing.

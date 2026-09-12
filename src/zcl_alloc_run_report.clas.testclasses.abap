@@ -34,6 +34,9 @@ CLASS ltcl_alloc_run_report DEFINITION
     METHODS empty_log_empty_overview   FOR TESTING.
     METHODS to_lines_has_header        FOR TESTING.
     METHODS to_lines_formats_row       FOR TESTING.
+    METHODS catalog_lists_columns      FOR TESTING.
+    METHODS catalog_matches_header     FOR TESTING.
+    METHODS catalog_marks_quantities   FOR TESTING.
 ENDCLASS.
 
 
@@ -199,6 +202,52 @@ CLASS ltcl_alloc_run_report IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = substring( val = lt_lines[ 2 ] off = 6 len = 5 )
       exp = 'MAT-1' ).
+  ENDMETHOD.
+
+  METHOD catalog_lists_columns.
+    DATA(lt_fields) = mo_cut->field_catalog( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_fields )
+                                        exp = 9 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 1 ]-fieldname
+                                        exp = 'RUN_ID' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 2 ]-fieldname
+                                        exp = 'MATNR' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 9 ]-fieldname
+                                        exp = 'COVERAGE' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 9 ]-just
+                                        exp = 'R' ).
+  ENDMETHOD.
+
+  METHOD catalog_matches_header.
+    DATA lt_overview TYPE zcl_alloc_run_report=>ty_overview_tt.
+    DATA lv_expected TYPE string.
+
+    DATA(lt_lines) = mo_cut->to_lines( lt_overview ).
+
+    " the header must be exactly the catalog columns, in catalog order
+    LOOP AT mo_cut->field_catalog( ) INTO DATA(ls_field).
+      IF lv_expected IS NOT INITIAL.
+        lv_expected = lv_expected && |;|.
+      ENDIF.
+      lv_expected = lv_expected && |{ ls_field-fieldname }|.
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_lines[ 1 ]
+                                        exp = lv_expected ).
+  ENDMETHOD.
+
+  METHOD catalog_marks_quantities.
+    DATA(lt_fields) = mo_cut->field_catalog( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 2 ]-rollname
+                                        exp = 'MATNR' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 7 ]-rollname
+                                        exp = 'MENGE_D' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 7 ]-decimals
+                                        exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_fields[ 7 ]-text
+                                        exp = 'Allocated qty' ).
   ENDMETHOD.
 
 ENDCLASS.

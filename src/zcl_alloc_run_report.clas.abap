@@ -18,6 +18,16 @@ CLASS zcl_alloc_run_report DEFINITION
     TYPES ty_overview_tt TYPE STANDARD TABLE OF ty_overview WITH DEFAULT KEY.
     TYPES ty_lines_tt TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
 
+    TYPES: BEGIN OF ty_field,
+             fieldname TYPE c LENGTH 30,
+             text      TYPE c LENGTH 40,
+             rollname  TYPE c LENGTH 30,
+             outputlen TYPE i,
+             decimals  TYPE i,
+             just      TYPE c LENGTH 1,
+           END OF ty_field.
+    TYPES ty_field_tt TYPE STANDARD TABLE OF ty_field WITH DEFAULT KEY.
+
     METHODS constructor
       IMPORTING
         io_header TYPE REF TO zcl_alloc_run_header OPTIONAL.
@@ -37,6 +47,10 @@ CLASS zcl_alloc_run_report DEFINITION
         it_overview     TYPE ty_overview_tt
       RETURNING
         VALUE(rt_lines) TYPE ty_lines_tt.
+
+    METHODS field_catalog
+      RETURNING
+        VALUE(rt_fields) TYPE ty_field_tt.
 
   PRIVATE SECTION.
     DATA mo_header TYPE REF TO zcl_alloc_run_header.
@@ -70,10 +84,18 @@ CLASS zcl_alloc_run_report IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD to_lines.
-    DATA lv_line TYPE string.
+    DATA lv_header TYPE string.
+    DATA lv_line   TYPE string.
 
-    APPEND 'RUN_ID;MATNR;WERKS;STATUS;ITEMS;REQUESTED;ALLOCATED;SHORTAGE;COVERAGE'
-      TO rt_lines.
+    " the header is derived from the catalog so the two cannot drift apart
+    LOOP AT field_catalog( ) INTO DATA(ls_field).
+      IF lv_header IS NOT INITIAL.
+        lv_header = lv_header && |;|.
+      ENDIF.
+      lv_header = lv_header && |{ ls_field-fieldname }|.
+    ENDLOOP.
+
+    APPEND lv_header TO rt_lines.
 
     LOOP AT it_overview INTO DATA(ls_overview).
       CLEAR lv_line.
@@ -88,6 +110,55 @@ CLASS zcl_alloc_run_report IMPLEMENTATION.
       lv_line = lv_line && |{ ls_overview-coverage_pct }|.
       APPEND lv_line TO rt_lines.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD field_catalog.
+    APPEND VALUE #( fieldname = 'RUN_ID'
+                    text      = 'Run'
+                    rollname  = 'ZSTOCK_RUN_ID'
+                    outputlen = 20
+                    just      = 'L' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'MATNR'
+                    text      = 'Material'
+                    rollname  = 'MATNR'
+                    outputlen = 18
+                    just      = 'L' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'WERKS'
+                    text      = 'Plant'
+                    rollname  = 'WERKS_D'
+                    outputlen = 4
+                    just      = 'L' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'STATUS'
+                    text      = 'Status'
+                    rollname  = 'ZSTOCKRUN-STATUS'
+                    outputlen = 1
+                    just      = 'C' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'ITEMS'
+                    text      = 'Items'
+                    outputlen = 6
+                    just      = 'R' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'REQUESTED'
+                    text      = 'Requested qty'
+                    rollname  = 'MENGE_D'
+                    outputlen = 15
+                    decimals  = 3
+                    just      = 'R' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'ALLOCATED'
+                    text      = 'Allocated qty'
+                    rollname  = 'MENGE_D'
+                    outputlen = 15
+                    decimals  = 3
+                    just      = 'R' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'SHORTAGE'
+                    text      = 'Shortage qty'
+                    rollname  = 'MENGE_D'
+                    outputlen = 15
+                    decimals  = 3
+                    just      = 'R' ) TO rt_fields.
+    APPEND VALUE #( fieldname = 'COVERAGE'
+                    text      = 'Coverage %'
+                    outputlen = 8
+                    just      = 'R' ) TO rt_fields.
   ENDMETHOD.
 
   METHOD to_overview.

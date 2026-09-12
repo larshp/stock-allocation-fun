@@ -162,3 +162,38 @@ Each entry notes the symptom, the cause and the workaround used.
   actual field easy to overlook.
 * Workaround: use the exact component name, or avoid the chain altogether and
   type the parameter directly (e.g. `iv_vfdat TYPE d`).
+
+## A14 - A new default DB dependency breaks test doubles that do not declare it
+
+* Symptom: after `zcl_stock_allocation_service` started defaulting to a safety
+  stock reader that selects from the new `ZSAFETYSTK` table, an *unrelated* test
+  (`ltcl_stock_alloc_run->runs_two_materials`) failed with
+  `cx_sy_dynamic_osql_semantics` and `no such table: double.zsafetystk`.
+* Cause: `cl_osql_test_environment=>create( i_dependency_list = ... )` only
+  creates the tables that are listed. The run test declared `MARD` and `RESB`,
+  built the default service internally, and therefore reached the new table
+  through a default dependency it had never declared.
+* Workaround: when a class gains a default dependency that reads a new table,
+  every test double that exercises that class *indirectly* must add the table to
+  its `i_dependency_list`. Adding a single default DB read can break tests that
+  have nothing to do with the feature, so when a new table is involved, check
+  unrelated failing tests for a missing dependency before suspecting the change
+  itself.
+
+## A15 - `find( )` is 0-based in the transpiler and does not set `sy-subrc`
+
+* Symptom: a test that checked catalog field names against a CSV header with
+  `IF find( val = lv_header sub = ls_field-fieldname ) > 0.` never matched and
+  counted 0 hits, although the header visibly contained every field name.
+* Cause: two things stack up.
+  1. The transpiled `find( )` returns a **0-based index** (and `-1` when the
+     substring is missing). In real ABAP `find( )` returns the 1-based position
+     and sets `sy-subrc`; here neither the base nor the `sy-subrc` contract
+     holds, so the portable idiom is `>= 0` / `= -1`, not `> 0` plus `sy-subrc`.
+  2. A `TYPE c LENGTH n` component is space-padded, so the search string
+     `'RUN_ID'` was actually `'RUN_ID' + 24 blanks` and never matched the trimmed
+     text in the header.
+* Workaround: compare against `-1` (or `>= 0`) instead of using `sy-subrc`, and
+  build the expected string with a string template (`|{ ls_field-fieldname }|`)
+  so trailing blanks are trimmed on both sides before comparing. Avoid searching
+  a padded value inside a trimmed string.

@@ -16,6 +16,7 @@ CLASS zcl_stock_allocation_service DEFINITION
         io_writer             TYPE REF TO zif_allocation_writer OPTIONAL
         io_poster             TYPE REF TO zif_allocation_poster OPTIONAL
         io_uom_converter      TYPE REF TO zif_uom_converter OPTIONAL
+        io_safety_stock       TYPE REF TO zif_safety_stock OPTIONAL
         io_substitution       TYPE REF TO zcl_stock_substitution OPTIONAL
         io_commitment         TYPE REF TO zcl_stock_commitment OPTIONAL
         is_policy             TYPE zcl_stock_allocator=>ty_policy OPTIONAL.
@@ -113,6 +114,7 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mo_writer             TYPE REF TO zif_allocation_writer.
     DATA mo_poster             TYPE REF TO zif_allocation_poster.
     DATA mo_uom_converter      TYPE REF TO zif_uom_converter.
+    DATA mo_safety_stock       TYPE REF TO zif_safety_stock.
     DATA mo_substitution       TYPE REF TO zcl_stock_substitution.
     DATA mo_commitment         TYPE REF TO zcl_stock_commitment.
     DATA mo_allocator          TYPE REF TO zcl_stock_allocator.
@@ -163,12 +165,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       mo_uom_converter = NEW zcl_uom_converter( ).
     ENDIF.
 
+    IF io_safety_stock IS SUPPLIED.
+      mo_safety_stock = io_safety_stock.
+    ENDIF.
+    IF mo_safety_stock IS NOT BOUND.
+      mo_safety_stock = NEW zcl_safety_stock( ).
+    ENDIF.
+
     IF io_substitution IS SUPPLIED.
       mo_substitution = io_substitution.
     ENDIF.
     IF mo_substitution IS NOT BOUND.
       mo_substitution = NEW zcl_stock_substitution(
-        io_stock_reader = mo_stock_reader ).
+        io_stock_reader = mo_stock_reader
+        io_safety_stock = mo_safety_stock ).
     ENDIF.
 
     IF io_commitment IS SUPPLIED.
@@ -186,10 +196,12 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     IF is_policy IS SUPPLIED.
       ro_allocator = NEW #( io_stock_reader  = mo_stock_reader
                             io_uom_converter = mo_uom_converter
+                            io_safety_stock  = mo_safety_stock
                             is_policy        = is_policy ).
     ELSE.
       ro_allocator = NEW #( io_stock_reader  = mo_stock_reader
-                            io_uom_converter = mo_uom_converter ).
+                            io_uom_converter = mo_uom_converter
+                            io_safety_stock  = mo_safety_stock ).
     ENDIF.
   ENDMETHOD.
 

@@ -40,6 +40,7 @@ CLASS ltcl_stock_allocation_service DEFINITION
     TYPES ty_mcha_tt TYPE STANDARD TABLE OF mcha WITH DEFAULT KEY.
     TYPES ty_marm_tt TYPE STANDARD TABLE OF marm WITH DEFAULT KEY.
     TYPES ty_sub_tt TYPE STANDARD TABLE OF zsubstitute WITH DEFAULT KEY.
+    TYPES ty_safety_tt TYPE STANDARD TABLE OF zsafetystk WITH DEFAULT KEY.
 
     DATA mo_environment TYPE REF TO if_osql_test_environment.
     DATA mo_cut         TYPE REF TO zcl_stock_allocation_service.
@@ -58,6 +59,11 @@ CLASS ltcl_stock_allocation_service DEFINITION
         iv_matnr    TYPE matnr
         iv_submatnr TYPE matnr
         iv_prio     TYPE zsubstitute-prio DEFAULT '01'.
+
+    METHODS given_safety_stock
+      IMPORTING
+        iv_lgort TYPE lgort_d
+        iv_qty   TYPE menge_d.
 
     METHODS given_requirement
       IMPORTING
@@ -108,6 +114,7 @@ CLASS ltcl_stock_allocation_service DEFINITION
     METHODS allocates_from_substitute      FOR TESTING.
     METHODS run_commits_reservations       FOR TESTING.
     METHODS posts_and_releases_for_run     FOR TESTING.
+    METHODS allocate_respects_safety       FOR TESTING.
 ENDCLASS.
 
 
@@ -117,7 +124,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'VBAP' ) ( 'MCHB' )
                                    ( 'MCHA' ) ( 'MARM' ) ( 'ZSUBSTITUTE' )
-                                   ( 'ZSTOCKRESV' ) ( 'ZSTOCKALLOC' ) ) ).
+                                   ( 'ZSAFETYSTK' ) ( 'ZSTOCKRESV' )
+                                   ( 'ZSTOCKALLOC' ) ) ).
     mo_cut = NEW #( ).
   ENDMETHOD.
 
@@ -189,6 +197,18 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     ls_rule-prio = iv_prio.
 
     mo_environment->insert_test_data( VALUE ty_sub_tt( ( ls_rule ) ) ).
+  ENDMETHOD.
+
+  METHOD given_safety_stock.
+    DATA ls_config TYPE zsafetystk.
+
+    ls_config-mandt = sy-mandt.
+    ls_config-matnr = 'MAT-1'.
+    ls_config-werks = '1000'.
+    ls_config-lgort = iv_lgort.
+    ls_config-qty = iv_qty.
+
+    mo_environment->insert_test_data( VALUE ty_safety_tt( ( ls_config ) ) ).
   ENDMETHOD.
 
   METHOD given_batch.
@@ -551,6 +571,27 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lt_stock[ 1 ]-unrestricted_qty
                                         exp = '4' ).
+  ENDMETHOD.
+
+  METHOD allocate_respects_safety.
+    given_stock( iv_lgort = '0001'
+                 iv_labst = '10' ).
+    given_safety_stock( iv_lgort = '0001'
+                        iv_qty   = '4' ).
+    given_requirement( iv_rsnum = '0000000001'
+                       iv_bdmng = '10' ).
+
+    DATA(lt_result) = mo_cut->allocate( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '4' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->available_quantity( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' )
+      exp = '6' ).
   ENDMETHOD.
 
 ENDCLASS.

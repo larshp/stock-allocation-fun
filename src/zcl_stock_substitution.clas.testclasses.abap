@@ -7,6 +7,7 @@ CLASS ltcl_stock_substitution DEFINITION
   PRIVATE SECTION.
     TYPES ty_sub_tt TYPE STANDARD TABLE OF zsubstitute WITH DEFAULT KEY.
     TYPES ty_mard_tt TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
+    TYPES ty_safety_tt TYPE STANDARD TABLE OF zsafetystk WITH DEFAULT KEY.
 
     DATA mo_environment TYPE REF TO if_osql_test_environment.
     DATA mo_cut         TYPE REF TO zcl_stock_substitution.
@@ -25,11 +26,19 @@ CLASS ltcl_stock_substitution DEFINITION
         iv_matnr TYPE matnr
         iv_labst TYPE menge_d DEFAULT 0.
 
+    METHODS given_safety_stock
+      IMPORTING
+        iv_matnr TYPE matnr
+        iv_lgort TYPE lgort_d
+        iv_qty   TYPE menge_d.
+
     METHODS reads_rules_by_priority FOR TESTING.
     METHODS no_rules_returns_empty  FOR TESTING.
     METHODS sums_own_and_subs       FOR TESTING.
     METHODS details_start_with_own  FOR TESTING.
     METHODS ignores_other_material  FOR TESTING.
+    METHODS safety_stock_reduces_own FOR TESTING.
+    METHODS safety_stock_for_substitute FOR TESTING.
 ENDCLASS.
 
 
@@ -37,7 +46,8 @@ CLASS ltcl_stock_substitution IMPLEMENTATION.
 
   METHOD setup.
     mo_environment = cl_osql_test_environment=>create(
-      i_dependency_list = VALUE #( ( 'ZSUBSTITUTE' ) ( 'MARD' ) ) ).
+      i_dependency_list = VALUE #( ( 'ZSUBSTITUTE' ) ( 'MARD' )
+                                   ( 'ZSAFETYSTK' ) ) ).
     mo_cut = NEW zcl_stock_substitution( ).
   ENDMETHOD.
 
@@ -66,6 +76,18 @@ CLASS ltcl_stock_substitution IMPLEMENTATION.
     ls_mard-labst = iv_labst.
 
     mo_environment->insert_test_data( VALUE ty_mard_tt( ( ls_mard ) ) ).
+  ENDMETHOD.
+
+  METHOD given_safety_stock.
+    DATA ls_config TYPE zsafetystk.
+
+    ls_config-mandt = sy-mandt.
+    ls_config-matnr = iv_matnr.
+    ls_config-werks = '1000'.
+    ls_config-lgort = iv_lgort.
+    ls_config-qty = iv_qty.
+
+    mo_environment->insert_test_data( VALUE ty_safety_tt( ( ls_config ) ) ).
   ENDMETHOD.
 
   METHOD reads_rules_by_priority.
@@ -152,6 +174,43 @@ CLASS ltcl_stock_substitution IMPLEMENTATION.
                                         exp = '0' ).
     cl_abap_unit_assert=>assert_equals( act = ls_avail-total_available
                                         exp = '0' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_reduces_own.
+    given_stock( iv_matnr = 'MAT-1' iv_labst = '10' ).
+    given_safety_stock( iv_matnr = 'MAT-1'
+                        iv_lgort = '0001'
+                        iv_qty   = '4' ).
+
+    DATA(ls_avail) = mo_cut->availability( iv_matnr = 'MAT-1'
+                                           iv_werks = '1000' ).
+
+    " the safety stock is not available, it is not part of the report
+    cl_abap_unit_assert=>assert_equals( act = ls_avail-own_available
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_avail-total_available
+                                        exp = '6' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_for_substitute.
+    given_rule( iv_matnr    = 'MAT-1'
+                iv_submatnr = 'MAT-A'
+                iv_prio     = '01' ).
+    given_stock( iv_matnr = 'MAT-1' iv_labst = '10' ).
+    given_stock( iv_matnr = 'MAT-A' iv_labst = '5' ).
+    given_safety_stock( iv_matnr = 'MAT-A'
+                        iv_lgort = '0001'
+                        iv_qty   = '2' ).
+
+    DATA(ls_avail) = mo_cut->availability( iv_matnr = 'MAT-1'
+                                           iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_avail-own_available
+                                        exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_avail-sub_available
+                                        exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = ls_avail-total_available
+                                        exp = '13' ).
   ENDMETHOD.
 
 ENDCLASS.

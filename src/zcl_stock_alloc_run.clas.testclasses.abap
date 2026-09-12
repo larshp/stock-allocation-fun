@@ -30,11 +30,23 @@ CLASS ltcl_stock_alloc_run DEFINITION
       RETURNING
         VALUE(rt_requests) TYPE zcl_stock_alloc_run=>ty_request_tt.
 
+    METHODS three_requests
+      RETURNING
+        VALUE(rt_requests) TYPE zcl_stock_alloc_run=>ty_request_tt.
+
     METHODS runs_two_materials         FOR TESTING.
     METHODS aggregates_shortages       FOR TESTING.
     METHODS counts_short_materials     FOR TESTING.
     METHODS totals_across_materials    FOR TESTING.
     METHODS empty_requests_empty_stats FOR TESTING.
+    METHODS packages_match_single_run FOR TESTING.
+    METHODS package_size_one_matches  FOR TESTING.
+    METHODS package_size_zero_runs_all FOR TESTING.
+    METHODS package_over_list_size    FOR TESTING.
+    METHODS skips_empty_material      FOR TESTING.
+    METHODS skips_empty_plant         FOR TESTING.
+    METHODS skips_only_invalid        FOR TESTING.
+    METHODS package_keeps_skipped     FOR TESTING.
 ENDCLASS.
 
 
@@ -42,7 +54,7 @@ CLASS ltcl_stock_alloc_run IMPLEMENTATION.
 
   METHOD setup.
     mo_environment = cl_osql_test_environment=>create(
-      i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ) ).
+      i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'ZSAFETYSTK' ) ) ).
     mo_cut = NEW zcl_stock_alloc_run( ).
   ENDMETHOD.
 
@@ -81,6 +93,11 @@ CLASS ltcl_stock_alloc_run IMPLEMENTATION.
   METHOD all_requests.
     APPEND VALUE #( matnr = 'MAT-1' werks = '1000' ) TO rt_requests.
     APPEND VALUE #( matnr = 'MAT-2' werks = '1000' ) TO rt_requests.
+  ENDMETHOD.
+
+  METHOD three_requests.
+    rt_requests = all_requests( ).
+    APPEND VALUE #( matnr = 'MAT-3' werks = '1000' ) TO rt_requests.
   ENDMETHOD.
 
   METHOD runs_two_materials.
@@ -178,6 +195,177 @@ CLASS ltcl_stock_alloc_run IMPLEMENTATION.
                                         exp = 0 ).
     cl_abap_unit_assert=>assert_initial( act = ls_run-materials ).
     cl_abap_unit_assert=>assert_initial( act = ls_run-shortages ).
+  ENDMETHOD.
+
+  METHOD packages_match_single_run.
+    given_stock( iv_matnr = 'MAT-1' iv_lgort = '0001' iv_labst = '10' ).
+    given_stock( iv_matnr = 'MAT-2' iv_lgort = '0001' iv_labst = '2' ).
+    given_stock( iv_matnr = 'MAT-3' iv_lgort = '0001' iv_labst = '10' ).
+    given_requirement( iv_matnr = 'MAT-1'
+                       iv_rsnum = '0000000001'
+                       iv_bdmng = '4' ).
+    given_requirement( iv_matnr = 'MAT-2'
+                       iv_rsnum = '0000000002'
+                       iv_bdmng = '5' ).
+    given_requirement( iv_matnr = 'MAT-3'
+                       iv_rsnum = '0000000003'
+                       iv_bdmng = '3' ).
+
+    DATA(lt_requests) = three_requests( ).
+
+    DATA(ls_whole) = mo_cut->run( lt_requests ).
+    DATA(ls_packed) = mo_cut->run_in_packages( it_requests     = lt_requests
+                                               iv_package_size = 2 ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-materials
+                                        exp = ls_whole-stats-materials ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-requirements
+                                        exp = ls_whole-stats-requirements ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-requested_qty
+                                        exp = ls_whole-stats-requested_qty ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-allocated_qty
+                                        exp = ls_whole-stats-allocated_qty ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-shortage_qty
+                                        exp = ls_whole-stats-shortage_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_packed-stats-materials_shortage
+      exp = ls_whole-stats-materials_shortage ).
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_packed-materials )
+                                        exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_packed-shortages )
+                                        exp = 1 ).
+  ENDMETHOD.
+
+  METHOD package_size_one_matches.
+    given_stock( iv_matnr = 'MAT-1' iv_lgort = '0001' iv_labst = '10' ).
+    given_stock( iv_matnr = 'MAT-2' iv_lgort = '0001' iv_labst = '10' ).
+    given_requirement( iv_matnr = 'MAT-1'
+                       iv_rsnum = '0000000001'
+                       iv_bdmng = '4' ).
+    given_requirement( iv_matnr = 'MAT-2'
+                       iv_rsnum = '0000000002'
+                       iv_bdmng = '6' ).
+
+    DATA(lt_requests) = all_requests( ).
+
+    DATA(ls_packed) = mo_cut->run_in_packages( it_requests     = lt_requests
+                                               iv_package_size = 1 ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-materials
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-allocated_qty
+                                        exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_packed-materials )
+                                        exp = 2 ).
+  ENDMETHOD.
+
+  METHOD package_size_zero_runs_all.
+    given_stock( iv_matnr = 'MAT-1' iv_lgort = '0001' iv_labst = '10' ).
+    given_stock( iv_matnr = 'MAT-2' iv_lgort = '0001' iv_labst = '10' ).
+    given_requirement( iv_matnr = 'MAT-1'
+                       iv_rsnum = '0000000001'
+                       iv_bdmng = '4' ).
+    given_requirement( iv_matnr = 'MAT-2'
+                       iv_rsnum = '0000000002'
+                       iv_bdmng = '6' ).
+
+    DATA(ls_packed) = mo_cut->run_in_packages( it_requests     = all_requests( )
+                                               iv_package_size = 0 ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-materials
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD package_over_list_size.
+    given_stock( iv_matnr = 'MAT-1' iv_lgort = '0001' iv_labst = '10' ).
+    given_stock( iv_matnr = 'MAT-2' iv_lgort = '0001' iv_labst = '2' ).
+    given_requirement( iv_matnr = 'MAT-1'
+                       iv_rsnum = '0000000001'
+                       iv_bdmng = '4' ).
+    given_requirement( iv_matnr = 'MAT-2'
+                       iv_rsnum = '0000000002'
+                       iv_bdmng = '5' ).
+
+    DATA(lt_requests) = all_requests( ).
+
+    DATA(ls_packed) = mo_cut->run_in_packages( it_requests     = lt_requests
+                                               iv_package_size = 50 ).
+
+    " both requests fit in one package; MAT-2 cannot be covered in full
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-materials
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_packed-stats-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_packed-shortages )
+                                        exp = 1 ).
+  ENDMETHOD.
+
+  METHOD skips_empty_material.
+    DATA lt_requests TYPE zcl_stock_alloc_run=>ty_request_tt.
+
+    APPEND VALUE #( matnr = '' werks = '1000' ) TO lt_requests.
+
+    DATA(ls_run) = mo_cut->run( lt_requests ).
+
+    cl_abap_unit_assert=>assert_initial( act = ls_run-materials ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-materials
+                                        exp = 0 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-skipped
+                                        exp = 1 ).
+  ENDMETHOD.
+
+  METHOD skips_empty_plant.
+    DATA lt_requests TYPE zcl_stock_alloc_run=>ty_request_tt.
+
+    APPEND VALUE #( matnr = 'MAT-1' werks = '' ) TO lt_requests.
+
+    DATA(ls_run) = mo_cut->run( lt_requests ).
+
+    cl_abap_unit_assert=>assert_initial( act = ls_run-materials ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-skipped
+                                        exp = 1 ).
+  ENDMETHOD.
+
+  METHOD skips_only_invalid.
+    given_stock( iv_matnr = 'MAT-1' iv_lgort = '0001' iv_labst = '10' ).
+    given_requirement( iv_matnr = 'MAT-1'
+                       iv_rsnum = '0000000001'
+                       iv_bdmng = '4' ).
+
+    DATA lt_requests TYPE zcl_stock_alloc_run=>ty_request_tt.
+
+    APPEND VALUE #( matnr = 'MAT-1' werks = '1000' ) TO lt_requests.
+    APPEND VALUE #( matnr = ''      werks = '1000' ) TO lt_requests.
+    APPEND VALUE #( matnr = 'MAT-2' werks = '' ) TO lt_requests.
+
+    DATA(ls_run) = mo_cut->run( lt_requests ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( ls_run-materials )
+                                        exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-materials
+                                        exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-skipped
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-allocated_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD package_keeps_skipped.
+    DATA lt_requests TYPE zcl_stock_alloc_run=>ty_request_tt.
+
+    APPEND VALUE #( matnr = ''      werks = '1000' ) TO lt_requests.
+    APPEND VALUE #( matnr = 'MAT-2' werks = '' ) TO lt_requests.
+    APPEND VALUE #( matnr = 'MAT-3' werks = '' ) TO lt_requests.
+
+    DATA(ls_run) = mo_cut->run_in_packages( it_requests     = lt_requests
+                                            iv_package_size = 2 ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-skipped
+                                        exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-stats-materials
+                                        exp = 0 ).
   ENDMETHOD.
 
 ENDCLASS.

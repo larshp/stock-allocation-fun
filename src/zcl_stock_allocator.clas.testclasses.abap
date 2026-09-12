@@ -20,6 +20,38 @@ CLASS lcl_uom_stub IMPLEMENTATION.
 ENDCLASS.
 
 
+CLASS lcl_safety_stub DEFINITION
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES zif_safety_stock.
+
+    METHODS add
+      IMPORTING
+        iv_lgort TYPE lgort_d
+        iv_qty   TYPE menge_d.
+
+  PRIVATE SECTION.
+    DATA mt_config TYPE zif_safety_stock=>ty_config_tt.
+
+ENDCLASS.
+
+
+CLASS lcl_safety_stub IMPLEMENTATION.
+
+  METHOD zif_safety_stock~read.
+    rt_config = mt_config.
+  ENDMETHOD.
+
+  METHOD add.
+    APPEND VALUE #( lgort = iv_lgort
+                    qty   = iv_qty ) TO mt_config.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 CLASS lcl_stock_reader_stub DEFINITION
   FINAL
   CREATE PUBLIC.
@@ -79,6 +111,7 @@ CLASS ltcl_stock_allocator DEFINITION
 
   PRIVATE SECTION.
     DATA mo_reader       TYPE REF TO lcl_stock_reader_stub.
+    DATA mo_safety       TYPE REF TO lcl_safety_stub.
     DATA mt_requirements TYPE zif_requirement_reader=>ty_requirement_tt.
 
     METHODS setup.
@@ -157,6 +190,12 @@ CLASS ltcl_stock_allocator DEFINITION
       RETURNING
         VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
 
+    METHODS safety_loc_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
     METHODS priority_order_wins          FOR TESTING.
     METHODS shortage_is_reported         FOR TESTING.
     METHODS splits_across_bins           FOR TESTING.
@@ -196,6 +235,12 @@ CLASS ltcl_stock_allocator DEFINITION
     METHODS safety_stock_off_by_default  FOR TESTING.
     METHODS safety_stock_never_negative  FOR TESTING.
     METHODS safety_stock_in_available    FOR TESTING.
+    METHODS safety_loc_per_location       FOR TESTING.
+    METHODS safety_loc_plant_wide         FOR TESTING.
+    METHODS safety_loc_other_untouched    FOR TESTING.
+    METHODS safety_loc_batches_once       FOR TESTING.
+    METHODS safety_loc_no_config          FOR TESTING.
+    METHODS safety_loc_in_available       FOR TESTING.
 ENDCLASS.
 
 
@@ -203,6 +248,7 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
   METHOD setup.
     mo_reader = NEW #( ).
+    mo_safety = NEW #( ).
     CLEAR mt_requirements.
   ENDMETHOD.
 
@@ -219,9 +265,11 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
   METHOD cut.
     IF is_policy IS SUPPLIED.
       ro_cut = NEW #( io_stock_reader = mo_reader
+                      io_safety_stock = mo_safety
                       is_policy       = is_policy ).
     ELSE.
-      ro_cut = NEW #( io_stock_reader = mo_reader ).
+      ro_cut = NEW #( io_stock_reader = mo_reader
+                      io_safety_stock = mo_safety ).
     ENDIF.
   ENDMETHOD.
 
@@ -338,6 +386,18 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
                                             is_policy       = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD safety_loc_result.
+    add_requirement( iv_id  = 'A'
+                     iv_qty = iv_qty ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            io_safety_stock = mo_safety ).
 
     rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
                                   iv_werks        = '1000'
@@ -932,6 +992,76 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
                                             is_policy       = ls_policy ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->available_quantity( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' )
+      exp = '6' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_per_location.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_stock( iv_lgort = '0002' iv_labst = '10' ).
+    mo_safety->add( iv_lgort = '0001' iv_qty = '4' ).
+    mo_safety->add( iv_lgort = '0002' iv_qty = '1' ).
+
+    DATA(lt_result) = safety_loc_result( iv_qty = '20' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '15' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '5' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_plant_wide.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_stock( iv_lgort = '0002' iv_labst = '10' ).
+    mo_safety->add( iv_lgort = '' iv_qty = '5' ).
+
+    DATA(lt_result) = safety_loc_result( iv_qty = '20' ).
+
+    " the plant-wide figure is taken from the first location only
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '15' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_other_untouched.
+    add_stock( iv_lgort = '0002' iv_labst = '10' ).
+    mo_safety->add( iv_lgort = '0001' iv_qty = '4' ).
+
+    DATA(lt_result) = safety_loc_result( iv_qty = '20' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_batches_once.
+    add_stock( iv_lgort = '0001' iv_labst = '5' iv_charg = 'B1' ).
+    add_stock( iv_lgort = '0001' iv_labst = '5' iv_charg = 'B2' ).
+    mo_safety->add( iv_lgort = '0001' iv_qty = '4' ).
+
+    DATA(lt_result) = safety_loc_result( iv_qty = '20' ).
+
+    " the location safety stock is deducted once, not once per batch
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_no_config.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+
+    DATA(lt_result) = safety_loc_result( iv_qty = '20' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD safety_loc_in_available.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    mo_safety->add( iv_lgort = '0001' iv_qty = '4' ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            io_safety_stock = mo_safety ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lo_cut->available_quantity( iv_matnr = 'MAT-1'

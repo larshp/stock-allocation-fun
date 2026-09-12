@@ -54,6 +54,7 @@ flowchart LR
   RRPT[zcl_alloc_run_report]
   CMT[zcl_stock_commitment]
   RSRV[zcl_stock_reader_reserved]
+  SAFE[zif_safety_stock / zcl_safety_stock]
 
   RUN --> SVC
   SVC --> SR
@@ -79,6 +80,8 @@ flowchart LR
   RRPT --> ZRUN[(ZSTOCKRUN)]
   CMT --> RESV[(ZSTOCKRESV)]
   RSRV --> RESV[(ZSTOCKRESV)]
+  AL --> SAFE
+  SAFE --> SAFET[(ZSAFETYSTK)]
   PO --> BAPI[BAPI_GOODSMVT_CREATE]
 ```
 
@@ -99,19 +102,28 @@ flowchart LR
   quantities as a goods movement through `BAPI_GOODSMVT_CREATE`.
 * `zcl_stock_allocation_service` - facade that wires the defaults together.
 * `zcl_stock_alloc_run` - runs the facade for a list of material/plant requests
-  and aggregates the results into statistics and a shortage report.
+  and aggregates the results into statistics and a shortage report. Requests with
+  an empty material or plant are skipped and counted in `stats-skipped`. Large
+  lists can be processed package-wise via `run_in_packages( )`.
 * `zcl_alloc_log_reader` - reads and summarizes the recorded `ZSTOCKALLOC` run
   log (per-run totals and material counts).
 * `zcl_stock_substitution` - reads the `ZSUBSTITUTE` substitution rules and
-  reports the available quantity of a material including its substitutes.
+  reports the available quantity of a material including its substitutes, with
+  the `ZSAFETYSTK` safety stock already deducted.
 * `zcl_alloc_run_header` - tracks a run per material/plant in `ZSTOCKRUN`
   (status running/done plus aggregated requested, allocated and shortage
   quantities).
 * `zcl_alloc_run_report` - reporting view over the stored run headers, adding a
-  derived coverage percentage per run and material.
+  derived coverage percentage per run and material, a CSV text output
+  (`to_lines`) and an ALV-style field catalog (`field_catalog`).
 * `zcl_stock_commitment` / `zcl_stock_reader_reserved` - commit allocated
   quantities to `ZSTOCKRESV` and subtract those open commitments from the
-  available stock, so a second run sees the stock as already used.
+  available stock, so a second run sees the stock as already used. Commitments
+  carry a creation date; `read_expired( )` lists them and `purge_before( )` /
+  `purge_older_than( )` clean up stale ones.
+* `zif_safety_stock` / `zcl_safety_stock` - read the `ZSAFETYSTK` safety stock per
+  material / plant / storage location. The allocator keeps that quantity in the
+  bins, so it can never be allocated.
 
 ## Usage
 

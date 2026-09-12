@@ -45,6 +45,7 @@ CLASS zcl_stock_allocator DEFINITION
       IMPORTING
         io_stock_reader  TYPE REF TO zif_stock_reader
         io_uom_converter TYPE REF TO zif_uom_converter OPTIONAL
+        io_safety_stock  TYPE REF TO zif_safety_stock OPTIONAL
         is_policy        TYPE ty_policy OPTIONAL.
 
     METHODS allocate
@@ -91,6 +92,7 @@ CLASS zcl_stock_allocator DEFINITION
     DATA mo_stock_reader  TYPE REF TO zif_stock_reader.
     DATA ms_policy        TYPE ty_policy.
     DATA mo_uom_converter TYPE REF TO zif_uom_converter.
+    DATA mo_safety_stock  TYPE REF TO zif_safety_stock.
 
     METHODS to_base_qty
       IMPORTING
@@ -120,6 +122,14 @@ CLASS zcl_stock_allocator DEFINITION
       RETURNING
         VALUE(rt_available) TYPE ty_available_tt.
 
+    METHODS apply_safety_stock
+      IMPORTING
+        iv_matnr       TYPE matnr
+        it_config      TYPE zif_safety_stock=>ty_config_tt
+        it_rows        TYPE ty_available_tt
+      RETURNING
+        VALUE(rt_rows) TYPE ty_available_tt.
+
     METHODS usable_quantity
       IMPORTING
         is_stock           TYPE zif_stock_reader=>ty_stock
@@ -135,6 +145,9 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     mo_stock_reader = io_stock_reader.
     IF io_uom_converter IS SUPPLIED.
       mo_uom_converter = io_uom_converter.
+    ENDIF.
+    IF io_safety_stock IS SUPPLIED.
+      mo_safety_stock = io_safety_stock.
     ENDIF.
     IF is_policy IS SUPPLIED.
       ms_policy = is_policy.
@@ -322,11 +335,15 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
 
   METHOD build_availability_multi.
     DATA lt_stock  TYPE zif_stock_reader=>ty_stock_tt.
+    DATA lt_rows   TYPE ty_available_tt.
+    DATA lt_config TYPE zif_safety_stock=>ty_config_tt.
     DATA lv_usable TYPE ty_quantity.
     DATA lv_expiry TYPE d.
     DATA lv_safety TYPE ty_quantity.
 
     LOOP AT it_materials INTO DATA(lv_matnr_value).
+      CLEAR lt_rows.
+
       lt_stock = mo_stock_reader->read_stock( iv_matnr = lv_matnr_value
                                               iv_werks = iv_werks ).
 
@@ -346,8 +363,19 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
                         charg       = ls_stock-charg
                         expiry_date = ls_stock-expiry_date
                         sort_date   = lv_expiry
-                        quantity    = lv_usable ) TO rt_available.
+                        quantity    = lv_usable ) TO lt_rows.
       ENDLOOP.
+
+      IF mo_safety_stock IS BOUND.
+        " keep the configured safety stock in its storage location
+        lt_config = mo_safety_stock->read( iv_matnr = lv_matnr_value
+                                           iv_werks = iv_werks ).
+        lt_rows = apply_safety_stock( iv_matnr  = lv_matnr_value
+                                      it_config = lt_config
+                                      it_rows   = lt_rows ).
+      ENDIF.
+
+      APPEND LINES OF lt_rows TO rt_available.
     ENDLOOP.
 
     lv_safety = ms_policy-safety_stock.
@@ -367,6 +395,44 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD apply_safety_stock.
+    DATA lv_remaining TYPE ty_quantity.
+
+    rt_rows = it_rows.
+
+    LOOP AT it_config INTO DATA(ls_config).
+      IF ls_config-qty <= 0.
+        CONTINUE.
+      ENDIF.
+
+      lv_remaining = ls_config-qty.
+
+      LOOP AT rt_rows ASSIGNING FIELD-SYMBOL(<ls_row>).
+        IF lv_remaining <= 0.
+          EXIT.
+        ENDIF.
+        IF <ls_row>-matnr <> iv_matnr.
+          CONTINUE.
+        ENDIF.
+        IF ls_config-lgort IS NOT INITIAL
+            AND <ls_row>-lgort <> ls_config-lgort.
+          CONTINUE.
+        ENDIF.
+        IF <ls_row>-quantity <= 0.
+          CONTINUE.
+        ENDIF.
+
+        IF <ls_row>-quantity <= lv_remaining.
+          lv_remaining = lv_remaining - <ls_row>-quantity.
+          CLEAR <ls_row>-quantity.
+        ELSE.
+          <ls_row>-quantity = <ls_row>-quantity - lv_remaining.
+          CLEAR lv_remaining.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD usable_quantity.

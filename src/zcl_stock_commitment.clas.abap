@@ -10,6 +10,8 @@ CLASS zcl_stock_commitment DEFINITION
            END OF ty_open.
     TYPES ty_open_tt TYPE STANDARD TABLE OF ty_open WITH DEFAULT KEY.
 
+    TYPES ty_resv_tt TYPE STANDARD TABLE OF zstockresv WITH DEFAULT KEY.
+
     METHODS commit
       IMPORTING
         iv_run_id         TYPE zstock_run_id
@@ -29,6 +31,24 @@ CLASS zcl_stock_commitment DEFINITION
         iv_werks       TYPE werks_d
       RETURNING
         VALUE(rt_open) TYPE ty_open_tt.
+
+    METHODS read_expired
+      IMPORTING
+        iv_before      TYPE d
+      RETURNING
+        VALUE(rt_resv) TYPE ty_resv_tt.
+
+    METHODS purge_before
+      IMPORTING
+        iv_before         TYPE d
+      RETURNING
+        VALUE(rv_deleted) TYPE i.
+
+    METHODS purge_older_than
+      IMPORTING
+        iv_retention_days TYPE i
+      RETURNING
+        VALUE(rv_deleted) TYPE i.
 
 ENDCLASS.
 
@@ -50,6 +70,7 @@ CLASS zcl_stock_commitment IMPLEMENTATION.
         ls_resv-req_id = ls_result-requirement_id.
         ls_resv-qty = ls_alloc-quantity.
         ls_resv-created_by = sy-uname.
+        ls_resv-created_dat = sy-datum.
 
         ls_resv-matnr = ls_alloc-matnr.
         IF ls_resv-matnr IS INITIAL.
@@ -90,6 +111,23 @@ CLASS zcl_stock_commitment IMPLEMENTATION.
     IF ls_open-lgort IS NOT INITIAL.
       APPEND ls_open TO rt_open.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD read_expired.
+    SELECT * FROM zstockresv INTO TABLE @rt_resv
+      WHERE created_dat < @iv_before.
+  ENDMETHOD.
+
+  METHOD purge_before.
+    DELETE FROM zstockresv WHERE created_dat < @iv_before.
+    rv_deleted = sy-dbcnt.
+  ENDMETHOD.
+
+  METHOD purge_older_than.
+    DATA lv_cutoff TYPE d.
+
+    lv_cutoff = sy-datum - iv_retention_days.
+    rv_deleted = purge_before( lv_cutoff ).
   ENDMETHOD.
 
 ENDCLASS.

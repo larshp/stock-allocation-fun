@@ -29,7 +29,8 @@ CLASS zcl_stock_substitution DEFINITION
 
     METHODS constructor
       IMPORTING
-        io_stock_reader TYPE REF TO zif_stock_reader OPTIONAL.
+        io_stock_reader TYPE REF TO zif_stock_reader OPTIONAL
+        io_safety_stock TYPE REF TO zif_safety_stock OPTIONAL.
 
     METHODS read_substitutes
       IMPORTING
@@ -46,6 +47,7 @@ CLASS zcl_stock_substitution DEFINITION
 
   PRIVATE SECTION.
     DATA mo_stock_reader TYPE REF TO zif_stock_reader.
+    DATA mo_safety_stock TYPE REF TO zif_safety_stock.
     DATA mo_allocator    TYPE REF TO zcl_stock_allocator.
 
 ENDCLASS.
@@ -61,7 +63,16 @@ CLASS zcl_stock_substitution IMPLEMENTATION.
       mo_stock_reader = NEW zcl_stock_reader_mard( ).
     ENDIF.
 
-    mo_allocator = NEW zcl_stock_allocator( io_stock_reader = mo_stock_reader ).
+    IF io_safety_stock IS SUPPLIED.
+      mo_safety_stock = io_safety_stock.
+    ENDIF.
+    IF mo_safety_stock IS NOT BOUND.
+      mo_safety_stock = NEW zcl_safety_stock( ).
+    ENDIF.
+
+    " the availability must use the same safety stock as a real allocation
+    mo_allocator = NEW zcl_stock_allocator( io_stock_reader = mo_stock_reader
+                                            io_safety_stock = mo_safety_stock ).
   ENDMETHOD.
 
   METHOD read_substitutes.

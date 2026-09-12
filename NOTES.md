@@ -71,6 +71,7 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
 * Table `ZSTOCKRUN` (allocation run header: status and aggregated totals)
 * Table `ZSTOCKRESV` (open stock commitments per material / plant / storage
   location)
+* Table `ZSAFETYSTK` (safety stock per material / plant / storage location)
 
 ## Feature log
 
@@ -224,8 +225,54 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
     overview as CSV text (header plus one line per run/material) for a classic
     list report or a download. Lines are built with single `&&` concatenations,
     because the transpiler does not parse chained `&&` expressions.
+27. **Safety stock per plant / storage location** - `zif_safety_stock` +
+    `zcl_safety_stock` read the new custom `ZSAFETYSTK` table (`MATNR`, `WERKS`,
+    `LGORT`, `QTY`). The allocator takes an optional `io_safety_stock` and, per
+    material, deducts the configured quantity from the availability rows before
+    allocating. A row with an explicit storage location only affects that
+    location; a row with an empty `LGORT` applies to the whole plant and is
+    consumed across the material's rows in order. The deduction is applied once
+    per location, so several batches sharing a storage location are not
+    double-counted. The run-wide `ty_policy-safety_stock` scalar still applies on
+    top of it.
+28. **Commitment expiry and cleanup** - `ZSTOCKRESV` gained a creation date,
+    stamped by `commit( )`. `read_expired( before )` lists the rows older than a
+    cutoff without touching them (dry run), `purge_before( before )` deletes them
+    and returns the number removed (`sy-dbcnt`), and `purge_older_than( days )` is
+    the convenience wrapper that derives the cutoff from `sy-datum`. The
+    comparison is strict, so a row created exactly on the cutoff day is kept.
+29. **Package-wise processing** - `zcl_stock_alloc_run=>run_in_packages(
+    it_requests, iv_package_size )` splits the request list into packages of at
+    most `iv_package_size` entries and runs each one through `run( )`, merging the
+    per-material results, the shortage report and every statistic into a single
+    `ty_run_result`. A size of `0` (or less) falls back to one single run, and the
+    default is 100. This keeps a long material list out of one huge loop and gives
+    a natural checkpoint boundary.
+30. **ALV-style field catalog** - `zcl_alloc_run_report=>field_catalog( )` returns
+    the overview columns as a typed catalog (`fieldname`, `text`, `rollname`,
+    `outputlen`, `decimals`, `just`), which is the metadata a classic ALV or a grid
+    control needs. `to_lines( )` now builds its CSV header from that catalog, so
+    the catalog and the text output cannot drift apart.
+31. **Safety stock in the substitution report** - `zcl_stock_substitution` now
+    accepts an optional `io_safety_stock` and passes it to its internal
+    allocator, so `availability( )` reports own and substitute quantities with the
+    `ZSAFETYSTK` safety stock already deducted - the same figure a real
+    allocation would use. The facade hands its own safety stock provider to the
+    substitution service, so both paths agree.
+32. **Cleanup service with simulation** - `zcl_alloc_cleanup` wraps the commitment
+    cleanup. `run_before( cutoff, simulation )` collects the expired rows into
+    `ty_outcome-rows`, reports how many matched (`candidates`) and, unless
+    `simulation` is set, deletes them and reports `removed`. `run(
+    retention_days, simulation )` derives the cutoff from `sy-datum`. Simulation
+    defaults to `abap_true`, so calling the service without arguments can never
+    delete anything.
+33. **Request validation in the run** - `zcl_stock_alloc_run` now skips requests
+    with an empty material or plant instead of allocating them (previously they
+    produced an empty material result). `ty_stats` gained `skipped`, and
+    `run_in_packages( )` carries that count across packages, so a run reports how
+    many requests were ignored as well as how many were processed.
 
-Test coverage (143 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (179 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -237,7 +284,8 @@ Test coverage (143 ABAP Unit tests, run on Node through the transpiler):
   tolerance (accepted, rejected, off by default, full delivery), horizon (late
   deferred, inclusive, off by default, early requirement gets the stock), safety
   stock (reduces stock, spans bins, off by default, never negative, available
-  quantity)
+  quantity), per-location safety stock (per location, plant-wide, other location
+  untouched, batches deducted once, no config, available quantity)
 * RESB reader: open items, withdrawn quantity, deletion/final-issue flags,
   material filter, id construction, date sorting
 * VBAP reader: open item, rejection reason, zero quantity, material filter,
@@ -254,29 +302,41 @@ Test coverage (143 ABAP Unit tests, run on Node through the transpiler):
   allocation across substitutes through the facade, commit run,
   post-and-release for a run
 * Run: two materials, aggregated shortage report, materials-with-shortage count,
-  requested/allocated/shortage totals, empty request list
+  requested/allocated/shortage totals, empty request list, package-wise run
+  (matches single run, size 1, size 0, larger than the list), invalid requests
+  (empty material, empty plant, mixed list, skipped count across packages)
 * Log reader: run filter, position and quantity totals, distinct material count,
   per-run summaries, empty run
 * Shortage report: full coverage, floored partial coverage, summary aggregation,
   critical below threshold, no shortage, zero request, empty result, tolerance
   line covered, short line not covered, full delivery covered, deferred covered
 * Substitution: rules ordered by priority, no rules, own + substitute
-  availability, detail list order, other material ignored
+  availability, detail list order, other material ignored, safety stock reduces
+  own availability, safety stock reduces a substitute
 * Run header: running status on start, totals and done status on finish, finish
   without start, per-run read, empty result totals
 * Run report: computed coverage, all runs listed, single run filter, full
-  coverage, empty log, CSV header, CSV row formatting
+  coverage, empty log, CSV header, CSV row formatting, catalog columns, catalog
+  matches header, catalog quantity metadata
 * Commitment: written rows, per-location aggregation, row material used,
-  requested material default, release, empty result
+  requested material default, release, empty result, creation date stamp,
+  purge older rows, cutoff day kept, purge count, retention wrapper,
+  read_expired is a dry run
+* Cleanup: simulation keeps rows, execute removes rows, newer rows kept,
+  retention days applied, nothing to do
 * Reserved reader: subtracts commitment, clamps at zero, other locations,
   no reservation, other material
+* Safety stock reader: config rows, all locations, other plant, other material,
+  no config
 
 ## Next candidates
 
-* ALV / grid UI on top of the run overview.
-* Parallel or package-wise processing for large material lists.
-* Safety stock per plant / storage location instead of one run-wide figure.
-* Commit expiry / cleanup job for stale reservations.
+Ordered, and deliberately restricted to work the transpiler can verify. UI steps
+are listed separately because `npm test` cannot exercise them.
+
+1. Material overview across runs (join `ZSTOCKALLOC` + `ZSTOCKRUN` per material).
+2. Not transpiler-testable: bind the field catalog to a real ALV grid, and a
+   selection-screen wrapper around the cleanup service.
 
 ## Conventions
 

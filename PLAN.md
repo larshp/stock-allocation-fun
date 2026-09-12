@@ -9,3 +9,61 @@ keep your notes and progrss in NOTES.md
 these abaplint rules also be enabled: modify_only_own_db_tables + align_type_expressions + easy_to_find_messages + max_one_method_parameter_per_line + align_parameters + local_testclass_consistency + allowed_object_naming + line_length
 
 use https://github.com/open-abap/open-abap-core as a dependency in abaplint and the transpiler configurations
+
+---
+
+# Feature roadmap
+
+The requirements above are the original task and stay unchanged. This section is
+maintained as features are planned and delivered; the detailed per-feature log,
+conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
+
+## Delivered
+
+| #  | Feature                            | Main artefacts                                        |
+| -- | ---------------------------------- | ----------------------------------------------------- |
+| 1  | Read stock from MARD               | `zif_stock_reader`, `zcl_stock_reader_mard`            |
+| 2  | Allocation engine                  | `zcl_stock_allocator`                                  |
+| 3  | Reservation requirement source     | `zcl_requirement_reader_resb`                          |
+| 4  | Facade service                     | `zcl_stock_allocation_service`                         |
+| 5  | Allocation log                     | `zcl_allocation_writer_db` (`ZSTOCKALLOC`)             |
+| 6  | Goods movement posting             | `zcl_allocation_poster_bapi`, `run_with_posting`       |
+| 7  | Sales order requirement source     | `zcl_requirement_reader_vbap` (`VBAP`)                 |
+| 8  | Batch stock and FEFO               | `zcl_stock_reader_mchb` (`MCHB`/`MCHA`), `use_fefo`    |
+| 9  | Unit of measure conversion         | `zcl_uom_converter` (`MARM`)                           |
+| 10 | Multi-material run                 | `zcl_stock_alloc_run`                                  |
+| 11 | Allocation log reporting           | `zcl_alloc_log_reader`                                 |
+| 12 | Whole sales units                  | policy `whole_sales_units`                             |
+| 13 | Partial delivery control           | policy `max_picks`                                     |
+| 14 | Coverage / shortage report         | `zcl_alloc_shortage_report`                            |
+| 15 | Material substitution rules        | `zcl_stock_substitution` (`ZSUBSTITUTE`)               |
+| 16 | Run tracking                       | `zcl_alloc_run_header` (`ZSTOCKRUN`)                   |
+| 17 | Allocating across substitutes      | `allocate_materials`, `allocate_with_substitution`     |
+| 18 | Under-delivery tolerance           | policy `under_tolerance`                               |
+| 19 | Tolerance-aware coverage report    | `covered`, `covered_lines`                             |
+| 20 | Delivery-date horizon              | policy `horizon_date`                                  |
+| 21 | Safety stock (run-wide)            | policy `safety_stock`                                  |
+| 22 | Run overview report                | `zcl_alloc_run_report`                                 |
+| 23 | Stock commitments                  | `zcl_stock_commitment`, `zcl_stock_reader_reserved`    |
+| 24 | Commit in the run flow             | `commit_allocations`, `run_with_commitment`            |
+| 25 | Post and commit                    | `run_post_and_commit`                                  |
+| 26 | Overview text output               | `to_lines`                                             |
+| 27 | Safety stock per storage location   | `zcl_safety_stock` (`ZSAFETYSTK`)                      |
+| 28 | Commitment expiry and cleanup       | `purge_before`, `purge_older_than`, `read_expired`      |
+| 29 | Package-wise processing             | `run_in_packages`                                      |
+| 30 | ALV-style field catalog             | `field_catalog`                                        |
+| 31 | Safety stock in substitution report | `io_safety_stock` on `zcl_stock_substitution`            |
+| 32 | Cleanup service with simulation     | `zcl_alloc_cleanup` (`run`, `run_before`)               |
+| 33 | Request validation in the run       | `ty_stats-skipped`, `is_valid_request`                  |
+
+## Next
+
+Ordered. Items are chosen so that `npm test` can verify them; steps that need a
+GUI or a selection screen cannot be exercised by the transpiler and are kept at
+the end on purpose.
+
+| Order | Feature                                          | Notes                                                                |
+| ----- | ------------------------------------------------ | -------------------------------------------------------------------- |
+| 34    | Material overview across runs                     | Join `ZSTOCKALLOC` + `ZSTOCKRUN` per material                         |
+| 35    | ALV grid binding and selection-screen wrapper     | GUI layer - NOT verifiable with the transpiler, only on request       |
+

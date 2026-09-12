@@ -225,3 +225,42 @@ Each entry notes the symptom, the cause and the workaround used.
   already a `string` (e.g. assign it to a `string` variable first, or use a string
   template `|{ ... }|`). A `TYPE c` parameter without a length was not tried; the
   simplest fix is to drop the conversion helper.
+
+## A18 - A literal with trailing blanks loses them in the transpiled test run
+
+* Symptom: a test asserting a padded value failed with
+  `Expected 'AB', got 'AB   '` although the expected literal was written
+  `'AB   '` (three trailing blanks) and the code under test clearly produced the
+  blanks. The literal side was compared as `'AB'`.
+* Cause: the transpiler trims trailing blanks from a text literal, so
+  `'AB   '` becomes the string `'AB'`. Values produced at runtime by
+  concatenating `` ` ` `` keep their blanks, only literals are affected.
+* Workaround: do not rely on trailing blanks in a literal. Build the expected
+  value at runtime, e.g. concatenate single-space literals in a helper, and
+  compare that variable. Internal blanks inside a literal (`'AB  CD'`) survive.
+
+## A19 - Positional parameters in a functional method call are not parsed
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "lt_qty", <file>:<line>` for a call written with two
+  positional parameters, `add( lt_qty '7' )`.
+* Cause: the transpiler's parser does not accept a functional method call whose
+  arguments are given positionally without a separator it recognises. abaplint
+  accepted the code.
+* Workaround: use named parameters in the call
+  (`add( it_qty = lt_qty iv_quantity = '7' )`), which parses cleanly. This is the
+  same family as A12 (functional call forms the parser rejects).
+
+## A20 - Date arithmetic on a `d` field did not give the expected day counts
+
+* Symptom: `zcl_alloc_calendar` computed a weekday as
+  `lv_days = iv_date - '19000101'` and then `lv_days MOD 7`. The unit test
+  expected `20260912` (a Saturday) to be a weekend day but `is_weekend` returned
+  false, i.e. the day count was not the number of days since the reference date.
+  Incrementing a date with `lv_date = lv_date + 1` is in the same family.
+* Cause: the transpiler does not reproduce ABAP's date arithmetic on a `d` field
+  faithfully (the reference literal is not treated as a date difference).
+* Workaround: do not rely on `d`/`d` subtraction or on adding an integer to a `d`
+  field. `zcl_alloc_calendar` extracts year/month/day with offset access
+  (`iv_date+0(4)`), uses Zeller's congruence for the weekday and increments the
+  day/month/year explicitly with a leap-year rule.

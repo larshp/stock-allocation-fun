@@ -340,7 +340,246 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
     document. The document id is the run id of the commitment rows, so no extra
     table is needed.
 
-Test coverage (245 ABAP Unit tests, run on Node through the transpiler):
+44. **CSV quoting and line builder** - `zcl_alloc_csv` centralises CSV escaping for
+    every text export: `quote( )` wraps a value in double quotes and doubles inner
+    quotes when it contains a quote, a semicolon or a comma, and `build_line( )`
+    joins quoted fields with a configurable separator (default `;`). Plain values
+    and the empty field list pass through unchanged.
+45. **Fixed-width text table renderer** - `zcl_alloc_fixed_width`. `pad( )` truncates
+    a value that is too long and right-pads it with blanks to the requested width
+    (width `0` leaves it untouched); `build_line( )` zips a field list with a width
+    list, using width `0` for fields without a configured width. Used for classic
+    list output where CSV is not wanted.
+46. **Markdown table for the run overview** - `zcl_alloc_markdown=>run_overview( )`
+    renders a `zcl_alloc_run_report=>ty_overview_tt` as a Markdown table (title
+    row, separator row, one row per run). Cells are added through an internal
+    helper so the pipe-separated layout stays in one place.
+47. **HTML table for the run overview** - `zcl_alloc_html=>run_overview( )` renders
+    the same overview as an HTML `<table>` (one `<tr>` per run, `<th>` header,
+    `<td>` cells). `escape( )` escapes `&`, `<` and `>` so a material number with
+    metacharacters cannot break the markup.
+48. **XML document for the run overview** - `zcl_alloc_xml=>run_overview( )` renders
+    the run overview as an XML document (`<runs><run><run_id>...`), one `<run>`
+    per header. `escape( )` escapes `&`, `<` and `>`; elements are built through a
+    helper so the nesting stays in one place.
+49. **JSON for the shortage report** - `zcl_alloc_shortage_json=>build( )` serialises
+    a `zcl_alloc_shortage_report=>ty_report`: a `summary` object (requested,
+    allocated, shortage, coverage, line and short-line counts) and a `lines`
+    array with one object per requirement line. The `covered` flag is emitted as
+    a JSON `true`/`false`, not as an ABAP `X`.
+50. **JSON for the replenishment proposals** - `zcl_alloc_replen_json=>build( )`
+    serialises a `zcl_alloc_replenishment=>ty_result` into `{"proposals":[...],
+    "summary":{...}}`, one object per order proposal.
+51. **JSON for the allocation diff** - `zcl_alloc_diff_json=>build( )` serialises a
+    `zcl_alloc_diff=>ty_result` into `{"lines":[...],"summary":{...}}`, one
+    object per diff line including the `change_type` marker.
+52. **CSV for the shortage report** - `zcl_alloc_shortage_csv=>build( )` renders a
+    shortage report as CSV: a header plus one line per requirement line, with the
+    `covered` flag as `Y`/`N`. It reuses `zcl_alloc_csv` for quoting, so a value
+    containing the separator is escaped correctly.
+53. **CSV for the replenishment proposals** - `zcl_alloc_replen_csv=>build( )`
+    renders the replenishment result as CSV (`MATNR;REQUIREMENT_ID;SHORTAGE;
+    ORDER_QTY`), one line per order proposal, again through `zcl_alloc_csv`.
+54. **Number and quantity formatting** - `zcl_alloc_number_format`. `format_qty( )`
+    renders a `menge_d` the way a string template does (`'5.000'`), and
+    `trim_zeros( )` strips trailing zeros and a dangling decimal point (`'5.500'`
+    -> `'5.5'`, `'5.000'` -> `'5'`, `''` stays `''`).
+55. **Percentage formatting and parsing** - `zcl_alloc_percent`. `ratio( )` returns
+    the floored percentage of a part in a total (`0` for a non-positive total),
+    `apply( )` returns the quantity for a percentage of a base, and `format( )`
+    renders `'60 %'`.
+56. **Duration (seconds) formatting** - `zcl_alloc_duration`. `to_text( )` renders
+    a second count as `h:mm:ss` with zero-padded minutes and seconds (`3661` ->
+    `'1:01:01'`), `to_seconds( )` is the inverse.
+57. **Text alignment and padding** - `zcl_alloc_align`. `left_value( )` right-pads
+    (truncating when too long), `right_value( )` left-pads, and `center_value( )`
+    splits the padding, giving the extra blank at the end for an odd remainder.
+    Width `0` leaves the value untouched.
+58. **Allocation KPI summary** - `zcl_alloc_kpi=>summarize( )` turns an allocation
+    result into KPIs: requirement count, fully delivered / short counts, requested
+    / allocated / shortage totals, the floored quantity coverage and the floored
+    order fill rate (fully delivered lines / lines). Divisions are guarded, so an
+    empty result yields zeros.
+59. **ABC classification of materials** - `zcl_alloc_abc=>classify( )` sorts a
+    material/quantity list descending and adds `share_pct`, the running `cum_pct`
+    and an A/B/C class. The class comes from the cumulative share *before* the
+    line: `< 80` is A, `< 95` is B, otherwise C, so a single material is A and a
+    90/10 split is A/B. A zero total yields share `0` without dividing.
+60. **Top-N materials by allocated quantity** - `zcl_alloc_top_n=>top( )` sorts a
+    material/quantity list descending and returns the first `iv_n` lines with a
+    `rank` and a floored `share_pct` of the total. `iv_n` of `0` (or less) returns
+    every line, and a limit above the list size is harmless.
+61. **Quantity histogram / buckets** - `zcl_alloc_histogram=>build( )` assigns
+    every item to a bucket of `iv_bucket_size` (`quantity DIV size`), then groups
+    the buckets and returns them sorted with the bucket bounds, the number of
+    items and the summed quantity. A size of `0` (or less) falls back to `1`.
+62. **Demand variance across runs** - `zcl_alloc_demand_variance=>analyze( )`
+    summarises a quantity series: count, total, mean, minimum, maximum, range and
+    the population variance (mean of the squared deviations). An empty series
+    yields zeros without dividing by zero.
+63. **Moving average of allocated quantity** - `zcl_alloc_moving_average=>calculate( )`
+    returns one line per input value with the average of the trailing `iv_window`
+    values (the current one included). The first values are averaged over what is
+    available, so the warm-up period is reported too; a window below `1` is
+    treated as `1`. The running sum drops the value that leaves the window.
+64. **Trend detection** - `zcl_alloc_trend=>analyze( )` compares the first and the
+    last value of a quantity series and returns the count, both endpoints, the
+    floored percentage change (guard for a zero first value) and a direction:
+    `U` (rising), `D` (falling) or `F` (flat / empty / single value).
+65. **Simple forecast of the next quantity** - `zcl_alloc_forecast=>next_quantity( )`
+    returns the average of the last `iv_window` values of a quantity series (the
+    simple forecast for the next period). A window above the series length
+    averages everything, a window below `1` is treated as `1`, and an empty
+    series forecasts `0`.
+66. **Service level (fill rate) per material** - `zcl_alloc_service_level=>summarize( )`
+    groups requested / allocated quantity lines by material and returns one line
+    per material with requested, allocated, shortage, line count and the floored
+    fill rate (allocated / requested). Grouping is done by sorting and comparing
+    the material, not with `LOOP GROUP BY`, which the transpiler rejects.
+67. **Running totals over a result list** - `zcl_alloc_running_total=>calculate( )`
+    returns one line per input quantity with its 1-based `index`, the quantity
+    and the cumulative `total` up to and including that line.
+68. **Confidence score for an allocation** - `zcl_alloc_confidence=>assess( )`
+    derives a 0-100 confidence from an allocation result: the floored quantity
+    coverage, the floored order fill rate (fully delivered lines / lines) and their
+    average as the `score`. An empty result scores `0`.
+69. **Risk score for a shortage list** - `zcl_alloc_risk=>assess( )` totals a list
+    of shortage rows and, against a caller-supplied reference quantity, returns
+    the floored risk percentage and a level: `H` at 50% or more, `M` at 20% or
+    more, otherwise `L`. An empty list is `L`, and a non-positive reference yields
+    `0` without dividing.
+70. **Request validator** - `zcl_alloc_request_validator=>validate( )` returns one
+    issue per failed rule for every request row: an empty material, an empty plant
+    or a non-positive quantity, each with the row index, the field name and a
+    message. A row can produce several issues, and a valid list produces none.
+71. **Policy validator** - `zcl_alloc_policy_validator=>validate( )` checks a
+    `zcl_stock_allocator=>ty_policy`: an under-delivery tolerance outside 0-100, a
+    negative `max_picks`, `safety_stock` or `min_remaining_days`, a shelf-life rule
+    without a reference date, and an allow-list combined with an exclude-list. The
+    default policy is valid.
+72. **Allocation consistency check** - `zcl_alloc_consistency=>check( )` re-derives
+    the invariants of an allocation result and reports one issue per violated rule:
+    a negative requested or allocated quantity, an allocation above the request and
+    a shortage that does not equal requested minus allocated.
+73. **Duplicate requirement detection** - `zcl_alloc_duplicate_check=>find( )`
+    groups requirements by id (sort and compare, no `LOOP GROUP BY`) and returns
+    only the ids that occur more than once, with their count. Unique ids and an
+    empty list produce no result.
+74. **Stock row data quality check** - `zcl_alloc_stock_check=>check( )` validates
+    stock rows from any `zif_stock_reader`: an empty material, plant or storage
+    location, a negative unrestricted quantity, or any other negative quantity
+    each produce one issue carrying the material, location and message. A valid
+    row produces none.
+75. **Negative quantity detector** - `zcl_alloc_negative_check=>find( )` returns
+    only the rows of an id/quantity list whose quantity is below zero; zero and
+    positive quantities pass, and an empty list returns nothing.
+76. **Over-allocation detector** - `zcl_alloc_over_check=>find( )` scans an
+    allocation result and returns the requirements whose allocated quantity is
+    greater than the requested quantity, with both quantities attached. An
+    allocation exactly equal to the request is not over-allocated.
+77. **Missing master data check** - `zcl_alloc_master_check=>check( )` takes a
+    request list plus the known material and plant lists (one `ty_input`
+    structure) and reports one issue per request whose material or plant has no
+    master record. A fully known list produces no issue.
+78. **Priority scoring from weighted rules** - `zcl_alloc_priority=>score( )`
+    turns delivery priority (times 10), an urgency bonus (the days until due
+    subtracted from 30, only for a due date in the next 30 days) and a customer
+    weight into a single score. A due date of today contributes no bonus, and an
+    all-zero factor set scores 0.
+79. **Stock sequencing (FIFO / LIFO)** - `zcl_alloc_sequence=>order( )` sorts stock
+    rows by goods receipt date: FIFO ascending, LIFO descending. Rows without a
+    receipt date are always placed last by an internal sort key (`99991231` for
+    FIFO, `00000000` for LIFO). Mode `F` is the default.
+80. **Round-robin fair share** - `zcl_alloc_round_robin=>distribute( )` spreads an
+    available quantity one unit at a time across the demands, so every demand is
+    served in turn until the stock is gone or all demands are met. Each grant line
+    carries the 1-based demand index and the granted quantity.
+81. **Proportional (pro-rata) allocation** - `zcl_alloc_proportional=>distribute( )`
+    gives every demand `available * demand / total` (floored, capped at the
+    demand) and then hands the rounding remainder out one unit at a time in order.
+    An available quantity above the total demand is capped per demand.
+82. **Max-min fair allocation** - `zcl_alloc_maxmin=>allocate( )` water-fills the
+    available quantity: it repeatedly gives every still-open demand an equal share
+    (or a single unit when the share would be zero), redistributing the surplus of
+    small demands. A demand of 2 next to a demand of 10 with 6 available gets 2/4.
+83. **Capacity-constrained allocation** - `zcl_alloc_capacity=>allocate( )` serves
+    the demands in order but stops once the total reaches `iv_capacity`;
+    a negative demand is treated as zero and an exhausted capacity yields zeros.
+84. **Load balancing across plants** - `zcl_alloc_load_balance=>balance( )` spreads
+    a demand across plants in proportion to their availability, capped by the
+    availability of each plant, then hands out the rounding remainder in order.
+    If the total availability is below the demand, only what exists is granted.
+85. **Requirement merge** - `zcl_alloc_req_merge=>merge( )` groups requirements by
+    id (sort and compare) and sums their requested quantity, keeping the priority,
+    date and unit of the first entry of each id.
+86. **Requirement split by size** - `zcl_alloc_req_split=>split( )` cuts one
+    requirement into parts of at most `iv_max_qty`; a non-positive maximum or a
+    non-positive quantity returns the requirement unchanged in a single part.
+87. **Requirement grouping by material** - `zcl_alloc_req_group=>group( )` turns a
+    flat material/requirement list into one line per material with the number of
+    requirements and the summed requested quantity, sorted by material.
+88. **Requirement netting against stock** - `zcl_alloc_req_net=>net( )` consumes
+    stock against the requirements in date order and returns the uncovered rest
+    (only requirements with a remaining quantity), plus the covered quantity and
+    the leftover stock.
+89. **Reorder point calculation** - `zcl_alloc_reorder_point=>calculate( )` returns
+    daily demand times lead time plus safety stock from a `ty_input` structure.
+90. **Economic order quantity (EOQ)** - `zcl_alloc_eoq=>calculate( )` applies
+    `sqrt(2 * annual_demand * order_cost / holding_cost)` with an internal integer
+    square root, so no runtime `sqrt` is needed. A non-positive holding cost or
+    demand yields `0`.
+91. **Days of supply** - `zcl_alloc_days_supply=>calculate( )` floors `stock /
+    daily_demand`; a non-positive daily demand yields `0`.
+92. **Stock turn rate** - `zcl_alloc_turn_rate=>calculate( )` floors `consumption /
+    average_stock`; a non-positive average stock yields `0`.
+93. **Inventory value at a price** - `zcl_alloc_inventory_value=>calculate( )`
+    multiplies a quantity by a price.
+94. **Weighted average price** - `zcl_alloc_avg_price=>calculate( )` sums quantity
+    times price and divides by the total quantity, ignoring rows with a
+    non-positive quantity. An empty list or zero total quantity yields `0`.
+95. **Quantity rounding utilities** - `zcl_alloc_rounding` offers `round_to( )`
+    (nearest multiple, half up), `round_up_to( )` and `round_down_to( )`. A
+    non-positive step leaves the value untouched.
+96. **Storage location ranking by quantity** - `zcl_alloc_location_rank=>rank( )`
+    sorts locations by quantity descending and adds a `rank`.
+97. **Consolidation (bin emptying) proposal** - `zcl_alloc_consolidation=>propose( )`
+    returns the bins whose quantity is at or below `threshold_pct` of their
+    capacity, skipping empty or capacity-less bins.
+98. **Pick sequence within a plant** - `zcl_alloc_pick_sequence=>sequence( )`
+    sorts picks by storage location and then batch so a picker works one bin at a
+    time.
+99. **Bin replenishment trigger** - `zcl_alloc_bin_replenish=>propose( )` returns
+    the bins below a reorder point with their shortfall.
+100. **Picking list from an allocation** - `zcl_alloc_pick_list=>build( )` flattens
+     an allocation result into one pick line per allocation (requirement, storage
+     location, batch, quantity), skipping zero quantities.
+101. **Picking list confirmation** - `zcl_alloc_pick_confirm=>confirm( )` compares
+     planned and confirmed quantities per line and reports the difference plus a
+     `complete` flag; a missing confirmation counts as zero.
+102. **Location scoring for selection** - `zcl_alloc_location_score=>score( )`
+     scores a location as `fill_pct * 2 - distance - picks * 5`, clamped at zero.
+103. **Working-day calendar** - `zcl_alloc_calendar` skips weekends: `is_weekend( )`
+     uses Zeller's congruence (see ANOMALIES.md A20) and `add_working_days( )`
+     advances the date day by day with an explicit leap-year rule, so it does not
+     depend on `d`-field arithmetic.
+104. **Date range splitting** - `zcl_alloc_date_range=>split( )` cuts a date range
+     into consecutive chunks of at most `chunk_days`; a non-positive chunk size
+     yields one range covering everything, and a reversed range yields nothing.
+105. **Age of stock in days** - `zcl_alloc_stock_age=>calculate( )` returns the
+     days between a goods receipt date and a reference date, `0` for an empty or
+     future receipt.
+106. **Backlog aging buckets** - `zcl_alloc_aging=>bucket( )` maps days overdue to a
+     bucket: `0` not overdue, `1` 1-30, `2` 31-60, `3` 61-90, `4` above 90.
+107. **Time slot assignment** - `zcl_alloc_slot=>assign( )` round-robins a number of
+     items across `slots` slots (1-based); zero slots assigns slot `0` to all.
+108. **Wave planning** - `zcl_alloc_wave=>plan( )` splits an item list into waves of
+     at most `wave_size` items; a non-positive size puts everything in wave `0`.
+109. **Material batching for picking** - `zcl_alloc_batching=>build( )` merges
+     *consecutive* items of the same material into one batch line with a batch
+     number and the summed quantity, so a material that reappears later starts a
+     new batch.
+
+Test coverage (573 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -421,12 +660,34 @@ Test coverage (245 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-The full roadmap lives in `PLAN.md`. Everything the transpiler can verify has
-been delivered (features 1 through 43). The only remaining item is deliberately
-excluded from this list because `npm test` cannot exercise it:
+The full roadmap lives in `PLAN.md` (100 features, orders 44-143). Delivered so
+far: 44-53. Continue strictly in roadmap order; each item is a new `zcl_alloc_*`
+class with a local test class, verified by `npm test`.
 
-1. Not transpiler-testable: bind the field catalog to a real ALV grid, and a
-   selection-screen wrapper around the cleanup and run services.
+Next up (in order):
+
+1. 110 `zcl_alloc_plant_report` - per-plant report across runs.
+2. 111 `zcl_alloc_daily_report` - per-day report across runs.
+3. 112 `zcl_alloc_pivot` - material x plant pivot.
+4. 113 `zcl_alloc_matrix` - material x run matrix.
+5. 114 `zcl_alloc_shipment` - shipment grouping.
+6. 115 `zcl_alloc_delivery_split` - delivery split proposal.
+7. 116 `zcl_alloc_sla` - SLA compliance report.
+8. 117 `zcl_alloc_timeline` - event timeline.
+9. 118 `zcl_alloc_search` - search / text filter over overviews.
+10. 119 `zcl_alloc_paging` - pagination helper.
+
+Then 120-143 as listed in `PLAN.md`. The last item (143, ALV grid and selection
+screen) is the only one the transpiler cannot verify and stays last on purpose.
+
+Standing instruction from the user: when this 100-item roadmap (44-143) is done,
+plan another 100 items in the same style and keep iterating (one feature per
+iteration, `npm test` green, documented in `NOTES.md`/`ANOMALIES.md`).
+
+Conventions reminder for the next feature: keep method names <= 30 chars, use the
+classic `TYPES: BEGIN OF ... END OF ...` form, declare a `TYPES` alias instead of
+`TYPE c LENGTH n` or `TYPE STANDARD TABLE OF ...` in parameters, use one `&&` per
+statement, and do not put trailing blanks in test literals (ANOMALIES.md A18).
 
 ## Conventions
 

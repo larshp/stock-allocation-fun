@@ -28,6 +28,11 @@ CLASS zcl_allocation_writer_db IMPLEMENTATION.
         ls_log-lgort     = ls_allocation-lgort.
         ls_log-alloc_qty = ls_allocation-quantity.
 
+        ls_log-matnr = ls_allocation-matnr.
+        IF ls_log-matnr IS INITIAL.
+          ls_log-matnr = iv_matnr.
+        ENDIF.
+
         INSERT zstockalloc FROM @ls_log.
         rv_written = rv_written + 1.
       ENDLOOP.

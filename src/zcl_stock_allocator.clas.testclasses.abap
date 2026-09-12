@@ -36,7 +36,8 @@ CLASS lcl_stock_reader_stub DEFINITION
         iv_einme TYPE menge_d DEFAULT 0
         iv_umlme TYPE menge_d DEFAULT 0
         iv_charg TYPE zif_stock_reader=>ty_stock-charg DEFAULT ''
-        iv_vfdat TYPE zif_stock_reader=>ty_stock-expiry_date DEFAULT '00000000'.
+        iv_vfdat TYPE d DEFAULT '00000000'
+        iv_matnr TYPE matnr DEFAULT 'MAT-1'.
 
   PRIVATE SECTION.
     DATA mt_stock TYPE zif_stock_reader=>ty_stock_tt.
@@ -53,7 +54,7 @@ CLASS lcl_stock_reader_stub IMPLEMENTATION.
   METHOD add_stock.
     DATA ls_stock TYPE zif_stock_reader=>ty_stock.
 
-    ls_stock-matnr            = 'MAT-1'.
+    ls_stock-matnr            = iv_matnr.
     ls_stock-werks            = '1000'.
     ls_stock-lgort            = iv_lgort.
     ls_stock-charg            = iv_charg.
@@ -89,7 +90,8 @@ CLASS ltcl_stock_allocator DEFINITION
         iv_insme TYPE menge_d DEFAULT 0
         iv_speme TYPE menge_d DEFAULT 0
         iv_charg TYPE zif_stock_reader=>ty_stock-charg DEFAULT ''
-        iv_vfdat TYPE zif_stock_reader=>ty_stock-expiry_date DEFAULT '00000000'.
+        iv_vfdat TYPE d DEFAULT '00000000'
+        iv_matnr TYPE matnr DEFAULT 'MAT-1'.
 
     METHODS cut
       IMPORTING
@@ -121,6 +123,40 @@ CLASS ltcl_stock_allocator DEFINITION
       RETURNING
         VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
 
+    METHODS picks_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+        iv_max_picks     TYPE i DEFAULT 1
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS materials_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+        it_materials     TYPE zcl_stock_allocator=>ty_material_tt
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS tolerance_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+        iv_tolerance     TYPE i DEFAULT 5
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS horizon_result
+      IMPORTING
+        iv_horizon       TYPE d
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS safety_result
+      IMPORTING
+        iv_qty           TYPE menge_d
+        iv_safety        TYPE menge_d DEFAULT 0
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
     METHODS priority_order_wins          FOR TESTING.
     METHODS shortage_is_reported         FOR TESTING.
     METHODS splits_across_bins           FOR TESTING.
@@ -139,6 +175,27 @@ CLASS ltcl_stock_allocator DEFINITION
     METHODS whole_units_spans_bins       FOR TESTING.
     METHODS whole_units_off_by_default   FOR TESTING.
     METHODS whole_units_ignored_no_unit  FOR TESTING.
+    METHODS picks_unlimited_by_default   FOR TESTING.
+    METHODS picks_one_covers_fully       FOR TESTING.
+    METHODS picks_one_spans_two_skips    FOR TESTING.
+    METHODS picks_two_allows_two_bins    FOR TESTING.
+    METHODS skipped_picks_release_stock  FOR TESTING.
+    METHODS substitute_used_after_own    FOR TESTING.
+    METHODS own_material_consumed_first  FOR TESTING.
+    METHODS allocation_row_has_material  FOR TESTING.
+    METHODS tolerance_accepts_shortfall  FOR TESTING.
+    METHODS tolerance_rejects_shortfall  FOR TESTING.
+    METHODS tolerance_off_by_default     FOR TESTING.
+    METHODS full_delivery_not_flagged    FOR TESTING.
+    METHODS horizon_defers_late          FOR TESTING.
+    METHODS horizon_date_inclusive       FOR TESTING.
+    METHODS horizon_off_by_default       FOR TESTING.
+    METHODS horizon_early_gets_stock     FOR TESTING.
+    METHODS safety_stock_reduces_stock   FOR TESTING.
+    METHODS safety_stock_spans_bins      FOR TESTING.
+    METHODS safety_stock_off_by_default  FOR TESTING.
+    METHODS safety_stock_never_negative  FOR TESTING.
+    METHODS safety_stock_in_available    FOR TESTING.
 ENDCLASS.
 
 
@@ -155,7 +212,8 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
                           iv_insme = iv_insme
                           iv_speme = iv_speme
                           iv_charg = iv_charg
-                          iv_vfdat = iv_vfdat ).
+                          iv_vfdat = iv_vfdat
+                          iv_matnr = iv_matnr ).
   ENDMETHOD.
 
   METHOD cut.
@@ -208,6 +266,78 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       io_stock_reader  = mo_reader
       io_uom_converter = NEW lcl_uom_stub( )
       is_policy        = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD picks_result.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    ls_policy-max_picks = iv_max_picks.
+
+    add_requirement( iv_id  = 'A'
+                     iv_qty = iv_qty ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD materials_result.
+    add_requirement( iv_id  = 'A'
+                     iv_qty = iv_qty ).
+
+    rt_result = cut( )->allocate_materials(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_materials    = it_materials
+      it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD tolerance_result.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    ls_policy-under_tolerance = iv_tolerance.
+
+    add_requirement( iv_id  = 'A'
+                     iv_qty = iv_qty ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD horizon_result.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    ls_policy-horizon_date = iv_horizon.
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                  iv_werks        = '1000'
+                                  it_requirements = mt_requirements ).
+  ENDMETHOD.
+
+  METHOD safety_result.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    ls_policy-safety_stock = iv_safety.
+
+    add_requirement( iv_id  = 'A'
+                     iv_qty = iv_qty ).
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
 
     rt_result = lo_cut->allocate( iv_matnr        = 'MAT-1'
                                   iv_werks        = '1000'
@@ -482,6 +612,331 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
                                         exp = '30' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
                                         exp = '0' ).
+  ENDMETHOD.
+
+  METHOD picks_unlimited_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '3' ).
+    add_stock( iv_lgort = '0002' iv_labst = '3' ).
+
+    DATA(lt_result) = picks_result( iv_qty       = '6'
+                                    iv_max_picks = 0 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result[ 1 ]-allocations ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD picks_one_covers_fully.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_stock( iv_lgort = '0002' iv_labst = '10' ).
+
+    DATA(lt_result) = picks_result( iv_qty       = '4'
+                                    iv_max_picks = 1 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '4' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result[ 1 ]-allocations ) exp = 1 ).
+  ENDMETHOD.
+
+  METHOD picks_one_spans_two_skips.
+    add_stock( iv_lgort = '0001' iv_labst = '3' ).
+    add_stock( iv_lgort = '0002' iv_labst = '3' ).
+
+    DATA(lt_result) = picks_result( iv_qty       = '6'
+                                    iv_max_picks = 1 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result[ 1 ]-allocations ).
+  ENDMETHOD.
+
+  METHOD picks_two_allows_two_bins.
+    add_stock( iv_lgort = '0001' iv_labst = '3' ).
+    add_stock( iv_lgort = '0002' iv_labst = '3' ).
+
+    DATA(lt_result) = picks_result( iv_qty       = '6'
+                                    iv_max_picks = 2 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result[ 1 ]-allocations ) exp = 2 ).
+  ENDMETHOD.
+
+  METHOD skipped_picks_release_stock.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '3' ).
+    add_stock( iv_lgort = '0002' iv_labst = '3' ).
+    add_requirement( iv_id = 'A' iv_qty = '6' ).
+    add_requirement( iv_id = 'B' iv_qty = '3' ).
+
+    ls_policy-max_picks = 1.
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    DATA(lt_result) = lo_cut->allocate( iv_matnr        = 'MAT-1'
+                                        iv_werks        = '1000'
+                                        it_requirements = mt_requirements ).
+
+    " A needs two bins and is skipped, so B can still take one of them
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty
+                                        exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-shortage_qty
+                                        exp = '0' ).
+  ENDMETHOD.
+
+  METHOD substitute_used_after_own.
+    DATA lt_materials TYPE zcl_stock_allocator=>ty_material_tt.
+
+    add_stock( iv_lgort = '0001' iv_labst = '2' ).
+    add_stock( iv_lgort = '0001' iv_labst = '5' iv_matnr = 'MAT-SUB' ).
+
+    APPEND 'MAT-1' TO lt_materials.
+    APPEND 'MAT-SUB' TO lt_materials.
+
+    DATA(lt_result) = materials_result( iv_qty       = '6'
+                                        it_materials = lt_materials ).
+    DATA(lt_alloc) = lt_result[ 1 ]-allocations.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_alloc )
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-matnr
+                                        exp = 'MAT-1' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-quantity
+                                        exp = '2' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-matnr
+                                        exp = 'MAT-SUB' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-quantity
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD own_material_consumed_first.
+    DATA lt_materials TYPE zcl_stock_allocator=>ty_material_tt.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '5' iv_matnr = 'MAT-SUB' ).
+
+    APPEND 'MAT-1' TO lt_materials.
+    APPEND 'MAT-SUB' TO lt_materials.
+
+    DATA(lt_result) = materials_result( iv_qty       = '6'
+                                        it_materials = lt_materials ).
+    DATA(lt_alloc) = lt_result[ 1 ]-allocations.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-matnr
+                                        exp = 'MAT-1' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-quantity
+                                        exp = '5' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-matnr
+                                        exp = 'MAT-SUB' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-quantity
+                                        exp = '1' ).
+  ENDMETHOD.
+
+  METHOD allocation_row_has_material.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id = 'A' iv_qty = '4' ).
+
+    DATA(lt_result) = run_allocation( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-allocations[ 1 ]-matnr exp = 'MAT-1' ).
+  ENDMETHOD.
+
+  METHOD tolerance_accepts_shortfall.
+    add_stock( iv_lgort = '0001' iv_labst = '97' ).
+
+    DATA(lt_result) = tolerance_result( iv_qty       = '100'
+                                        iv_tolerance = 5 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '3' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-within_tolerance
+                                        exp = abap_true ).
+  ENDMETHOD.
+
+  METHOD tolerance_rejects_shortfall.
+    add_stock( iv_lgort = '0001' iv_labst = '90' ).
+
+    DATA(lt_result) = tolerance_result( iv_qty       = '100'
+                                        iv_tolerance = 5 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-within_tolerance
+                                        exp = abap_false ).
+  ENDMETHOD.
+
+  METHOD tolerance_off_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '97' ).
+
+    DATA(lt_result) = tolerance_result( iv_qty       = '100'
+                                        iv_tolerance = 0 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-within_tolerance
+                                        exp = abap_false ).
+  ENDMETHOD.
+
+  METHOD full_delivery_not_flagged.
+    add_stock( iv_lgort = '0001' iv_labst = '100' ).
+
+    DATA(lt_result) = tolerance_result( iv_qty       = '100'
+                                        iv_tolerance = 5 ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-within_tolerance
+                                        exp = abap_false ).
+  ENDMETHOD.
+
+  METHOD horizon_defers_late.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id   = 'EARLY'
+                     iv_qty  = '4'
+                     iv_date = '20260115' ).
+    add_requirement( iv_id   = 'LATE'
+                     iv_qty  = '4'
+                     iv_date = '20260301' ).
+
+    DATA(lt_result) = horizon_result( iv_horizon = '20260201' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-requirement_id
+                                        exp = 'EARLY' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '4' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-deferred
+                                        exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-requirement_id
+                                        exp = 'LATE' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-allocated_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-deferred
+                                        exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-shortage_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD horizon_date_inclusive.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id   = 'ON'
+                     iv_qty  = '4'
+                     iv_date = '20260201' ).
+
+    DATA(lt_result) = horizon_result( iv_horizon = '20260201' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-deferred
+                                        exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD horizon_off_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    add_requirement( iv_id   = 'LATE'
+                     iv_qty  = '4'
+                     iv_date = '20260301' ).
+
+    DATA(lt_result) = run_allocation( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-deferred
+                                        exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD horizon_early_gets_stock.
+    add_stock( iv_lgort = '0001' iv_labst = '4' ).
+    add_requirement( iv_id   = 'LATE'
+                     iv_qty  = '4'
+                     iv_date = '20260301' ).
+    add_requirement( iv_id   = 'EARLY'
+                     iv_qty  = '4'
+                     iv_date = '20260115' ).
+
+    DATA(lt_result) = horizon_result( iv_horizon = '20260201' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-requirement_id
+                                        exp = 'EARLY' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '4' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 2 ]-deferred
+                                        exp = abap_true ).
+  ENDMETHOD.
+
+  METHOD safety_stock_reduces_stock.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+
+    DATA(lt_result) = safety_result( iv_qty    = '10'
+                                     iv_safety = '4' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_spans_bins.
+    add_stock( iv_lgort = '0001' iv_labst = '3' ).
+    add_stock( iv_lgort = '0002' iv_labst = '3' ).
+
+    DATA(lt_result) = safety_result( iv_qty    = '6'
+                                     iv_safety = '4' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '2' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_off_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+
+    DATA(lt_result) = safety_result( iv_qty = '10' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '0' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_never_negative.
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+
+    DATA(lt_result) = safety_result( iv_qty    = '5'
+                                     iv_safety = '20' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '5' ).
+  ENDMETHOD.
+
+  METHOD safety_stock_in_available.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '10' ).
+    ls_policy-safety_stock = '4'.
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->available_quantity( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' )
+      exp = '6' ).
   ENDMETHOD.
 
 ENDCLASS.

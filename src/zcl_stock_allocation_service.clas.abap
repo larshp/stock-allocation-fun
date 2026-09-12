@@ -16,6 +16,8 @@ CLASS zcl_stock_allocation_service DEFINITION
         io_writer             TYPE REF TO zif_allocation_writer OPTIONAL
         io_poster             TYPE REF TO zif_allocation_poster OPTIONAL
         io_uom_converter      TYPE REF TO zif_uom_converter OPTIONAL
+        io_substitution       TYPE REF TO zcl_stock_substitution OPTIONAL
+        io_commitment         TYPE REF TO zcl_stock_commitment OPTIONAL
         is_policy             TYPE zcl_stock_allocator=>ty_policy OPTIONAL.
 
     METHODS allocate
@@ -40,6 +42,39 @@ CLASS zcl_stock_allocation_service DEFINITION
         it_requirements  TYPE zif_requirement_reader=>ty_requirement_tt
       RETURNING
         VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS allocate_with_substitution
+      IMPORTING
+        iv_matnr         TYPE matnr
+        iv_werks         TYPE werks_d
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS commit_allocations
+      IMPORTING
+        iv_run_id         TYPE zstock_run_id
+        iv_matnr          TYPE matnr
+        iv_werks          TYPE werks_d
+        it_result         TYPE zcl_stock_allocator=>ty_result_tt
+      RETURNING
+        VALUE(rv_written) TYPE i.
+
+    METHODS run_with_commitment
+      IMPORTING
+        iv_run_id        TYPE zstock_run_id
+        iv_matnr         TYPE matnr
+        iv_werks         TYPE werks_d
+      RETURNING
+        VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
+
+    METHODS run_post_and_commit
+      IMPORTING
+        iv_run_id     TYPE zstock_run_id
+        iv_matnr      TYPE matnr
+        iv_werks      TYPE werks_d
+        iv_move_type  TYPE bapi2017_gm_item_create-move_type DEFAULT '601'
+      RETURNING
+        VALUE(rs_run) TYPE ty_run_result.
 
     METHODS available_quantity
       IMPORTING
@@ -78,6 +113,8 @@ CLASS zcl_stock_allocation_service DEFINITION
     DATA mo_writer             TYPE REF TO zif_allocation_writer.
     DATA mo_poster             TYPE REF TO zif_allocation_poster.
     DATA mo_uom_converter      TYPE REF TO zif_uom_converter.
+    DATA mo_substitution       TYPE REF TO zcl_stock_substitution.
+    DATA mo_commitment         TYPE REF TO zcl_stock_commitment.
     DATA mo_allocator          TYPE REF TO zcl_stock_allocator.
 
     METHODS create_allocator
@@ -126,6 +163,21 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       mo_uom_converter = NEW zcl_uom_converter( ).
     ENDIF.
 
+    IF io_substitution IS SUPPLIED.
+      mo_substitution = io_substitution.
+    ENDIF.
+    IF mo_substitution IS NOT BOUND.
+      mo_substitution = NEW zcl_stock_substitution(
+        io_stock_reader = mo_stock_reader ).
+    ENDIF.
+
+    IF io_commitment IS SUPPLIED.
+      mo_commitment = io_commitment.
+    ENDIF.
+    IF mo_commitment IS NOT BOUND.
+      mo_commitment = NEW zcl_stock_commitment( ).
+    ENDIF.
+
 
     mo_allocator = create_allocator( is_policy ).
   ENDMETHOD.
@@ -169,9 +221,53 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                                         it_requirements = it_requirements ).
   ENDMETHOD.
 
+  METHOD allocate_with_substitution.
+    DATA lt_requirements TYPE zif_requirement_reader=>ty_requirement_tt.
+    DATA lt_materials    TYPE zcl_stock_allocator=>ty_material_tt.
+
+    lt_requirements = mo_requirement_reader->read_requirements(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+    APPEND iv_matnr TO lt_materials.
+
+    LOOP AT mo_substitution->read_substitutes( iv_matnr )
+        INTO DATA(ls_substitute).
+      APPEND ls_substitute-submatnr TO lt_materials.
+    ENDLOOP.
+
+    rt_result = mo_allocator->allocate_materials(
+      iv_matnr        = iv_matnr
+      iv_werks        = iv_werks
+      it_materials    = lt_materials
+      it_requirements = lt_requirements ).
+  ENDMETHOD.
+
   METHOD available_quantity.
     rv_quantity = mo_allocator->available_quantity( iv_matnr = iv_matnr
                                                     iv_werks = iv_werks ).
+  ENDMETHOD.
+
+  METHOD commit_allocations.
+    rv_written = mo_commitment->commit( iv_run_id = iv_run_id
+                                        iv_matnr  = iv_matnr
+                                        iv_werks  = iv_werks
+                                        it_result = it_result ).
+  ENDMETHOD.
+
+  METHOD run_with_commitment.
+    rt_result = allocate( iv_matnr = iv_matnr
+                          iv_werks = iv_werks ).
+
+    mo_commitment->commit( iv_run_id = iv_run_id
+                           iv_matnr  = iv_matnr
+                           iv_werks  = iv_werks
+                           it_result = rt_result ).
+
+    mo_writer->write( iv_run_id = iv_run_id
+                      iv_matnr  = iv_matnr
+                      iv_werks  = iv_werks
+                      it_result = rt_result ).
   ENDMETHOD.
 
   METHOD total_shortage.
@@ -185,6 +281,32 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
                                   iv_matnr     = iv_matnr
                                   iv_werks     = iv_werks
                                   iv_move_type = iv_move_type ).
+  ENDMETHOD.
+
+  METHOD run_post_and_commit.
+    rs_run-allocations = allocate( iv_matnr = iv_matnr
+                                   iv_werks = iv_werks ).
+
+    mo_commitment->commit( iv_run_id = iv_run_id
+                           iv_matnr  = iv_matnr
+                           iv_werks  = iv_werks
+                           it_result = rs_run-allocations ).
+
+    rs_run-posting = post_allocation( it_result    = rs_run-allocations
+                                      iv_matnr     = iv_matnr
+                                      iv_werks     = iv_werks
+                                      iv_move_type = iv_move_type ).
+
+    IF rs_run-posting-success = abap_true.
+      " the goods issue already reduced the stock, keeping the commitment
+      " would count the same quantity twice
+      mo_commitment->release_run( iv_run_id ).
+    ENDIF.
+
+    mo_writer->write( iv_run_id = iv_run_id
+                      iv_matnr  = iv_matnr
+                      iv_werks  = iv_werks
+                      it_result = rs_run-allocations ).
   ENDMETHOD.
 
   METHOD run_with_posting.

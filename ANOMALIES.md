@@ -125,3 +125,40 @@ Each entry notes the symptom, the cause and the workaround used.
   being read is accepted.
 * Workaround: declare the parameter with the component reference of the source
   table, e.g. `iv_matnr TYPE mchb-matnr`.
+
+## A12 - Functional method calls: `CHANGING` in a call and `APPEND <call> TO`
+
+* Symptom:
+  `parser_error, Statement does not exist in the configured ABAP version (or a
+  parser error), "add_result", <file>:<line>` at every *call site* of a local
+  helper that was invoked as a standalone statement with a `CHANGING` parameter,
+  i.e. `add_result( iv_id = 'X' CHANGING ct_result = lt_result ).`. The helper's
+  definition and implementation parsed fine, only the calls failed. A variant of
+  the same error appeared for `APPEND result( ... ) TO lt_result.`.
+* Cause: the transpiler's parser does not accept (a) an explicit `CHANGING`
+  parameter in the functional call form without the preceding `EXPORTING`
+  keyword, nor (b) a functional method call used directly as the source of
+  `APPEND ... TO`.
+* Workaround: prefer a helper that returns the table via `RETURNING` and use it
+  in an assignment, which is parsed cleanly:
+
+  ```abap
+  lt_result = add_line( it_result = lt_result
+                        iv_id     = 'REQ-1' ).
+  ```
+
+  and inside the helper build a work area first, then
+  `APPEND ls_line TO rt_result.`.
+
+## A13 - Typo in a component reference passes abaplint but fails the transpiler
+
+* Symptom: `unknown_types, Contains unknown, Field "EXPIRY" not found in
+  structure, <file>:<line>` for a parameter typed
+  `zif_stock_reader=>ty_stock-expiry-date`, while abaplint reported no issue.
+* Cause: the structure component is `expiry_date`; the type reference was
+  written with a hyphen instead of the underscore (`...-expiry-date`). abaplint's
+  lint rules did not catch the wrong component, the transpiler's type check did.
+  The error names only the first unknown segment (`EXPIRY`), which makes the
+  actual field easy to overlook.
+* Workaround: use the exact component name, or avoid the chain altogether and
+  type the parameter directly (e.g. `iv_vfdat TYPE d`).

@@ -39,6 +39,7 @@ CLASS ltcl_stock_allocation_service DEFINITION
     TYPES ty_mchb_tt TYPE STANDARD TABLE OF mchb WITH DEFAULT KEY.
     TYPES ty_mcha_tt TYPE STANDARD TABLE OF mcha WITH DEFAULT KEY.
     TYPES ty_marm_tt TYPE STANDARD TABLE OF marm WITH DEFAULT KEY.
+    TYPES ty_sub_tt TYPE STANDARD TABLE OF zsubstitute WITH DEFAULT KEY.
 
     DATA mo_environment TYPE REF TO if_osql_test_environment.
     DATA mo_cut         TYPE REF TO zcl_stock_allocation_service.
@@ -49,7 +50,14 @@ CLASS ltcl_stock_allocation_service DEFINITION
     METHODS given_stock
       IMPORTING
         iv_lgort TYPE lgort_d
-        iv_labst TYPE menge_d DEFAULT 0.
+        iv_labst TYPE menge_d DEFAULT 0
+        iv_matnr TYPE matnr DEFAULT 'MAT-1'.
+
+    METHODS given_substitute
+      IMPORTING
+        iv_matnr    TYPE matnr
+        iv_submatnr TYPE matnr
+        iv_prio     TYPE zsubstitute-prio DEFAULT '01'.
 
     METHODS given_requirement
       IMPORTING
@@ -97,6 +105,9 @@ CLASS ltcl_stock_allocation_service DEFINITION
     METHODS allocates_from_sales_order     FOR TESTING.
     METHODS fefo_allocates_earliest_batch  FOR TESTING.
     METHODS converts_sales_unit_to_base    FOR TESTING.
+    METHODS allocates_from_substitute      FOR TESTING.
+    METHODS run_commits_reservations       FOR TESTING.
+    METHODS posts_and_releases_for_run     FOR TESTING.
 ENDCLASS.
 
 
@@ -105,8 +116,8 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   METHOD setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'VBAP' ) ( 'MCHB' )
-                                   ( 'MCHA' ) ( 'MARM' )
-                                   ( 'ZSTOCKALLOC' ) ) ).
+                                   ( 'MCHA' ) ( 'MARM' ) ( 'ZSUBSTITUTE' )
+                                   ( 'ZSTOCKRESV' ) ( 'ZSTOCKALLOC' ) ) ).
     mo_cut = NEW #( ).
   ENDMETHOD.
 
@@ -118,7 +129,7 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     DATA ls_mard TYPE mard.
 
     ls_mard-mandt = sy-mandt.
-    ls_mard-matnr = 'MAT-1'.
+    ls_mard-matnr = iv_matnr.
     ls_mard-werks = '1000'.
     ls_mard-lgort = iv_lgort.
     ls_mard-labst = iv_labst.
@@ -167,6 +178,17 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     ls_marm-umren = iv_umren.
 
     mo_environment->insert_test_data( VALUE ty_marm_tt( ( ls_marm ) ) ).
+  ENDMETHOD.
+
+  METHOD given_substitute.
+    DATA ls_rule TYPE zsubstitute.
+
+    ls_rule-mandt = sy-mandt.
+    ls_rule-matnr = iv_matnr.
+    ls_rule-submatnr = iv_submatnr.
+    ls_rule-prio = iv_prio.
+
+    mo_environment->insert_test_data( VALUE ty_sub_tt( ( ls_rule ) ) ).
   ENDMETHOD.
 
   METHOD given_batch.
@@ -440,6 +462,95 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
                                         exp = '48' ).
     cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
                                         exp = '0' ).
+  ENDMETHOD.
+
+  METHOD allocates_from_substitute.
+    given_stock( iv_lgort = '0001'
+                 iv_labst = '2' ).
+    given_stock( iv_matnr = 'MAT-SUB'
+                 iv_lgort = '0001'
+                 iv_labst = '5' ).
+    given_substitute( iv_matnr    = 'MAT-1'
+                      iv_submatnr = 'MAT-SUB' ).
+    given_requirement( iv_rsnum = '0000000001'
+                       iv_bdmng = '6' ).
+
+    DATA(lt_result) = mo_cut->allocate_with_substitution(
+      iv_matnr = 'MAT-1'
+      iv_werks = '1000' ).
+    DATA(lt_alloc) = lt_result[ 1 ]-allocations.
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_alloc )
+                                        exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-matnr
+                                        exp = 'MAT-1' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 1 ]-quantity
+                                        exp = '2' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-matnr
+                                        exp = 'MAT-SUB' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_alloc[ 2 ]-quantity
+                                        exp = '4' ).
+  ENDMETHOD.
+
+  METHOD run_commits_reservations.
+    given_stock( iv_lgort = '0001'
+                 iv_labst = '10' ).
+    given_requirement( iv_rsnum = '0000000001'
+                       iv_bdmng = '6' ).
+
+    DATA(lt_result) = mo_cut->run_with_commitment( iv_run_id = 'RUN-5'
+                                                   iv_matnr  = 'MAT-1'
+                                                   iv_werks  = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '6' ).
+
+    " a reserved reader now sees the committed quantity as used
+    DATA lo_reserved TYPE REF TO zif_stock_reader.
+    lo_reserved = NEW zcl_stock_reader_reserved(
+      io_reader = NEW zcl_stock_reader_mard( ) ).
+
+    DATA(lt_stock) = lo_reserved->read_stock( iv_matnr = 'MAT-1'
+                                              iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_stock[ 1 ]-unrestricted_qty
+                                        exp = '4' ).
+
+    SELECT * FROM zstockalloc INTO TABLE @DATA(lt_log).
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_log )
+                                        exp = 1 ).
+  ENDMETHOD.
+
+  METHOD posts_and_releases_for_run.
+    given_stock( iv_lgort = '0001'
+                 iv_labst = '10' ).
+    given_requirement( iv_rsnum = '0000000001'
+                       iv_bdmng = '6' ).
+
+    DATA(ls_run) = mo_cut->run_post_and_commit( iv_run_id = 'RUN-6'
+                                                iv_matnr  = 'MAT-1'
+                                                iv_werks  = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = ls_run-posting-success
+                                        exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals( act = ls_run-posting-document_number
+                                        exp = '4900000001' ).
+
+    " the goods issue reduced MARD and the commitment was released, so a
+    " reserved reader still sees the remaining stock
+    DATA lo_reserved TYPE REF TO zif_stock_reader.
+    lo_reserved = NEW zcl_stock_reader_reserved(
+      io_reader = NEW zcl_stock_reader_mard( ) ).
+
+    DATA(lt_stock) = lo_reserved->read_stock( iv_matnr = 'MAT-1'
+                                              iv_werks = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_stock[ 1 ]-unrestricted_qty
+                                        exp = '4' ).
   ENDMETHOD.
 
 ENDCLASS.

@@ -49,6 +49,11 @@ flowchart LR
   PO[zif_allocation_poster / zcl_allocation_poster_bapi]
   RUN[zcl_stock_alloc_run]
   LR[zcl_alloc_log_reader]
+  SUB[zcl_stock_substitution]
+  RH[zcl_alloc_run_header]
+  RRPT[zcl_alloc_run_report]
+  CMT[zcl_stock_commitment]
+  RSRV[zcl_stock_reader_reserved]
 
   RUN --> SVC
   SVC --> SR
@@ -69,6 +74,11 @@ flowchart LR
   UC --> MARM[(MARM)]
   WR --> LOG[(ZSTOCKALLOC)]
   LR --> LOG[(ZSTOCKALLOC)]
+  SUB --> ZSUB[(ZSUBSTITUTE)]
+  RH --> ZRUN[(ZSTOCKRUN)]
+  RRPT --> ZRUN[(ZSTOCKRUN)]
+  CMT --> RESV[(ZSTOCKRESV)]
+  RSRV --> RESV[(ZSTOCKRESV)]
   PO --> BAPI[BAPI_GOODSMVT_CREATE]
 ```
 
@@ -92,6 +102,16 @@ flowchart LR
   and aggregates the results into statistics and a shortage report.
 * `zcl_alloc_log_reader` - reads and summarizes the recorded `ZSTOCKALLOC` run
   log (per-run totals and material counts).
+* `zcl_stock_substitution` - reads the `ZSUBSTITUTE` substitution rules and
+  reports the available quantity of a material including its substitutes.
+* `zcl_alloc_run_header` - tracks a run per material/plant in `ZSTOCKRUN`
+  (status running/done plus aggregated requested, allocated and shortage
+  quantities).
+* `zcl_alloc_run_report` - reporting view over the stored run headers, adding a
+  derived coverage percentage per run and material.
+* `zcl_stock_commitment` / `zcl_stock_reader_reserved` - commit allocated
+  quantities to `ZSTOCKRESV` and subtract those open commitments from the
+  available stock, so a second run sees the stock as already used.
 
 ## Usage
 
@@ -147,6 +167,19 @@ DATA(ls_overview) = lo_run->run( VALUE zcl_stock_alloc_run=>ty_request_tt(
 ```
 
 All dependencies can be injected through the constructor for testing.
+
+To reserve the allocated quantities so a later run sees them as used, and to
+release the reservation once the goods issue is posted:
+
+```abap
+DATA(lt_result) = lo_service->run_with_commitment( iv_run_id = 'RUN-0001'
+                                                   iv_matnr  = 'MAT-1'
+                                                   iv_werks  = '1000' ).
+
+DATA(ls_run) = lo_service->run_post_and_commit( iv_run_id = 'RUN-0001'
+                                                iv_matnr  = 'MAT-1'
+                                                iv_werks  = '1000' ).
+```
 
 ## Documentation
 

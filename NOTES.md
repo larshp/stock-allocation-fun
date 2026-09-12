@@ -67,6 +67,10 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
 
 * Data element `ZSTOCK_RUN_ID` (CHAR 20)
 * Table `ZSTOCKALLOC` (allocation log)
+* Table `ZSUBSTITUTE` (material substitution rules: `MATNR`, `SUBMATNR`, `PRIO`)
+* Table `ZSTOCKRUN` (allocation run header: status and aggregated totals)
+* Table `ZSTOCKRESV` (open stock commitments per material / plant / storage
+  location)
 
 ## Feature log
 
@@ -135,13 +139,105 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
     positions, total allocated quantity) and `summarize_all( )` produces one
     summary per run id, ordered by run id. Grouping is done by sorting and
     comparing instead of `LOOP GROUP BY`, which the transpiler does not support.
+12. **Whole sales units** - `ty_policy-whole_sales_units` restricts each pick to
+    a whole multiple of the sales unit. The allocator asks the UoM converter for
+    the base quantity of one sales unit and snaps every take down to that step,
+    so odd remainders stay in stock and show up as shortage instead of being
+    allocated. Off by default; ignored when the requirement has no unit or no
+    converter is injected.
+13. **Partial delivery control** - `ty_policy-max_picks` limits how many stock
+    rows (storage locations / batches) a single requirement may be served from
+    (`0` = unlimited). If the requirement cannot be covered within the limit it
+    is skipped entirely: the reserved quantities are handed back to the stock
+    rows and the full quantity is reported as shortage, so later requirements
+    can still use that stock.
+14. **Coverage / shortage report** - `zcl_alloc_shortage_report` turns an
+    allocation result into a report: one line per requirement with a floored
+    coverage percentage, an aggregate summary (requested, allocated, shortage,
+    coverage, line and shortage counts) and a `critical` list of the lines below
+    a caller-supplied minimum coverage. It is a pure calculation, no database
+    access.
+15. **Material substitution** - `zcl_stock_substitution` reads the substitution
+    rules from the new custom `ZSUBSTITUTE` table in priority order, and
+    `availability( )` reports the usable stock of the requested material plus
+    each substitute, with own / substitute / total quantities and a `details`
+    list (own material first).
+16. **Run tracking** - `zcl_alloc_run_header` persists one header row per
+    material/plant in the new custom `ZSTOCKRUN` table. `start_run( )` inserts
+    the row with status `R` (running), `finish_run( )` aggregates the allocation
+    result (requested / allocated / shortage quantities and item count) and
+    upserts the row with status `D` (done), and `read_run( )` reads the rows of a
+    run. The status values are exposed as the constants `c_status_running` and
+    `c_status_done`.
+17. **Allocating across substitutes** - `ty_allocation` now records the `matnr`
+    each row came from, and `zcl_stock_allocator=>allocate_materials( )` builds
+    availability from an *ordered list* of materials, so stock is consumed from
+    the requested material first and then from the substitutes in the caller's
+    order. The facade exposes this as
+    `zcl_stock_allocation_service=>allocate_with_substitution( )`, which reads
+    the `ZSUBSTITUTE` rules and builds that list. The log writer stores the
+    material actually used on each allocation row.
+18. **Under-delivery tolerance** - `ty_policy-under_tolerance` is a percentage.
+    When a requirement's shortfall stays within that percentage of the requested
+    quantity, the result row is flagged `within_tolerance` instead of counting
+    as a hard miss; the shortage quantity is still reported. Default `0` means
+    no tolerance, and a full delivery is never flagged.
+19. **Tolerance-aware coverage report** - the report marks a line `covered` when
+    it is delivered in full, when its shortfall is within the allocator's
+    under-delivery tolerance (`within_tolerance`), when it is deferred, or when
+    nothing was requested. Only lines that are *not* covered and fall below the
+    minimum coverage become `critical`. The summary gained `covered_lines`.
+20. **Delivery-date horizon** - `ty_policy-horizon_date` defers requirements
+    whose requirement date lies after the horizon: they come back with
+    `deferred = abap_true`, no allocation and their full quantity as shortage, so
+    the stock stays available for requirements that are due now. The horizon is
+    inclusive (a requirement exactly on the horizon is still allocated) and unset
+    by default.
+21. **Safety stock** - `ty_policy-safety_stock` keeps a quantity in the bins: it
+    is consumed from the availability rows (in order) right after they are
+    built, so neither the allocation nor `available_quantity( )` can use it. The
+    remaining quantities are never driven below zero.
+22. **Run overview report** - `zcl_alloc_run_report` turns the `ZSTOCKRUN`
+    headers into a reporting view: `overview( )` lists every run and
+    `overview_of_run( run_id )` a single one, each line adding a derived
+    `coverage_pct` (allocated / requested, floored) on top of the stored status,
+    item count and quantities. `zcl_alloc_run_header` gained `read_all( )` for
+    this.
+23. **Stock commitments** - `zcl_stock_commitment` records the allocated
+    quantities per material / plant / storage location in the new custom
+    `ZSTOCKRESV` table (`commit( )`), can release a whole run
+    (`release_run( )`) and aggregates the open quantities per storage location
+    (`read_open( )`). `zcl_stock_reader_reserved` decorates any
+    `zif_stock_reader` and subtracts those commitments from the unrestricted
+    quantity per storage location (never below zero), so a later run sees the
+    stock as already committed. The decorator is opt-in.
+24. **Commit in the run flow** - the facade takes `io_commitment` and offers
+    `commit_allocations( )` and `run_with_commitment( )`, which allocates,
+    commits the allocations as reservations and writes the `ZSTOCKALLOC` audit
+    rows in one call.
+25. **Post and commit** - `run_post_and_commit( )` performs the full flow:
+    allocate, commit the allocations to `ZSTOCKRESV`, post the goods issue and -
+    only when the posting succeeded - release the commitment again, because the
+    goods issue already reduced the stock and keeping it would count the same
+    quantity twice. The audit rows are written last.
+26. **Overview text output** - `zcl_alloc_run_report=>to_lines( )` renders an
+    overview as CSV text (header plus one line per run/material) for a classic
+    list report or a download. Lines are built with single `&&` concatenations,
+    because the transpiler does not parse chained `&&` expressions.
 
-Test coverage (75 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (143 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
   protection, empty stock, date tie-break, FEFO order, unknown expiry last,
-  FEFO opt-in, unit conversion, unit without converter
+  FEFO opt-in, unit conversion, unit without converter, whole sales units
+  (rounding, full demand, across bins, off by default, without unit), pick limit
+  (unlimited, one pick, skip when spans, two picks, stock released on skip),
+  multi-material (substitute after own, own first, row material), under-delivery
+  tolerance (accepted, rejected, off by default, full delivery), horizon (late
+  deferred, inclusive, off by default, early requirement gets the stock), safety
+  stock (reduces stock, spans bins, off by default, never negative, available
+  quantity)
 * RESB reader: open items, withdrawn quantity, deletion/final-issue flags,
   material filter, id construction, date sorting
 * VBAP reader: open item, rejection reason, zero quantity, material filter,
@@ -154,18 +250,33 @@ Test coverage (75 ABAP Unit tests, run on Node through the transpiler):
 * Service: end-to-end MARD + RESB allocation, shortage, bin spill-over,
   available quantity, total shortage, full recorded run, posting run (with a
   poster double), empty run skips posting, allocation from sales orders, batch
-  FEFO through the facade, sales unit conversion through the facade
+  FEFO through the facade, sales unit conversion through the facade,
+  allocation across substitutes through the facade, commit run,
+  post-and-release for a run
 * Run: two materials, aggregated shortage report, materials-with-shortage count,
   requested/allocated/shortage totals, empty request list
 * Log reader: run filter, position and quantity totals, distinct material count,
   per-run summaries, empty run
+* Shortage report: full coverage, floored partial coverage, summary aggregation,
+  critical below threshold, no shortage, zero request, empty result, tolerance
+  line covered, short line not covered, full delivery covered, deferred covered
+* Substitution: rules ordered by priority, no rules, own + substitute
+  availability, detail list order, other material ignored
+* Run header: running status on start, totals and done status on finish, finish
+  without start, per-run read, empty result totals
+* Run report: computed coverage, all runs listed, single run filter, full
+  coverage, empty log, CSV header, CSV row formatting
+* Commitment: written rows, per-location aggregation, row material used,
+  requested material default, release, empty result
+* Reserved reader: subtracts commitment, clamps at zero, other locations,
+  no reservation, other material
 
 ## Next candidates
 
-* Rounding of allocated quantities up to whole sales units of measure.
-* Persist run headers and a status (started / finished / posted).
-* Report/ALV on `ZSTOCKALLOC` runs.
+* ALV / grid UI on top of the run overview.
 * Parallel or package-wise processing for large material lists.
+* Safety stock per plant / storage location instead of one run-wide figure.
+* Commit expiry / cleanup job for stale reservations.
 
 ## Conventions
 
@@ -181,6 +292,18 @@ Test coverage (75 ABAP Unit tests, run on Node through the transpiler):
 * Each interface owns the data type it produces: `zif_stock_reader` owns the
   stock item, `zif_requirement_reader` owns the requirement, and the allocator
   owns its result and policy types.
+* `LOOP GROUP BY` is not supported by the transpiler - group manually by sorting
+  and comparing instead.
+* Chained string concatenation (`a = b && |x| && |y|`) is not parsed; use one
+  `&&` per statement.
+* `DELETE FROM <table> WHERE ...` and `MODIFY <table> FROM @wa` work on own `Z`
+  tables, so the `modify_only_own_db_tables` configuration stays minimal.
+* A method call used as a standalone statement must not pass `CHANGING` in the
+  functional form, and `APPEND <method call> TO itab` is not parsed either (see
+  ANOMALIES.md A12).
+* `align_type_expressions` aligns the `TYPE` keyword of method parameters and of
+  consecutive `DATA` statements to `indent + longest name + 1`. Keeping one long,
+  descriptive name per signature makes this predictable.
 * Tests are local test classes in `<class>.clas.testclasses.abap` files.
 * Test doubles for interfaces are plain local classes inside the test file
   (`lcl_stock_reader_stub`), so no dependency on a mocking framework is needed.

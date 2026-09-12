@@ -24,6 +24,10 @@ CLASS ltcl_alloc_run_header DEFINITION
     METHODS finish_without_start       FOR TESTING.
     METHODS reads_only_its_run         FOR TESTING.
     METHODS empty_result_zero_totals   FOR TESTING.
+    METHODS reverse_sets_status        FOR TESTING.
+    METHODS reverse_returns_count      FOR TESTING.
+    METHODS reverse_unknown_run_zero   FOR TESTING.
+    METHODS read_active_skips_reversed FOR TESTING.
 ENDCLASS.
 
 
@@ -169,6 +173,60 @@ CLASS ltcl_alloc_run_header IMPLEMENTATION.
                                         exp = '0' ).
     cl_abap_unit_assert=>assert_equals( act = lt_header[ 1 ]-status
                                         exp = 'D' ).
+  ENDMETHOD.
+
+  METHOD reverse_sets_status.
+    DATA lv_written TYPE i.
+
+    lv_written = mo_cut->start_run( iv_run_id = 'RUN-1'
+                                    iv_matnr  = 'MAT-1'
+                                    iv_werks  = '1000' ).
+    lv_written = mo_cut->reverse_run( 'RUN-1' ).
+
+    DATA(lt_header) = mo_cut->read_run( 'RUN-1' ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_header[ 1 ]-status
+                                        exp = 'X' ).
+  ENDMETHOD.
+
+  METHOD reverse_returns_count.
+    DATA lv_written TYPE i.
+
+    lv_written = mo_cut->start_run( iv_run_id = 'RUN-1'
+                                    iv_matnr  = 'MAT-1'
+                                    iv_werks  = '1000' ).
+    lv_written = mo_cut->start_run( iv_run_id = 'RUN-1'
+                                    iv_matnr  = 'MAT-2'
+                                    iv_werks  = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->reverse_run( 'RUN-1' )
+      exp = 2 ).
+  ENDMETHOD.
+
+  METHOD reverse_unknown_run_zero.
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_cut->reverse_run( 'RUN-X' )
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD read_active_skips_reversed.
+    DATA lv_written TYPE i.
+
+    lv_written = mo_cut->start_run( iv_run_id = 'RUN-1'
+                                    iv_matnr  = 'MAT-1'
+                                    iv_werks  = '1000' ).
+    lv_written = mo_cut->start_run( iv_run_id = 'RUN-2'
+                                    iv_matnr  = 'MAT-2'
+                                    iv_werks  = '1000' ).
+    lv_written = mo_cut->reverse_run( 'RUN-1' ).
+
+    DATA(lt_header) = mo_cut->read_active( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_header )
+                                        exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_header[ 1 ]-run_id
+                                        exp = 'RUN-2' ).
   ENDMETHOD.
 
 ENDCLASS.

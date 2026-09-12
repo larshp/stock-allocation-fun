@@ -4,8 +4,9 @@ CLASS zcl_alloc_run_header DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
-    CONSTANTS c_status_running TYPE zstockrun-status VALUE 'R'.
-    CONSTANTS c_status_done    TYPE zstockrun-status VALUE 'D'.
+    CONSTANTS c_status_running  TYPE zstockrun-status VALUE 'R'.
+    CONSTANTS c_status_done     TYPE zstockrun-status VALUE 'D'.
+    CONSTANTS c_status_reversed TYPE zstockrun-status VALUE 'X'.
 
     TYPES ty_header_tt TYPE STANDARD TABLE OF zstockrun WITH DEFAULT KEY.
 
@@ -26,6 +27,12 @@ CLASS zcl_alloc_run_header DEFINITION
       RETURNING
         VALUE(rv_written) TYPE i.
 
+    METHODS reverse_run
+      IMPORTING
+        iv_run_id         TYPE zstock_run_id
+      RETURNING
+        VALUE(rv_written) TYPE i.
+
     METHODS read_run
       IMPORTING
         iv_run_id        TYPE zstock_run_id
@@ -33,6 +40,10 @@ CLASS zcl_alloc_run_header DEFINITION
         VALUE(rt_header) TYPE ty_header_tt.
 
     METHODS read_all
+      RETURNING
+        VALUE(rt_header) TYPE ty_header_tt.
+
+    METHODS read_active
       RETURNING
         VALUE(rt_header) TYPE ty_header_tt.
 
@@ -76,6 +87,21 @@ CLASS zcl_alloc_run_header IMPLEMENTATION.
     rv_written = 1.
   ENDMETHOD.
 
+  METHOD reverse_run.
+    DATA lt_header TYPE ty_header_tt.
+
+    lt_header = read_run( iv_run_id ).
+
+    LOOP AT lt_header ASSIGNING FIELD-SYMBOL(<ls_header>).
+      <ls_header>-status = c_status_reversed.
+    ENDLOOP.
+
+    LOOP AT lt_header INTO DATA(ls_header).
+      MODIFY zstockrun FROM @ls_header.
+      rv_written = rv_written + 1.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD read_run.
     SELECT * FROM zstockrun INTO TABLE @rt_header
       WHERE run_id = @iv_run_id
@@ -84,6 +110,12 @@ CLASS zcl_alloc_run_header IMPLEMENTATION.
 
   METHOD read_all.
     SELECT * FROM zstockrun INTO TABLE @rt_header
+      ORDER BY run_id, matnr.
+  ENDMETHOD.
+
+  METHOD read_active.
+    SELECT * FROM zstockrun INTO TABLE @rt_header
+      WHERE status <> @c_status_reversed
       ORDER BY run_id, matnr.
   ENDMETHOD.
 

@@ -37,6 +37,8 @@ CLASS ltcl_alloc_run_report DEFINITION
     METHODS catalog_lists_columns      FOR TESTING.
     METHODS catalog_matches_header     FOR TESTING.
     METHODS catalog_marks_quantities   FOR TESTING.
+    METHODS reversed_run_excluded      FOR TESTING.
+    METHODS overview_of_reversed_empty FOR TESTING.
 ENDCLASS.
 
 
@@ -248,6 +250,39 @@ CLASS ltcl_alloc_run_report IMPLEMENTATION.
                                         exp = 3 ).
     cl_abap_unit_assert=>assert_equals( act = lt_fields[ 7 ]-text
                                         exp = 'Allocated qty' ).
+  ENDMETHOD.
+
+  METHOD reversed_run_excluded.
+    given_run( iv_run_id    = 'RUN-1'
+               iv_matnr     = 'MAT-1'
+               iv_requested = '10'
+               iv_allocated = '10' ).
+    given_run( iv_run_id    = 'RUN-2'
+               iv_matnr     = 'MAT-2'
+               iv_requested = '10'
+               iv_allocated = '5' ).
+
+    DATA lv_written TYPE i.
+    lv_written = mo_header->reverse_run( 'RUN-1' ).
+
+    DATA(lt_overview) = mo_cut->overview( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_overview )
+                                        exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_overview[ 1 ]-run_id
+                                        exp = 'RUN-2' ).
+  ENDMETHOD.
+
+  METHOD overview_of_reversed_empty.
+    given_run( iv_run_id    = 'RUN-1'
+               iv_matnr     = 'MAT-1'
+               iv_requested = '10'
+               iv_allocated = '10' ).
+
+    DATA lv_written TYPE i.
+    lv_written = mo_header->reverse_run( 'RUN-1' ).
+
+    cl_abap_unit_assert=>assert_initial( act = mo_cut->overview_of_run( 'RUN-1' ) ).
   ENDMETHOD.
 
 ENDCLASS.

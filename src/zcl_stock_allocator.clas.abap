@@ -6,6 +6,7 @@ CLASS zcl_stock_allocator DEFINITION
   PUBLIC SECTION.
     TYPES ty_quantity TYPE menge_d.
     TYPES ty_material_tt TYPE STANDARD TABLE OF matnr WITH DEFAULT KEY.
+    TYPES ty_lgort_tt TYPE STANDARD TABLE OF lgort_d WITH DEFAULT KEY.
 
     TYPES: BEGIN OF ty_allocation,
              matnr          TYPE matnr,
@@ -39,6 +40,10 @@ CLASS zcl_stock_allocator DEFINITION
              under_tolerance    TYPE i,
              horizon_date       TYPE d,
              safety_stock       TYPE ty_quantity,
+             min_remaining_days TYPE i,
+             reference_date     TYPE d,
+             allowed_lgorts     TYPE ty_lgort_tt,
+             excluded_lgorts    TYPE ty_lgort_tt,
            END OF ty_policy.
 
     METHODS constructor
@@ -135,6 +140,12 @@ CLASS zcl_stock_allocator DEFINITION
         is_stock           TYPE zif_stock_reader=>ty_stock
       RETURNING
         VALUE(rv_quantity) TYPE ty_quantity.
+
+    METHODS is_lgort_allowed
+      IMPORTING
+        iv_lgort          TYPE lgort_d
+      RETURNING
+        VALUE(rv_allowed) TYPE abap_bool.
 
 ENDCLASS.
 
@@ -340,6 +351,13 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     DATA lv_usable TYPE ty_quantity.
     DATA lv_expiry TYPE d.
     DATA lv_safety TYPE ty_quantity.
+    DATA lv_cutoff TYPE d.
+
+    IF ms_policy-min_remaining_days > 0
+        AND ms_policy-reference_date IS NOT INITIAL.
+      " batches that expire before the cutoff may not be used
+      lv_cutoff = ms_policy-reference_date + ms_policy-min_remaining_days.
+    ENDIF.
 
     LOOP AT it_materials INTO DATA(lv_matnr_value).
       CLEAR lt_rows.
@@ -348,6 +366,16 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
                                               iv_werks = iv_werks ).
 
       LOOP AT lt_stock INTO DATA(ls_stock).
+        IF is_lgort_allowed( ls_stock-lgort ) = abap_false.
+          CONTINUE.
+        ENDIF.
+
+        IF lv_cutoff IS NOT INITIAL
+            AND ls_stock-expiry_date IS NOT INITIAL
+            AND ls_stock-expiry_date < lv_cutoff.
+          CONTINUE.
+        ENDIF.
+
         lv_usable = usable_quantity( ls_stock ).
         IF lv_usable <= 0.
           CONTINUE.
@@ -450,6 +478,32 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     IF ms_policy-include_transit = abap_true.
       rv_quantity = rv_quantity + is_stock-in_transit_qty.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD is_lgort_allowed.
+    rv_allowed = abap_true.
+
+    IF ms_policy-allowed_lgorts IS NOT INITIAL.
+      " an allow-list that is set limits the usable locations to its entries
+      rv_allowed = abap_false.
+      LOOP AT ms_policy-allowed_lgorts INTO DATA(lv_allowed).
+        IF lv_allowed = iv_lgort.
+          rv_allowed = abap_true.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF rv_allowed = abap_false.
+      RETURN.
+    ENDIF.
+
+    LOOP AT ms_policy-excluded_lgorts INTO DATA(lv_excluded).
+      IF lv_excluded = iv_lgort.
+        rv_allowed = abap_false.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
 ENDCLASS.

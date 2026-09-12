@@ -55,6 +55,16 @@ conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
 | 31 | Safety stock in substitution report | `io_safety_stock` on `zcl_stock_substitution`            |
 | 32 | Cleanup service with simulation     | `zcl_alloc_cleanup` (`run`, `run_before`)               |
 | 33 | Request validation in the run       | `ty_stats-skipped`, `is_valid_request`                  |
+| 34 | Material overview across runs       | `zcl_alloc_material_report` (`ZSTOCKALLOC`+`ZSTOCKRUN`) |
+| 35 | Minimum remaining shelf life        | policy `min_remaining_days`, `reference_date`           |
+| 36 | Storage location allow / exclude    | policy `allowed_lgorts`, `excluded_lgorts`              |
+| 37 | Replenishment proposals             | `zcl_alloc_replenishment` (rounding, min order)         |
+| 38 | Run reversal / audit trail          | `reverse_run`, status `X`, `read_active`, reports skip  |
+| 39 | Plant-to-plant transfer proposal    | `zcl_stock_transfer` (`propose`, `available`)           |
+| 40 | Allocation result diff              | `zcl_alloc_diff` (added / removed / changed lines)      |
+| 41 | Allocation overview JSON export     | `zcl_alloc_export` (`run_overview_json`, material)       |
+| 42 | Batch availability inquiry          | `zcl_batch_inquiry` (FEFO order, total, earliest expiry) |
+| 43 | Reservation document service        | `zcl_reservation_doc` (create, items, summarize, release)|
 
 ## Next
 
@@ -64,6 +74,5 @@ the end on purpose.
 
 | Order | Feature                                          | Notes                                                                |
 | ----- | ------------------------------------------------ | -------------------------------------------------------------------- |
-| 34    | Material overview across runs                     | Join `ZSTOCKALLOC` + `ZSTOCKRUN` per material                         |
-| 35    | ALV grid binding and selection-screen wrapper     | GUI layer - NOT verifiable with the transpiler, only on request       |
+| 44    | ALV grid binding and selection-screen wrapper    | GUI layer - NOT verifiable with the transpiler, only on request       |
 

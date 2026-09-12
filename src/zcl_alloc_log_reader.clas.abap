@@ -21,6 +21,10 @@ CLASS zcl_alloc_log_reader DEFINITION
       RETURNING
         VALUE(rt_log) TYPE ty_log_tt.
 
+    METHODS read_all
+      RETURNING
+        VALUE(rt_log) TYPE ty_log_tt.
+
     METHODS summarize_run
       IMPORTING
         iv_run_id         TYPE zstock_run_id
@@ -39,6 +43,11 @@ CLASS zcl_alloc_log_reader IMPLEMENTATION.
   METHOD read_run.
     SELECT * FROM zstockalloc INTO TABLE @rt_log
       WHERE run_id = @iv_run_id.
+  ENDMETHOD.
+
+  METHOD read_all.
+    SELECT * FROM zstockalloc INTO TABLE @rt_log
+      ORDER BY matnr, werks.
   ENDMETHOD.
 
   METHOD summarize_run.

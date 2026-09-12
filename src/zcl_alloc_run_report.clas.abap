@@ -76,7 +76,7 @@ CLASS zcl_alloc_run_report IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD overview.
-    rt_overview = to_overview( mo_header->read_all( ) ).
+    rt_overview = to_overview( mo_header->read_active( ) ).
   ENDMETHOD.
 
   METHOD overview_of_run.
@@ -165,6 +165,10 @@ CLASS zcl_alloc_run_report IMPLEMENTATION.
     DATA ls_overview TYPE ty_overview.
 
     LOOP AT it_header INTO DATA(ls_header).
+      IF ls_header-status = zcl_alloc_run_header=>c_status_reversed.
+        CONTINUE.
+      ENDIF.
+
       CLEAR ls_overview.
       ls_overview-run_id = ls_header-run_id.
       ls_overview-matnr = ls_header-matnr.

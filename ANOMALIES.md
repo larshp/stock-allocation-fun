@@ -197,3 +197,31 @@ Each entry notes the symptom, the cause and the workaround used.
   build the expected string with a string template (`|{ ls_field-fieldname }|`)
   so trailing blanks are trimmed on both sides before comparing. Avoid searching
   a padded value inside a trimmed string.
+
+## A16 - A `DATA` declaration inside a control block is not parsed
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "DATA", <file>:<line>` for a statement like
+  `DATA lv_multiples TYPE i.` placed inside an `IF ... ENDIF.` block, followed by
+  `"lv_multiples" not found` at its first use.
+* Cause: the transpiler only accepts the explicit `DATA <name> TYPE <type>.` form
+  at the start of a method (or globally); declaring it inside a control block is
+  parsed as invalid. abaplint accepted the code.
+* Workaround: move the declaration to the top of the method. Inline declarations
+  with `DATA(lv_x) = ...` are accepted, so the issue is specific to the explicit
+  form inside a block.
+
+## A17 - A character field cannot be passed to a `TYPE string` parameter
+
+* Symptom: `check_syntax, Method parameter type not compatible, <class>:<line>`
+  at a call such as `escape( ls_overview-run_id )` where the parameter is declared
+  `iv_value TYPE string` and `run_id` is a character field. abaplint accepted the
+  code.
+* Cause: the transpiler's call compatibility check requires the same type, and it
+  does not consider the implicit `c -> string` conversion. Only a generic
+  parameter (`TYPE c`, `TYPE any`) or an exact match is accepted. This is the same
+  family as A11 (data element vs. inferred component) and A7.
+* Workaround: avoid the helper and inline the value, or pass a value that is
+  already a `string` (e.g. assign it to a `string` variable first, or use a string
+  template `|{ ... }|`). A `TYPE c` parameter without a length was not tried; the
+  simplest fix is to drop the conversion helper.

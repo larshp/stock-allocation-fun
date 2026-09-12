@@ -241,6 +241,17 @@ CLASS ltcl_stock_allocator DEFINITION
     METHODS safety_loc_batches_once       FOR TESTING.
     METHODS safety_loc_no_config          FOR TESTING.
     METHODS safety_loc_in_available       FOR TESTING.
+    METHODS mrsl_skips_short_dated        FOR TESTING.
+    METHODS mrsl_keeps_long_dated         FOR TESTING.
+    METHODS mrsl_keeps_unknown_expiry     FOR TESTING.
+    METHODS mrsl_cutoff_is_inclusive      FOR TESTING.
+    METHODS mrsl_off_by_default           FOR TESTING.
+    METHODS mrsl_in_available             FOR TESTING.
+    METHODS lgort_allowed_only            FOR TESTING.
+    METHODS lgort_allowed_empty_all       FOR TESTING.
+    METHODS lgort_excluded_skipped        FOR TESTING.
+    METHODS lgort_allowed_and_excluded    FOR TESTING.
+    METHODS lgort_allowed_in_available    FOR TESTING.
 ENDCLASS.
 
 
@@ -1067,6 +1078,201 @@ CLASS ltcl_stock_allocator IMPLEMENTATION.
       act = lo_cut->available_quantity( iv_matnr = 'MAT-1'
                                         iv_werks = '1000' )
       exp = '6' ).
+  ENDMETHOD.
+
+  METHOD mrsl_skips_short_dated.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '20260110' ).
+    add_requirement( iv_id = 'A' iv_qty = '10' ).
+
+    ls_policy-min_remaining_days = 30.
+    ls_policy-reference_date = '20260101'.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '0' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD mrsl_keeps_long_dated.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '20260301' ).
+    add_requirement( iv_id = 'A' iv_qty = '10' ).
+
+    ls_policy-min_remaining_days = 30.
+    ls_policy-reference_date = '20260101'.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD mrsl_keeps_unknown_expiry.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '00000000' ).
+    add_requirement( iv_id = 'A' iv_qty = '10' ).
+
+    ls_policy-min_remaining_days = 30.
+    ls_policy-reference_date = '20260101'.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD mrsl_cutoff_is_inclusive.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    " reference 20260101 + 30 days = 20260131, which is still usable
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '20260131' ).
+    add_requirement( iv_id = 'A' iv_qty = '10' ).
+
+    ls_policy-min_remaining_days = 30.
+    ls_policy-reference_date = '20260101'.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD mrsl_off_by_default.
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '20260110' ).
+    add_requirement( iv_id = 'A' iv_qty = '10' ).
+
+    DATA(lt_result) = run_allocation( ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '10' ).
+  ENDMETHOD.
+
+  METHOD mrsl_in_available.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '10' iv_vfdat = '20260110' ).
+
+    ls_policy-min_remaining_days = 30.
+    ls_policy-reference_date = '20260101'.
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->available_quantity( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' )
+      exp = '0' ).
+  ENDMETHOD.
+
+  METHOD lgort_allowed_only.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '7' ).
+    add_requirement( iv_id = 'A' iv_qty = '20' ).
+    APPEND '0002' TO ls_policy-allowed_lgorts.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '7' ).
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-shortage_qty
+                                        exp = '13' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-allocations[ 1 ]-lgort
+      exp = '0002' ).
+  ENDMETHOD.
+
+  METHOD lgort_allowed_empty_all.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '7' ).
+    add_requirement( iv_id = 'A' iv_qty = '20' ).
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '12' ).
+  ENDMETHOD.
+
+  METHOD lgort_excluded_skipped.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '7' ).
+    add_requirement( iv_id = 'A' iv_qty = '20' ).
+    APPEND '0001' TO ls_policy-excluded_lgorts.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '7' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-allocations[ 1 ]-lgort
+      exp = '0002' ).
+  ENDMETHOD.
+
+  METHOD lgort_allowed_and_excluded.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '7' ).
+    add_requirement( iv_id = 'A' iv_qty = '20' ).
+    APPEND '0001' TO ls_policy-allowed_lgorts.
+    APPEND '0002' TO ls_policy-allowed_lgorts.
+    APPEND '0001' TO ls_policy-excluded_lgorts.
+
+    DATA(lt_result) = cut( ls_policy )->allocate(
+      iv_matnr        = 'MAT-1'
+      iv_werks        = '1000'
+      it_requirements = mt_requirements ).
+
+    cl_abap_unit_assert=>assert_equals( act = lt_result[ 1 ]-allocated_qty
+                                        exp = '7' ).
+  ENDMETHOD.
+
+  METHOD lgort_allowed_in_available.
+    DATA ls_policy TYPE zcl_stock_allocator=>ty_policy.
+
+    add_stock( iv_lgort = '0001' iv_labst = '5' ).
+    add_stock( iv_lgort = '0002' iv_labst = '7' ).
+    APPEND '0002' TO ls_policy-allowed_lgorts.
+
+    DATA(lo_cut) = NEW zcl_stock_allocator( io_stock_reader = mo_reader
+                                            is_policy       = ls_policy ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->available_quantity( iv_matnr = 'MAT-1'
+                                        iv_werks = '1000' )
+      exp = '7' ).
   ENDMETHOD.
 
 ENDCLASS.

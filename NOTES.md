@@ -271,8 +271,76 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
     produced an empty material result). `ty_stats` gained `skipped`, and
     `run_in_packages( )` carries that count across packages, so a run reports how
     many requests were ignored as well as how many were processed.
+34. **Material overview across runs** - `zcl_alloc_material_report` joins the run
+    headers (`ZSTOCKRUN`) and the allocation log (`ZSTOCKALLOC`) per material and
+    plant. `overview( )` aggregates, across every run, the number of distinct runs,
+    the requirement count and the requested / allocated / shortage quantities from
+    the headers, and counts the logged allocation positions from the log. A derived
+    `coverage_pct` is added per line. `overview_of_material( iv_matnr )` filters to
+    one material, `to_lines( )` renders the same CSV form as the run report and
+    `field_catalog( )` exposes the columns.     Log rows for a material that has no run
+    header are ignored, so the header stays the source of truth. `zcl_alloc_log_reader`
+    gained `read_all( )` for this.
+35. **Minimum remaining shelf life** - `ty_policy-min_remaining_days` plus
+    `reference_date` makes the allocator skip batches whose expiry date is earlier
+    than `reference_date + min_remaining_days`. The cutoff is inclusive, batches
+    without an expiry date stay usable, and the deduction applies to
+    `available_quantity( )` as well because it is applied while the availability is
+    built. Off by default.
+36. **Storage location allow / exclude list** - `ty_policy-allowed_lgorts` is an
+    allow-list (empty = every location) and `ty_policy-excluded_lgorts` a deny-list.
+    The allocator filters stock rows through `is_lgort_allowed( )` while building
+    availability, so allocations and `available_quantity( )` both honour it. The
+    deny-list wins over the allow-list.
+37. **Replenishment proposals** - `zcl_alloc_replenishment` turns an allocation
+    result into order proposals: one line per requirement with a shortfall, carrying
+    the material, the requirement id, the shortage and a proposed order quantity.
+    The order quantity is rounded up to a whole multiple of `iv_round_to` (lot size,
+    `0` = exact) and then raised to at least `iv_min_order`. A summary totals the
+    proposals, the shortage and the order quantity. Fully covered requirements are
+    skipped. Pure calculation, no database access.
+38. **Run reversal / audit trail** - `zcl_alloc_run_header` gained the status `X`
+    (`c_status_reversed`) and `reverse_run( iv_run_id )`, which stamps every header
+    of a run as reversed and returns how many rows were touched. `read_active( )`
+    returns the headers excluding reversed runs. `zcl_alloc_run_report` and
+    `zcl_alloc_material_report` skip reversed runs, so a reversed run disappears
+    from both overviews while its `ZSTOCKRUN` and `ZSTOCKALLOC` rows stay for the
+    audit trail.
+39. **Plant-to-plant transfer proposal** - `zcl_stock_transfer` reads the available
+    quantity of a material in a source and a target plant (through an internal
+    allocator, so any `ty_policy` applies) and proposes moving stock: the transfer
+    quantity is the target's shortfall capped by the source's availability, and the
+    remaining uncovered quantity is reported as shortage. When the target already
+    covers the demand nothing is proposed. `available( )` exposes the per-plant
+    availability on its own.
+40. **Allocation result diff** - `zcl_alloc_diff` compares two allocation results
+    per requirement id and classifies every line: `+` added, `-` removed from the
+    new result, `~` changed and `=` unchanged. A line carries the old and new
+    allocated quantity and the delta; unchanged lines are hidden unless
+    `iv_include_unchanged` is set. The summary counts each class and totals the old,
+    new and delta quantity. Pure calculation, no database access.
+41. **Allocation overview JSON export** - `zcl_alloc_export` renders the run and
+    material overviews as JSON arrays (`run_overview_json`,
+    `material_overview_json`), mirroring the panel columns. It is meant to feed the
+    overviews into a browser or a REST layer without going through CSV. Values are
+    emitted unescaped on purpose - they are SAP identifiers (material, plant, run
+    id, status) that cannot contain JSON metacharacters - see ANOMALIES.md A17 for
+    why the escaping helper was dropped.
+42. **Batch availability inquiry** - `zcl_batch_inquiry` lists the batches of a
+    material/plant from any `zif_stock_reader` (typically the `MCHB` reader) in
+    FEFO order: earliest expiry first, batches without an expiry date last, then by
+    storage location and batch. Each line carries location, batch, expiry and the
+    unrestricted quantity; the summary totals the batches, the quantity and the
+    earliest expiry. A read-only report, no policy, no database of its own.
+43. **Reservation document service** - `zcl_reservation_doc` presents the stock
+    commitments as a document. `create( )` commits an allocation result under a
+    document id (reusing `zcl_stock_commitment`), `items( )` returns the reservation
+    rows of one document, `summarize( )` aggregates positions, distinct materials,
+    total quantity and the earliest creation date, and `release( )` removes the
+    document. The document id is the run id of the commitment rows, so no extra
+    table is needed.
 
-Test coverage (179 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (245 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -328,21 +396,45 @@ Test coverage (179 ABAP Unit tests, run on Node through the transpiler):
   no reservation, other material
 * Safety stock reader: config rows, all locations, other plant, other material,
   no config
+* Material report: positions joined from the log, runs aggregated per material,
+  material/plant grouping, material filter, log-only rows ignored, coverage,
+  empty result, CSV header, catalog columns
+* Allocator shelf life: short-dated skipped, long-dated kept, unknown expiry kept,
+  cutoff inclusive, off by default, available quantity
+* Allocator location filter: allow-list only, empty allow-list allows all,
+  deny-list skipped, allow plus deny, available quantity
+* Replenishment: shortage proposal, full delivery skipped, round up to multiple,
+  exact multiple kept, minimum order, rounding off, summary totals, empty result
+* Run reversal: status set, touched count, unknown run zero, active read excludes
+* Reversed in reports: run report excluded, single reversed run empty, material
+  report excluded
+* Transfer: target covers, transfers shortfall, limited by source, no stock,
+  multiple bins summed, other material ignored, availability sums
+* Diff: added, removed, changed, unchanged hidden, include unchanged, summary
+  totals, reduced to zero is changed, empty both
+* Export: empty run JSON, run JSON fields, two rows separated, empty material
+  JSON, material JSON fields
+* Batch inquiry: FEFO order, unknown expiry last, quantity sum, earliest expiry,
+  other plant ignored, empty result
+* Reservation document: create and summarize, items per document, distinct
+  materials, release removes items, empty summary
 
 ## Next candidates
 
-Ordered, and deliberately restricted to work the transpiler can verify. UI steps
-are listed separately because `npm test` cannot exercise them.
+The full roadmap lives in `PLAN.md`. Everything the transpiler can verify has
+been delivered (features 1 through 43). The only remaining item is deliberately
+excluded from this list because `npm test` cannot exercise it:
 
-1. Material overview across runs (join `ZSTOCKALLOC` + `ZSTOCKRUN` per material).
-2. Not transpiler-testable: bind the field catalog to a real ALV grid, and a
-   selection-screen wrapper around the cleanup service.
+1. Not transpiler-testable: bind the field catalog to a real ALV grid, and a
+   selection-screen wrapper around the cleanup and run services.
 
 ## Conventions
 
 * Method names must be 30 characters or shorter.
 * Do not use `TYPE c LENGTH n` in a method parameter list - use a named type or a
   component reference instead (see ANOMALIES.md A7).
+* Do not pass a character field to a `TYPE string` parameter; the transpiler does
+  not accept the implicit conversion (see ANOMALIES.md A17).
 * Do not use `TYPE STANDARD TABLE OF ...` directly in a parameter either; declare
   a `TYPES` alias first (see ANOMALIES.md A9).
 * DDIC structures use the classic chained `TYPES: BEGIN OF ... END OF ...` form,

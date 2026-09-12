@@ -130,6 +130,39 @@ conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
 | 107   | Time slot assignment                   | `zcl_alloc_slot` (`assign`)                              |
 | 108   | Wave planning                          | `zcl_alloc_wave` (`plan`)                                |
 | 109   | Material batching for picking          | `zcl_alloc_batching` (`build`)                           |
+| 110   | Per-plant report across runs           | `zcl_alloc_plant_report` (`summarize`)                   |
+| 111   | Per-day report across runs             | `zcl_alloc_daily_report` (`summarize`)                   |
+| 112   | Material x plant pivot                 | `zcl_alloc_pivot` (`build`)                              |
+| 113   | Material x run matrix                  | `zcl_alloc_matrix` (`build`)                             |
+| 114   | Shipment grouping                      | `zcl_alloc_shipment` (`build`)                           |
+| 115   | Delivery split proposal                | `zcl_alloc_delivery_split` (`split`)                     |
+| 116   | SLA compliance report                  | `zcl_alloc_sla` (`assess`)                               |
+| 117   | Event timeline                         | `zcl_alloc_timeline` (`to_lines`)                        |
+| 118   | Search / text filter over overviews    | `zcl_alloc_search` (`filter`)                            |
+| 119   | Pagination helper                      | `zcl_alloc_paging` (`page`)                              |
+| 120   | Generic sort helper for overviews      | `zcl_alloc_sort` (`sort`)                                |
+| 121   | Policy presets                         | `zcl_alloc_policy_preset` (`preset`)                     |
+| 122   | Policy merge                           | `zcl_alloc_policy_merge` (`merge`)                       |
+| 123   | Policy diff                            | `zcl_alloc_policy_diff` (`compare`)                      |
+| 124   | Run comparison summary                 | `zcl_alloc_run_compare` (`compare`)                      |
+| 125   | Three-way allocation diff              | `zcl_alloc_diff3` (`compare`)                            |
+| 126   | Allocation snapshot and compare        | `zcl_alloc_snapshot` (`take`, `compare`)                 |
+| 127   | Checksum of an allocation result       | `zcl_alloc_checksum` (`of_result`)                       |
+| 128   | Run / requirement id generator         | `zcl_alloc_id_gen` (`generate`)                          |
+| 129   | Run tagging (in-memory)                | `zcl_alloc_tag` (`add`, `of_run`)                        |
+| 130   | Annotation store (in-memory)           | `zcl_alloc_annotation` (`add`, `read`)                   |
+| 131   | Substitution chain resolver            | `zcl_alloc_subst_chain` (`resolve`)                      |
+| 132   | Multi-plant availability aggregation   | `zcl_alloc_multi_plant` (`summarize`)                    |
+| 133   | Transport cost comparison              | `zcl_alloc_transport_cost` (`rank`)                      |
+| 134   | Cost-based source selection            | `zcl_alloc_cost` (`select`)                              |
+| 135   | Footprint estimate for a transfer      | `zcl_alloc_footprint` (`estimate`)                       |
+| 136   | Weighted source scoring                | `zcl_alloc_weight` (`score`)                             |
+| 137   | Material list from run headers         | `zcl_alloc_material_list` (`build`)                      |
+| 138   | Plant list from run headers            | `zcl_alloc_plant_list` (`build`)                         |
+| 139   | Storage location list from a result    | `zcl_alloc_lgort_list` (`build`)                         |
+| 140   | Quantity bucket helper                 | `zcl_alloc_bucket` (`bucket`)                            |
+| 141   | Batch split proposal                   | `zcl_alloc_batch_split` (`split`)                        |
+| 142   | Allocation quality grade (A-F)         | `zcl_alloc_grade` (`grade`)                              |
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,
@@ -291,4 +324,115 @@ last because the transpiler cannot exercise a selection screen.
 | 141   | Batch split proposal                   | `zcl_alloc_batch_split`                |
 | 142   | Allocation quality grade (A-F)         | `zcl_alloc_grade`                      |
 | 143   | ALV grid binding + selection screen    | GUI layer - NOT transpiler-verifiable   |
+
+## Roadmap batch 2 (orders 144-243)
+
+Planned when the first batch completed, per the standing instruction. The theme is
+the complete export surface: every report already built gets its CSV, JSON, XML,
+Markdown, HTML and fixed-width rendering, followed by a unified export facade and
+a format registry. Each item is a new `zcl_alloc_*` class with a local test class,
+verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 144 | CSV of the per-run allocations | `zcl_alloc_export_alloc` |
+| 145 | CSV of the per-material allocations | `zcl_alloc_export_alloc_mat` |
+| 146 | JSON of the per-run allocations | `zcl_alloc_export_alloc_json` |
+| 147 | JSON of the per-material allocations | `zcl_alloc_export_alloc_mjson` |
+| 148 | XML of the allocations | `zcl_alloc_export_alloc_xml` |
+| 149 | Markdown of the allocations | `zcl_alloc_export_alloc_md` |
+| 150 | HTML of the allocations | `zcl_alloc_export_alloc_html` |
+| 151 | Fixed-width of the allocations | `zcl_alloc_export_alloc_fw` |
+| 152 | CSV of the allocation diff | `zcl_alloc_diff_csv` |
+| 153 | CSV of the run comparison | `zcl_alloc_run_cmp_csv` |
+| 154 | JSON of the run comparison | `zcl_alloc_run_cmp_json` |
+| 155 | CSV of the SLA report | `zcl_alloc_sla_csv` |
+| 156 | JSON of the SLA report | `zcl_alloc_sla_json` |
+| 157 | CSV of the aging report | `zcl_alloc_aging_csv` |
+| 158 | JSON of the aging report | `zcl_alloc_aging_json` |
+| 159 | CSV of the plant report | `zcl_alloc_plant_csv` |
+| 160 | CSV of the daily report | `zcl_alloc_daily_csv` |
+| 161 | JSON of the plant report | `zcl_alloc_plant_json` |
+| 162 | JSON of the daily report | `zcl_alloc_daily_json` |
+| 163 | CSV of the KPI summary | `zcl_alloc_kpi_csv` |
+| 164 | JSON of the KPI summary | `zcl_alloc_kpi_json` |
+| 165 | CSV of the ABC classification | `zcl_alloc_abc_csv` |
+| 166 | JSON of the ABC classification | `zcl_alloc_abc_json` |
+| 167 | CSV of the histogram | `zcl_alloc_hist_csv` |
+| 168 | JSON of the histogram | `zcl_alloc_hist_json` |
+| 169 | CSV of the top-N list | `zcl_alloc_topn_csv` |
+| 170 | JSON of the top-N list | `zcl_alloc_topn_json` |
+| 171 | CSV of the moving average | `zcl_alloc_mavg_csv` |
+| 172 | JSON of the moving average | `zcl_alloc_mavg_json` |
+| 173 | CSV of the trend analysis | `zcl_alloc_trend_csv` |
+| 174 | JSON of the trend analysis | `zcl_alloc_trend_json` |
+| 175 | CSV of the forecast | `zcl_alloc_forecast_csv` |
+| 176 | JSON of the forecast | `zcl_alloc_forecast_json` |
+| 177 | CSV of the service level | `zcl_alloc_service_csv` |
+| 178 | JSON of the service level | `zcl_alloc_service_json` |
+| 179 | CSV of the confidence score | `zcl_alloc_conf_csv` |
+| 180 | JSON of the confidence score | `zcl_alloc_conf_json` |
+| 181 | CSV of the risk score | `zcl_alloc_risk_csv` |
+| 182 | JSON of the risk score | `zcl_alloc_risk_json` |
+| 183 | CSV of the request validation | `zcl_alloc_reqval_csv` |
+| 184 | JSON of the request validation | `zcl_alloc_reqval_json` |
+| 185 | CSV of the policy validation | `zcl_alloc_polval_csv` |
+| 186 | JSON of the policy validation | `zcl_alloc_polval_json` |
+| 187 | CSV of the consistency check | `zcl_alloc_consist_csv` |
+| 188 | JSON of the consistency check | `zcl_alloc_consist_json` |
+| 189 | CSV of the duplicate check | `zcl_alloc_dupc_csv` |
+| 190 | JSON of the duplicate check | `zcl_alloc_dupc_json` |
+| 191 | CSV of the stock check | `zcl_alloc_stockchk_csv` |
+| 192 | JSON of the stock check | `zcl_alloc_stockchk_json` |
+| 193 | CSV of the negative check | `zcl_alloc_negchk_csv` |
+| 194 | JSON of the negative check | `zcl_alloc_negchk_json` |
+| 195 | CSV of the over-allocation check | `zcl_alloc_overchk_csv` |
+| 196 | JSON of the over-allocation check | `zcl_alloc_overchk_json` |
+| 197 | CSV of the master check | `zcl_alloc_mastchk_csv` |
+| 198 | JSON of the master check | `zcl_alloc_mastchk_json` |
+| 199 | CSV of the priority list | `zcl_alloc_prio_csv` |
+| 200 | JSON of the priority list | `zcl_alloc_prio_json` |
+| 201 | CSV of the pick list | `zcl_alloc_pickl_csv` |
+| 202 | JSON of the pick list | `zcl_alloc_pickl_json` |
+| 203 | CSV of the pick confirmation | `zcl_alloc_pickc_csv` |
+| 204 | JSON of the pick confirmation | `zcl_alloc_pickc_json` |
+| 205 | CSV of the pick sequence | `zcl_alloc_picks_csv` |
+| 206 | JSON of the pick sequence | `zcl_alloc_picks_json` |
+| 207 | CSV of the location ranking | `zcl_alloc_lrank_csv` |
+| 208 | JSON of the location ranking | `zcl_alloc_lrank_json` |
+| 209 | CSV of the location score | `zcl_alloc_lscore_csv` |
+| 210 | JSON of the location score | `zcl_alloc_lscore_json` |
+| 211 | CSV of the shipments | `zcl_alloc_ship_csv` |
+| 212 | JSON of the shipments | `zcl_alloc_ship_json` |
+| 213 | CSV of the waves | `zcl_alloc_wave_csv` |
+| 214 | JSON of the waves | `zcl_alloc_wave_json` |
+| 215 | CSV of the batches | `zcl_alloc_batch_csv` |
+| 216 | JSON of the batches | `zcl_alloc_batch_json` |
+| 217 | CSV of the tags | `zcl_alloc_tag_csv` |
+| 218 | JSON of the tags | `zcl_alloc_tag_json` |
+| 219 | CSV of the annotations | `zcl_alloc_note_csv` |
+| 220 | JSON of the annotations | `zcl_alloc_note_json` |
+| 221 | CSV of the timeline | `zcl_alloc_timeline_csv` |
+| 222 | JSON of the timeline | `zcl_alloc_timeline_json` |
+| 223 | CSV of the snapshot diff | `zcl_alloc_snap_csv` |
+| 224 | JSON of the snapshot diff | `zcl_alloc_snap_json` |
+| 225 | CSV of the three-way diff | `zcl_alloc_diff3_csv` |
+| 226 | JSON of the three-way diff | `zcl_alloc_diff3_json` |
+| 227 | CSV of the cost selection | `zcl_alloc_cost_csv` |
+| 228 | JSON of the cost selection | `zcl_alloc_cost_json` |
+| 229 | CSV of the transport costs | `zcl_alloc_tcost_csv` |
+| 230 | JSON of the transport costs | `zcl_alloc_tcost_json` |
+| 231 | CSV of the substitution chain | `zcl_alloc_subst_csv` |
+| 232 | JSON of the substitution chain | `zcl_alloc_subst_json` |
+| 233 | CSV of the multi-plant summary | `zcl_alloc_mplant_csv` |
+| 234 | JSON of the multi-plant summary | `zcl_alloc_mplant_json` |
+| 235 | CSV of the grade distribution | `zcl_alloc_grade_csv` |
+| 236 | JSON of the grade distribution | `zcl_alloc_grade_json` |
+| 237 | CSV of the bucket report | `zcl_alloc_bucket_csv` |
+| 238 | JSON of the bucket report | `zcl_alloc_bucket_json` |
+| 239 | Unified export facade | `zcl_alloc_export_facade` |
+| 240 | Export format registry | `zcl_alloc_format_registry` |
+| 241 | Default export format per consumer | `zcl_alloc_format_default` |
+| 242 | Export registry lookup by name | `zcl_alloc_format_lookup` |
+| 243 | Export registry listing | `zcl_alloc_format_list` |
 

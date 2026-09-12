@@ -578,8 +578,114 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
      *consecutive* items of the same material into one batch line with a batch
      number and the summed quantity, so a material that reappears later starts a
      new batch.
+110. **Per-plant report across runs** - `zcl_alloc_plant_report=>summarize( )`
+     groups requested/allocated/shortage rows by plant and adds line count and the
+     floored coverage percentage.
+111. **Per-day report across runs** - `zcl_alloc_daily_report=>summarize( )`
+     groups the same rows by date, adding line count and coverage.
+112. **Material x plant pivot** - `zcl_alloc_pivot=>build( )` aggregates (material,
+     plant) cells and adds each cell's share of its material's total quantity.
+     Totals are accumulated by grouping the sorted list, not with `MODIFY TABLE`.
+113. **Material x run matrix** - `zcl_alloc_matrix=>build( )` aggregates (material,
+     run) cells with their total quantity, sorted by material then run.
+114. **Shipment grouping** - `zcl_alloc_shipment=>build( )` turns picks into one
+     shipment per storage location with a shipment number, position count and the
+     total quantity.
+115. **Delivery split proposal** - `zcl_alloc_delivery_split=>split( )` cuts a
+     quantity into deliveries of at most `max_delivery`; a non-positive maximum or
+     quantity returns the quantity unchanged in a single element.
+116. **SLA compliance report** - `zcl_alloc_sla=>assess( )` compares each lead time
+     against its target, flags the line `on_time` and summarises total, on-time,
+     breached and the floored compliance percentage.
+117. **Event timeline** - `zcl_alloc_timeline=>to_lines( )` sorts events by sequence
+     and renders one text line per event (`1: PICK`).
+118. **Search / text filter over overviews** - `zcl_alloc_search=>filter( )` returns
+     the rows whose text contains the term, case-insensitively, keeping the input
+     order.
+119. **Pagination helper** - `zcl_alloc_paging=>page( )` turns total size, page size
+     and page number into the 1-based from/to indexes, the page count and the
+     number of rows on the page. A non-positive page size is one page with
+     everything; an out-of-range page is empty.
+120. **Generic sort helper for overviews** - `zcl_alloc_sort=>sort( )` returns a run
+     overview sorted by run id (default), material, coverage (descending) or
+     shortage (descending).
+121. **Policy presets** - `zcl_alloc_policy_preset=>preset( )` returns a named policy:
+     `FEFO`, `WHOLE`, `SAFE` (quality + blocked), `LIMIT` (one pick) or
+     `TOLERANT` (10% under-delivery). An unknown name yields the default policy.
+122. **Policy merge** - `zcl_alloc_policy_merge=>merge( )` layers an override policy
+     on a base: a `true` flag wins, a non-zero scalar replaces, an empty table
+     leaves the base alone. Because `false` and `unset` are indistinguishable, an
+     override flag can only turn a setting on.
+123. **Policy diff** - `zcl_alloc_policy_diff=>compare( )` lists the policy fields
+     that differ, with the old and new value as text (flags, scalars and the sizes
+     of the storage-location lists). An identical pair yields no lines.
+124. **Run comparison summary** - `zcl_alloc_run_compare=>compare( )` compares two
+     run overviews keyed by run id and material and classifies every entry:
+     `+` added, `-` removed, `~` changed (coverage), `=` unchanged. Unchanged
+     entries are hidden unless `include_unchanged` is set.
+125. **Three-way allocation diff** - `zcl_alloc_diff3=>compare( )` merges three
+     quantity sets (base, left, right) over the union of their keys and classifies
+     each: `S` left = right (including when both changed the same way), `L` only
+     the left changed, `R` only the right changed, `C` both changed differently.
+126. **Allocation snapshot and compare** - `zcl_alloc_snapshot`. `take( )` captures
+     the allocated quantity per requirement into a snapshot structure and
+     `compare( )` reports every requirement that changed (before/after/delta),
+     including new requirements (before = 0) and removed ones (after = 0).
+127. **Checksum of an allocation result** - `zcl_alloc_checksum=>of_result( )`
+     folds requirement ids, allocated and shortage quantities into one integer.
+     It is stable for the same input and order-sensitive, so it can detect a
+     changed or reordered result.
+128. **Run / requirement id generator** - `zcl_alloc_id_gen=>generate( )` builds a
+     `c LENGTH 20` id from a prefix and a number zero-padded to at least four
+     digits.
+129. **Run tagging (in-memory)** - `zcl_alloc_tag`. `add( )` appends a tag to a run
+     unless the same run already carries it, and `of_run( )` filters the tags of
+     one run.
+130. **Annotation store (in-memory)** - `zcl_alloc_annotation`. `add( )` stores one
+     text per run/material and replaces an existing one, `read( )` returns the text
+     or an empty string. The key includes the run id, so the same material in two
+     runs has two notes.
 
-Test coverage (573 ABAP Unit tests, run on Node through the transpiler):
+Note: the return type of `read( )` is a `TYPES` alias (`ty_text`), not
+`TYPE c LENGTH 60`, because a length-typed method parameter does not parse
+(ANOMALIES.md A7).
+131. **Substitution chain resolver** - `zcl_alloc_subst_chain=>resolve( )` follows
+     `from -> to` material rules from a start material and returns the whole path,
+     the final material and the number of hops. The walk is capped at the number
+     of rules, so a cyclic rule set terminates.
+132. **Multi-plant availability aggregation** - `zcl_alloc_multi_plant=>summarize( )`
+     groups availability rows by plant and returns the per-plant lines plus the
+     grand total and the plant count.
+133. **Transport cost comparison** - `zcl_alloc_transport_cost=>rank( )` computes
+     `quantity * cost_per_unit` per plant and returns the lines ranked by total
+     cost ascending.
+134. **Cost-based source selection** - `zcl_alloc_cost=>select( )` fills a required
+     quantity from the cheapest sources first, returning the taken quantity and
+     cost per source, the total cost and any uncovered remainder.
+135. **Footprint estimate for a transfer** - `zcl_alloc_footprint=>estimate( )`
+     multiplies distance, quantity and a factor.
+136. **Weighted source scoring** - `zcl_alloc_weight=>score( )` returns the
+     weight-averaged factor (`sum(factor*weight) / sum(weight)`, floored); a zero
+     total weight yields `0`.
+137. **Material list from run headers** - `zcl_alloc_material_list=>build( )`
+     returns the distinct materials of a run overview, sorted.
+138. **Plant list from run headers** - `zcl_alloc_plant_list=>build( )` does the
+     same for plants.
+139. **Storage location list from a result** - `zcl_alloc_lgort_list=>build( )`
+     collects the distinct storage locations used by the allocations of a result,
+     sorted.
+140. **Quantity bucket helper** - `zcl_alloc_bucket=>bucket( )` maps a value to a
+     1-based bucket given ascending boundaries: below the first boundary is `1`,
+     a value equal to a boundary already counts as the next bucket.
+141. **Batch split proposal** - `zcl_alloc_batch_split=>split( )` packs the items
+     into batches that stay within `max_batch`, starting a new batch when the next
+     item would overflow. A non-positive maximum puts everything in one batch.
+142. **Allocation quality grade (A-F)** - `zcl_alloc_grade=>grade( )` grades a
+     result from its coverage and whether it has a shortage: `A` needs full
+     coverage without a shortage, then `B` >= 95, `C` >= 80, `D` >= 60, `E` >= 40,
+     otherwise `F`.
+
+Test coverage (732 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -660,25 +766,25 @@ Test coverage (573 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-The full roadmap lives in `PLAN.md` (100 features, orders 44-143). Delivered so
-far: 44-53. Continue strictly in roadmap order; each item is a new `zcl_alloc_*`
-class with a local test class, verified by `npm test`.
+The first roadmap batch (orders 44-143) is complete: 44-142 are delivered and
+verified, and 143 (the ALV grid / selection screen) is the one item the
+transpiler cannot exercise, so it is deliberately not built here.
+
+A second 100-item batch (orders 144-243) has been added to `PLAN.md`; it covers
+the export surface (CSV, JSON, XML, Markdown, HTML and fixed-width renderings for
+every report already built) plus a unified export facade and format registry.
 
 Next up (in order):
 
-1. 110 `zcl_alloc_plant_report` - per-plant report across runs.
-2. 111 `zcl_alloc_daily_report` - per-day report across runs.
-3. 112 `zcl_alloc_pivot` - material x plant pivot.
-4. 113 `zcl_alloc_matrix` - material x run matrix.
-5. 114 `zcl_alloc_shipment` - shipment grouping.
-6. 115 `zcl_alloc_delivery_split` - delivery split proposal.
-7. 116 `zcl_alloc_sla` - SLA compliance report.
-8. 117 `zcl_alloc_timeline` - event timeline.
-9. 118 `zcl_alloc_search` - search / text filter over overviews.
-10. 119 `zcl_alloc_paging` - pagination helper.
+1. 144 `zcl_alloc_export_alloc` - CSV of the per-run allocations.
+2. 145 `zcl_alloc_export_alloc_mat` - CSV of the per-material allocations.
+3. 146 `zcl_alloc_export_alloc_runs` - JSON of the per-run allocations.
+4. 147 `zcl_alloc_export_alloc_mjson` - JSON of the per-material allocations.
+5. 148 `zcl_alloc_export_alloc_xml` - XML of the allocations.
+6. 149 `zcl_alloc_export_alloc_md` - Markdown of the allocations.
+7. 150 `zcl_alloc_export_alloc_html` - HTML of the allocations.
 
-Then 120-143 as listed in `PLAN.md`. The last item (143, ALV grid and selection
-screen) is the only one the transpiler cannot verify and stays last on purpose.
+Then 151-243 as listed in `PLAN.md`.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
 plan another 100 items in the same style and keep iterating (one feature per

@@ -7,16 +7,20 @@ CLASS zcl_requirement_reader_vbap DEFINITION
     INTERFACES zif_requirement_reader.
 
   PRIVATE SECTION.
+    TYPES ty_vbeln TYPE c LENGTH 10.
+    TYPES ty_posnr TYPE n LENGTH 6.
+    TYPES ty_lprio TYPE n LENGTH 2.
+
     METHODS build_id
       IMPORTING
-        iv_vbeln     TYPE vbap-vbeln
-        iv_posnr     TYPE vbap-posnr
+        iv_vbeln     TYPE ty_vbeln
+        iv_posnr     TYPE ty_posnr
       RETURNING
         VALUE(rv_id) TYPE zif_requirement_reader=>ty_requirement-id.
 
     METHODS to_priority
       IMPORTING
-        iv_lprio           TYPE vbap-lprio
+        iv_lprio           TYPE ty_lprio
       RETURNING
         VALUE(rv_priority) TYPE zif_requirement_reader=>ty_requirement-priority.
 
@@ -26,33 +30,34 @@ ENDCLASS.
 CLASS zcl_requirement_reader_vbap IMPLEMENTATION.
 
   METHOD zif_requirement_reader~read_requirements.
-    SELECT vbeln,
-           posnr,
-           matnr,
-           werks,
-           kwmeng,
-           meins,
-           edatu,
-           abgru,
-           lprio
-      FROM vbap
-      INTO TABLE @DATA(lt_vbap)
-      WHERE matnr = @iv_matnr
-        AND werks = @iv_werks
-        AND abgru = ''
-      ORDER BY edatu, vbeln, posnr.
+    SELECT item~vbeln,
+           item~posnr,
+           item~matnr,
+           item~werks,
+           item~kwmeng,
+           item~meins,
+           head~vdatu,
+           item~abgru,
+           item~lprio
+      FROM vbap AS item
+      INNER JOIN vbak AS head ON head~vbeln = item~vbeln
+      INTO TABLE @DATA(lt_items)
+      WHERE item~matnr = @iv_matnr
+        AND item~werks = @iv_werks
+        AND item~abgru = ''
+      ORDER BY head~vdatu, item~vbeln, item~posnr.
 
-    LOOP AT lt_vbap INTO DATA(ls_vbap).
-      IF ls_vbap-kwmeng <= 0.
+    LOOP AT lt_items INTO DATA(ls_item).
+      IF ls_item-kwmeng <= 0.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( id             = build_id( iv_vbeln = ls_vbap-vbeln
-                                                 iv_posnr = ls_vbap-posnr )
-                      priority       = to_priority( ls_vbap-lprio )
-                      requested_date = ls_vbap-edatu
-                      unit           = ls_vbap-meins
-                      requested_qty  = ls_vbap-kwmeng ) TO rt_requirements.
+      APPEND VALUE #( id             = build_id( iv_vbeln = ls_item-vbeln
+                                                 iv_posnr = ls_item-posnr )
+                      priority       = to_priority( ls_item-lprio )
+                      requested_date = ls_item-vdatu
+                      unit           = ls_item-meins
+                      requested_qty  = ls_item-kwmeng ) TO rt_requirements.
     ENDLOOP.
   ENDMETHOD.
 

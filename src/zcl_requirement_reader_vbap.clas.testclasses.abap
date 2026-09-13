@@ -5,6 +5,7 @@ CLASS ltcl_requirement_reader_vbap DEFINITION
   FINAL.
 
   PRIVATE SECTION.
+    TYPES ty_vbak_tt TYPE STANDARD TABLE OF vbak WITH DEFAULT KEY.
     TYPES ty_vbap_tt TYPE STANDARD TABLE OF vbap WITH DEFAULT KEY.
 
     DATA mo_environment TYPE REF TO if_osql_test_environment.
@@ -18,7 +19,7 @@ CLASS ltcl_requirement_reader_vbap DEFINITION
         iv_vbeln  TYPE vbap-vbeln
         iv_posnr  TYPE vbap-posnr DEFAULT '000010'
         iv_kwmeng TYPE menge_d DEFAULT 0
-        iv_edatu  TYPE d DEFAULT '20260101'
+        iv_vdatu  TYPE d DEFAULT '20260101'
         iv_abgru  TYPE vbap-abgru OPTIONAL
         iv_lprio  TYPE vbap-lprio DEFAULT '01'
         iv_meins  TYPE vbap-meins DEFAULT 'ST'
@@ -37,6 +38,7 @@ CLASS ltcl_requirement_reader_vbap DEFINITION
     METHODS maps_delivery_priority    FOR TESTING.
     METHODS maps_sales_unit           FOR TESTING.
     METHODS builds_id_from_key        FOR TESTING.
+    METHODS skips_item_without_header FOR TESTING.
 ENDCLASS.
 
 
@@ -44,7 +46,7 @@ CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
 
   METHOD setup.
     mo_environment = cl_osql_test_environment=>create(
-      i_dependency_list = VALUE #( ( 'VBAP' ) ) ).
+      i_dependency_list = VALUE #( ( 'VBAK' ) ( 'VBAP' ) ) ).
     mo_cut = NEW zcl_requirement_reader_vbap( ).
   ENDMETHOD.
 
@@ -53,7 +55,13 @@ CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD given_sales_order.
+    DATA ls_vbak TYPE vbak.
     DATA ls_vbap TYPE vbap.
+
+    ls_vbak-mandt = sy-mandt.
+    ls_vbak-vbeln = iv_vbeln.
+    ls_vbak-vdatu = iv_vdatu.
+    mo_environment->insert_test_data( VALUE ty_vbak_tt( ( ls_vbak ) ) ).
 
     ls_vbap-mandt  = sy-mandt.
     ls_vbap-vbeln  = iv_vbeln.
@@ -62,7 +70,6 @@ CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
     ls_vbap-werks  = iv_werks.
     ls_vbap-kwmeng = iv_kwmeng.
     ls_vbap-meins  = iv_meins.
-    ls_vbap-edatu  = iv_edatu.
     ls_vbap-abgru  = iv_abgru.
     ls_vbap-lprio  = iv_lprio.
 
@@ -114,10 +121,10 @@ CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
   METHOD sorts_by_requirement_date.
     given_sales_order( iv_vbeln  = '0000001235'
                        iv_kwmeng = '2'
-                       iv_edatu  = '20260201' ).
+                       iv_vdatu  = '20260201' ).
     given_sales_order( iv_vbeln  = '0000001234'
                        iv_kwmeng = '3'
-                       iv_edatu  = '20260115' ).
+                       iv_vdatu  = '20260115' ).
 
     DATA(lt_req) = read( ).
 
@@ -158,6 +165,22 @@ CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lt_req[ 1 ]-id
                                         exp = '0000001234000020' ).
+  ENDMETHOD.
+
+  METHOD skips_item_without_header.
+    DATA ls_vbap TYPE vbap.
+
+    ls_vbap-mandt  = sy-mandt.
+    ls_vbap-vbeln  = '0000009999'.
+    ls_vbap-posnr  = '000010'.
+    ls_vbap-matnr  = 'MAT-1'.
+    ls_vbap-werks  = '1000'.
+    ls_vbap-kwmeng = '5'.
+    ls_vbap-meins  = 'ST'.
+
+    mo_environment->insert_test_data( VALUE ty_vbap_tt( ( ls_vbap ) ) ).
+
+    cl_abap_unit_assert=>assert_initial( act = read( ) ).
   ENDMETHOD.
 
 ENDCLASS.

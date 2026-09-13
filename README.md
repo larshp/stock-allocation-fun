@@ -81,7 +81,7 @@ flowchart LR
   SRM --> MARD[(MARD)]
   SRB --> MCHB[(MCHB / MCHA)]
   RRS --> RESB[(RESB)]
-  RRV --> VBAP[(VBAP)]
+  RRV --> VBAP[(VBAP / VBAK)]
   UC --> MARM[(MARM)]
   WR --> LOG[(ZSTOCKALLOC)]
   LR --> LOG[(ZSTOCKALLOC)]
@@ -100,7 +100,9 @@ flowchart LR
   (one row per batch, with the expiry date from `MCHA`).
 * `zif_requirement_reader` / `zcl_requirement_reader_resb` - read open
   requirements from reservations. `zcl_requirement_reader_vbap` reads open sales
-  order items instead, including their sales unit of measure.
+  order items instead, including their sales unit of measure. The requested
+  delivery date comes from the sales order header (`VBAK-VDATU`), so the reader
+  joins `VBAP` and `VBAK`; items without a header are skipped.
 * `zcl_stock_allocator` - the allocation engine. Requirements are processed by
   priority, then requirement date, then id; each one consumes usable stock from
   the storage locations in turn. A policy switches which stock categories

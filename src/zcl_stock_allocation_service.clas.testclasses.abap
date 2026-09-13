@@ -35,6 +35,7 @@ CLASS ltcl_stock_allocation_service DEFINITION
   PRIVATE SECTION.
     TYPES ty_mard_tt TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
     TYPES ty_resb_tt TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
+    TYPES ty_vbak_tt TYPE STANDARD TABLE OF vbak WITH DEFAULT KEY.
     TYPES ty_vbap_tt TYPE STANDARD TABLE OF vbap WITH DEFAULT KEY.
     TYPES ty_mchb_tt TYPE STANDARD TABLE OF mchb WITH DEFAULT KEY.
     TYPES ty_mcha_tt TYPE STANDARD TABLE OF mcha WITH DEFAULT KEY.
@@ -76,7 +77,7 @@ CLASS ltcl_stock_allocation_service DEFINITION
       IMPORTING
         iv_vbeln  TYPE vbap-vbeln
         iv_kwmeng TYPE menge_d DEFAULT 0
-        iv_edatu  TYPE d DEFAULT '20260101'
+        iv_vdatu  TYPE d DEFAULT '20260101'
         iv_meins  TYPE vbap-meins DEFAULT 'ST'.
 
     METHODS given_uom
@@ -122,10 +123,10 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
   METHOD setup.
     mo_environment = cl_osql_test_environment=>create(
-      i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'VBAP' ) ( 'MCHB' )
-                                   ( 'MCHA' ) ( 'MARM' ) ( 'ZSUBSTITUTE' )
-                                   ( 'ZSAFETYSTK' ) ( 'ZSTOCKRESV' )
-                                   ( 'ZSTOCKALLOC' ) ) ).
+      i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'VBAK' ) ( 'VBAP' )
+                                   ( 'MCHB' ) ( 'MCHA' ) ( 'MARM' )
+                                   ( 'ZSUBSTITUTE' ) ( 'ZSAFETYSTK' )
+                                   ( 'ZSTOCKRESV' ) ( 'ZSTOCKALLOC' ) ) ).
     mo_cut = NEW #( ).
   ENDMETHOD.
 
@@ -162,7 +163,13 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD given_sales_order.
+    DATA ls_vbak TYPE vbak.
     DATA ls_vbap TYPE vbap.
+
+    ls_vbak-mandt = sy-mandt.
+    ls_vbak-vbeln = iv_vbeln.
+    ls_vbak-vdatu = iv_vdatu.
+    mo_environment->insert_test_data( VALUE ty_vbak_tt( ( ls_vbak ) ) ).
 
     ls_vbap-mandt  = sy-mandt.
     ls_vbap-vbeln  = iv_vbeln.
@@ -171,7 +178,6 @@ CLASS ltcl_stock_allocation_service IMPLEMENTATION.
     ls_vbap-werks  = '1000'.
     ls_vbap-kwmeng = iv_kwmeng.
     ls_vbap-meins  = iv_meins.
-    ls_vbap-edatu  = iv_edatu.
 
     mo_environment->insert_test_data( VALUE ty_vbap_tt( ( ls_vbap ) ) ).
   ENDMETHOD.

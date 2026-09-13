@@ -320,3 +320,25 @@ Each entry notes the symptom, the cause and the workaround used.
 * Workaround: re-run `npm test`. The second run uses the refreshed cache and is
   complete. Treat a single `ERR_MODULE_NOT_FOUND` for a core class right after a
   dependency change as transient, but a repeat of it as a real problem.
+
+## A25 - `VBAP` has no `EDATU` column, only the stub did
+
+* Symptom: the abapGit syntax check in a real SAP system reported
+  `Unknown column name "EDATU"` at the `SELECT` in
+  `zcl_requirement_reader_vbap=>zif_requirement_reader~read_requirements`, and
+  the unknown column then cascaded into `Field "LT_VBAP" is unknown` (the inline
+  `@DATA(lt_vbap)` was never typed) and `LS_VBAP~KWMENG is unknown` /
+  `LS_VBAP~... is unknown` on every later use. `abaplint` and the transpiler
+  were green because the local `VBAP` stub invented an `EDATU` field.
+* Cause: the sales order item table `VBAP` carries no requested-delivery-date
+  field. The requested delivery date is `VBAK-VDATU` (header); `VBEP-EDATU` is
+  the schedule line date and lives one level deeper (one row per schedule line).
+  Only `VBAK`, `VBEP` and `VBAP` share the system's view - the stub had the
+  realistic-looking but wrong field.
+* Workaround: join `VBAK` in the reader
+  (`FROM vbap AS item INNER JOIN vbak AS head ON head~vbeln = item~vbeln`) and
+  map `head~vdatu` to `requested_date`. Removed `EDATU` from the `VBAP` stub and
+  added a `VBAK` stub (`MANDT`, `VBELN`, `VDATU`). The transpiler accepts the
+  `INNER JOIN` in a `SELECT ... INTO TABLE @DATA(...)`, including the aliased
+  `ORDER BY head~vdatu`. An item without a `VBAK` header is skipped by the inner
+  join (covered by a test).

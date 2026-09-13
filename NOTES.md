@@ -54,7 +54,8 @@ Currently stubbed:
 
 * Tables: `MARD` (storage location stock), `RESB` (reservations / dependent
   requirements), `VBAP` (sales order item, used by the alternative requirement
-  reader), `MCHB` (batch stock), `MCHA` (batch master, carries the expiry date
+  reader), `VBAK` (sales order header, carries the requested delivery date
+  `VDATU`), `MCHB` (batch stock), `MCHA` (batch master, carries the expiry date
   `VFDAT`) and `MARM` (alternative units of measure, `UMREZ`/`UMREN` ratios)
 * Structures: `BAPI2017_GM_HEAD_01`, `BAPI2017_GM_HEAD_RET`,
   `BAPI2017_GM_CODE`, `BAPI2017_GM_ITEM_CREATE`
@@ -105,10 +106,11 @@ Custom `Z` DDIC objects live under `src/ddic/` and are part of the solution:
 7. **Sales order requirement source** - `zcl_requirement_reader_vbap` implements
    `zif_requirement_reader` on top of the new `VBAP` stub. It reads open sales
    order items (rejected items with an `ABGRU` reason and zero quantities are
-   skipped), maps `KWMENG` to the requested quantity, `EDATU` to the requirement
-   date and `LPRIO` to the priority (an initial priority is treated as 1), and
-   builds the requirement id from `VBELN` + `POSNR`. It can be injected into
-   `zcl_stock_allocation_service` in place of the `RESB` reader.
+   skipped), maps `KWMENG` to the requested quantity, `VBAK-VDATU` to the
+   requirement date and `LPRIO` to the priority (an initial priority is treated
+   as 1), and builds the requirement id from `VBELN` + `POSNR`. It can be
+   injected into `zcl_stock_allocation_service` in place of the `RESB` reader.
+   The date originally came from a non-existent `VBAP-EDATU`; see bug fix F1.
 8. **Batch stock and FEFO** - `zif_stock_reader=>ty_stock` gained `charg` and
    `expiry_date`, and `zcl_stock_allocator=>ty_allocation` reports them back, so
    one allocation row exists per batch. `zcl_stock_reader_mchb` reads batch
@@ -988,7 +990,21 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
      with a `TYPES` alias (`ty_reason`) because `TYPE c LENGTH 40` in a parameter list
      does not parse (ANOMALIES.md A7).
 
-Test coverage (1052 ABAP Unit tests, run on Node through the transpiler):
+## Bug fixes
+
+F1. **Sales order requirement date read from a non-existent field** - reported by
+    the abapGit syntax check in a real SAP system as
+    `Unknown column name "EDATU"`, followed by a cascade of
+    `Field "LT_VBAP" is unknown` / `LS_VBAP~... is unknown` errors in
+    `zcl_requirement_reader_vbap`. The table `VBAP` has no `EDATU` field; the
+    requested delivery date is `VBAK-VDATU`, while `VBEP-EDATU` is the schedule
+    line date (one per schedule line). The reader now joins `VBAK` on `VBELN`
+    and maps `VDATU` to `requested_date`; the `VBAP` stub lost the invented
+    `EDATU` field and a `VBAK` stub (`MANDT`, `VBELN`, `VDATU`) was added.
+    `build_id( )` / `to_priority( )` are now typed with local `TYPES` aliases
+    instead of `TYPE vbap-...` component references. See ANOMALIES.md A16.
+
+Test coverage (1053 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1005,7 +1021,8 @@ Test coverage (1052 ABAP Unit tests, run on Node through the transpiler):
 * RESB reader: open items, withdrawn quantity, deletion/final-issue flags,
   material filter, id construction, date sorting
 * VBAP reader: open item, rejection reason, zero quantity, material filter,
-  date sorting, delivery priority, sales unit, id construction
+  date sorting, delivery priority, sales unit, id construction, item without a
+  VBAK header is skipped
 * MCHB reader: batch with expiry, quantity mapping, plant filter, empty result,
   batch without batch master, one row per batch
 * UoM converter: conversion, missing entry, base unit, zero denominator,

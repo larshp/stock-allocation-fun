@@ -933,8 +933,62 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
      (`has_errors( )`).
 253. **Message collector** - `zcl_alloc_messages` collects a message unless its text is
      empty (`collect( )`) and counts a message table (`count( )`).
+254. **Message formatter** - `zcl_alloc_msg_format`. `format( )` renders
+     `TYPE ID NUMBER TEXT` and `short( )` renders only type and number. The full text
+     is built in one string template, because a standalone single-blank literal is
+     trimmed (ANOMALIES.md A18), and the test therefore checks the trailing separator
+     with `strlen( )` plus a prefix match.
+255. **Error handler** - `zcl_alloc_error=>raise( )` appends an error unless its text is
+     empty (so a blank error is never recorded) and `has_any( )` reports whether the
+     error table holds entries.
+256. **Exception mapper** - `zcl_alloc_exception_map=>map( )` classifies an exception by
+     its class prefix: `CX_SY_` becomes a retryable `SYSTEM` error with HTTP 500,
+     `CX_ABAP_` a non-retryable `ABAP` error with HTTP 500, anything else `UNKNOWN`
+     with HTTP 400. Note: the prefix check uses the exact prefix length (`class(6)` for
+     `CX_SY_`) - a longer slice compares beyond the prefix and never matches.
+257. **BAPI goods movement wrapper** - `zcl_alloc_bapi_gm=>post( )` simulates the BAPI
+     call: a missing material, a missing plant or a non-positive quantity is rejected
+     with a message and no document, otherwise it reports `executed` plus the document
+     number `4900000001`.
+258. **BAPI availability wrapper** - `zcl_alloc_bapi_atp=>check( )` confirms the full
+     requested quantity when the stock covers it, otherwise reports not available and
+     confirms whatever stock exists (zero for an empty stock or a non-positive
+     request).
+259. **BAPI material read wrapper** - `zcl_alloc_bapi_mat=>read( )` returns
+     `found` plus the material, a description and the base unit `ST`, or `found` false
+     for an empty material number.
+260. **BAPI plant read wrapper** - `zcl_alloc_bapi_plant=>read( )` returns `found` plus
+     the plant, its name and country `DE`, or `found` false for an empty plant.
+261. **BAPI caller facade** - `zcl_alloc_bapi_facade=>call( )` dispatches on the call
+     name: `GOODS_MOVEMENT` posts through the goods movement wrapper and returns its
+     document number (or the first rejection message), `AVAILABILITY` checks through
+     the availability wrapper and reports the outcome, and any other name is answered
+     with `Unknown BAPI`.
+262. **RFC destination stub** - `zcl_alloc_rfc`. `ping( )` reports whether a
+     destination is configured and `describe( )` renders `DESTINATION:FUNCTION`.
+263. **IDoc writer** - `zcl_alloc_idoc_writer=>create( )` builds the segments `EDI_DC40`,
+     `E1EDP19:<material>` and `E1EDP26:<quantity>` plus an IDoc number, and answers an
+     empty material or a non-positive quantity with a single `IDoc not created`
+     segment and no number.
+264. **IDoc reader** - `zcl_alloc_idoc_reader=>read( )` inverts the writer: the control
+     segment marks the IDoc valid and the `E1EDP19:` / `E1EDP26:` prefixes are stripped
+     with `substring( off = 8 )` to recover material and quantity. A missing control
+     segment adds `Header segment missing`.
+265. **Batch input session builder** - `zcl_alloc_bdc_build=>add( )` appends a BDC row
+     (program, dynpro, field, value) and ignores a request with an empty field or
+     value.
+266. **Batch input session runner (stub)** - `zcl_alloc_bdc_run=>run( )` reports a
+     created session with the number of rows, and answers an empty session name or an
+     empty row table with `Nothing to run`.
+267. **Update task stub** - `zcl_alloc_update_task=>queue( )` collects update task names
+     (an empty name is ignored) and `flush( )` reports how many are queued.
+268. **Commit / rollback wrapper** - `zcl_alloc_commit`. `commit( )` reports a commit
+     with the task count in the message and `rollback( )` reports a rollback, using the
+     supplied reason or the default `Rolled back`. Note: the reason parameter is typed
+     with a `TYPES` alias (`ty_reason`) because `TYPE c LENGTH 40` in a parameter list
+     does not parse (ANOMALIES.md A7).
 
-Test coverage (1001 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1052 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1029,16 +1083,16 @@ idempotency and reconciliation.
 
 Next up (in order):
 
-1. 254 `zcl_alloc_msg_format` - message formatter.
-2. 255 `zcl_alloc_error` - error handler.
-3. 256 `zcl_alloc_exception_map` - exception mapper.
-4. 257 `zcl_alloc_bapi_gm` - BAPI goods movement wrapper.
-5. 258 `zcl_alloc_bapi_atp` - BAPI availability wrapper.
-6. 259 `zcl_alloc_bapi_mat` - BAPI material read wrapper.
-7. 260 `zcl_alloc_bapi_plant` - BAPI plant read wrapper.
-8. 261 `zcl_alloc_bapi_facade` - BAPI caller facade.
-9. 262 `zcl_alloc_rfc` - RFC destination stub.
-10. 263 `zcl_alloc_idoc_writer` - IDoc writer.
+1. 269 `zcl_alloc_timeout` - timeout guard.
+2. 270 `zcl_alloc_retry` - retry policy.
+3. 271 `zcl_alloc_breaker` - circuit breaker.
+4. 272 `zcl_alloc_rate_limit` - rate limiter (in-memory).
+5. 273 `zcl_alloc_audit` - audit trail.
+6. 274 `zcl_alloc_op_log` - operation log.
+7. 275 `zcl_alloc_timer` - performance timer.
+8. 276 `zcl_alloc_stopwatch` - stopwatch.
+9. 277 `zcl_alloc_stats` - run statistics collector.
+10. 278 `zcl_alloc_session` - session context.
 
 Then continue strictly in order 258-343, one feature per iteration, always keeping
 `npm test` green.

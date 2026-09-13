@@ -395,6 +395,21 @@ with a local test class, verified by `npm test`.
 | 251 | Application log writer | `zcl_alloc_app_log` (`write`, `count_of_level`) |
 | 252 | Application log reader | `zcl_alloc_app_log_read` (`messages`, `has_errors`) |
 | 253 | Message collector | `zcl_alloc_messages` (`collect`, `count`) |
+| 254 | Message formatter | `zcl_alloc_msg_format` (`format`, `short`) |
+| 255 | Error handler | `zcl_alloc_error` (`raise`, `has_any`) |
+| 256 | Exception mapper | `zcl_alloc_exception_map` (`map`) |
+| 257 | BAPI goods movement wrapper | `zcl_alloc_bapi_gm` (`post`) |
+| 258 | BAPI availability wrapper | `zcl_alloc_bapi_atp` (`check`) |
+| 259 | BAPI material read wrapper | `zcl_alloc_bapi_mat` (`read`) |
+| 260 | BAPI plant read wrapper | `zcl_alloc_bapi_plant` (`read`) |
+| 261 | BAPI caller facade | `zcl_alloc_bapi_facade` (`call`) |
+| 262 | RFC destination stub | `zcl_alloc_rfc` (`ping`, `describe`) |
+| 263 | IDoc writer | `zcl_alloc_idoc_writer` (`create`) |
+| 264 | IDoc reader | `zcl_alloc_idoc_reader` (`read`) |
+| 265 | Batch input session builder | `zcl_alloc_bdc_build` (`add`) |
+| 266 | Batch input session runner (stub) | `zcl_alloc_bdc_run` (`run`) |
+| 267 | Update task stub | `zcl_alloc_update_task` (`queue`, `flush`) |
+| 268 | Commit / rollback wrapper | `zcl_alloc_commit` (`commit`, `rollback`) |
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

@@ -292,3 +292,31 @@ Each entry notes the symptom, the cause and the workaround used.
 * Workaround: avoid `!` in generated scripts - write `x === false` or
   `x === null` instead of `!x` - or create the file with an editor rather than a
   heredoc.
+
+## A23 - Every serialized object XML needs a UTF-8 byte order mark
+
+* Symptom: after refreshing the dependencies, `npm run lint` reported 275
+  `xml_bom` errors ("XML file must start with a UTF-8 byte order mark") for every
+  XML file, including files that had passed a few minutes earlier.
+* Cause: `xml_bom` is enabled in `abaplint.jsonc`, but it only applies to files
+  that abaplint accepts as abapGit objects. The refreshed dependency tree started
+  applying it to all XML files, and none of the 277 repository XML files carried
+  a BOM.
+* Workaround: prefix every serialized object XML with the UTF-8 BOM
+  (`EF BB BF`), which is what abapGit writes anyway. The transpiler reads the
+  DDIC definitions from the BOM files unchanged.
+
+## A24 - The first transpile after refreshing dependencies can miss a core class
+
+* Symptom: directly after `npm install` (which reinstalled the toolchain), one
+  `npm test` run failed at runtime with
+  `ERR_MODULE_NOT_FOUND: Cannot find module output/cx_root.clas.mjs`, after 1021
+  of the usual 1052 tests. The very next run reported all 1052 tests and no
+  errors, and the file was present in `output/` afterwards.
+* Cause: the transpiler obtains the `open-abap-core` sources from a cached clone
+  and re-creates that cache after the dependency tree changes; when the
+  sandboxed terminal has no network access, the first run after a refresh can
+  come up short on core classes.
+* Workaround: re-run `npm test`. The second run uses the refreshed cache and is
+  complete. Treat a single `ERR_MODULE_NOT_FOUND` for a core class right after a
+  dependency change as transient, but a repeat of it as a real problem.

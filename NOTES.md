@@ -1160,6 +1160,12 @@ the source (`<object>.<type>.xml`).
 * The function module `bapi_goodsmvt_create` deliberately has no XML of its own: a
   function module is not an abapGit object, its interface is described inside
   `stubs/fugr/bapi_goodsmvt.fugr.xml` under `FUNCTIONS/item`.
+* Every XML file starts with a UTF-8 byte order mark (`EF BB BF`), which is what
+  abapGit writes and what the `xml_bom` rule requires. The transpiler reads the
+  DDIC definitions from the BOM files without complaining.
+* `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
+  `node -e` one-liner.
 
-With the metadata present, `abaplint` analyses 786 files instead of 530 and runs
-`xml_consistency` over every XML file (see `ANOMALIES.md` A21).
+With the metadata present, `abaplint` analyses 787 files instead of 530 and runs
+`xml_consistency` and `xml_bom` over every XML file (see `ANOMALIES.md` A21 and
+A23).

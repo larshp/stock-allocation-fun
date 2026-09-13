@@ -24,6 +24,7 @@ npm test
 
 | Script           | Purpose                                                    |
 | ---------------- | ---------------------------------------------------------- |
+| `npm run clean`  | remove `output/` (`rimraf`, a dev dependency)               |
 | `npm run lint`   | `abaplint` static analysis                                  |
 | `npm run build`  | transpile `src/` + `stubs/` to JavaScript in `output/`      |
 | `npm run unit`   | run the transpiled ABAP Unit tests on Node                  |
@@ -37,7 +38,9 @@ and every object carries its serialized metadata next to its source
 (`<object>.<type>.xml`, for example `zcl_alloc_lock.clas.xml`). Because that
 metadata is present, `abaplint` also validates it with its `xml_consistency`
 rules, so the DDIC entries must be complete (a `QUAN` field needs `REFTABLE` and
-`REFFIELD`, a data element with label texts needs `HEADLEN`/`SCRLEN1-3`).
+`REFFIELD`, a data element with label texts needs `HEADLEN`/`SCRLEN1-3`). Every
+XML file starts with a UTF-8 byte order mark, as abapGit writes it and the
+`xml_bom` rule requires.
 
 ## Architecture
 

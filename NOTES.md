@@ -684,8 +684,79 @@ Note: the return type of `read( )` is a `TYPES` alias (`ty_text`), not
      result from its coverage and whether it has a shortage: `A` needs full
      coverage without a shortage, then `B` >= 95, `C` >= 80, `D` >= 60, `E` >= 40,
      otherwise `F`.
+144. **CSV of the per-run allocations** - `zcl_alloc_export_alloc=>build( )` renders
+     one CSV line per allocation (`REQUIREMENT_ID;MATNR;LGORT;CHARG;QUANTITY`) with
+     a header line, skipping zero quantities.
+145. **CSV of the per-material allocations** - `zcl_alloc_export_alloc_mat=>build( )`
+     aggregates the allocations per material and renders `MATNR;POSITIONS;QUANTITY`,
+     sorted by material.
+146. **JSON of the per-run allocations** - `zcl_alloc_export_alloc_json=>build( )`
+     emits an array of requirement objects, each with a nested `allocations` array.
+147. **JSON of the per-material allocations** - `zcl_alloc_export_alloc_mjson=>build( )`
+     emits an array of `{matnr, positions, quantity}` objects, sorted by material.
+148. **XML of the allocations** - `zcl_alloc_export_alloc_xml=>build( )` writes an
+     XML document with one `<allocation>` element per requirement and escaped
+     values (`&`, `<`, `>`).
+149. **Markdown of the allocations** - `zcl_alloc_export_alloc_md=>build( )` writes a
+     Markdown table with a header and separator row.
+150. **HTML of the allocations** - `zcl_alloc_export_alloc_html=>build( )` writes a
+     `<table>` with a `<thead>` and escaped `<td>` cells.
+151. **Fixed-width of the allocations** - `zcl_alloc_export_alloc_fw=>build( )`
+     renders the allocations through `zcl_alloc_fixed_width` with the column widths
+     20/18/6/10/12 (66 characters per line).
 
-Test coverage (732 ABAP Unit tests, run on Node through the transpiler):
+Note: the `escape( )` / `cell( )` helpers take `TYPE c`, not `TYPE string`, because
+passing a character field to a `string` parameter is rejected (ANOMALIES.md A17).
+
+152. **CSV of the allocation diff** - `zcl_alloc_diff_csv=>build( )` renders the lines
+     of a `zcl_alloc_diff=>ty_result` as
+     `REQUIREMENT_ID;OLD_QTY;NEW_QTY;DELTA_QTY;CHANGE_TYPE`.
+153. **CSV of the run comparison** - `zcl_alloc_run_cmp_csv=>build( )` renders the
+     run-comparison lines as
+     `RUN_ID;MATNR;CHANGE_TYPE;OLD_COVERAGE;NEW_COVERAGE`.
+154. **JSON of the run comparison** - `zcl_alloc_run_cmp_json=>build( )` emits an
+     array of `{run_id, matnr, change_type, old_coverage, new_coverage}` objects.
+155. **CSV of the SLA report** - `zcl_alloc_sla_csv=>build( )` renders the SLA lines
+     with a `Y`/`N` on-time flag and appends a `SUMMARY;total;on_time;compliance`
+     row, so an empty report still produces exactly two lines.
+156. **JSON of the SLA report** - `zcl_alloc_sla_json=>build( )` emits the summary
+     counters followed by a `lines` array with a `true`/`false` on-time flag.
+157. **CSV of the aging report** - `zcl_alloc_aging_csv=>build( )` renders an
+     `ID;DAYS_OVERDUE;BUCKET` line per entry, using `zcl_alloc_aging=>bucket( )`.
+158. **JSON of the aging report** - `zcl_alloc_aging_json=>build( )` emits an array
+     of `{id, days_overdue, bucket}` objects.
+159. **CSV of the plant report** - `zcl_alloc_plant_csv=>build( )` renders the plant
+     report lines as
+     `WERKS;LINES;REQUESTED_QTY;ALLOCATED_QTY;SHORTAGE_QTY;COVERAGE_PCT`.
+160. **CSV of the daily report** - `zcl_alloc_daily_csv=>build( )` renders the daily
+     report lines as `RUN_DATE;LINES;REQUESTED_QTY;ALLOCATED_QTY;COVERAGE_PCT`.
+161. **JSON of the plant report** - `zcl_alloc_plant_json=>build( )` emits an array
+     of plant objects with all report measures.
+162. **JSON of the daily report** - `zcl_alloc_daily_json=>build( )` emits an array
+     of day objects with all report measures.
+163. **CSV of the KPI summary** - `zcl_alloc_kpi_csv=>build( )` writes the header
+     `REQUIREMENTS;FULLY_DELIVERED;SHORT;REQUESTED_QTY;ALLOCATED_QTY;SHORTAGE_QTY;`
+     `COVERAGE_PCT;FILL_RATE_PCT` plus one value row.
+164. **JSON of the KPI summary** - `zcl_alloc_kpi_json=>build( )` emits the KPI
+     measures as one JSON object (an empty KPI still produces a full object).
+165. **CSV of the ABC classification** - `zcl_alloc_abc_csv=>build( )` writes
+     `MATNR;QUANTITY;SHARE_PCT;CUM_PCT;CLASS`.
+166. **JSON of the ABC classification** - `zcl_alloc_abc_json=>build( )` emits an
+     array of `{matnr, quantity, share_pct, cum_pct, class}` objects.
+167. **CSV of the histogram** - `zcl_alloc_hist_csv=>build( )` writes
+     `BUCKET_FROM;BUCKET_TO;COUNT;QUANTITY`.
+168. **JSON of the histogram** - `zcl_alloc_hist_json=>build( )` emits the buckets as
+     JSON objects with from/to, count and quantity.
+169. **CSV of the top-N list** - `zcl_alloc_topn_csv=>build( )` writes
+     `RANK;MATNR;QUANTITY;SHARE_PCT`.
+170. **JSON of the top-N list** - `zcl_alloc_topn_json=>build( )` emits the ranked
+     entries as JSON objects.
+171. **CSV of the moving average** - `zcl_alloc_mavg_csv=>build( )` writes
+     `INDEX;QUANTITY;AVERAGE`.
+172. **JSON of the moving average** - `zcl_alloc_mavg_json=>build( )` emits the
+     series as JSON objects with index, quantity and average.
+
+Test coverage (810 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -776,15 +847,18 @@ every report already built) plus a unified export facade and format registry.
 
 Next up (in order):
 
-1. 144 `zcl_alloc_export_alloc` - CSV of the per-run allocations.
-2. 145 `zcl_alloc_export_alloc_mat` - CSV of the per-material allocations.
-3. 146 `zcl_alloc_export_alloc_runs` - JSON of the per-run allocations.
-4. 147 `zcl_alloc_export_alloc_mjson` - JSON of the per-material allocations.
-5. 148 `zcl_alloc_export_alloc_xml` - XML of the allocations.
-6. 149 `zcl_alloc_export_alloc_md` - Markdown of the allocations.
-7. 150 `zcl_alloc_export_alloc_html` - HTML of the allocations.
+1. 173 `zcl_alloc_trend_csv` - CSV of the trend analysis.
+2. 174 `zcl_alloc_trend_json` - JSON of the trend analysis.
+3. 175 `zcl_alloc_forecast_csv` - CSV of the forecast.
+4. 176 `zcl_alloc_forecast_json` - JSON of the forecast.
+5. 177 `zcl_alloc_service_csv` - CSV of the service level.
+6. 178 `zcl_alloc_service_json` - JSON of the service level.
+7. 179 `zcl_alloc_conf_csv` - CSV of the confidence score.
+8. 180 `zcl_alloc_conf_json` - JSON of the confidence score.
+9. 181 `zcl_alloc_risk_csv` - CSV of the risk score.
+10. 182 `zcl_alloc_risk_json` - JSON of the risk score.
 
-Then 151-243 as listed in `PLAN.md`.
+Then 183-243 as listed in `PLAN.md`.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
 plan another 100 items in the same style and keep iterating (one feature per

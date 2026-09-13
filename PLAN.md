@@ -163,6 +163,35 @@ conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
 | 140   | Quantity bucket helper                 | `zcl_alloc_bucket` (`bucket`)                            |
 | 141   | Batch split proposal                   | `zcl_alloc_batch_split` (`split`)                        |
 | 142   | Allocation quality grade (A-F)         | `zcl_alloc_grade` (`grade`)                              |
+| 144   | CSV of the per-run allocations         | `zcl_alloc_export_alloc` (`build`)                       |
+| 145   | CSV of the per-material allocations    | `zcl_alloc_export_alloc_mat` (`build`)                   |
+| 146   | JSON of the per-run allocations        | `zcl_alloc_export_alloc_json` (`build`)                  |
+| 147   | JSON of the per-material allocations   | `zcl_alloc_export_alloc_mjson` (`build`)                 |
+| 148   | XML of the allocations                 | `zcl_alloc_export_alloc_xml` (`build`)                   |
+| 149   | Markdown of the allocations            | `zcl_alloc_export_alloc_md` (`build`)                    |
+| 150   | HTML of the allocations                | `zcl_alloc_export_alloc_html` (`build`)                  |
+| 151   | Fixed-width of the allocations         | `zcl_alloc_export_alloc_fw` (`build`)                    |
+| 152   | CSV of the allocation diff             | `zcl_alloc_diff_csv` (`build`)                           |
+| 153   | CSV of the run comparison              | `zcl_alloc_run_cmp_csv` (`build`)                        |
+| 154   | JSON of the run comparison             | `zcl_alloc_run_cmp_json` (`build`)                       |
+| 155   | CSV of the SLA report                  | `zcl_alloc_sla_csv` (`build`)                            |
+| 156   | JSON of the SLA report                 | `zcl_alloc_sla_json` (`build`)                           |
+| 157   | CSV of the aging report                | `zcl_alloc_aging_csv` (`build`)                          |
+| 158   | JSON of the aging report               | `zcl_alloc_aging_json` (`build`)                         |
+| 159   | CSV of the plant report                | `zcl_alloc_plant_csv` (`build`)                          |
+| 160   | CSV of the daily report                | `zcl_alloc_daily_csv` (`build`)                          |
+| 161   | JSON of the plant report               | `zcl_alloc_plant_json` (`build`)                         |
+| 162   | JSON of the daily report               | `zcl_alloc_daily_json` (`build`)                         |
+| 163   | CSV of the KPI summary                 | `zcl_alloc_kpi_csv` (`build`)                            |
+| 164   | JSON of the KPI summary                | `zcl_alloc_kpi_json` (`build`)                           |
+| 165   | CSV of the ABC classification          | `zcl_alloc_abc_csv` (`build`)                            |
+| 166   | JSON of the ABC classification         | `zcl_alloc_abc_json` (`build`)                           |
+| 167   | CSV of the histogram                   | `zcl_alloc_hist_csv` (`build`)                           |
+| 168   | JSON of the histogram                  | `zcl_alloc_hist_json` (`build`)                          |
+| 169   | CSV of the top-N list                  | `zcl_alloc_topn_csv` (`build`)                           |
+| 170   | JSON of the top-N list                 | `zcl_alloc_topn_json` (`build`)                          |
+| 171   | CSV of the moving average              | `zcl_alloc_mavg_csv` (`build`)                           |
+| 172   | JSON of the moving average             | `zcl_alloc_mavg_json` (`build`)                          |
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

@@ -9,11 +9,12 @@ CLASS ltcl_stock_substitution DEFINITION
     TYPES ty_mard_tt TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
     TYPES ty_safety_tt TYPE STANDARD TABLE OF zsafetystk WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zcl_stock_substitution.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zcl_stock_substitution.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_rule
       IMPORTING
@@ -44,15 +45,21 @@ ENDCLASS.
 
 CLASS ltcl_stock_substitution IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'ZSUBSTITUTE' ) ( 'MARD' )
                                    ( 'ZSAFETYSTK' ) ) ).
-    mo_cut = NEW zcl_stock_substitution( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_stock_substitution( ).
   ENDMETHOD.
 
   METHOD given_rule.

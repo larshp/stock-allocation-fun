@@ -342,3 +342,38 @@ Each entry notes the symptom, the cause and the workaround used.
   `INNER JOIN` in a `SELECT ... INTO TABLE @DATA(...)`, including the aliased
   `ORDER BY head~vdatu`. An item without a `VBAK` header is skipped by the inner
   join (covered by a test).
+
+## A26 - The SQL test double environment must be created once per test class
+
+* Symptom: running the unit tests in the real SAP system (Code Inspector,
+  variant `SWF_ABAP_UNIT`) reported two errors for every one of the 19 test
+  classes that mock the database: `Exception Error <CX_OSQL_FAILURE>` raised in
+  `cl_osql_test_environment->chk_for_multiple_env_instance` and
+  `Exception Error <CX_SY_REF_IS_INITIAL>` at the `teardown` line
+  `mo_environment->destroy( )`.
+* Cause: the test double environment was created in the per-test-method `setup`
+  (`mo_environment = cl_osql_test_environment=>create( ... )`) and destroyed in
+  `teardown`. In a real SAP system only one test environment instance may exist
+  per test class execution, so the second and every later test method raised
+  `CX_OSQL_FAILURE` when their `setup` called `create( )` again. Because that
+  `setup` aborted, `mo_environment` stayed unbound and `teardown` then failed
+  with `CX_SY_REF_IS_INITIAL` - a secondary error that hides the real one. The
+  open-abap transpiler does not enforce the "one environment" rule, so the
+  transpiled test run stayed green.
+* Workaround: use the pattern SAP documents for the SQL test double framework:
+  `CLASS-DATA mo_environment`, `CLASS-METHODS class_setup` (calls `create( )`),
+  `CLASS-METHODS class_teardown` (calls `destroy( )`), and a `setup` that only
+  calls `mo_environment->clear_doubles( )` so every test method starts with
+  empty doubles. The per-method `teardown` was removed. `class_teardown` is
+  guarded with `IF mo_environment IS BOUND.` so a failing `class_setup` cannot
+  produce a second, misleading exception. open-abap's unit runner
+  (`kernel_unit_runner`) already calls `CLASS_SETUP` / `CLASS_TEARDOWN`, so
+  `npm test` still passes.
+* Toolchain gap (open-abap): `cl_osql_test_environment=>create( )` only rejects a
+  second environment while one is still active - it throws when the global SQL
+  schema prefix is already set. It does not model SAP's "one environment per
+  test-class execution" rule, so a per-method `create` / `destroy` pair stays
+  green in the transpiler although it fails in a real system. The unit runner
+  itself matches SAP: `CLASS_SETUP` once, `SETUP` / `TEARDOWN` per test method,
+  `CLASS_TEARDOWN` once. Everything else in this entry was a bug in this
+  repository's own test classes.

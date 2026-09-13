@@ -7,11 +7,12 @@ CLASS ltcl_allocation_writer_db DEFINITION
   PRIVATE SECTION.
     TYPES ty_log_tt TYPE STANDARD TABLE OF zstockalloc WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zif_allocation_writer.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zif_allocation_writer.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
     METHODS sample_result
       RETURNING
         VALUE(rt_result) TYPE zcl_stock_allocator=>ty_result_tt.
@@ -27,14 +28,20 @@ ENDCLASS.
 
 CLASS ltcl_allocation_writer_db IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'ZSTOCKALLOC' ) ) ).
-    mo_cut = NEW zcl_allocation_writer_db( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_allocation_writer_db( ).
   ENDMETHOD.
 
   METHOD sample_result.

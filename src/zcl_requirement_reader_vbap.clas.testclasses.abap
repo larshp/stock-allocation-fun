@@ -8,11 +8,12 @@ CLASS ltcl_requirement_reader_vbap DEFINITION
     TYPES ty_vbak_tt TYPE STANDARD TABLE OF vbak WITH DEFAULT KEY.
     TYPES ty_vbap_tt TYPE STANDARD TABLE OF vbap WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zif_requirement_reader.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zif_requirement_reader.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_sales_order
       IMPORTING
@@ -44,14 +45,20 @@ ENDCLASS.
 
 CLASS ltcl_requirement_reader_vbap IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'VBAK' ) ( 'VBAP' ) ) ).
-    mo_cut = NEW zcl_requirement_reader_vbap( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_requirement_reader_vbap( ).
   ENDMETHOD.
 
   METHOD given_sales_order.

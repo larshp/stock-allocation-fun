@@ -5,12 +5,13 @@ CLASS ltcl_alloc_run_report DEFINITION
   FINAL.
 
   PRIVATE SECTION.
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_header      TYPE REF TO zcl_alloc_run_header.
-    DATA mo_cut         TYPE REF TO zcl_alloc_run_report.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_header TYPE REF TO zcl_alloc_run_header.
+    DATA mo_cut    TYPE REF TO zcl_alloc_run_report.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_run
       IMPORTING
@@ -44,15 +45,21 @@ ENDCLASS.
 
 CLASS ltcl_alloc_run_report IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'ZSTOCKRUN' ) ) ).
-    mo_header = NEW zcl_alloc_run_header( ).
-    mo_cut = NEW zcl_alloc_run_report( io_header = mo_header ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_header = NEW zcl_alloc_run_header( ).
+    mo_cut = NEW zcl_alloc_run_report( io_header = mo_header ).
   ENDMETHOD.
 
   METHOD add_line.

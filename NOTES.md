@@ -1002,7 +1002,17 @@ F1. **Sales order requirement date read from a non-existent field** - reported b
     and maps `VDATU` to `requested_date`; the `VBAP` stub lost the invented
     `EDATU` field and a `VBAK` stub (`MANDT`, `VBELN`, `VDATU`) was added.
     `build_id( )` / `to_priority( )` are now typed with local `TYPES` aliases
-    instead of `TYPE vbap-...` component references. See ANOMALIES.md A16.
+    instead of `TYPE vbap-...` component references. See ANOMALIES.md A25.
+
+F2. **Test double environment created once per test method** - running the unit
+    tests in the real SAP system reported `CX_OSQL_FAILURE` (raised in
+    `cl_osql_test_environment->chk_for_multiple_env_instance`) and
+    `CX_SY_REF_IS_INITIAL` (at `mo_environment->destroy( )`) for all 19 test
+    classes that mock the database. The SQL test double environment must be
+    created once per test class, not once per test method. All 19 classes now
+    use `CLASS-DATA mo_environment` with `class_setup` (create) and
+    `class_teardown` (destroy, guarded with `IS BOUND`), while `setup` only
+    calls `clear_doubles( )`. See ANOMALIES.md A26.
 
 Test coverage (1053 ABAP Unit tests, run on Node through the transpiler):
 
@@ -1152,6 +1162,10 @@ statement, and do not put trailing blanks in test literals (ANOMALIES.md A18).
   consecutive `DATA` statements to `indent + longest name + 1`. Keeping one long,
   descriptive name per signature makes this predictable.
 * Tests are local test classes in `<class>.clas.testclasses.abap` files.
+* Database-dependent test classes create the SQL test double environment in
+  `class_setup` and destroy it in `class_teardown`; `setup` only calls
+  `clear_doubles( )`. Creating it per test method fails in a real SAP system
+  (see ANOMALIES.md A26).
 * Test doubles for interfaces are plain local classes inside the test file
   (`lcl_stock_reader_stub`), so no dependency on a mocking framework is needed.
 

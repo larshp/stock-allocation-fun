@@ -5,11 +5,12 @@ CLASS ltcl_stock_commitment DEFINITION
   FINAL.
 
   PRIVATE SECTION.
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zcl_stock_commitment.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zcl_stock_commitment.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS result_with
       IMPORTING
@@ -43,14 +44,20 @@ ENDCLASS.
 
 CLASS ltcl_stock_commitment IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'ZSTOCKRESV' ) ) ).
-    mo_cut = NEW zcl_stock_commitment( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_stock_commitment( ).
   ENDMETHOD.
 
   METHOD result_with.

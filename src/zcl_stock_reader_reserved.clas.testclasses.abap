@@ -8,11 +8,12 @@ CLASS ltcl_stock_reader_reserved DEFINITION
     TYPES ty_mard_tt TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
     TYPES ty_resv_tt TYPE STANDARD TABLE OF zstockresv WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zif_stock_reader.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zif_stock_reader.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_stock
       IMPORTING
@@ -39,16 +40,21 @@ ENDCLASS.
 
 CLASS ltcl_stock_reader_reserved IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'MARD' ) ( 'ZSTOCKRESV' ) ) ).
-
-    mo_cut = NEW zcl_stock_reader_reserved(
-      io_reader = NEW zcl_stock_reader_mard( ) ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_stock_reader_reserved(
+      io_reader = NEW zcl_stock_reader_mard( ) ).
   ENDMETHOD.
 
   METHOD given_stock.

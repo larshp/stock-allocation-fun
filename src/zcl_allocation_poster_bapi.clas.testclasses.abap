@@ -7,11 +7,12 @@ CLASS ltcl_allocation_poster_bapi DEFINITION
   PRIVATE SECTION.
     TYPES ty_mard_tt TYPE STANDARD TABLE OF mard WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zif_allocation_poster.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zif_allocation_poster.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_stock
       IMPORTING
@@ -40,14 +41,20 @@ ENDCLASS.
 
 CLASS ltcl_allocation_poster_bapi IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'MARD' ) ) ).
-    mo_cut = NEW zcl_allocation_poster_bapi( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW zcl_allocation_poster_bapi( ).
   ENDMETHOD.
 
   METHOD given_stock.

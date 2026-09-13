@@ -43,11 +43,12 @@ CLASS ltcl_stock_allocation_service DEFINITION
     TYPES ty_sub_tt TYPE STANDARD TABLE OF zsubstitute WITH DEFAULT KEY.
     TYPES ty_safety_tt TYPE STANDARD TABLE OF zsafetystk WITH DEFAULT KEY.
 
-    DATA mo_environment TYPE REF TO if_osql_test_environment.
-    DATA mo_cut         TYPE REF TO zcl_stock_allocation_service.
+    CLASS-DATA mo_environment TYPE REF TO if_osql_test_environment.
+    DATA mo_cut TYPE REF TO zcl_stock_allocation_service.
 
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
     METHODS setup.
-    METHODS teardown.
 
     METHODS given_stock
       IMPORTING
@@ -121,17 +122,23 @@ ENDCLASS.
 
 CLASS ltcl_stock_allocation_service IMPLEMENTATION.
 
-  METHOD setup.
+  METHOD class_setup.
     mo_environment = cl_osql_test_environment=>create(
       i_dependency_list = VALUE #( ( 'MARD' ) ( 'RESB' ) ( 'VBAK' ) ( 'VBAP' )
                                    ( 'MCHB' ) ( 'MCHA' ) ( 'MARM' )
                                    ( 'ZSUBSTITUTE' ) ( 'ZSAFETYSTK' )
                                    ( 'ZSTOCKRESV' ) ( 'ZSTOCKALLOC' ) ) ).
-    mo_cut = NEW #( ).
   ENDMETHOD.
 
-  METHOD teardown.
-    mo_environment->destroy( ).
+  METHOD class_teardown.
+    IF mo_environment IS BOUND.
+      mo_environment->destroy( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup.
+    mo_environment->clear_doubles( ).
+    mo_cut = NEW #( ).
   ENDMETHOD.
 
   METHOD given_stock.

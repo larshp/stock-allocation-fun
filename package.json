@@ -5,7 +5,7 @@
   "description": "Stock allocation solution for SAP, linted with abaplint and unit tested via the abaplint transpiler",
   "license": "MIT",
   "scripts": {
-    "clean": "node -e \"require('fs').rmSync('output',{recursive:true,force:true})\"",
+    "clean": "rimraf output",
     "lint": "abaplint",
     "build": "npm run clean && abap_transpile",
     "unit": "node --expose-gc output/index.mjs",
@@ -16,5 +16,8 @@
     "@abaplint/database-sqlite": "^2.13.83",
     "@abaplint/runtime": "^2.13.86",
     "@abaplint/transpiler-cli": "^2.13.86"
+  },
+  "devDependencies": {
+    "rimraf": "^6.1.3"
   }
 }

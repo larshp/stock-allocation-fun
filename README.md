@@ -32,6 +32,13 @@ npm test
 The transpiled test runner uses SQLite (`@abaplint/database-sqlite`); the
 connection is set up in `test/setup.mjs`.
 
+The repository is an abapGit repository: `.abapgit.xml` points abapGit at `/src/`
+and every object carries its serialized metadata next to its source
+(`<object>.<type>.xml`, for example `zcl_alloc_lock.clas.xml`). Because that
+metadata is present, `abaplint` also validates it with its `xml_consistency`
+rules, so the DDIC entries must be complete (a `QUAN` field needs `REFTABLE` and
+`REFFIELD`, a data element with label texts needs `HEADLEN`/`SCRLEN1-3`).
+
 ## Architecture
 
 ```mermaid

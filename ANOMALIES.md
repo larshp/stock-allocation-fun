@@ -264,3 +264,31 @@ Each entry notes the symptom, the cause and the workaround used.
   field. `zcl_alloc_calendar` extracts year/month/day with offset access
   (`iv_date+0(4)`), uses Zeller's congruence for the weekday and increments the
   day/month/year explicitly with a leap-year rule.
+
+## A21 - Adding abapGit metadata XML switched on repo-wide XML linting
+
+* Symptom: after adding the missing `.clas.xml` / `.intf.xml` files, `npm run
+  lint` went from 530 to 786 analysed files and reported 38 `xml_consistency`
+  errors - none of them in the new files. The existing DDIC metadata was
+  incomplete: 26 `QUAN` fields had no `REFTABLE`/`REFFIELD` and three data
+  elements declared `REPTEXT`/`SCRTEXT_*` without `HEADLEN`/`SCRLEN1-3`.
+* Cause: `abaplint` only analyses object metadata XML once the repository looks
+  like an abapGit repository (metadata files present); that same switch enables
+  the `xml_consistency` rule for every XML file, including the pre-existing ones.
+* Workaround: treat the XML as compiled DDIC. Every `QUAN` field needs
+  `REFTABLE` and `REFFIELD`, and every data element with label texts needs the
+  matching label lengths. `checkRequiredField` only requires a non-empty value,
+  so a sensible reference (for example `MARA`/`MEINS` for material quantities)
+  is enough.
+
+## A22 - A `!` inside a heredoc is mangled by the shell
+
+* Symptom: `node` rejected a generated helper script with `SyntaxError: Invalid
+  or unexpected token` at `desc.has(name) === false`: the heredoc had turned the
+  `!` into `\!` (history expansion), even though the heredoc delimiter was
+  quoted.
+* Cause: the interactive shell in this environment expands `!` while the command
+  line is read, before the heredoc content is passed on.
+* Workaround: avoid `!` in generated scripts - write `x === false` or
+  `x === null` instead of `!x` - or create the file with an editor rather than a
+  heredoc.

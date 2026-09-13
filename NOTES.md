@@ -1137,3 +1137,29 @@ statement, and do not put trailing blanks in test literals (ANOMALIES.md A18).
 * Tests are local test classes in `<class>.clas.testclasses.abap` files.
 * Test doubles for interfaces are plain local classes inside the test file
   (`lcl_stock_reader_stub`), so no dependency on a mocking framework is needed.
+
+## abapGit serialization
+
+The repository is set up for abapGit: `.abapgit.xml` at the root selects `/src/`
+as the starting folder and every object carries its serialized metadata next to
+the source (`<object>.<type>.xml`).
+
+* `src/*.clas.xml` - one per class (250). Serializer `LCL_OBJECT_CLAS` with
+  `CLSNAME`, `LANGU`, `DESCRIPT`, `STATE`, `CLSCCINCL`, `FIXPT`,
+  `WITH_UNIT_TESTS` (set for every class here, because all 250 have a local test
+  class) and `UNICODE`, plus an `R` text-pool entry holding the description.
+* `src/*.intf.xml` - one per interface (6). Serializer `LCL_OBJECT_INTF` with
+  `CLSNAME`, `LANGU`, `DESCRIPT`, `EXPOSURE` 2, `STATE` and `UNICODE`.
+* Descriptions are taken from the `PLAN.md` / `NOTES.md` feature titles where the
+  class is documented and are derived from the class name otherwise.
+* Objects that already had metadata (the DDIC data elements, tables and
+  structures plus the BAPI function group under `stubs/`) were left alone, apart
+  from completing the fields `xml_consistency` requires: `REFTABLE`/`REFFIELD` on
+  the 26 `QUAN` fields and `HEADLEN`/`SCRLEN1-3` on the three data elements that
+  declare label texts.
+* The function module `bapi_goodsmvt_create` deliberately has no XML of its own: a
+  function module is not an abapGit object, its interface is described inside
+  `stubs/fugr/bapi_goodsmvt.fugr.xml` under `FUNCTIONS/item`.
+
+With the metadata present, `abaplint` analyses 786 files instead of 530 and runs
+`xml_consistency` over every XML file (see `ANOMALIES.md` A21).

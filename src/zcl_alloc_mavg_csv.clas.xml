@@ -9,18 +9,9 @@
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
-    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
     <UNICODE>X</UNICODE>
+    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
-   <TEXTPOOL>
-    <TPOOL>
-     <item>
-      <ID>R</ID>
-      <ENTRY>CSV of the moving average</ENTRY>
-      <LENGTH>25</LENGTH>
-     </item>
-    </TPOOL>
-   </TEXTPOOL>
   </asx:values>
  </asx:abap>
 </abapGit>

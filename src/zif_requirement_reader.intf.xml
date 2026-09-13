@@ -10,15 +10,6 @@
     <STATE>1</STATE>
     <UNICODE>X</UNICODE>
    </VSEOINTERF>
-   <TEXTPOOL>
-    <TPOOL>
-     <item>
-      <ID>R</ID>
-      <ENTRY>Requirement reader for RESB</ENTRY>
-      <LENGTH>27</LENGTH>
-     </item>
-    </TPOOL>
-   </TEXTPOOL>
   </asx:values>
  </asx:abap>
 </abapGit>

@@ -10,15 +10,6 @@
     <STATE>1</STATE>
     <UNICODE>X</UNICODE>
    </VSEOINTERF>
-   <TEXTPOOL>
-    <TPOOL>
-     <item>
-      <ID>R</ID>
-      <ENTRY>Allocation log</ENTRY>
-      <LENGTH>14</LENGTH>
-     </item>
-    </TPOOL>
-   </TEXTPOOL>
   </asx:values>
  </asx:abap>
 </abapGit>

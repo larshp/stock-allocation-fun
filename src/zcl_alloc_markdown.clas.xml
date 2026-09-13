@@ -9,18 +9,9 @@
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
-    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
     <UNICODE>X</UNICODE>
+    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
-   <TEXTPOOL>
-    <TPOOL>
-     <item>
-      <ID>R</ID>
-      <ENTRY>Markdown table for the run overview</ENTRY>
-      <LENGTH>35</LENGTH>
-     </item>
-    </TPOOL>
-   </TEXTPOOL>
   </asx:values>
  </asx:abap>
 </abapGit>

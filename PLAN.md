@@ -192,6 +192,209 @@ conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
 | 170   | JSON of the top-N list                 | `zcl_alloc_topn_json` (`build`)                          |
 | 171   | CSV of the moving average              | `zcl_alloc_mavg_csv` (`build`)                           |
 | 172   | JSON of the moving average             | `zcl_alloc_mavg_json` (`build`)                          |
+| 173   | CSV of the trend analysis              | `zcl_alloc_trend_csv` (`build`)                          |
+| 174   | JSON of the trend analysis             | `zcl_alloc_trend_json` (`build`)                         |
+| 175   | CSV of the forecast                    | `zcl_alloc_forecast_csv` (`build`)                       |
+| 176   | JSON of the forecast                   | `zcl_alloc_forecast_json` (`build`)                      |
+| 177   | CSV of the service level               | `zcl_alloc_service_csv` (`build`)                        |
+| 178   | JSON of the service level              | `zcl_alloc_service_json` (`build`)                       |
+| 179   | CSV of the confidence score            | `zcl_alloc_conf_csv` (`build`)                           |
+| 180   | JSON of the confidence score           | `zcl_alloc_conf_json` (`build`)                          |
+| 181   | CSV of the risk score                  | `zcl_alloc_risk_csv` (`build`)                           |
+| 182   | JSON of the risk score                 | `zcl_alloc_risk_json` (`build`)                          |
+| 183   | CSV of the request validation          | `zcl_alloc_reqval_csv` (`build`)                         |
+| 184   | JSON of the request validation         | `zcl_alloc_reqval_json` (`build`)                        |
+| 185   | CSV of the policy validation           | `zcl_alloc_polval_csv` (`build`)                         |
+| 186   | JSON of the policy validation          | `zcl_alloc_polval_json` (`build`)                        |
+| 187   | CSV of the consistency check           | `zcl_alloc_consist_csv` (`build`)                        |
+| 188   | JSON of the consistency check          | `zcl_alloc_consist_json` (`build`)                       |
+| 189   | CSV of the duplicate check             | `zcl_alloc_dupc_csv` (`build`)                           |
+| 190   | JSON of the duplicate check            | `zcl_alloc_dupc_json` (`build`)                          |
+| 191   | CSV of the stock check                 | `zcl_alloc_stockchk_csv` (`build`)                       |
+| 192   | JSON of the stock check                | `zcl_alloc_stockchk_json` (`build`)                      |
+| 193   | CSV of the negative check              | `zcl_alloc_negchk_csv` (`build`)                         |
+| 194   | JSON of the negative check             | `zcl_alloc_negchk_json` (`build`)                        |
+| 195   | CSV of the over-allocation check       | `zcl_alloc_overchk_csv` (`build`)                        |
+| 196   | JSON of the over-allocation check      | `zcl_alloc_overchk_json` (`build`)                       |
+| 197   | CSV of the master data check           | `zcl_alloc_mastchk_csv` (`build`)                        |
+| 198   | JSON of the master data check          | `zcl_alloc_mastchk_json` (`build`)                       |
+| 199   | CSV of the priority list               | `zcl_alloc_prio_csv` (`build`)                           |
+| 200   | JSON of the priority list              | `zcl_alloc_prio_json` (`build`)                          |
+| 201   | CSV of the pick list                   | `zcl_alloc_pickl_csv` (`build`)                          |
+| 202   | JSON of the pick list                  | `zcl_alloc_pickl_json` (`build`)                         |
+| 203   | CSV of the pick confirmation           | `zcl_alloc_pickc_csv` (`build`)                          |
+| 204   | JSON of the pick confirmation          | `zcl_alloc_pickc_json` (`build`)                         |
+| 205   | CSV of the pick sequence               | `zcl_alloc_picks_csv` (`build`)                          |
+| 206   | JSON of the pick sequence              | `zcl_alloc_picks_json` (`build`)                         |
+| 207   | CSV of the location ranking            | `zcl_alloc_lrank_csv` (`build`)                          |
+| 208   | JSON of the location ranking           | `zcl_alloc_lrank_json` (`build`)                         |
+| 209   | CSV of the location score              | `zcl_alloc_lscore_csv` (`build`)                         |
+| 210   | JSON of the location score             | `zcl_alloc_lscore_json` (`build`)                        |
+| 211   | CSV of the shipments                   | `zcl_alloc_ship_csv` (`build`)                           |
+| 212   | JSON of the shipments                  | `zcl_alloc_ship_json` (`build`)                          |
+| 213   | CSV of the waves                       | `zcl_alloc_wave_csv` (`build`)                           |
+| 214   | JSON of the waves                      | `zcl_alloc_wave_json` (`build`)                          |
+| 215   | CSV of the batches                     | `zcl_alloc_batch_csv` (`build`)                          |
+| 216   | JSON of the batches                    | `zcl_alloc_batch_json` (`build`)                         |
+| 217   | CSV of the tags                        | `zcl_alloc_tag_csv` (`build`)                            |
+| 218   | JSON of the tags                       | `zcl_alloc_tag_json` (`build`)                           |
+| 219   | CSV of the annotations                 | `zcl_alloc_note_csv` (`build`)                           |
+| 220   | JSON of the annotations                | `zcl_alloc_note_json` (`build`)                          |
+| 221   | CSV of the timeline                    | `zcl_alloc_timeline_csv` (`build`)                       |
+| 222   | JSON of the timeline                   | `zcl_alloc_timeline_json` (`build`)                      |
+| 223   | CSV of the snapshot diff               | `zcl_alloc_snap_csv` (`build`)                           |
+| 224   | JSON of the snapshot diff              | `zcl_alloc_snap_json` (`build`)                          |
+| 225   | CSV of the three-way diff              | `zcl_alloc_diff3_csv` (`build`)                          |
+| 226   | JSON of the three-way diff             | `zcl_alloc_diff3_json` (`build`)                         |
+| 227   | CSV of the cost selection              | `zcl_alloc_cost_csv` (`build`)                           |
+| 228   | JSON of the cost selection             | `zcl_alloc_cost_json` (`build`)                          |
+| 229   | CSV of the transport costs             | `zcl_alloc_tcost_csv` (`build`)                          |
+| 230   | JSON of the transport costs            | `zcl_alloc_tcost_json` (`build`)                         |
+| 231   | CSV of the substitution chain          | `zcl_alloc_subst_csv` (`build`)                          |
+| 232   | JSON of the substitution chain         | `zcl_alloc_subst_json` (`build`)                         |
+| 233   | CSV of the multi-plant summary         | `zcl_alloc_mplant_csv` (`build`)                         |
+| 234   | JSON of the multi-plant summary        | `zcl_alloc_mplant_json` (`build`)                        |
+| 235   | CSV of the grade distribution          | `zcl_alloc_grade_csv` (`build`)                          |
+| 236   | JSON of the grade distribution         | `zcl_alloc_grade_json` (`build`)                         |
+| 237   | CSV of the bucket report               | `zcl_alloc_bucket_csv` (`build`)                         |
+| 238   | JSON of the bucket report              | `zcl_alloc_bucket_json` (`build`)                        |
+| 239   | Unified export facade                  | `zcl_alloc_export_facade` (`as_csv`, `as_json`)          |
+| 240   | Export format registry                 | `zcl_alloc_format_registry` (`add`)                      |
+| 241   | Default export format per consumer     | `zcl_alloc_format_default` (`default_for`)               |
+| 242   | Export registry lookup by name         | `zcl_alloc_format_lookup` (`lookup`)                     |
+| 243   | Export registry listing                | `zcl_alloc_format_list` (`names`, `count`)               |
+
+**Roadmap batch 2 is complete: orders 144-243 (100 features) are all delivered
+and verified.** The only unbuilt item across both batches remains 143 (ALV grid
+binding + selection screen), which the transpiler cannot exercise.
+
+## Roadmap batch 3 (orders 244-343)
+
+Planned when batch 2 completed, per the standing instruction. The theme is
+**SAP integration and operations**: locking, number ranges, change documents,
+application log, message and exception handling, BAPI/RFC/IDoc and batch-input
+stubs, commit/rollback and retry policies, timers and statistics, execution
+context, feature flags and configuration, masking, authorization stubs, caching,
+streaming, idempotency and reconciliation. Each item is a new `zcl_alloc_*` class
+with a local test class, verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 244 | Lock manager abstraction | `zcl_alloc_lock` |
+| 245 | Enqueue wrapper | `zcl_alloc_enqueue` |
+| 246 | Dequeue wrapper | `zcl_alloc_dequeue` |
+| 247 | Number range interval reader | `zcl_alloc_number_range` |
+| 248 | Number range writer (in-memory) | `zcl_alloc_number_range_w` |
+| 249 | Change document writer (in-memory) | `zcl_alloc_change_doc` |
+| 250 | Change document reader | `zcl_alloc_change_read` |
+| 251 | Application log writer | `zcl_alloc_app_log` |
+| 252 | Application log reader | `zcl_alloc_app_log_read` |
+| 253 | Message collector | `zcl_alloc_messages` |
+| 254 | Message formatter | `zcl_alloc_msg_format` |
+| 255 | Error handler | `zcl_alloc_error` |
+| 256 | Exception mapper | `zcl_alloc_exception_map` |
+| 257 | BAPI goods movement wrapper | `zcl_alloc_bapi_gm` |
+| 258 | BAPI availability wrapper | `zcl_alloc_bapi_atp` |
+| 259 | BAPI material read wrapper | `zcl_alloc_bapi_mat` |
+| 260 | BAPI plant read wrapper | `zcl_alloc_bapi_plant` |
+| 261 | BAPI caller facade | `zcl_alloc_bapi_facade` |
+| 262 | RFC destination stub | `zcl_alloc_rfc` |
+| 263 | IDoc writer | `zcl_alloc_idoc_writer` |
+| 264 | IDoc reader | `zcl_alloc_idoc_reader` |
+| 265 | Batch input session builder | `zcl_alloc_bdc_build` |
+| 266 | Batch input session runner (stub) | `zcl_alloc_bdc_run` |
+| 267 | Update task stub | `zcl_alloc_update_task` |
+| 268 | Commit / rollback wrapper | `zcl_alloc_commit` |
+| 269 | Timeout guard | `zcl_alloc_timeout` |
+| 270 | Retry policy | `zcl_alloc_retry` |
+| 271 | Circuit breaker | `zcl_alloc_breaker` |
+| 272 | Rate limiter (in-memory) | `zcl_alloc_rate_limit` |
+| 273 | Audit trail | `zcl_alloc_audit` |
+| 274 | Operation log | `zcl_alloc_op_log` |
+| 275 | Performance timer | `zcl_alloc_timer` |
+| 276 | Stopwatch | `zcl_alloc_stopwatch` |
+| 277 | Run statistics collector | `zcl_alloc_stats` |
+| 278 | Session context | `zcl_alloc_session` |
+| 279 | User context | `zcl_alloc_user` |
+| 280 | Client context | `zcl_alloc_client` |
+| 281 | Environment info | `zcl_alloc_environment` |
+| 282 | Feature flag registry | `zcl_alloc_flags` |
+| 283 | Configuration reader | `zcl_alloc_config` |
+| 284 | Configuration writer (in-memory) | `zcl_alloc_config_w` |
+| 285 | Configuration validation | `zcl_alloc_config_val` |
+| 286 | Secret masking | `zcl_alloc_secret_mask` |
+| 287 | Data masking | `zcl_alloc_mask` |
+| 288 | Pseudonymization helper | `zcl_alloc_pseudo` |
+| 289 | Archive metadata | `zcl_alloc_archive_meta` |
+| 290 | Archive index | `zcl_alloc_archive_idx` |
+| 291 | Retention policy | `zcl_alloc_retention` |
+| 292 | Deletion policy | `zcl_alloc_deletion` |
+| 293 | Tenant isolation helper | `zcl_alloc_tenant` |
+| 294 | Multi-client guard | `zcl_alloc_mandt_guard` |
+| 295 | Authorization check stub | `zcl_alloc_auth` |
+| 296 | Role mapping | `zcl_alloc_role_map` |
+| 297 | Permission matrix | `zcl_alloc_permission` |
+| 298 | Field-level authorization | `zcl_alloc_field_auth` |
+| 299 | Data access log | `zcl_alloc_access_log` |
+| 300 | Export audit log | `zcl_alloc_export_audit` |
+| 301 | CSV import reader | `zcl_alloc_import_csv` |
+| 302 | JSON import reader | `zcl_alloc_import_json` |
+| 303 | Import validator | `zcl_alloc_import_val` |
+| 304 | Import mapper | `zcl_alloc_import_map` |
+| 305 | Bulk loader | `zcl_alloc_bulk_load` |
+| 306 | Bulk validity check | `zcl_alloc_bulk_check` |
+| 307 | Delta loader | `zcl_alloc_delta_load` |
+| 308 | Upsert helper (in-memory) | `zcl_alloc_upsert` |
+| 309 | Dedupe key builder | `zcl_alloc_dedupe_key` |
+| 310 | Natural key builder | `zcl_alloc_natural_key` |
+| 311 | Surrogate key map | `zcl_alloc_surrogate` |
+| 312 | Reference data cache | `zcl_alloc_ref_cache` |
+| 313 | Cache invalidation policy | `zcl_alloc_cache_policy` |
+| 314 | Cache statistics | `zcl_alloc_cache_stats` |
+| 315 | Cache warm-up helper | `zcl_alloc_cache_warm` |
+| 316 | Lazy loader | `zcl_alloc_lazy` |
+| 317 | Pagination cursor | `zcl_alloc_cursor` |
+| 318 | Chunked reader | `zcl_alloc_chunk_read` |
+| 319 | Chunked writer | `zcl_alloc_chunk_write` |
+| 320 | Backpressure helper | `zcl_alloc_backpressure` |
+| 321 | Batch size tuner | `zcl_alloc_batch_tune` |
+| 322 | Concurrency guard | `zcl_alloc_concurrency` |
+| 323 | Idempotency key | `zcl_alloc_idem_key` |
+| 324 | Exactly-once guard | `zcl_alloc_once` |
+| 325 | Dedupe window | `zcl_alloc_dedupe_win` |
+| 326 | Sequential numbering | `zcl_alloc_seq_num` |
+| 327 | Gap detection | `zcl_alloc_gap_check` |
+| 328 | Sequence validation | `zcl_alloc_seq_check` |
+| 329 | Checksum registry | `zcl_alloc_checksum_reg` |
+| 330 | Integrity check | `zcl_alloc_integrity` |
+| 331 | Reconciliation report | `zcl_alloc_reconcile` |
+| 332 | Drift detection | `zcl_alloc_drift` |
+| 333 | Heavy snapshot comparison | `zcl_alloc_snap_heavy` |
+| 334 | Restore helper | `zcl_alloc_restore` |
+| 335 | Migration mapper | `zcl_alloc_migration_map` |
+| 336 | Migration validator | `zcl_alloc_migration_val` |
+| 337 | Cutover checklist | `zcl_alloc_cutover` |
+| 338 | Parallel run comparison | `zcl_alloc_parallel_run` |
+| 339 | Data volume estimator | `zcl_alloc_volume` |
+| 340 | Load test helper | `zcl_alloc_load_test` |
+| 341 | Smoke test runner | `zcl_alloc_smoke` |
+| 342 | Health check | `zcl_alloc_health` |
+| 343 | Readiness probe | `zcl_alloc_readiness` |
+
+### Batch 3 delivered so far
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 244 | Lock manager abstraction | `zcl_alloc_lock` (`acquire`, `release`, `is_locked`) |
+| 245 | Enqueue wrapper | `zcl_alloc_enqueue` (`enqueue`) |
+| 246 | Dequeue wrapper | `zcl_alloc_dequeue` (`dequeue`, `distinct_count`) |
+| 247 | Number range interval reader | `zcl_alloc_number_range` (`next`, `in_range`, `remaining`) |
+| 248 | Number range writer (in-memory) | `zcl_alloc_number_range_w` (`reserve`, `exhausted`) |
+| 249 | Change document writer (in-memory) | `zcl_alloc_change_doc` (`add`) |
+| 250 | Change document reader | `zcl_alloc_change_read` (`of_object`, `field_count`) |
+| 251 | Application log writer | `zcl_alloc_app_log` (`write`, `count_of_level`) |
+| 252 | Application log reader | `zcl_alloc_app_log_read` (`messages`, `has_errors`) |
+| 253 | Message collector | `zcl_alloc_messages` (`collect`, `count`) |
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

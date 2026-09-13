@@ -755,8 +755,186 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
      `INDEX;QUANTITY;AVERAGE`.
 172. **JSON of the moving average** - `zcl_alloc_mavg_json=>build( )` emits the
      series as JSON objects with index, quantity and average.
+173. **CSV of the trend analysis** - `zcl_alloc_trend_csv=>build( )` writes
+     `COUNT;FIRST_QTY;LAST_QTY;CHANGE_PCT;DIRECTION` plus one value row.
+174. **JSON of the trend analysis** - `zcl_alloc_trend_json=>build( )` emits the trend
+     as one JSON object.
+175. **CSV of the forecast** - `zcl_alloc_forecast_csv=>build( )` lists the history
+     as `INDEX;QUANTITY` rows and appends a `FORECAST;<qty>` row produced by
+     `zcl_alloc_forecast=>next_quantity( )` with the input window.
+176. **JSON of the forecast** - `zcl_alloc_forecast_json=>build( )` emits
+     `{forecast, window, values[]}`.
+177. **CSV of the service level** - `zcl_alloc_service_csv=>build( )` writes
+     `MATNR;REQUESTED_QTY;ALLOCATED_QTY;SHORTAGE_QTY;FILL_RATE_PCT;LINES`.
+178. **JSON of the service level** - `zcl_alloc_service_json=>build( )` emits an
+     array of the per-material service levels.
+179. **CSV of the confidence score** - `zcl_alloc_conf_csv=>build( )` writes
+     `REQUIREMENTS;COVERAGE_PCT;FILL_RATE_PCT;SCORE`.
+180. **JSON of the confidence score** - `zcl_alloc_conf_json=>build( )` emits the four
+     confidence measures as one object.
+181. **CSV of the risk score** - `zcl_alloc_risk_csv=>build( )` writes
+     `LINES;SHORTAGE_QTY;RISK_PCT;LEVEL`.
+182. **JSON of the risk score** - `zcl_alloc_risk_json=>build( )` emits the risk
+     measures as one object.
+183. **CSV of the request validation** - `zcl_alloc_reqval_csv=>build( )` writes
+     `INDEX;FIELD_NAME;MESSAGE`.
+184. **JSON of the request validation** - `zcl_alloc_reqval_json=>build( )` emits the
+     issues as `{index, field_name, message}` objects.
+185. **CSV of the policy validation** - `zcl_alloc_polval_csv=>build( )` writes
+     `FIELD_NAME;MESSAGE`.
+186. **JSON of the policy validation** - `zcl_alloc_polval_json=>build( )` emits the
+     policy issues as JSON objects.
+187. **CSV of the consistency check** - `zcl_alloc_consist_csv=>build( )` writes
+     `REQUIREMENT_ID;MESSAGE`.
+188. **JSON of the consistency check** - `zcl_alloc_consist_json=>build( )` emits the
+     consistency issues as JSON objects.
+189. **CSV of the duplicate check** - `zcl_alloc_dupc_csv=>build( )` writes
+     `ID;COUNT`.
+190. **JSON of the duplicate check** - `zcl_alloc_dupc_json=>build( )` emits
+     `{id, count}` objects.
+191. **CSV of the stock check** - `zcl_alloc_stockchk_csv=>build( )` writes
+     `MATNR;LGORT;MESSAGE`.
+192. **JSON of the stock check** - `zcl_alloc_stockchk_json=>build( )` emits the stock
+     issues as JSON objects.
+193. **CSV of the negative check** - `zcl_alloc_negchk_csv=>build( )` writes
+     `ID;QUANTITY` for the negative rows.
+194. **JSON of the negative check** - `zcl_alloc_negchk_json=>build( )` emits
+     `{id, quantity}` objects.
+195. **CSV of the over-allocation check** - `zcl_alloc_overchk_csv=>build( )` writes
+     `REQUIREMENT_ID;REQUESTED_QTY;ALLOCATED_QTY`.
+196. **JSON of the over-allocation check** - `zcl_alloc_overchk_json=>build( )` emits
+     the over-allocations as JSON objects.
+197. **CSV of the master data check** - `zcl_alloc_mastchk_csv=>build( )` writes
+     `MATNR;WERKS;MESSAGE`.
+198. **JSON of the master data check** - `zcl_alloc_mastchk_json=>build( )` emits the
+     master-data issues as JSON objects.
+199. **CSV of the priority list** - `zcl_alloc_prio_csv=>build( )` writes
+     `REQUIREMENT_ID;DELIVERY_PRIORITY;DAYS_UNTIL_DUE;CUSTOMER_WEIGHT;SCORE`,
+     computing the score per row with `zcl_alloc_priority=>score( )`.
+200. **JSON of the priority list** - `zcl_alloc_prio_json=>build( )` emits the factors
+     plus the computed score per requirement.
+201. **CSV of the pick list** - `zcl_alloc_pickl_csv=>build( )` writes
+     `REQUIREMENT_ID;LGORT;CHARG;QUANTITY`.
+202. **JSON of the pick list** - `zcl_alloc_pickl_json=>build( )` emits the pick
+     positions as JSON objects.
+203. **CSV of the pick confirmation** - `zcl_alloc_pickc_csv=>build( )` writes
+     `INDEX;PLANNED;CONFIRMED;DIFFERENCE;COMPLETE` with a `Y`/`N` completeness flag.
+204. **JSON of the pick confirmation** - `zcl_alloc_pickc_json=>build( )` emits the
+     confirmation lines with a `true`/`false` completeness flag.
+205. **CSV of the pick sequence** - `zcl_alloc_picks_csv=>build( )` writes
+     `LGORT;CHARG;QUANTITY`.
+206. **JSON of the pick sequence** - `zcl_alloc_picks_json=>build( )` emits the pick
+     path as JSON objects.
+207. **CSV of the location ranking** - `zcl_alloc_lrank_csv=>build( )` writes
+     `RANK;LGORT;QUANTITY`.
+208. **JSON of the location ranking** - `zcl_alloc_lrank_json=>build( )` emits the
+     ranked locations as JSON objects.
+209. **CSV of the location score** - `zcl_alloc_lscore_csv=>build( )` writes
+     `LGORT;FILL_PCT;DISTANCE;PICKS;SCORE`, computing the score per row with
+     `zcl_alloc_location_score=>score( )`.
+210. **JSON of the location score** - `zcl_alloc_lscore_json=>build( )` emits the
+     inputs plus the computed score per location.
+211. **CSV of the shipments** - `zcl_alloc_ship_csv=>build( )` writes
+     `SHIPMENT;LGORT;POSITIONS;QUANTITY`.
+212. **JSON of the shipments** - `zcl_alloc_ship_json=>build( )` emits the shipments as
+     JSON objects.
+213. **CSV of the waves** - `zcl_alloc_wave_csv=>build( )` writes
+     `WAVE;INDEX;QUANTITY`.
+214. **JSON of the waves** - `zcl_alloc_wave_json=>build( )` emits the planned waves as
+     JSON objects.
+215. **CSV of the batches** - `zcl_alloc_batch_csv=>build( )` writes
+     `BATCH;MATNR;QUANTITY`.
+216. **JSON of the batches** - `zcl_alloc_batch_json=>build( )` emits the packed batches
+     as JSON objects.
+217. **CSV of the tags** - `zcl_alloc_tag_csv=>build( )` writes `RUN_ID;TAG`.
+218. **JSON of the tags** - `zcl_alloc_tag_json=>build( )` emits `{run_id, tag}`
+     objects.
+219. **CSV of the annotations** - `zcl_alloc_note_csv=>build( )` writes
+     `RUN_ID;MATNR;TEXT`.
+220. **JSON of the annotations** - `zcl_alloc_note_json=>build( )` emits
+     `{run_id, matnr, text}` objects.
+221. **CSV of the timeline** - `zcl_alloc_timeline_csv=>build( )` writes
+     `SEQUENCE;NAME`.
+222. **JSON of the timeline** - `zcl_alloc_timeline_json=>build( )` emits the events as
+     JSON objects.
+223. **CSV of the snapshot diff** - `zcl_alloc_snap_csv=>build( )` writes
+     `REQUIREMENT_ID;BEFORE_QTY;AFTER_QTY;DELTA_QTY`.
+224. **JSON of the snapshot diff** - `zcl_alloc_snap_json=>build( )` emits the changes as
+     JSON objects.
+225. **CSV of the three-way diff** - `zcl_alloc_diff3_csv=>build( )` writes
+     `ID;BASE_QTY;LEFT_QTY;RIGHT_QTY;STATUS`.
+226. **JSON of the three-way diff** - `zcl_alloc_diff3_json=>build( )` emits the merged
+     lines as JSON objects.
+227. **CSV of the cost selection** - `zcl_alloc_cost_csv=>build( )` writes
+     `WERKS;TAKEN;COST` per source and appends a `SUMMARY;total_cost;remaining` row, so
+     an empty result still produces exactly two lines.
+228. **JSON of the cost selection** - `zcl_alloc_cost_json=>build( )` emits
+     `{lines:[...], total_cost, remaining}`.
+229. **CSV of the transport costs** - `zcl_alloc_tcost_csv=>build( )` writes
+     `WERKS;COST_TOTAL;RANK`.
+230. **JSON of the transport costs** - `zcl_alloc_tcost_json=>build( )` emits the ranked
+     costs as JSON objects.
+231. **CSV of the substitution chain** - `zcl_alloc_subst_csv=>build( )` writes the path
+     as `STEP;MATNR` rows followed by `FINAL;<matnr>` and `STEPS;<n>` rows.
+232. **JSON of the substitution chain** - `zcl_alloc_subst_json=>build( )` emits
+     `{path:[...], final_matnr, steps}`.
+233. **CSV of the multi-plant summary** - `zcl_alloc_mplant_csv=>build( )` writes
+     `WERKS;QUANTITY` rows plus `TOTAL;<qty>` and `PLANTS;<n>` rows.
+234. **JSON of the multi-plant summary** - `zcl_alloc_mplant_json=>build( )` emits
+     `{plants:[...], total, plant_count}`.
+235. **CSV of the grade distribution** - `zcl_alloc_grade_csv=>build( )` counts the
+     grades of a list of coverage/shortage rows and writes `GRADE;COUNT` for all six
+     grades A-F, so an empty list still yields six rows.
+236. **JSON of the grade distribution** - `zcl_alloc_grade_json=>build( )` emits one
+     object per input row with its coverage and computed grade.
+237. **CSV of the bucket report** - `zcl_alloc_bucket_csv=>build( )` writes
+     `VALUE;BUCKET` for a list of values against shared boundaries.
+238. **JSON of the bucket report** - `zcl_alloc_bucket_json=>build( )` emits
+     `{value, bucket}` objects.
+239. **Unified export facade** - `zcl_alloc_export_facade` dispatches on a format kind:
+     `as_csv( )` supports `ALLOC`, `MAT` and `PICK` (the last one converting the result
+     to pick lines first), `as_json( )` supports `ALLOC` and `MAT` and returns `[]` for
+     an unknown kind.
+240. **Export format registry** - `zcl_alloc_format_registry=>add( )` inserts an entry
+     or replaces the format of an existing name and keeps the table sorted.
+241. **Default export format per consumer** - `zcl_alloc_format_default=>default_for( )`
+     maps `EMAIL` to HTML, `API` to JSON, `PRINT` to fixed width and everything else
+     to CSV.
+242. **Export registry lookup by name** - `zcl_alloc_format_lookup=>lookup( )` returns
+     the registered format or an empty string.
+243. **Export registry listing** - `zcl_alloc_format_list` returns the distinct entry
+     names sorted (`names( )`) and their count (`count( )`).
+244. **Lock manager abstraction** - `zcl_alloc_lock` keeps a lock table in memory:
+     `acquire( )` adds a lock unless the object/key pair is already locked,
+     `release( )` rebuilds the table without that pair (no `DELETE`) and
+     `is_locked( )` reports whether it is held.
+245. **Enqueue wrapper** - `zcl_alloc_enqueue=>enqueue( )` validates a lock request and
+     returns `{ accepted, message }`: an empty object or key is rejected with a reason,
+     otherwise the lock is reported as accepted.
+246. **Dequeue wrapper** - `zcl_alloc_dequeue=>dequeue( )` clears a lock request and
+     `distinct_count( )` counts the distinct objects in a list of requests.
+247. **Number range interval reader** - `zcl_alloc_number_range`. `next( )` advances by
+     the interval, `in_range( )` checks a number against a from/to interval and
+     `remaining( )` returns the free numbers (never negative).
+248. **Number range writer (in-memory)** - `zcl_alloc_number_range_w=>reserve( )` grants
+     the smaller of the request and the available numbers (zero for a non-positive
+     request or availability) and `exhausted( )` reports a fully used range.
+249. **Change document writer (in-memory)** - `zcl_alloc_change_doc=>add( )` appends a
+     change entry but skips it when the old and new value are equal, so only real
+     changes are documented.
+250. **Change document reader** - `zcl_alloc_change_read` filters the entries of one
+     object/key pair (`of_object( )`) and counts the entries touching one field
+     (`field_count( )`).
+251. **Application log writer** - `zcl_alloc_app_log` appends an entry
+     (`write( )`) keeping the history and counts the entries of one level
+     (`count_of_level( )`).
+252. **Application log reader** - `zcl_alloc_app_log_read` returns the messages of one
+     level (`messages( )`) and reports whether any entry is an error
+     (`has_errors( )`).
+253. **Message collector** - `zcl_alloc_messages` collects a message unless its text is
+     empty (`collect( )`) and counts a message table (`count( )`).
 
-Test coverage (810 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1001 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -837,28 +1015,33 @@ Test coverage (810 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-The first roadmap batch (orders 44-143) is complete: 44-142 are delivered and
-verified, and 143 (the ALV grid / selection screen) is the one item the
-transpiler cannot exercise, so it is deliberately not built here.
+**Both roadmap batches are complete**: orders 44-142 and 144-243 are delivered and
+verified (963 tests). The single unbuilt item across both batches is 143 (the ALV
+grid / selection screen), which the transpiler cannot exercise.
 
-A second 100-item batch (orders 144-243) has been added to `PLAN.md`; it covers
-the export surface (CSV, JSON, XML, Markdown, HTML and fixed-width renderings for
-every report already built) plus a unified export facade and format registry.
+Per the standing instruction, the next step is to plan a third 100-item batch and
+keep iterating. Planned theme for batch 3: **SAP integration and operations** -
+lock/enqueue wrappers, number ranges, change documents, application log, message
+and exception handling, BAPI/RFC/IDoc and batch-input stubs, commit/rollback and
+retry policies, timers and statistics, context (user/client/environment), feature
+flags and configuration, masking and authorization stubs, caching, streaming,
+idempotency and reconciliation.
 
 Next up (in order):
 
-1. 173 `zcl_alloc_trend_csv` - CSV of the trend analysis.
-2. 174 `zcl_alloc_trend_json` - JSON of the trend analysis.
-3. 175 `zcl_alloc_forecast_csv` - CSV of the forecast.
-4. 176 `zcl_alloc_forecast_json` - JSON of the forecast.
-5. 177 `zcl_alloc_service_csv` - CSV of the service level.
-6. 178 `zcl_alloc_service_json` - JSON of the service level.
-7. 179 `zcl_alloc_conf_csv` - CSV of the confidence score.
-8. 180 `zcl_alloc_conf_json` - JSON of the confidence score.
-9. 181 `zcl_alloc_risk_csv` - CSV of the risk score.
-10. 182 `zcl_alloc_risk_json` - JSON of the risk score.
+1. 254 `zcl_alloc_msg_format` - message formatter.
+2. 255 `zcl_alloc_error` - error handler.
+3. 256 `zcl_alloc_exception_map` - exception mapper.
+4. 257 `zcl_alloc_bapi_gm` - BAPI goods movement wrapper.
+5. 258 `zcl_alloc_bapi_atp` - BAPI availability wrapper.
+6. 259 `zcl_alloc_bapi_mat` - BAPI material read wrapper.
+7. 260 `zcl_alloc_bapi_plant` - BAPI plant read wrapper.
+8. 261 `zcl_alloc_bapi_facade` - BAPI caller facade.
+9. 262 `zcl_alloc_rfc` - RFC destination stub.
+10. 263 `zcl_alloc_idoc_writer` - IDoc writer.
 
-Then 183-243 as listed in `PLAN.md`.
+Then continue strictly in order 258-343, one feature per iteration, always keeping
+`npm test` green.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
 plan another 100 items in the same style and keep iterating (one feature per

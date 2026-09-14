@@ -410,6 +410,34 @@ with a local test class, verified by `npm test`.
 | 266 | Batch input session runner (stub) | `zcl_alloc_bdc_run` (`run`) |
 | 267 | Update task stub | `zcl_alloc_update_task` (`queue`, `flush`) |
 | 268 | Commit / rollback wrapper | `zcl_alloc_commit` (`commit`, `rollback`) |
+| 269 | Timeout guard | `zcl_alloc_timeout` (`check`, `is_expired`, `remaining`) |
+| 270 | Retry policy | `zcl_alloc_retry` (`plan`, `should_retry`, `backoff`) |
+| 271 | Circuit breaker | `zcl_alloc_breaker` (`record_failure`, `probe_half_open`) |
+| 272 | Rate limiter (in-memory) | `zcl_alloc_rate_limit` (`consume`, `remaining`, `reset`) |
+| 273 | Audit trail | `zcl_alloc_audit` (`add`, `of_run`, `entries`) |
+| 274 | Operation log | `zcl_alloc_op_log` (`add`, `errors`, `total_ms`, `slowest`) |
+| 275 | Performance timer | `zcl_alloc_timer` (`start`, `stop`, `add_ms`, `summary`) |
+| 276 | Stopwatch | `zcl_alloc_stopwatch` (`lap`, `total`, `fastest`, `slowest`) |
+| 277 | Run statistics collector | `zcl_alloc_stats` (`note`, `get`, `runs`) |
+| 278 | Session context | `zcl_alloc_session` (`open`, `close`, `context`) |
+| 279 | User context | `zcl_alloc_user` (`get_user`, `is_system`, `describe`) |
+| 280 | Client context | `zcl_alloc_client` (`get_client`, `is_productive`, `label`) |
+| 281 | Environment info | `zcl_alloc_environment` (`build`, `is_production`, `describe`) |
+| 282 | Feature flag registry | `zcl_alloc_flags` (`set`, `is_enabled`, `enabled_flags`) |
+| 283 | Configuration reader | `zcl_alloc_config` (`get`, `has`, `keys`) |
+| 284 | Configuration writer (in-memory) | `zcl_alloc_config_w` (`put`, `remove`, `entries`) |
+| 285 | Configuration validation | `zcl_alloc_config_val` (`validate`, `is_valid`) |
+| 286 | Secret masking | `zcl_alloc_secret_mask` (`mask`, `is_masked`, `mask_all`) |
+| 287 | Data masking | `zcl_alloc_mask` (`mask_text`, `mask_email`, `mask_last_digits`) |
+| 288 | Pseudonymization helper | `zcl_alloc_pseudo` (`pseudonymize`, `resolve`, `is_pseudonym`) |
+| 289 | Archive metadata | `zcl_alloc_archive_meta` (`build`, `is_complete`, `describe`) |
+| 290 | Archive index | `zcl_alloc_archive_idx` (`add`, `contains`, `entries`) |
+| 291 | Retention policy | `zcl_alloc_retention` (`is_expired`, `days_left`) |
+| 292 | Deletion policy | `zcl_alloc_deletion` (`propose`) |
+
+**Batch 3 is in progress: orders 244-292 are delivered and verified. Next is 293
+(`zcl_alloc_tenant`).**
+
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

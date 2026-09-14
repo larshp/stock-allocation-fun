@@ -989,6 +989,100 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
      supplied reason or the default `Rolled back`. Note: the reason parameter is typed
      with a `TYPES` alias (`ty_reason`) because `TYPE c LENGTH 40` in a parameter list
      does not parse (ANOMALIES.md A7).
+269. **Timeout guard** - `zcl_alloc_timeout=>check( )` reports whether the elapsed time
+     has passed the limit, the remaining seconds (clamped at zero) and a message. A limit
+     of zero or less means "no timeout": `is_expired( )` stays false and `remaining( )`
+     reports 0.
+270. **Retry policy** - `zcl_alloc_retry=>plan( )` decides whether an attempt may be
+     retried (`should_retry( )`: attempt < max attempts, a max of 0 meaning never) and
+     computes the delay with exponential backoff (`backoff( )` = base * 2^(n-1), capped
+     at 300 seconds, 0 without a base delay).
+271. **Circuit breaker** - `zcl_alloc_breaker` is a three-state breaker (`CLOSED`,
+     `OPEN`, `HALF_OPEN`, exposed as the structured constant `state`). `record_failure( )`
+     opens it once the threshold is reached - or immediately from `HALF_OPEN` -,
+     `record_success( )` resets the counter and closes a half-open breaker, and
+     `probe_half_open( )` moves an open breaker to half-open. `is_allowed( )` blocks calls
+     only while it is open.
+272. **Rate limiter (in-memory)** - `zcl_alloc_rate_limit`. `consume( )` accepts a request
+     while the consumed units fit into the limit (a non-positive request is always
+     accepted and consumes nothing) and `reset( )` restores the budget. The constructor
+     takes the limit with `DEFAULT 10` and raises a non-positive limit to 1.
+273. **Audit trail** - `zcl_alloc_audit` numbers and collects audit entries (kind, run id,
+     detail) in memory. `of_run( )` filters by run id (manual loop, no `LOOP GROUP BY`)
+     and `entries( )` returns the full trail.
+274. **Operation log** - `zcl_alloc_op_log` records named operations with a duration and a
+     status (`S`/`E`) and reports the entry count, the `errors( )` subset, the
+     `total_ms( )` sum and the `slowest( )` name.
+275. **Performance timer** - `zcl_alloc_timer` is a manual stopwatch: `start( )` resets and
+     starts it, `add_ms( )` accumulates time only while it runs, `stop( )` ends it, and
+     `summary( )` reports started / stopped / elapsed plus `Not started`, `Running` or
+     `Elapsed <n> ms`.
+276. **Stopwatch** - `zcl_alloc_stopwatch` records numbered laps and derives `total( )`,
+     `fastest( )` and `slowest( )` (both 0 for an empty stopwatch).
+277. **Run statistics collector** - `zcl_alloc_stats`. `note( )` feeds one request
+     (requested / allocated) into the counters: request count, allocated and shortage
+     totals (shortage clamped at zero, so an over-delivery never turns negative) and the
+     fully / partially covered split; `runs( )` counts the noted requests.
+278. **Session context** - `zcl_alloc_session` opens a session context (id, user, client,
+     creation date `sy-datum`), `close( )` keeps the data but marks the session closed,
+     and `is_open( )` / `context( )` read the state.
+279. **User context** - `zcl_alloc_user` defaults an empty user to the constant `c_system`
+     (`SYSTEM`), treats `SYSTEM` and `SAP*` as the system user and renders `User <name>`.
+280. **Client context** - `zcl_alloc_client` defaults to client `000`, treats `000` and
+     `066` as non-productive and renders `Client <n> (productive)` or
+     `Client <n> (non-productive)`.
+281. **Environment info** - `zcl_alloc_environment=>build( )` assembles a
+     system/client/release record and flags it productive when the client is neither
+     `000` nor `066`; `describe( )` renders `<sid>/<client> <release> (productive)` or
+     `(non-productive)`.
+282. **Feature flag registry** - `zcl_alloc_flags` keeps named flags in memory. `set( )`
+     adds or overwrites a flag, `is_enabled( )` answers `abap_false` for an unknown flag,
+     `enabled_flags( )` returns the enabled subset and `count( )` the number of flags.
+283. **Configuration reader** - `zcl_alloc_config` is built from an entry table; `get( )`
+     returns a value (empty for an unknown key), `has( )` tests existence, `keys( )`
+     lists the keys and `count( )` the number of entries.
+284. **Configuration writer (in-memory)** - `zcl_alloc_config_w`. `put( )` adds or
+     overwrites a key, `remove( )` deletes it, `entries( )` returns the table and
+     `get( )` reads a value. Note: the method is called `remove`, not `delete`, so it
+     cannot collide with the ABAP `DELETE` statement.
+285. **Configuration validation** - `zcl_alloc_config_val=>validate( )` reports one issue
+     per entry with an empty key, an empty value, or a key that already occurred earlier
+     in the table (`Key is empty` / `Value is empty` / `Duplicate key`); `is_valid( )` is
+     true when no issue was found.
+286. **Secret masking** - `zcl_alloc_secret_mask=>mask( )` keeps the first and last
+     character and replaces the middle with `*` (`SECRET` -> `S****T`); one- and
+     two-character secrets become all `*` and an empty secret stays empty. `is_masked( )`
+     reports whether a text contains an asterisk and `mask_all( )` masks a list of
+     secrets.
+287. **Data masking** - `zcl_alloc_mask`. `mask_text( )` masks everything between a kept
+     prefix and suffix, returning the text unchanged when both ends already cover it;
+     `mask_email( )` keeps the first local-part character
+     (`john.doe@example.com` -> `j*******@example.com`, falling back to prefix masking
+     without an `@`); and `mask_last_digits( )` masks all but the last n characters.
+288. **Pseudonymization helper** - `zcl_alloc_pseudo` derives the deterministic token
+     `PSN-<checksum>` from value and salt (the salt contributes its characters as well as
+     its position, so a different salt yields a different token), remembers the mapping
+     and can `resolve( )` a token back to its value. `is_pseudonym( )` checks the `PSN-`
+     prefix and `count( )` the number of mappings.
+289. **Archive metadata** - `zcl_alloc_archive_meta=>build( )` assembles the archive
+     record (object, run id, item count, `sy-datum`) and clamps a negative item count to
+     zero; `is_complete( )` requires an object, a run id and at least one item, and
+     `describe( )` renders `OBJECT/RUN: <n> items`.
+290. **Archive index** - `zcl_alloc_archive_idx` keeps one entry per archived run:
+     `add( )` appends only when the run id is not indexed yet (an existing entry keeps
+     its original date), and `contains( )`, `count( )` and `entries( )` read it back.
+291. **Retention policy** - `zcl_alloc_retention` holds a retention period in days
+     (constructor, default 365, a negative period is clamped to 0). `is_expired( )`
+     compares the age of the archived date against the period and `days_left( )` counts
+     down to it (0 once expired). Note: the age is computed through an integer
+     day-number conversion (Julian day) because the transpiler does not reproduce `d`
+     date arithmetic (ANOMALIES.md A20).
+292. **Deletion policy** - `zcl_alloc_deletion=>propose( )` takes archive candidates
+     (run id + archived date) plus a request (retention, reference date, protected run)
+     and returns the run ids that may be deleted: non-empty, not the protected run, and
+     expired according to `zcl_alloc_retention`. Note: the call into the retention
+     object uses named parameters because two positional parameters do not parse
+     (ANOMALIES.md A19).
 
 ## Bug fixes
 
@@ -1014,7 +1108,7 @@ F2. **Test double environment created once per test method** - running the unit
     `class_teardown` (destroy, guarded with `IS BOUND`), while `setup` only
     calls `clear_doubles( )`. See ANOMALIES.md A26.
 
-Test coverage (1053 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1164 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1093,35 +1187,47 @@ Test coverage (1053 ABAP Unit tests, run on Node through the transpiler):
   other plant ignored, empty result
 * Reservation document: create and summarize, items per document, distinct
   materials, release removes items, empty summary
+* Timeout / retry / breaker / limiter: limit reached, remaining clamped, unlimited,
+  attempts exhausted, exponential backoff with cap, open-reset-half-open, consume
+  and reset
+* Audit / operation log / timer / stopwatch / stats: entry numbering, run filter,
+  error subset, totals and slowest, accumulate and ignore-after-stop, lap min/max,
+  coverage split and shortage clamping
+* Contexts: closed session, open/close, default system user, `SAP*`, productive and
+  non-productive clients
+* Configuration and privacy: environment info and description, feature flags (set,
+  overwrite, unknown flag, enabled subset), config reader/writer/validation, secret and
+  data masking (prefix/suffix, email, last digits), pseudonym tokens (stability, salt
+  sensitivity, resolve, prefix detection)
+* Archive lifecycle: metadata build/completeness/description, index add/dedupe/count,
+  retention (within, at the limit, days left, zero days) and deletion proposals
+  (expired, protected, empty run id)
 
 ## Next candidates
 
-**Both roadmap batches are complete**: orders 44-142 and 144-243 are delivered and
-verified (963 tests). The single unbuilt item across both batches is 143 (the ALV
-grid / selection screen), which the transpiler cannot exercise.
+**Roadmap batches 1-2 are complete**: orders 44-142 and 144-243 are delivered and
+verified. The single unbuilt item across both batches is 143 (the ALV grid /
+selection screen), which the transpiler cannot exercise.
 
-Per the standing instruction, the next step is to plan a third 100-item batch and
-keep iterating. Planned theme for batch 3: **SAP integration and operations** -
-lock/enqueue wrappers, number ranges, change documents, application log, message
-and exception handling, BAPI/RFC/IDoc and batch-input stubs, commit/rollback and
-retry policies, timers and statistics, context (user/client/environment), feature
-flags and configuration, masking and authorization stubs, caching, streaming,
-idempotency and reconciliation.
+Batch 3 (**SAP integration and operations** - lock/enqueue wrappers, number ranges,
+change documents, application log, message and exception handling, BAPI/RFC/IDoc
+and batch-input stubs, commit/rollback and retry policies, timers and statistics,
+context (user/client/environment), feature flags and configuration, masking and
+authorization stubs, caching, streaming, idempotency and reconciliation) is in
+progress: orders 244-292 are delivered and verified.
 
 Next up (in order):
 
-1. 269 `zcl_alloc_timeout` - timeout guard.
-2. 270 `zcl_alloc_retry` - retry policy.
-3. 271 `zcl_alloc_breaker` - circuit breaker.
-4. 272 `zcl_alloc_rate_limit` - rate limiter (in-memory).
-5. 273 `zcl_alloc_audit` - audit trail.
-6. 274 `zcl_alloc_op_log` - operation log.
-7. 275 `zcl_alloc_timer` - performance timer.
-8. 276 `zcl_alloc_stopwatch` - stopwatch.
-9. 277 `zcl_alloc_stats` - run statistics collector.
-10. 278 `zcl_alloc_session` - session context.
+1. 293 `zcl_alloc_tenant` - tenant isolation helper.
+2. 294 `zcl_alloc_mandt_guard` - multi-client guard.
+3. 295 `zcl_alloc_auth` - authorization check stub.
+4. 296 `zcl_alloc_role_map` - role mapping.
+5. 297 `zcl_alloc_permission` - permission matrix.
+6. 298 `zcl_alloc_field_auth` - field-level authorization.
+7. 299 `zcl_alloc_access_log` - data access log.
+8. 300 `zcl_alloc_export_audit` - export audit log.
 
-Then continue strictly in order 258-343, one feature per iteration, always keeping
+Then continue strictly in order 293-343, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
@@ -1131,7 +1237,9 @@ iteration, `npm test` green, documented in `NOTES.md`/`ANOMALIES.md`).
 Conventions reminder for the next feature: keep method names <= 30 chars, use the
 classic `TYPES: BEGIN OF ... END OF ...` form, declare a `TYPES` alias instead of
 `TYPE c LENGTH n` or `TYPE STANDARD TABLE OF ...` in parameters, use one `&&` per
-statement, and do not put trailing blanks in test literals (ANOMALIES.md A18).
+statement, align `TYPE` expressions to one space after the longest name of the
+group, write new XML metadata with a UTF-8 BOM, and do not put trailing blanks in
+test literals (ANOMALIES.md A18).
 
 ## Conventions
 
@@ -1158,9 +1266,23 @@ statement, and do not put trailing blanks in test literals (ANOMALIES.md A18).
 * A method call used as a standalone statement must not pass `CHANGING` in the
   functional form, and `APPEND <method call> TO itab` is not parsed either (see
   ANOMALIES.md A12).
-* `align_type_expressions` aligns the `TYPE` keyword of method parameters and of
-  consecutive `DATA` statements to `indent + longest name + 1`. Keeping one long,
-  descriptive name per signature makes this predictable.
+* Functional method calls take named parameters as soon as they have more than one
+  argument - two positional arguments do not parse (ANOMALIES.md A19). In a
+  multi-line call the `=` of every parameter must line up at the column after the
+  longest parameter name (`align_parameters`); keeping the call on one line avoids
+  that entirely.
+* Do not rely on `d` date arithmetic (`date - date`, `date + n`); it is not
+  reproduced by the transpiler (ANOMALIES.md A20). Convert to an integer day number
+  instead, as `zcl_alloc_retention` does.
+* `align_type_expressions` aligns the `TYPE` keyword of method parameters, of
+  consecutive `DATA` statements and of structure components to exactly one space
+  after the longest name of the group (equivalently `indent + longest name + 2`; a
+  blank line ends a group). Because the target column depends on the longest name,
+  let `npm run lint` report it - the message names the current and the expected
+  column - and widen the shorter names by that difference.
+* Every abapGit XML file must start with a UTF-8 BOM (`EF BB BF`); the `xml_bom`
+  rule fails the build without it, so each new `<object>.<type>.xml` file is written
+  with the BOM as part of its content.
 * Tests are local test classes in `<class>.clas.testclasses.abap` files.
 * Database-dependent test classes create the SQL test double environment in
   `class_setup` and destroy it in `class_teardown`; `setup` only calls
@@ -1175,7 +1297,7 @@ The repository is set up for abapGit: `.abapgit.xml` at the root selects `/src/`
 as the starting folder and every object carries its serialized metadata next to
 the source (`<object>.<type>.xml`).
 
-* `src/*.clas.xml` - one per class (250). Serializer `LCL_OBJECT_CLAS` with
+* `src/*.clas.xml` - one per class (274). Serializer `LCL_OBJECT_CLAS` with
   `CLSNAME`, `LANGU`, `DESCRIPT`, `STATE`, `CLSCCINCL`, `FIXPT`,
   `WITH_UNIT_TESTS` (set for every class here, because all 250 have a local test
   class) and `UNICODE`, plus an `R` text-pool entry holding the description.

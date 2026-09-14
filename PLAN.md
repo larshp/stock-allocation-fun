@@ -442,9 +442,17 @@ with a local test class, verified by `npm test`.
 | 298 | Field-level authorization | `zcl_alloc_field_auth` (`is_visible`, `hide`, `visible_count`) |
 | 299 | Data access log | `zcl_alloc_access_log` (`log`, `count_of_user`) |
 | 300 | Export audit log | `zcl_alloc_export_audit` (`log`, `total_rows`, `format_count`) |
+| 301 | CSV import reader | `zcl_alloc_import_csv` (`parse_line`, `count_of`) |
+| 302 | JSON import reader | `zcl_alloc_import_json` (`parse`, `count_of`) |
+| 303 | Import validator | `zcl_alloc_import_val` (`validate`, `is_valid`) |
+| 304 | Import mapper | `zcl_alloc_import_map` (`map`) |
+| 305 | Bulk loader | `zcl_alloc_bulk_load` (`stage`, `commit`) |
+| 306 | Bulk validity check | `zcl_alloc_bulk_check` (`check`, `is_loadable`) |
+| 307 | Delta loader | `zcl_alloc_delta_load` (`compare`) |
+| 308 | Upsert helper (in-memory) | `zcl_alloc_upsert` (`upsert`, `entries`) |
 
-**Batch 3 is in progress: orders 244-300 are delivered and verified. Next is 301
-(`zcl_alloc_import_csv`).**
+**Batch 3 is in progress: orders 244-308 are delivered and verified. Next is 309
+(`zcl_alloc_dedupe_key`).**
 
 ## Roadmap
 

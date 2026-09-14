@@ -377,3 +377,22 @@ Each entry notes the symptom, the cause and the workaround used.
   itself matches SAP: `CLASS_SETUP` once, `SETUP` / `TEARDOWN` per test method,
   `CLASS_TEARDOWN` once. Everything else in this entry was a bug in this
   repository's own test classes.
+
+## A27 - A `DO <len> TIMES` loop with a manually advanced index reads past the string
+
+* Symptom: `ltcl_alloc_import_csv->unescapes_quotes` aborted with
+  `cx_sy_range_out_of_bounds`, thrown inside the runtime's `substring( )`.
+  abaplint reported nothing and the scan looked correct on inspection.
+* Cause: the character scan advanced its own index (`lv_i`) and skipped the second
+  character of an escaped quote with `lv_i = lv_i + 1`, but the loop was written
+  as `DO lv_len TIMES`. The iteration count is fixed when the loop starts and is
+  not affected by the manual increment, so every skipped character made the loop
+  body run one iteration too long; the final
+  `substring( off = lv_i - 1 len = 1 )` then pointed past the end of the string.
+  The same trap applies in a real SAP system (it dumps there instead), but only
+  the transpiled unit test surfaces it here.
+* Workaround: drive character scans with `WHILE lv_pos < lv_len.` and a 0-based
+  position that is incremented once per character, twice when a character is
+  skipped - this is what `zcl_alloc_import_csv=>parse_line` does now. Careful:
+  such a scan must not compare against a blank literal (ANOMALIES.md A18); use a
+  backtick literal (`` ` ` ``) as `zcl_alloc_import_json=>trim` does.

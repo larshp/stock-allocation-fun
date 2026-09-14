@@ -1111,6 +1111,36 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
 300. **Export audit log** - `zcl_alloc_export_audit` numbers export records (format,
      user, object, row count) and aggregates them through `total_rows( )` and
      `format_count( )`.
+301. **CSV import reader** - `zcl_alloc_import_csv=>parse_line( )` splits one line on
+     `;`, keeps separators inside double quotes and unescapes a doubled quote
+     (`"say ""hi"""` -> `say "hi"`); `count_of( )` returns the number of fields. Note: the
+     scan uses a `WHILE` with an explicit index - the skipped escaped quote would
+     desynchronise a `DO <len> TIMES` counter and read past the end of the string.
+302. **JSON import reader** - `zcl_alloc_import_json=>parse( )` turns a flat JSON object
+     into key/value pairs (outer braces stripped, pairs split on `,`, key and value split
+     on `:`, quotes and blanks trimmed); `count_of( )` counts the pairs. Note: a literal
+     that holds only blanks is trimmed to an empty string by the transpiler
+     (ANOMALIES.md A18), so the blank used for trimming comes from a backtick literal.
+303. **Import validator** - `zcl_alloc_import_val=>validate( )` reports an `Empty value`
+     issue (with the row number) for every imported row without a value and a
+     `Missing field` issue (row number 0) for every required key that does not occur;
+     `is_valid( )` is true when there is no issue.
+304. **Import mapper** - `zcl_alloc_import_map=>map( )` turns a mapping table (source
+     key, target key, default) into the target key/value list, taking the source value
+     when it is present and non-empty and the default otherwise.
+305. **Bulk loader** - `zcl_alloc_bulk_load` stages ids (a duplicate is ignored) and
+     `commit( )` moves the staged ids into the loaded set, reports how many were loaded
+     and clears the staging area; `is_loaded( )` and `loaded_count( )` read the result.
+306. **Bulk validity check** - `zcl_alloc_bulk_check=>check( )` reports `Empty id`,
+     `Id too short` (fewer than 3 characters) and `Duplicate id` (same id as an earlier
+     row) together with the offending row number; `is_loadable( )` is true without any
+     issue.
+307. **Delta loader** - `zcl_alloc_delta_load=>compare( )` classifies incoming ids
+     against the existing ones: new ids as `added`, ids in both lists as `kept` and
+     existing ids missing from the incoming list as `removed`.
+308. **Upsert helper (in-memory)** - `zcl_alloc_upsert=>upsert( )` inserts unknown keys
+     and overwrites the value of known ones, reporting the inserted and updated counts;
+     `entries( )` and `count( )` read the merged table.
 
 ## Bug fixes
 
@@ -1136,7 +1166,7 @@ F2. **Test double environment created once per test method** - running the unit
     `class_teardown` (destroy, guarded with `IS BOUND`), while `setup` only
     calls `clear_doubles( )`. See ANOMALIES.md A26.
 
-Test coverage (1196 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1228 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1234,6 +1264,10 @@ Test coverage (1196 ABAP Unit tests, run on Node through the transpiler):
   (exact, wildcard, unknown object/activity), role mapping (dedupe, per-user list),
   permission matrix (overwrite, unknown cell, granted count), hidden fields, access and
   export audit logs (numbering, per-user/-format counts, row totals)
+* Import and bulk movement: CSV parsing (plain, quoted separator, escaped quotes, empty
+  line), flat JSON objects (spaces, empty object, unquoted number), import validation
+  (empty value, missing field), mapping with defaults, bulk load staging/commit/dedupe,
+  bulk checks (empty, short, duplicate), delta classification and upsert
 
 ## Next candidates
 
@@ -1246,20 +1280,20 @@ change documents, application log, message and exception handling, BAPI/RFC/IDoc
 and batch-input stubs, commit/rollback and retry policies, timers and statistics,
 context (user/client/environment), feature flags and configuration, masking and
 authorization stubs, caching, streaming, idempotency and reconciliation) is in
-progress: orders 244-300 are delivered and verified.
+progress: orders 244-308 are delivered and verified.
 
 Next up (in order):
 
-1. 301 `zcl_alloc_import_csv` - CSV import reader.
-2. 302 `zcl_alloc_import_json` - JSON import reader.
-3. 303 `zcl_alloc_import_val` - import validator.
-4. 304 `zcl_alloc_import_map` - import mapper.
-5. 305 `zcl_alloc_bulk_load` - bulk loader.
-6. 306 `zcl_alloc_bulk_check` - bulk validity check.
-7. 307 `zcl_alloc_delta_load` - delta loader.
-8. 308 `zcl_alloc_upsert` - upsert helper (in-memory).
+1. 309 `zcl_alloc_dedupe_key` - dedupe key builder.
+2. 310 `zcl_alloc_natural_key` - natural key builder.
+3. 311 `zcl_alloc_surrogate` - surrogate key map.
+4. 312 `zcl_alloc_ref_cache` - reference data cache.
+5. 313 `zcl_alloc_cache_policy` - cache invalidation policy.
+6. 314 `zcl_alloc_cache_stats` - cache statistics.
+7. 315 `zcl_alloc_cache_warm` - cache warm-up helper.
+8. 316 `zcl_alloc_lazy` - lazy loader.
 
-Then continue strictly in order 301-343, one feature per iteration, always keeping
+Then continue strictly in order 309-343, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
@@ -1298,6 +1332,10 @@ test literals (ANOMALIES.md A18).
 * A method call used as a standalone statement must not pass `CHANGING` in the
   functional form, and `APPEND <method call> TO itab` is not parsed either (see
   ANOMALIES.md A12).
+* A literal that holds only blanks is trimmed to an empty string by the transpiler
+  (ANOMALIES.md A18), so `IF lv_char <> ' '` never matches and a `DO <len> TIMES`
+  counter runs out of step with a manually advanced index. Use a backtick literal
+  (`` ` ` ``) for a blank and a `WHILE` loop when characters are skipped.
 * Functional method calls take named parameters as soon as they have more than one
   argument - two positional arguments do not parse (ANOMALIES.md A19). In a
   multi-line call the `=` of every parameter must line up at the column after the
@@ -1329,7 +1367,7 @@ The repository is set up for abapGit: `.abapgit.xml` at the root selects `/src/`
 as the starting folder and every object carries its serialized metadata next to
 the source (`<object>.<type>.xml`).
 
-* `src/*.clas.xml` - one per class (282). Serializer `LCL_OBJECT_CLAS` with
+* `src/*.clas.xml` - one per class (290). Serializer `LCL_OBJECT_CLAS` with
   `CLSNAME`, `LANGU`, `DESCRIPT`, `STATE`, `CLSCCINCL`, `FIXPT`,
   `WITH_UNIT_TESTS` (set for every class here, because all 250 have a local test
   class) and `UNICODE`, plus an `R` text-pool entry holding the description.

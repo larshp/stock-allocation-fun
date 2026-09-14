@@ -434,9 +434,17 @@ with a local test class, verified by `npm test`.
 | 290 | Archive index | `zcl_alloc_archive_idx` (`add`, `contains`, `entries`) |
 | 291 | Retention policy | `zcl_alloc_retention` (`is_expired`, `days_left`) |
 | 292 | Deletion policy | `zcl_alloc_deletion` (`propose`) |
+| 293 | Tenant isolation helper | `zcl_alloc_tenant` (`belongs_to`, `is_default`, `qualify`) |
+| 294 | Multi-client guard | `zcl_alloc_mandt_guard` (`is_current_allowed`, `check`) |
+| 295 | Authorization check stub | `zcl_alloc_auth` (`is_authorized`) |
+| 296 | Role mapping | `zcl_alloc_role_map` (`grant`, `has_role`, `roles_of`) |
+| 297 | Permission matrix | `zcl_alloc_permission` (`set`, `allows`, `allowed_count`) |
+| 298 | Field-level authorization | `zcl_alloc_field_auth` (`is_visible`, `hide`, `visible_count`) |
+| 299 | Data access log | `zcl_alloc_access_log` (`log`, `count_of_user`) |
+| 300 | Export audit log | `zcl_alloc_export_audit` (`log`, `total_rows`, `format_count`) |
 
-**Batch 3 is in progress: orders 244-292 are delivered and verified. Next is 293
-(`zcl_alloc_tenant`).**
+**Batch 3 is in progress: orders 244-300 are delivered and verified. Next is 301
+(`zcl_alloc_import_csv`).**
 
 ## Roadmap
 

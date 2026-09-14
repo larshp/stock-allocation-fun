@@ -1083,6 +1083,34 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
      expired according to `zcl_alloc_retention`. Note: the call into the retention
      object uses named parameters because two positional parameters do not parse
      (ANOMALIES.md A19).
+293. **Tenant isolation helper** - `zcl_alloc_tenant` holds a tenant (empty input falls
+     back to `DEFAULT`). `belongs_to( )` compares a tenant, `is_default( )` tests for the
+     default tenant, and `qualify( )` builds a tenant-scoped key `<tenant>::<key>` with a
+     string template (so the padding of the character field is trimmed).
+294. **Multi-client guard** - `zcl_alloc_mandt_guard` is constructed with the current and
+     the allowed client; `is_current_allowed( )` compares them, `check( )` tests any
+     client and `describe( )` renders `Client <n>, allowed <n>`.
+295. **Authorization check stub** - `zcl_alloc_auth` is built from a grant table
+     (object + activity). `is_authorized( )` matches object and activity, where an
+     activity of `*` on a grant authorizes any activity of that object; `count( )`
+     reports the number of grants.
+296. **Role mapping** - `zcl_alloc_role_map`. `grant( )` adds a user/role assignment once
+     (a duplicate is ignored), `has_role( )` tests one assignment, `roles_of( )` lists the
+     roles of a user and `count( )` the number of assignments. Note: the method is called
+     `grant`, not `assign`, so it cannot collide with the ABAP `ASSIGN` statement.
+297. **Permission matrix** - `zcl_alloc_permission` keeps role/activity cells. `set( )`
+     adds or overwrites a cell, `allows( )` reads it (an unknown cell denies) and
+     `allowed_count( )` counts the granted cells.
+298. **Field-level authorization** - `zcl_alloc_field_auth` is constructed with hidden
+     fields. `is_visible( )` denies a hidden field and allows anything else, `hide( )`
+     adds a field once and `visible_count( )` counts the fields of a list that are not
+     hidden.
+299. **Data access log** - `zcl_alloc_access_log` numbers read/write accesses (user,
+     object, action) and reports the total `count( )`, `count_of_user( )` and the full
+     `entries( )` table.
+300. **Export audit log** - `zcl_alloc_export_audit` numbers export records (format,
+     user, object, row count) and aggregates them through `total_rows( )` and
+     `format_count( )`.
 
 ## Bug fixes
 
@@ -1108,7 +1136,7 @@ F2. **Test double environment created once per test method** - running the unit
     `class_teardown` (destroy, guarded with `IS BOUND`), while `setup` only
     calls `clear_doubles( )`. See ANOMALIES.md A26.
 
-Test coverage (1164 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1196 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1202,6 +1230,10 @@ Test coverage (1164 ABAP Unit tests, run on Node through the transpiler):
 * Archive lifecycle: metadata build/completeness/description, index add/dedupe/count,
   retention (within, at the limit, days left, zero days) and deletion proposals
   (expired, protected, empty run id)
+* Access control and audit: tenant matching and key qualification, client guard, grants
+  (exact, wildcard, unknown object/activity), role mapping (dedupe, per-user list),
+  permission matrix (overwrite, unknown cell, granted count), hidden fields, access and
+  export audit logs (numbering, per-user/-format counts, row totals)
 
 ## Next candidates
 
@@ -1214,20 +1246,20 @@ change documents, application log, message and exception handling, BAPI/RFC/IDoc
 and batch-input stubs, commit/rollback and retry policies, timers and statistics,
 context (user/client/environment), feature flags and configuration, masking and
 authorization stubs, caching, streaming, idempotency and reconciliation) is in
-progress: orders 244-292 are delivered and verified.
+progress: orders 244-300 are delivered and verified.
 
 Next up (in order):
 
-1. 293 `zcl_alloc_tenant` - tenant isolation helper.
-2. 294 `zcl_alloc_mandt_guard` - multi-client guard.
-3. 295 `zcl_alloc_auth` - authorization check stub.
-4. 296 `zcl_alloc_role_map` - role mapping.
-5. 297 `zcl_alloc_permission` - permission matrix.
-6. 298 `zcl_alloc_field_auth` - field-level authorization.
-7. 299 `zcl_alloc_access_log` - data access log.
-8. 300 `zcl_alloc_export_audit` - export audit log.
+1. 301 `zcl_alloc_import_csv` - CSV import reader.
+2. 302 `zcl_alloc_import_json` - JSON import reader.
+3. 303 `zcl_alloc_import_val` - import validator.
+4. 304 `zcl_alloc_import_map` - import mapper.
+5. 305 `zcl_alloc_bulk_load` - bulk loader.
+6. 306 `zcl_alloc_bulk_check` - bulk validity check.
+7. 307 `zcl_alloc_delta_load` - delta loader.
+8. 308 `zcl_alloc_upsert` - upsert helper (in-memory).
 
-Then continue strictly in order 293-343, one feature per iteration, always keeping
+Then continue strictly in order 301-343, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
@@ -1297,7 +1329,7 @@ The repository is set up for abapGit: `.abapgit.xml` at the root selects `/src/`
 as the starting folder and every object carries its serialized metadata next to
 the source (`<object>.<type>.xml`).
 
-* `src/*.clas.xml` - one per class (274). Serializer `LCL_OBJECT_CLAS` with
+* `src/*.clas.xml` - one per class (282). Serializer `LCL_OBJECT_CLAS` with
   `CLSNAME`, `LANGU`, `DESCRIPT`, `STATE`, `CLSCCINCL`, `FIXPT`,
   `WITH_UNIT_TESTS` (set for every class here, because all 250 have a local test
   class) and `UNICODE`, plus an `R` text-pool entry holding the description.

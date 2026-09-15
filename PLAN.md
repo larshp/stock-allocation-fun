@@ -450,9 +450,17 @@ with a local test class, verified by `npm test`.
 | 306 | Bulk validity check | `zcl_alloc_bulk_check` (`check`, `is_loadable`) |
 | 307 | Delta loader | `zcl_alloc_delta_load` (`compare`) |
 | 308 | Upsert helper (in-memory) | `zcl_alloc_upsert` (`upsert`, `entries`) |
+| 309 | Dedupe key builder | `zcl_alloc_dedupe_key` (`build`, `parts_of`, `count_of`) |
+| 310 | Natural key builder | `zcl_alloc_natural_key` (`compose`, `field_at`, `field_count`) |
+| 311 | Surrogate key map | `zcl_alloc_surrogate` (`get_or_create`, `lookup`) |
+| 312 | Reference data cache | `zcl_alloc_ref_cache` (`put`, `get`, `reset`) |
+| 313 | Cache invalidation policy | `zcl_alloc_cache_policy` (`is_stale`, `is_full`, `describe`) |
+| 314 | Cache statistics | `zcl_alloc_cache_stats` (`note_hit`, `hit_rate`, `reset`) |
+| 315 | Cache warm-up helper | `zcl_alloc_cache_warm` (`missing`, `cached_count`) |
+| 316 | Lazy loader | `zcl_alloc_lazy` (`load`, `get`, `reset`) |
 
-**Batch 3 is in progress: orders 244-308 are delivered and verified. Next is 309
-(`zcl_alloc_dedupe_key`).**
+**Batch 3 is in progress: orders 244-316 are delivered and verified. Next is 317
+(`zcl_alloc_cursor`).**
 
 ## Roadmap
 

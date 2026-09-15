@@ -1141,6 +1141,32 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
 308. **Upsert helper (in-memory)** - `zcl_alloc_upsert=>upsert( )` inserts unknown keys
      and overwrites the value of known ones, reporting the inserted and updated counts;
      `entries( )` and `count( )` read the merged table.
+309. **Dedupe key builder** - `zcl_alloc_dedupe_key` joins the non-empty parts of a list
+     with `|` (`build`), splits a key back into its parts (`parts_of`, an empty key yields
+     no parts) and counts them (`count_of`).
+310. **Natural key builder** - `zcl_alloc_natural_key` composes a position-addressable
+     key: every field is padded to 20 characters and concatenated, so `field_count( )` is
+     `strlen / 20` and `field_at( )` extracts the nth field (padding trimmed, an
+     out-of-range index returns an empty string). Note: `field_at` clamps the substring
+     length to the remaining text so a partial key cannot read past the end.
+311. **Surrogate key map** - `zcl_alloc_surrogate` maps a natural key to a generated
+     surrogate id (`SID-<n>`): `get_or_create( )` creates it once and returns the same id
+     afterwards, `lookup( )` only reads and `count( )` reports the mappings.
+312. **Reference data cache** - `zcl_alloc_ref_cache` stores key/value pairs in memory:
+     `put( )` inserts or overwrites, `get( )` / `has( )` read, `reset( )` empties the cache
+     and `count( )` reports the entries. Note: the method is `reset`, not `clear`, so it
+     cannot collide with the ABAP `CLEAR` statement.
+313. **Cache invalidation policy** - `zcl_alloc_cache_policy` holds a maximum age in
+     seconds and a maximum number of items (constructor, defaults 60 / 100) and answers
+     `is_stale( )` / `is_full( )` at the limit; `describe( )` renders both limits.
+314. **Cache statistics** - `zcl_alloc_cache_stats` counts hits and misses
+     (`note_hit`, `note_miss`), reports them and derives `hit_rate( )` as an integer
+     percentage (0 while nothing was accessed).
+315. **Cache warm-up helper** - `zcl_alloc_cache_warm=>missing( )` returns the wanted
+     keys that are not cached yet and `cached_count( )` counts the wanted keys that are.
+316. **Lazy loader** - `zcl_alloc_lazy` loads a value at most once: `load( )` sets the
+     value only while nothing is loaded and always returns the effective value, `get( )`
+     reads it, `is_loaded( )` reports the state and `reset( )` allows a new load.
 
 ## Bug fixes
 
@@ -1166,7 +1192,7 @@ F2. **Test double environment created once per test method** - running the unit
     `class_teardown` (destroy, guarded with `IS BOUND`), while `setup` only
     calls `clear_doubles( )`. See ANOMALIES.md A26.
 
-Test coverage (1228 ABAP Unit tests, run on Node through the transpiler):
+Test coverage (1260 ABAP Unit tests, run on Node through the transpiler):
 
 * MARD reader: storage locations, quantity mapping, plant filter, empty result
 * Allocator: priority order, shortage, split over bins, policy, over-allocation
@@ -1268,6 +1294,10 @@ Test coverage (1228 ABAP Unit tests, run on Node through the transpiler):
   line), flat JSON objects (spaces, empty object, unquoted number), import validation
   (empty value, missing field), mapping with defaults, bulk load staging/commit/dedupe,
   bulk checks (empty, short, duplicate), delta classification and upsert
+* Keys and caching: dedupe key build/split/count, fixed-width natural keys (compose,
+  count, nth field, out-of-range), surrogate id creation/reuse/lookup, reference cache
+  (put, overwrite, reset), invalidation policy (stale, full, description), statistics
+  (hit rate, reset), warm-up (missing keys, cached count) and the lazy loader
 
 ## Next candidates
 
@@ -1280,20 +1310,20 @@ change documents, application log, message and exception handling, BAPI/RFC/IDoc
 and batch-input stubs, commit/rollback and retry policies, timers and statistics,
 context (user/client/environment), feature flags and configuration, masking and
 authorization stubs, caching, streaming, idempotency and reconciliation) is in
-progress: orders 244-308 are delivered and verified.
+progress: orders 244-316 are delivered and verified.
 
 Next up (in order):
 
-1. 309 `zcl_alloc_dedupe_key` - dedupe key builder.
-2. 310 `zcl_alloc_natural_key` - natural key builder.
-3. 311 `zcl_alloc_surrogate` - surrogate key map.
-4. 312 `zcl_alloc_ref_cache` - reference data cache.
-5. 313 `zcl_alloc_cache_policy` - cache invalidation policy.
-6. 314 `zcl_alloc_cache_stats` - cache statistics.
-7. 315 `zcl_alloc_cache_warm` - cache warm-up helper.
-8. 316 `zcl_alloc_lazy` - lazy loader.
+1. 317 `zcl_alloc_cursor` - pagination cursor.
+2. 318 `zcl_alloc_chunk_read` - chunked reader.
+3. 319 `zcl_alloc_chunk_write` - chunked writer.
+4. 320 `zcl_alloc_backpressure` - backpressure helper.
+5. 321 `zcl_alloc_batch_tune` - batch size tuner.
+6. 322 `zcl_alloc_concurrency` - concurrency guard.
+7. 323 `zcl_alloc_idem_key` - idempotency key.
+8. 324 `zcl_alloc_once` - exactly-once guard.
 
-Then continue strictly in order 309-343, one feature per iteration, always keeping
+Then continue strictly in order 317-343, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when this 100-item roadmap (44-143) is done,
@@ -1367,7 +1397,7 @@ The repository is set up for abapGit: `.abapgit.xml` at the root selects `/src/`
 as the starting folder and every object carries its serialized metadata next to
 the source (`<object>.<type>.xml`).
 
-* `src/*.clas.xml` - one per class (290). Serializer `LCL_OBJECT_CLAS` with
+* `src/*.clas.xml` - one per class. Serializer `LCL_OBJECT_CLAS` with
   `CLSNAME`, `LANGU`, `DESCRIPT`, `STATE`, `CLSCCINCL`, `FIXPT`,
   `WITH_UNIT_TESTS` (set for every class here, because all 250 have a local test
   class) and `UNICODE`, plus an `R` text-pool entry holding the description.
@@ -1388,7 +1418,12 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
+* Metadata exists for the classes up to roadmap order 308. The classes of orders
+  309-316 are still missing their `<class>.clas.xml`: every XML file must start with a
+  UTF-8 byte order mark, which the editor's file tools strip from the start of the
+  content. They have to be added later (a byte-level write, or re-saving the file as
+  "UTF-8 with BOM") before those classes can be serialized to abapGit. This does not
+  affect `npm test`, which does not require metadata for every class.
 
-With the metadata present, `abaplint` analyses 787 files instead of 530 and runs
-`xml_consistency` and `xml_bom` over every XML file (see `ANOMALIES.md` A21 and
-A23).
+With the metadata present, `abaplint` additionally runs `xml_consistency` and
+`xml_bom` over every XML file (see `ANOMALIES.md` A21 and A23).

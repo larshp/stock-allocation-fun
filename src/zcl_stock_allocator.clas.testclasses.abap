@@ -157,4 +157,125 @@ CLASS ltcl_plan IMPLEMENTATION.
     cl_abap_unit_assert=>assert_initial( plan-picks ).
     cl_abap_unit_assert=>assert_initial( plan-results ).
   ENDMETHOD.
+
+  METHOD summary_totals.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '15.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock_1000( )
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    DATA(summary) = zcl_stock_allocator=>summarize( plan ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_requested exp = '15.000' ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_allocated exp = '12.750' ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_shortage exp = '2.250' ).
+    cl_abap_unit_assert=>assert_equals( act = lines( summary-shortages ) exp = 1 ).
+    READ TABLE summary-shortages INDEX 1 INTO DATA(shortage).
+    cl_abap_unit_assert=>assert_equals( act = shortage-quantity exp = '2.250' ).
+  ENDMETHOD.
+
+  METHOD summary_no_shortage.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '5.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock_1000( )
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    DATA(summary) = zcl_stock_allocator=>summarize( plan ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_requested exp = '5.000' ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_allocated exp = '5.000' ).
+    cl_abap_unit_assert=>assert_equals( act = summary-total_shortage exp = '0.000' ).
+    cl_abap_unit_assert=>assert_initial( summary-shortages ).
+  ENDMETHOD.
+
+  METHOD input_stock_unchanged.
+    DATA(stock) = stock_1000( ).
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '5.000' priority = 1 due_date = '20260101' ) ).
+    zcl_stock_allocator=>plan(
+      it_stock        = stock
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    READ TABLE stock INDEX 1 INTO DATA(first).
+    cl_abap_unit_assert=>assert_equals( act = first-labst exp = '4.500' ).
+    READ TABLE stock INDEX 2 INTO DATA(second).
+    cl_abap_unit_assert=>assert_equals( act = second-labst exp = '8.250' ).
+  ENDMETHOD.
+
+  METHOD wrong_material_ignored.
+    DATA(stock) = stock_1000( ).
+    APPEND VALUE #( mandt = sy-mandt matnr = 'MAT2' werks = '1000' lgort = '0003' labst = '50.000' ) TO stock.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '15.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    READ TABLE plan-results INDEX 1 INTO DATA(result).
+    cl_abap_unit_assert=>assert_equals( act = result-allocated exp = '12.750' ).
+    cl_abap_unit_assert=>assert_equals( act = result-shortage exp = '2.250' ).
+  ENDMETHOD.
+
+  METHOD wrong_plant_ignored.
+    DATA(stock) = stock_1000( ).
+    APPEND VALUE #( mandt = sy-mandt matnr = 'MAT1' werks = '2000' lgort = '0003' labst = '50.000' ) TO stock.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '15.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    READ TABLE plan-results INDEX 1 INTO DATA(result).
+    cl_abap_unit_assert=>assert_equals( act = result-allocated exp = '12.750' ).
+    cl_abap_unit_assert=>assert_equals( act = result-shortage exp = '2.250' ).
+  ENDMETHOD.
+
+  METHOD wrong_client_ignored.
+    DATA(stock) = stock_1000( ).
+    APPEND VALUE #( mandt = '999' matnr = 'MAT1' werks = '1000' lgort = '0003' labst = '50.000' ) TO stock.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '15.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    READ TABLE plan-results INDEX 1 INTO DATA(result).
+    cl_abap_unit_assert=>assert_equals( act = result-allocated exp = '12.750' ).
+    cl_abap_unit_assert=>assert_equals( act = result-shortage exp = '2.250' ).
+  ENDMETHOD.
+
+  METHOD reserve_exceeds_stock.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '5.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock_1000( )
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000'
+      iv_safety_stock = '20.000' ).
+    READ TABLE plan-results INDEX 1 INTO DATA(result).
+    cl_abap_unit_assert=>assert_equals( act = result-allocated exp = '0.000' ).
+    cl_abap_unit_assert=>assert_equals( act = result-shortage exp = '5.000' ).
+    cl_abap_unit_assert=>assert_initial( plan-picks ).
+  ENDMETHOD.
+
+  METHOD zero_quantity_requirement.
+    DATA(reqs) = VALUE zcl_stock_allocator=>ty_requirements(
+      ( order_id = '0000000001' item_id = '000001' quantity = '0.000' priority = 1 due_date = '20260101' ) ).
+    DATA(plan) = zcl_stock_allocator=>plan(
+      it_stock        = stock_1000( )
+      it_requirements = reqs
+      iv_material     = 'MAT1'
+      iv_plant        = '1000' ).
+    cl_abap_unit_assert=>assert_initial( plan-picks ).
+    READ TABLE plan-results INDEX 1 INTO DATA(result).
+    cl_abap_unit_assert=>assert_equals( act = result-allocated exp = '0.000' ).
+    cl_abap_unit_assert=>assert_equals( act = result-shortage exp = '0.000' ).
+  ENDMETHOD.
 ENDCLASS.

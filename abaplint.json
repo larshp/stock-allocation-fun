@@ -1,6 +1,6 @@
 {
   "global": {
-    "files": "/src/**/*.*",
+    "files": "/{src,sap-stubs}/**/*.*",
     "exclude": []
   },
   "dependencies": [
@@ -8,13 +8,10 @@
       "url": "https://github.com/open-abap/open-abap-core",
       "folder": "/deps/open-abap-core",
       "files": "/src/**/*.*"
-    },
-    {
-      "files": "/sap-stubs/**/*.*"
     }
   ],
   "syntax": {
-    "version": "v750",
+    "version": { "release": "v762", "language": "Normal" },
     "errorNamespace": "^(Z|Y|LCL_|LIF_)"
   },
   "rules": {

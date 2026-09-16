@@ -9,6 +9,7 @@
   "options": {
     "addCommonJS": true,
     "ignoreSyntaxCheck": false,
-    "unknownTypes": "compileError"
+    "unknownTypes": "compileError",
+    "setup": { "filename": "../test/setup.mjs", "preFunction": "setup" }
   }
 }

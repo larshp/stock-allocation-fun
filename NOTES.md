@@ -39,12 +39,25 @@ Scope: current branch `hvam/unionalpha1609` only. No code imported from other br
 - Regression tests cover input immutability, wrong material/plant/client
   filtering, reserve exceeding stock and zero-quantity requirements.
 
+## Iteration 5 — client isolation and storage-location selection
+
+- MARD reads use classic Open SQL `CLIENT SPECIFIED` with an explicit current-client
+  predicate; MARD/MARA stubs declare client dependence. This is not an ABAP Cloud API.
+- The local fixture explicitly sets client 123. Direct reader tests reject a
+  foreign-client-only material and check the client of every returned stock row.
+- Planner and service accept optional `it_locations` (table of storage-location IDs).
+  Omitted/empty means all locations. Nonempty means only listed locations, with no
+  fallback for unknown IDs. Duplicate IDs do not multiply stock or affect pick order.
+- Location filtering happens before safety-stock protection and full-delivery checks.
+  Safety stock applies to the selected pool, not the whole plant.
+- Six new service tests exercise selected, unknown, empty and duplicate locations,
+  selected-pool safety stock, and full delivery leaving stock for smaller requests.
+
 ## Current status
 
-- `npm test` (lint + transpile + ABAP unit tests): 26 tests, all passing,
+- `npm test` (lint + transpile + ABAP unit tests): 33 tests, all passing,
   0 lint issues.
-- Checkpoint `ca3486c` exists on `hvam/unionalpha1609`; completed regression tests
-  and documentation updates remain uncommitted.
+- Current increment remains uncommitted on `hvam/unionalpha1609`.
 - Local validation only; no activation or integration testing in a real SAP system.
 
 ## Known limitations

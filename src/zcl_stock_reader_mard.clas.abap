@@ -8,7 +8,7 @@ CLASS zcl_stock_reader_mard IMPLEMENTATION.
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
       RETURN.
     ENDIF.
-    SELECT * FROM mard
+    SELECT * FROM mard CLIENT SPECIFIED
       WHERE mandt = @sy-mandt AND matnr = @iv_material AND werks = @iv_plant AND labst > 0
       ORDER BY PRIMARY KEY
       INTO TABLE @rt_stock.

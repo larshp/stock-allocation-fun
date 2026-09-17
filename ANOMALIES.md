@@ -25,11 +25,16 @@ version maps on-premise 750 to release `v762`, which is now configured.
 Without `"options": { "addCommonJS": true }` in `abap_transpile.json`, generated code fails
 at runtime with `ReferenceError: cl_abap_objectdescr is not defined`.
 
-## A6 — no automatic client handling in transpiled SQL (fixed)
+## A6 — explicit client handling (locally validated; SAP activation pending)
 
-`SELECT ... FROM mard` returned rows of other clients in the SQLite fixture. The MARD
-reader now filters explicitly with `WHERE mandt = @sy-mandt`. Verify client handling
-against real SAP DDIC metadata before production deployment.
+`SELECT ... FROM mard` returned rows of other clients in the SQLite fixture. An
+explicit MANDT predicate alone does not establish SAP syntax compatibility with
+implicit client handling. The reader now uses classic Open SQL `CLIENT SPECIFIED`
+with `WHERE mandt = @sy-mandt`; MARD/MARA stubs include `CLIDEP = X`.
+The fixture sets client 123 explicitly, and direct reader tests reject foreign-client
+stock independently of planner filtering. All local tests pass. This is not an ABAP
+Cloud API; verify activation and client isolation in the target SAP release before
+production deployment. No claim of implicit filtering support is made.
 
 ## A7 — safety-stock test expectation (fixed)
 

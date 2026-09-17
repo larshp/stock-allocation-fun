@@ -2,6 +2,7 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     TYPES ty_order_id TYPE c LENGTH 10.
     TYPES ty_item_id TYPE n LENGTH 6.
+    TYPES ty_locations TYPE STANDARD TABLE OF mard-lgort WITH DEFAULT KEY.
     TYPES: BEGIN OF ty_requirement,
              order_id TYPE ty_order_id,
              item_id  TYPE ty_item_id,
@@ -58,6 +59,7 @@ CLASS zcl_stock_allocator DEFINITION PUBLIC FINAL CREATE PUBLIC.
                 iv_safety_stock  TYPE mard-labst DEFAULT 0
                 iv_full_delivery TYPE abap_bool DEFAULT abap_false
                 iv_horizon       TYPE d OPTIONAL
+                it_locations     TYPE ty_locations OPTIONAL
       RETURNING VALUE(rs_plan)   TYPE ty_plan.
 ENDCLASS.
 
@@ -84,6 +86,15 @@ CLASS zcl_stock_allocator IMPLEMENTATION.
     ENDIF.
     stock = it_stock.
     DELETE stock WHERE matnr <> iv_material OR werks <> iv_plant OR labst <= 0 OR mandt <> sy-mandt.
+    IF it_locations IS NOT INITIAL.
+      LOOP AT stock INTO DATA(candidate).
+        DATA(stock_index) = sy-tabix.
+        READ TABLE it_locations WITH KEY table_line = candidate-lgort TRANSPORTING NO FIELDS.
+        IF sy-subrc <> 0.
+          DELETE stock INDEX stock_index.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
     SORT stock BY lgort.
     reserve = iv_safety_stock.
     LOOP AT stock ASSIGNING FIELD-SYMBOL(<stock>).

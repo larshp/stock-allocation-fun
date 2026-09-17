@@ -9,6 +9,7 @@ CLASS zcl_stock_allocation_service DEFINITION PUBLIC FINAL CREATE PUBLIC.
                 iv_safety_stock  TYPE mard-labst DEFAULT 0
                 iv_full_delivery TYPE abap_bool DEFAULT abap_false
                 iv_horizon       TYPE d OPTIONAL
+                it_locations     TYPE zcl_stock_allocator=>ty_locations OPTIONAL
       RETURNING VALUE(rs_plan)   TYPE zcl_stock_allocator=>ty_plan.
   PRIVATE SECTION.
     DATA mo_stock_reader TYPE REF TO zif_stock_reader.
@@ -34,6 +35,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       iv_plant         = iv_plant
       iv_safety_stock  = iv_safety_stock
       iv_full_delivery = iv_full_delivery
-      iv_horizon       = iv_horizon ).
+      iv_horizon       = iv_horizon
+      it_locations     = it_locations ).
   ENDMETHOD.
 ENDCLASS.

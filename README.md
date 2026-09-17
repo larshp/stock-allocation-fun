@@ -13,6 +13,7 @@ Stock allocation for ABAP, developed and tested outside a SAP system with
   - safety stock protected before any allocation;
   - optional full-delivery policy (no partial allocations);
   - optional horizon that defers requirements due after it;
+  - optional storage-location allowlist (`it_locations`), also exposed by the service;
   - per-location picks and per-requirement results (allocated, shortage, deferred).
 - `zcl_stock_allocator=>summarize` — totals and shortage list for a plan.
 - `zif_stock_reader` / `zcl_stock_reader_mard` — injectable stock reading from
@@ -22,6 +23,15 @@ Stock allocation for ABAP, developed and tested outside a SAP system with
 
 Planning is a read-only snapshot simulation. It never mutates stock, holds no
 locks, and posts nothing — an allocation is not a goods issue.
+
+### Storage-location selection
+
+Pass `it_locations` to `zcl_stock_allocator=>plan` or
+`zcl_stock_allocation_service->run` to restrict the stock pool. Omitted or empty
+lists allow all locations. Nonempty lists allow only matching IDs; unknown IDs
+never fall back to other locations. Duplicate IDs do not multiply stock, and picks
+remain ordered by location. Safety stock and full-delivery checks apply only to
+the selected pool. This is a planning policy, not an authorization check.
 
 ## Layout
 

@@ -1,0 +1,77 @@
+# Implementation progress
+
+Scope: current branch `hvam/unionalpha1609` only. No code imported from other branches.
+
+## Iteration 1 — toolchain and allocation primitive
+
+- Local npm dependencies and lockfile for abaplint, transpiler, runtime and SQLite.
+- Required lint rules enabled; open-abap-core dependency in both configurations.
+- Pure allocation primitive `zcl_stock_allocator=>allocate` with tests for full
+  delivery, shortage and non-positive quantities.
+
+## Iteration 2 — stock reader and database tests
+
+- `zif_stock_reader` interface with injectable `read_stock`.
+- `zcl_stock_reader_mard` reads positive stock from MARD with an explicit
+  `mandt = @sy-mandt` predicate (the transpiled runtime does not add client
+  handling automatically).
+- Minimal SAP standard stubs `mard` and `mara` in `sap-stubs/`, included in
+  linting and transpilation.
+- Isolated SQLite fixture in `test/setup.mjs`; integration tests cover scoped
+  reads, unknown material and missing plant.
+
+## Iteration 3 — prioritized multi-order planning
+
+- `zcl_stock_allocator=>plan` allocates requirements sorted stable by
+  priority, due date, order and item against location-sorted stock.
+- Safety stock reserve is consumed first; full-delivery policy leaves stock for
+  later orders when a request cannot be satisfied completely; a horizon defers
+  requirements with later due dates.
+- Results carry allocated, shortage and deferred flags; picks carry per-location
+  quantities. Input stock is never mutated and nothing is persisted.
+
+## Iteration 4 — service integration and shortage summary
+
+- `zcl_stock_allocation_service` wires the MARD reader to the planner; a custom
+  reader can be injected, and no database access happens without demand.
+- `zcl_stock_allocator=>summarize` totals requested, allocated and shortage
+  quantities (non-positive demand excluded from requested) and lists shortages.
+- Regression tests cover input immutability, wrong material/plant/client
+  filtering, reserve exceeding stock and zero-quantity requirements.
+
+## Iteration 5 — client isolation and storage-location selection
+
+- MARD reads use classic Open SQL `CLIENT SPECIFIED` with an explicit current-client
+  predicate; MARD/MARA stubs declare client dependence. This is not an ABAP Cloud API.
+- The local fixture explicitly sets client 123. Direct reader tests reject a
+  foreign-client-only material and check the client of every returned stock row.
+- Planner and service accept optional `it_locations` (table of storage-location IDs).
+  Omitted/empty means all locations. Nonempty means only listed locations, with no
+  fallback for unknown IDs. Duplicate IDs do not multiply stock or affect pick order.
+- Location filtering happens before safety-stock protection and full-delivery checks.
+  Safety stock applies to the selected pool, not the whole plant.
+- Six new service tests exercise selected, unknown, empty and duplicate locations,
+  selected-pool safety stock, and full delivery leaving stock for smaller requests.
+
+## Current status
+
+- `npm test` (lint + transpile + ABAP unit tests): 33 tests, all passing,
+  0 lint issues.
+- Current increment remains uncommitted on `hvam/unionalpha1609`.
+- Local validation only; no activation or integration testing in a real SAP system.
+
+## Known limitations
+
+- Quantities are in the material base unit only; no unit-of-measure conversion.
+- Planning is a snapshot simulation: no locks, reservations or persistence.
+- No goods-movement posting yet; an allocation is not a goods issue. Posting
+  must go through a documented SAP standard API owned by the caller.
+- No sales-order reader; requirements are passed in by the caller.
+- SAP standard stubs and generated JavaScript are development-only artifacts.
+
+## Planned next increments
+
+1. Goods-movement adapter with simulation default and explicit caller-owned
+   transaction handling.
+2. Sales-order based requirement collection.
+3. Deployment guidance for real SAP systems (Z objects only).

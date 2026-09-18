@@ -704,9 +704,13 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 438 | Deep-link builder | `zcl_alloc_deeplink` (`build`, `is_absolute`) |
 | 439 | Report signature block | `zcl_alloc_signature` (`build`) |
 | 440 | Print pagination | `zcl_alloc_print_page` (`paginate`, `capacity_of`) |
+| 441 | Release note builder | `zcl_alloc_release_notes` (`build`, `count_of`, `titles_of`) |
+| 442 | Change request tracker | `zcl_alloc_change_request` (`build`, `is_open_status`, `open_count`) |
+| 443 | Roll-out wave planner | `zcl_alloc_rollout` (`plan`, `wave_count`) |
 
-**Batch 4 is in progress: orders 344-440 are delivered and verified. Next is 441
-(`zcl_alloc_release_notes`), then 442 and 443 to close the batch.**
+**All 443 orders of the roadmap are delivered and verified** (batches 1-4). Every
+class has a local test class, abapGit metadata and an entry in `NOTES.md`, and
+`npm test` (abaplint + transpile + unit run) is green.
 
 
 ## Roadmap

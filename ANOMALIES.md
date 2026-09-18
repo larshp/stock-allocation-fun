@@ -396,3 +396,47 @@ Each entry notes the symptom, the cause and the workaround used.
   skipped - this is what `zcl_alloc_import_csv=>parse_line` does now. Careful:
   such a scan must not compare against a blank literal (ANOMALIES.md A18); use a
   backtick literal (`` ` ` ``) as `zcl_alloc_import_json=>trim` does.
+
+## A28 - A semicolon after a block terminator breaks the whole class
+
+* Symptom: `abap_transpile` failed for the whole class with
+  `Error: structure, Expected ENDMETHOD, zcl_alloc_swap_opt.clas.abap:1` - the
+  reported line is the first line of the class and says nothing about the real
+  problem. abaplint reported no issue at all.
+* Cause: one branch was closed with `ENDIF;` instead of `ENDIF.`. A semicolon is
+  a statement separator *between* statements, not a terminator for a block
+  closing statement, so the parser lost the statement structure and every
+  following statement became unattributable.
+* Workaround: always terminate `ENDIF`, `ENDLOOP`, `ENDWHILE`, `ENDDO`,
+  `ENDCASE`, `ENDMETHOD` and `ENDCLASS` with a full stop. Because abaplint does
+  not flag it, a repo-wide `grep -n "END[A-Z]*;"` before a build is the cheapest
+  way to find such a typo; the transpiler's "Expected ENDMETHOD" at line 1 means
+  "look for a malformed block terminator", not "look at line 1".
+
+## A29 - A logical expression cannot be passed as the `act` argument of `assert_equals`
+
+* Symptom: `Error: parser_error, Statement does not exist in the configured ABAP
+  version (or a parser error), "cl_abap_unit_assert", <file>:<line>` for a test
+  assertion written as
+  `cl_abap_unit_assert=>assert_equals( act = lv_second = lv_first exp = abap_false ).`
+  abaplint accepted the statement.
+* Cause: the transpiler's parser does not accept a relational expression in the
+  operand position of a functional method call parameter, so the whole
+  `cl_abap_unit_assert=>...` statement is dropped. Real ABAP accepts the form.
+* Workaround: compute the predicate into an `abap_bool` variable first and assert
+  on that variable, e.g.
+
+  ```abap
+  IF lv_second = lv_first.
+    lv_same = abap_true.
+  ELSE.
+    lv_same = abap_false.
+  ENDIF.
+
+  cl_abap_unit_assert=>assert_equals( act = lv_same exp = abap_false ).
+  ```
+
+  A small helper method (`same_of( iv_left iv_right )`, or a range check
+  `in_range( iv_value iv_low iv_high )`) keeps this readable when several
+  assertions need the same predicate.
+

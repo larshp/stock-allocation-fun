@@ -622,9 +622,14 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 356 | Hill climbing | `zcl_alloc_hill_climb` (`climb`) |
 | 357 | Simulated annealing (deterministic) | `zcl_alloc_annealing` (`anneal`) |
 | 358 | Improvement tracker | `zcl_alloc_improve_log` (`add`, `best`, `first`, `gain`) |
+| 359 | Monte Carlo demand sampler | `zcl_alloc_monte_carlo` (`simulate`) |
+| 360 | Seeded random generator | `zcl_alloc_random` (`next`, `between`, `reset`, `state`) |
+| 361 | Scenario definition | `zcl_alloc_scenario` (`define`, `apply`) |
+| 362 | Scenario comparison | `zcl_alloc_scenario_cmp` (`compare`) |
+| 363 | What-if stock shock | `zcl_alloc_shock` (`apply`, `available_of`) |
 
-**Batch 4 is in progress: orders 344-358 are delivered and verified. Next is 359
-(`zcl_alloc_monte_carlo`).**
+**Batch 4 is in progress: orders 344-363 are delivered and verified. Next is 364
+(`zcl_alloc_uplift`).**
 
 
 ## Roadmap

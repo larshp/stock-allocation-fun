@@ -1320,7 +1320,41 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-404 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-412 are delivered and verified.**
+
+405. **KPI trend over runs** - `zcl_alloc_kpi_trend=>analyze( )` summarises a KPI
+     series: first value, last value, signed delta, the direction `up`, `down`,
+     `flat` or `empty`, the minimum, the maximum, the truncated average and the
+     number of points.
+406. **Pareto analysis** - `zcl_alloc_pareto=>build( )` sorts the items by quantity
+     descending and reports the rank, the share in percent and the running
+     cumulative share. An item is still `vital` while the cumulative share *before*
+     it is below 80 %, so the item that crosses the threshold is included;
+     `vital_count( )` counts them.
+407. **Concentration index (HHI)** - `zcl_alloc_hhi=>calculate( )` sums the squares
+     of the integer percentage shares, giving the classic 0..10000 Herfindahl index
+     (10000 is a monopoly, 5000 a duopoly); `band_of( )` maps it to `low`,
+     `moderate` or `high` at the usual 1500 / 2500 limits.
+408. **Gini coefficient** - `zcl_alloc_gini=>calculate( )` sorts the values ascending
+     and evaluates `2 * sum(i * x_i) / (n * sum(x_i)) - (n + 1) / n` in
+     ten-thousandths, so 0 is perfect equality and 5000 is the maximum for two
+     values. A zero total reports 0.
+409. **Lorenz curve points** - `zcl_alloc_lorenz=>build( )` returns, per rank, the
+     cumulative population share against the cumulative value share in percent;
+     `gap_of( )` returns the largest gap between the two, which is 0 for a perfectly
+     equal distribution.
+410. **Correlation of two series** - `zcl_alloc_correlation=>calculate( )` computes
+     r squared exactly in ten-thousandths by cross multiplication, takes the integer
+     square root and gives it the sign of the covariance, so a perfectly correlated
+     pair reports 10000 and an inversely proportional pair -10000.
+411. **Linear regression** - `zcl_alloc_regression=>fit( )` returns the least squares
+     slope in thousandths, the intercept, the number of points and a `rising` flag.
+     A set of points with no spread in x has no slope and is reported as empty.
+412. **Outlier detection (z-score)** - `zcl_alloc_outlier` derives the mean and the
+     standard deviation of a series (`sd_of( )` uses the integer square root) and
+     `find( )` reports the points whose absolute z-score exceeds the given
+     threshold, with the 1-based rank and the score in hundredths. A series without
+     spread has no outliers.
 
 393. **Distribution network model** - `zcl_alloc_network=>build( )` returns one row
      per node in the input order with its outgoing and incoming lane count and an
@@ -1654,20 +1688,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-404 are delivered and verified.
+orders 344-412 are delivered and verified.
 
 Next up (in order):
 
-1. 405 `zcl_alloc_kpi_trend` - KPI trend over runs.
-2. 406 `zcl_alloc_pareto` - Pareto analysis.
-3. 407 `zcl_alloc_hhi` - concentration index (HHI).
-4. 408 `zcl_alloc_gini` - Gini coefficient.
-5. 409 `zcl_alloc_lorenz` - Lorenz curve points.
-6. 410 `zcl_alloc_correlation` - correlation of two series.
-7. 411 `zcl_alloc_regression` - linear regression.
-8. 412 `zcl_alloc_outlier` - outlier detection (z-score).
+1. 413 `zcl_alloc_percentile` - percentile calculation.
+2. 414 `zcl_alloc_quartile` - median and quartiles.
+3. 415 `zcl_alloc_stddev` - standard deviation.
+4. 416 `zcl_alloc_cv` - coefficient of variation.
+5. 417 `zcl_alloc_control_chart` - moving range control chart.
+6. 418 `zcl_alloc_benchmark` - benchmark comparison.
+7. 419 `zcl_alloc_scorecard` - scorecard builder.
+8. 420 `zcl_alloc_weighted_score` - weighted score model.
 
-Then continue strictly in order 405-443, one feature per iteration, always keeping
+Then continue strictly in order 413-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1768,7 +1802,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-404). The classes from order
+* Metadata exists for every class (roadmap orders 1-412). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

@@ -668,9 +668,17 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 402 | Reorder point with variability | `zcl_alloc_rop_var` (`calculate`) |
 | 403 | Fill rate simulation | `zcl_alloc_fill_sim` (`simulate`) |
 | 404 | Inventory policy comparison | `zcl_alloc_policy_cmp` (`compare`) |
+| 405 | KPI trend over runs | `zcl_alloc_kpi_trend` (`analyze`) |
+| 406 | Pareto analysis | `zcl_alloc_pareto` (`build`, `vital_count`, `total_of`) |
+| 407 | Concentration index (HHI) | `zcl_alloc_hhi` (`calculate`, `band_of`) |
+| 408 | Gini coefficient | `zcl_alloc_gini` (`calculate`) |
+| 409 | Lorenz curve points | `zcl_alloc_lorenz` (`build`, `gap_of`) |
+| 410 | Correlation of two series | `zcl_alloc_correlation` (`calculate`) |
+| 411 | Linear regression | `zcl_alloc_regression` (`fit`) |
+| 412 | Outlier detection (z-score) | `zcl_alloc_outlier` (`find`, `mean_of`, `sd_of`) |
 
-**Batch 4 is in progress: orders 344-404 are delivered and verified. Next is 405
-(`zcl_alloc_kpi_trend`).**
+**Batch 4 is in progress: orders 344-412 are delivered and verified. Next is 413
+(`zcl_alloc_percentile`).**
 
 
 ## Roadmap

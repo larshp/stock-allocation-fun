@@ -1342,6 +1342,21 @@ count table and `bump( )` are gone. This is a purely internal change: the existi
 network tests (degree counts, isolated nodes, unknown nodes being ignored, node
 order) are the regression check and they pass unchanged.
 
+**Conversion 2 of 15: `zcl_alloc_crp`.** The load per work centre was accumulated
+with read/delete/append, so it was quadratic in the number of orders. It now feeds
+two aggregators (loaded hours, and one unit per order so the order count comes out
+as a sum) and reads both back by key. Load hours, order counts and the work centre
+order are unchanged.
+
+**Conversion 3 of 15: `zcl_alloc_workload`.** The key here is composite (work
+centre and period), which the string aggregator cannot express without turning the
+period into text, so the same collect, sort and merge is done locally: raw
+operations carry a sequence number, the table is sorted by work centre, period and
+sequence, one forward pass merges equal cells, and the result is sorted back into
+first-appearance order. `ty_load` gained a `seq` component for that internal
+ordering, which is the same field the aggregators expose. Cell loads, the overload
+flag and the cell order are unchanged.
+
 What is *not* proven by a test here: the network test class cannot demonstrate the
 complexity change itself, because generating many distinct node ids would need a
 number-to-string conversion, which is unreliable in this transpiler (A31). The

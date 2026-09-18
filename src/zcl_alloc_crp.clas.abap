@@ -37,33 +37,34 @@ ENDCLASS.
 CLASS zcl_alloc_crp IMPLEMENTATION.
 
   METHOD calculate.
-    DATA lt_load TYPE ty_load_tt.
-    DATA ls_row  TYPE ty_load.
-    DATA ls_new  TYPE ty_load.
+    DATA lo_hours  TYPE REF TO zcl_alloc_key_agg_str.
+    DATA lo_orders TYPE REF TO zcl_alloc_key_agg_str.
+    DATA lt_sums   TYPE zcl_alloc_key_agg_str=>ty_sum_tt.
+    DATA ls_row    TYPE ty_load.
 
+    lo_hours = NEW zcl_alloc_key_agg_str( ).
+    lo_orders = NEW zcl_alloc_key_agg_str( ).
+
+    " One pass collects the work, then a single sort and merge groups it, so the
+    " cost grows with the number of orders instead of scanning the load table once
+    " per order. The aggregation keeps the order in which the work centres were
+    " first seen, so the result is exactly what the scanning version produced.
     LOOP AT it_orders INTO DATA(ls_order).
-      READ TABLE lt_load INTO ls_row
-        WITH KEY work_centre = ls_order-work_centre.
-
-      IF sy-subrc = 0.
-        ls_new-work_centre = ls_order-work_centre.
-        ls_new-load_hours = ls_row-load_hours
-          + ls_order-quantity * ls_order-hours_per_unit.
-        ls_new-orders = ls_row-orders + 1.
-
-        DELETE lt_load WHERE work_centre = ls_order-work_centre.
-        APPEND ls_new TO lt_load.
-        CONTINUE.
-      ENDIF.
-
-      CLEAR ls_new.
-      ls_new-work_centre = ls_order-work_centre.
-      ls_new-load_hours = ls_order-quantity * ls_order-hours_per_unit.
-      ls_new-orders = 1.
-      APPEND ls_new TO lt_load.
+      lo_hours->add( iv_key      = ls_order-work_centre
+                     iv_quantity = ls_order-quantity * ls_order-hours_per_unit ).
+      lo_orders->add( iv_key      = ls_order-work_centre
+                      iv_quantity = 1 ).
     ENDLOOP.
 
-    rt_load = lt_load.
+    lt_sums = lo_hours->sums( ).
+
+    LOOP AT lt_sums INTO DATA(ls_sum).
+      CLEAR ls_row.
+      ls_row-work_centre = ls_sum-key.
+      ls_row-load_hours = ls_sum-quantity.
+      ls_row-orders = lo_orders->find( iv_key = ls_sum-key ) DIV 1.
+      APPEND ls_row TO rt_load.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD total_hours.

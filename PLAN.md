@@ -768,9 +768,10 @@ tests as the regression check: `mrp`, `network`, `crp`, `workload`, `crossdock`,
 `sourcing`, `transport`, `local_search`, `toc`, `rollout`, `checksum_reg`,
 `concurrency`, `config_w`, `dedupe_win`, `path`.
 
-**Batch 7 is in progress: order 452 is delivered and `zcl_alloc_network` is the
-first converted class. The remaining fourteen classes are converted one per
-iteration, each verified by its own existing tests.**
+**Batch 7 is in progress: order 452 is delivered and three of the fifteen classes
+are converted (`network`, `crp`, `workload`). Each conversion is verified by the
+class's own existing tests, which pin the quantities and the first-appearance order
+and therefore catch any behaviour drift.**
 
 
 ## Roadmap

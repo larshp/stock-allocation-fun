@@ -603,6 +603,29 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 442 | Change request tracker | `zcl_alloc_change_request` |
 | 443 | Roll-out wave planner | `zcl_alloc_rollout` |
 
+### Batch 4 delivered so far
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 344 | Objective function evaluation | `zcl_alloc_objective` (`score`) |
+| 345 | Greedy allocation solver | `zcl_alloc_greedy` (`solve`, `total_shortage`) |
+| 346 | Cheapest source solver | `zcl_alloc_cheapest` (`solve`) |
+| 347 | Knapsack allocation | `zcl_alloc_knapsack` (`solve`) |
+| 348 | Bin packing for pallets | `zcl_alloc_bin_pack` (`pack`, `oversized`) |
+| 349 | Transportation problem | `zcl_alloc_transport` (`solve`) |
+| 350 | Assignment problem | `zcl_alloc_assignment` (`solve`) |
+| 351 | Constraint set evaluation | `zcl_alloc_constraint` (`evaluate`, `violated_ids`) |
+| 352 | Penalty calculator | `zcl_alloc_penalty` (`calculate`) |
+| 353 | Feasibility check | `zcl_alloc_feasible` (`check`) |
+| 354 | Local search improvement | `zcl_alloc_local_search` (`improve`) |
+| 355 | Swap optimisation | `zcl_alloc_swap_opt` (`improve`) |
+| 356 | Hill climbing | `zcl_alloc_hill_climb` (`climb`) |
+| 357 | Simulated annealing (deterministic) | `zcl_alloc_annealing` (`anneal`) |
+| 358 | Improvement tracker | `zcl_alloc_improve_log` (`add`, `best`, `first`, `gain`) |
+
+**Batch 4 is in progress: orders 344-358 are delivered and verified. Next is 359
+(`zcl_alloc_monte_carlo`).**
+
 
 ## Roadmap
 

@@ -1260,6 +1260,68 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
 verified.** Order 143 (ALV grid binding and selection screen) is still the only
 unbuilt item and stays that way because the transpiler cannot exercise it.
 
+344. **Objective function evaluation** - `zcl_alloc_objective=>score( )` sums the
+     quantities and the quantity-weighted costs of a result list and combines them
+     into `quantity_weight * total_quantity - cost_weight * total_cost`, so a
+     caller can score an allocation for a gain/cost trade-off.
+345. **Greedy allocation solver** - `zcl_alloc_greedy=>solve( )` sorts the demands
+     by priority and hands out the available stock first-come-first-served,
+     reporting the allocation and the shortage per demand. A negative stock counts
+     as zero and `total_shortage( )` sums the shortfalls.
+346. **Cheapest source solver** - `zcl_alloc_cheapest=>solve( )` sorts the sources
+     by unit cost and draws from them until the requested quantity is covered,
+     returning the picks, the covered quantity, the shortfall and the total cost.
+     Sources without stock are skipped.
+347. **Knapsack allocation** - `zcl_alloc_knapsack=>solve( )` is an exact 0/1
+     knapsack: it fills a capacity/weight table bottom-up and reconstructs the
+     chosen items, returning them in input order with their total weight and
+     value. Items heavier than the capacity are never taken, a weight of zero is
+     free value and a negative weight is ignored (it has no physical meaning).
+348. **Bin packing for pallets** - `zcl_alloc_bin_pack=>pack( )` is first-fit
+     decreasing: the items are sorted by size descending and put into the first
+     bin with room, opening a new numbered bin when none fits. Items larger than
+     the bin capacity are skipped and reported by `oversized( )`.
+349. **Transportation problem** - `zcl_alloc_transport=>solve( )` ships from supply
+     nodes to demand nodes over cost-sorted lanes, never exceeding the supply or
+     the demand of a node, and reports the shipments, the total cost and the
+     quantity that could not be shipped.
+350. **Assignment problem** - `zcl_alloc_assignment=>solve( )` assigns each demand
+     to the cheapest still free source: the cost pairs are sorted ascending and a
+     pair is taken when neither its demand nor its source is used yet. Demands
+     without a free pair are returned with `assigned` false.
+351. **Constraint set evaluation** - `zcl_alloc_constraint=>evaluate( )` counts the
+     satisfied and violated constraints and treats a violated mandatory constraint
+     as infeasible; `violated_ids( )` lists the violated mandatory constraint ids.
+352. **Penalty calculator** - `zcl_alloc_penalty=>calculate( )` turns deviations
+     into `|amount| * weight`, caps every single penalty and tracks the worst one.
+353. **Feasibility check** - `zcl_alloc_feasible=>check( )` decides whether a
+     demand can be ordered: no demand, insufficient supply, a demand below the
+     minimum order quantity and an order above the supply each return a reason; a
+     lot size rounds the order up and a maximum order size splits it into orders.
+354. **Local search improvement** - `zcl_alloc_local_search=>improve( )` builds a
+     conflict-free assignment by giving every slot, in order of appearance, its
+     cheapest still unused option, and then improves it with pairwise swaps while
+     the total cost drops. `steps` counts the swap passes, `swaps` the accepted
+     exchanges.
+355. **Swap optimisation** - `zcl_alloc_swap_opt=>improve( )` is a 2-opt for an
+     ordered node list: it reverses every segment and keeps the order when the sum
+     of the consecutive arc costs drops, repeating until no reversal helps (capped
+     at 20 passes). An arc that is missing from the table counts as zero cost.
+356. **Hill climbing** - `zcl_alloc_hill_climb=>climb( )` walks a scored point
+     table from a start value, always stepping to the better scored of the two
+     neighbours at `start +/- step`, and stops when neither is better or the step
+     budget is used up.
+357. **Simulated annealing (deterministic)** - `zcl_alloc_annealing=>anneal( )` is
+     threshold accepting instead of random: a worse neighbour is accepted while its
+     loss is within the current temperature, which cools by the given percentage
+     each step. `accepted_worse` counts the uphill moves and `best_value` /
+     `final_value` separate the best result from the place it stopped.
+358. **Improvement tracker** - `zcl_alloc_improve_log` numbers the recorded
+     improvement steps, and reports the highest scored entry (`best`), the initial
+     one (`first`) and the difference between them (`gain`).
+
+**Roadmap batch 4 is in progress: orders 344-358 are delivered and verified.**
+
 ## Bug fixes
 
 F1. **Sales order requirement date read from a non-existent field** - reported by
@@ -1402,20 +1464,21 @@ Batch 4 (**optimisation, simulation and planning intelligence** - solvers
 local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
-governance) is planned in `PLAN.md` for orders 344-443 and is now being built.
+governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
+orders 344-358 are delivered and verified.
 
 Next up (in order):
 
-1. 344 `zcl_alloc_objective` - objective function evaluation.
-2. 345 `zcl_alloc_greedy` - greedy allocation solver.
-3. 346 `zcl_alloc_cheapest` - cheapest source solver.
-4. 347 `zcl_alloc_knapsack` - knapsack allocation.
-5. 348 `zcl_alloc_bin_pack` - bin packing for pallets.
-6. 349 `zcl_alloc_transport` - transportation problem.
-7. 350 `zcl_alloc_assignment` - assignment problem.
-8. 351 `zcl_alloc_constraint` - constraint set evaluation.
+1. 359 `zcl_alloc_monte_carlo` - Monte Carlo demand sampler.
+2. 360 `zcl_alloc_random` - seeded random generator.
+3. 361 `zcl_alloc_scenario` - scenario definition.
+4. 362 `zcl_alloc_scenario_cmp` - scenario comparison.
+5. 363 `zcl_alloc_shock` - what-if stock shock.
+6. 364 `zcl_alloc_uplift` - demand uplift scenario.
+7. 365 `zcl_alloc_capacity_cut` - capacity reduction scenario.
+8. 366 `zcl_alloc_stress` - stress test ladder.
 
-Then continue strictly in order 344-443, one feature per iteration, always keeping
+Then continue strictly in order 359-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1427,8 +1490,10 @@ classic `TYPES: BEGIN OF ... END OF ...` form, declare a `TYPES` alias instead o
 `TYPE c LENGTH n` or `TYPE STANDARD TABLE OF ...` in parameters, use one `&&` per
 statement, align `TYPE` expressions to one space after the longest name of the
 group (`npx abaplint --fix` does it for you), declare `DATA` at the top of the
-method instead of inside a control block, and do not put trailing blanks in test
-literals (ANOMALIES.md A18).
+method instead of inside a control block, never put a semicolon after a block
+terminator (`ENDIF;` breaks the parser - the whole class fails with
+`structure, Expected ENDMETHOD`), and do not put trailing blanks in test literals
+(ANOMALIES.md A18).
 
 ## Conventions
 
@@ -1511,8 +1576,8 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-343). The classes of orders
-  309-343 were generated later by a small shell helper that writes the UTF-8 byte
+* Metadata exists for every class (roadmap orders 1-358). The classes from order
+  309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit
   expects, so the whole repository can be serialized; `npm test` does not depend

@@ -1320,7 +1320,53 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-392 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-404 are delivered and verified.**
+
+393. **Distribution network model** - `zcl_alloc_network=>build( )` returns one row
+     per node in the input order with its outgoing and incoming lane count and an
+     `isolated` flag. Lanes that mention an unknown node are ignored rather than
+     inventing a node, so the result stays aligned with the node list.
+394. **Sourcing rule evaluation** - `zcl_alloc_sourcing=>evaluate( )` groups the
+     rules by material and plant and picks one source per group: the lowest priority
+     number wins, and a quota percentage breaks a tie. `shares` counts how many
+     sources were offered for the group.
+395. **Lane cost matrix** - `zcl_alloc_lane=>build( )` turns lanes into cells with
+     `distance * cost_per_km` and drops lanes without a distance or a rate;
+     `cost_of( )` looks a pair up (zero when absent) and `cheapest_lane( )` returns
+     the cheapest cell.
+396. **Shortest path over lanes** - `zcl_alloc_path=>shortest( )` is a Dijkstra over
+     the lane distance, returning whether the target is reachable, the total
+     distance, the number of hops and the ordered node list. Nodes are collected
+     from the lanes plus both endpoints, so a start or target without a lane is
+     still handled.
+397. **Multi-stop route builder** - `zcl_alloc_route=>build( )` sequences the stops by
+     their sequence number and sums the lane distance between consecutive stops,
+     counting the legs. A missing lane contributes nothing.
+398. **Route cost estimate** - `zcl_alloc_route_cost=>estimate( )` separates the
+     distance cost (`distance * cost_per_km`) from the stop cost
+     (`stops * fixed_per_stop`) and returns both plus the total. Negative distances
+     count as zero.
+399. **Milk-run grouping** - `zcl_alloc_milk_run=>group( )` is a first-fit-decreasing
+     tour builder: the stops are sorted by demand descending and each one joins the
+     first tour with room, otherwise a new numbered tour is opened. Stops larger
+     than the capacity are skipped and listed by `unassigned( )`.
+400. **Cross-dock proposal** - `zcl_alloc_crossdock=>propose( )` matches inbound
+     loads to outbound demands in order, taking only goods that are already
+     unloaded (`arrival <= departure`) and reporting the waiting time per move.
+     `shortfall_of( )` returns the demand that could not be covered.
+401. **Safety stock by service level** - `zcl_alloc_safety_level=>calculate( )`
+     multiplies the service factor (`z * 100`, so 165 is 95 %) with the demand
+     deviation and the square root of the lead time. `sqrt_of( )` is an integer
+     square root so no floating point is involved.
+402. **Reorder point with variability** - `zcl_alloc_rop_var=>calculate( )` adds the
+     cycle stock (`average demand * lead time`) to the safety stock from
+     `zcl_alloc_safety_level` and returns all three parts.
+403. **Fill rate simulation** - `zcl_alloc_fill_sim=>simulate( )` serves at most what
+     is in stock per period, counts the stockout periods and returns the served
+     quantity against the total demand as a truncated percentage.
+404. **Inventory policy comparison** - `zcl_alloc_policy_cmp=>compare( )` runs the
+     fill rate simulation for every policy on the same demand series and marks the
+     policy with the highest fill rate (`best`); an earlier policy wins a tie.
 
 385. **Scheduling: earliest due date** - `zcl_alloc_sched_edd=>schedule( )` sequences
      the jobs by due day back-to-back from day zero and reports the start, the
@@ -1608,20 +1654,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-392 are delivered and verified.
+orders 344-404 are delivered and verified.
 
 Next up (in order):
 
-1. 393 `zcl_alloc_network` - distribution network model.
-2. 394 `zcl_alloc_sourcing` - sourcing rule evaluation.
-3. 395 `zcl_alloc_lane` - lane cost matrix.
-4. 396 `zcl_alloc_path` - shortest path over lanes.
-5. 397 `zcl_alloc_route` - multi-stop route builder.
-6. 398 `zcl_alloc_route_cost` - route cost estimate.
-7. 399 `zcl_alloc_milk_run` - milk-run grouping.
-8. 400 `zcl_alloc_crossdock` - cross-dock proposal.
+1. 405 `zcl_alloc_kpi_trend` - KPI trend over runs.
+2. 406 `zcl_alloc_pareto` - Pareto analysis.
+3. 407 `zcl_alloc_hhi` - concentration index (HHI).
+4. 408 `zcl_alloc_gini` - Gini coefficient.
+5. 409 `zcl_alloc_lorenz` - Lorenz curve points.
+6. 410 `zcl_alloc_correlation` - correlation of two series.
+7. 411 `zcl_alloc_regression` - linear regression.
+8. 412 `zcl_alloc_outlier` - outlier detection (z-score).
 
-Then continue strictly in order 393-443, one feature per iteration, always keeping
+Then continue strictly in order 405-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1722,7 +1768,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-392). The classes from order
+* Metadata exists for every class (roadmap orders 1-404). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

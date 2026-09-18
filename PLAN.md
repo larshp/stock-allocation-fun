@@ -656,9 +656,21 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 390 | Work centre load | `zcl_alloc_workload` (`build`, `overload_count`) |
 | 391 | Queue estimation | `zcl_alloc_queue` (`estimate`) |
 | 392 | Rough-cut capacity check | `zcl_alloc_rough_cut` (`check`, `is_feasible`, `gap_total`) |
+| 393 | Distribution network model | `zcl_alloc_network` (`build`, `connected_count`) |
+| 394 | Sourcing rule evaluation | `zcl_alloc_sourcing` (`evaluate`) |
+| 395 | Lane cost matrix | `zcl_alloc_lane` (`build`, `cost_of`, `cheapest_lane`) |
+| 396 | Shortest path over lanes | `zcl_alloc_path` (`shortest`) |
+| 397 | Multi-stop route builder | `zcl_alloc_route` (`build`, `distance_between`) |
+| 398 | Route cost estimate | `zcl_alloc_route_cost` (`estimate`) |
+| 399 | Milk-run grouping | `zcl_alloc_milk_run` (`group`, `unassigned`) |
+| 400 | Cross-dock proposal | `zcl_alloc_crossdock` (`propose`, `shortfall_of`) |
+| 401 | Safety stock by service level | `zcl_alloc_safety_level` (`calculate`, `sqrt_of`) |
+| 402 | Reorder point with variability | `zcl_alloc_rop_var` (`calculate`) |
+| 403 | Fill rate simulation | `zcl_alloc_fill_sim` (`simulate`) |
+| 404 | Inventory policy comparison | `zcl_alloc_policy_cmp` (`compare`) |
 
-**Batch 4 is in progress: orders 344-392 are delivered and verified. Next is 393
-(`zcl_alloc_network`).**
+**Batch 4 is in progress: orders 344-404 are delivered and verified. Next is 405
+(`zcl_alloc_kpi_trend`).**
 
 
 ## Roadmap

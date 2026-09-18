@@ -1320,7 +1320,39 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-432 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-440 are delivered and verified.**
+
+433. **Column width fitting** - `zcl_alloc_colwidth=>fit( )` sizes each column from
+     the longer of its title and its widest cell value, caps the result at a given
+     maximum and never goes below one character.
+434. **Excel-friendly CSV** - `zcl_alloc_csv_excel=>render( )` writes the `sep=;`
+     hint line that spreadsheets look for and then renders the data with a semicolon
+     separator through `zcl_alloc_csv_export`, so the quoting rules stay in one
+     place. `separator( )` and `hint( )` expose the two conventions.
+435. **Tab-separated codec** - `zcl_alloc_tsv` is the low-level counterpart to the
+     TSV renderer: `join( )` puts cells on one line separated by the tab from
+     `cl_abap_char_utilities`, `split( )` takes a line apart again (an empty line has
+     no cells) and `cell_count( )` counts them. Join followed by split is lossless
+     for cells that contain no tab.
+436. **SQL literal escaping** - `zcl_alloc_sql_escape=>escape( )` doubles every single
+     quote, `literal( )` additionally wraps the text in quotes and `needs_escape( )`
+     answers the question without touching the text, which is what a dynamic
+     `WHERE` clause needs before it is passed to a generated SELECT.
+437. **URL query builder** - `zcl_alloc_query=>build( )` joins `name=value` pairs with
+     an ampersand and percent-encodes both parts; `encode( )` covers the space, the
+     ampersand, the equals sign, the question mark, the hash, the plus and the
+     percent sign, and passes everything else through.
+438. **Deep-link builder** - `zcl_alloc_deeplink=>build( )` appends the query from
+     `zcl_alloc_query` to a base path only when there is at least one parameter;
+     `is_absolute( )` reports whether a link starts with the http scheme.
+439. **Report signature block** - `zcl_alloc_signature=>build( )` collects the
+     signature lines from the user and the system/client that are actually filled
+     and passes the run date and time through for the caller to format.
+440. **Print pagination** - `zcl_alloc_print_page` reserves the header and footer
+     lines from the page size: `capacity_of( )` is the number of data lines per page
+     (at least one, so a furniture block larger than the page cannot loop forever)
+     and `paginate( )` returns one row per page with the line range. Without a page
+     size the whole list goes on a single page.
 
 425. **Report footer with totals** - `zcl_alloc_footer=>build( )` sums the allocated
      quantities of a result list, counts the lines and carries the requested
@@ -1773,21 +1805,21 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-432 are delivered and verified.
+orders 344-440 are delivered and verified.
 
-Next up (in order):
+Next up (in order, the last three of batch 4):
 
-1. 433 `zcl_alloc_sql_escape` - SQL literal escaping.
-2. 434 `zcl_alloc_page_split` - pagination of a result list.
-3. 435 `zcl_alloc_grand_total` - grand total over groups.
-4. 436 `zcl_alloc_subtotal` - subtotal per group.
-5. 437 `zcl_alloc_group_sort` - multi-key sorting.
-6. 438 `zcl_alloc_subtotal_tree` - subtotal tree.
-7. 439 `zcl_alloc_drill_down` - drill-down navigation.
-8. 440 `zcl_alloc_export_ctl` - export control block.
+1. 441 `zcl_alloc_release_notes` - release note builder.
+2. 442 `zcl_alloc_change_request` - change request tracker.
+3. 443 `zcl_alloc_rollout` - roll-out wave planner.
 
-Then continue strictly in order 433-443, one feature per iteration, always keeping
-`npm test` green.
+The eight entries that used to be listed here (sql_escape, page_split, grand_total,
+subtotal, group_sort, subtotal_tree, drill_down, export_ctl) were a guess at the
+remaining work and do not match `PLAN.md`; the plan's own list runs 433
+`zcl_alloc_colwidth`, 434 `zcl_alloc_csv_excel`, 435 `zcl_alloc_tsv`, 436
+`zcl_alloc_sql_escape`, 437 `zcl_alloc_query`, 438 `zcl_alloc_deeplink`, 439
+`zcl_alloc_signature`, 440 `zcl_alloc_print_page`. Rows 433-440 are built, so only
+441-443 are left.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,
@@ -1892,7 +1924,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-432). The classes from order
+* Metadata exists for every class (roadmap orders 1-440). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

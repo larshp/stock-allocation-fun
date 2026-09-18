@@ -696,9 +696,17 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 430 | Text truncation with ellipsis | `zcl_alloc_text_trunc` (`truncate`, `fits`) |
 | 431 | CSV export | `zcl_alloc_csv_export` (`render`, `escape`) |
 | 432 | TSV export | `zcl_alloc_tsv_export` (`render`, `clean`, `separator`) |
+| 433 | Column width fitting | `zcl_alloc_colwidth` (`fit`) |
+| 434 | Excel-friendly CSV | `zcl_alloc_csv_excel` (`render`, `separator`, `hint`) |
+| 435 | Tab-separated codec | `zcl_alloc_tsv` (`join`, `split`, `cell_count`) |
+| 436 | SQL literal escaping | `zcl_alloc_sql_escape` (`escape`, `literal`, `needs_escape`) |
+| 437 | URL query builder | `zcl_alloc_query` (`build`, `encode`) |
+| 438 | Deep-link builder | `zcl_alloc_deeplink` (`build`, `is_absolute`) |
+| 439 | Report signature block | `zcl_alloc_signature` (`build`) |
+| 440 | Print pagination | `zcl_alloc_print_page` (`paginate`, `capacity_of`) |
 
-**Batch 4 is in progress: orders 344-432 are delivered and verified. Next is 433
-(`zcl_alloc_sql_escape`).**
+**Batch 4 is in progress: orders 344-440 are delivered and verified. Next is 441
+(`zcl_alloc_release_notes`), then 442 and 443 to close the batch.**
 
 
 ## Roadmap

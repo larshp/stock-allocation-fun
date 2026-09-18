@@ -1167,6 +1167,98 @@ passing a character field to a `string` parameter is rejected (ANOMALIES.md A17)
 316. **Lazy loader** - `zcl_alloc_lazy` loads a value at most once: `load( )` sets the
      value only while nothing is loaded and always returns the effective value, `get( )`
      reads it, `is_loaded( )` reports the state and `reset( )` allows a new load.
+317. **Pagination cursor** - `zcl_alloc_cursor` walks a total in pages: `open( )`
+     normalises the page size (a size below 1 means one page), `next( )` advances the
+     offset and clamps it at the total, `is_last( )` reports whether the current page is
+     the final one and `remaining( )` counts the not yet consumed rows.
+318. **Chunked read over a result** - `zcl_alloc_chunk_read=>read( )` returns chunk
+     number `iv_index` (1-based) of a result list; a size below 1 returns everything and
+     an index below 1 or past the end returns an empty table.
+319. **Chunked write into batches** - `zcl_alloc_chunk_write=>write( )` splits a result
+     list into numbered `ty_chunk` rows, each carrying its own line table. A size below 1
+     produces one chunk holding everything and an empty list produces no chunk at all.
+320. **Backpressure decision** - `zcl_alloc_backpressure=>assess( )` turns a queue depth
+     and a capacity into an `accept` / `throttle` / `reject` decision. Below 80 % load it
+     accepts, up to capacity it throttles by one tick, above capacity it throttles for
+     the time needed to drain the excess, and over capacity without any drain it rejects.
+321. **Batch size tuner** - `zcl_alloc_batch_tune=>tune( )` derives a batch size from
+     the throughput (`rows_per_second * target_seconds`), applies an optional minimum and
+     maximum, never exceeds the total row count, and returns the resulting batch count.
+322. **Concurrency guard** - `zcl_alloc_concurrency` limits how many keys may be held at
+     the same time. `acquire( )` is idempotent for a key that is already held, refuses a
+     new key once the limit is reached and treats a limit below 1 as unlimited;
+     `release( )`, `active_count( )` and `is_saturated( )` complete the API.
+323. **Idempotency key** - `zcl_alloc_idem_key=>build( )` renders
+     `<scope>#<part count>#<fingerprint>`, where the fingerprint is the position-weighted
+     length sum of the non-empty parts. `is_valid( )` checks the shape and `scope_of( )`
+     returns the scope in front of the first `#`.
+324. **Exactly-once guard** - `zcl_alloc_once` remembers the keys it has seen. `run( )`
+     returns `abap_true` only the first time a key is passed and `abap_false` afterwards;
+     `has_run( )`, `count( )` and `reset( )` complete the API.
+325. **Dedupe window** - `zcl_alloc_dedupe_win=>is_duplicate( )` treats a repeated key as
+     a duplicate while the stamp difference is inside the window, otherwise it refreshes
+     the stored stamp. `purge_before( )` drops entries older than a cutoff.
+326. **Sequential numbering** - `zcl_alloc_seq_num` hands out consecutive numbers from a
+     start value: `next( )` returns the current value and advances, `current( )` peeks and
+     `reset( )` returns to the start.
+327. **Gap detection** - `zcl_alloc_gap_check=>find( )` sorts a number list and returns
+     one `ty_gap` row per jump greater than 1, carrying the two neighbours and how many
+     numbers are missing between them.
+328. **Sequence validation** - `zcl_alloc_seq_check=>check( )` reports whether a number
+     list is strictly ascending, whether it contains duplicates (detected on the sorted
+     copy, so non-adjacent repeats count too) and how many gaps it has.
+329. **Checksum registry** - `zcl_alloc_checksum_reg` stores one checksum per key.
+     `register( )` replaces an existing entry, `verify( )` only matches a registered key
+     with the same checksum and `checksum_of( )` reads the stored value.
+330. **Integrity check** - `zcl_alloc_integrity=>check( )` recomputes the result checksum
+     with `zcl_alloc_checksum` and compares it with the expected value, returning both
+     values, the line count and an `is_intact` flag.
+331. **Reconciliation report** - `zcl_alloc_reconcile=>compare( )` matches two keyed
+     quantity lists and labels every key `matched`, `differs`, `missing` (left only) or
+     `extra` (right only), with the signed delta. `is_balanced( )` is true when every line
+     is `matched`.
+332. **Drift detection** - `zcl_alloc_drift=>detect( )` compares a current with a baseline
+     value and returns the signed delta, the absolute percentage change, the direction
+     (`up` / `down` / `flat`) and whether the move exceeds the tolerance. A zero baseline
+     reports 100 % for any non-zero move.
+333. **Heavy snapshot comparison** - `zcl_alloc_snap_heavy` returns the full union of the
+     before and after snapshots (unlike `zcl_alloc_snapshot`, which only reports the
+     changes), each line carrying previous, current, delta and a `changed` flag.
+334. **Restore helper** - `zcl_alloc_restore=>plan( )` turns a target snapshot and a
+     current result into the actions needed to get there: `create` for a new key,
+     `update` when the quantity differs, `delete` for a key that is no longer wanted.
+     Unchanged keys produce no action.
+335. **Migration mapper** - `zcl_alloc_migration_map=>map( )` renames record fields
+     according to a mapping table and leaves unmapped fields untouched; `is_mapped( )`
+     checks a single field name.
+336. **Migration validator** - `zcl_alloc_migration_val=>validate( )` reports `missing`
+     for a required field that has no row and `empty` for a field whose value is blank,
+     with the 1-based row index. `is_valid( )` is true when there are no issues.
+337. **Cutover checklist** - `zcl_alloc_cutover=>build( )` counts the done and open steps
+     of a cutover list, derives the truncated progress percentage and reports `ready` when
+     nothing is open. `open_steps( )` returns the outstanding steps.
+338. **Parallel run comparison** - `zcl_alloc_parallel_run=>compare( )` puts the union of
+     an old and a new result side by side with the signed delta and marks each line
+     `within_tol`. `mismatch_count( )` counts the lines outside the tolerance.
+339. **Data volume estimator** - `zcl_alloc_volume=>estimate( )` multiplies rows, fields
+     and bytes per field into a total (with KB and MB), and derives how many records fit
+     into a package of the requested size, capped at the row count.
+340. **Load test helper** - `zcl_alloc_load_test=>plan( )` multiplies virtual users,
+     iterations and rows per iteration into the operation and row totals and turns the
+     per-row milliseconds into an estimated duration.
+341. **Smoke test runner** - `zcl_alloc_smoke` collects named checks; re-adding a name
+     replaces it, `run( )` returns the pass/fail summary with an `ok` flag and `failed( )`
+     lists the failures with their detail.
+342. **Health check** - `zcl_alloc_health=>check( )` aggregates indicator states into a
+     status of `up`, `degraded`, `down` or `unknown` (no indicators) plus the counts;
+     `unhealthy_names( )` lists the failing indicator names.
+343. **Readiness probe** - `zcl_alloc_readiness=>probe( )` reuses the health check and
+     decides readiness either strictly (every check must pass) or leniently (at least one
+     must pass), returning the reason and both counts.
+
+**Roadmap batch 3 is complete: orders 244-343 (100 features) are delivered and
+verified.** Order 143 (ALV grid binding and selection screen) is still the only
+unbuilt item and stays that way because the transpiler cannot exercise it.
 
 ## Bug fixes
 
@@ -1301,41 +1393,42 @@ Test coverage (1260 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-**Roadmap batches 1-2 are complete**: orders 44-142 and 144-243 are delivered and
-verified. The single unbuilt item across both batches is 143 (the ALV grid /
-selection screen), which the transpiler cannot exercise.
+**Roadmap batches 1-3 are complete**: orders 44-142, 144-243 and 244-343 are
+delivered and verified. The single unbuilt item across all three batches is 143
+(the ALV grid / selection screen), which the transpiler cannot exercise.
 
-Batch 3 (**SAP integration and operations** - lock/enqueue wrappers, number ranges,
-change documents, application log, message and exception handling, BAPI/RFC/IDoc
-and batch-input stubs, commit/rollback and retry policies, timers and statistics,
-context (user/client/environment), feature flags and configuration, masking and
-authorization stubs, caching, streaming, idempotency and reconciliation) is in
-progress: orders 244-316 are delivered and verified.
+Batch 4 (**optimisation, simulation and planning intelligence** - solvers
+(objective, greedy, knapsack, bin packing, transport, assignment), constraints and
+local search, seeded simulation and scenario analysis, forecasting and demand
+classification, MRP and lot sizing, finite scheduling and capacity, distribution
+network and routing, KPI / statistics, report presentation helpers, roll-out
+governance) is planned in `PLAN.md` for orders 344-443 and is now being built.
 
 Next up (in order):
 
-1. 317 `zcl_alloc_cursor` - pagination cursor.
-2. 318 `zcl_alloc_chunk_read` - chunked reader.
-3. 319 `zcl_alloc_chunk_write` - chunked writer.
-4. 320 `zcl_alloc_backpressure` - backpressure helper.
-5. 321 `zcl_alloc_batch_tune` - batch size tuner.
-6. 322 `zcl_alloc_concurrency` - concurrency guard.
-7. 323 `zcl_alloc_idem_key` - idempotency key.
-8. 324 `zcl_alloc_once` - exactly-once guard.
+1. 344 `zcl_alloc_objective` - objective function evaluation.
+2. 345 `zcl_alloc_greedy` - greedy allocation solver.
+3. 346 `zcl_alloc_cheapest` - cheapest source solver.
+4. 347 `zcl_alloc_knapsack` - knapsack allocation.
+5. 348 `zcl_alloc_bin_pack` - bin packing for pallets.
+6. 349 `zcl_alloc_transport` - transportation problem.
+7. 350 `zcl_alloc_assignment` - assignment problem.
+8. 351 `zcl_alloc_constraint` - constraint set evaluation.
 
-Then continue strictly in order 317-343, one feature per iteration, always keeping
+Then continue strictly in order 344-443, one feature per iteration, always keeping
 `npm test` green.
 
-Standing instruction from the user: when this 100-item roadmap (44-143) is done,
-plan another 100 items in the same style and keep iterating (one feature per
-iteration, `npm test` green, documented in `NOTES.md`/`ANOMALIES.md`).
+Standing instruction from the user: when a 100-item roadmap is done, plan another
+100 items in the same style and keep iterating (one feature per iteration,
+`npm test` green, documented in `NOTES.md`/`ANOMALIES.md`).
 
 Conventions reminder for the next feature: keep method names <= 30 chars, use the
 classic `TYPES: BEGIN OF ... END OF ...` form, declare a `TYPES` alias instead of
 `TYPE c LENGTH n` or `TYPE STANDARD TABLE OF ...` in parameters, use one `&&` per
 statement, align `TYPE` expressions to one space after the longest name of the
-group, write new XML metadata with a UTF-8 BOM, and do not put trailing blanks in
-test literals (ANOMALIES.md A18).
+group (`npx abaplint --fix` does it for you), declare `DATA` at the top of the
+method instead of inside a control block, and do not put trailing blanks in test
+literals (ANOMALIES.md A18).
 
 ## Conventions
 
@@ -1418,12 +1511,12 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for the classes up to roadmap order 308. The classes of orders
-  309-316 are still missing their `<class>.clas.xml`: every XML file must start with a
-  UTF-8 byte order mark, which the editor's file tools strip from the start of the
-  content. They have to be added later (a byte-level write, or re-saving the file as
-  "UTF-8 with BOM") before those classes can be serialized to abapGit. This does not
-  affect `npm test`, which does not require metadata for every class.
+* Metadata exists for every class (roadmap orders 1-343). The classes of orders
+  309-343 were generated later by a small shell helper that writes the UTF-8 byte
+  order mark as raw bytes and then the serialized XML, because the editor's file
+  tools strip a BOM from the start of the content. The metadata is what abapGit
+  expects, so the whole repository can be serialized; `npm test` does not depend
+  on it.
 
 With the metadata present, `abaplint` additionally runs `xml_consistency` and
 `xml_bom` over every XML file (see `ANOMALIES.md` A21 and A23).

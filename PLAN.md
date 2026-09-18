@@ -458,9 +458,151 @@ with a local test class, verified by `npm test`.
 | 314 | Cache statistics | `zcl_alloc_cache_stats` (`note_hit`, `hit_rate`, `reset`) |
 | 315 | Cache warm-up helper | `zcl_alloc_cache_warm` (`missing`, `cached_count`) |
 | 316 | Lazy loader | `zcl_alloc_lazy` (`load`, `get`, `reset`) |
+| 317 | Pagination cursor | `zcl_alloc_cursor` (`open`, `next`, `is_last`, `remaining`) |
+| 318 | Chunked read over a result | `zcl_alloc_chunk_read` (`read`) |
+| 319 | Chunked write into batches | `zcl_alloc_chunk_write` (`write`) |
+| 320 | Backpressure decision | `zcl_alloc_backpressure` (`assess`) |
+| 321 | Batch size tuner | `zcl_alloc_batch_tune` (`tune`) |
+| 322 | Concurrency guard | `zcl_alloc_concurrency` (`acquire`, `release`, `active_count`) |
+| 323 | Idempotency key | `zcl_alloc_idem_key` (`build`, `is_valid`, `scope_of`) |
+| 324 | Exactly-once guard | `zcl_alloc_once` (`run`, `has_run`, `count`) |
+| 325 | Dedupe window | `zcl_alloc_dedupe_win` (`is_duplicate`, `purge_before`) |
+| 326 | Sequential numbering | `zcl_alloc_seq_num` (`next`, `current`, `reset`) |
+| 327 | Gap detection | `zcl_alloc_gap_check` (`find`) |
+| 328 | Sequence validation | `zcl_alloc_seq_check` (`check`) |
+| 329 | Checksum registry | `zcl_alloc_checksum_reg` (`register`, `verify`, `checksum_of`) |
+| 330 | Integrity check | `zcl_alloc_integrity` (`check`) |
+| 331 | Reconciliation report | `zcl_alloc_reconcile` (`compare`, `is_balanced`) |
+| 332 | Drift detection | `zcl_alloc_drift` (`detect`) |
+| 333 | Heavy snapshot comparison | `zcl_alloc_snap_heavy` (`take`, `compare`) |
+| 334 | Restore helper | `zcl_alloc_restore` (`plan`) |
+| 335 | Migration mapper | `zcl_alloc_migration_map` (`map`, `is_mapped`) |
+| 336 | Migration validator | `zcl_alloc_migration_val` (`validate`, `is_valid`) |
+| 337 | Cutover checklist | `zcl_alloc_cutover` (`build`, `open_steps`) |
+| 338 | Parallel run comparison | `zcl_alloc_parallel_run` (`compare`, `mismatch_count`) |
+| 339 | Data volume estimator | `zcl_alloc_volume` (`estimate`) |
+| 340 | Load test helper | `zcl_alloc_load_test` (`plan`) |
+| 341 | Smoke test runner | `zcl_alloc_smoke` (`add`, `run`, `failed`, `reset`) |
+| 342 | Health check | `zcl_alloc_health` (`check`, `unhealthy_names`) |
+| 343 | Readiness probe | `zcl_alloc_readiness` (`probe`) |
 
-**Batch 3 is in progress: orders 244-316 are delivered and verified. Next is 317
-(`zcl_alloc_cursor`).**
+**Batch 3 is complete: orders 244-343 (100 features) are all delivered and
+verified.** The only unbuilt item across every batch remains 143 (ALV grid
+binding + selection screen), which the transpiler cannot exercise.
+
+## Roadmap batch 4 (orders 344-443)
+
+Planned when batch 3 completed, per the standing instruction. The theme is
+**optimisation, simulation and planning intelligence**: solvers (objective,
+greedy, knapsack, assignment, transport), local search, seeded simulation and
+scenario analysis, forecasting and demand classification, MRP and lot sizing,
+finite scheduling and capacity, distribution network and routing, KPI /
+statistics, report presentation helpers and roll-out governance. Each item is a
+new `zcl_alloc_*` class with a local test class, verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 344 | Objective function evaluation | `zcl_alloc_objective` |
+| 345 | Greedy allocation solver | `zcl_alloc_greedy` |
+| 346 | Cheapest source solver | `zcl_alloc_cheapest` |
+| 347 | Knapsack allocation | `zcl_alloc_knapsack` |
+| 348 | Bin packing for pallets | `zcl_alloc_bin_pack` |
+| 349 | Transportation problem | `zcl_alloc_transport` |
+| 350 | Assignment problem | `zcl_alloc_assignment` |
+| 351 | Constraint set evaluation | `zcl_alloc_constraint` |
+| 352 | Penalty calculator | `zcl_alloc_penalty` |
+| 353 | Feasibility check | `zcl_alloc_feasible` |
+| 354 | Local search improvement | `zcl_alloc_local_search` |
+| 355 | Swap optimisation | `zcl_alloc_swap_opt` |
+| 356 | Hill climbing | `zcl_alloc_hill_climb` |
+| 357 | Simulated annealing (deterministic) | `zcl_alloc_annealing` |
+| 358 | Improvement tracker | `zcl_alloc_improve_log` |
+| 359 | Monte Carlo demand sampler | `zcl_alloc_monte_carlo` |
+| 360 | Seeded random generator | `zcl_alloc_random` |
+| 361 | Scenario definition | `zcl_alloc_scenario` |
+| 362 | Scenario comparison | `zcl_alloc_scenario_cmp` |
+| 363 | What-if stock shock | `zcl_alloc_shock` |
+| 364 | Demand uplift scenario | `zcl_alloc_uplift` |
+| 365 | Capacity reduction scenario | `zcl_alloc_capacity_cut` |
+| 366 | Stress test ladder | `zcl_alloc_stress` |
+| 367 | Sensitivity analysis | `zcl_alloc_sensitivity` |
+| 368 | Break-even analysis | `zcl_alloc_breakeven` |
+| 369 | Exponential smoothing | `zcl_alloc_exp_smooth` |
+| 370 | Holt linear trend | `zcl_alloc_holt` |
+| 371 | Seasonal index | `zcl_alloc_seasonal` |
+| 372 | Seasonally adjusted forecast | `zcl_alloc_season_forecast` |
+| 373 | Mean absolute deviation | `zcl_alloc_mad` |
+| 374 | Forecast accuracy (MAPE) | `zcl_alloc_mape` |
+| 375 | Forecast bias | `zcl_alloc_bias` |
+| 376 | Forecast exception list | `zcl_alloc_forecast_exc` |
+| 377 | Demand classification | `zcl_alloc_demand_class` |
+| 378 | Intermittent demand (Croston) | `zcl_alloc_croston` |
+| 379 | Material requirements planning run | `zcl_alloc_mrp` |
+| 380 | MRP net requirements | `zcl_alloc_mrp_net` |
+| 381 | Lot sizing: fixed lot | `zcl_alloc_lot_fixed` |
+| 382 | Lot sizing: period lot | `zcl_alloc_lot_period` |
+| 383 | Lot sizing: least unit cost | `zcl_alloc_lot_luc` |
+| 384 | Lot sizing: part period balancing | `zcl_alloc_lot_ppb` |
+| 385 | Scheduling: earliest due date | `zcl_alloc_sched_edd` |
+| 386 | Scheduling: shortest processing time | `zcl_alloc_sched_spt` |
+| 387 | Scheduling: critical ratio | `zcl_alloc_sched_cr` |
+| 388 | Capacity levelling | `zcl_alloc_levelling` |
+| 389 | Capacity requirement planning | `zcl_alloc_crp` |
+| 390 | Work centre load | `zcl_alloc_workload` |
+| 391 | Queue estimation | `zcl_alloc_queue` |
+| 392 | Rough-cut capacity check | `zcl_alloc_rough_cut` |
+| 393 | Distribution network model | `zcl_alloc_network` |
+| 394 | Sourcing rule evaluation | `zcl_alloc_sourcing` |
+| 395 | Lane cost matrix | `zcl_alloc_lane` |
+| 396 | Shortest path over lanes | `zcl_alloc_path` |
+| 397 | Multi-stop route builder | `zcl_alloc_route` |
+| 398 | Route cost estimate | `zcl_alloc_route_cost` |
+| 399 | Milk-run grouping | `zcl_alloc_milk_run` |
+| 400 | Cross-dock proposal | `zcl_alloc_crossdock` |
+| 401 | Safety stock by service level | `zcl_alloc_safety_level` |
+| 402 | Reorder point with variability | `zcl_alloc_rop_var` |
+| 403 | Fill rate simulation | `zcl_alloc_fill_sim` |
+| 404 | Inventory policy comparison | `zcl_alloc_policy_cmp` |
+| 405 | KPI trend over runs | `zcl_alloc_kpi_trend` |
+| 406 | Pareto analysis | `zcl_alloc_pareto` |
+| 407 | Concentration index (HHI) | `zcl_alloc_hhi` |
+| 408 | Gini coefficient | `zcl_alloc_gini` |
+| 409 | Lorenz curve points | `zcl_alloc_lorenz` |
+| 410 | Correlation of two series | `zcl_alloc_correlation` |
+| 411 | Linear regression | `zcl_alloc_regression` |
+| 412 | Outlier detection (z-score) | `zcl_alloc_outlier` |
+| 413 | Percentile calculation | `zcl_alloc_percentile` |
+| 414 | Median and quartiles | `zcl_alloc_quartile` |
+| 415 | Standard deviation | `zcl_alloc_stddev` |
+| 416 | Coefficient of variation | `zcl_alloc_cv` |
+| 417 | Moving range control chart | `zcl_alloc_control_chart` |
+| 418 | Benchmark comparison | `zcl_alloc_benchmark` |
+| 419 | Scorecard builder | `zcl_alloc_scorecard` |
+| 420 | Weighted score model | `zcl_alloc_weighted_score` |
+| 421 | Row numbering for reports | `zcl_alloc_row_number` |
+| 422 | Column definition builder | `zcl_alloc_columns` |
+| 423 | Table of contents for a report | `zcl_alloc_toc` |
+| 424 | Report header block | `zcl_alloc_header` |
+| 425 | Report footer with totals | `zcl_alloc_footer` |
+| 426 | Conditional highlighting rules | `zcl_alloc_highlight` |
+| 427 | Traffic-light status | `zcl_alloc_trafficlight` |
+| 428 | Unit-aware display | `zcl_alloc_unit_display` |
+| 429 | Text wrapping | `zcl_alloc_wrap` |
+| 430 | Truncation helper | `zcl_alloc_truncate` |
+| 431 | Pluralisation helper | `zcl_alloc_plural` |
+| 432 | Digit grouping | `zcl_alloc_grouping` |
+| 433 | Column width fitting | `zcl_alloc_colwidth` |
+| 434 | Excel-friendly CSV | `zcl_alloc_csv_excel` |
+| 435 | Tab-separated export | `zcl_alloc_tsv` |
+| 436 | SQL literal escaping | `zcl_alloc_sql_escape` |
+| 437 | URL query builder | `zcl_alloc_query` |
+| 438 | Deep-link builder | `zcl_alloc_deeplink` |
+| 439 | Report signature block | `zcl_alloc_signature` |
+| 440 | Print pagination | `zcl_alloc_print_page` |
+| 441 | Release note builder | `zcl_alloc_release_notes` |
+| 442 | Change request tracker | `zcl_alloc_change_request` |
+| 443 | Roll-out wave planner | `zcl_alloc_rollout` |
+
 
 ## Roadmap
 

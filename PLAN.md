@@ -730,8 +730,8 @@ failures visible, each as a small, separately testable class.
 | 448 | Scenario matrix | `zcl_alloc_scenario_matrix` (`build`) |
 | 449 | End-to-end scenario runner | `zcl_alloc_e2e_scenario` (`run`) |
 
-**Batch 5 is in progress: orders 444-446 are delivered and verified. Next is 447
-(`zcl_alloc_regression_baseline`).**
+**Batch 5 is complete: orders 444-449 are delivered and verified.** There is no
+next feature; a further batch needs to be agreed in this file first.
 
 
 ## Roadmap

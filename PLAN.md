@@ -642,9 +642,15 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 376 | Forecast exception list | `zcl_alloc_forecast_exc` (`find`) |
 | 377 | Demand classification | `zcl_alloc_demand_class` (`classify`) |
 | 378 | Intermittent demand (Croston) | `zcl_alloc_croston` (`forecast`) |
+| 379 | Material requirements planning run | `zcl_alloc_mrp` (`run`) |
+| 380 | MRP net requirements | `zcl_alloc_mrp_net` (`calculate`) |
+| 381 | Lot sizing: fixed lot | `zcl_alloc_lot_fixed` (`size`, `lots_of`) |
+| 382 | Lot sizing: period lot | `zcl_alloc_lot_period` (`size`) |
+| 383 | Lot sizing: least unit cost | `zcl_alloc_lot_luc` (`size`) |
+| 384 | Lot sizing: part period balancing | `zcl_alloc_lot_ppb` (`size`) |
 
-**Batch 4 is in progress: orders 344-378 are delivered and verified. Next is 379
-(`zcl_alloc_mrp`).**
+**Batch 4 is in progress: orders 344-384 are delivered and verified. Next is 385
+(`zcl_alloc_sched_edd`).**
 
 
 ## Roadmap

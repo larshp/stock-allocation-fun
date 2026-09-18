@@ -751,13 +751,26 @@ deterministic, reproducible, and it is the property that actually matters.
 
 **Batch 6 is complete: orders 450-451 are delivered and verified.**
 
-Batch 6 built the tools and the proof, not the application. The quadratic pattern
-is still present in the classes that aggregate with read/delete/append, and fixing
-them is the obvious next batch, because it touches roughly fifteen existing classes
-and needs a string-keyed variant of the aggregation (material numbers, work centres
-and node ids are all character keys, while `zcl_alloc_key_agg` is integer keyed).
-That is a refactoring batch over existing behaviour, so it should be scoped
-deliberately rather than assumed.
+## Batch 7 - applying the scale-safe aggregation (452)
+
+Batch 6 found the quadratic read/delete/append aggregation in about fifteen classes
+and built the tools; this batch applies them. The enabler is a string-keyed variant
+of the aggregator, because the affected keys are material numbers, work centres and
+node ids, and it has to preserve the first-appearance order that the existing
+classes produce, so that converting a class is a purely internal change.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 452 | Scale-safe string keyed aggregation | `zcl_alloc_key_agg_str` (`add`, `sums`, `visits`) |
+
+Then the quadratic classes are converted one per iteration, using their existing
+tests as the regression check: `mrp`, `network`, `crp`, `workload`, `crossdock`,
+`sourcing`, `transport`, `local_search`, `toc`, `rollout`, `checksum_reg`,
+`concurrency`, `config_w`, `dedupe_win`, `path`.
+
+**Batch 7 is in progress: order 452 is delivered and `zcl_alloc_network` is the
+first converted class. The remaining fourteen classes are converted one per
+iteration, each verified by its own existing tests.**
 
 
 ## Roadmap

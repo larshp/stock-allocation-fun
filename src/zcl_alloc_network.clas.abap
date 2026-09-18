@@ -38,48 +38,17 @@ CLASS zcl_alloc_network DEFINITION
         it_degrees      TYPE ty_degree_tt
       RETURNING
         VALUE(rv_count) TYPE i.
-  PRIVATE SECTION.
-    TYPES: BEGIN OF ty_count,
-             node_id TYPE string,
-             out_cnt TYPE i,
-             in_cnt  TYPE i,
-           END OF ty_count.
-    TYPES ty_count_tt TYPE STANDARD TABLE OF ty_count WITH DEFAULT KEY.
-
-    METHODS bump
-      IMPORTING
-        it_counts        TYPE ty_count_tt
-        iv_node          TYPE string
-        iv_out           TYPE i
-        iv_in            TYPE i
-      RETURNING
-        VALUE(rt_counts) TYPE ty_count_tt.
 ENDCLASS.
 
 
 CLASS zcl_alloc_network IMPLEMENTATION.
 
-  METHOD bump.
-    DATA ls_count TYPE ty_count.
-
-    rt_counts = it_counts.
-
-    READ TABLE rt_counts INTO ls_count WITH KEY node_id = iv_node.
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    ls_count-out_cnt = ls_count-out_cnt + iv_out.
-    ls_count-in_cnt = ls_count-in_cnt + iv_in.
-
-    DELETE rt_counts WHERE node_id = iv_node.
-    APPEND ls_count TO rt_counts.
-  ENDMETHOD.
-
   METHOD build.
-    DATA lt_counts TYPE ty_count_tt.
-    DATA ls_count  TYPE ty_count.
+    DATA lo_out    TYPE REF TO zcl_alloc_key_agg_str.
+    DATA lo_in     TYPE REF TO zcl_alloc_key_agg_str.
     DATA ls_degree TYPE ty_degree.
+    DATA lv_out    TYPE menge_d.
+    DATA lv_in     TYPE menge_d.
 
     LOOP AT it_nodes INTO DATA(ls_node).
       CLEAR ls_degree.
@@ -88,34 +57,28 @@ CLASS zcl_alloc_network IMPLEMENTATION.
       APPEND ls_degree TO rt_degrees.
     ENDLOOP.
 
-    LOOP AT rt_degrees INTO ls_degree.
-      CLEAR ls_count.
-      ls_count-node_id = ls_degree-node_id.
-      APPEND ls_count TO lt_counts.
-    ENDLOOP.
+    " The endpoints are counted with one linear aggregation and looked up by
+    " binary search, instead of scanning the whole count table once per lane.
+    lo_out = NEW zcl_alloc_key_agg_str( ).
+    lo_in = NEW zcl_alloc_key_agg_str( ).
 
     LOOP AT it_lanes INTO DATA(ls_lane).
-      lt_counts = bump( it_counts = lt_counts
-                        iv_node   = ls_lane-from_node
-                        iv_out    = 1
-                        iv_in     = 0 ).
-      lt_counts = bump( it_counts = lt_counts
-                        iv_node   = ls_lane-to_node
-                        iv_out    = 0
-                        iv_in     = 1 ).
+      lo_out->add( iv_key      = ls_lane-from_node
+                   iv_quantity = 1 ).
+      lo_in->add( iv_key      = ls_lane-to_node
+                  iv_quantity = 1 ).
     ENDLOOP.
 
+    " Lanes that mention a node which is not in the node list are counted in the
+    " aggregation but never read here, so they stay ignored as before.
     LOOP AT rt_degrees ASSIGNING FIELD-SYMBOL(<ls_degree>).
-      READ TABLE lt_counts INTO ls_count
-        WITH KEY node_id = <ls_degree>-node_id.
-      IF sy-subrc <> 0.
-        CONTINUE.
-      ENDIF.
+      lv_out = lo_out->find( iv_key = <ls_degree>-node_id ).
+      lv_in = lo_in->find( iv_key = <ls_degree>-node_id ).
 
-      <ls_degree>-outgoing = ls_count-out_cnt.
-      <ls_degree>-incoming = ls_count-in_cnt.
+      <ls_degree>-outgoing = lv_out DIV 1.
+      <ls_degree>-incoming = lv_in DIV 1.
 
-      IF ls_count-out_cnt = 0 AND ls_count-in_cnt = 0.
+      IF <ls_degree>-outgoing = 0 AND <ls_degree>-incoming = 0.
         <ls_degree>-isolated = abap_true.
       ENDIF.
     ENDLOOP.

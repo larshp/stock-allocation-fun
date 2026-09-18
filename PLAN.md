@@ -648,9 +648,17 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 382 | Lot sizing: period lot | `zcl_alloc_lot_period` (`size`) |
 | 383 | Lot sizing: least unit cost | `zcl_alloc_lot_luc` (`size`) |
 | 384 | Lot sizing: part period balancing | `zcl_alloc_lot_ppb` (`size`) |
+| 385 | Scheduling: earliest due date | `zcl_alloc_sched_edd` (`schedule`, `late_count`) |
+| 386 | Scheduling: shortest processing time | `zcl_alloc_sched_spt` (`schedule`, `avg_finish`) |
+| 387 | Scheduling: critical ratio | `zcl_alloc_sched_cr` (`schedule`, `late_count`) |
+| 388 | Capacity levelling | `zcl_alloc_levelling` (`level`) |
+| 389 | Capacity requirement planning | `zcl_alloc_crp` (`calculate`, `total_hours`) |
+| 390 | Work centre load | `zcl_alloc_workload` (`build`, `overload_count`) |
+| 391 | Queue estimation | `zcl_alloc_queue` (`estimate`) |
+| 392 | Rough-cut capacity check | `zcl_alloc_rough_cut` (`check`, `is_feasible`, `gap_total`) |
 
-**Batch 4 is in progress: orders 344-384 are delivered and verified. Next is 385
-(`zcl_alloc_sched_edd`).**
+**Batch 4 is in progress: orders 344-392 are delivered and verified. Next is 393
+(`zcl_alloc_network`).**
 
 
 ## Roadmap

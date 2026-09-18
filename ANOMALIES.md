@@ -440,3 +440,20 @@ Each entry notes the symptom, the cause and the workaround used.
   `in_range( iv_value iv_low iv_high )`) keeps this readable when several
   assertions need the same predicate.
 
+## A30 - A bare decimal literal is not parsed, it must be quoted
+
+* Symptom: `Error: parser_error, Statement does not exist in the configured ABAP
+  version (or a parser error), "add", <file>:<line>` where `<line>` is a helper
+  call such as
+  `add( iv_id = 'O1' iv_qty = 10 iv_hours = 1.5 ).` The reported token is the
+  first token of the statement (`add`), not the decimal, so the message points
+  away from the cause. abaplint accepted the code.
+* Cause: the transpiler's parser does not accept a bare decimal literal, even
+  though modern ABAP does. The repository convention has always been the quoted
+  form, which is what a real system accepts in any release.
+* Workaround: write decimal values as character literals, `iv_hours = '1.5'`,
+  which is also how the existing tests pass decimals
+  (`zcl_alloc_avg_price`, `zcl_alloc_footprint`, `zcl_alloc_inventory_value`).
+  A repo-wide `grep -n "= [0-9]\+\.[0-9]\+"` finds the offending lines.
+
+

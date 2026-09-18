@@ -1320,7 +1320,38 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-384 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-392 are delivered and verified.**
+
+385. **Scheduling: earliest due date** - `zcl_alloc_sched_edd=>schedule( )` sequences
+     the jobs by due day back-to-back from day zero and reports the start, the
+     finish, the lateness in days and an `is_late` flag per job; `late_count( )`
+     counts the late jobs.
+386. **Scheduling: shortest processing time** - `zcl_alloc_sched_spt=>schedule( )`
+     does the same but sequences by work time ascending, which keeps the average
+     finish day low; `avg_finish( )` returns that average.
+387. **Scheduling: critical ratio** - `zcl_alloc_sched_cr=>schedule( )` computes the
+     critical ratio `slack * 100 DIV work_time` per job and sequences the smallest
+     ratio first, because that is the job with the least slack per unit of work.
+388. **Capacity levelling** - `zcl_alloc_levelling=>level( )` runs a forward pass
+     over a demand series and defers any excess above the capacity into the next
+     period, returning the levelled load per period, the quantity that could not be
+     placed inside the horizon (`rest`) and an `overloaded` flag. A capacity of zero
+     or less leaves the demand untouched.
+389. **Capacity requirement planning** - `zcl_alloc_crp=>calculate( )` aggregates
+     `quantity * hours_per_unit` per work centre and counts the orders per centre;
+     `total_hours( )` sums the load.
+390. **Work centre load** - `zcl_alloc_workload=>build( )` aggregates the operation
+     hours per work centre and period and flags a cell as `over` when it exceeds the
+     capacity; `overload_count( )` counts the overloaded cells.
+391. **Queue estimation** - `zcl_alloc_queue=>estimate( )` works on rates scaled by
+     100 and derives the utilisation, the queue length (`rho^2 / (1 - rho)`, also in
+     hundredths) and the waiting time via Little's law. An arrival rate at or above
+     the capacity is reported as `saturated`.
+392. **Rough-cut capacity check** - `zcl_alloc_rough_cut=>check( )` compares the
+     required with the available capacity per work centre and reports the gap and an
+     `ok` flag per line; `is_feasible( )` is true only when nothing is short and
+     `gap_total( )` sums the positive gaps. A work centre without a capacity row
+     counts as zero available.
 
 379. **Material requirements planning run** - `zcl_alloc_mrp=>run( )` explodes a
      demand list over a bill of material for a given number of levels: every level
@@ -1577,20 +1608,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-384 are delivered and verified.
+orders 344-392 are delivered and verified.
 
 Next up (in order):
 
-1. 385 `zcl_alloc_sched_edd` - scheduling: earliest due date.
-2. 386 `zcl_alloc_sched_spt` - scheduling: shortest processing time.
-3. 387 `zcl_alloc_sched_cr` - scheduling: critical ratio.
-4. 388 `zcl_alloc_levelling` - capacity levelling.
-5. 389 `zcl_alloc_crp` - capacity requirement planning.
-6. 390 `zcl_alloc_workload` - work centre load.
-7. 391 `zcl_alloc_queue` - queue estimation.
-8. 392 `zcl_alloc_rough_cut` - rough-cut capacity check.
+1. 393 `zcl_alloc_network` - distribution network model.
+2. 394 `zcl_alloc_sourcing` - sourcing rule evaluation.
+3. 395 `zcl_alloc_lane` - lane cost matrix.
+4. 396 `zcl_alloc_path` - shortest path over lanes.
+5. 397 `zcl_alloc_route` - multi-stop route builder.
+6. 398 `zcl_alloc_route_cost` - route cost estimate.
+7. 399 `zcl_alloc_milk_run` - milk-run grouping.
+8. 400 `zcl_alloc_crossdock` - cross-dock proposal.
 
-Then continue strictly in order 385-443, one feature per iteration, always keeping
+Then continue strictly in order 393-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1606,8 +1637,9 @@ method instead of inside a control block, never put a semicolon after a block
 terminator (`ENDIF;` breaks the parser - the whole class fails with
 `structure, Expected ENDMETHOD`), never pass a logical expression directly as an
 `act` argument (`assert_equals( act = a = b ... )` is a parser error - compute an
-`abap_bool` variable first), and do not put trailing blanks in test literals
-(ANOMALIES.md A18).
+`abap_bool` variable first), write decimal values as quoted literals (`'1.5'`,
+never a bare `1.5` - the transpiler drops the whole statement, see ANOMALIES.md
+A30), and do not put trailing blanks in test literals (ANOMALIES.md A18).
 
 ## Conventions
 
@@ -1690,7 +1722,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-384). The classes from order
+* Metadata exists for every class (roadmap orders 1-392). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

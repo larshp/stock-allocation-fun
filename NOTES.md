@@ -1320,7 +1320,40 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-424 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-432 are delivered and verified.**
+
+425. **Report footer with totals** - `zcl_alloc_footer=>build( )` sums the allocated
+     quantities of a result list, counts the lines and carries the requested
+     caption, so a report can end with a totals block. Negative allocations net
+     against the total.
+426. **Conditional highlighting rules** - `zcl_alloc_highlight=>apply( )` fires every
+     rule whose threshold the value reaches; `worst_severity( )` ranks the hits and
+     returns `error`, `warning`, `info` or an empty string when nothing fired.
+427. **Traffic-light status** - `zcl_alloc_trafficlight=>of_value( )` returns 1, 2 or
+     3 for a value inside the green band, between the two limits or above both
+     (the limits themselves count as inside), and `text_of( )` names the light
+     `green`, `yellow`, `red` or `unknown`.
+428. **Unit-aware display** - `zcl_alloc_unit_display=>format( )` turns a requested
+     number of decimals (0 to 3) into a scale factor and returns the quantity as an
+     exact whole number of scaled units, so the caller can render it with its unit
+     and without floating point arithmetic.
+429. **Text wrapping** - `zcl_alloc_text_wrap=>wrap( )` fills lines up to the given
+     width, breaking between words and only moving a word to the next line when it
+     plus the separating blank would not fit. Repeated blanks collapse and a single
+     word longer than the width keeps its own line.
+430. **Text truncation with ellipsis** - `zcl_alloc_text_trunc=>truncate( )` keeps a
+     text that fits and otherwise cuts it so that the marker still fits inside the
+     width. When the width cannot hold the whole marker, as much of the marker as
+     fits is returned. `fits( )` answers the same question without cutting.
+431. **CSV export** - `zcl_alloc_csv_export=>render( )` writes a header line from the
+     column titles and one line per row, taking the values by field name so a
+     missing value becomes an empty cell; the separator is a parameter.
+     `escape( )` quotes only the values that contain a quote and doubles the inner
+     quotes, which is the RFC 4180 convention.
+432. **TSV export** - `zcl_alloc_tsv_export` uses the tab from
+     `cl_abap_char_utilities` as the separator (`separator( )`) and, because TSV has
+     no quoting convention, `clean( )` replaces a tab inside a value with a blank
+     and a double quote with an apostrophe so a value can never break the structure.
 
 421. **Row numbering for reports** - `zcl_alloc_row_number=>apply( )` turns an
      allocation result into display rows with a 1-based row number, the requirement
@@ -1740,20 +1773,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-424 are delivered and verified.
+orders 344-432 are delivered and verified.
 
 Next up (in order):
 
-1. 425 `zcl_alloc_footer` - report footer with totals.
-2. 426 `zcl_alloc_highlight` - conditional highlighting rules.
-3. 427 `zcl_alloc_trafficlight` - traffic-light status.
-4. 428 `zcl_alloc_unit_display` - unit-aware display.
-5. 429 `zcl_alloc_text_wrap` - text wrapping.
-6. 430 `zcl_alloc_text_trunc` - text truncation with ellipsis.
-7. 431 `zcl_alloc_csv_export` - CSV export.
-8. 432 `zcl_alloc_tsv_export` - TSV export.
+1. 433 `zcl_alloc_sql_escape` - SQL literal escaping.
+2. 434 `zcl_alloc_page_split` - pagination of a result list.
+3. 435 `zcl_alloc_grand_total` - grand total over groups.
+4. 436 `zcl_alloc_subtotal` - subtotal per group.
+5. 437 `zcl_alloc_group_sort` - multi-key sorting.
+6. 438 `zcl_alloc_subtotal_tree` - subtotal tree.
+7. 439 `zcl_alloc_drill_down` - drill-down navigation.
+8. 440 `zcl_alloc_export_ctl` - export control block.
 
-Then continue strictly in order 425-443, one feature per iteration, always keeping
+Then continue strictly in order 433-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1859,7 +1892,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-424). The classes from order
+* Metadata exists for every class (roadmap orders 1-432). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

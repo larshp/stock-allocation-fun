@@ -688,9 +688,17 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 422 | Column definition builder | `zcl_alloc_columns` (`build`, `total_width`) |
 | 423 | Table of contents for a report | `zcl_alloc_toc` (`build`) |
 | 424 | Report header block | `zcl_alloc_header` (`build`) |
+| 425 | Report footer with totals | `zcl_alloc_footer` (`build`) |
+| 426 | Conditional highlighting rules | `zcl_alloc_highlight` (`apply`, `worst_severity`) |
+| 427 | Traffic-light status | `zcl_alloc_trafficlight` (`of_value`, `text_of`) |
+| 428 | Unit-aware display | `zcl_alloc_unit_display` (`format`) |
+| 429 | Text wrapping | `zcl_alloc_text_wrap` (`wrap`) |
+| 430 | Text truncation with ellipsis | `zcl_alloc_text_trunc` (`truncate`, `fits`) |
+| 431 | CSV export | `zcl_alloc_csv_export` (`render`, `escape`) |
+| 432 | TSV export | `zcl_alloc_tsv_export` (`render`, `clean`, `separator`) |
 
-**Batch 4 is in progress: orders 344-424 are delivered and verified. Next is 425
-(`zcl_alloc_footer`).**
+**Batch 4 is in progress: orders 344-432 are delivered and verified. Next is 433
+(`zcl_alloc_sql_escape`).**
 
 
 ## Roadmap

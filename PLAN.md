@@ -637,9 +637,14 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 371 | Seasonal index | `zcl_alloc_seasonal` (`index`) |
 | 372 | Seasonally adjusted forecast | `zcl_alloc_season_forecast` (`forecast`, `baseline_of`) |
 | 373 | Mean absolute deviation | `zcl_alloc_mad` (`calculate`, `deviation_of`) |
+| 374 | Forecast accuracy (MAPE) | `zcl_alloc_mape` (`calculate`, `percentage_of`) |
+| 375 | Forecast bias | `zcl_alloc_bias` (`calculate`, `errors_of`, `direction`) |
+| 376 | Forecast exception list | `zcl_alloc_forecast_exc` (`find`) |
+| 377 | Demand classification | `zcl_alloc_demand_class` (`classify`) |
+| 378 | Intermittent demand (Croston) | `zcl_alloc_croston` (`forecast`) |
 
-**Batch 4 is in progress: orders 344-373 are delivered and verified. Next is 374
-(`zcl_alloc_mape`).**
+**Batch 4 is in progress: orders 344-378 are delivered and verified. Next is 379
+(`zcl_alloc_mrp`).**
 
 
 ## Roadmap

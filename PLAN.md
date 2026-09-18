@@ -712,6 +712,27 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 class has a local test class, abapGit metadata and an entry in `NOTES.md`, and
 `npm test` (abaplint + transpile + unit run) is green.
 
+## Batch 5 - verification and hardening (444-449)
+
+The allocation logic, the reporting helpers and the operational tooling are built
+and unit tested per class. What is left is the cross-cutting risk: a result that
+looks plausible but breaks an invariant the business depends on (over-allocation,
+a negative quantity, a stock movement driving a storage location below zero, or a
+run that silently changed behaviour). Batch 5 adds the checkers that make those
+failures visible, each as a small, separately testable class.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 444 | Allocation invariant check | `zcl_alloc_invariant_check` (`check`, `is_clean`) |
+| 445 | Run audit summary | `zcl_alloc_run_audit` (`audit`) |
+| 446 | Stock movement guard | `zcl_alloc_stock_guard` (`check`, `first_negative`, `closing_of`) |
+| 447 | Regression baseline | `zcl_alloc_regression_baseline` (`capture`, `compare`) |
+| 448 | Scenario matrix | `zcl_alloc_scenario_matrix` (`build`) |
+| 449 | End-to-end scenario runner | `zcl_alloc_e2e_scenario` (`run`) |
+
+**Batch 5 is in progress: orders 444-446 are delivered and verified. Next is 447
+(`zcl_alloc_regression_baseline`).**
+
 
 ## Roadmap
 

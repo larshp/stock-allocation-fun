@@ -1320,7 +1320,48 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-363 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-373 are delivered and verified.**
+
+364. **Demand uplift scenario** - `zcl_alloc_uplift=>apply( )` scales every
+     allocated quantity by a percentage and then adds a fixed amount, clamping the
+     outcome at zero; `total_of( )` sums a result list.
+365. **Capacity reduction scenario** - `zcl_alloc_capacity_cut=>apply( )` rations a
+     result list down to a capacity: when the total exceeds the capacity every line
+     is scaled by `quantity * capacity DIV total`, an optional per-line maximum caps
+     single lines, and the result reports the totals before and after plus a
+     `reduced` flag. Truncation means the rationed total can stay slightly below the
+     capacity, which is the safe direction.
+366. **Stress test ladder** - `zcl_alloc_stress=>ladder( )` builds a list of levels
+     from a start to an end value; `assess( )` turns each level into a threshold
+     (`base * level DIV 100`) and marks it as breached when a total exceeds it.
+367. **Sensitivity analysis** - `zcl_alloc_sensitivity=>analyze( )` varies the
+     available stock by `steps` increments of `step_pct` percent each side of the
+     base and reports, per variant, the stock, the allocation (capped by the demand)
+     and the quantity delta against the base allocation. Negative stock is clamped at
+     zero.
+368. **Break-even analysis** - `zcl_alloc_breakeven=>solve( )` divides the fixed
+     cost by the contribution margin (`unit_price - unit_cost`), rounding up, and
+     reports the units, the margin and whether the break-even is reachable within an
+     optional maximum volume. A margin of zero or less is never reachable.
+369. **Exponential smoothing** - `zcl_alloc_exp_smooth=>forecast( )` applies
+     `alpha * value + (100 - alpha) * previous` (integer percent, clamped to 0..100)
+     to a series, returns the smoothed series and uses its last value as the
+     forecast. The first smoothed value is the first observation.
+370. **Holt linear trend** - `zcl_alloc_holt=>forecast( )` keeps a level and a trend
+     per observation, updates them with the alpha and beta percentages and forecasts
+     with `level + trend`. The first observation seeds the level and the trend starts
+     at zero.
+371. **Seasonal index** - `zcl_alloc_seasonal=>index( )` averages the observations
+     per season position (`(position - 1) MOD period + 1`) and expresses each average
+     as a percentage of the overall average. Positions without observations get an
+     index of 0, and a zero overall average is never divided by.
+372. **Seasonally adjusted forecast** - `zcl_alloc_season_forecast` deseasonalises
+     the last full period with the seasonal index, averages the deseasonalised values
+     (an index of 0 leaves a value as it is) and reseasonalises that baseline with the
+     index of the season being forecast. `baseline_of( )` exposes the baseline.
+373. **Mean absolute deviation** - `zcl_alloc_mad=>deviation_of( )` pairs forecast
+     and actual observations (stopping at the shorter series) and returns the absolute
+     errors; `calculate( )` returns their truncated mean.
 
 359. **Monte Carlo demand sampler** - `zcl_alloc_monte_carlo=>simulate( )` draws a
      number of demand samples around a mean with a symmetric spread, using a
@@ -1488,20 +1529,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-363 are delivered and verified.
+orders 344-373 are delivered and verified.
 
 Next up (in order):
 
-1. 364 `zcl_alloc_uplift` - demand uplift scenario.
-2. 365 `zcl_alloc_capacity_cut` - capacity reduction scenario.
-3. 366 `zcl_alloc_stress` - stress test ladder.
-4. 367 `zcl_alloc_sensitivity` - sensitivity analysis.
-5. 368 `zcl_alloc_breakeven` - break-even analysis.
-6. 369 `zcl_alloc_exp_smooth` - exponential smoothing.
-7. 370 `zcl_alloc_holt` - Holt linear trend.
-8. 371 `zcl_alloc_seasonal` - seasonal index.
+1. 374 `zcl_alloc_mape` - forecast accuracy (MAPE).
+2. 375 `zcl_alloc_bias` - forecast bias.
+3. 376 `zcl_alloc_forecast_exc` - forecast exception list.
+4. 377 `zcl_alloc_demand_class` - demand classification.
+5. 378 `zcl_alloc_croston` - intermittent demand (Croston).
+6. 379 `zcl_alloc_mrp` - material requirements planning run.
+7. 380 `zcl_alloc_mrp_net` - MRP net requirements.
+8. 381 `zcl_alloc_lot_fixed` - lot sizing: fixed lot.
 
-Then continue strictly in order 364-443, one feature per iteration, always keeping
+Then continue strictly in order 374-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1601,7 +1642,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-363). The classes from order
+* Metadata exists for every class (roadmap orders 1-373). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

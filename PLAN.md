@@ -627,9 +627,19 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 361 | Scenario definition | `zcl_alloc_scenario` (`define`, `apply`) |
 | 362 | Scenario comparison | `zcl_alloc_scenario_cmp` (`compare`) |
 | 363 | What-if stock shock | `zcl_alloc_shock` (`apply`, `available_of`) |
+| 364 | Demand uplift scenario | `zcl_alloc_uplift` (`apply`, `total_of`) |
+| 365 | Capacity reduction scenario | `zcl_alloc_capacity_cut` (`apply`, `total_of`) |
+| 366 | Stress test ladder | `zcl_alloc_stress` (`ladder`, `assess`) |
+| 367 | Sensitivity analysis | `zcl_alloc_sensitivity` (`analyze`) |
+| 368 | Break-even analysis | `zcl_alloc_breakeven` (`solve`) |
+| 369 | Exponential smoothing | `zcl_alloc_exp_smooth` (`forecast`) |
+| 370 | Holt linear trend | `zcl_alloc_holt` (`forecast`) |
+| 371 | Seasonal index | `zcl_alloc_seasonal` (`index`) |
+| 372 | Seasonally adjusted forecast | `zcl_alloc_season_forecast` (`forecast`, `baseline_of`) |
+| 373 | Mean absolute deviation | `zcl_alloc_mad` (`calculate`, `deviation_of`) |
 
-**Batch 4 is in progress: orders 344-363 are delivered and verified. Next is 364
-(`zcl_alloc_uplift`).**
+**Batch 4 is in progress: orders 344-373 are delivered and verified. Next is 374
+(`zcl_alloc_mape`).**
 
 
 ## Roadmap

@@ -684,9 +684,13 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 418 | Benchmark comparison | `zcl_alloc_benchmark` (`compare`) |
 | 419 | Scorecard builder | `zcl_alloc_scorecard` (`build`, `met_count`) |
 | 420 | Weighted score model | `zcl_alloc_weighted_score` (`score`, `grade_of`) |
+| 421 | Row numbering for reports | `zcl_alloc_row_number` (`apply`, `count_of`) |
+| 422 | Column definition builder | `zcl_alloc_columns` (`build`, `total_width`) |
+| 423 | Table of contents for a report | `zcl_alloc_toc` (`build`) |
+| 424 | Report header block | `zcl_alloc_header` (`build`) |
 
-**Batch 4 is in progress: orders 344-420 are delivered and verified. Next is 421
-(`zcl_alloc_row_number`).**
+**Batch 4 is in progress: orders 344-424 are delivered and verified. Next is 425
+(`zcl_alloc_footer`).**
 
 
 ## Roadmap

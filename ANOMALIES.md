@@ -456,4 +456,20 @@ Each entry notes the symptom, the cause and the workaround used.
   (`zcl_alloc_avg_price`, `zcl_alloc_footprint`, `zcl_alloc_inventory_value`).
   A repo-wide `grep -n "= [0-9]\+\.[0-9]\+"` finds the offending lines.
 
+## A31 - A numeric-to-string assignment does not produce comparable text
+
+* Symptom: a class that built a display string with
+  `lv_part = ls_counter-value.` (an `i` into a `string`) ran without error, but
+  every `assert_equals` that compared the resulting string with a literal failed.
+  `abap_transpile` reported nothing.
+* Cause: the transpiler turns the assignment into
+  `lv_part.set(ls_counter.value)`, which stores the *number* in the string object
+  instead of a formatted character value, so the value does not compare equal to
+  `'1'` even though a real system would format it as `1`.
+* Workaround: never rely on the implicit conversion. Map the value explicitly
+  (an `IF`/`ELSEIF` chain or a `CASE` over the digit range) so the result is a real
+  character literal, as `zcl_alloc_toc=>digit_of` does for chapter numbers. The
+  same applies to a formatted date or quantity that is meant to be compared.
+
+
 

@@ -1320,7 +1320,43 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Roadmap batch 4 is in progress: orders 344-412 are delivered and verified.**
+**Roadmap batch 4 is in progress: orders 344-420 are delivered and verified.**
+
+413. **Percentile calculation** - `zcl_alloc_percentile=>value( )` sorts the series
+     and returns the nearest-rank percentile: the rank is the smallest one whose
+     cumulative share reaches the requested percentage
+     (`(pct * n + 99) DIV 100`), clamped to the valid range. `rank_of( )` exposes
+     the rank. A percentage below 0 or above 100 is clamped.
+414. **Median and quartiles** - `zcl_alloc_quartile=>calculate( )` reports the
+     minimum, the first quartile, the median, the third quartile and the maximum
+     using the same nearest-rank rule as `zcl_alloc_percentile`, plus the
+     interquartile range.
+415. **Standard deviation** - `zcl_alloc_stddev=>calculate( )` returns the count,
+     the truncated mean, the variance in hundredths and the standard deviation in
+     hundredths. The deviation uses an integer square root, so a series without
+     spread reports exactly zero.
+416. **Coefficient of variation** - `zcl_alloc_cv=>calculate( )` divides the
+     standard deviation by the mean - both taken from `zcl_alloc_stddev` - and
+     scales the result to ten-thousandths; `band_of( )` maps it to `low`,
+     `moderate` or `high` at 0.10 and 0.25. A non-positive mean or spread reports 0.
+417. **Moving range control chart** - `zcl_alloc_control_chart=>build( )` is the
+     XmR chart: the centre line is the mean and the limits are 2.660 average moving
+     ranges away from it (3.267 for the moving range chart itself).
+     `out_of_control( )` lists the points outside the limits with their rank and
+     which side they are on.
+418. **Benchmark comparison** - `zcl_alloc_benchmark=>compare( )` places a measured
+     value against a benchmark series (best, median, average) for a lower-is-better
+     KPI: `behind` is the distance from the best value and `ahead` is true when the
+     measured value beats the average.
+419. **Scorecard builder** - `zcl_alloc_scorecard=>build( )` turns metrics with a
+     target, an actual value and a weight into rows that carry the signed gap and a
+     `met` flag (reaching the target exactly counts as met); `met_count( )` counts
+     the met metrics.
+420. **Weighted score model** - `zcl_alloc_weighted_score=>score( )` sums the
+     weights of the met metrics against the total weight and expresses the result in
+     ten-thousandths, with `grade_of( )` mapping 0.90, 0.75 and 0.60 to the grades
+     `A`, `B`, `C` and `D`. Metrics without a positive weight are ignored, and a
+     scorecard without weight reports grade `D`.
 
 405. **KPI trend over runs** - `zcl_alloc_kpi_trend=>analyze( )` summarises a KPI
      series: first value, last value, signed delta, the direction `up`, `down`,
@@ -1688,20 +1724,20 @@ local search, seeded simulation and scenario analysis, forecasting and demand
 classification, MRP and lot sizing, finite scheduling and capacity, distribution
 network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-412 are delivered and verified.
+orders 344-420 are delivered and verified.
 
 Next up (in order):
 
-1. 413 `zcl_alloc_percentile` - percentile calculation.
-2. 414 `zcl_alloc_quartile` - median and quartiles.
-3. 415 `zcl_alloc_stddev` - standard deviation.
-4. 416 `zcl_alloc_cv` - coefficient of variation.
-5. 417 `zcl_alloc_control_chart` - moving range control chart.
-6. 418 `zcl_alloc_benchmark` - benchmark comparison.
-7. 419 `zcl_alloc_scorecard` - scorecard builder.
-8. 420 `zcl_alloc_weighted_score` - weighted score model.
+1. 421 `zcl_alloc_row_number` - row numbering for reports.
+2. 422 `zcl_alloc_columns` - column definition builder.
+3. 423 `zcl_alloc_toc` - table of contents for a report.
+4. 424 `zcl_alloc_header` - report header block.
+5. 425 `zcl_alloc_footer` - report footer with totals.
+6. 426 `zcl_alloc_highlight` - conditional highlighting rules.
+7. 427 `zcl_alloc_trafficlight` - traffic-light status.
+8. 428 `zcl_alloc_unit_display` - unit-aware display.
 
-Then continue strictly in order 413-443, one feature per iteration, always keeping
+Then continue strictly in order 421-443, one feature per iteration, always keeping
 `npm test` green.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
@@ -1720,6 +1756,11 @@ terminator (`ENDIF;` breaks the parser - the whole class fails with
 `abap_bool` variable first), write decimal values as quoted literals (`'1.5'`,
 never a bare `1.5` - the transpiler drops the whole statement, see ANOMALIES.md
 A30), and do not put trailing blanks in test literals (ANOMALIES.md A18).
+
+**Run `grep -nE "(ENDIF|ENDWHILE|ENDLOOP|ENDDO|ENDCLASS|ENDMETHOD);" src/*.abap`
+before every `npm test`.** A stray semicolon after a block terminator makes the
+transpiler reject the whole class with a message that names the first line of the
+file, and abaplint reports nothing at all (ANOMALIES.md A28).
 
 ## Conventions
 
@@ -1802,7 +1843,7 @@ the source (`<object>.<type>.xml`).
   DDIC definitions from the BOM files without complaining.
 * `npm run clean` uses `rimraf output` (`rimraf` is a dev dependency) instead of a
   `node -e` one-liner.
-* Metadata exists for every class (roadmap orders 1-412). The classes from order
+* Metadata exists for every class (roadmap orders 1-420). The classes from order
   309 on were generated by a small shell helper that writes the UTF-8 byte
   order mark as raw bytes and then the serialized XML, because the editor's file
   tools strip a BOM from the start of the content. The metadata is what abapGit

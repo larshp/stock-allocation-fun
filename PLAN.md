@@ -676,9 +676,17 @@ new `zcl_alloc_*` class with a local test class, verified by `npm test`.
 | 410 | Correlation of two series | `zcl_alloc_correlation` (`calculate`) |
 | 411 | Linear regression | `zcl_alloc_regression` (`fit`) |
 | 412 | Outlier detection (z-score) | `zcl_alloc_outlier` (`find`, `mean_of`, `sd_of`) |
+| 413 | Percentile calculation | `zcl_alloc_percentile` (`value`, `rank_of`) |
+| 414 | Median and quartiles | `zcl_alloc_quartile` (`calculate`) |
+| 415 | Standard deviation | `zcl_alloc_stddev` (`calculate`, `mean_of`) |
+| 416 | Coefficient of variation | `zcl_alloc_cv` (`calculate`, `band_of`) |
+| 417 | Moving range control chart | `zcl_alloc_control_chart` (`build`, `out_of_control`) |
+| 418 | Benchmark comparison | `zcl_alloc_benchmark` (`compare`) |
+| 419 | Scorecard builder | `zcl_alloc_scorecard` (`build`, `met_count`) |
+| 420 | Weighted score model | `zcl_alloc_weighted_score` (`score`, `grade_of`) |
 
-**Batch 4 is in progress: orders 344-412 are delivered and verified. Next is 413
-(`zcl_alloc_percentile`).**
+**Batch 4 is in progress: orders 344-420 are delivered and verified. Next is 421
+(`zcl_alloc_row_number`).**
 
 
 ## Roadmap

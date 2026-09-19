@@ -271,6 +271,10 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS a_stale_note_is_closed_first FOR TESTING RAISING cx_static_check.
     METHODS and_stops_blocking_a_new_one FOR TESTING RAISING cx_static_check.
     METHODS a_test_run_closes_nothing FOR TESTING RAISING cx_static_check.
+    METHODS the_notes_add_up_to_the_short FOR TESTING RAISING cx_static_check.
+    METHODS a_covered_shortage_asks_once FOR TESTING RAISING cx_static_check.
+    METHODS an_open_note_comes_off_first FOR TESTING RAISING cx_static_check.
+    METHODS a_note_covering_it_stops_more FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -447,9 +451,11 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
 
   METHOD one_commit_for_the_run.
 
+    " twenty-five spare in each of two plants against forty missing here, so
+    " both are worth a note and neither of them covers the shortage alone
     run_of( VALUE #(
-      ( matnr = c_matnr werks = c_there quantity = '100' )
-      ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+      ( matnr = c_matnr werks = c_there quantity = '25' )
+      ( matnr = c_matnr werks = c_far quantity = '25' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lines( mo_transfer->open_for( c_here ) )
@@ -574,6 +580,94 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
                                   iv_to_werks   = c_here
                                   iv_from_werks = c_there )
       msg = 'a test run of a program that changes something changes nothing' ).
+
+  ENDMETHOD.
+
+  METHOD the_notes_add_up_to_the_short.
+
+    " this is the defect the feature exists for. Forty missing, two plants
+    " with twenty-five each: before this, both were asked for forty, and a
+    " planner who raised both moved eighty and left two plants short.
+    run_of( VALUE #(
+      ( matnr = c_matnr werks = c_there quantity = '25' )
+      ( matnr = c_matnr werks = c_far quantity = '25' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_there ]-quantity
+      exp = '25'
+      msg = 'the first plant is asked for everything it can spare' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_far ]-quantity
+      exp = '15'
+      msg = 'and the next one only for what is still missing' ).
+
+  ENDMETHOD.
+
+  METHOD a_covered_shortage_asks_once.
+
+    " the first plant covers all forty, so there is nothing to ask the second
+    " for and no note to make about it
+    DATA(lt_line) = run_of( VALUE #(
+      ( matnr = c_matnr werks = c_there quantity = '100' )
+      ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*3000*' ) ).
+
+  ENDMETHOD.
+
+  METHOD an_open_note_comes_off_first.
+
+    " a note for fifteen is waiting from one plant, so the second is asked
+    " for the twenty-five that is still missing and not for the forty
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '15' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_far ]-quantity
+      exp = '25' ).
+
+  ENDMETHOD.
+
+  METHOD a_note_covering_it_stops_more.
+
+    " and a note that covers the whole shortage stops the run asking anybody
+    " else, which is what makes a nightly job quiet once somebody has a
+    " question in front of them
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*40.000*already proposed*' )
+      msg = 'the waiting note is shown with the quantity it was written for' ).
 
   ENDMETHOD.
 

@@ -233,6 +233,7 @@ in, which is also the order they make sense in.
 166. the overview counts what nobody has answered
 167. one place works out what a plant can spare
 168. whether the stock is still there, and who may see it
+169. the notes for one material add up to the shortage
 
 ## Progress
 
@@ -4843,3 +4844,36 @@ them, which is a phone call the page could have saved.
   on the authority object's behalf would throw away whatever a site that
   swapped in its own object had to say. Only the boolean is cached; the
   raising one is a delegate.
+
+### Feature 169 — the notes for one material add up to the shortage (done)
+
+Writing feature 168 meant reading what the proposing actually asks for, and
+it asks every plant that can help for the whole shortfall. Forty missing and
+three plants with forty each is three notes for forty. A planner working the
+worklist and raising all three -- which is what a worklist is for -- moves a
+hundred and twenty into a plant that needed forty, and leaves three plants
+short of what they had. The page of feature 158 is honest about this because
+it only ever said what each plant *could* send; the moment those numbers
+became notes to act on, they had to add up.
+
+- **The run keeps what is left to ask for.** Each plant is asked for the
+  smaller of what it can spare and what is still missing, and what it is
+  asked for comes off. The first plant that covers the rest ends the material.
+- **The notes already waiting come off first.** They are already asked for,
+  and a run tonight that ignored last night's open note would ask a second
+  plant for the same forty -- the same defect a night apart, and the harder
+  one to see. It is also why the waiting notes are now listed before the new
+  ones rather than in plant order: the page reads as what is already asked
+  for, then what this run is adding.
+- **A waiting note is shown with its own quantity.** It used to be shown with
+  the quantity the run had just worked out, which was a number nobody had
+  agreed to and which drifted from the note every time the stock moved.
+- **Plant order decides who is asked first**, as before -- the lowest plant
+  number with something to spare. Asking the plant with the most spare first
+  would make fewer, larger transfers, and asking the nearest one would make
+  cheaper ones; both are a judgement about the business that nothing in the
+  system knows, and neither is worth pretending to make. What matters is that
+  the total is right, and that is now a test.
+- **A test run counts the same way.** Nothing is written, but what it says it
+  would propose adds up to the shortage, because otherwise the test run would
+  be a preview of something the real run does not do.

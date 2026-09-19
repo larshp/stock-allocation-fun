@@ -143,7 +143,7 @@ five of which say so on their selection screens and default to a test run.
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
-| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
+| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each and adding up to the shortage rather than each asking for all of it: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
 | `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, what the sending plant can spare today, and which of them are for a shortage that has since gone or for stock that has; naming one of them answers it, raised or decided against, and ticking the box closes every one whose shortage has gone |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |

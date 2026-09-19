@@ -40,6 +40,12 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! can be scheduled nightly and only says something when something has
     "! changed.
     "!
+    "! The notes for one material add up to the shortage and no further. Two
+    "! plants that can each cover the whole of it are two notes for half each
+    "! rather than two notes for all of it: a planner who raises both of the
+    "! second kind moves twice what this plant needs and leaves the other two
+    "! short instead.
+    "!
     "! The proposals whose shortage has gone are closed first, and they have
     "! to be: an open note blocks a new one for the same pair of plants, so a
     "! stale one would hide a shortage that came back with a different
@@ -296,9 +302,46 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     DATA lv_quantity TYPE zif_allocation=>ty_quantity.
     DATA lt_row      TYPE ty_line_tab.
 
+    " what is left to ask anybody for. A transfer already waiting for an
+    " answer is already asked for, so it comes off first: asking a second
+    " plant for the same shortfall is how a plant ends up with twice what it
+    " needs and another plant stripped for nothing.
+    DATA(lv_left) = is_short-quantity.
+
+    LOOP AT mo_transfer->open_for(
+        iv_werks = iv_werks
+        iv_matnr = is_short-matnr ) INTO DATA(ls_waiting).
+
+      APPEND format_row(
+        iv_matnr    = |{ is_short-matnr }|
+        iv_from     = |{ ls_waiting-from_werks }|
+        iv_quantity = |{ ls_waiting-quantity }|
+        iv_what     = `already proposed` ) TO lt_row.
+
+      lv_left = lv_left - ls_waiting-quantity.
+
+    ENDLOOP.
+
     LOOP AT other_plants(
         iv_matnr = is_short-matnr
         iv_werks = iv_werks ) INTO DATA(lv_werks).
+
+      " between what is on the list already and what this run has asked for,
+      " the shortage is covered; a further note would be asking for stock
+      " nobody here is waiting for
+      IF lv_left <= 0.
+        CONTINUE.
+      ENDIF.
+
+      " a plant with a proposal waiting is on the list above rather than
+      " proposed again: a nightly job that made the same note every night
+      " would be a worklist nobody could work through
+      IF mo_transfer->is_open(
+          iv_matnr      = is_short-matnr
+          iv_to_werks   = iv_werks
+          iv_from_werks = lv_werks ) = abap_true.
+        CONTINUE.
+      ENDIF.
 
       " a plant the user may not see is left out rather than refused, for the
       " reason ZCL_ALLOC_VISIBLE gives. Here it also means a user cannot make
@@ -319,23 +362,8 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
       ENDIF.
 
       lv_quantity = lv_spare.
-      IF lv_quantity > is_short-quantity.
-        lv_quantity = is_short-quantity.
-      ENDIF.
-
-      " a transfer already waiting for an answer is said out loud and not
-      " proposed again: a nightly job that made the same note every night
-      " would be a worklist nobody could work through
-      IF mo_transfer->is_open(
-          iv_matnr      = is_short-matnr
-          iv_to_werks   = iv_werks
-          iv_from_werks = lv_werks ) = abap_true.
-        APPEND format_row(
-          iv_matnr    = |{ is_short-matnr }|
-          iv_from     = |{ lv_werks }|
-          iv_quantity = |{ lv_quantity }|
-          iv_what     = `already proposed` ) TO lt_row.
-        CONTINUE.
+      IF lv_quantity > lv_left.
+        lv_quantity = lv_left.
       ENDIF.
 
       IF iv_test = abap_false.
@@ -348,6 +376,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
           iv_note       = c_note ).
       ENDIF.
 
+      lv_left = lv_left - lv_quantity.
       mv_written = mv_written + 1.
 
       APPEND format_row(

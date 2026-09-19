@@ -143,7 +143,7 @@ five of which say so on their selection screens and default to a test run.
 | Program              | What it does                                             |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
-| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of, once each and adding up to the shortage rather than each asking for all of it: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
+| `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of — or for every plant you may propose for, in one go — once each and adding up to the shortage rather than each asking for all of it: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
 | `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, what the sending plant can spare today, and which of them are for a shortage that has since gone or for stock that has; naming one of them answers it, raised or decided against, and ticking the box closes every one whose shortage has gone |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
@@ -197,10 +197,14 @@ are meant to be used in when a plant runs unattended, and why:
 5. **`ZSTOCK_ALLOC_PLTS`** with an e-mail address, once for all plants rather
    than once per plant — the seven-in-the-morning page, sent only when a plant
    is short or did not run.
-6. **`ZSTOCK_ALLOC_TRF`** with the test run unticked — the transfers worth
-   raising for what is still short, and closing the notes whose shortage has
-   gone. After the allocation rather than before it, so it proposes against
-   what the night decided and not against last night's answer.
+6. **`ZSTOCK_ALLOC_TRF`** with the test run unticked and **Every plant you may
+   propose for** ticked — the transfers worth raising for what is still short,
+   and closing the notes whose shortage has gone. After the allocation rather
+   than before it, so it proposes against what the night decided and not
+   against last night's answer. One job for the company rather than one per
+   plant: a proposal is a claim on the plant it asks, so running them
+   separately leaves who gets the spare to the order somebody scheduled them
+   in.
 7. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs
    past the retention time that hold nothing back.
 

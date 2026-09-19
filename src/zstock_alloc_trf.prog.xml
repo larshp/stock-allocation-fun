@@ -18,6 +18,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_ALL</KEY>
+     <ENTRY>Every plant you may propose for</ENTRY>
+     <LENGTH>39</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MATNR</KEY>
      <ENTRY>Material, all short ones if empty</ENTRY>
      <LENGTH>41</LENGTH>

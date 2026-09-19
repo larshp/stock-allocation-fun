@@ -236,6 +236,7 @@ in, which is also the order they make sense in.
 169. the notes for one material add up to the shortage
 170. a plant is not asked for the same stock twice
 171. the page says who to ring
+172. the proposing covers every plant in one go
 
 ## Progress
 
@@ -4947,3 +4948,36 @@ screens for a column the page could have printed.
 - **Not on the worklist of feature 161.** That row is already nine columns
   wide and the decision it supports is "answer this", not "who do I ask". The
   page where somebody chooses which plant to approach is this one.
+
+### Feature 172 — the proposing covers every plant in one go (done)
+
+`ZSTOCK_ALLOC_TRF` took a plant, so a company with twenty of them scheduled
+twenty jobs. That was a nuisance up to feature 169 and a correctness problem
+after feature 170: an open note is now a claim on the plant it asks, so the
+job that runs first has first call on the spare, and twenty jobs make that a
+matter of how somebody happened to order them in SM37. Two of them running at
+once make it a matter of chance.
+
+- **Plant number order, and deliberately arbitrary.** Nothing here knows whose
+  customer matters more, and the temptation to invent a rule -- the plant that
+  is shortest, the nearest one, the one whose lines are oldest -- is the
+  temptation to make a commercial decision in a program that has no business
+  making it. What this feature buys is not a better order but a *decided* one.
+  A business that believes in a different one still has the per plant program
+  and can schedule the plants in it.
+- **The test says the second plant gets what is left.** Fifty in one plant,
+  two plants wanting forty each: the first is asked for forty and the second
+  for ten. Before feature 170 they would both have been asked for forty, and
+  before this feature the answer would have depended on the job order.
+- **Each plant is its own unit of work**, because `RUN_EVERYWHERE` calls `RUN`
+  and `RUN` commits its own. A job that dies at the fourteenth plant leaves
+  thirteen plants' notes behind rather than none -- the same rule as feature
+  37, one level up.
+- **A plant the user may not propose in is skipped**, not refused, and the
+  footer counts what was looked at. Features 115 and 121 settled that: a run
+  that stopped at the first plant somebody is not responsible for could not be
+  scheduled by anybody.
+- **The screen keeps both.** A plant or the tick, and neither is an error
+  message rather than a default, which is what `ZSTOCK_ALLOC_CFGC` does for
+  the same choice. Defaulting to every plant would let somebody write notes
+  for the whole company by pressing execute.

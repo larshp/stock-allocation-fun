@@ -277,6 +277,20 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS a_note_covering_it_stops_more FOR TESTING RAISING cx_static_check.
     METHODS another_plants_claim_counts FOR TESTING RAISING cx_static_check.
     METHODS a_fully_claimed_plant_is_out FOR TESTING RAISING cx_static_check.
+    METHODS every_plant_in_one_go FOR TESTING RAISING cx_static_check.
+    METHODS the_first_plant_gets_it_first FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_not_ours_is_skipped FOR TESTING RAISING cx_static_check.
+    METHODS everywhere_can_be_a_test_run FOR TESTING RAISING cx_static_check.
+
+    METHODS run_all_of
+      IMPORTING
+        it_supply      TYPE lcl_supply_double=>ty_row_tab
+        it_allowed     TYPE lcl_authority_double=>ty_werks_tab OPTIONAL
+        iv_test        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_line) TYPE zcl_alloc_propose=>ty_line_tab
+      RAISING
+        zcx_allocation.
 
 ENDCLASS.
 
@@ -285,7 +299,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
 
   METHOD setup.
 
-    DATA lt_marc TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
+    DATA lt_marc  TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
+    DATA lt_t001w TYPE STANDARD TABLE OF t001w WITH EMPTY KEY.
 
     lt_marc = VALUE #(
       ( mandt = sy-mandt matnr = c_matnr werks = c_here )
@@ -293,6 +308,15 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       ( mandt = sy-mandt matnr = c_matnr werks = c_far ) ).
 
     INSERT marc FROM TABLE @lt_marc.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_t001w = VALUE #(
+      mandt = sy-mandt
+      ( werks = c_here )
+      ( werks = c_there )
+      ( werks = c_far ) ).
+
+    INSERT t001w FROM TABLE @lt_t001w.
     cl_abap_unit_assert=>assert_subrc( ).
 
     mo_transfer = NEW zcl_alloc_transfer( ).
@@ -306,6 +330,9 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM zstock_alloc_trf WHERE matnr IN ( @c_matnr, @c_other ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM t001w WHERE werks IN ( @c_here, @c_there, @c_far ).
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
   ENDMETHOD.
@@ -696,6 +723,100 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       act = lt_open[ 1 ]-quantity
       exp = '25'
       msg = 'what is left of the hundred after somebody else was promised it' ).
+
+  ENDMETHOD.
+
+  METHOD run_all_of.
+
+    DATA(lt_allowed) = it_allowed.
+    IF lt_allowed IS INITIAL.
+      lt_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ).
+    ENDIF.
+
+    " the store double answers for the material whatever plant is asked, so
+    " every plant in the company is short of forty of it: which is the state
+    " this feature is about
+    DATA(lo_store) = NEW lcl_store_double( VALUE #(
+      ( matnr = c_matnr demand_id = 'D1' req_date = '20260401'
+        requested = '40' confirmed = 0 shortfall = '40' reason = 'S' ) ) ).
+
+    DATA(lo_cut) = NEW zcl_alloc_propose(
+      io_spare    = NEW zcl_alloc_spare(
+        io_supply   = NEW lcl_supply_double( it_supply )
+        io_demand   = NEW lcl_demand_double( VALUE #( ) )
+        io_transfer = mo_transfer )
+      io_store    = lo_store
+      io_visible  = NEW zcl_alloc_visible( NEW lcl_authority_double( lt_allowed ) )
+      io_transfer = mo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = mo_transfer
+        io_store    = lo_store )
+      io_commit   = mo_commit ).
+
+    rt_line = lo_cut->run_everywhere( iv_test ).
+
+  ENDMETHOD.
+
+  METHOD every_plant_in_one_go.
+
+    " twenty plants short of each other's stock is not twenty jobs in SM37
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_there ) )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_first_plant_gets_it_first.
+
+    " fifty to be had in 3000 and two plants wanting forty each. 1000 is
+    " asked for first because it is the lower number, and 2000 gets what is
+    " left rather than the same fifty over again. Which plant wins is
+    " arbitrary; that it is decided rather than a matter of which job the
+    " operator started first is the point.
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '50' ) ) ).
+
+    DATA(lt_first) = mo_transfer->open_for( c_here ).
+    DATA(lt_next)  = mo_transfer->open_for( c_there ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_first[ 1 ]-quantity
+      exp = '40' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_next[ 1 ]-quantity
+      exp = '10' ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_not_ours_is_skipped.
+
+    " a run that stopped at the first plant somebody is not responsible for
+    " could not be scheduled by anybody
+    DATA(lt_line) = run_all_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_initial( mo_transfer->open_for( c_there ) ).
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*2 plant(s) looked at*' ) ).
+
+  ENDMETHOD.
+
+  METHOD everywhere_can_be_a_test_run.
+
+    DATA(lt_line) = run_all_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'a test run of a program that changes something changes nothing' ).
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be proposed*' ) ).
 
   ENDMETHOD.
 

@@ -70,6 +70,39 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    "! <p class="shorttext synchronized">Write down the transfers for every plant at once</p>
+    "!
+    "! A company with twenty plants short of each other's stock does not want
+    "! twenty jobs in SM37, and since feature 170 the jobs are not independent
+    "! of each other either: an open note is a claim on the plant it asks, so
+    "! whichever job runs first has first call on the spare. Twenty jobs make
+    "! that a matter of how somebody happened to schedule them, and two of them
+    "! running at once make it a matter of chance.
+    "!
+    "! In plant number order, which is arbitrary and is meant to be: nothing
+    "! here knows whose customer matters more. What it is not is accidental,
+    "! and a business that wants a different answer has the per plant program
+    "! and can schedule the plants in the order it believes in.
+    "!
+    "! A plant the user may not propose in is left out rather than refused, as
+    "! in features 115 and 121: a run that stopped at the first plant somebody
+    "! is not responsible for could not be scheduled by anybody.
+    "!
+    "! Each plant is its own unit of work, because each call commits its own.
+    "! A run that dies at the fourteenth plant leaves thirteen plants' notes
+    "! behind rather than none.
+    "!
+    "! @parameter iv_test        | <p class="shorttext synchronized">Work it out and write nothing down</p>
+    "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">A plant could not be done</p>
+    METHODS run_everywhere
+      IMPORTING
+        iv_test        TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab
+      RAISING
+        zcx_allocation.
+
   PRIVATE SECTION.
 
     CONSTANTS c_width_matnr TYPE i VALUE 20.
@@ -239,6 +272,43 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
            COND string( WHEN iv_test = abap_true
                         THEN `would be written down`
                         ELSE `written down` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD run_everywhere.
+
+    DATA lv_plants TYPE i.
+
+    SELECT werks
+      FROM t001w
+      ORDER BY werks
+      INTO TABLE @DATA(lt_plant).
+    IF sy-subrc <> 0.
+      APPEND `There are no plants at all` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_plant INTO DATA(ls_plant).
+
+      IF mo_visible->may_see( ls_plant-werks ) = abap_false.
+        CONTINUE.
+      ENDIF.
+
+      APPEND LINES OF run(
+        iv_werks = ls_plant-werks
+        iv_test  = iv_test ) TO rt_line.
+      APPEND || TO rt_line.
+
+      lv_plants = lv_plants + 1.
+
+    ENDLOOP.
+
+    IF lv_plants = 0.
+      APPEND `No plant here is one you may propose transfers for` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    APPEND |{ lv_plants } plant(s) looked at| TO rt_line.
 
   ENDMETHOD.
 

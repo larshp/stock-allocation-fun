@@ -10,6 +10,7 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
         to_werks   TYPE zstock_alloc_trf-to_werks,
         from_werks TYPE zstock_alloc_trf-from_werks,
         quantity   TYPE zif_allocation=>ty_quantity,
+        raised_qty TYPE zif_allocation=>ty_quantity,
         needed_by  TYPE zstock_alloc_trf-needed_by,
         status     TYPE zstock_alloc_trf-status,
         note       TYPE zstock_alloc_trf-note,
@@ -100,13 +101,25 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! is not answered again: the first answer is the one that was acted on,
     "! and overwriting it would lose who decided what and when.
     "!
+    "! A transfer raised for less than the note asked for is the commonest
+    "! yes there is -- feature 168 exists to tell somebody the stock has
+    "! shrunk since the note was written -- so the quantity that was actually
+    "! raised is recorded. Left out, it is the quantity the note asked for.
+    "!
+    "! A quantity is meaningless on a no, and a no is what a raise of nothing
+    "! is, so both are refused rather than written down as something they are
+    "! not. More than was proposed is allowed: whoever spoke to the other
+    "! plant knows what they agreed.
+    "!
     "! @parameter iv_proposal    | <p class="shorttext synchronized">The proposal</p>
     "! @parameter iv_status      | <p class="shorttext synchronized">D done, X dropped</p>
-    "! @raising   zcx_allocation | <p class="shorttext synchronized">No such open proposal</p>
+    "! @parameter iv_quantity    | <p class="shorttext synchronized">Quantity raised, the proposed one if empty</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">No such open proposal, or a senseless answer</p>
     METHODS answer
       IMPORTING
         iv_proposal TYPE zstock_alloc_trf-proposal
         iv_status   TYPE zstock_alloc_trf-status
+        iv_quantity TYPE zif_allocation=>ty_quantity OPTIONAL
       RAISING
         zcx_allocation.
 
@@ -177,6 +190,7 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING
         iv_proposal TYPE zstock_alloc_trf-proposal
         iv_status   TYPE zstock_alloc_trf-status
+        iv_quantity TYPE zif_allocation=>ty_quantity DEFAULT 0
       RAISING
         zcx_allocation.
 
@@ -241,6 +255,7 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
            to_werks,
            from_werks,
            quantity,
+           raised_qty,
            needed_by,
            status,
            note,
@@ -280,9 +295,35 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
         mv_message = |{ iv_proposal } { iv_status }| ).
     ENDIF.
 
+    " a quantity says what was raised, so it belongs to a yes and to nothing
+    " else; and a raise of nothing is a no by another name, which would leave
+    " the table saying a transfer happened when none did
+    IF iv_quantity < 0
+        OR ( iv_quantity > 0 AND iv_status <> c_status-done ).
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid     = zcx_allocation=>save_failed
+        mv_message = |{ iv_proposal } { iv_quantity }| ).
+    ENDIF.
+
+    DATA(lv_raised) = iv_quantity.
+
+    IF iv_status = c_status-done AND lv_raised = 0.
+      " nothing said means the note was taken at its word
+      SELECT SINGLE quantity
+        FROM zstock_alloc_trf
+        WHERE proposal = @iv_proposal
+        INTO @lv_raised.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION NEW zcx_allocation(
+          textid     = zcx_allocation=>save_failed
+          mv_message = |{ iv_proposal }| ).
+      ENDIF.
+    ENDIF.
+
     close(
       iv_proposal = iv_proposal
-      iv_status   = iv_status ).
+      iv_status   = iv_status
+      iv_quantity = lv_raised ).
 
   ENDMETHOD.
 
@@ -295,9 +336,10 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
     " only an open one is closed, so two people closing at once end with one
     " of them doing it rather than with the second overwriting the first
     UPDATE zstock_alloc_trf
-      SET status    = @iv_status,
-          closed_by = @sy-uname,
-          closed_at = @lv_timestamp
+      SET status     = @iv_status,
+          raised_qty = @iv_quantity,
+          closed_by  = @sy-uname,
+          closed_at  = @lv_timestamp
       WHERE proposal = @iv_proposal
         AND status = @c_status-open.
     IF sy-subrc <> 0.

@@ -237,6 +237,7 @@ in, which is also the order they make sense in.
 170. a plant is not asked for the same stock twice
 171. the page says who to ring
 172. the proposing covers every plant in one go
+173. a transfer raised for less than was asked
 
 ## Progress
 
@@ -4981,3 +4982,35 @@ once make it a matter of chance.
   message rather than a default, which is what `ZSTOCK_ALLOC_CFGC` does for
   the same choice. Defaulting to every plant would let somebody write notes
   for the whole company by pressing execute.
+
+### Feature 173 — a transfer raised for less than was asked (done)
+
+Feature 168 tells a planner the sending plant can only cover ten of the forty
+the note asked for. They ring the other plant, agree the ten, raise the
+transfer -- and the only answer the worklist takes is yes or no. Saying yes
+writes down that forty was raised, which is not what happened, and a year
+later the table is a record of forty transfers that never were.
+
+- **`RAISED_QTY` is a field of its own, not `QUANTITY` overwritten.** What the
+  night proposed and what a person agreed are two different facts and both are
+  worth keeping: the gap between them is the answer to "is the proposing any
+  good", which nothing could ask before.
+- **Left out, it is the quantity on the note.** Most answers are the whole
+  thing, and making somebody retype the number to say "yes, all of it" is how
+  a field gets filled in wrongly. The field is always populated on a yes, so
+  reading the table never has to fall back to `QUANTITY`.
+- **A quantity on a no is refused, and so is a raise of nothing.** "We dropped
+  it, for ten" is not an answer anybody could read back, and a raise of
+  nothing is a no by another name -- writing it down as a yes would say a
+  transfer happened when none did. The note is left open rather than half
+  answered.
+- **More than was proposed is allowed.** Whoever spoke to the other plant
+  knows what they agreed, and a plant that offered more while somebody was on
+  the telephone is a good day, not a typo to guard against.
+- **The thirty that was not raised is free again**, because the claim of
+  feature 170 counts open notes and this one is closed. A test says so, since
+  that is the property that makes the claim a claim rather than a permanent
+  hold.
+- **The line says what was recorded**, with "of the forty proposed" only where
+  the two differ: most answers are the whole note, and a phrase on every one
+  of them would stop being read.

@@ -4,6 +4,7 @@ PARAMETERS p_werks TYPE mard-werks OBLIGATORY.
 PARAMETERS p_matnr TYPE mard-matnr.
 PARAMETERS p_prop TYPE zstock_alloc_trf-proposal.
 PARAMETERS p_raise AS CHECKBOX.
+PARAMETERS p_qty TYPE zstock_alloc_trf-quantity.
 PARAMETERS p_tidy AS CHECKBOX.
 PARAMETERS p_test AS CHECKBOX DEFAULT 'X'.
 
@@ -16,11 +17,15 @@ START-OF-SELECTION.
       " whose shortage has gone; naming neither is reading the list. Three
       " screens for three verbs would be three programs to find, and all
       " three are done while looking at the same list.
+      " the quantity is what was actually agreed with the other plant, which
+      " since feature 168 is often less than the note asked for. Left empty
+      " it is the quantity on the note.
       IF p_prop IS NOT INITIAL.
         DATA(lt_line) = lo_list->answer(
           iv_werks    = p_werks
           iv_proposal = p_prop
-          iv_raised   = p_raise ).
+          iv_raised   = p_raise
+          iv_quantity = p_qty ).
       ELSEIF p_tidy = abap_true.
         lt_line = lo_list->tidy(
           iv_werks = p_werks

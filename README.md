@@ -144,7 +144,7 @@ five of which say so on their selection screens and default to a test run.
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_JOBS`  | schedules a plant's night as several background jobs at once, one per package |
 | `ZSTOCK_ALLOC_TRF`   | writes down the transfers worth raising for what a plant is short of — or for every plant you may propose for, in one go — once each and adding up to the shortage rather than each asking for all of it: a proposal already waiting for an answer is said out loud rather than made again, and one whose shortage has gone is closed first |
-| `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, what the sending plant can spare today, and which of them are for a shortage that has since gone or for stock that has; naming one of them answers it, raised or decided against, and ticking the box closes every one whose shortage has gone |
+| `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, what the sending plant can spare today, and which of them are for a shortage that has since gone or for stock that has; naming one of them answers it, raised — for the quantity actually agreed, which need not be the one proposed — or decided against, and ticking the box closes every one whose shortage has gone |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
 | `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
@@ -250,7 +250,7 @@ configured, so both are delivery class `A` and neither belongs in a transport:
 | Table                | What it holds                                            |
 | -------------------- | -------------------------------------------------------- |
 | `ZSTOCK_ALLOC_RES`   | what every run confirmed, per demand line, with the reservation it produced |
-| `ZSTOCK_ALLOC_TRF`   | transfers somebody has proposed between plants, the day each is needed by, and whether they were raised, decided against, lapsed because the shortage went away, or are still waiting for an answer |
+| `ZSTOCK_ALLOC_TRF`   | transfers somebody has proposed between plants, the day each is needed by, how much was raised where one was, and whether they were raised, decided against, lapsed because the shortage went away, or are still waiting for an answer |
 
 `ZSTOCK_ALLOC_RES` is cleared by `ZSTOCK_ALLOC_REORG` once a run is past the
 retention time and holds nothing back. `ZSTOCK_ALLOC_TRF` is not: a proposal

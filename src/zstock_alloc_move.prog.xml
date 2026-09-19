@@ -30,6 +30,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_QTY</KEY>
+     <ENTRY>Quantity raised, the proposed one if empty</ENTRY>
+     <LENGTH>50</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_RAISE</KEY>
      <ENTRY>The transfer was raised</ENTRY>
      <LENGTH>31</LENGTH>

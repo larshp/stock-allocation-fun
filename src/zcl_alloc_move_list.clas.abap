@@ -75,9 +75,16 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! The plant is checked before the proposal is read, so somebody cannot
     "! find out what another plant is short of by answering its proposals.
     "!
+    "! A transfer raised for less than the note asked for is the commonest
+    "! yes there is, and since feature 168 the page says so out loud: the
+    "! sending plant's spare is on the row. Saying how much was raised keeps
+    "! the record of what happened true, and a note answered for ten of forty
+    "! leaves the other thirty free for somebody else to be offered.
+    "!
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
     "! @parameter iv_proposal    | <p class="shorttext synchronized">The proposal</p>
     "! @parameter iv_raised      | <p class="shorttext synchronized">True if the transfer was raised</p>
+    "! @parameter iv_quantity    | <p class="shorttext synchronized">Quantity raised, the proposed one if empty</p>
     "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
     "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be acted in, or no such proposal</p>
     METHODS answer
@@ -85,6 +92,7 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks       TYPE mard-werks
         iv_proposal    TYPE zstock_alloc_trf-proposal
         iv_raised      TYPE abap_bool
+        iv_quantity    TYPE zif_allocation=>ty_quantity OPTIONAL
       RETURNING
         VALUE(rt_line) TYPE ty_line_tab
       RAISING
@@ -336,18 +344,33 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
         mv_message = |{ iv_proposal } { iv_werks }| ).
     ENDIF.
 
+    DATA(lv_asked) = lt_open[ proposal = iv_proposal ]-quantity.
+
     mo_transfer->answer(
       iv_proposal = iv_proposal
       iv_status   = COND #( WHEN iv_raised = abap_true
                             THEN zcl_alloc_transfer=>c_status-done
-                            ELSE zcl_alloc_transfer=>c_status-dropped ) ).
+                            ELSE zcl_alloc_transfer=>c_status-dropped )
+      iv_quantity = iv_quantity ).
 
     mo_commit->commit( ).
 
-    APPEND |{ iv_proposal } | &&
-           COND string( WHEN iv_raised = abap_true
-                        THEN `is raised`
-                        ELSE `was decided against` ) TO rt_line.
+    IF iv_raised = abap_false.
+      APPEND |{ iv_proposal } was decided against| TO rt_line.
+      RETURN.
+    ENDIF.
+
+    " what was raised, and where that is not what was asked for, both: the
+    " line is the only thing the person sees of what they just recorded
+    DATA(lv_raised) = COND zif_allocation=>ty_quantity(
+      WHEN iv_quantity > 0
+      THEN iv_quantity
+      ELSE lv_asked ).
+
+    APPEND |{ iv_proposal } is raised for { lv_raised }| &&
+           COND string( WHEN lv_raised <> lv_asked
+                        THEN | of the { lv_asked } proposed|
+                        ELSE `` ) TO rt_line.
 
   ENDMETHOD.
 

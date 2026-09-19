@@ -309,6 +309,11 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
     METHODS the_footer_counts_them FOR TESTING RAISING cx_static_check.
     METHODS a_plant_nobody_may_see FOR TESTING RAISING cx_static_check.
     METHODS gone_stock_does_not_lapse FOR TESTING RAISING cx_static_check.
+    METHODS raised_for_less_says_so FOR TESTING RAISING cx_static_check.
+    METHODS the_whole_lot_says_it_plainly FOR TESTING RAISING cx_static_check.
+    METHODS raising_more_is_allowed FOR TESTING RAISING cx_static_check.
+    METHODS a_quantity_on_a_no_is_refused FOR TESTING RAISING cx_static_check.
+    METHODS what_was_not_raised_is_free FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -950,6 +955,99 @@ CLASS ltcl_move_list IMPLEMENTATION.
                                               iv_pattern = '*55.000*' ) ).
     cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
                                               iv_pattern = '*no longer cover*' ) ).
+
+  ENDMETHOD.
+
+  METHOD raised_for_less_says_so.
+
+    " the commonest yes there is since feature 168 started telling people the
+    " stock had shrunk: the note asked for forty and ten is what was agreed
+    DATA(lv_proposal) = given_proposal( ).
+
+    DATA(lt_line) = mo_cut->answer(
+      iv_werks    = c_here
+      iv_proposal = lv_proposal
+      iv_raised   = abap_true
+      iv_quantity = '10' ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*is raised for 10.000 of the 40.000 proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD the_whole_lot_says_it_plainly.
+
+    " and where the whole note was raised there is no "of the" to say, which
+    " is most of them and should not read as an exception
+    DATA(lv_proposal) = given_proposal( ).
+
+    DATA(lt_line) = mo_cut->answer(
+      iv_werks    = c_here
+      iv_proposal = lv_proposal
+      iv_raised   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*is raised for 40.000*' ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD raising_more_is_allowed.
+
+    " whoever spoke to the other plant knows what they agreed, and a plant
+    " that offered more while it had somebody on the telephone is a good day
+    DATA(lv_proposal) = given_proposal( ).
+
+    mo_cut->answer(
+      iv_werks    = c_here
+      iv_proposal = lv_proposal
+      iv_raised   = abap_true
+      iv_quantity = '60' ).
+
+    cl_abap_unit_assert=>assert_initial( mo_transfer->open_for( c_here ) ).
+
+  ENDMETHOD.
+
+  METHOD a_quantity_on_a_no_is_refused.
+
+    " "we dropped it, for ten" is not an answer anybody could read back
+    DATA(lv_proposal) = given_proposal( ).
+
+    TRY.
+        mo_cut->answer(
+          iv_werks    = c_here
+          iv_proposal = lv_proposal
+          iv_raised   = abap_false
+          iv_quantity = '10' ).
+        cl_abap_unit_assert=>fail( 'a quantity belongs to a yes' ).
+      CATCH zcx_allocation.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'and the note is left open rather than half answered' ).
+
+  ENDMETHOD.
+
+  METHOD what_was_not_raised_is_free.
+
+    " forty was asked of 2000 and ten was raised: the other thirty is 2000's
+    " again, which is what makes the claim of feature 170 an open note rather
+    " than a permanent one
+    DATA(lv_proposal) = given_proposal( ).
+
+    mo_cut->answer(
+      iv_werks    = c_here
+      iv_proposal = lv_proposal
+      iv_raised   = abap_true
+      iv_quantity = '10' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_transfer->promised_by( iv_matnr      = c_matnr
+                                      iv_from_werks = c_there )
+      exp = 0 ).
 
   ENDMETHOD.
 

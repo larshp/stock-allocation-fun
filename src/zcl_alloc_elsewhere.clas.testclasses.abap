@@ -248,6 +248,8 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
     METHODS an_unproposed_one_is_quiet FOR TESTING RAISING cx_static_check.
     METHODS a_claim_from_elsewhere_counts FOR TESTING RAISING cx_static_check.
     METHODS and_the_row_says_why FOR TESTING RAISING cx_static_check.
+    METHODS the_row_says_who_to_ring FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_with_no_planner FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -295,7 +297,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
         ( matnr = c_matnr demand_id = 'D1' requested = iv_short
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
       io_visible  = NEW zcl_alloc_visible( mo_authority )
-      io_transfer = mo_transfer ).
+      io_transfer = mo_transfer
+      io_planner  = NEW zcl_alloc_planner( ) ).
 
     rt_line = lo_cut->run( c_here ).
 
@@ -413,7 +416,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
         ( matnr = c_matnr demand_id = 'D1' requested = '10'
           confirmed = '10' shortfall = 0 ) ) )
       io_visible  = NEW zcl_alloc_visible( mo_authority )
-      io_transfer = mo_transfer ).
+      io_transfer = mo_transfer
+      io_planner  = NEW zcl_alloc_planner( ) ).
 
     DATA(lt_line) = lo_cut->run( c_here ).
 
@@ -585,6 +589,48 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( found(
       it_line    = lt_line
       iv_pattern = '*100.000 asked for by another plant*' ) ).
+
+  ENDMETHOD.
+
+  METHOD the_row_says_who_to_ring.
+
+    " the page has told the planner everything except the thing they do next
+    DATA lt_t024d TYPE STANDARD TABLE OF t024d WITH EMPTY KEY.
+
+    UPDATE marc SET dispo = '202'
+      WHERE matnr = @c_matnr
+        AND werks = @c_there.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_t024d = VALUE #(
+      ( mandt = sy-mandt werks = c_there dispo = '202'
+        dsnam = 'Bo Rees' dstel = '4472' ) ).
+
+    INSERT t024d FROM TABLE @lt_t024d.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '25' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    DELETE FROM t024d WHERE werks = @c_there.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*Bo Rees 4472*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_with_no_planner.
+
+    " a material nobody has given a controller in that plant is still a plant
+    " worth listing: the stock is what the page is about
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '25' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*2000*25.000*' ) ).
 
   ENDMETHOD.
 

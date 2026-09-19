@@ -17,12 +17,14 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_store    | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_visible  | <p class="shorttext synchronized">Which plants the user may see</p>
     "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
+    "! @parameter io_planner  | <p class="shorttext synchronized">Who looks after it over there</p>
     METHODS constructor
       IMPORTING
         io_spare    TYPE REF TO zcl_alloc_spare
         io_store    TYPE REF TO zif_allocation_store
         io_visible  TYPE REF TO zcl_alloc_visible
-        io_transfer TYPE REF TO zcl_alloc_transfer.
+        io_transfer TYPE REF TO zcl_alloc_transfer
+        io_planner  TYPE REF TO zcl_alloc_planner.
 
     "! <p class="shorttext synchronized">Which other plants have what this one is short of</p>
     "!
@@ -67,6 +69,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     CONSTANTS c_width_werks TYPE i VALUE 8.
     CONSTANTS c_width_qty   TYPE i VALUE 13.
+    CONSTANTS c_width_who   TYPE i VALUE 28.
 
     "! Reading what is short and what other plants have, changing neither.
     CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
@@ -85,6 +88,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_store    TYPE REF TO zif_allocation_store.
     DATA mo_visible  TYPE REF TO zcl_alloc_visible.
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
+    DATA mo_planner  TYPE REF TO zcl_alloc_planner.
 
     METHODS short_materials
       IMPORTING
@@ -109,6 +113,13 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    METHODS who_to_ring
+      IMPORTING
+        iv_matnr      TYPE mard-matnr
+        iv_werks      TYPE mard-werks
+      RETURNING
+        VALUE(rv_who) TYPE string.
+
     METHODS note_for
       IMPORTING
         is_short       TYPE ty_short
@@ -126,6 +137,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_wanted      TYPE string
         iv_spare       TYPE string
         iv_covers      TYPE string
+        iv_who         TYPE string
         iv_note        TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
@@ -142,7 +154,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       io_store    = NEW zcl_allocation_store( )
       io_visible  = NEW zcl_alloc_visible(
         NEW zcl_authority_alloc( c_activity_display ) )
-      io_transfer = NEW zcl_alloc_transfer( ) ).
+      io_transfer = NEW zcl_alloc_transfer( )
+      io_planner  = NEW zcl_alloc_planner( ) ).
 
   ENDMETHOD.
 
@@ -152,6 +165,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
     mo_store    = io_store.
     mo_visible  = io_visible.
     mo_transfer = io_transfer.
+    mo_planner  = io_planner.
 
   ENDMETHOD.
 
@@ -267,6 +281,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         iv_wanted = |{ ls_spare-wanted }|
         iv_spare  = |{ ls_spare-spare }|
         iv_covers = |{ lv_covers }|
+        iv_who    = who_to_ring( iv_matnr = is_short-matnr
+                                 iv_werks = lv_werks )
         iv_note   = note_for(
           is_short = is_short
           is_spare = ls_spare
@@ -290,8 +306,29 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       iv_wanted = `Wanted there`
       iv_spare  = `Spare`
       iv_covers = `Covers`
+      iv_who    = `Who to ring`
       iv_note   = `` ) TO rt_line.
     APPEND LINES OF lt_row TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD who_to_ring.
+
+    DATA(ls_planner) = mo_planner->looking_after(
+      iv_matnr = iv_matnr
+      iv_werks = iv_werks ).
+
+    IF ls_planner-dispo IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " the code alone where nobody filled the rest in, and the name and the
+    " extension where they did: what goes in the column is whatever gets the
+    " planner to a person
+    rv_who = COND string(
+      WHEN ls_planner-name IS INITIAL
+      THEN |{ ls_planner-dispo }|
+      ELSE |{ ls_planner-name } { ls_planner-phone }| ).
 
   ENDMETHOD.
 
@@ -323,7 +360,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       && |{ iv_wanted WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_spare WIDTH = c_width_qty ALIGN = RIGHT }|
       && |{ iv_covers WIDTH = c_width_qty ALIGN = RIGHT }|
-      && |  { iv_note }|.
+      && |  { iv_who WIDTH = c_width_who }|
+      && |{ iv_note }|.
 
   ENDMETHOD.
 

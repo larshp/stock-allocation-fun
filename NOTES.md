@@ -235,6 +235,7 @@ in, which is also the order they make sense in.
 168. whether the stock is still there, and who may see it
 169. the notes for one material add up to the shortage
 170. a plant is not asked for the same stock twice
+171. the page says who to ring
 
 ## Progress
 
@@ -4918,3 +4919,31 @@ nothing to load.
 - **And the transpiler had something to say about it**: a one column
   `SELECT ... INTO TABLE @DATA(...)` comes back as a table of structures, so
   the line type is spelled out. ANOMALIES.md 2m.
+
+### Feature 171 — the page says who to ring (done)
+
+`ZSTOCK_ALLOC_ELSE` tells a planner that plant 2000 has forty to spare and
+stops there. What they do next is ring somebody in 2000, and finding out who
+that is means leaving the page for MM03, picking the MRP view, reading the
+controller code and then looking the code up in the plant's list. Three
+screens for a column the page could have printed.
+
+- **The material master knows, per plant.** `MARC-DISPO` is the controller for
+  that material *in that plant*, which is exactly the question -- the whole
+  point of the page is that it is somebody else over there.
+- **`T024D` joins the stubs** for the name and the extension. It is standard
+  Customizing that every plant with MRP already maintains, so nothing has to
+  be set up for this to work; where it has not been, the column falls back to
+  the bare code, because somebody who knows the code can find the person.
+- **The number is printed, not just the name.** A name alone is another thing
+  to go and look up, and the whole feature is about not doing that.
+- **Both reads are remembered**, in `ZCL_ALLOC_PLANNER`. Forty short materials
+  across the same six plants is a handful of controllers asked about over and
+  over, which is the shape features 82, 83 and 111 kept finding.
+- **Nothing raises.** A material with no controller, a controller with no row,
+  a plant nobody filled in: all of them are a blank in one column, and the
+  rest of the row is still the answer to the question that was asked. A page
+  about where the stock is has no business failing over an address book.
+- **Not on the worklist of feature 161.** That row is already nine columns
+  wide and the decision it supports is "answer this", not "who do I ask". The
+  page where somebody chooses which plant to approach is this one.

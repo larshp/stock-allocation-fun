@@ -107,6 +107,92 @@ CLASS lcl_authority_double IMPLEMENTATION.
 ENDCLASS.
 
 
+"! Hands out what it was told, per plant.
+CLASS lcl_supply_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_supply_reader.
+
+    TYPES:
+      BEGIN OF ty_row,
+        matnr    TYPE mard-matnr,
+        werks    TYPE mard-werks,
+        quantity TYPE zif_allocation=>ty_quantity,
+      END OF ty_row.
+    TYPES ty_row_tab TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+
+    METHODS constructor
+      IMPORTING
+        it_row TYPE ty_row_tab.
+
+  PRIVATE SECTION.
+    DATA mt_row TYPE ty_row_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_supply_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_row = it_row.
+  ENDMETHOD.
+
+  METHOD zif_supply_reader~read_supply.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr
+          AND werks = iv_werks.
+      APPEND VALUE #( quantity = ls_row-quantity ) TO rt_supply.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Hands out the demand it was told, per plant.
+CLASS lcl_demand_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_row TYPE lcl_supply_double=>ty_row_tab.
+
+  PRIVATE SECTION.
+    DATA mt_row TYPE lcl_supply_double=>ty_row_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_row = it_row.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr
+          AND werks = iv_werks.
+      APPEND VALUE #(
+        demand_id = |{ ls_row-werks }|
+        matnr     = ls_row-matnr
+        werks     = ls_row-werks
+        quantity  = ls_row-quantity ) TO rt_demand.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    CLEAR rt_matnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! Counts the commits.
 CLASS lcl_commit_double DEFINITION FINAL.
 
@@ -166,7 +252,9 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
       IMPORTING
         it_display  TYPE lcl_authority_double=>ty_werks_tab
         it_change   TYPE lcl_authority_double=>ty_werks_tab
-        it_recorded TYPE zif_allocation_store=>ty_recorded_tab OPTIONAL.
+        it_recorded TYPE zif_allocation_store=>ty_recorded_tab OPTIONAL
+        it_supply   TYPE lcl_supply_double=>ty_row_tab OPTIONAL
+        it_demand   TYPE lcl_supply_double=>ty_row_tab OPTIONAL.
 
     METHODS given_proposal
       IMPORTING
@@ -185,6 +273,12 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
         iv_pattern      TYPE string
       RETURNING
         VALUE(rv_found) TYPE abap_bool.
+
+    "! Both materials still short, which is the state a proposal is made in
+    "! and the one a test about the sending plant wants to hold still.
+    METHODS still_short
+      RETURNING
+        VALUE(rt_recorded) TYPE zif_allocation_store=>ty_recorded_tab.
 
     METHODS nothing_waiting_says_so FOR TESTING RAISING cx_static_check.
     METHODS a_proposal_is_listed FOR TESTING RAISING cx_static_check.
@@ -207,6 +301,14 @@ CLASS ltcl_move_list DEFINITION FINAL FOR TESTING
     METHODS nothing_to_tidy_says_so FOR TESTING RAISING cx_static_check.
     METHODS tidying_needs_the_change FOR TESTING RAISING cx_static_check.
     METHODS one_commit_for_the_tidy FOR TESTING RAISING cx_static_check.
+    METHODS the_spare_there_is_shown FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_with_enough_is_quiet FOR TESTING RAISING cx_static_check.
+    METHODS stock_that_has_gone_says_so FOR TESTING RAISING cx_static_check.
+    METHODS part_of_it_left_says_so FOR TESTING RAISING cx_static_check.
+    METHODS its_own_demand_eats_the_spare FOR TESTING RAISING cx_static_check.
+    METHODS the_footer_counts_them FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_nobody_may_see FOR TESTING RAISING cx_static_check.
+    METHODS gone_stock_does_not_lapse FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -222,11 +324,17 @@ CLASS ltcl_move_list IMPLEMENTATION.
     wire(
       it_display  = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
       it_change   = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
-      it_recorded = VALUE #(
-        ( matnr = c_matnr demand_id = 'D1' requested = '40'
-          confirmed = 0 shortfall = '40' reason = 'S' )
-        ( matnr = c_other demand_id = 'D2' requested = '10'
-          confirmed = 0 shortfall = '10' reason = 'S' ) ) ).
+      it_recorded = still_short( ) ).
+
+  ENDMETHOD.
+
+  METHOD still_short.
+
+    rt_recorded = VALUE #(
+      ( matnr = c_matnr demand_id = 'D1' requested = '40'
+        confirmed = 0 shortfall = '40' reason = 'S' )
+      ( matnr = c_other demand_id = 'D2' requested = '10'
+        confirmed = 0 shortfall = '10' reason = 'S' ) ).
 
   ENDMETHOD.
 
@@ -239,16 +347,36 @@ CLASS ltcl_move_list IMPLEMENTATION.
 
   METHOD wire.
 
+    DATA lt_supply TYPE lcl_supply_double=>ty_row_tab.
+
     mo_display = NEW lcl_authority_double( it_display ).
     mo_change  = NEW lcl_authority_double( it_change ).
     mo_commit  = NEW lcl_commit_double( ).
+
+    " unless a test says otherwise both other plants are sitting on plenty,
+    " which is the state a proposal is made in and the one every test written
+    " before feature 168 assumed without having to say so. A test that wants
+    " an empty plant says so by passing a table rather than by passing none,
+    " because "nothing to send" is exactly the case worth writing down.
+    lt_supply = it_supply.
+    IF it_supply IS NOT SUPPLIED.
+      lt_supply = VALUE #(
+        quantity = '1000'
+        ( matnr = c_matnr werks = c_there )
+        ( matnr = c_matnr werks = c_far )
+        ( matnr = c_other werks = c_there )
+        ( matnr = c_other werks = c_far ) ).
+    ENDIF.
 
     mo_cut = NEW zcl_alloc_move_list(
       io_transfer = mo_transfer
       io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = mo_transfer
         io_store    = NEW lcl_store_double( it_recorded ) )
-      io_display  = mo_display
+      io_spare    = NEW zcl_alloc_spare(
+        io_supply = NEW lcl_supply_double( lt_supply )
+        io_demand = NEW lcl_demand_double( it_demand ) )
+      io_display  = NEW zcl_alloc_visible( mo_display )
       io_change   = mo_change
       io_commit   = mo_commit ).
 
@@ -680,6 +808,168 @@ CLASS ltcl_move_list IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = mo_commit->commits( )
       exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_spare_there_is_shown.
+
+    " the conversation the row starts is with the other plant, so the number
+    " that matters is what that plant has today and not what it had the night
+    " somebody wrote the note
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '55' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = mo_cut->run( c_here )
+      iv_pattern = '*2000*40.000*55.000*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_with_enough_is_quiet.
+
+    given_proposal( ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*stock has gone*' ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*part of it left*' ) ).
+
+  ENDMETHOD.
+
+  METHOD stock_that_has_gone_says_so.
+
+    " the shortage is real and the note is live; what has changed is that the
+    " plant it asks is no longer the plant to ask
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*the stock has gone*' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*no longer short*' )
+      msg = 'the shortage is still there, it is the stock that went' ).
+
+  ENDMETHOD.
+
+  METHOD part_of_it_left_says_so.
+
+    " forty was proposed and ten is left: that is a transfer to raise for ten
+    " rather than a transfer to give up on, and the two read differently
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '10' ) ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*only part of it left*' ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*the stock has gone*' ) ).
+
+  ENDMETHOD.
+
+  METHOD its_own_demand_eats_the_spare.
+
+    " a plant with a hundred and ninety-five waiting for them has five to
+    " send, and it is the five the page has to print
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_demand   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '95' ) ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*40.000*5.000*' ) ).
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*only part of it left*' ) ).
+
+  ENDMETHOD.
+
+  METHOD the_footer_counts_them.
+
+    " a long list is scanned rather than read, so the number is the thing
+    " worth acting on -- the same reason feature 163 counted the stale ones
+    given_proposal( ).
+    given_proposal( iv_from = c_far ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) ( c_far ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = mo_cut->run( c_here )
+      iv_pattern = '*2 waiting, 1 the other plant can no longer cover*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_nobody_may_see.
+
+    " the row stays, because the proposal is this plant's business and the
+    " reader is looking at their own worklist. What they are not told is what
+    " a plant they may not see is sitting on.
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) )
+      it_change   = VALUE #( ( c_here ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '55' ) ) ).
+
+    DATA(lt_line) = mo_cut->run( c_here ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = |*{ c_matnr }*2000*40.000*| ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*55.000*' ) ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*no longer cover*' ) ).
+
+  ENDMETHOD.
+
+  METHOD gone_stock_does_not_lapse.
+
+    " the question the note asks is still a question: this plant still wants
+    " the stock. Closing it would be answering on the planner's behalf, and
+    " what they may do is raise it against a third plant instead.
+    given_proposal( ).
+
+    wire(
+      it_display  = VALUE #( ( c_here ) ( c_there ) )
+      it_change   = VALUE #( ( c_here ) ( c_there ) )
+      it_recorded = still_short( )
+      it_supply   = VALUE #( ) ).
+
+    mo_cut->tidy(
+      iv_werks = c_here
+      iv_test  = abap_false ).
+
+    cl_abap_unit_assert=>assert_not_initial( mo_transfer->open_for( c_here ) ).
 
   ENDMETHOD.
 

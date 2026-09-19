@@ -13,16 +13,16 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the list</p>
     "!
-    "! @parameter io_spare     | <p class="shorttext synchronized">What another plant could let go of</p>
-    "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
-    "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
-    "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
+    "! @parameter io_spare    | <p class="shorttext synchronized">What another plant could let go of</p>
+    "! @parameter io_store    | <p class="shorttext synchronized">Where runs are recorded</p>
+    "! @parameter io_visible  | <p class="shorttext synchronized">Which plants the user may see</p>
+    "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
     METHODS constructor
       IMPORTING
-        io_spare     TYPE REF TO zcl_alloc_spare
-        io_store     TYPE REF TO zif_allocation_store
-        io_authority TYPE REF TO zif_allocation_authority
-        io_transfer  TYPE REF TO zcl_alloc_transfer.
+        io_spare    TYPE REF TO zcl_alloc_spare
+        io_store    TYPE REF TO zif_allocation_store
+        io_visible  TYPE REF TO zcl_alloc_visible
+        io_transfer TYPE REF TO zcl_alloc_transfer.
 
     "! <p class="shorttext synchronized">Which other plants have what this one is short of</p>
     "!
@@ -81,22 +81,10 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
 
-    DATA mo_spare     TYPE REF TO zcl_alloc_spare.
-    DATA mo_store     TYPE REF TO zif_allocation_store.
-    DATA mo_authority TYPE REF TO zif_allocation_authority.
-    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
-
-    "! The plants already asked about, and whether the user may see them: a
-    "! material short in forty materials of the same plants would otherwise be
-    "! forty authority checks per plant.
-    TYPES:
-      BEGIN OF ty_allowed,
-        werks   TYPE mard-werks,
-        allowed TYPE abap_bool,
-      END OF ty_allowed.
-    TYPES ty_allowed_tab TYPE STANDARD TABLE OF ty_allowed WITH EMPTY KEY.
-
-    DATA mt_allowed TYPE ty_allowed_tab.
+    DATA mo_spare    TYPE REF TO zcl_alloc_spare.
+    DATA mo_store    TYPE REF TO zif_allocation_store.
+    DATA mo_visible  TYPE REF TO zcl_alloc_visible.
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
 
     METHODS short_materials
       IMPORTING
@@ -111,12 +99,6 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks        TYPE mard-werks
       RETURNING
         VALUE(rt_werks) TYPE ty_werks_tab.
-
-    METHODS may_see
-      IMPORTING
-        iv_werks       TYPE mard-werks
-      RETURNING
-        VALUE(rv_seen) TYPE abap_bool.
 
     METHODS lines_for
       IMPORTING
@@ -147,25 +129,26 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
   METHOD create_default.
 
     ro_list = NEW zcl_alloc_elsewhere(
-      io_spare     = zcl_alloc_spare=>create_default( )
-      io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_alloc( c_activity_display )
-      io_transfer  = NEW zcl_alloc_transfer( ) ).
+      io_spare    = zcl_alloc_spare=>create_default( )
+      io_store    = NEW zcl_allocation_store( )
+      io_visible  = NEW zcl_alloc_visible(
+        NEW zcl_authority_alloc( c_activity_display ) )
+      io_transfer = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
   METHOD constructor.
 
-    mo_spare     = io_spare.
-    mo_store     = io_store.
-    mo_authority = io_authority.
-    mo_transfer  = io_transfer.
+    mo_spare    = io_spare.
+    mo_store    = io_store.
+    mo_visible  = io_visible.
+    mo_transfer = io_transfer.
 
   ENDMETHOD.
 
   METHOD run.
 
-    mo_authority->check_plant( iv_werks ).
+    mo_visible->check_plant( iv_werks ).
 
     APPEND |Plant { iv_werks }, where else the stock is| TO rt_line.
 
@@ -237,29 +220,6 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD may_see.
-
-    IF line_exists( mt_allowed[ werks = iv_werks ] ).
-      rv_seen = mt_allowed[ werks = iv_werks ]-allowed.
-      RETURN.
-    ENDIF.
-
-    " the authority object answers by raising, so asking whether a user may
-    " see a plant is asking it and catching the no. Nothing is read for a
-    " plant that answers no, which is the point.
-    TRY.
-        mo_authority->check_plant( iv_werks ).
-        rv_seen = abap_true.
-      CATCH zcx_allocation.
-        rv_seen = abap_false.
-    ENDTRY.
-
-    APPEND VALUE #(
-      werks   = iv_werks
-      allowed = rv_seen ) TO mt_allowed.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
     DATA lv_covers TYPE zif_allocation=>ty_quantity.
@@ -269,7 +229,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         iv_matnr = is_short-matnr
         iv_werks = iv_werks ) INTO DATA(lv_werks).
 
-      IF may_see( lv_werks ) = abap_false.
+      IF mo_visible->may_see( lv_werks ) = abap_false.
         CONTINUE.
       ENDIF.
 

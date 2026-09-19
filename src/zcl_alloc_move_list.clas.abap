@@ -19,14 +19,16 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
     "! @parameter io_lapse    | <p class="shorttext synchronized">Knows which shortages have gone</p>
-    "! @parameter io_display  | <p class="shorttext synchronized">Decides who may read a plant</p>
+    "! @parameter io_spare    | <p class="shorttext synchronized">What the sending plant could let go of</p>
+    "! @parameter io_display  | <p class="shorttext synchronized">Which plants may be read</p>
     "! @parameter io_change   | <p class="shorttext synchronized">Decides who may answer for a plant</p>
     "! @parameter io_commit   | <p class="shorttext synchronized">Makes an answer durable</p>
     METHODS constructor
       IMPORTING
         io_transfer TYPE REF TO zcl_alloc_transfer
         io_lapse    TYPE REF TO zcl_alloc_lapse
-        io_display  TYPE REF TO zif_allocation_authority
+        io_spare    TYPE REF TO zcl_alloc_spare
+        io_display  TYPE REF TO zcl_alloc_visible
         io_change   TYPE REF TO zif_allocation_authority
         io_commit   TYPE REF TO zif_unit_of_work.
 
@@ -42,6 +44,13 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! for a transfer is then a note somebody would act on for no reason. It
     "! stays on the list rather than disappearing, because a proposal is a
     "! question put to a person and it is theirs to close.
+    "!
+    "! So does a proposal the sending plant can no longer cover. A note is
+    "! written against what that plant could spare on the night it was made,
+    "! and by the morning somebody reads it the stock can be gone: its own
+    "! demand arrived, or another plant asked first. The page reads the
+    "! sending plant again and says what is really there, so that a planner
+    "! rings the other plant about a quantity it still has.
     "!
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
     "! @parameter iv_matnr       | <p class="shorttext synchronized">Material, every one if empty</p>
@@ -122,9 +131,29 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
     DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
-    DATA mo_display  TYPE REF TO zif_allocation_authority.
+    DATA mo_spare    TYPE REF TO zcl_alloc_spare.
+    DATA mo_display  TYPE REF TO zcl_alloc_visible.
     DATA mo_change   TYPE REF TO zif_allocation_authority.
     DATA mo_commit   TYPE REF TO zif_unit_of_work.
+
+    "! What the sending plant can do about one open proposal today. SPARE is
+    "! what it could let go of now, printed as a column; SHORTFALL says
+    "! whether that is less than the proposal asked for, which is what makes
+    "! the row worth a second look.
+    TYPES:
+      BEGIN OF ty_still,
+        spare     TYPE string,
+        shortfall TYPE abap_bool,
+        verdict   TYPE string,
+      END OF ty_still.
+
+    METHODS still_there
+      IMPORTING
+        is_open         TYPE zcl_alloc_transfer=>ty_proposal
+      RETURNING
+        VALUE(rs_still) TYPE ty_still
+      RAISING
+        zcx_allocation.
 
     METHODS format_row
       IMPORTING
@@ -132,6 +161,7 @@ CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr       TYPE string
         iv_from        TYPE string
         iv_quantity    TYPE string
+        iv_spare       TYPE string
         iv_needed      TYPE string
         iv_who         TYPE string
         iv_when        TYPE string
@@ -159,7 +189,9 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
       io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = lo_transfer
         io_store    = NEW zcl_allocation_store( ) )
-      io_display  = NEW zcl_authority_alloc( c_activity_display )
+      io_spare    = zcl_alloc_spare=>create_default( )
+      io_display  = NEW zcl_alloc_visible(
+        NEW zcl_authority_alloc( c_activity_display ) )
       io_change   = NEW zcl_authority_alloc( c_activity_change )
       io_commit   = NEW zcl_unit_of_work( ) ).
 
@@ -169,6 +201,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
     mo_transfer = io_transfer.
     mo_lapse    = io_lapse.
+    mo_spare    = io_spare.
     mo_display  = io_display.
     mo_change   = io_change.
     mo_commit   = io_commit.
@@ -177,7 +210,9 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
 
   METHOD run.
 
-    DATA lv_gone TYPE i.
+    DATA lv_gone   TYPE i.
+    DATA lv_nogo   TYPE i.
+    DATA lv_note   TYPE string.
 
     mo_display->check_plant( iv_werks ).
 
@@ -197,6 +232,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
       iv_matnr    = `Material`
       iv_from     = `From`
       iv_quantity = `Quantity`
+      iv_spare    = `Spare there`
       iv_needed   = `Needed by`
       iv_who      = `Proposed by`
       iv_when     = `On`
@@ -211,17 +247,32 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
         lv_gone = lv_gone + 1.
       ENDIF.
 
+      DATA(ls_still) = still_there( ls_open ).
+      IF ls_still-shortfall = abap_true.
+        lv_nogo = lv_nogo + 1.
+      ENDIF.
+
+      " the shortage going away is the bigger news of the two, so it comes
+      " first: a note nobody needs any more is not worth chasing the other
+      " plant about whether they can still cover it
+      lv_note = ls_open-note.
+      IF ls_still-verdict IS NOT INITIAL.
+        lv_note = |{ ls_still-verdict }. { lv_note }|.
+      ENDIF.
+      IF lv_stale = abap_true.
+        lv_note = |no longer short. { lv_note }|.
+      ENDIF.
+
       APPEND format_row(
         iv_id       = |{ ls_open-proposal }|
         iv_matnr    = |{ ls_open-matnr }|
         iv_from     = |{ ls_open-from_werks }|
         iv_quantity = |{ ls_open-quantity }|
+        iv_spare    = ls_still-spare
         iv_needed   = date_text( ls_open-needed_by )
         iv_who      = |{ ls_open-created_by }|
         iv_when     = |{ zcl_alloc_clock=>date_of( ls_open-created_at ) DATE = ISO }|
-        iv_note     = COND string( WHEN lv_stale = abap_true
-                                   THEN |no longer short. { ls_open-note }|
-                                   ELSE |{ ls_open-note }| ) ) TO rt_line.
+        iv_note     = lv_note ) TO rt_line.
 
     ENDLOOP.
 
@@ -229,7 +280,41 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
     APPEND |{ lines( lt_open ) } waiting| &&
            COND string( WHEN lv_gone > 0
                         THEN |, { lv_gone } of them for a shortage that has gone|
+                        ELSE `` ) &&
+           COND string( WHEN lv_nogo > 0
+                        THEN |, { lv_nogo } the other plant can no longer cover|
                         ELSE `` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD still_there.
+
+    " a reader allowed to see the plant that is short is not thereby allowed
+    " to see what the plant on the other side of the proposal is sitting on.
+    " The row itself stays -- the proposal is this plant's business and the
+    " reader is looking at their own worklist -- and the column is blank.
+    IF mo_display->may_see( is_open-from_werks ) = abap_false.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_spare) = mo_spare->at_plant(
+      iv_matnr = is_open-matnr
+      iv_werks = is_open-from_werks )-spare.
+
+    rs_still-spare = |{ lv_spare }|.
+
+    IF lv_spare >= is_open-quantity.
+      RETURN.
+    ENDIF.
+
+    rs_still-shortfall = abap_true.
+
+    " nothing at all and not quite enough are different conversations: one is
+    " a transfer to give up on, the other a transfer to raise for less
+    rs_still-verdict = COND string(
+      WHEN lv_spare <= 0
+      THEN `the stock has gone`
+      ELSE `only part of it left` ).
 
   ENDMETHOD.
 
@@ -319,6 +404,7 @@ CLASS zcl_alloc_move_list IMPLEMENTATION.
       && |{ iv_matnr WIDTH = c_width_matnr }|
       && |{ iv_from WIDTH = c_width_werks }|
       && |{ iv_quantity WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |{ iv_spare WIDTH = c_width_qty ALIGN = RIGHT }|
       && |  { iv_needed WIDTH = c_width_date }|
       && |{ iv_who WIDTH = c_width_who }|
       && |{ iv_when WIDTH = c_width_date }|

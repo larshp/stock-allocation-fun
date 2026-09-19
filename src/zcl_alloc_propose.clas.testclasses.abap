@@ -316,16 +316,16 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
         requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) ).
 
     DATA(lo_cut) = NEW zcl_alloc_propose(
-      io_spare     = NEW zcl_alloc_spare(
+      io_spare    = NEW zcl_alloc_spare(
         io_supply = NEW lcl_supply_double( it_supply )
         io_demand = NEW lcl_demand_double( it_demand ) )
-      io_store     = lo_store
-      io_authority = NEW lcl_authority_double( lt_allowed )
-      io_transfer  = mo_transfer
-      io_lapse     = NEW zcl_alloc_lapse(
+      io_store    = lo_store
+      io_visible  = NEW zcl_alloc_visible( NEW lcl_authority_double( lt_allowed ) )
+      io_transfer = mo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = mo_transfer
         io_store    = lo_store )
-      io_commit    = mo_commit ).
+      io_commit   = mo_commit ).
 
     rt_line = lo_cut->run(
       iv_werks = c_here

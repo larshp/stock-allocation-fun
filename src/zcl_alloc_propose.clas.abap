@@ -13,20 +13,20 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the proposing</p>
     "!
-    "! @parameter io_spare     | <p class="shorttext synchronized">What another plant could let go of</p>
-    "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
-    "! @parameter io_authority | <p class="shorttext synchronized">Decides who may allocate in a plant</p>
-    "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
-    "! @parameter io_lapse     | <p class="shorttext synchronized">Closes the ones whose shortage has gone</p>
-    "! @parameter io_commit    | <p class="shorttext synchronized">What makes a proposal durable</p>
+    "! @parameter io_spare    | <p class="shorttext synchronized">What another plant could let go of</p>
+    "! @parameter io_store    | <p class="shorttext synchronized">Where runs are recorded</p>
+    "! @parameter io_visible  | <p class="shorttext synchronized">Which plants the user may see</p>
+    "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
+    "! @parameter io_lapse    | <p class="shorttext synchronized">Closes the ones whose shortage has gone</p>
+    "! @parameter io_commit   | <p class="shorttext synchronized">What makes a proposal durable</p>
     METHODS constructor
       IMPORTING
-        io_spare     TYPE REF TO zcl_alloc_spare
-        io_store     TYPE REF TO zif_allocation_store
-        io_authority TYPE REF TO zif_allocation_authority
-        io_transfer  TYPE REF TO zcl_alloc_transfer
-        io_lapse     TYPE REF TO zcl_alloc_lapse
-        io_commit    TYPE REF TO zif_unit_of_work.
+        io_spare    TYPE REF TO zcl_alloc_spare
+        io_store    TYPE REF TO zif_allocation_store
+        io_visible  TYPE REF TO zcl_alloc_visible
+        io_transfer TYPE REF TO zcl_alloc_transfer
+        io_lapse    TYPE REF TO zcl_alloc_lapse
+        io_commit   TYPE REF TO zif_unit_of_work.
 
     "! <p class="shorttext synchronized">Write down the transfers that would help</p>
     "!
@@ -90,22 +90,12 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
 
-    DATA mo_spare     TYPE REF TO zcl_alloc_spare.
-    DATA mo_store     TYPE REF TO zif_allocation_store.
-    DATA mo_authority TYPE REF TO zif_allocation_authority.
-    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
-    DATA mo_lapse     TYPE REF TO zcl_alloc_lapse.
-    DATA mo_commit    TYPE REF TO zif_unit_of_work.
-
-    "! The plants already asked about, and whether the user may see them.
-    TYPES:
-      BEGIN OF ty_allowed,
-        werks   TYPE mard-werks,
-        allowed TYPE abap_bool,
-      END OF ty_allowed.
-    TYPES ty_allowed_tab TYPE STANDARD TABLE OF ty_allowed WITH EMPTY KEY.
-
-    DATA mt_allowed TYPE ty_allowed_tab.
+    DATA mo_spare    TYPE REF TO zcl_alloc_spare.
+    DATA mo_store    TYPE REF TO zif_allocation_store.
+    DATA mo_visible  TYPE REF TO zcl_alloc_visible.
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
+    DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
+    DATA mo_commit   TYPE REF TO zif_unit_of_work.
 
     "! How many proposals this run has written down, so that the footer and
     "! the commit agree with what the lines say.
@@ -124,12 +114,6 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_werks        TYPE mard-werks
       RETURNING
         VALUE(rt_werks) TYPE ty_werks_tab.
-
-    METHODS may_see
-      IMPORTING
-        iv_werks       TYPE mard-werks
-      RETURNING
-        VALUE(rv_seen) TYPE abap_bool.
 
     METHODS lines_for
       IMPORTING
@@ -161,25 +145,26 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     DATA(lo_store)    = NEW zcl_allocation_store( ).
 
     ro_propose = NEW zcl_alloc_propose(
-      io_spare     = zcl_alloc_spare=>create_default( )
-      io_store     = lo_store
-      io_authority = NEW zcl_authority_alloc( c_activity_change )
-      io_transfer  = lo_transfer
-      io_lapse     = NEW zcl_alloc_lapse(
+      io_spare    = zcl_alloc_spare=>create_default( )
+      io_store    = lo_store
+      io_visible  = NEW zcl_alloc_visible(
+        NEW zcl_authority_alloc( c_activity_change ) )
+      io_transfer = lo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = lo_transfer
         io_store    = lo_store )
-      io_commit    = NEW zcl_unit_of_work( ) ).
+      io_commit   = NEW zcl_unit_of_work( ) ).
 
   ENDMETHOD.
 
   METHOD constructor.
 
-    mo_spare     = io_spare.
-    mo_store     = io_store.
-    mo_authority = io_authority.
-    mo_transfer  = io_transfer.
-    mo_lapse     = io_lapse.
-    mo_commit    = io_commit.
+    mo_spare    = io_spare.
+    mo_store    = io_store.
+    mo_visible  = io_visible.
+    mo_transfer = io_transfer.
+    mo_lapse    = io_lapse.
+    mo_commit   = io_commit.
 
   ENDMETHOD.
 
@@ -187,7 +172,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
     CLEAR mv_written.
 
-    mo_authority->check_plant( iv_werks ).
+    mo_visible->check_plant( iv_werks ).
 
     APPEND |Plant { iv_werks }, transfers worth raising| &&
            COND string( WHEN iv_test = abap_true
@@ -306,29 +291,6 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD may_see.
-
-    IF line_exists( mt_allowed[ werks = iv_werks ] ).
-      rv_seen = mt_allowed[ werks = iv_werks ]-allowed.
-      RETURN.
-    ENDIF.
-
-    " a plant the user may not see is left out rather than refused, for the
-    " reason ZCL_ALLOC_ELSEWHERE gives. Here it also means a user cannot make
-    " a note about a plant they are not allowed to know about.
-    TRY.
-        mo_authority->check_plant( iv_werks ).
-        rv_seen = abap_true.
-      CATCH zcx_allocation.
-        rv_seen = abap_false.
-    ENDTRY.
-
-    APPEND VALUE #(
-      werks   = iv_werks
-      allowed = rv_seen ) TO mt_allowed.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
     DATA lv_quantity TYPE zif_allocation=>ty_quantity.
@@ -338,7 +300,10 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
         iv_matnr = is_short-matnr
         iv_werks = iv_werks ) INTO DATA(lv_werks).
 
-      IF may_see( lv_werks ) = abap_false.
+      " a plant the user may not see is left out rather than refused, for the
+      " reason ZCL_ALLOC_VISIBLE gives. Here it also means a user cannot make
+      " a note about a plant they are not allowed to know about.
+      IF mo_visible->may_see( lv_werks ) = abap_false.
         CONTINUE.
       ENDIF.
 

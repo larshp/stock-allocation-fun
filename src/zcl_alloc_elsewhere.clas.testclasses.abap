@@ -285,14 +285,14 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
     mo_authority = NEW lcl_authority_double( it_allowed ).
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
-      io_spare     = NEW zcl_alloc_spare(
+      io_spare    = NEW zcl_alloc_spare(
         io_supply = NEW lcl_supply_double( it_supply )
         io_demand = NEW lcl_demand_double( it_demand ) )
-      io_store     = NEW lcl_store_double( VALUE #(
+      io_store    = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = iv_short
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
-      io_authority = mo_authority
-      io_transfer  = mo_transfer ).
+      io_visible  = NEW zcl_alloc_visible( mo_authority )
+      io_transfer = mo_transfer ).
 
     rt_line = lo_cut->run( c_here ).
 
@@ -402,14 +402,14 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
     mo_authority = NEW lcl_authority_double( VALUE #( ( c_here ) ) ).
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
-      io_spare     = NEW zcl_alloc_spare(
+      io_spare    = NEW zcl_alloc_spare(
         io_supply = NEW lcl_supply_double( VALUE #( ) )
         io_demand = NEW lcl_demand_double( VALUE #( ) ) )
-      io_store     = NEW lcl_store_double( VALUE #(
+      io_store    = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = '10'
           confirmed = '10' shortfall = 0 ) ) )
-      io_authority = mo_authority
-      io_transfer  = mo_transfer ).
+      io_visible  = NEW zcl_alloc_visible( mo_authority )
+      io_transfer = mo_transfer ).
 
     DATA(lt_line) = lo_cut->run( c_here ).
 

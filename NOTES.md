@@ -232,6 +232,7 @@ in, which is also the order they make sense in.
 165. the proposing closes the stale notes itself
 166. the overview counts what nobody has answered
 167. one place works out what a plant can spare
+168. whether the stock is still there, and who may see it
 
 ## Progress
 
@@ -4800,3 +4801,45 @@ different rule each time, and they all end here: the rule gets an object.
   plant can spare, and a plant with a hundred all of them promised is still
   listed -- feature 158 decided that deliberately and moving the test would
   have quietly undone it.
+
+### Feature 168 — whether the stock is still there, and who may see it (done)
+
+Feature 163 asks whether the note is still worth acting on and looks only at
+this plant: is the shortage still there. The other half of a proposal is the
+plant it asks, and that half can go just as quietly. A note written on Monday
+night says "move a hundred from 2000"; by Thursday 2000's own orders have
+arrived and there is nothing to send. The planner finds that out by ringing
+them, which is a phone call the page could have saved.
+
+- **The page reads the sending plant again**, through `ZCL_ALLOC_SPARE`, and
+  prints what it can spare today next to what the proposal asked for. Feature
+  167 existed a day before this needed it, which is why this is a column and
+  not a third copy of the arithmetic.
+- **Nothing at all and not quite enough are different conversations**, so they
+  read differently: `the stock has gone` is a transfer to give up on and
+  `only part of it left` is one to raise for less. A single "cannot cover"
+  would have collapsed the two and made the second look like the first.
+- **These do not lapse.** Feature 164 closes the notes whose question went
+  away; here the question stands -- this plant still wants the stock -- and
+  what changed is the answer. Closing it would decide for the planner, whose
+  next move may be to raise the same transfer against a third plant. A test
+  says the tidy leaves them alone.
+- **The shortage going away is still the bigger news**, so it is said first
+  when both are true. A note nobody needs any more is not worth chasing the
+  other plant about.
+- **A plant the reader may not see leaves the column blank rather than the
+  row.** The proposal is this plant's business and the reader is looking at
+  their own worklist, so dropping the row would hide a note somebody has to
+  answer. What they are not told is what a plant they have no authorization
+  for is sitting on -- the same line features 157 and 160 drew.
+- **And that is where `ZCL_ALLOC_VISIBLE` comes from.** The cached "may this
+  user see that plant" was already written twice, in `ZCL_ALLOC_ELSEWHERE` and
+  `ZCL_ALLOC_PROPOSE`, and this would have been the third. The cache is the
+  reason it is worth an object rather than a line: a page that asks per
+  material asks about the same six plants forty times, and the expensive
+  answer is the refusal.
+- **`CHECK_PLANT` hands the question straight through.** The plant a page was
+  called for is refused rather than left out, and answering "not authorised"
+  on the authority object's behalf would throw away whatever a site that
+  swapped in its own object had to say. Only the boolean is cached; the
+  raising one is a delegate.

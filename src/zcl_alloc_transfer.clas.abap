@@ -105,6 +105,11 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! Newest first, because a review starts at the most recent thing that
     "! happened and works backwards.
     "!
+    "! A proposal answered before `RAISED_QTY` existed comes back with the
+    "! quantity it was proposed for, because that is what answering yes meant
+    "! then. The rule is here rather than in the caller so that no reader has
+    "! to know the table has a history of its own.
+    "!
     "! @parameter iv_werks    | <p class="shorttext synchronized">Plant that was short</p>
     "! @parameter iv_since    | <p class="shorttext synchronized">Earliest day to look back to, all if empty</p>
     "! @parameter rt_proposal | <p class="shorttext synchronized">Proposals of every status</p>
@@ -321,7 +326,18 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
       INTO TABLE @rt_proposal.
     IF sy-subrc <> 0.
       CLEAR rt_proposal.
+      RETURN.
     ENDIF.
+
+    " before the field existed, answering yes meant the whole note was
+    " raised, and that is what those rows still mean. A nought here would
+    " read as a transfer raised for nothing, which no answer ever was: the
+    " one that raises nothing is refused by ANSWER.
+    LOOP AT rt_proposal ASSIGNING FIELD-SYMBOL(<ls_proposal>)
+        WHERE status = c_status-done
+          AND raised_qty = 0.
+      <ls_proposal>-raised_qty = <ls_proposal>-quantity.
+    ENDLOOP.
 
   ENDMETHOD.
 

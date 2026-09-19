@@ -147,6 +147,7 @@ CLASS ltcl_trf_review DEFINITION FINAL FOR TESTING
     METHODS two_notes_one_material FOR TESTING RAISING cx_static_check.
     METHODS nothing_raised_says_so FOR TESTING RAISING cx_static_check.
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
+    METHODS an_old_yes_counts_in_full FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -352,6 +353,27 @@ CLASS ltcl_trf_review IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( found(
       it_line    = review_of( )
       iv_pattern = '*none of them raised*' ) ).
+
+  ENDMETHOD.
+
+  METHOD an_old_yes_counts_in_full.
+
+    " a row answered before feature 173 has no raised quantity, because the
+    " field did not exist. Reading it as nought would say a transfer was
+    " raised for nothing, and no answer ever meant that.
+    DATA(lv_proposal) = given_proposal( ).
+
+    mo_transfer->answer(
+      iv_proposal = lv_proposal
+      iv_status   = zcl_alloc_transfer=>c_status-done ).
+
+    UPDATE zstock_alloc_trf SET raised_qty = 0
+      WHERE proposal = @lv_proposal.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = review_of( )
+      iv_pattern = '*Raised*1*40.000*40.000*' ) ).
 
   ENDMETHOD.
 

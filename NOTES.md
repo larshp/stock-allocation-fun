@@ -243,6 +243,7 @@ in, which is also the order they make sense in.
 176. the plants that could help are read once
 177. what the transfers came to
 178. the night's order follows what reads what
+179. the rows that were answered before the field existed
 
 ## Progress
 
@@ -5002,8 +5003,9 @@ later the table is a record of forty transfers that never were.
   good", which nothing could ask before.
 - **Left out, it is the quantity on the note.** Most answers are the whole
   thing, and making somebody retype the number to say "yes, all of it" is how
-  a field gets filled in wrongly. The field is always populated on a yes, so
-  reading the table never has to fall back to `QUANTITY`.
+  a field gets filled in wrongly. The field is always populated on a yes --
+  *by this feature*; feature 179 is about the rows that were answered before
+  it existed.
 - **A quantity on a no is refused, and so is a raise of nothing.** "We dropped
   it, for ten" is not an answer anybody could read back, and a raise of
   nothing is a no by another name -- writing it down as a yes would say a
@@ -5166,3 +5168,34 @@ wrong.
 - **Nothing in ABAP could have caught this.** That is the whole argument for
   the check: each program is correct alone, the defect exists only in the
   sequence, and the sequence lives in prose.
+
+### Feature 179 — the rows that were answered before the field existed (done)
+
+Feature 173 added `RAISED_QTY` and said the field is always populated on a
+yes, so nothing reading the table has to fall back to `QUANTITY`. That is
+true of every row written since and false of every row written before, and
+four features later feature 177 built a review on the claim. In a system that
+has been running this for a year, the page would have opened on "Raised: 40
+notes, 1 600 asked for, 0 raised".
+
+- **The rule is that an old yes means the whole note.** Before the field
+  existed, answering yes was the only yes there was, and it meant the transfer
+  as proposed. Reading those rows that way is not a guess; it is what the row
+  says, in the vocabulary the row was written in.
+- **A nought could not mean anything else.** `ANSWER` refuses a raise of
+  nothing -- feature 173 made sure of that precisely so a yes always stands
+  for a real quantity -- so a `DONE` row with nought in the field is
+  unambiguously an old one.
+- **It lives in `HISTORY_FOR`, not in the review.** A second reader would
+  otherwise have to learn that the table has a history of its own, and the
+  one after that would forget. This is features 148, 149 and 165 again, and
+  the first time the rule being shared is about the age of the data rather
+  than about the business.
+- **No correction program.** Rewriting the rows would be a one-off job that
+  has to be transported, run once, and then deleted before somebody runs it
+  twice, all to avoid two lines of ABAP in the reader. It would also destroy
+  the distinction between what was recorded and what was inferred, which is
+  worth more than the tidiness.
+- **The write-up of feature 173 is corrected rather than left standing.** A
+  claim that was true when it was written and is false now is worse than no
+  claim, because somebody will build on it -- which is exactly what happened.

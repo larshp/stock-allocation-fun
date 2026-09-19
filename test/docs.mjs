@@ -75,6 +75,45 @@ if (index.length !== headings.length) {
   });
 }
 
+// and the night: the steps of "The night, in order" are not a preference,
+// they are a reading order. Each pair below is a program that writes
+// something and a program that reads it, and a README that lists them the
+// other way round documents a night whose morning mail reports yesterday.
+// Nothing in ABAP can catch that, because every one of these programs is
+// correct on its own -- it is only the order that is wrong.
+const night = readme.slice(
+  readme.indexOf("## The night, in order"),
+  readme.indexOf("## Customizing"));
+
+const numbered = [...night.matchAll(/^(\d+)\. \*\*`(Z[A-Z_]+)`\*\*/gm)];
+const steps = numbered.map(m => m[2]);
+
+// the numbers are what a reader follows, so they have to agree with the order
+// the steps are written in
+numbered.forEach((step, i) => {
+  if (Number(step[1]) !== i + 1) {
+    missing.push("step " + step[1] + " of the night is the " + (i + 1) + "th written down");
+  }
+});
+
+const before = [
+  ["ZSTOCK_ALLOC_ORPH", "ZSTOCK_ALLOC_JOBS", "stock given back is stock tonight can distribute"],
+  ["ZSTOCK_ALLOC_JOBS", "ZSTOCK_ALLOC_COVER", "the coverage check reads what the night recorded"],
+  ["ZSTOCK_ALLOC_JOBS", "ZSTOCK_ALLOC_TRF", "the proposing proposes against what the night decided"],
+  ["ZSTOCK_ALLOC_TRF", "ZSTOCK_ALLOC_SHORT", "the morning list says which shortages are already proposed for"],
+  ["ZSTOCK_ALLOC_TRF", "ZSTOCK_ALLOC_PLTS", "the overview counts the transfers nobody has answered"],
+];
+
+for (const [first, second, why] of before) {
+  const a = steps.indexOf(first);
+  const b = steps.indexOf(second);
+  if (a === -1 || b === -1) {
+    missing.push("the night in README.md no longer lists both " + first + " and " + second);
+  } else if (a > b) {
+    missing.push(first + " has to come before " + second + " in the night: " + why);
+  }
+}
+
 if (missing.length > 0) {
   for (const line of missing) {
     console.log(line);
@@ -84,4 +123,5 @@ if (missing.length > 0) {
 }
 
 console.log("docs: " + reports.length + " report(s), " + customizing.length +
-  " Customizing table(s) and " + headings.length + " feature(s), all written down");
+  " Customizing table(s), " + headings.length + " feature(s) and a night of " +
+  steps.length + " step(s), all written down");

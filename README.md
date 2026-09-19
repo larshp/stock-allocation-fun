@@ -195,22 +195,33 @@ are meant to be used in when a plant runs unattended, and why:
    all of the stock needs.
 3. **`ZSTOCK_ALLOC_COVER`** with an e-mail address — did the night finish. A
    package that never ran leaves no trace anywhere else, and this only writes
-   to anybody when something is missing.
-4. **`ZSTOCK_ALLOC_SHORT`** with an e-mail address — the morning list, waiting
-   in an inbox rather than waiting to be run.
-5. **`ZSTOCK_ALLOC_PLTS`** with an e-mail address, once for all plants rather
-   than once per plant — the seven-in-the-morning page, sent only when a plant
-   is short or did not run.
-6. **`ZSTOCK_ALLOC_TRF`** with the test run unticked and **Every plant you may
+   to anybody when something is missing. Before anything reads what the night
+   decided, so that a half finished night is known about rather than reported
+   on as though it were whole.
+4. **`ZSTOCK_ALLOC_TRF`** with the test run unticked and **Every plant you may
    propose for** ticked — the transfers worth raising for what is still short,
    and closing the notes whose shortage has gone. After the allocation rather
    than before it, so it proposes against what the night decided and not
-   against last night's answer. One job for the company rather than one per
+   against last night's answer; and before the two pages below, both of which
+   read the notes it writes. One job for the company rather than one per
    plant: a proposal is a claim on the plant it asks, so running them
    separately leaves who gets the spare to the order somebody scheduled them
    in.
+5. **`ZSTOCK_ALLOC_SHORT`** with an e-mail address — the morning list, waiting
+   in an inbox rather than waiting to be run. It says which shortages already
+   have a transfer proposed for them, so it goes after the proposing: run
+   before it, every line of it reads as nobody's.
+6. **`ZSTOCK_ALLOC_PLTS`** with an e-mail address, once for all plants rather
+   than once per plant — the seven-in-the-morning page, sent only when a plant
+   is short, did not run or has a transfer nobody has answered. The last of
+   those three is written by step 4, which is the other reason the proposing
+   comes before the pages.
 7. **`ZSTOCK_ALLOC_REORG`**, weekly rather than nightly — remove recorded runs
    past the retention time that hold nothing back.
+
+The order of steps 2 to 6 is not a preference: each of them reads what an
+earlier one writes, and `npm run docs` fails if this list is ever put back
+the other way round.
 
 `ZSTOCK_ALLOC_CFGC` belongs in the transport process rather than the nightly
 one: run it after importing Customizing, when what it finds can still be

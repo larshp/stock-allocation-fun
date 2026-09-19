@@ -242,6 +242,7 @@ in, which is also the order they make sense in.
 175. the morning list says what is already in hand
 176. the plants that could help are read once
 177. what the transfers came to
+178. the night's order follows what reads what
 
 ## Progress
 
@@ -5135,3 +5136,33 @@ the mornings it costs.
 - **`HISTORY_FOR` is the other half of `OPEN_FOR`.** One is the worklist and
   one is the record, which is exactly why `ZSTOCK_ALLOC_TRF` is the table
   `ZSTOCK_ALLOC_REORG` leaves alone.
+
+### Feature 178 — the night's order follows what reads what (done)
+
+Feature 137 wrote the night down and its order was right at the time. Since
+then feature 166 put the count of unanswered transfers on the overview and
+feature 175 put "already proposed" on the morning list, and both of those
+pages were listed *before* the program that writes what they read. A plant
+following the README to the letter got a seven-in-the-morning page that
+reported yesterday's proposals and a morning list on which the night's own
+work was invisible. Every program in it was correct; only the order was
+wrong.
+
+- **Only the proposing moved**, from step 6 to step 4: after the allocation
+  because it reads what the night decided, and before the two pages because
+  they read what it writes.
+- **The coverage check stays at step 3**, ahead of everything that reports on
+  the night. A half finished night is worth knowing about before three
+  programs report on it as though it were whole.
+- **And `npm run docs` now fails if anybody puts it back.** This is the same
+  idea as features 123 and 124 -- documentation that can fail -- applied to
+  the one piece of documentation in this repository that is not a description
+  but an instruction. The five ordering rules are in `test/docs.mjs` with the
+  reason for each, because they are facts about what the programs read, not
+  opinions about how to run a plant.
+- **The step numbers are checked as well as the order.** A renumbered list
+  reads the same to the parser and differently to a person, and a person is
+  who the list is for.
+- **Nothing in ABAP could have caught this.** That is the whole argument for
+  the check: each program is correct alone, the defect exists only in the
+  sequence, and the sequence lives in prose.

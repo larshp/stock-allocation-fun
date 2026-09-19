@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_FUGR" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <AREAT>BAPI_RESERVATION</AREAT>
+   <INCLUDES>
+    <SOBJ_NAME>LBAPI_RESERVATIONTOP</SOBJ_NAME>
+    <SOBJ_NAME>SAPLBAPI_RESERVATION</SOBJ_NAME>
+   </INCLUDES>
+   <FUNCTIONS>
+    <item>
+     <FUNCNAME>BAPI_RESERVATION_CREATE1</FUNCNAME>
+     <SHORT_TEXT>Create Reservation</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>RESERVATIONHEADER</PARAMETER>
+       <TYP>BAPI2093_RES_HEAD</TYP>
+      </RSIMP>
+     </IMPORT>
+     <EXPORT>
+      <RSEXP>
+       <PARAMETER>RESERVATION</PARAMETER>
+       <TYP>RKPF-RSNUM</TYP>
+      </RSEXP>
+     </EXPORT>
+     <TABLES>
+      <RSTBL>
+       <PARAMETER>RESERVATIONITEMS</PARAMETER>
+       <DBSTRUCT>BAPI2093_RES_ITEM</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RETURN</PARAMETER>
+       <DBSTRUCT>BAPIRET2</DBSTRUCT>
+      </RSTBL>
+     </TABLES>
+    </item>
+    <item>
+     <FUNCNAME>BAPI_RESERVATION_CHANGE</FUNCNAME>
+     <SHORT_TEXT>Change Reservation</SHORT_TEXT>
+     <IMPORT>
+      <RSIMP>
+       <PARAMETER>RESERVATION</PARAMETER>
+       <TYP>RKPF-RSNUM</TYP>
+      </RSIMP>
+     </IMPORT>
+     <TABLES>
+      <RSTBL>
+       <PARAMETER>RESERVATIONITEMS</PARAMETER>
+       <DBSTRUCT>BAPI2093_RES_ITEM_CHANGE</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RESERVATIONITEMSX</PARAMETER>
+       <DBSTRUCT>BAPI2093_RES_ITEM_CHANGEX</DBSTRUCT>
+      </RSTBL>
+      <RSTBL>
+       <PARAMETER>RETURN</PARAMETER>
+       <DBSTRUCT>BAPIRET2</DBSTRUCT>
+      </RSTBL>
+     </TABLES>
+    </item>
+   </FUNCTIONS>
+  </asx:values>
+ </asx:abap>
+</abapGit>

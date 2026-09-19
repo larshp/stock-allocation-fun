@@ -13,15 +13,13 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the list</p>
     "!
-    "! @parameter io_supply    | <p class="shorttext synchronized">What a material has to give away, per plant</p>
-    "! @parameter io_demand    | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
+    "! @parameter io_spare     | <p class="shorttext synchronized">What another plant could let go of</p>
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
     "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
     METHODS constructor
       IMPORTING
-        io_supply    TYPE REF TO zif_supply_reader
-        io_demand    TYPE REF TO zif_demand_reader
+        io_spare     TYPE REF TO zcl_alloc_spare
         io_store     TYPE REF TO zif_allocation_store
         io_authority TYPE REF TO zif_allocation_authority
         io_transfer  TYPE REF TO zcl_alloc_transfer.
@@ -39,12 +37,10 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! number worked out any other way is stock the other plant would not have
     "! given away either.
     "!
-    "! What a plant has is not what it can spare. A plant sitting on a hundred
-    "! with a hundred waiting for them has nothing to send, and a page that
-    "! offered them would send a planner to ask for stock that is already
-    "! somebody else's. Both numbers are shown, because the shelf is where a
-    "! conversation between two planners starts and the spare is where it
-    "! ends.
+    "! What a plant has is not what it can spare, which is what
+    "! `ZCL_ALLOC_SPARE` works out. Both numbers are shown, because the shelf
+    "! is where a conversation between two planners starts and the spare is
+    "! where it ends.
     "!
     "! A row somebody has already made a note about says so, so that a page
     "! read after `ZSTOCK_ALLOC_TRF` has run does not read as a list of things
@@ -85,8 +81,7 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
 
-    DATA mo_supply    TYPE REF TO zif_supply_reader.
-    DATA mo_demand    TYPE REF TO zif_demand_reader.
+    DATA mo_spare     TYPE REF TO zcl_alloc_spare.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
@@ -132,15 +127,6 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
-    METHODS wanted_at
-      IMPORTING
-        iv_matnr           TYPE mard-matnr
-        iv_werks           TYPE mard-werks
-      RETURNING
-        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity
-      RAISING
-        zcx_allocation.
-
     METHODS format_row
       IMPORTING
         iv_werks       TYPE string
@@ -161,8 +147,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
   METHOD create_default.
 
     ro_list = NEW zcl_alloc_elsewhere(
-      io_supply    = NEW zcl_supply_per_plant( )
-      io_demand    = NEW zcl_demand_per_plant( )
+      io_spare     = zcl_alloc_spare=>create_default( )
       io_store     = NEW zcl_allocation_store( )
       io_authority = NEW zcl_authority_alloc( c_activity_display )
       io_transfer  = NEW zcl_alloc_transfer( ) ).
@@ -171,8 +156,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
   METHOD constructor.
 
-    mo_supply    = io_supply.
-    mo_demand    = io_demand.
+    mo_spare     = io_spare.
     mo_store     = io_store.
     mo_authority = io_authority.
     mo_transfer  = io_transfer.
@@ -276,27 +260,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD wanted_at.
-
-    " what that plant has still to serve, read as it reads it: net of what has
-    " already been delivered and of what its own earlier runs set aside, and
-    " only as far ahead as it looks. A plant is not holding stock back for a
-    " line it is not going to serve this month either.
-    LOOP AT mo_demand->read_open_demand(
-        iv_matnr = iv_matnr
-        iv_werks = iv_werks ) INTO DATA(ls_demand).
-      IF ls_demand-quantity > 0.
-        rv_quantity = rv_quantity + ls_demand-quantity.
-      ENDIF.
-    ENDLOOP.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
-    DATA lv_now    TYPE zif_allocation=>ty_quantity.
-    DATA lv_later  TYPE zif_allocation=>ty_quantity.
-    DATA lv_spare  TYPE zif_allocation=>ty_quantity.
     DATA lv_covers TYPE zif_allocation=>ty_quantity.
     DATA lt_row    TYPE ty_line_tab.
 
@@ -308,50 +273,27 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      CLEAR lv_now.
-      CLEAR lv_later.
-
-      LOOP AT mo_supply->read_supply(
-          iv_matnr = is_short-matnr
-          iv_werks = lv_werks ) INTO DATA(ls_supply).
-
-        IF ls_supply-avail_date IS INITIAL.
-          lv_now = lv_now + ls_supply-quantity.
-        ELSE.
-          lv_later = lv_later + ls_supply-quantity.
-        ENDIF.
-
-      ENDLOOP.
-
-      " a plant with nothing to give away is not somewhere to look, and a row
-      " saying so per plant of the company is a page nobody reads
-      IF lv_now + lv_later <= 0.
-        CONTINUE.
-      ENDIF.
-
-      DATA(lv_wanted) = wanted_at(
+      DATA(ls_spare) = mo_spare->at_plant(
         iv_matnr = is_short-matnr
         iv_werks = lv_werks ).
 
-      " a plant that owes more than it has spares nothing rather than a
-      " negative amount: what it is short of itself is its own problem and is
-      " not part of this answer
-      lv_spare = lv_now + lv_later - lv_wanted.
-      IF lv_spare < 0.
-        lv_spare = 0.
+      " a plant with nothing to give away is not somewhere to look, and a row
+      " saying so per plant of the company is a page nobody reads
+      IF ls_spare-on_hand + ls_spare-coming <= 0.
+        CONTINUE.
       ENDIF.
 
-      lv_covers = lv_spare.
+      lv_covers = ls_spare-spare.
       IF lv_covers > is_short-quantity.
         lv_covers = is_short-quantity.
       ENDIF.
 
       APPEND format_row(
         iv_werks  = |{ lv_werks }|
-        iv_now    = |{ lv_now }|
-        iv_later  = |{ lv_later }|
-        iv_wanted = |{ lv_wanted }|
-        iv_spare  = |{ lv_spare }|
+        iv_now    = |{ ls_spare-on_hand }|
+        iv_later  = |{ ls_spare-coming }|
+        iv_wanted = |{ ls_spare-wanted }|
+        iv_spare  = |{ ls_spare-spare }|
         iv_covers = |{ lv_covers }|
         iv_note   = COND string(
           WHEN mo_transfer->is_open( iv_matnr      = is_short-matnr

@@ -13,8 +13,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the proposing</p>
     "!
-    "! @parameter io_supply    | <p class="shorttext synchronized">What a material has to give away, per plant</p>
-    "! @parameter io_demand    | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
+    "! @parameter io_spare     | <p class="shorttext synchronized">What another plant could let go of</p>
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may allocate in a plant</p>
     "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposals are written down</p>
@@ -22,8 +21,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_commit    | <p class="shorttext synchronized">What makes a proposal durable</p>
     METHODS constructor
       IMPORTING
-        io_supply    TYPE REF TO zif_supply_reader
-        io_demand    TYPE REF TO zif_demand_reader
+        io_spare     TYPE REF TO zcl_alloc_spare
         io_store     TYPE REF TO zif_allocation_store
         io_authority TYPE REF TO zif_allocation_authority
         io_transfer  TYPE REF TO zcl_alloc_transfer
@@ -92,8 +90,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
 
-    DATA mo_supply    TYPE REF TO zif_supply_reader.
-    DATA mo_demand    TYPE REF TO zif_demand_reader.
+    DATA mo_spare     TYPE REF TO zcl_alloc_spare.
     DATA mo_store     TYPE REF TO zif_allocation_store.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
     DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
@@ -134,15 +131,6 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_seen) TYPE abap_bool.
 
-    METHODS spare_at
-      IMPORTING
-        iv_matnr           TYPE mard-matnr
-        iv_werks           TYPE mard-werks
-      RETURNING
-        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity
-      RAISING
-        zcx_allocation.
-
     METHODS lines_for
       IMPORTING
         is_short       TYPE ty_short
@@ -173,8 +161,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     DATA(lo_store)    = NEW zcl_allocation_store( ).
 
     ro_propose = NEW zcl_alloc_propose(
-      io_supply    = NEW zcl_supply_per_plant( )
-      io_demand    = NEW zcl_demand_per_plant( )
+      io_spare     = zcl_alloc_spare=>create_default( )
       io_store     = lo_store
       io_authority = NEW zcl_authority_alloc( c_activity_change )
       io_transfer  = lo_transfer
@@ -187,8 +174,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
   METHOD constructor.
 
-    mo_supply    = io_supply.
-    mo_demand    = io_demand.
+    mo_spare     = io_spare.
     mo_store     = io_store.
     mo_authority = io_authority.
     mo_transfer  = io_transfer.
@@ -343,35 +329,6 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD spare_at.
-
-    DATA lv_have  TYPE zif_allocation=>ty_quantity.
-    DATA lv_owed  TYPE zif_allocation=>ty_quantity.
-
-    LOOP AT mo_supply->read_supply(
-        iv_matnr = iv_matnr
-        iv_werks = iv_werks ) INTO DATA(ls_supply).
-      lv_have = lv_have + ls_supply-quantity.
-    ENDLOOP.
-
-    LOOP AT mo_demand->read_open_demand(
-        iv_matnr = iv_matnr
-        iv_werks = iv_werks ) INTO DATA(ls_demand).
-      IF ls_demand-quantity > 0.
-        lv_owed = lv_owed + ls_demand-quantity.
-      ENDIF.
-    ENDLOOP.
-
-    " the same arithmetic as the page of feature 158, and deliberately not a
-    " second opinion about it: a proposal that offered a quantity the page
-    " does not show would be a proposal nobody could check
-    rv_quantity = lv_have - lv_owed.
-    IF rv_quantity < 0.
-      rv_quantity = 0.
-    ENDIF.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
     DATA lv_quantity TYPE zif_allocation=>ty_quantity.
@@ -385,9 +342,12 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      DATA(lv_spare) = spare_at(
+      " the same object the page of feature 158 asks, and deliberately not a
+      " second opinion about it: a proposal that offered a quantity the page
+      " does not show would be a proposal nobody could check
+      DATA(lv_spare) = mo_spare->at_plant(
         iv_matnr = is_short-matnr
-        iv_werks = lv_werks ).
+        iv_werks = lv_werks )-spare.
 
       IF lv_spare <= 0.
         CONTINUE.

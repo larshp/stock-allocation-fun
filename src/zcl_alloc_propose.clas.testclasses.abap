@@ -316,8 +316,9 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
         requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) ).
 
     DATA(lo_cut) = NEW zcl_alloc_propose(
-      io_supply    = NEW lcl_supply_double( it_supply )
-      io_demand    = NEW lcl_demand_double( it_demand )
+      io_spare     = NEW zcl_alloc_spare(
+        io_supply = NEW lcl_supply_double( it_supply )
+        io_demand = NEW lcl_demand_double( it_demand ) )
       io_store     = lo_store
       io_authority = NEW lcl_authority_double( lt_allowed )
       io_transfer  = mo_transfer

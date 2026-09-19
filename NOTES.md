@@ -231,6 +231,7 @@ in, which is also the order they make sense in.
 164. closing the ones whose shortage has gone
 165. the proposing closes the stale notes itself
 166. the overview counts what nobody has answered
+167. one place works out what a plant can spare
 
 ## Progress
 
@@ -4765,3 +4766,37 @@ and it is the one where somebody is waiting for an answer.
 - **The count comes from `ZCL_ALLOC_TRANSFER`**, which the page now takes
   through its constructor like everything else, so a test can put a proposal
   in front of it without writing a run.
+
+### Feature 167 — one place works out what a plant can spare (done)
+
+Feature 158 worked out what another plant could let go of and showed it;
+feature 160 worked it out again, in its own class, to decide what to propose.
+The second one says in a comment that it is "deliberately not a second
+opinion", which is exactly what a second copy of arithmetic is until somebody
+edits one of them. Features 148, 149 and 165 are the same story with a
+different rule each time, and they all end here: the rule gets an object.
+
+- **`ZCL_ALLOC_SPARE` answers `AT_PLANT`**, returning the three numbers as well
+  as the answer: what is on the shelf, what is coming, what is wanted there,
+  and what is therefore spare. The page of feature 158 prints all four, so
+  returning only the spare would have left it working two of them out itself
+  and the extraction would have been half done.
+- **The two copies were not identical, and the difference was invisible.**
+  The page split supply into on-the-shelf and coming so it could show them in
+  separate columns; the proposing added the two together. Both arrive at the
+  same spare, which is why nothing was ever wrong -- but one of them knew
+  about availability dates and the other did not, and only one of them would
+  have been changed by somebody who decided that stock arriving in March is
+  not something to offer today.
+- **The callers take the object, not the two readers.** `ZCL_ALLOC_ELSEWHERE`
+  and `ZCL_ALLOC_PROPOSE` had `IO_SUPPLY` and `IO_DEMAND` for no other purpose
+  than this arithmetic, so handing them one thing that already knows it is the
+  same move features 126 and 127 made for the settings.
+- **A returns line is not a plant owing stock.** Both copies already left
+  negative demand out; it is now a test rather than a line of code repeated in
+  two places, which is the difference between a rule and a coincidence.
+- **The page's "a plant with nothing to give away is not somewhere to look"
+  stays in the page.** It is about what is worth printing, not about what a
+  plant can spare, and a plant with a hundred all of them promised is still
+  listed -- feature 158 decided that deliberately and moving the test would
+  have quietly undone it.

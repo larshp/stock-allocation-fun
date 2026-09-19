@@ -180,6 +180,52 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_open) TYPE abap_bool.
 
+    "! <p class="shorttext synchronized">Forget the lapsed notes past their time</p>
+    "!
+    "! `ZSTOCK_ALLOC_TRF` is otherwise kept for ever, and on purpose: an
+    "! answered proposal is the record of who decided what, and it is what
+    "! stops the same proposal being made again. A lapsed one is neither. It
+    "! records no decision -- that is the whole reason feature 164 gave it a
+    "! status of its own -- and only open notes block a new one.
+    "!
+    "! It is also the row the table fills up with. Since feature 172 every
+    "! plant proposes every night, and a plant that is chronically short of
+    "! something whose shortage keeps resolving itself writes one of these per
+    "! material per night for ever.
+    "!
+    "! They go by the day they were written, so a plant's retention time means
+    "! the same thing here as it does for the recorded runs, and the review of
+    "! feature 177 can still count them for as far back as it can look.
+    "!
+    "! Nothing is committed. The caller decides what one unit of work is.
+    "!
+    "! @parameter iv_werks    | <p class="shorttext synchronized">Plant that was short</p>
+    "! @parameter iv_before   | <p class="shorttext synchronized">Written before this day</p>
+    "! @parameter rv_forgotten | <p class="shorttext synchronized">How many were removed</p>
+    METHODS forget_lapsed
+      IMPORTING
+        iv_werks            TYPE mard-werks
+        iv_before           TYPE d
+      RETURNING
+        VALUE(rv_forgotten) TYPE i.
+
+    "! <p class="shorttext synchronized">How many lapsed notes are past their time</p>
+    "!
+    "! What `FORGET_LAPSED` would remove. A test run of a program that deletes
+    "! things has to be able to say how many without deleting any, and
+    "! counting is the only honest way to answer that: doing the delete and
+    "! rolling it back would be a test run that took locks.
+    "!
+    "! @parameter iv_werks  | <p class="shorttext synchronized">Plant that was short</p>
+    "! @parameter iv_before | <p class="shorttext synchronized">Written before this day</p>
+    "! @parameter rv_count  | <p class="shorttext synchronized">How many there are</p>
+    METHODS lapsed_before
+      IMPORTING
+        iv_werks        TYPE mard-werks
+        iv_before       TYPE d
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
     "! <p class="shorttext synchronized">What a plant has already been asked to send</p>
     "!
     "! The other side of `OPEN_FOR`, which answers for the plant that is
@@ -432,6 +478,39 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
       INTO @DATA(lv_count).
 
     rv_open = xsdbool( lv_count > 0 ).
+
+  ENDMETHOD.
+
+  METHOD forget_lapsed.
+
+    IF iv_before IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DELETE FROM zstock_alloc_trf
+      WHERE to_werks = @iv_werks
+        AND status = @c_status-lapsed
+        AND created_at < @( zcl_alloc_clock=>stamp_of( iv_before ) ).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    rv_forgotten = sy-dbcnt.
+
+  ENDMETHOD.
+
+  METHOD lapsed_before.
+
+    IF iv_before IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT COUNT( * )
+      FROM zstock_alloc_trf
+      WHERE to_werks = @iv_werks
+        AND status = @c_status-lapsed
+        AND created_at < @( zcl_alloc_clock=>stamp_of( iv_before ) )
+      INTO @rv_count.
 
   ENDMETHOD.
 

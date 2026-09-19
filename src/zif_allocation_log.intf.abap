@@ -75,6 +75,17 @@ INTERFACE zif_allocation_log PUBLIC.
     IMPORTING
       iv_closed TYPE i.
 
+  "! <p class="shorttext synchronized">Note how many lapsed proposals were forgotten</p>
+  "!
+  "! A count, for the reason `PROPOSALS_CLOSED` gives, and because unlike the
+  "! closings there is nothing left in the table to look the detail up in
+  "! afterwards -- which is exactly why the count has to be somewhere.
+  "!
+  "! @parameter iv_forgotten | <p class="shorttext synchronized">Lapsed proposals removed</p>
+  METHODS proposals_forgotten
+    IMPORTING
+      iv_forgotten TYPE i.
+
   "! <p class="shorttext synchronized">Note that a recorded run was removed</p>
   "!
   "! Housekeeping is a job of this solution like the allocation itself, and a

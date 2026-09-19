@@ -29,7 +29,11 @@ START-OF-SELECTION.
                               THEN 'Test run, nothing was removed. Would remove'
                               ELSE 'Removed' ) } | &&
               |{ ls_outcome-deleted } run(s), | &&
-              |{ ls_outcome-kept } still in use|.
+              |{ ls_outcome-kept } still in use| &&
+              COND string( WHEN ls_outcome-forgotten > 0
+                           THEN |, and { ls_outcome-forgotten } lapsed | &&
+                                |transfer proposal(s)|
+                           ELSE `` ).
     CATCH zcx_allocation INTO DATA(lx_error).
       WRITE / lx_error->get_text( ).
   ENDTRY.

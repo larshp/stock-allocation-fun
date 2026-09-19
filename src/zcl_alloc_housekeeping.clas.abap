@@ -4,11 +4,13 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! What a housekeeping run did. DELETED counts the runs that were removed,
     "! or would have been removed in a test run; KEPT counts the ones that are
-    "! still needed.
+    "! still needed; FORGOTTEN counts the lapsed transfer proposals that went
+    "! with them.
     TYPES:
       BEGIN OF ty_outcome,
-        deleted TYPE i,
-        kept    TYPE i,
+        deleted   TYPE i,
+        kept      TYPE i,
+        forgotten TYPE i,
       END OF ty_outcome.
 
     "! <p class="shorttext synchronized">Housekeeping wired up the way a plain SAP system needs it</p>
@@ -25,13 +27,15 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_authority   | <p class="shorttext synchronized">Decides who may allocate where</p>
     "! @parameter io_commit      | <p class="shorttext synchronized">Makes each removal durable</p>
     "! @parameter io_log         | <p class="shorttext synchronized">Where the run says what it removed</p>
+    "! @parameter io_transfer    | <p class="shorttext synchronized">Where proposed transfers are written down</p>
     METHODS constructor
       IMPORTING
         io_store       TYPE REF TO zif_allocation_store
         io_reservation TYPE REF TO zif_reservation_reader
         io_authority   TYPE REF TO zif_allocation_authority
         io_commit      TYPE REF TO zif_unit_of_work
-        io_log         TYPE REF TO zif_allocation_log.
+        io_log         TYPE REF TO zif_allocation_log
+        io_transfer    TYPE REF TO zcl_alloc_transfer.
 
     "! <p class="shorttext synchronized">Remove recorded runs that are not doing any work</p>
     "!
@@ -41,6 +45,13 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! reservation was never created, or is gone, can go, and only once it is
     "! older than IV_KEEP_DAYS, so a rejected reservation can still be looked up
     "! and retried for a while.
+    "!
+    "! The lapsed transfer proposals of the same age go too. `ZSTOCK_ALLOC_TRF`
+    "! is otherwise kept for ever because an answered proposal records a
+    "! decision, and a lapsed one records nobody deciding anything: the
+    "! shortage it was written against went away. It is also the row the table
+    "! fills up with, one per material per night in a plant that is
+    "! chronically short of something that keeps arriving.
     "!
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_keep_days   | <p class="shorttext synchronized">Days of history to keep</p>
@@ -76,12 +87,23 @@ CLASS zcl_alloc_housekeeping DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_authority   TYPE REF TO zif_allocation_authority.
     DATA mo_commit      TYPE REF TO zif_unit_of_work.
     DATA mo_log         TYPE REF TO zif_allocation_log.
+    DATA mo_transfer    TYPE REF TO zcl_alloc_transfer.
 
-    METHODS cutoff
+    METHODS cutoff_date
       IMPORTING
         iv_keep_days     TYPE i
       RETURNING
-        VALUE(rv_cutoff) TYPE zstock_alloc_res-created_at.
+        VALUE(rv_cutoff) TYPE d.
+
+    METHODS forgotten
+      IMPORTING
+        iv_werks            TYPE mard-werks
+        iv_before           TYPE d
+        iv_test             TYPE abap_bool
+      RETURNING
+        VALUE(rv_forgotten) TYPE i
+      RAISING
+        zcx_allocation.
 
     METHODS live_by_material
       IMPORTING
@@ -108,7 +130,8 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW zcl_authority_alloc( )
       io_commit      = NEW zcl_unit_of_work( )
-      io_log         = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
+      io_log         = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) )
+      io_transfer    = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
@@ -119,6 +142,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
     mo_authority   = io_authority.
     mo_commit      = io_commit.
     mo_log         = io_log.
+    mo_transfer    = io_transfer.
 
   ENDMETHOD.
 
@@ -135,9 +159,11 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
       mo_log->start( iv_werks ).
     ENDIF.
 
+    DATA(lv_cutoff) = cutoff_date( iv_keep_days ).
+
     DATA(lt_run) = mo_store->runs_recorded_before(
       iv_werks      = iv_werks
-      iv_created_at = cutoff( iv_keep_days ) ).
+      iv_created_at = zcl_alloc_clock=>stamp_of( lv_cutoff ) ).
 
     " asked once per material rather than once per run: a plant that allocates
     " nightly has far more runs on file than materials
@@ -165,16 +191,44 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
 
     ENDLOOP.
 
+    " the lapsed notes are one statement rather than one per note, and their
+    " own unit of work: they hold nothing back, so a run stopped between the
+    " runs and the notes has left a consistent plant behind either way
+    rs_outcome-forgotten = forgotten( iv_werks  = iv_werks
+                                      iv_before = lv_cutoff
+                                      iv_test   = iv_test ).
+
     IF iv_test = abap_false.
       mo_log->save( ).
     ENDIF.
 
   ENDMETHOD.
 
-  METHOD cutoff.
+  METHOD forgotten.
+
+    IF iv_test = abap_true.
+      rv_forgotten = mo_transfer->lapsed_before(
+        iv_werks  = iv_werks
+        iv_before = iv_before ).
+      RETURN.
+    ENDIF.
+
+    rv_forgotten = mo_transfer->forget_lapsed(
+      iv_werks  = iv_werks
+      iv_before = iv_before ).
+
+    IF rv_forgotten = 0.
+      RETURN.
+    ENDIF.
+
+    mo_commit->commit( ).
+    mo_log->proposals_forgotten( rv_forgotten ).
+
+  ENDMETHOD.
+
+  METHOD cutoff_date.
 
     DATA lv_days TYPE i.
-    DATA lv_date TYPE d.
 
     " keeping a negative number of days would mean deleting runs that have not
     " been recorded yet. Nothing recorded today is ever removed.
@@ -183,9 +237,7 @@ CLASS zcl_alloc_housekeeping IMPLEMENTATION.
       CLEAR lv_days.
     ENDIF.
 
-    lv_date = sy-datum - lv_days.
-
-    rv_cutoff = zcl_alloc_clock=>stamp_of( lv_date ).
+    rv_cutoff = sy-datum - lv_days.
 
   ENDMETHOD.
 

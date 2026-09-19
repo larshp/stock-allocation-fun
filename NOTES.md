@@ -244,6 +244,7 @@ in, which is also the order they make sense in.
 177. what the transfers came to
 178. the night's order follows what reads what
 179. the rows that were answered before the field existed
+180. the lapsed notes go with the runs
 
 ## Progress
 
@@ -5199,3 +5200,34 @@ notes, 1 600 asked for, 0 raised".
 - **The write-up of feature 173 is corrected rather than left standing.** A
   claim that was true when it was written and is false now is worse than no
   claim, because somebody will build on it -- which is exactly what happened.
+
+### Feature 180 — the lapsed notes go with the runs (done)
+
+`ZSTOCK_ALLOC_TRF` is kept for ever and feature 164 gave the reason: an
+answered proposal is the record of who decided what, and it is what stops the
+same proposal being made again. Neither is true of a lapsed one. Nobody
+decided anything -- that is the whole point of giving it a status of its own
+-- and only an open note blocks a new one. It is also, since feature 172, the
+row the table fills up with: a plant chronically short of something whose
+shortage keeps resolving itself writes one per material per night, for ever,
+in every plant of the company.
+
+- **They go by the day they were written**, on the plant's own retention time,
+  so the review of feature 177 can still count them for as far back as it is
+  able to look. A retention that meant one thing for runs and another for
+  notes would be two numbers to keep in step.
+- **Answered ones stay, whatever their age.** They are the record, and there
+  are few of them: bounded by how many transfers people actually raise, which
+  is a human number rather than a nightly one.
+- **Open ones stay too**, however long somebody has taken over them. An open
+  note is a question that has been asked, and housekeeping does not get to
+  decide it has been asked for long enough.
+- **One statement, and its own unit of work.** The notes hold nothing back --
+  unlike a recorded run, whose reservation the demand netting reads -- so a
+  reorg stopped between the runs and the notes leaves a consistent plant
+  either way, and there is no reason to delete them one at a time.
+- **A test run counts them rather than deleting and rolling back.** A test run
+  that took locks would not be one.
+- **The diary says how many**, and here it has to: unlike the closings of
+  feature 174, there is nothing left in the table afterwards to look the
+  detail up in.

@@ -182,6 +182,12 @@ CLASS lcl_log_spy IMPLEMENTATION.
       text = |{ iv_closed }| ) TO mt_entry.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposals_forgotten.
+    APPEND VALUE #(
+      kind = `forgotten`
+      text = |{ iv_forgotten }| ) TO mt_entry.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     APPEND VALUE #(
       kind = `removed`

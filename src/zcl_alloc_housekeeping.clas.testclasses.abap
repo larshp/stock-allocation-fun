@@ -90,10 +90,15 @@ CLASS lcl_log_spy DEFINITION FINAL.
       RETURNING
         VALUE(rv_saves) TYPE i.
 
+    METHODS get_forgotten
+      RETURNING
+        VALUE(rv_forgotten) TYPE i.
+
   PRIVATE SECTION.
-    DATA mt_removed TYPE ty_run_tab.
-    DATA mv_starts  TYPE i.
-    DATA mv_saves   TYPE i.
+    DATA mt_removed  TYPE ty_run_tab.
+    DATA mv_starts   TYPE i.
+    DATA mv_saves    TYPE i.
+    DATA mv_forgotten TYPE i.
 
 ENDCLASS.
 
@@ -110,6 +115,10 @@ CLASS lcl_log_spy IMPLEMENTATION.
 
   METHOD get_saves.
     rv_saves = mv_saves.
+  ENDMETHOD.
+
+  METHOD get_forgotten.
+    rv_forgotten = mv_forgotten.
   ENDMETHOD.
 
   METHOD zif_allocation_log~start.
@@ -138,6 +147,10 @@ CLASS lcl_log_spy IMPLEMENTATION.
 
   METHOD zif_allocation_log~proposals_closed.
     CLEAR mv_starts.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_forgotten.
+    mv_forgotten = mv_forgotten + iv_forgotten.
   ENDMETHOD.
 
   METHOD zif_allocation_log~removed.
@@ -169,9 +182,10 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
     "! Well before any cut-off the tests work with.
     CONSTANTS c_long_ago TYPE zstock_alloc_res-created_at VALUE '20200101120000'.
 
-    DATA mo_cut    TYPE REF TO zcl_alloc_housekeeping.
-    DATA mo_commit TYPE REF TO lcl_commit_double.
-    DATA mo_log    TYPE REF TO lcl_log_spy.
+    DATA mo_cut      TYPE REF TO zcl_alloc_housekeeping.
+    DATA mo_commit   TYPE REF TO lcl_commit_double.
+    DATA mo_log      TYPE REF TO lcl_log_spy.
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
 
     METHODS setup.
     METHODS teardown.
@@ -213,6 +227,27 @@ CLASS ltcl_housekeeping DEFINITION FINAL FOR TESTING
     METHODS each_removal_is_committed FOR TESTING RAISING cx_static_check.
     METHODS a_removal_is_written_down FOR TESTING RAISING cx_static_check.
     METHODS a_test_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
+    METHODS an_old_lapsed_note_goes FOR TESTING RAISING cx_static_check.
+    METHODS a_recent_lapsed_note_stays FOR TESTING RAISING cx_static_check.
+    METHODS an_answered_note_stays FOR TESTING RAISING cx_static_check.
+    METHODS an_open_note_stays FOR TESTING RAISING cx_static_check.
+    METHODS another_plants_note_stays FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_forgets_nothing FOR TESTING RAISING cx_static_check.
+    METHODS the_diary_counts_them FOR TESTING RAISING cx_static_check.
+
+    METHODS given_lapsed_note
+      IMPORTING
+        iv_werks           TYPE mard-werks DEFAULT c_werks
+        iv_created_at      TYPE zstock_alloc_trf-created_at DEFAULT c_long_ago
+        iv_status          TYPE zstock_alloc_trf-status DEFAULT 'L'
+      RETURNING
+        VALUE(rv_proposal) TYPE zstock_alloc_trf-proposal
+      RAISING
+        zcx_allocation.
+
+    METHODS notes_left
+      RETURNING
+        VALUE(rv_count) TYPE i.
 
 ENDCLASS.
 
@@ -221,19 +256,171 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
 
   METHOD setup.
 
-    mo_commit = NEW #( ).
-    mo_log    = NEW #( ).
+    mo_commit   = NEW #( ).
+    mo_log      = NEW #( ).
+    mo_transfer = NEW zcl_alloc_transfer( ).
 
     mo_cut = NEW zcl_alloc_housekeeping(
       io_store       = NEW zcl_allocation_store( )
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW lcl_authority_double( )
       io_commit      = mo_commit
-      io_log         = mo_log ).
+      io_log         = mo_log
+      io_transfer    = mo_transfer ).
+
+  ENDMETHOD.
+
+  METHOD given_lapsed_note.
+
+    rv_proposal = mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = iv_werks
+      iv_from_werks = c_werks_2
+      iv_quantity   = '40' ).
+
+    " the day it was written is what decides whether it is past its time, and
+    " a note written this second never is
+    UPDATE zstock_alloc_trf
+      SET status     = @iv_status,
+          created_at = @iv_created_at
+      WHERE proposal = @rv_proposal.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD notes_left.
+
+    SELECT COUNT( * )
+      FROM zstock_alloc_trf
+      WHERE matnr = @c_matnr
+      INTO @rv_count.
+
+  ENDMETHOD.
+
+  METHOD an_old_lapsed_note_goes.
+
+    " a lapsed note records nobody deciding anything, and it is the row the
+    " table fills up with now that every plant proposes every night
+    given_lapsed_note( ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD a_recent_lapsed_note_stays.
+
+    " the retention time means the same thing here as for the recorded runs,
+    " so the review of feature 177 can still count them as far back as it looks
+    given_lapsed_note( iv_created_at = zcl_alloc_clock=>stamp_of( sy-datum ) ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD an_answered_note_stays.
+
+    " whatever its age: it is the record of who decided what, which is why
+    " ZSTOCK_ALLOC_TRF is not reorganised in the first place
+    given_lapsed_note( iv_status = zcl_alloc_transfer=>c_status-done ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD an_open_note_stays.
+
+    " an open one is somebody's question, however long they have taken over it
+    given_lapsed_note( iv_status = zcl_alloc_transfer=>c_status-open ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD another_plants_note_stays.
+
+    " housekeeping is asked about a plant and the authority check is about
+    " that plant, so it must not reach into anybody else's records
+    given_lapsed_note( iv_werks = c_werks_2 ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_forgets_nothing.
+
+    given_lapsed_note( ).
+
+    DATA(ls_outcome) = mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_outcome-forgotten
+      exp = 1
+      msg = 'and says how many it would have forgotten' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = notes_left( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_diary_counts_them.
+
+    " nothing is left in the table to look the detail up in afterwards, which
+    " is exactly why the count has to be somewhere
+    given_lapsed_note( ).
+
+    mo_cut->run(
+      iv_werks     = c_werks
+      iv_keep_days = c_keep_days
+      iv_test      = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->get_forgotten( )
+      exp = 1 ).
 
   ENDMETHOD.
 
   METHOD teardown.
+
+    DELETE FROM zstock_alloc_trf WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
 
     DELETE FROM zstock_alloc_res WHERE matnr = @c_matnr.
     cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
@@ -516,7 +703,8 @@ CLASS ltcl_housekeeping IMPLEMENTATION.
       io_reservation = NEW zcl_reservation_reader( )
       io_authority   = NEW lcl_authority_double( abap_true )
       io_commit      = NEW lcl_commit_double( )
-      io_log         = NEW lcl_log_spy( ) ).
+      io_log         = NEW lcl_log_spy( )
+      io_transfer    = NEW zcl_alloc_transfer( ) ).
 
     TRY.
         lo_cut->run(

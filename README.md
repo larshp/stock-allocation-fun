@@ -148,7 +148,7 @@ five of which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_MOVE`  | the transfers waiting for an answer, soonest wanted first, with the day each is needed by, who proposed it and why, what the sending plant can spare today, and which of them are for a shortage that has since gone or for stock that has; naming one of them answers it, raised — for the quantity actually agreed, which need not be the one proposed — or decided against, and ticking the box closes every one whose shortage has gone |
 | `ZSTOCK_ALLOC_ORPH`  | gives back stock still earmarked for demand that has gone from the documents |
 | `ZSTOCK_ALLOC_FREE`  | gives a material's earmarked stock back by hand, for when it is wanted for something the run knows nothing about |
-| `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back |
+| `ZSTOCK_ALLOC_REORG` | removes recorded runs past the retention time that hold nothing back, and the lapsed transfer proposals of the same age |
 
 ### For callers that are not people
 
@@ -268,9 +268,13 @@ configured, so both are delivery class `A` and neither belongs in a transport:
 | `ZSTOCK_ALLOC_TRF`   | transfers somebody has proposed between plants, the day each is needed by, how much was raised where one was, and whether they were raised, decided against, lapsed because the shortage went away, or are still waiting for an answer |
 
 `ZSTOCK_ALLOC_RES` is cleared by `ZSTOCK_ALLOC_REORG` once a run is past the
-retention time and holds nothing back. `ZSTOCK_ALLOC_TRF` is not: a proposal
-answered last year is the record of who decided what, and it is what stops the
-same proposal being made again.
+retention time and holds nothing back. `ZSTOCK_ALLOC_TRF` mostly is not: a
+proposal answered last year is the record of who decided what, and it is what
+stops the same proposal being made again. The exception is a proposal that
+lapsed — nobody decided anything, the shortage it was written against went
+away — and those go with the runs of the same age, because they record no
+decision, block nothing, and are the row the table fills up with now that
+every plant proposes every night.
 
 ## Authorization
 

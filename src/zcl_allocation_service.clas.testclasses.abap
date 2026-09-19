@@ -318,6 +318,10 @@ CLASS lcl_log_spy IMPLEMENTATION.
     mv_other = mv_other + 1.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposals_forgotten.
+    mv_other = mv_other + 1.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     mv_other = mv_other + 1.
   ENDMETHOD.

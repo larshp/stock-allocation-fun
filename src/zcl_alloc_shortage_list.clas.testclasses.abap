@@ -88,10 +88,13 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
     CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+    CONSTANTS c_there TYPE mard-werks VALUE '2000'.
 
     DATA mo_authority TYPE REF TO lcl_authority_double.
+    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
 
     METHODS setup.
+    METHODS teardown.
 
     METHODS recorded
       IMPORTING
@@ -129,6 +132,11 @@ CLASS ltcl_shortage_list DEFINITION FINAL FOR TESTING
     METHODS the_plant_is_checked FOR TESTING RAISING cx_static_check.
     METHODS how_long_it_has_been_short FOR TESTING RAISING cx_static_check.
     METHODS the_chronic_can_come_first FOR TESTING RAISING cx_static_check.
+    METHODS a_proposed_one_says_so FOR TESTING RAISING cx_static_check.
+    METHODS an_unproposed_one_is_quiet FOR TESTING RAISING cx_static_check.
+    METHODS the_notes_of_a_material_add_up FOR TESTING RAISING cx_static_check.
+    METHODS another_material_is_its_own FOR TESTING RAISING cx_static_check.
+    METHODS the_footer_counts_them FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -137,6 +145,14 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
 
   METHOD setup.
     mo_authority = NEW lcl_authority_double( ).
+    mo_transfer  = NEW zcl_alloc_transfer( ).
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM zstock_alloc_trf WHERE to_werks = @c_werks.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
   ENDMETHOD.
 
   METHOD recorded.
@@ -158,7 +174,8 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_shortage_list(
       io_store     = NEW lcl_store_double( it_recorded )
-      io_authority = mo_authority ).
+      io_authority = mo_authority
+      io_transfer  = mo_transfer ).
 
     rt_line = lo_cut->run(
       iv_werks = c_werks
@@ -467,4 +484,118 @@ CLASS ltcl_shortage_list IMPLEMENTATION.
       exp = '*CHRONIC-MAT*' ).
 
   ENDMETHOD.
+
+  METHOD a_proposed_one_says_so.
+
+    " a planner working down this list must not spend the morning finding out
+    " one line at a time that the night already did something about it
+    mo_transfer->propose(
+      iv_matnr      = 'MAT-1'
+      iv_to_werks   = c_werks
+      iv_from_werks = c_there
+      iv_quantity   = '25' ).
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'MAT-1'
+                  iv_demand_id = 'D1'
+                  iv_short     = '40' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*proposed 25.000*' ).
+
+  ENDMETHOD.
+
+  METHOD an_unproposed_one_is_quiet.
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'MAT-1'
+                  iv_demand_id = 'D1'
+                  iv_short     = '40' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_false(
+      act = xsdbool( lt_line[ 3 ] CP '*proposed*' )
+      msg = 'a column of blanks is what says which ones are not in hand' ).
+
+  ENDMETHOD.
+
+  METHOD the_notes_of_a_material_add_up.
+
+    " two plants were asked for part of it each, and what the planner wants
+    " to know is how much of the shortage is spoken for
+    mo_transfer->propose(
+      iv_matnr      = 'MAT-1'
+      iv_to_werks   = c_werks
+      iv_from_werks = c_there
+      iv_quantity   = '25' ).
+    mo_transfer->propose(
+      iv_matnr      = 'MAT-1'
+      iv_to_werks   = c_werks
+      iv_from_werks = '3000'
+      iv_quantity   = '15' ).
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'MAT-1'
+                  iv_demand_id = 'D1'
+                  iv_short     = '40' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*proposed 40.000*' ).
+
+  ENDMETHOD.
+
+  METHOD another_material_is_its_own.
+
+    " the answer is remembered per material, so a list of several of them
+    " must not carry the first one's answer down the page
+    mo_transfer->propose(
+      iv_matnr      = 'MAT-1'
+      iv_to_werks   = c_werks
+      iv_from_werks = c_there
+      iv_quantity   = '25' ).
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'MAT-1'
+                  iv_demand_id = 'D1'
+                  iv_short     = '40'
+                  iv_req_date  = '20260301' ) )
+      ( recorded( iv_matnr     = 'MAT-2'
+                  iv_demand_id = 'D2'
+                  iv_short     = '40'
+                  iv_req_date  = '20260302' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ 3 ]
+      exp = '*MAT-1*proposed 25.000*' ).
+    cl_abap_unit_assert=>assert_false( xsdbool( lt_line[ 4 ] CP '*proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD the_footer_counts_them.
+
+    " a long list is scanned rather than read, and the number says how much
+    " of the morning is already somebody's
+    mo_transfer->propose(
+      iv_matnr      = 'MAT-1'
+      iv_to_werks   = c_werks
+      iv_from_werks = c_there
+      iv_quantity   = '25' ).
+
+    DATA(lt_line) = list_of( VALUE #(
+      ( recorded( iv_matnr     = 'MAT-1'
+                  iv_demand_id = 'D1'
+                  iv_short     = '40'
+                  iv_req_date  = '20260301' ) )
+      ( recorded( iv_matnr     = 'MAT-2'
+                  iv_demand_id = 'D2'
+                  iv_short     = '40'
+                  iv_req_date  = '20260302' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_char_cp(
+      act = lt_line[ lines( lt_line ) ]
+      exp = '*1 with a transfer proposed*' ).
+
+  ENDMETHOD.
+
 ENDCLASS.

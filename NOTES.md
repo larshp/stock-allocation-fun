@@ -239,6 +239,7 @@ in, which is also the order they make sense in.
 172. the proposing covers every plant in one go
 173. a transfer raised for less than was asked
 174. the proposing keeps a diary too
+175. the morning list says what is already in hand
 
 ## Progress
 
@@ -5045,3 +5046,32 @@ whole company -- and it had nothing but its spool.
   knows how to write to it; a second interface would have meant a second BAL
   implementation, and the null object of feature 40 would have needed a twin.
   A caller uses the verbs that fit its job, which housekeeping already does.
+
+### Feature 175 — the morning list says what is already in hand (done)
+
+`ZSTOCK_ALLOC_SHORT` is the page a planner actually works down, and since
+feature 160 the night has been quietly doing something about some of it. The
+page said nothing, so the morning went: pick the worst line, work out that
+another plant has it, go to raise a transfer, find a note already waiting.
+Feature 158 marks the rows it has made notes about for exactly this reason;
+the page that matters most did not.
+
+- **It says how much, not just that there is one.** A line short forty with a
+  note for ten is a line still worth chasing, and one with a note for forty is
+  not. "Proposed" alone would have made the two look the same.
+- **Every open note for the material counts**, added up. Since feature 169 a
+  shortage can be split across two plants, and what the planner wants to know
+  is how much of the hole is spoken for, not which plants were asked -- that
+  is `ZSTOCK_ALLOC_MOVE`.
+- **The answer is remembered per material**, the way the wait of feature 133
+  already was and for the same reason: the list is in material order, so every
+  line of a material asks the same question. A test says the second material
+  does not inherit the first one's answer, which is the failure that kind of
+  cache has.
+- **The footer counts the lines that are in hand**, because a long list is
+  scanned rather than read and "nine of forty are somebody's already" changes
+  how the morning starts.
+- **It is a marker, not a filter.** Hiding them would be deciding for the
+  planner that a proposed transfer is a solved problem, and a proposal is a
+  question somebody has not answered yet -- which is what features 163 and 168
+  keep being about.

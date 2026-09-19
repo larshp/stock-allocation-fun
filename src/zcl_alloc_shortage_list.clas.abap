@@ -15,10 +15,12 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "!
     "! @parameter io_store     | <p class="shorttext synchronized">Where runs are recorded</p>
     "! @parameter io_authority | <p class="shorttext synchronized">Decides who may see a plant</p>
+    "! @parameter io_transfer  | <p class="shorttext synchronized">Where proposed transfers are written down</p>
     METHODS constructor
       IMPORTING
         io_store     TYPE REF TO zif_allocation_store
-        io_authority TYPE REF TO zif_allocation_authority.
+        io_authority TYPE REF TO zif_allocation_authority
+        io_transfer  TYPE REF TO zcl_alloc_transfer.
 
     "! Longest waiting first, for a planner chasing the chronic ones rather
     "! than the urgent ones. Anything else is the soonest wanted first.
@@ -30,6 +32,12 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! answers the other question a planner has in the morning: what is short
     "! across the whole plant, worst first, and what to do about each of them.
     "! It reads the last recorded run per material and changes nothing.
+    "!
+    "! A line whose material somebody has already proposed a transfer for says
+    "! so, with how much has been asked for. This is the page a planner works
+    "! through, and without it they spend the morning discovering one at a
+    "! time that the night already did something about half of it -- the same
+    "! reason feature 158 marks the rows it has made notes about.
     "!
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant</p>
     "! @parameter iv_until       | <p class="shorttext synchronized">Only lines wanted by this day, all if empty</p>
@@ -73,6 +81,12 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mt_since    TYPE zcl_demand_aging=>ty_waiting_tab.
     DATA mv_since_of TYPE mard-matnr.
     DATA mo_authority TYPE REF TO zif_allocation_authority.
+    DATA mo_transfer  TYPE REF TO zcl_alloc_transfer.
+
+    "! What is on open notes for the material whose lines are being written
+    "! now, kept for the same reason and in the same way as MT_SINCE.
+    DATA mv_asked     TYPE zif_allocation=>ty_quantity.
+    DATA mv_asked_of  TYPE mard-matnr.
 
     "! A short line with the wait that goes with it: what the list shows and
     "! what one of its two orders sorts by.
@@ -107,6 +121,7 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_uom         TYPE string
         iv_since       TYPE string
         iv_reason      TYPE string
+        iv_asked       TYPE string
       RETURNING
         VALUE(rv_line) TYPE string.
 
@@ -115,6 +130,13 @@ CLASS zcl_alloc_shortage_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr      TYPE mard-matnr
       RETURNING
         VALUE(rv_uom) TYPE string.
+
+    METHODS asked_for
+      IMPORTING
+        iv_matnr           TYPE mard-matnr
+        iv_werks           TYPE mard-werks
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
 
     METHODS since_of
       IMPORTING
@@ -139,7 +161,8 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
 
     ro_list = NEW zcl_alloc_shortage_list(
       io_store     = NEW zcl_allocation_store( )
-      io_authority = NEW zcl_authority_alloc( c_activity_display ) ).
+      io_authority = NEW zcl_authority_alloc( c_activity_display )
+      io_transfer  = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
@@ -148,6 +171,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
     mo_store     = io_store.
     mo_converter = NEW zcl_unit_converter( ).
     mo_authority = io_authority.
+    mo_transfer  = io_transfer.
 
   ENDMETHOD.
 
@@ -155,6 +179,7 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
 
     DATA lv_short TYPE zif_allocation=>ty_quantity.
     DATA lv_shown TYPE i.
+    DATA lv_inhand TYPE i.
 
     mo_authority->check_plant( iv_werks ).
 
@@ -181,7 +206,8 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       iv_short  = `Short`
       iv_uom    = `Unit`
       iv_since  = `Short since`
-      iv_reason = `Why` ) TO rt_line.
+      iv_reason = `Why`
+      iv_asked  = `In hand` ) TO rt_line.
 
     LOOP AT lt_short INTO DATA(ls_short).
 
@@ -194,6 +220,13 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
       lv_shown = lv_shown + 1.
       lv_short = lv_short + ls_short-line-shortfall.
 
+      DATA(lv_asked) = asked_for(
+        iv_matnr = ls_short-line-matnr
+        iv_werks = iv_werks ).
+      IF lv_asked > 0.
+        lv_inhand = lv_inhand + 1.
+      ENDIF.
+
       APPEND format_row(
         iv_date   = date_text( ls_short-line-req_date )
         iv_matnr  = |{ ls_short-line-matnr }|
@@ -203,13 +236,18 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
         iv_uom    = unit_of( ls_short-line-matnr )
         iv_since  = COND string( WHEN ls_short-waiting <> c_no_wait
                                  THEN |{ ls_short-waiting DATE = ISO }| )
-        iv_reason = zcl_alloc_reason_text=>text( ls_short-line-reason ) ) TO rt_line.
+        iv_reason = zcl_alloc_reason_text=>text( ls_short-line-reason )
+        iv_asked  = COND string( WHEN lv_asked > 0
+                                 THEN |proposed { lv_asked }| ) ) TO rt_line.
 
     ENDLOOP.
 
     APPEND || TO rt_line.
     APPEND |{ lv_shown } of { lines( lt_short ) } short lines shown, | &&
-           |{ lv_short } short in what is shown| TO rt_line.
+           |{ lv_short } short in what is shown| &&
+           COND string( WHEN lv_inhand > 0
+                        THEN |, { lv_inhand } with a transfer proposed|
+                        ELSE `` ) TO rt_line.
 
   ENDMETHOD.
 
@@ -319,7 +357,31 @@ CLASS zcl_alloc_shortage_list IMPLEMENTATION.
            && |{ iv_short WIDTH = c_width_qty ALIGN = RIGHT }|
            && | { iv_uom WIDTH = c_width_uom }|
            && |  { iv_since WIDTH = c_width_date }|
-           && |{ iv_reason WIDTH = c_width_why }|.
+           && |{ iv_reason WIDTH = c_width_why }|
+           && |{ iv_asked }|.
+
+  ENDMETHOD.
+
+  METHOD asked_for.
+
+    " one read per material, for the reason SINCE_OF gives: the list is in
+    " material order, so every line of a material asks the same question and
+    " the answer is the same for all of them
+    IF mv_asked_of = iv_matnr AND iv_matnr IS NOT INITIAL.
+      rv_quantity = mv_asked.
+      RETURN.
+    ENDIF.
+
+    CLEAR mv_asked.
+
+    LOOP AT mo_transfer->open_for(
+        iv_werks = iv_werks
+        iv_matnr = iv_matnr ) INTO DATA(ls_open).
+      mv_asked = mv_asked + ls_open-quantity.
+    ENDLOOP.
+
+    mv_asked_of = iv_matnr.
+    rv_quantity = mv_asked.
 
   ENDMETHOD.
 

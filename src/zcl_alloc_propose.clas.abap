@@ -20,6 +20,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_lapse    | <p class="shorttext synchronized">Closes the ones whose shortage has gone</p>
     "! @parameter io_commit   | <p class="shorttext synchronized">What makes a proposal durable</p>
     "! @parameter io_log      | <p class="shorttext synchronized">Where the run says what it wrote down</p>
+    "! @parameter io_plants   | <p class="shorttext synchronized">Which other plants could hold it</p>
     METHODS constructor
       IMPORTING
         io_spare    TYPE REF TO zcl_alloc_spare
@@ -28,7 +29,8 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_transfer TYPE REF TO zcl_alloc_transfer
         io_lapse    TYPE REF TO zcl_alloc_lapse
         io_commit   TYPE REF TO zif_unit_of_work
-        io_log      TYPE REF TO zif_allocation_log.
+        io_log      TYPE REF TO zif_allocation_log
+        io_plants   TYPE REF TO zcl_alloc_other_plants.
 
     "! <p class="shorttext synchronized">Write down the transfers that would help</p>
     "!
@@ -129,8 +131,6 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_short.
     TYPES ty_short_tab TYPE STANDARD TABLE OF ty_short WITH EMPTY KEY.
 
-    TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
-
     DATA mo_spare    TYPE REF TO zcl_alloc_spare.
     DATA mo_store    TYPE REF TO zif_allocation_store.
     DATA mo_visible  TYPE REF TO zcl_alloc_visible.
@@ -138,6 +138,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
     DATA mo_commit   TYPE REF TO zif_unit_of_work.
     DATA mo_log      TYPE REF TO zif_allocation_log.
+    DATA mo_plants   TYPE REF TO zcl_alloc_other_plants.
 
     "! How many proposals this run has written down, so that the footer and
     "! the commit agree with what the lines say.
@@ -149,13 +150,6 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr        TYPE mard-matnr
       RETURNING
         VALUE(rt_short) TYPE ty_short_tab.
-
-    METHODS other_plants
-      IMPORTING
-        iv_matnr        TYPE mard-matnr
-        iv_werks        TYPE mard-werks
-      RETURNING
-        VALUE(rt_werks) TYPE ty_werks_tab.
 
     METHODS lines_for
       IMPORTING
@@ -196,7 +190,8 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
         io_transfer = lo_transfer
         io_store    = lo_store )
       io_commit   = NEW zcl_unit_of_work( )
-      io_log      = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
+      io_log      = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) )
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
   ENDMETHOD.
 
@@ -209,6 +204,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     mo_lapse    = io_lapse.
     mo_commit   = io_commit.
     mo_log      = io_log.
+    mo_plants   = io_plants.
 
   ENDMETHOD.
 
@@ -266,6 +262,11 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
       ENDIF.
       RETURN.
     ENDIF.
+
+    " one read of MARC for the whole plant rather than one per material, and
+    " since feature 172 the same object carries over to the next plant
+    mo_plants->preload( VALUE #(
+      FOR ls_each IN lt_short ( ls_each-matnr ) ) ).
 
     LOOP AT lt_short INTO DATA(ls_short).
       APPEND LINES OF lines_for(
@@ -378,21 +379,6 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD other_plants.
-
-    SELECT werks
-      FROM marc
-      WHERE matnr = @iv_matnr
-        AND werks <> @iv_werks
-        AND lvorm = @space
-      ORDER BY werks
-      INTO TABLE @rt_werks.
-    IF sy-subrc <> 0.
-      CLEAR rt_werks.
-    ENDIF.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
     DATA lv_quantity TYPE zif_allocation=>ty_quantity.
@@ -418,7 +404,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
     ENDLOOP.
 
-    LOOP AT other_plants(
+    LOOP AT mo_plants->others(
         iv_matnr = is_short-matnr
         iv_werks = iv_werks ) INTO DATA(lv_werks).
 

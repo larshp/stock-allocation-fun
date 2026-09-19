@@ -298,7 +298,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
       io_visible  = NEW zcl_alloc_visible( mo_authority )
       io_transfer = mo_transfer
-      io_planner  = NEW zcl_alloc_planner( ) ).
+      io_planner  = NEW zcl_alloc_planner( )
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
     rt_line = lo_cut->run( c_here ).
 
@@ -417,7 +418,8 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
           confirmed = '10' shortfall = 0 ) ) )
       io_visible  = NEW zcl_alloc_visible( mo_authority )
       io_transfer = mo_transfer
-      io_planner  = NEW zcl_alloc_planner( ) ).
+      io_planner  = NEW zcl_alloc_planner( )
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
     DATA(lt_line) = lo_cut->run( c_here ).
 

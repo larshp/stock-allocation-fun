@@ -240,6 +240,7 @@ in, which is also the order they make sense in.
 173. a transfer raised for less than was asked
 174. the proposing keeps a diary too
 175. the morning list says what is already in hand
+176. the plants that could help are read once
 
 ## Progress
 
@@ -5075,3 +5076,28 @@ the page that matters most did not.
   planner that a proposed transfer is a solved problem, and a proposal is a
   question somebody has not answered yet -- which is what features 163 and 168
   keep being about.
+
+### Feature 176 — the plants that could help are read once (done)
+
+`MARC` was read once per material to find out which other plants hold it, in
+two classes with the same statement in each. Feature 172 turned that from a
+nuisance into arithmetic worth doing: a company of twenty plants with forty
+short materials apiece is eight hundred reads in one nightly job, and every
+one of them asks about a table the run has already been through.
+
+- **`PRELOAD` before the loop, `OTHERS` inside it.** Both callers already work
+  from a list of what is short, so the list is known before the first question
+  is asked. `OTHERS` still answers on its own for a caller that has no list,
+  which keeps the object honest rather than a two step ritual.
+- **The asking plant is left out at the answer, not at the read.** That is
+  what lets one object serve a run that walks every plant in turn: the old
+  `WHERE werks <> @iv_werks` would have needed a read per plant as well as per
+  material, which is the eight hundred again.
+- **A material nobody has anywhere is an answered question**, so it goes on
+  the known list whatever the read returns. Otherwise every such material is
+  re-read on each of its lines, which is the case where the caching would have
+  helped most and did not.
+- **Feature 29 was the same lesson about the material master**, 82 about the
+  holds, 83 about the plant's tables and 111 about the newest two. This is the
+  fifth, and the first where the duplication and the read count were the same
+  defect: two classes each doing it per material.

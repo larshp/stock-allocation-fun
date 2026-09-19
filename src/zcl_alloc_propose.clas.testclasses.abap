@@ -440,7 +440,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
         io_transfer = mo_transfer
         io_store    = lo_store )
       io_commit   = mo_commit
-      io_log      = mo_log ).
+      io_log      = mo_log
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
     rt_line = lo_cut->run(
       iv_werks = c_here
@@ -907,7 +908,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
         io_transfer = mo_transfer
         io_store    = lo_store )
       io_commit   = mo_commit
-      io_log      = mo_log ).
+      io_log      = mo_log
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
     rt_line = lo_cut->run_everywhere( iv_test ).
 

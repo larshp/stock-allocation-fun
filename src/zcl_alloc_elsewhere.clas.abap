@@ -18,13 +18,15 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_visible  | <p class="shorttext synchronized">Which plants the user may see</p>
     "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
     "! @parameter io_planner  | <p class="shorttext synchronized">Who looks after it over there</p>
+    "! @parameter io_plants   | <p class="shorttext synchronized">Which other plants could hold it</p>
     METHODS constructor
       IMPORTING
         io_spare    TYPE REF TO zcl_alloc_spare
         io_store    TYPE REF TO zif_allocation_store
         io_visible  TYPE REF TO zcl_alloc_visible
         io_transfer TYPE REF TO zcl_alloc_transfer
-        io_planner  TYPE REF TO zcl_alloc_planner.
+        io_planner  TYPE REF TO zcl_alloc_planner
+        io_plants   TYPE REF TO zcl_alloc_other_plants.
 
     "! <p class="shorttext synchronized">Which other plants have what this one is short of</p>
     "!
@@ -82,13 +84,12 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
       END OF ty_short.
     TYPES ty_short_tab TYPE STANDARD TABLE OF ty_short WITH EMPTY KEY.
 
-    TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
-
     DATA mo_spare    TYPE REF TO zcl_alloc_spare.
     DATA mo_store    TYPE REF TO zif_allocation_store.
     DATA mo_visible  TYPE REF TO zcl_alloc_visible.
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
     DATA mo_planner  TYPE REF TO zcl_alloc_planner.
+    DATA mo_plants   TYPE REF TO zcl_alloc_other_plants.
 
     METHODS short_materials
       IMPORTING
@@ -96,13 +97,6 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
         iv_matnr        TYPE mard-matnr
       RETURNING
         VALUE(rt_short) TYPE ty_short_tab.
-
-    METHODS other_plants
-      IMPORTING
-        iv_matnr        TYPE mard-matnr
-        iv_werks        TYPE mard-werks
-      RETURNING
-        VALUE(rt_werks) TYPE ty_werks_tab.
 
     METHODS lines_for
       IMPORTING
@@ -155,7 +149,8 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       io_visible  = NEW zcl_alloc_visible(
         NEW zcl_authority_alloc( c_activity_display ) )
       io_transfer = NEW zcl_alloc_transfer( )
-      io_planner  = NEW zcl_alloc_planner( ) ).
+      io_planner  = NEW zcl_alloc_planner( )
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
 
   ENDMETHOD.
 
@@ -166,6 +161,7 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
     mo_visible  = io_visible.
     mo_transfer = io_transfer.
     mo_planner  = io_planner.
+    mo_plants   = io_plants.
 
   ENDMETHOD.
 
@@ -183,6 +179,11 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       APPEND `Nothing was short in the last run` TO rt_line.
       RETURN.
     ENDIF.
+
+    " the plants that could hold any of them, in one read rather than one per
+    " material: the page is about a plant's whole morning
+    mo_plants->preload( VALUE #(
+      FOR ls_each IN lt_short ( ls_each-matnr ) ) ).
 
     LOOP AT lt_short INTO DATA(ls_short).
       APPEND LINES OF lines_for(
@@ -225,30 +226,12 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD other_plants.
-
-    " a plant that has the material extended to it is a plant that could hold
-    " it. One flagged for deletion there is on its way out and is not somewhere
-    " to move goods to or from.
-    SELECT werks
-      FROM marc
-      WHERE matnr = @iv_matnr
-        AND werks <> @iv_werks
-        AND lvorm = @space
-      ORDER BY werks
-      INTO TABLE @rt_werks.
-    IF sy-subrc <> 0.
-      CLEAR rt_werks.
-    ENDIF.
-
-  ENDMETHOD.
-
   METHOD lines_for.
 
     DATA lv_covers TYPE zif_allocation=>ty_quantity.
     DATA lt_row    TYPE ty_line_tab.
 
-    LOOP AT other_plants(
+    LOOP AT mo_plants->others(
         iv_matnr = is_short-matnr
         iv_werks = iv_werks ) INTO DATA(lv_werks).
 

@@ -315,6 +315,38 @@ Project decisions and progress live in [NOTES.md](NOTES.md).
   does with every header field that is not supplied. That is the better code
   anyway; the anomaly only decided it sooner.
 
+## 2m. A one column `SELECT ... INTO TABLE @DATA(...)` gives a table of structures
+
+- **Versions:** `@abaplint/transpiler-cli` 2.13.60
+- **Symptom:** in ABAP, a `SELECT` of a single column into an inline internal
+  table gives a table with an *elementary* line type, so the rows can be used
+  as numbers straight away:
+
+  ```abap
+  SELECT quantity FROM zstock_alloc_trf WHERE ... INTO TABLE @DATA(lt_quantity).
+  LOOP AT lt_quantity INTO DATA(lv_quantity).
+    rv_total = rv_total + lv_quantity.
+  ENDLOOP.
+  ```
+
+  abaplint accepts it. The transpiled code fails at run time with
+
+  ```
+  TypeError: val.get is not a function
+      at Object.add (@abaplint/runtime/build/src/operators/add.js)
+  ```
+
+  because the row that comes back is a structure with one component rather
+  than the number itself.
+- **Where it hides:** only inline declarations. A table declared with a line
+  type of its own behaves the way ABAP does, whichever shape that line type
+  has.
+- **How it was caught:** feature 170 added up the open transfer notes against
+  a plant. The failure is loud and immediate, which makes this one of the
+  kinder defects in this file.
+- **Workaround:** spell the line type out. Done in
+  `src/zcl_alloc_transfer.clas.abap`, whose `TY_NOTE` exists only for this.
+
 ## 3. Secondary index fields are not checked
 
 - **Versions:** `@abaplint/cli` 2.120.26

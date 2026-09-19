@@ -352,10 +352,12 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
 
       " the same object the page of feature 158 asks, and deliberately not a
       " second opinion about it: a proposal that offered a quantity the page
-      " does not show would be a proposal nobody could check
+      " does not show would be a proposal nobody could check. FREE rather than
+      " SPARE, because stock another plant has already been told to take is
+      " not stock this one can be told to take as well.
       DATA(lv_spare) = mo_spare->at_plant(
         iv_matnr = is_short-matnr
-        iv_werks = lv_werks )-spare.
+        iv_werks = lv_werks )-free.
 
       IF lv_spare <= 0.
         CONTINUE.

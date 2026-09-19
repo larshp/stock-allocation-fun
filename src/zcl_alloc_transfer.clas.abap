@@ -142,7 +142,34 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rv_open) TYPE abap_bool.
 
+    "! <p class="shorttext synchronized">What a plant has already been asked to send</p>
+    "!
+    "! The other side of `OPEN_FOR`, which answers for the plant that is
+    "! short. This answers for the plant being asked: everything anybody has
+    "! an open note against it for, added up.
+    "!
+    "! Stock two plants have both been told to take is stock one of them is
+    "! not going to get, and the second one finds that out by raising a
+    "! transfer that cannot be filled. Whoever works out what a plant can
+    "! spare has to take this off first.
+    "!
+    "! @parameter iv_matnr      | <p class="shorttext synchronized">Material</p>
+    "! @parameter iv_from_werks | <p class="shorttext synchronized">Plant being asked</p>
+    "! @parameter rv_quantity   | <p class="shorttext synchronized">Quantity on open notes against it</p>
+    METHODS promised_by
+      IMPORTING
+        iv_matnr           TYPE mard-matnr
+        iv_from_werks      TYPE mard-werks
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
   PRIVATE SECTION.
+
+    "! One open note's quantity, and nothing else of it.
+    TYPES:
+      BEGIN OF ty_note,
+        quantity TYPE zstock_alloc_trf-quantity,
+      END OF ty_note.
 
     DATA mo_run_id TYPE REF TO zif_run_id_supplier.
 
@@ -295,6 +322,31 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
       INTO @DATA(lv_count).
 
     rv_open = xsdbool( lv_count > 0 ).
+
+  ENDMETHOD.
+
+  METHOD promised_by.
+
+    " the line type is spelled out rather than inlined, see ANOMALIES.md
+    DATA lt_note TYPE STANDARD TABLE OF ty_note WITH EMPTY KEY.
+
+    " added up here rather than by the database, because SUM over a quantity
+    " field is where a rounding argument with the database starts and there
+    " are never many open notes about one material
+    SELECT quantity
+      FROM zstock_alloc_trf
+      WHERE from_werks = @iv_from_werks
+        AND matnr = @iv_matnr
+        AND status = @c_status-open
+      ORDER BY PRIMARY KEY
+      INTO TABLE @lt_note.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_note INTO DATA(ls_note).
+      rv_quantity = rv_quantity + ls_note-quantity.
+    ENDLOOP.
 
   ENDMETHOD.
 

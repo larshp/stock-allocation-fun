@@ -109,6 +109,15 @@ CLASS zcl_alloc_elsewhere DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RAISING
         zcx_allocation.
 
+    METHODS note_for
+      IMPORTING
+        is_short       TYPE ty_short
+        is_spare       TYPE zcl_alloc_spare=>ty_spare
+        iv_werks       TYPE mard-werks
+        iv_from        TYPE mard-werks
+      RETURNING
+        VALUE(rv_note) TYPE string.
+
     METHODS format_row
       IMPORTING
         iv_werks       TYPE string
@@ -243,7 +252,10 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      lv_covers = ls_spare-spare.
+      " what this would fix is what could still be had, not what is on the
+      " shelf: a pallet another plant has already been told to take is spoken
+      " for, and offering it here sends two planners after the same one
+      lv_covers = ls_spare-free.
       IF lv_covers > is_short-quantity.
         lv_covers = is_short-quantity.
       ENDIF.
@@ -255,12 +267,11 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
         iv_wanted = |{ ls_spare-wanted }|
         iv_spare  = |{ ls_spare-spare }|
         iv_covers = |{ lv_covers }|
-        iv_note   = COND string(
-          WHEN mo_transfer->is_open( iv_matnr      = is_short-matnr
-                                     iv_to_werks   = iv_werks
-                                     iv_from_werks = lv_werks ) = abap_true
-          THEN `already proposed`
-          ELSE `` ) ) TO lt_row.
+        iv_note   = note_for(
+          is_short = is_short
+          is_spare = ls_spare
+          iv_werks = iv_werks
+          iv_from  = lv_werks ) ) TO lt_row.
 
     ENDLOOP.
 
@@ -281,6 +292,26 @@ CLASS zcl_alloc_elsewhere IMPLEMENTATION.
       iv_covers = `Covers`
       iv_note   = `` ) TO rt_line.
     APPEND LINES OF lt_row TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD note_for.
+
+    " a page read after the nightly proposing has run must not read as a list
+    " of things nobody has thought about yet
+    IF mo_transfer->is_open( iv_matnr      = is_short-matnr
+                             iv_to_werks   = iv_werks
+                             iv_from_werks = iv_from ) = abap_true.
+      rv_note = `already proposed`.
+      RETURN.
+    ENDIF.
+
+    " and a plant whose spare is somebody else's has to say so, or the row
+    " reads as stock on a shelf with nought against what it would fix and no
+    " reason given for the difference
+    IF is_spare-promised > 0.
+      rv_note = |{ is_spare-promised } asked for by another plant|.
+    ENDIF.
 
   ENDMETHOD.
 

@@ -374,8 +374,9 @@ CLASS ltcl_move_list IMPLEMENTATION.
         io_transfer = mo_transfer
         io_store    = NEW lcl_store_double( it_recorded ) )
       io_spare    = NEW zcl_alloc_spare(
-        io_supply = NEW lcl_supply_double( lt_supply )
-        io_demand = NEW lcl_demand_double( it_demand ) )
+        io_supply   = NEW lcl_supply_double( lt_supply )
+        io_demand   = NEW lcl_demand_double( it_demand )
+        io_transfer = mo_transfer )
       io_display  = NEW zcl_alloc_visible( mo_display )
       io_change   = mo_change
       io_commit   = mo_commit ).

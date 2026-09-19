@@ -2,18 +2,26 @@ CLASS zcl_alloc_spare DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    "! What one plant could let go of, and the three numbers it follows from.
+    "! What one plant could let go of, and the numbers it follows from.
     "!
     "! ON_HAND is what is on the shelf there and COMING what is still to
     "! arrive: both could be transferred, and they are not the same offer, so
     "! they stay apart. WANTED is what that plant has still to serve. SPARE is
     "! what is left of the first two after the third, never below nought.
+    "!
+    "! PROMISED is what other plants have open notes against this one for, and
+    "! FREE is SPARE less that: what somebody could still ask it for today
+    "! without two plants being told to take the same pallet. The two are
+    "! reported apart because they answer different questions -- "has the
+    "! stock gone" is about SPARE, and "may I ask for it" is about FREE.
     TYPES:
       BEGIN OF ty_spare,
-        on_hand TYPE zif_allocation=>ty_quantity,
-        coming  TYPE zif_allocation=>ty_quantity,
-        wanted  TYPE zif_allocation=>ty_quantity,
-        spare   TYPE zif_allocation=>ty_quantity,
+        on_hand  TYPE zif_allocation=>ty_quantity,
+        coming   TYPE zif_allocation=>ty_quantity,
+        wanted   TYPE zif_allocation=>ty_quantity,
+        spare    TYPE zif_allocation=>ty_quantity,
+        promised TYPE zif_allocation=>ty_quantity,
+        free     TYPE zif_allocation=>ty_quantity,
       END OF ty_spare.
 
     "! <p class="shorttext synchronized">Wired up the way a plain SAP system needs it</p>
@@ -25,12 +33,14 @@ CLASS zcl_alloc_spare DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
     "! <p class="shorttext synchronized">Wire up the arithmetic</p>
     "!
-    "! @parameter io_supply | <p class="shorttext synchronized">What a material has to give away, per plant</p>
-    "! @parameter io_demand | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
+    "! @parameter io_supply   | <p class="shorttext synchronized">What a material has to give away, per plant</p>
+    "! @parameter io_demand   | <p class="shorttext synchronized">What is waiting for it there, per plant</p>
+    "! @parameter io_transfer | <p class="shorttext synchronized">What it has already been asked for</p>
     METHODS constructor
       IMPORTING
-        io_supply TYPE REF TO zif_supply_reader
-        io_demand TYPE REF TO zif_demand_reader.
+        io_supply   TYPE REF TO zif_supply_reader
+        io_demand   TYPE REF TO zif_demand_reader
+        io_transfer TYPE REF TO zcl_alloc_transfer.
 
     "! <p class="shorttext synchronized">What another plant could let go of</p>
     "!
@@ -54,6 +64,11 @@ CLASS zcl_alloc_spare DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! amount: what it is short of itself is its own problem and is not part of
     "! this answer.
     "!
+    "! What other plants have already been told to take is not on offer twice.
+    "! Two plants that both raise a transfer against the same pallet end with
+    "! one of them finding out at the loading bay, so the open notes against
+    "! this plant come off in FREE.
+    "!
     "! @parameter iv_matnr       | <p class="shorttext synchronized">Material</p>
     "! @parameter iv_werks       | <p class="shorttext synchronized">Plant asked about</p>
     "! @parameter rs_spare       | <p class="shorttext synchronized">What it has, owes and can spare</p>
@@ -69,8 +84,9 @@ CLASS zcl_alloc_spare DEFINITION PUBLIC FINAL CREATE PUBLIC.
 
   PRIVATE SECTION.
 
-    DATA mo_supply TYPE REF TO zif_supply_reader.
-    DATA mo_demand TYPE REF TO zif_demand_reader.
+    DATA mo_supply   TYPE REF TO zif_supply_reader.
+    DATA mo_demand   TYPE REF TO zif_demand_reader.
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
 
 ENDCLASS.
 
@@ -80,15 +96,17 @@ CLASS zcl_alloc_spare IMPLEMENTATION.
   METHOD create_default.
 
     ro_spare = NEW zcl_alloc_spare(
-      io_supply = NEW zcl_supply_per_plant( )
-      io_demand = NEW zcl_demand_per_plant( ) ).
+      io_supply   = NEW zcl_supply_per_plant( )
+      io_demand   = NEW zcl_demand_per_plant( )
+      io_transfer = NEW zcl_alloc_transfer( ) ).
 
   ENDMETHOD.
 
   METHOD constructor.
 
-    mo_supply = io_supply.
-    mo_demand = io_demand.
+    mo_supply   = io_supply.
+    mo_demand   = io_demand.
+    mo_transfer = io_transfer.
 
   ENDMETHOD.
 
@@ -122,6 +140,15 @@ CLASS zcl_alloc_spare IMPLEMENTATION.
     rs_spare-spare = rs_spare-on_hand + rs_spare-coming - rs_spare-wanted.
     IF rs_spare-spare < 0.
       rs_spare-spare = 0.
+    ENDIF.
+
+    rs_spare-promised = mo_transfer->promised_by(
+      iv_matnr      = iv_matnr
+      iv_from_werks = iv_werks ).
+
+    rs_spare-free = rs_spare-spare - rs_spare-promised.
+    IF rs_spare-free < 0.
+      rs_spare-free = 0.
     ENDIF.
 
   ENDMETHOD.

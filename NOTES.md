@@ -234,6 +234,7 @@ in, which is also the order they make sense in.
 167. one place works out what a plant can spare
 168. whether the stock is still there, and who may see it
 169. the notes for one material add up to the shortage
+170. a plant is not asked for the same stock twice
 
 ## Progress
 
@@ -4877,3 +4878,43 @@ became notes to act on, they had to add up.
 - **A test run counts the same way.** Nothing is written, but what it says it
   would propose adds up to the shortage, because otherwise the test run would
   be a preview of something the real run does not do.
+
+### Feature 170 — a plant is not asked for the same stock twice (done)
+
+Feature 169 made the notes for one plant's shortage add up. The same
+arithmetic is missing one plant out: two plants short of the same material
+both look at the third one's shelf, and both are told to take all of it.
+Neither run is wrong about anything it can see, which is what makes this the
+harder of the two -- it only exists in the gap between two nights' work, and
+the way it is found in a real business is a lorry arriving at a plant that has
+nothing to load.
+
+- **An open note is a claim on the plant it asks.** `PROMISED_BY` is the other
+  side of `OPEN_FOR`: the first answers for the plant that is short, this one
+  for the plant being asked. `ZCL_ALLOC_SPARE` takes it off and reports
+  `FREE`.
+- **`SPARE` and `FREE` are both kept**, because the two questions they answer
+  are different ones. "Has the stock gone" is about `SPARE`, and the worklist
+  of feature 168 asks that: the note being looked at is itself one of the
+  claims, so a worklist built on `FREE` would have every note reporting itself
+  as uncoverable. "May I ask for it" is about `FREE`, and the proposing and
+  the `Covers` column of feature 158 ask that.
+- **The page says why the two differ.** A row showing a hundred on the shelf
+  and nought against what it would fix, with nothing to explain the gap, is a
+  row a planner rings somebody about. It now says how much another plant has
+  been promised. The "already proposed" note wins where both are true, because
+  a note of one's own is the more useful thing to be told.
+- **An answered note is not a claim.** One decided against is nobody's, and one
+  that was raised is a document of its own -- whatever it takes off the shelf
+  turns up as demand, and counting the note as well would take it off twice.
+  Only open notes count, which is also what makes the worklist of feature 161
+  the thing that releases the stock again.
+- **A second index on the table**, `SRC`, because this reads by the plant being
+  asked and the only index there was is by the plant that is short. Feature 95
+  is the same lesson about the recorded runs.
+- **The adding up is done in ABAP, not by the database.** `SUM` over a quantity
+  field is where a rounding argument with the database starts, and there are
+  never many open notes about one material.
+- **And the transpiler had something to say about it**: a one column
+  `SELECT ... INTO TABLE @DATA(...)` comes back as a table of structures, so
+  the line type is spelled out. ANOMALIES.md 2m.

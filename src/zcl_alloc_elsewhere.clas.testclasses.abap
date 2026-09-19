@@ -246,6 +246,8 @@ CLASS ltcl_elsewhere DEFINITION FINAL FOR TESTING
     METHODS the_spare_is_what_covers FOR TESTING RAISING cx_static_check.
     METHODS a_proposed_one_says_so FOR TESTING RAISING cx_static_check.
     METHODS an_unproposed_one_is_quiet FOR TESTING RAISING cx_static_check.
+    METHODS a_claim_from_elsewhere_counts FOR TESTING RAISING cx_static_check.
+    METHODS and_the_row_says_why FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -286,8 +288,9 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
       io_spare    = NEW zcl_alloc_spare(
-        io_supply = NEW lcl_supply_double( it_supply )
-        io_demand = NEW lcl_demand_double( it_demand ) )
+        io_supply   = NEW lcl_supply_double( it_supply )
+        io_demand   = NEW lcl_demand_double( it_demand )
+        io_transfer = mo_transfer )
       io_store    = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = iv_short
           confirmed = 0 shortfall = iv_short reason = 'S' ) ) )
@@ -403,8 +406,9 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_elsewhere(
       io_spare    = NEW zcl_alloc_spare(
-        io_supply = NEW lcl_supply_double( VALUE #( ) )
-        io_demand = NEW lcl_demand_double( VALUE #( ) ) )
+        io_supply   = NEW lcl_supply_double( VALUE #( ) )
+        io_demand   = NEW lcl_demand_double( VALUE #( ) )
+        io_transfer = mo_transfer )
       io_store    = NEW lcl_store_double( VALUE #(
         ( matnr = c_matnr demand_id = 'D1' requested = '10'
           confirmed = '10' shortfall = 0 ) ) )
@@ -539,6 +543,48 @@ CLASS ltcl_elsewhere IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
                                               iv_pattern = '*already proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_claim_from_elsewhere_counts.
+
+    " a third plant has a note against ninety of the hundred, so this plant
+    " could have ten of it. Offering forty would send two planners after the
+    " same pallets.
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '90' ).
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*100.000*0.000*0.000*100.000*10.000*' )
+      msg = 'the shelf is still a hundred and what this would fix is ten' ).
+
+  ENDMETHOD.
+
+  METHOD and_the_row_says_why.
+
+    " otherwise the row is a full shelf with nought against it and no reason
+    " given for the difference
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '100' ).
+
+    DATA(lt_line) = list_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*100.000 asked for by another plant*' ) ).
 
   ENDMETHOD.
 

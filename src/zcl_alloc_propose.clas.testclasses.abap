@@ -275,6 +275,8 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS a_covered_shortage_asks_once FOR TESTING RAISING cx_static_check.
     METHODS an_open_note_comes_off_first FOR TESTING RAISING cx_static_check.
     METHODS a_note_covering_it_stops_more FOR TESTING RAISING cx_static_check.
+    METHODS another_plants_claim_counts FOR TESTING RAISING cx_static_check.
+    METHODS a_fully_claimed_plant_is_out FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
@@ -321,8 +323,9 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
 
     DATA(lo_cut) = NEW zcl_alloc_propose(
       io_spare    = NEW zcl_alloc_spare(
-        io_supply = NEW lcl_supply_double( it_supply )
-        io_demand = NEW lcl_demand_double( it_demand ) )
+        io_supply   = NEW lcl_supply_double( it_supply )
+        io_demand   = NEW lcl_demand_double( it_demand )
+        io_transfer = mo_transfer )
       io_store    = lo_store
       io_visible  = NEW zcl_alloc_visible( NEW lcl_authority_double( lt_allowed ) )
       io_transfer = mo_transfer
@@ -668,6 +671,49 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       act = found( it_line    = lt_line
                    iv_pattern = '*2000*40.000*already proposed*' )
       msg = 'the waiting note is shown with the quantity it was written for' ).
+
+  ENDMETHOD.
+
+  METHOD another_plants_claim_counts.
+
+    " a third plant has already been told to take thirty of the hundred, so
+    " this one may be told to take at most seventy of it -- and it only needs
+    " forty
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '75' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '25'
+      msg = 'what is left of the hundred after somebody else was promised it' ).
+
+  ENDMETHOD.
+
+  METHOD a_fully_claimed_plant_is_out.
+
+    " and a plant whose whole shelf is spoken for is not somewhere to send
+    " anybody at all
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '100' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 0 ).
 
   ENDMETHOD.
 

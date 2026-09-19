@@ -96,6 +96,12 @@ CLASS ltcl_alloc_spare DEFINITION FINAL FOR TESTING
     CONSTANTS c_other TYPE mard-matnr VALUE 'SPARE-02'.
     CONSTANTS c_werks TYPE mard-werks VALUE '2000'.
     CONSTANTS c_away  TYPE mard-werks VALUE '3000'.
+    CONSTANTS c_short TYPE mard-werks VALUE '1000'.
+
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
+
+    METHODS setup.
+    METHODS teardown.
 
     METHODS spare_of
       IMPORTING
@@ -117,17 +123,37 @@ CLASS ltcl_alloc_spare DEFINITION FINAL FOR TESTING
     METHODS another_plant_is_not_asked FOR TESTING RAISING cx_static_check.
     METHODS another_material_is_not_asked FOR TESTING RAISING cx_static_check.
     METHODS a_negative_demand_line_is_out FOR TESTING RAISING cx_static_check.
+    METHODS nothing_asked_for_is_all_free FOR TESTING RAISING cx_static_check.
+    METHODS an_open_note_is_not_free FOR TESTING RAISING cx_static_check.
+    METHODS the_notes_add_up FOR TESTING RAISING cx_static_check.
+    METHODS an_answered_note_frees_it FOR TESTING RAISING cx_static_check.
+    METHODS another_plants_note_is_its_own FOR TESTING RAISING cx_static_check.
+    METHODS asked_for_more_than_it_has FOR TESTING RAISING cx_static_check.
 
 ENDCLASS.
 
 
 CLASS ltcl_alloc_spare IMPLEMENTATION.
 
+  METHOD setup.
+
+    mo_transfer = NEW zcl_alloc_transfer( ).
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM zstock_alloc_trf WHERE matnr IN ( @c_matnr, @c_other ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
   METHOD spare_of.
 
     DATA(lo_cut) = NEW zcl_alloc_spare(
-      io_supply = NEW lcl_supply_double( it_supply )
-      io_demand = NEW lcl_demand_double( it_demand ) ).
+      io_supply   = NEW lcl_supply_double( it_supply )
+      io_demand   = NEW lcl_demand_double( it_demand )
+      io_transfer = mo_transfer ).
 
     rs_spare = lo_cut->at_plant(
       iv_matnr = iv_matnr
@@ -260,6 +286,130 @@ CLASS ltcl_alloc_spare IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_spare-spare
       exp = '20' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_asked_for_is_all_free.
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-promised
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-free
+      exp = '25' ).
+
+  ENDMETHOD.
+
+  METHOD an_open_note_is_not_free.
+
+    " somebody has already been told to take fifteen of the twenty-five, and
+    " a second plant told to take the same fifteen finds out at the loading
+    " bay
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_short
+      iv_from_werks = c_werks
+      iv_quantity   = '15' ).
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-spare
+      exp = '25'
+      msg = 'the stock is still on the shelf, which is a different question' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-promised
+      exp = '15' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-free
+      exp = '10' ).
+
+  ENDMETHOD.
+
+  METHOD the_notes_add_up.
+
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_short
+      iv_from_werks = c_werks
+      iv_quantity   = '15' ).
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_away
+      iv_from_werks = c_werks
+      iv_quantity   = '5' ).
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-promised
+      exp = '20' ).
+
+  ENDMETHOD.
+
+  METHOD an_answered_note_frees_it.
+
+    " a note decided against is nobody's claim on the stock any more, and one
+    " that was raised is a document of its own: what it takes off the shelf
+    " shows up as demand, not as a note
+    DATA(lv_proposal) = mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_short
+      iv_from_werks = c_werks
+      iv_quantity   = '15' ).
+
+    mo_transfer->answer(
+      iv_proposal = lv_proposal
+      iv_status   = zcl_alloc_transfer=>c_status-dropped ).
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-free
+      exp = '25' ).
+
+  ENDMETHOD.
+
+  METHOD another_plants_note_is_its_own.
+
+    " a note asking a different plant for it says nothing about this one
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_short
+      iv_from_werks = c_away
+      iv_quantity   = '15' ).
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-promised
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD asked_for_more_than_it_has.
+
+    " the notes were written when the stock was there; what is left to offer
+    " is nought rather than a negative number somebody could ask for
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_short
+      iv_from_werks = c_werks
+      iv_quantity   = '90' ).
+
+    DATA(ls_spare) = spare_of(
+      VALUE #( ( matnr = c_matnr werks = c_werks quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_spare-free
+      exp = 0 ).
 
   ENDMETHOD.
 

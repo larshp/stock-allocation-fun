@@ -100,7 +100,7 @@ calculation and shows the result without recording or reserving anything.
 
 ## The other programs
 
-Twenty four programs is a lot to meet at once, so they are grouped by who runs
+Twenty five programs is a lot to meet at once, so they are grouped by who runs
 them. Everything reads and changes nothing, except the six at the bottom,
 five of which say so on their selection screens and default to a test run.
 
@@ -137,6 +137,7 @@ five of which say so on their selection screens and default to a test run.
 | `ZSTOCK_ALLOC_MIX`   | where a plant's shortfall goes: how many short lines each reason accounts for and how many materials it touched, with the stock that is not there kept apart from the rules the plant chose |
 | `ZSTOCK_ALLOC_QUOT`  | how each quota of a plant stands: what was agreed, what the last run gave against it, and what is left |
 | `ZSTOCK_ALLOC_PROM`  | what has been promised a line by hand, what the last run gave it, until when, and who promised it |
+| `ZSTOCK_ALLOC_TRFR`  | what the proposed transfers came to: how many were raised, decided against, outlived by the shortage or still waiting, how much was asked for against how much was agreed, and of the materials a transfer was raised for, how many are no longer short |
 
 ### The six that change something
 

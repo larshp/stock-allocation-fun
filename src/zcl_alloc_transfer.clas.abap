@@ -95,6 +95,26 @@ CLASS zcl_alloc_transfer DEFINITION PUBLIC FINAL CREATE PUBLIC.
       RETURNING
         VALUE(rt_proposal) TYPE ty_proposal_tab.
 
+    "! <p class="shorttext synchronized">Every proposal of a plant, answered or not</p>
+    "!
+    "! `OPEN_FOR` is the worklist: what somebody still has to decide. This is
+    "! the record: what was decided, when, and what came of it. Nothing acts
+    "! on it -- it is there to be looked back at, which is why `ZSTOCK_ALLOC_TRF`
+    "! is not reorganised.
+    "!
+    "! Newest first, because a review starts at the most recent thing that
+    "! happened and works backwards.
+    "!
+    "! @parameter iv_werks    | <p class="shorttext synchronized">Plant that was short</p>
+    "! @parameter iv_since    | <p class="shorttext synchronized">Earliest day to look back to, all if empty</p>
+    "! @parameter rt_proposal | <p class="shorttext synchronized">Proposals of every status</p>
+    METHODS history_for
+      IMPORTING
+        iv_werks           TYPE mard-werks
+        iv_since           TYPE d OPTIONAL
+      RETURNING
+        VALUE(rt_proposal) TYPE ty_proposal_tab.
+
     "! <p class="shorttext synchronized">Answer a proposal</p>
     "!
     "! Yes or no, and who said so. A proposal that has already been answered
@@ -266,6 +286,38 @@ CLASS zcl_alloc_transfer IMPLEMENTATION.
         AND matnr IN @lt_matnr
         AND status = @c_status-open
       ORDER BY needed_by, created_at DESCENDING, proposal
+      INTO TABLE @rt_proposal.
+    IF sy-subrc <> 0.
+      CLEAR rt_proposal.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD history_for.
+
+    DATA lv_from TYPE zstock_alloc_trf-created_at.
+
+    " a day given is where the reading starts; none given is everything the
+    " table has, which is what makes this a record rather than a report
+    IF iv_since IS NOT INITIAL.
+      lv_from = zcl_alloc_clock=>stamp_of( iv_since ).
+    ENDIF.
+
+    SELECT proposal,
+           matnr,
+           to_werks,
+           from_werks,
+           quantity,
+           raised_qty,
+           needed_by,
+           status,
+           note,
+           created_by,
+           created_at
+      FROM zstock_alloc_trf
+      WHERE to_werks = @iv_werks
+        AND created_at >= @lv_from
+      ORDER BY created_at DESCENDING, proposal
       INTO TABLE @rt_proposal.
     IF sy-subrc <> 0.
       CLEAR rt_proposal.

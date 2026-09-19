@@ -241,6 +241,7 @@ in, which is also the order they make sense in.
 174. the proposing keeps a diary too
 175. the morning list says what is already in hand
 176. the plants that could help are read once
+177. what the transfers came to
 
 ## Progress
 
@@ -5101,3 +5102,36 @@ one of them asks about a table the run has already been through.
   holds, 83 about the plant's tables and 111 about the newest two. This is the
   fifth, and the first where the duplication and the read count were the same
   defect: two classes each doing it per material.
+
+### Feature 177 — what the transfers came to (done)
+
+The solution has been proposing transfers since feature 160 and has never
+once looked back at whether any of it helped. Seventeen features of worklist
+and none of review: a planner could see what was asked and what was answered
+one note at a time, and nobody could say whether the whole business was worth
+the mornings it costs.
+
+- **Of the materials a transfer was raised for, how many are no longer short.**
+  That one number is what the page is for. It could not be asked before
+  feature 173, because until then "raised" did not record what was actually
+  raised and half the yesses were for quantities nobody agreed to.
+- **It is a review, not a proof, and says so.** A material that is no longer
+  short may owe that to the transfer, to an order being cancelled or to a
+  lorry from a supplier, and nothing recorded says which. Offering the count
+  and being honest about what it is beats offering nothing, and beats dressing
+  it up as an attribution.
+- **A material is counted once however many notes it took.** Since feature 169
+  a shortage is split across plants, so two raised transfers can be one
+  material's answer; counting notes would flatter the number exactly when the
+  proposing worked hardest.
+- **The four answers stay four.** Feature 164 went to some trouble to keep
+  "we decided against this" apart from "it stopped mattering", and a review
+  that added them together would throw that away -- a plant where everything
+  lapses has a proposing problem, and one where everything is dropped has a
+  conversation problem.
+- **A period where nothing was raised says so** rather than printing nought as
+  though it had measured something. A nought that means "no evidence" and a
+  nought that means "it never works" must not look the same.
+- **`HISTORY_FOR` is the other half of `OPEN_FOR`.** One is the worklist and
+  one is the record, which is exactly why `ZSTOCK_ALLOC_TRF` is the table
+  `ZSTOCK_ALLOC_REORG` leaves alone.

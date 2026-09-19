@@ -282,6 +282,14 @@ CLASS lcl_log_spy IMPLEMENTATION.
     CLEAR mv_saves.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     CLEAR mv_saves.
   ENDMETHOD.

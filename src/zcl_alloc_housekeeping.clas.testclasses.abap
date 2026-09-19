@@ -131,6 +131,15 @@ CLASS lcl_log_spy IMPLEMENTATION.
     CLEAR mv_starts.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposed.
+    " housekeeping proposes nothing either
+    CLEAR mv_starts.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    CLEAR mv_starts.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     APPEND iv_run_id TO mt_removed.
   ENDMETHOD.

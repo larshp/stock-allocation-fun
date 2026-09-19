@@ -287,6 +287,15 @@ CLASS lcl_log_spy IMPLEMENTATION.
     APPEND iv_reservation TO mt_released.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposed.
+    " and proposes no transfer
+    CLEAR mv_starts.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    CLEAR mv_starts.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     " and removes no record
     CLEAR mv_starts.

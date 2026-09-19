@@ -46,6 +46,35 @@ INTERFACE zif_allocation_log PUBLIC.
       iv_matnr       TYPE mard-matnr
       iv_reservation TYPE rkpf-rsnum.
 
+  "! <p class="shorttext synchronized">Note that a transfer was proposed</p>
+  "!
+  "! Since feature 172 the proposing is an unattended job covering the whole
+  "! company, and a note it writes changes somebody's morning in a plant the
+  "! job was not even called for. That is the kind of job feature 40 gave a
+  "! diary to: the spool is gone in a fortnight and `ZSTOCK_ALLOC_TRF` says
+  "! who wrote the note but not what the run as a whole did.
+  "!
+  "! @parameter iv_matnr      | <p class="shorttext synchronized">Material</p>
+  "! @parameter iv_from_werks | <p class="shorttext synchronized">Plant being asked for it</p>
+  "! @parameter iv_quantity   | <p class="shorttext synchronized">Quantity asked for</p>
+  METHODS proposed
+    IMPORTING
+      iv_matnr      TYPE mard-matnr
+      iv_from_werks TYPE mard-werks
+      iv_quantity   TYPE zif_allocation=>ty_quantity.
+
+  "! <p class="shorttext synchronized">Note how many stale proposals were closed</p>
+  "!
+  "! A count rather than one line each: which notes they were is in
+  "! `ZSTOCK_ALLOC_TRF` with who closed them and when, and that is the record.
+  "! What the diary adds is that a run closed some at all, which is the thing
+  "! nobody would otherwise know had happened.
+  "!
+  "! @parameter iv_closed | <p class="shorttext synchronized">Proposals whose shortage had gone</p>
+  METHODS proposals_closed
+    IMPORTING
+      iv_closed TYPE i.
+
   "! <p class="shorttext synchronized">Note that a recorded run was removed</p>
   "!
   "! Housekeeping is a job of this solution like the allocation itself, and a

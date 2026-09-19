@@ -185,6 +185,79 @@ CLASS lcl_demand_double IMPLEMENTATION.
 ENDCLASS.
 
 
+"! Remembers what the run said it did.
+CLASS lcl_log_spy DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_log.
+
+    TYPES ty_entry_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+    METHODS entries
+      RETURNING
+        VALUE(rt_entry) TYPE ty_entry_tab.
+
+    METHODS saves
+      RETURNING
+        VALUE(rv_saves) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_entry TYPE ty_entry_tab.
+    DATA mv_saves TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_log_spy IMPLEMENTATION.
+
+  METHOD entries.
+    rt_entry = mt_entry.
+  ENDMETHOD.
+
+  METHOD saves.
+    rv_saves = mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~start.
+    APPEND |started { iv_werks }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposed.
+    APPEND |proposed { iv_matnr } { iv_from_werks } { iv_quantity }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    APPEND |closed { iv_closed }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~allocated.
+    " the proposing allocates nothing
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~failed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~released.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~removed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~finished.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~save.
+    mv_saves = mv_saves + 1.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! Counts the commits.
 CLASS lcl_commit_double DEFINITION FINAL.
 
@@ -233,6 +306,7 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
 
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
     DATA mo_commit   TYPE REF TO lcl_commit_double.
+    DATA mo_log      TYPE REF TO lcl_log_spy.
 
     METHODS setup.
     METHODS teardown.
@@ -281,6 +355,11 @@ CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
     METHODS the_first_plant_gets_it_first FOR TESTING RAISING cx_static_check.
     METHODS a_plant_not_ours_is_skipped FOR TESTING RAISING cx_static_check.
     METHODS everywhere_can_be_a_test_run FOR TESTING RAISING cx_static_check.
+    METHODS the_diary_says_what_it_wrote FOR TESTING RAISING cx_static_check.
+    METHODS the_diary_counts_the_closed FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
+    METHODS a_quiet_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
+    METHODS one_diary_per_plant FOR TESTING RAISING cx_static_check.
 
     METHODS run_all_of
       IMPORTING
@@ -321,6 +400,7 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
 
     mo_transfer = NEW zcl_alloc_transfer( ).
     mo_commit   = NEW lcl_commit_double( ).
+    mo_log      = NEW lcl_log_spy( ).
 
   ENDMETHOD.
 
@@ -359,7 +439,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = mo_transfer
         io_store    = lo_store )
-      io_commit   = mo_commit ).
+      io_commit   = mo_commit
+      io_log      = mo_log ).
 
     rt_line = lo_cut->run(
       iv_werks = c_here
@@ -726,6 +807,80 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD the_diary_says_what_it_wrote.
+
+    " the spool is gone in a fortnight, and since feature 172 this runs
+    " unattended for plants nobody called it for
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = mo_log->entries( )
+      iv_pattern = |proposed { c_matnr } 2000 40.000| ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_diary_counts_the_closed.
+
+    " a count rather than one line each: which notes they were is in the
+    " table with who closed them, and what the diary adds is that a run
+    " closed any at all
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = mo_log->entries( )
+                                             iv_pattern = 'closed 1' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_keeps_no_diary.
+
+    " a log of what a simulation would have done is a log nobody can act on,
+    " which is what feature 40 settled for the allocation
+    run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_initial( mo_log->entries( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD a_quiet_run_keeps_no_diary.
+
+    " a nightly job over twenty plants where nothing changed must not leave
+    " twenty logs saying so: the rule feature 40 reached about the spool, and
+    " feature 138 about the mail
+    run_of( VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD one_diary_per_plant.
+
+    " each plant is its own unit of work, so each is its own log: a run that
+    " died at the fourteenth plant leaves thirteen readable ones
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 2
+      msg = 'the two plants that had something to write down' ).
+
+  ENDMETHOD.
+
   METHOD run_all_of.
 
     DATA(lt_allowed) = it_allowed.
@@ -751,7 +906,8 @@ CLASS ltcl_alloc_propose IMPLEMENTATION.
       io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = mo_transfer
         io_store    = lo_store )
-      io_commit   = mo_commit ).
+      io_commit   = mo_commit
+      io_log      = mo_log ).
 
     rt_line = lo_cut->run_everywhere( iv_test ).
 

@@ -170,6 +170,18 @@ CLASS lcl_log_spy IMPLEMENTATION.
       text  = |{ iv_reservation }| ) TO mt_entry.
   ENDMETHOD.
 
+  METHOD zif_allocation_log~proposed.
+    APPEND VALUE #(
+      kind = `proposed`
+      text = CONV #( iv_matnr ) ) TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    APPEND VALUE #(
+      kind = `closed`
+      text = |{ iv_closed }| ) TO mt_entry.
+  ENDMETHOD.
+
   METHOD zif_allocation_log~removed.
     APPEND VALUE #(
       kind = `removed`

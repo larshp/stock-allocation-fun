@@ -173,7 +173,10 @@ looks like all the others.
 
 `ZSTOCK_ALLOC_REORG` leaves a run whose reservation is still there alone,
 because the demand netting reads it, and a real run writes to the same
-application log as an allocation run.
+application log as an allocation run. So does `ZSTOCK_ALLOC_TRF`, which is
+scheduled unattended over the whole company: one log per plant, saying what
+it proposed and how many stale notes it closed, and none at all for a test
+run or a plant where nothing changed.
 
 ## The night, in order
 

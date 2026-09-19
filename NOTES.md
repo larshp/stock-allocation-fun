@@ -238,6 +238,7 @@ in, which is also the order they make sense in.
 171. the page says who to ring
 172. the proposing covers every plant in one go
 173. a transfer raised for less than was asked
+174. the proposing keeps a diary too
 
 ## Progress
 
@@ -5014,3 +5015,33 @@ later the table is a record of forty transfers that never were.
 - **The line says what was recorded**, with "of the forty proposed" only where
   the two differ: most answers are the whole note, and a phrase on every one
   of them would stop being read.
+
+### Feature 174 — the proposing keeps a diary too (done)
+
+Feature 40 gave the allocation an application log because a scheduled job's
+spool is gone in a fortnight and the night has to be readable after that.
+Feature 56 gave housekeeping one for the same reason. Feature 172 turned the
+proposing into exactly that kind of job -- unattended, nightly, covering the
+whole company -- and it had nothing but its spool.
+
+- **It writes what it wrote down**, one line per note: material, the plant
+  being asked and the quantity. That is the thing somebody wants a fortnight
+  later when a planner asks why they were asked to move forty of something.
+- **The closings are a count, not a line each.** Which notes lapsed is in
+  `ZSTOCK_ALLOC_TRF` with who closed them and when, and that is the record.
+  What the diary adds is that a run closed any at all, which is the part
+  nobody would otherwise know had happened.
+- **A test run keeps no diary**, the rule feature 40 settled: a log of what a
+  simulation would have done is a log nobody can act on, and it would sit in
+  SLG1 next to the real ones looking the same.
+- **Nor does a run with nothing to say.** Twenty plants where nothing changed
+  would be twenty logs saying nothing, which is how SLG1 becomes a place
+  nobody looks -- the same rule feature 138 reached about the nightly mail.
+- **One log per plant**, because feature 172 made each plant its own unit of
+  work. A run that dies at the fourteenth plant leaves thirteen readable logs
+  rather than one that was never saved.
+- **Two verbs on `ZIF_ALLOCATION_LOG` rather than a second log interface.**
+  There is one application log object for this solution and one place that
+  knows how to write to it; a second interface would have meant a second BAL
+  implementation, and the null object of feature 40 would have needed a twin.
+  A caller uses the verbs that fit its job, which housekeeping already does.

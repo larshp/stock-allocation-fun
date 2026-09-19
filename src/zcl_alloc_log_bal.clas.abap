@@ -28,6 +28,8 @@ CLASS zcl_alloc_log_bal DEFINITION PUBLIC FINAL CREATE PUBLIC.
     CONSTANTS c_msg_settings  TYPE bal_s_msg-msgno VALUE '013'.
     CONSTANTS c_msg_finished  TYPE bal_s_msg-msgno VALUE '014'.
     CONSTANTS c_msg_released  TYPE bal_s_msg-msgno VALUE '015'.
+    CONSTANTS c_msg_proposed  TYPE bal_s_msg-msgno VALUE '016'.
+    CONSTANTS c_msg_closed    TYPE bal_s_msg-msgno VALUE '017'.
 
     "! BAL problem classes: 1 very important, 2 important, 4 additional
     "! information. SLG1 filters on them, so a night's successes can be hidden
@@ -197,6 +199,28 @@ CLASS zcl_alloc_log_bal IMPLEMENTATION.
       iv_class     = c_class_warning
       iv_variable1 = CONV #( iv_matnr )
       iv_variable2 = |{ iv_reservation }| ).
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposed.
+
+    add(
+      iv_type      = c_type_success
+      iv_number    = c_msg_proposed
+      iv_class     = c_class_info
+      iv_variable1 = CONV #( iv_matnr )
+      iv_variable2 = CONV #( iv_from_werks )
+      iv_variable3 = |{ iv_quantity }| ).
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+
+    add(
+      iv_type      = c_type_success
+      iv_number    = c_msg_closed
+      iv_class     = c_class_info
+      iv_variable1 = |{ iv_closed }| ).
 
   ENDMETHOD.
 

@@ -19,6 +19,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
     "! @parameter io_lapse    | <p class="shorttext synchronized">Closes the ones whose shortage has gone</p>
     "! @parameter io_commit   | <p class="shorttext synchronized">What makes a proposal durable</p>
+    "! @parameter io_log      | <p class="shorttext synchronized">Where the run says what it wrote down</p>
     METHODS constructor
       IMPORTING
         io_spare    TYPE REF TO zcl_alloc_spare
@@ -26,7 +27,8 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
         io_visible  TYPE REF TO zcl_alloc_visible
         io_transfer TYPE REF TO zcl_alloc_transfer
         io_lapse    TYPE REF TO zcl_alloc_lapse
-        io_commit   TYPE REF TO zif_unit_of_work.
+        io_commit   TYPE REF TO zif_unit_of_work
+        io_log      TYPE REF TO zif_allocation_log.
 
     "! <p class="shorttext synchronized">Write down the transfers that would help</p>
     "!
@@ -135,6 +137,7 @@ CLASS zcl_alloc_propose DEFINITION PUBLIC FINAL CREATE PUBLIC.
     DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
     DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
     DATA mo_commit   TYPE REF TO zif_unit_of_work.
+    DATA mo_log      TYPE REF TO zif_allocation_log.
 
     "! How many proposals this run has written down, so that the footer and
     "! the commit agree with what the lines say.
@@ -192,7 +195,8 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
       io_lapse    = NEW zcl_alloc_lapse(
         io_transfer = lo_transfer
         io_store    = lo_store )
-      io_commit   = NEW zcl_unit_of_work( ) ).
+      io_commit   = NEW zcl_unit_of_work( )
+      io_log      = NEW zcl_alloc_log_bal( NEW zcl_unit_of_work( ) ) ).
 
   ENDMETHOD.
 
@@ -204,6 +208,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     mo_transfer = io_transfer.
     mo_lapse    = io_lapse.
     mo_commit   = io_commit.
+    mo_log      = io_log.
 
   ENDMETHOD.
 
@@ -218,12 +223,25 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
                         THEN ` (test run, nothing written down)`
                         ELSE `` ) TO rt_line.
 
+    " a test run writes no notes, so it has nothing to say afterwards either:
+    " the same rule feature 40 settled for the allocation, where a log of
+    " what a simulation would have done is a log nobody can act on
+    IF iv_test = abap_false.
+      mo_log->start(
+        iv_werks    = iv_werks
+        iv_settings = |Proposing transfers for plant { iv_werks }| ).
+    ENDIF.
+
     " the stale notes go first: one of them would otherwise block a new note
     " for the same pair of plants, and a shortage that came back with a
     " different quantity would go unproposed
     DATA(ls_lapsed) = mo_lapse->run(
       iv_werks = iv_werks
       iv_test  = iv_test ).
+
+    IF ls_lapsed-closed > 0 AND iv_test = abap_false.
+      mo_log->proposals_closed( ls_lapsed-closed ).
+    ENDIF.
 
     IF ls_lapsed-closed > 0.
       APPEND || TO rt_line.
@@ -244,6 +262,7 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
       APPEND `Nothing was short in the last run` TO rt_line.
       IF ls_lapsed-closed > 0 AND iv_test = abap_false.
         mo_commit->commit( ).
+        mo_log->save( ).
       ENDIF.
       RETURN.
     ENDIF.
@@ -260,6 +279,13 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
     " dies half way leaves the notes it had already made rather than none
     IF mv_written > 0 OR ls_lapsed-closed > 0.
       mo_commit->commit( ).
+    ENDIF.
+
+    " the diary is saved after the notes are durable, and only where there is
+    " something in it: a log that says a run happened and nothing else is a
+    " log somebody has to open to find out it says nothing
+    IF iv_test = abap_false AND ( mv_written > 0 OR ls_lapsed-closed > 0 ).
+      mo_log->save( ).
     ENDIF.
 
     APPEND || TO rt_line.
@@ -446,6 +472,10 @@ CLASS zcl_alloc_propose IMPLEMENTATION.
           iv_quantity   = lv_quantity
           iv_needed_by  = is_short-needed_by
           iv_note       = c_note ).
+        mo_log->proposed(
+          iv_matnr      = is_short-matnr
+          iv_from_werks = lv_werks
+          iv_quantity   = lv_quantity ).
       ENDIF.
 
       lv_left = lv_left - lv_quantity.

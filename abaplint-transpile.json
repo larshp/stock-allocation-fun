@@ -1,0 +1,28 @@
+{
+  "input_folder": [
+    "src",
+    "sap-stubs"
+  ],
+  "output_folder": "output",
+  "libs": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": "/core",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "write_unit_tests": true,
+  "write_source_map": true,
+  "options": {
+    "addCommonJS": true,
+    "unknownTypes": "compileError",
+    "setup": {
+      "filename": "../test/setup.mjs",
+      "preFunction": "setupDatabase"
+    }
+  },
+  "exclude_filter": [
+    "bapi_reservation\\.fugr\\.",
+    "bapi_transaction\\.fugr\\."
+  ]
+}

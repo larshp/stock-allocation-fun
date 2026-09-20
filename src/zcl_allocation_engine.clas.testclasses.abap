@@ -1,0 +1,994 @@
+CLASS lcl_supply_reader_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_supply_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_supply TYPE zif_supply_reader=>ty_supply_tab.
+
+    METHODS get_last_matnr
+      RETURNING
+        VALUE(rv_matnr) TYPE mard-matnr.
+
+    METHODS get_last_werks
+      RETURNING
+        VALUE(rv_werks) TYPE mard-werks.
+
+  PRIVATE SECTION.
+    DATA mt_supply     TYPE zif_supply_reader=>ty_supply_tab.
+    DATA mv_last_matnr TYPE mard-matnr.
+    DATA mv_last_werks TYPE mard-werks.
+
+ENDCLASS.
+
+
+CLASS lcl_supply_reader_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_supply = it_supply.
+  ENDMETHOD.
+
+  METHOD zif_supply_reader~read_supply.
+    mv_last_matnr = iv_matnr.
+    mv_last_werks = iv_werks.
+    rt_supply = mt_supply.
+  ENDMETHOD.
+
+  METHOD get_last_matnr.
+    rv_matnr = mv_last_matnr.
+  ENDMETHOD.
+
+  METHOD get_last_werks.
+    rv_werks = mv_last_werks.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_reader_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
+    METHODS get_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_demand   TYPE zif_allocation=>ty_demand_tab.
+    DATA mv_call_cnt TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_reader_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_demand = it_demand.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    LOOP AT mt_demand INTO DATA(ls_demand).
+      IF NOT line_exists( rt_matnr[ table_line = ls_demand-matnr ] ).
+        APPEND ls_demand-matnr TO rt_matnr.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+    mv_call_cnt = mv_call_cnt + 1.
+    rt_demand = mt_demand.
+  ENDMETHOD.
+
+  METHOD get_call_count.
+    rv_count = mv_call_cnt.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS ltcl_engine DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'MAT-1'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+
+    DATA mo_supply TYPE REF TO lcl_supply_reader_double.
+    DATA mo_demand TYPE REF TO lcl_demand_reader_double.
+    DATA mo_cut    TYPE REF TO zcl_allocation_engine.
+
+    METHODS given
+      IMPORTING
+        it_supply TYPE zif_supply_reader=>ty_supply_tab
+        it_demand TYPE zif_allocation=>ty_demand_tab.
+
+    METHODS on_hand
+      IMPORTING
+        iv_quantity      TYPE zif_allocation=>ty_quantity
+      RETURNING
+        VALUE(rt_supply) TYPE zif_supply_reader=>ty_supply_tab.
+
+    METHODS confirmed_for
+      IMPORTING
+        it_allocation      TYPE zif_allocation=>ty_allocation_tab
+        iv_demand_id       TYPE zif_allocation=>ty_demand_id
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
+    METHODS what_is_there_is_one_pool FOR TESTING RAISING cx_static_check.
+    METHODS passes_selection_to_reader FOR TESTING RAISING cx_static_check.
+    METHODS no_stock_confirms_nothing FOR TESTING RAISING cx_static_check.
+    METHODS open_demand_comes_from_reader FOR TESTING RAISING cx_static_check.
+    METHODS explicit_demand_skips_reader FOR TESTING RAISING cx_static_check.
+    METHODS receipt_serves_later_demand FOR TESTING RAISING cx_static_check.
+    METHODS receipt_is_too_late_for_today FOR TESTING RAISING cx_static_check.
+    METHODS a_line_is_served_over_days FOR TESTING RAISING cx_static_check.
+    METHODS undated_line_waits_for_nothing FOR TESTING RAISING cx_static_check.
+    METHODS every_line_answered_once FOR TESTING RAISING cx_static_check.
+    METHODS receipt_left_over_serves_later FOR TESTING RAISING cx_static_check.
+    METHODS stock_is_available_at_once FOR TESTING RAISING cx_static_check.
+    METHODS receipt_dates_the_line FOR TESTING RAISING cx_static_check.
+    METHODS the_last_day_dates_the_line FOR TESTING RAISING cx_static_check.
+    METHODS nothing_confirmed_has_no_date FOR TESTING RAISING cx_static_check.
+    METHODS a_late_receipt_says_so FOR TESTING RAISING cx_static_check.
+    METHODS an_empty_pool_says_so FOR TESTING RAISING cx_static_check.
+    METHODS a_full_line_has_no_reason FOR TESTING RAISING cx_static_check.
+    METHODS a_late_receipt_misses_shipping FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+
+CLASS ltcl_engine IMPLEMENTATION.
+
+  METHOD given.
+
+    mo_supply = NEW #( it_supply ).
+    mo_demand = NEW #( it_demand ).
+    mo_cut    = NEW #(
+      io_supply_reader = mo_supply
+      io_demand_reader = mo_demand
+      io_strategy      = NEW zcl_alloc_strategy_priority( ) ).
+
+  ENDMETHOD.
+
+  METHOD on_hand.
+    rt_supply = VALUE #( ( quantity = iv_quantity ) ).
+  ENDMETHOD.
+
+  METHOD confirmed_for.
+
+    LOOP AT it_allocation INTO DATA(ls_allocation)
+        WHERE demand_id = iv_demand_id.
+      rv_quantity = rv_quantity + ls_allocation-confirmed.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD what_is_there_is_one_pool.
+
+    given(
+      it_supply = VALUE #(
+        ( quantity = '4' )
+        ( quantity = '6' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '10' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '10'
+      msg = 'supply available on the same day must be pooled' ).
+
+  ENDMETHOD.
+
+  METHOD passes_selection_to_reader.
+
+    given(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    mo_cut->allocate(
+      iv_matnr  = 'MAT-2'
+      iv_werks  = '2000'
+      it_demand = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_supply->get_last_matnr( )
+      exp = 'MAT-2' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_supply->get_last_werks( )
+      exp = '2000' ).
+
+  ENDMETHOD.
+
+  METHOD no_stock_confirms_nothing.
+
+    given(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks quantity = '3' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-shortfall
+      exp = '3' ).
+
+  ENDMETHOD.
+
+  METHOD open_demand_comes_from_reader.
+
+    given(
+      it_supply = on_hand( '8' )
+      it_demand = VALUE #(
+        ( demand_id = 'FROM-READER' matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    DATA(lt_result) = mo_cut->allocate_open_demand(
+      iv_matnr = c_matnr
+      iv_werks = c_werks ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-demand_id
+      exp = 'FROM-READER' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_demand->get_call_count( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD explicit_demand_skips_reader.
+
+    given(
+      it_supply = on_hand( '8' )
+      it_demand = VALUE #(
+        ( demand_id = 'FROM-READER' matnr = c_matnr werks = c_werks
+          quantity = '5' priority = '01' ) ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'SIMULATED' matnr = c_matnr werks = c_werks
+          quantity = '2' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-demand_id
+      exp = 'SIMULATED' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_demand->get_call_count( )
+      exp = 0
+      msg = 'a simulation must not go looking for the real demand' ).
+
+  ENDMETHOD.
+
+  METHOD receipt_serves_later_demand.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '10'
+      msg = 'a line wanted after the receipt arrives can be served from it' ).
+
+  ENDMETHOD.
+
+  METHOD a_late_receipt_misses_shipping.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260309' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260310' ready_by = '20260308'
+          priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0
+      msg = 'stock landing the day before is no use to a line loading two days before' ).
+
+  ENDMETHOD.
+
+  METHOD a_late_receipt_says_so.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-reason
+      exp = zif_allocation=>c_reason-supply_late
+      msg = 'there is stock coming, and it comes too late for this line' ).
+
+  ENDMETHOD.
+
+  METHOD an_empty_pool_says_so.
+
+    given(
+      it_supply = on_hand( '4' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-reason
+      exp = zif_allocation=>c_reason-no_stock
+      msg = 'the pool was offered to the line and did not stretch that far' ).
+
+  ENDMETHOD.
+
+  METHOD a_full_line_has_no_reason.
+
+    given(
+      it_supply = on_hand( '10' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result[ 1 ]-reason
+      msg = 'a line that got everything has nothing to explain' ).
+
+  ENDMETHOD.
+
+  METHOD receipt_is_too_late_for_today.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260201' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0
+      msg = 'stock that arrives after the day it is wanted cannot be promised' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-shortfall
+      exp = '10' ).
+
+  ENDMETHOD.
+
+  METHOD a_line_is_served_over_days.
+
+    given(
+      it_supply = VALUE #(
+        ( quantity = '4' )
+        ( avail_date = '20260301' quantity = '6' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 1
+      msg = 'a line served from two days is still answered once' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '10'
+      msg = 'what is on the shelf and what arrives before the date both count' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-requested
+      exp = '10'
+      msg = 'the answer says what was asked for, not what was left of it' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-shortfall
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD undated_line_waits_for_nothing.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = 0
+      msg = 'a requirement without a date is wanted now, not whenever stock turns up' ).
+
+  ENDMETHOD.
+
+  METHOD every_line_answered_once.
+
+    given(
+      it_supply = VALUE #(
+        ( quantity = '5' )
+        ( avail_date = '20260301' quantity = '5' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '8' req_date = '20260315' priority = '01' )
+        ( demand_id = 'D2' matnr = c_matnr werks = c_werks
+          quantity = '8' req_date = '20260315' priority = '02' )
+        ( demand_id = 'D3' matnr = c_matnr werks = c_werks
+          quantity = '8' req_date = '20260101' priority = '03' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_result )
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        it_allocation = lt_result
+        iv_demand_id  = 'D1' )
+      exp = '8'
+      msg = 'the most urgent line is served first, from both days' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        it_allocation = lt_result
+        iv_demand_id  = 'D2' )
+      exp = '2' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        it_allocation = lt_result
+        iv_demand_id  = 'D3' )
+      exp = 0
+      msg = 'the overdue line could only have had the stock on the shelf' ).
+
+  ENDMETHOD.
+
+  METHOD receipt_left_over_serves_later.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '4' req_date = '20260305' priority = '01' )
+        ( demand_id = 'D2' matnr = c_matnr werks = c_werks
+          quantity = '4' req_date = '20260401' priority = '02' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        it_allocation = lt_result
+        iv_demand_id  = 'D1' )
+      exp = '4' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = confirmed_for(
+        it_allocation = lt_result
+        iv_demand_id  = 'D2' )
+      exp = '4'
+      msg = 'one receipt covers everything wanted after it arrives' ).
+
+  ENDMETHOD.
+
+  METHOD stock_is_available_at_once.
+
+    given(
+      it_supply = on_hand( '10' )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_result[ 1 ]-avail_date
+      msg = 'a line served off the shelf is there already, it waits for nothing' ).
+
+  ENDMETHOD.
+
+  METHOD receipt_dates_the_line.
+
+    given(
+      it_supply = VALUE #(
+        ( avail_date = '20260301' quantity = '10' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-avail_date
+      exp = '20260301'
+      msg = 'a line confirmed from a receipt is only there once the receipt is' ).
+
+  ENDMETHOD.
+
+  METHOD the_last_day_dates_the_line.
+
+    given(
+      it_supply = VALUE #(
+        ( quantity = '4' )
+        ( avail_date = '20260301' quantity = '3' )
+        ( avail_date = '20260310' quantity = '3' ) )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-confirmed
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_result[ 1 ]-avail_date
+      exp = '20260310'
+      msg = 'the line is only complete when the last of its supply has arrived' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_confirmed_has_no_date.
+
+    given(
+      it_supply = VALUE #( )
+      it_demand = VALUE #( ) ).
+
+    DATA(lt_result) = mo_cut->allocate(
+      iv_matnr  = c_matnr
+      iv_werks  = c_werks
+      it_demand = VALUE #(
+        ( demand_id = 'D1' matnr = c_matnr werks = c_werks
+          quantity = '10' req_date = '20260315' priority = '01' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial( lt_result[ 1 ]-avail_date ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Properties the answer has to have whatever it was asked, run over a few
+"! hundred made up situations rather than over one worked example each.
+"!
+"! The cases are generated from a counter, not from a random number: a test
+"! that fails only on some runs is a test nobody can act on. What is being
+"! looked for is the combination nobody thought to write a test for, and a
+"! counter finds those just as well as chance does.
+CLASS ltcl_invariants DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'MAT-INV'.
+    CONSTANTS c_werks TYPE mard-werks VALUE '1000'.
+    CONSTANTS c_cases TYPE i VALUE 120.
+
+    "! Fewer, because each of these writes its quotas to the database and
+    "! reads them back through the rule that is being tested.
+    CONSTANTS c_quota_cases TYPE i VALUE 40.
+
+    CONSTANTS c_customer_a TYPE vbak-kunnr VALUE '0000010001'.
+    CONSTANTS c_customer_b TYPE vbak-kunnr VALUE '0000010002'.
+
+    "! One made up situation: the stock there is and the lines waiting for it.
+    TYPES:
+      BEGIN OF ty_case,
+        available TYPE zif_allocation=>ty_quantity,
+        demand    TYPE zif_allocation=>ty_demand_tab,
+      END OF ty_case.
+
+    METHODS case_of
+      IMPORTING
+        iv_index       TYPE i
+      RETURNING
+        VALUE(rs_case) TYPE ty_case.
+
+    METHODS answer_of
+      IMPORTING
+        is_case              TYPE ty_case
+        iv_fair              TYPE abap_bool
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
+      RAISING
+        zcx_allocation.
+
+    METHODS check_case
+      IMPORTING
+        is_case       TYPE ty_case
+        it_allocation TYPE zif_allocation=>ty_allocation_tab.
+
+    METHODS teardown.
+
+    METHODS given_quota
+      IMPORTING
+        iv_kunnr    TYPE vbak-kunnr
+        iv_quantity TYPE zif_allocation=>ty_quantity.
+
+    METHODS quota_answer_of
+      IMPORTING
+        is_case              TYPE ty_case
+      RETURNING
+        VALUE(rt_allocation) TYPE zif_allocation=>ty_allocation_tab
+      RAISING
+        zcx_allocation.
+
+    METHODS confirmed_for
+      IMPORTING
+        is_case            TYPE ty_case
+        it_allocation      TYPE zif_allocation=>ty_allocation_tab
+        iv_kunnr           TYPE vbak-kunnr
+      RETURNING
+        VALUE(rv_quantity) TYPE zif_allocation=>ty_quantity.
+
+    METHODS nothing_is_given_twice FOR TESTING RAISING cx_static_check.
+    METHODS fair_share_holds_too FOR TESTING RAISING cx_static_check.
+    METHODS a_quota_is_never_exceeded FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+
+CLASS ltcl_invariants IMPLEMENTATION.
+
+  METHOD case_of.
+
+    " everything about the case follows from the counter, so case 37 is the
+    " same case in every run, on every machine, for anybody reading a failure
+    DATA(lv_lines) = iv_index MOD 4 + 1.
+
+    rs_case-available = ( iv_index MOD 7 ) * 5.
+
+    DO lv_lines TIMES.
+
+      DATA(lv_line) = sy-index.
+
+      APPEND VALUE #(
+        demand_id = |D{ lv_line }|
+        matnr     = c_matnr
+        werks     = c_werks
+        quantity  = ( ( iv_index + lv_line ) MOD 5 + 1 ) * 4
+        req_date  = '20260301'
+        priority  = COND #( WHEN ( iv_index + lv_line ) MOD 2 = 0
+                            THEN '01'
+                            ELSE '02' )
+        complete  = xsdbool( ( iv_index + lv_line ) MOD 5 = 0 )
+        customer  = COND #( WHEN lv_line MOD 2 = 0
+                            THEN '0000010001'
+                            ELSE '0000010002' )
+        unit_size = COND #( WHEN iv_index MOD 3 = 0
+                            THEN 4
+                            ELSE 1 ) ) TO rs_case-demand.
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD answer_of.
+
+    DATA lo_strategy TYPE REF TO zif_allocation_strategy.
+
+    " the chain CREATE_DEFAULT builds, in the order it builds it
+    IF iv_fair = abap_true.
+      lo_strategy = NEW zcl_alloc_strategy_fairshare( ).
+    ELSE.
+      lo_strategy = NEW zcl_alloc_strategy_priority( ).
+    ENDIF.
+
+    lo_strategy = NEW zcl_alloc_customer_cap(
+      io_strategy = lo_strategy
+      iv_percent  = 60 ).
+    lo_strategy = NEW zcl_alloc_whole_units( lo_strategy ).
+    lo_strategy = NEW zcl_alloc_all_or_nothing( lo_strategy ).
+
+    rt_allocation = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_reader_double( VALUE #(
+        ( avail_date = '00000000' quantity = is_case-available ) ) )
+      io_demand_reader = NEW lcl_demand_reader_double( VALUE #( ) )
+      io_strategy      = lo_strategy )->allocate(
+        iv_matnr  = c_matnr
+        iv_werks  = c_werks
+        it_demand = is_case-demand ).
+
+  ENDMETHOD.
+
+  METHOD check_case.
+
+    " typed explicitly: an expression handed straight to the assert is worked
+    " out in floating point by the transpiler and comes back as 1.3339999,
+    " see ANOMALIES.md
+    DATA lv_confirmed TYPE zif_allocation=>ty_quantity.
+    DATA lv_short     TYPE zif_allocation=>ty_quantity.
+    DATA lv_units     TYPE i.
+    DATA lv_whole     TYPE zif_allocation=>ty_quantity.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( it_allocation )
+      exp = lines( is_case-demand )
+      msg = 'every demand line is answered exactly once' ).
+
+    LOOP AT it_allocation INTO DATA(ls_allocation).
+
+      DATA(ls_demand) = is_case-demand[ demand_id = ls_allocation-demand_id ].
+
+      lv_confirmed = lv_confirmed + ls_allocation-confirmed.
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( ls_allocation-confirmed <= ls_demand-quantity )
+        msg = 'no line is given more than it asked for' ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( ls_allocation-confirmed >= 0 )
+        msg = 'and none is given a negative quantity' ).
+
+      lv_short = ls_demand-quantity - ls_allocation-confirmed.
+
+      cl_abap_unit_assert=>assert_equals(
+        act = ls_allocation-shortfall
+        exp = lv_short
+        msg = 'what is short is what was asked for less what was confirmed' ).
+
+      IF ls_demand-complete = abap_true.
+        cl_abap_unit_assert=>assert_true(
+          act = xsdbool( ls_allocation-confirmed = 0
+                      OR ls_allocation-confirmed = ls_demand-quantity )
+          msg = 'a complete delivery line gets all of it or none of it' ).
+      ENDIF.
+
+      IF ls_demand-unit_size > 1.
+        lv_units = floor( ls_allocation-confirmed / ls_demand-unit_size ).
+        lv_whole = lv_units * ls_demand-unit_size.
+        cl_abap_unit_assert=>assert_equals(
+          act = ls_allocation-confirmed
+          exp = lv_whole
+          msg = 'a line ordered in units is confirmed in whole units' ).
+      ENDIF.
+
+      IF ls_allocation-shortfall > 0.
+        cl_abap_unit_assert=>assert_not_initial(
+          act = ls_allocation-reason
+          msg = 'a line that fell short says why' ).
+      ENDIF.
+
+    ENDLOOP.
+
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_confirmed <= is_case-available )
+      msg = 'and the stock cannot be given away twice' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_is_given_twice.
+
+    DO c_cases TIMES.
+
+      DATA(ls_case) = case_of( sy-index ).
+
+      check_case(
+        is_case       = ls_case
+        it_allocation = answer_of(
+          is_case = ls_case
+          iv_fair = abap_false ) ).
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD fair_share_holds_too.
+
+    DO c_cases TIMES.
+
+      DATA(ls_case) = case_of( sy-index ).
+
+      check_case(
+        is_case       = ls_case
+        it_allocation = answer_of(
+          is_case = ls_case
+          iv_fair = abap_true ) ).
+
+    ENDDO.
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM zstock_alloc_qta WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD given_quota.
+
+    DATA lt_row TYPE STANDARD TABLE OF zstock_alloc_qta WITH EMPTY KEY.
+
+    lt_row = VALUE #(
+      ( mandt     = sy-mandt
+        werks     = c_werks
+        matnr     = c_matnr
+        kunnr     = iv_kunnr
+        date_from = '20260101'
+        date_to   = '20261231'
+        quantity  = iv_quantity ) ).
+
+    INSERT zstock_alloc_qta FROM TABLE @lt_row.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+  ENDMETHOD.
+
+  METHOD quota_answer_of.
+
+    DATA lv_half TYPE zif_allocation=>ty_quantity.
+
+    " the whole chain a plant that has asked for everything runs with, quota
+    " and all, built for this case alone as CREATE_DEFAULT_STRATEGY builds one
+    " per service
+    DATA(lo_strategy) = zcl_allocation_service=>create_default_strategy(
+      is_settings = VALUE #( cap_percent = 60
+                             whole_units = abap_true
+                             quota       = abap_true )
+      io_strategy = NEW zcl_alloc_strategy_priority( ) ).
+
+    " the stock arrives on two days rather than one, because a rule that has
+    " to hold across the engine's walk is only tested by a walk
+    lv_half = is_case-available / 2.
+
+    rt_allocation = NEW zcl_allocation_engine(
+      io_supply_reader = NEW lcl_supply_reader_double( VALUE #(
+        ( avail_date = '00000000' quantity = lv_half )
+        ( avail_date = '20260215' quantity = is_case-available - lv_half ) ) )
+      io_demand_reader = NEW lcl_demand_reader_double( VALUE #( ) )
+      io_strategy      = lo_strategy )->allocate(
+        iv_matnr  = c_matnr
+        iv_werks  = c_werks
+        it_demand = is_case-demand ).
+
+  ENDMETHOD.
+
+  METHOD confirmed_for.
+
+    LOOP AT it_allocation INTO DATA(ls_allocation).
+
+      DATA(ls_demand) = is_case-demand[ demand_id = ls_allocation-demand_id ].
+      IF ls_demand-customer <> iv_kunnr.
+        CONTINUE.
+      ENDIF.
+
+      rv_quantity = rv_quantity + ls_allocation-confirmed.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD a_quota_is_never_exceeded.
+
+    " one pair of quotas, written once, against every case: what varies from
+    " case to case is the demand and the stock, and writing the quotas again
+    " inside the loop would only be reading the same rule back forty times
+    CONSTANTS lc_quota_a TYPE zif_allocation=>ty_quantity VALUE 8.
+    CONSTANTS lc_quota_b TYPE zif_allocation=>ty_quantity VALUE 12.
+
+    DATA lv_bit TYPE i.
+
+    given_quota(
+      iv_kunnr    = c_customer_a
+      iv_quantity = lc_quota_a ).
+    given_quota(
+      iv_kunnr    = c_customer_b
+      iv_quantity = lc_quota_b ).
+
+    DO c_quota_cases TIMES.
+
+      DATA(lv_index) = sy-index.
+      DATA(ls_case)  = case_of( lv_index ).
+
+      DATA(lt_allocation) = quota_answer_of( ls_case ).
+
+      " everything that holds without a quota still holds with one: the rule
+      " may only ever take away, and it may not break the answer
+      check_case(
+        is_case       = ls_case
+        it_allocation = lt_allocation ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( confirmed_for( is_case       = ls_case
+                                      it_allocation = lt_allocation
+                                      iv_kunnr      = c_customer_a ) <= lc_quota_a )
+        msg = |case { lv_index }: a customer was given more than its quota| ).
+
+      cl_abap_unit_assert=>assert_true(
+        act = xsdbool( confirmed_for( is_case       = ls_case
+                                      it_allocation = lt_allocation
+                                      iv_kunnr      = c_customer_b ) <= lc_quota_b )
+        msg = |case { lv_index }: a customer was given more than its quota| ).
+
+      LOOP AT lt_allocation TRANSPORTING NO FIELDS
+          WHERE reason = zif_allocation=>c_reason-quota.
+        lv_bit = lv_bit + 1.
+      ENDLOOP.
+
+    ENDDO.
+
+    " a property that no case ever puts under strain is a property nobody has
+    " tested: some of these have to be lines the quota actually stopped
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( lv_bit > 0 )
+      msg = 'no case in the whole set was held back by its quota' ).
+
+  ENDMETHOD.
+
+ENDCLASS.

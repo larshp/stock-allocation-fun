@@ -1,0 +1,438 @@
+CLASS zcl_alloc_move_list DEFINITION PUBLIC FINAL CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    TYPES ty_line_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+    "! <p class="shorttext synchronized">List wired up the way a plain SAP system needs it</p>
+    "!
+    "! @parameter ro_list | <p class="shorttext synchronized">Ready to use list</p>
+    CLASS-METHODS create_default
+      RETURNING
+        VALUE(ro_list) TYPE REF TO zcl_alloc_move_list.
+
+    "! <p class="shorttext synchronized">Wire up the list</p>
+    "!
+    "! Reading what a plant has decided and changing it are two activities,
+    "! so there are two authority objects rather than one used for both: a
+    "! display user may read the worklist and may not answer it.
+    "!
+    "! @parameter io_transfer | <p class="shorttext synchronized">Where proposals are written down</p>
+    "! @parameter io_lapse    | <p class="shorttext synchronized">Knows which shortages have gone</p>
+    "! @parameter io_spare    | <p class="shorttext synchronized">What the sending plant could let go of</p>
+    "! @parameter io_display  | <p class="shorttext synchronized">Which plants may be read</p>
+    "! @parameter io_change   | <p class="shorttext synchronized">Decides who may answer for a plant</p>
+    "! @parameter io_commit   | <p class="shorttext synchronized">Makes an answer durable</p>
+    METHODS constructor
+      IMPORTING
+        io_transfer TYPE REF TO zcl_alloc_transfer
+        io_lapse    TYPE REF TO zcl_alloc_lapse
+        io_spare    TYPE REF TO zcl_alloc_spare
+        io_display  TYPE REF TO zcl_alloc_visible
+        io_change   TYPE REF TO zif_allocation_authority
+        io_commit   TYPE REF TO zif_unit_of_work.
+
+    "! <p class="shorttext synchronized">The transfers waiting for an answer</p>
+    "!
+    "! `ZSTOCK_ALLOC_TRF` writes the proposals down and nothing could read
+    "! them back: running it again says what it would propose now, which is
+    "! not the same list and does not say who proposed what or what they wrote
+    "! on it. This is the worklist itself.
+    "!
+    "! A proposal whose shortage has gone says so. Stock arrives, an order is
+    "! cancelled, a re-cut gives a line what it wanted -- and the note asking
+    "! for a transfer is then a note somebody would act on for no reason. It
+    "! stays on the list rather than disappearing, because a proposal is a
+    "! question put to a person and it is theirs to close.
+    "!
+    "! So does a proposal the sending plant can no longer cover. A note is
+    "! written against what that plant could spare on the night it was made,
+    "! and by the morning somebody reads it the stock can be gone: its own
+    "! demand arrived, or another plant asked first. The page reads the
+    "! sending plant again and says what is really there, so that a planner
+    "! rings the other plant about a quantity it still has.
+    "!
+    "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
+    "! @parameter iv_matnr       | <p class="shorttext synchronized">Material, every one if empty</p>
+    "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be seen</p>
+    METHODS run
+      IMPORTING
+        iv_werks       TYPE mard-werks
+        iv_matnr       TYPE mard-matnr OPTIONAL
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab
+      RAISING
+        zcx_allocation.
+
+    "! <p class="shorttext synchronized">Say what became of one proposal</p>
+    "!
+    "! Raised, or decided against. Which of the two it is matters as much as
+    "! that it was answered: a proposal nobody acted on is one to think about
+    "! again when the plant is short of the same thing next month, and one
+    "! that was raised is not.
+    "!
+    "! The plant is checked before the proposal is read, so somebody cannot
+    "! find out what another plant is short of by answering its proposals.
+    "!
+    "! A transfer raised for less than the note asked for is the commonest
+    "! yes there is, and since feature 168 the page says so out loud: the
+    "! sending plant's spare is on the row. Saying how much was raised keeps
+    "! the record of what happened true, and a note answered for ten of forty
+    "! leaves the other thirty free for somebody else to be offered.
+    "!
+    "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
+    "! @parameter iv_proposal    | <p class="shorttext synchronized">The proposal</p>
+    "! @parameter iv_raised      | <p class="shorttext synchronized">True if the transfer was raised</p>
+    "! @parameter iv_quantity    | <p class="shorttext synchronized">Quantity raised, the proposed one if empty</p>
+    "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be acted in, or no such proposal</p>
+    METHODS answer
+      IMPORTING
+        iv_werks       TYPE mard-werks
+        iv_proposal    TYPE zstock_alloc_trf-proposal
+        iv_raised      TYPE abap_bool
+        iv_quantity    TYPE zif_allocation=>ty_quantity OPTIONAL
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab
+      RAISING
+        zcx_allocation.
+
+    "! <p class="shorttext synchronized">Close every proposal whose shortage has gone</p>
+    "!
+    "! Feature 163 marks them and leaves them, because closing a proposal is
+    "! a person's decision. This is that person deciding, for all of them at
+    "! once: the alternative is answering a hundred notes one at a time to say
+    "! the same thing about each, which is how a worklist stops being worked.
+    "!
+    "! They lapse rather than being answered. Nobody decided against these
+    "! transfers; the shortage they were written against went away, and a year
+    "! later that is a different thing to find in the table.
+    "!
+    "! @parameter iv_werks       | <p class="shorttext synchronized">Plant that is short</p>
+    "! @parameter iv_test        | <p class="shorttext synchronized">Say what would be closed, close nothing</p>
+    "! @parameter rt_line        | <p class="shorttext synchronized">Lines to display</p>
+    "! @raising   zcx_allocation | <p class="shorttext synchronized">Plant may not be acted in, or it failed</p>
+    METHODS tidy
+      IMPORTING
+        iv_werks       TYPE mard-werks
+        iv_test        TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rt_line) TYPE ty_line_tab
+      RAISING
+        zcx_allocation.
+
+  PRIVATE SECTION.
+
+    CONSTANTS c_width_id    TYPE i VALUE 24.
+    CONSTANTS c_width_matnr TYPE i VALUE 20.
+    CONSTANTS c_width_werks TYPE i VALUE 8.
+    CONSTANTS c_width_qty   TYPE i VALUE 14.
+    CONSTANTS c_width_who   TYPE i VALUE 14.
+    CONSTANTS c_width_date  TYPE i VALUE 12.
+
+    "! Answering a proposal changes somebody's morning, and reading the list
+    "! is reading what a plant has decided. The two are different activities
+    "! and the plant is checked for whichever one is being done.
+    CONSTANTS c_activity_display TYPE activ_auth VALUE '03'.
+    CONSTANTS c_activity_change TYPE activ_auth VALUE '02'.
+
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
+    DATA mo_lapse    TYPE REF TO zcl_alloc_lapse.
+    DATA mo_spare    TYPE REF TO zcl_alloc_spare.
+    DATA mo_display  TYPE REF TO zcl_alloc_visible.
+    DATA mo_change   TYPE REF TO zif_allocation_authority.
+    DATA mo_commit   TYPE REF TO zif_unit_of_work.
+
+    "! What the sending plant can do about one open proposal today. SPARE is
+    "! what it could let go of now, printed as a column; SHORTFALL says
+    "! whether that is less than the proposal asked for, which is what makes
+    "! the row worth a second look.
+    TYPES:
+      BEGIN OF ty_still,
+        spare     TYPE string,
+        shortfall TYPE abap_bool,
+        verdict   TYPE string,
+      END OF ty_still.
+
+    METHODS still_there
+      IMPORTING
+        is_open         TYPE zcl_alloc_transfer=>ty_proposal
+      RETURNING
+        VALUE(rs_still) TYPE ty_still
+      RAISING
+        zcx_allocation.
+
+    METHODS format_row
+      IMPORTING
+        iv_id          TYPE string
+        iv_matnr       TYPE string
+        iv_from        TYPE string
+        iv_quantity    TYPE string
+        iv_spare       TYPE string
+        iv_needed      TYPE string
+        iv_who         TYPE string
+        iv_when        TYPE string
+        iv_note        TYPE string
+      RETURNING
+        VALUE(rv_line) TYPE string.
+
+    METHODS date_text
+      IMPORTING
+        iv_date        TYPE d
+      RETURNING
+        VALUE(rv_text) TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_alloc_move_list IMPLEMENTATION.
+
+  METHOD create_default.
+
+    DATA(lo_transfer) = NEW zcl_alloc_transfer( ).
+
+    ro_list = NEW zcl_alloc_move_list(
+      io_transfer = lo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = lo_transfer
+        io_store    = NEW zcl_allocation_store( ) )
+      io_spare    = zcl_alloc_spare=>create_default( )
+      io_display  = NEW zcl_alloc_visible(
+        NEW zcl_authority_alloc( c_activity_display ) )
+      io_change   = NEW zcl_authority_alloc( c_activity_change )
+      io_commit   = NEW zcl_unit_of_work( ) ).
+
+  ENDMETHOD.
+
+  METHOD constructor.
+
+    mo_transfer = io_transfer.
+    mo_lapse    = io_lapse.
+    mo_spare    = io_spare.
+    mo_display  = io_display.
+    mo_change   = io_change.
+    mo_commit   = io_commit.
+
+  ENDMETHOD.
+
+  METHOD run.
+
+    DATA lv_gone   TYPE i.
+    DATA lv_nogo   TYPE i.
+    DATA lv_note   TYPE string.
+
+    mo_display->check_plant( iv_werks ).
+
+    APPEND |Plant { iv_werks }, transfers waiting for an answer| TO rt_line.
+
+    DATA(lt_open) = mo_transfer->open_for(
+      iv_werks = iv_werks
+      iv_matnr = iv_matnr ).
+
+    IF lt_open IS INITIAL.
+      APPEND `Nothing is waiting for an answer` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    APPEND format_row(
+      iv_id       = `Proposal`
+      iv_matnr    = `Material`
+      iv_from     = `From`
+      iv_quantity = `Quantity`
+      iv_spare    = `Spare there`
+      iv_needed   = `Needed by`
+      iv_who      = `Proposed by`
+      iv_when     = `On`
+      iv_note     = `Note` ) TO rt_line.
+
+    LOOP AT lt_open INTO DATA(ls_open).
+
+      DATA(lv_stale) = xsdbool( mo_lapse->still_short(
+        iv_werks = iv_werks
+        iv_matnr = ls_open-matnr ) = abap_false ).
+      IF lv_stale = abap_true.
+        lv_gone = lv_gone + 1.
+      ENDIF.
+
+      DATA(ls_still) = still_there( ls_open ).
+      IF ls_still-shortfall = abap_true.
+        lv_nogo = lv_nogo + 1.
+      ENDIF.
+
+      " the shortage going away is the bigger news of the two, so it comes
+      " first: a note nobody needs any more is not worth chasing the other
+      " plant about whether they can still cover it
+      lv_note = ls_open-note.
+      IF ls_still-verdict IS NOT INITIAL.
+        lv_note = |{ ls_still-verdict }. { lv_note }|.
+      ENDIF.
+      IF lv_stale = abap_true.
+        lv_note = |no longer short. { lv_note }|.
+      ENDIF.
+
+      APPEND format_row(
+        iv_id       = |{ ls_open-proposal }|
+        iv_matnr    = |{ ls_open-matnr }|
+        iv_from     = |{ ls_open-from_werks }|
+        iv_quantity = |{ ls_open-quantity }|
+        iv_spare    = ls_still-spare
+        iv_needed   = date_text( ls_open-needed_by )
+        iv_who      = |{ ls_open-created_by }|
+        iv_when     = |{ zcl_alloc_clock=>date_of( ls_open-created_at ) DATE = ISO }|
+        iv_note     = lv_note ) TO rt_line.
+
+    ENDLOOP.
+
+    APPEND || TO rt_line.
+    APPEND |{ lines( lt_open ) } waiting| &&
+           COND string( WHEN lv_gone > 0
+                        THEN |, { lv_gone } of them for a shortage that has gone|
+                        ELSE `` ) &&
+           COND string( WHEN lv_nogo > 0
+                        THEN |, { lv_nogo } the other plant can no longer cover|
+                        ELSE `` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD still_there.
+
+    " a reader allowed to see the plant that is short is not thereby allowed
+    " to see what the plant on the other side of the proposal is sitting on.
+    " The row itself stays -- the proposal is this plant's business and the
+    " reader is looking at their own worklist -- and the column is blank.
+    IF mo_display->may_see( is_open-from_werks ) = abap_false.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_spare) = mo_spare->at_plant(
+      iv_matnr = is_open-matnr
+      iv_werks = is_open-from_werks )-spare.
+
+    rs_still-spare = |{ lv_spare }|.
+
+    IF lv_spare >= is_open-quantity.
+      RETURN.
+    ENDIF.
+
+    rs_still-shortfall = abap_true.
+
+    " nothing at all and not quite enough are different conversations: one is
+    " a transfer to give up on, the other a transfer to raise for less
+    rs_still-verdict = COND string(
+      WHEN lv_spare <= 0
+      THEN `the stock has gone`
+      ELSE `only part of it left` ).
+
+  ENDMETHOD.
+
+  METHOD answer.
+
+    " the plant is checked first, and with the activity that says somebody is
+    " about to change something. Reading the proposal to see which plant it
+    " belongs to would otherwise tell a user what another plant is short of.
+    mo_change->check_plant( iv_werks ).
+
+    " and it has to be this plant's proposal. A proposal id is a UUID, so
+    " guessing one is not the risk; answering one from a plant somebody
+    " happens to have the number for is.
+    DATA(lt_open) = mo_transfer->open_for( iv_werks ).
+
+    IF NOT line_exists( lt_open[ proposal = iv_proposal ] ).
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid     = zcx_allocation=>save_failed
+        mv_message = |{ iv_proposal } { iv_werks }| ).
+    ENDIF.
+
+    DATA(lv_asked) = lt_open[ proposal = iv_proposal ]-quantity.
+
+    mo_transfer->answer(
+      iv_proposal = iv_proposal
+      iv_status   = COND #( WHEN iv_raised = abap_true
+                            THEN zcl_alloc_transfer=>c_status-done
+                            ELSE zcl_alloc_transfer=>c_status-dropped )
+      iv_quantity = iv_quantity ).
+
+    mo_commit->commit( ).
+
+    IF iv_raised = abap_false.
+      APPEND |{ iv_proposal } was decided against| TO rt_line.
+      RETURN.
+    ENDIF.
+
+    " what was raised, and where that is not what was asked for, both: the
+    " line is the only thing the person sees of what they just recorded
+    DATA(lv_raised) = COND zif_allocation=>ty_quantity(
+      WHEN iv_quantity > 0
+      THEN iv_quantity
+      ELSE lv_asked ).
+
+    APPEND |{ iv_proposal } is raised for { lv_raised }| &&
+           COND string( WHEN lv_raised <> lv_asked
+                        THEN | of the { lv_asked } proposed|
+                        ELSE `` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD tidy.
+
+    mo_change->check_plant( iv_werks ).
+
+    APPEND |Plant { iv_werks }, proposals whose shortage has gone| &&
+           COND string( WHEN iv_test = abap_true
+                        THEN ` (test run, nothing closed)`
+                        ELSE `` ) TO rt_line.
+
+    DATA(ls_outcome) = mo_lapse->run(
+      iv_werks = iv_werks
+      iv_test  = iv_test ).
+
+    APPEND LINES OF ls_outcome-line TO rt_line.
+    DATA(lv_closed) = ls_outcome-closed.
+
+    IF lv_closed = 0.
+      APPEND `Every proposal still has a shortage behind it` TO rt_line.
+      RETURN.
+    ENDIF.
+
+    " one commit for the run, for the reason feature 160 gives
+    IF iv_test = abap_false.
+      mo_commit->commit( ).
+    ENDIF.
+
+    APPEND || TO rt_line.
+    APPEND |{ lv_closed } proposal(s) | &&
+           COND string( WHEN iv_test = abap_true
+                        THEN `would be closed`
+                        ELSE `closed` ) TO rt_line.
+
+  ENDMETHOD.
+
+  METHOD date_text.
+
+    " a proposal with no day is wanted now, which is what the worklist of
+    " feature 48 says about a demand line with no date
+    IF iv_date IS INITIAL.
+      rv_text = `now`.
+      RETURN.
+    ENDIF.
+
+    rv_text = |{ iv_date DATE = ISO }|.
+
+  ENDMETHOD.
+
+  METHOD format_row.
+
+    rv_line = |{ iv_id WIDTH = c_width_id }|
+      && |{ iv_matnr WIDTH = c_width_matnr }|
+      && |{ iv_from WIDTH = c_width_werks }|
+      && |{ iv_quantity WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |{ iv_spare WIDTH = c_width_qty ALIGN = RIGHT }|
+      && |  { iv_needed WIDTH = c_width_date }|
+      && |{ iv_who WIDTH = c_width_who }|
+      && |{ iv_when WIDTH = c_width_date }|
+      && |{ iv_note }|.
+
+  ENDMETHOD.
+
+ENDCLASS.

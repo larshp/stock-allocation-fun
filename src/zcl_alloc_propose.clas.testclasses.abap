@@ -1,0 +1,1003 @@
+"! Answers with a fixed set of recorded lines.
+CLASS lcl_store_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_store.
+
+    METHODS constructor
+      IMPORTING
+        it_recorded TYPE zif_allocation_store=>ty_recorded_tab.
+
+  PRIVATE SECTION.
+    DATA mt_recorded TYPE zif_allocation_store=>ty_recorded_tab.
+    DATA mv_written  TYPE abap_bool.
+
+ENDCLASS.
+
+
+CLASS lcl_store_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_recorded = it_recorded.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~latest_per_material.
+
+    " the material is honoured, because the closing of feature 165 asks about
+    " one material at a time and a double that answered with all of them
+    " would call every shortage live
+    LOOP AT mt_recorded INTO DATA(ls_recorded).
+      IF iv_matnr IS NOT INITIAL AND ls_recorded-matnr <> iv_matnr.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_recorded TO rt_recorded.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~save.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~read.
+    CLEAR rt_allocation.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~runs_recorded_before.
+    CLEAR rt_run.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~runs_of_material.
+    CLEAR rt_run.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~record_reservation.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+  METHOD zif_allocation_store~delete_run.
+    CLEAR mv_written.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Allows the plants it was told to allow, and refuses the rest.
+CLASS lcl_authority_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_authority.
+
+    TYPES ty_werks_tab TYPE STANDARD TABLE OF mard-werks WITH EMPTY KEY.
+
+    METHODS constructor
+      IMPORTING
+        it_allowed TYPE ty_werks_tab.
+
+  PRIVATE SECTION.
+    DATA mt_allowed TYPE ty_werks_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_authority_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_allowed = it_allowed.
+  ENDMETHOD.
+
+  METHOD zif_allocation_authority~check_plant.
+
+    IF NOT line_exists( mt_allowed[ table_line = iv_werks ] ).
+      RAISE EXCEPTION NEW zcx_allocation(
+        textid     = zcx_allocation=>not_authorised
+        mv_message = |{ iv_werks }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Hands out what it was told, per plant.
+CLASS lcl_supply_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_supply_reader.
+
+    TYPES:
+      BEGIN OF ty_row,
+        matnr    TYPE mard-matnr,
+        werks    TYPE mard-werks,
+        quantity TYPE zif_allocation=>ty_quantity,
+      END OF ty_row.
+    TYPES ty_row_tab TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+
+    METHODS constructor
+      IMPORTING
+        it_row TYPE ty_row_tab.
+
+  PRIVATE SECTION.
+    DATA mt_row TYPE ty_row_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_supply_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_row = it_row.
+  ENDMETHOD.
+
+  METHOD zif_supply_reader~read_supply.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr
+          AND werks = iv_werks.
+      APPEND VALUE #( quantity = ls_row-quantity ) TO rt_supply.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Hands out the demand it was told, per plant.
+CLASS lcl_demand_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_demand_reader.
+
+    METHODS constructor
+      IMPORTING
+        it_row TYPE lcl_supply_double=>ty_row_tab.
+
+  PRIVATE SECTION.
+    DATA mt_row TYPE lcl_supply_double=>ty_row_tab.
+
+ENDCLASS.
+
+
+CLASS lcl_demand_double IMPLEMENTATION.
+
+  METHOD constructor.
+    mt_row = it_row.
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~read_open_demand.
+
+    LOOP AT mt_row INTO DATA(ls_row)
+        WHERE matnr = iv_matnr
+          AND werks = iv_werks.
+      APPEND VALUE #(
+        demand_id = |{ ls_row-werks }|
+        matnr     = ls_row-matnr
+        werks     = ls_row-werks
+        quantity  = ls_row-quantity ) TO rt_demand.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_demand_reader~materials_with_demand.
+    CLEAR rt_matnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Remembers what the run said it did.
+CLASS lcl_log_spy DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_log.
+
+    TYPES ty_entry_tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
+
+    METHODS entries
+      RETURNING
+        VALUE(rt_entry) TYPE ty_entry_tab.
+
+    METHODS saves
+      RETURNING
+        VALUE(rv_saves) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mt_entry TYPE ty_entry_tab.
+    DATA mv_saves TYPE i.
+
+ENDCLASS.
+
+
+CLASS lcl_log_spy IMPLEMENTATION.
+
+  METHOD entries.
+    rt_entry = mt_entry.
+  ENDMETHOD.
+
+  METHOD saves.
+    rv_saves = mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~start.
+    APPEND |started { iv_werks }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposed.
+    APPEND |proposed { iv_matnr } { iv_from_werks } { iv_quantity }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_closed.
+    APPEND |closed { iv_closed }| TO mt_entry.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~allocated.
+    " the proposing allocates nothing
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~failed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~released.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~proposals_forgotten.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~removed.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~finished.
+    CLEAR mv_saves.
+  ENDMETHOD.
+
+  METHOD zif_allocation_log~save.
+    mv_saves = mv_saves + 1.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Counts the commits.
+CLASS lcl_commit_double DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    INTERFACES zif_unit_of_work.
+
+    METHODS commits
+      RETURNING
+        VALUE(rv_commits) TYPE i.
+
+  PRIVATE SECTION.
+    DATA mv_commits TYPE i.
+    DATA mv_rolled  TYPE abap_bool.
+
+ENDCLASS.
+
+
+CLASS lcl_commit_double IMPLEMENTATION.
+
+  METHOD commits.
+    rv_commits = mv_commits.
+  ENDMETHOD.
+
+  METHOD zif_unit_of_work~commit.
+    mv_commits = mv_commits + 1.
+  ENDMETHOD.
+
+  METHOD zif_unit_of_work~rollback.
+    " nothing here rolls back: a proposal is written down or it is not
+    CLEAR mv_rolled.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+CLASS ltcl_alloc_propose DEFINITION FINAL FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS.
+
+  PRIVATE SECTION.
+    CONSTANTS c_matnr TYPE mard-matnr VALUE 'PROPOSE-01'.
+    CONSTANTS c_other TYPE mard-matnr VALUE 'PROPOSE-02'.
+    CONSTANTS c_here  TYPE mard-werks VALUE '1000'.
+    CONSTANTS c_there TYPE mard-werks VALUE '2000'.
+    CONSTANTS c_far   TYPE mard-werks VALUE '3000'.
+
+    DATA mo_transfer TYPE REF TO zcl_alloc_transfer.
+    DATA mo_commit   TYPE REF TO lcl_commit_double.
+    DATA mo_log      TYPE REF TO lcl_log_spy.
+
+    METHODS setup.
+    METHODS teardown.
+
+    METHODS run_of
+      IMPORTING
+        it_supply      TYPE lcl_supply_double=>ty_row_tab
+        it_demand      TYPE lcl_supply_double=>ty_row_tab OPTIONAL
+        it_allowed     TYPE lcl_authority_double=>ty_werks_tab OPTIONAL
+        iv_short       TYPE zif_allocation=>ty_quantity DEFAULT '40'
+        iv_req_date    TYPE d DEFAULT '20260401'
+        iv_test        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_line) TYPE zcl_alloc_propose=>ty_line_tab
+      RAISING
+        zcx_allocation.
+
+    METHODS found
+      IMPORTING
+        it_line         TYPE zcl_alloc_propose=>ty_line_tab
+        iv_pattern      TYPE string
+      RETURNING
+        VALUE(rv_found) TYPE abap_bool.
+
+    METHODS a_spare_plant_is_proposed FOR TESTING RAISING cx_static_check.
+    METHODS the_proposal_is_written_down FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_writes_nothing FOR TESTING RAISING cx_static_check.
+    METHODS an_open_one_is_not_repeated FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_with_no_spare FOR TESTING RAISING cx_static_check.
+    METHODS the_shortfall_caps_it FOR TESTING RAISING cx_static_check.
+    METHODS nothing_new_says_so FOR TESTING RAISING cx_static_check.
+    METHODS one_commit_for_the_run FOR TESTING RAISING cx_static_check.
+    METHODS nothing_written_is_no_commit FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_nobody_may_see FOR TESTING RAISING cx_static_check.
+    METHODS the_day_it_is_wanted_carries FOR TESTING RAISING cx_static_check.
+    METHODS a_stale_note_is_closed_first FOR TESTING RAISING cx_static_check.
+    METHODS and_stops_blocking_a_new_one FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_closes_nothing FOR TESTING RAISING cx_static_check.
+    METHODS the_notes_add_up_to_the_short FOR TESTING RAISING cx_static_check.
+    METHODS a_covered_shortage_asks_once FOR TESTING RAISING cx_static_check.
+    METHODS an_open_note_comes_off_first FOR TESTING RAISING cx_static_check.
+    METHODS a_note_covering_it_stops_more FOR TESTING RAISING cx_static_check.
+    METHODS another_plants_claim_counts FOR TESTING RAISING cx_static_check.
+    METHODS a_fully_claimed_plant_is_out FOR TESTING RAISING cx_static_check.
+    METHODS every_plant_in_one_go FOR TESTING RAISING cx_static_check.
+    METHODS the_first_plant_gets_it_first FOR TESTING RAISING cx_static_check.
+    METHODS a_plant_not_ours_is_skipped FOR TESTING RAISING cx_static_check.
+    METHODS everywhere_can_be_a_test_run FOR TESTING RAISING cx_static_check.
+    METHODS the_diary_says_what_it_wrote FOR TESTING RAISING cx_static_check.
+    METHODS the_diary_counts_the_closed FOR TESTING RAISING cx_static_check.
+    METHODS a_test_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
+    METHODS a_quiet_run_keeps_no_diary FOR TESTING RAISING cx_static_check.
+    METHODS one_diary_per_plant FOR TESTING RAISING cx_static_check.
+
+    METHODS run_all_of
+      IMPORTING
+        it_supply      TYPE lcl_supply_double=>ty_row_tab
+        it_allowed     TYPE lcl_authority_double=>ty_werks_tab OPTIONAL
+        iv_test        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_line) TYPE zcl_alloc_propose=>ty_line_tab
+      RAISING
+        zcx_allocation.
+
+ENDCLASS.
+
+
+CLASS ltcl_alloc_propose IMPLEMENTATION.
+
+  METHOD setup.
+
+    DATA lt_marc  TYPE STANDARD TABLE OF marc WITH EMPTY KEY.
+    DATA lt_t001w TYPE STANDARD TABLE OF t001w WITH EMPTY KEY.
+
+    lt_marc = VALUE #(
+      ( mandt = sy-mandt matnr = c_matnr werks = c_here )
+      ( mandt = sy-mandt matnr = c_matnr werks = c_there )
+      ( mandt = sy-mandt matnr = c_matnr werks = c_far ) ).
+
+    INSERT marc FROM TABLE @lt_marc.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    lt_t001w = VALUE #(
+      mandt = sy-mandt
+      ( werks = c_here )
+      ( werks = c_there )
+      ( werks = c_far ) ).
+
+    INSERT t001w FROM TABLE @lt_t001w.
+    cl_abap_unit_assert=>assert_subrc( ).
+
+    mo_transfer = NEW zcl_alloc_transfer( ).
+    mo_commit   = NEW lcl_commit_double( ).
+    mo_log      = NEW lcl_log_spy( ).
+
+  ENDMETHOD.
+
+  METHOD teardown.
+
+    DELETE FROM marc WHERE matnr = @c_matnr.
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM zstock_alloc_trf WHERE matnr IN ( @c_matnr, @c_other ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+    DELETE FROM t001w WHERE werks IN ( @c_here, @c_there, @c_far ).
+    cl_abap_unit_assert=>assert_true( xsdbool( sy-subrc = 0 OR sy-subrc = 4 ) ).
+
+  ENDMETHOD.
+
+  METHOD run_of.
+
+    DATA(lt_allowed) = it_allowed.
+    IF lt_allowed IS INITIAL.
+      lt_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ).
+    ENDIF.
+
+    DATA(lo_store) = NEW lcl_store_double( VALUE #(
+      ( matnr = c_matnr demand_id = 'D1' req_date = iv_req_date
+        requested = iv_short confirmed = 0 shortfall = iv_short reason = 'S' ) ) ).
+
+    DATA(lo_cut) = NEW zcl_alloc_propose(
+      io_spare    = NEW zcl_alloc_spare(
+        io_supply   = NEW lcl_supply_double( it_supply )
+        io_demand   = NEW lcl_demand_double( it_demand )
+        io_transfer = mo_transfer )
+      io_store    = lo_store
+      io_visible  = NEW zcl_alloc_visible( NEW lcl_authority_double( lt_allowed ) )
+      io_transfer = mo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = mo_transfer
+        io_store    = lo_store )
+      io_commit   = mo_commit
+      io_log      = mo_log
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
+
+    rt_line = lo_cut->run(
+      iv_werks = c_here
+      iv_test  = iv_test ).
+
+  ENDMETHOD.
+
+  METHOD found.
+
+    LOOP AT it_line INTO DATA(lv_line).
+      IF lv_line CP iv_pattern.
+        rv_found = abap_true.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD a_spare_plant_is_proposed.
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*40.000*proposed*' )
+      msg = 'a plant with stock to spare is a transfer worth raising' ).
+
+  ENDMETHOD.
+
+  METHOD the_proposal_is_written_down.
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-from_werks
+      exp = c_there ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '40'
+      msg = 'the page and the note have to say the same number' ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_writes_nothing.
+
+    DATA(lt_line) = run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be proposed*' ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'a test run of a program that changes something changes nothing' ).
+
+  ENDMETHOD.
+
+  METHOD an_open_one_is_not_repeated.
+
+    " what makes this schedulable: a nightly job that made the same note
+    " every night would be a worklist nobody could work through
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*already proposed*' )
+      msg = 'and it says so rather than going quiet about it' ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_with_no_spare.
+
+    run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      it_demand = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'a plant with everything promised already is not asked for it' ).
+
+  ENDMETHOD.
+
+  METHOD the_shortfall_caps_it.
+
+    " sixty spare there and forty missing here: the note asks for forty,
+    " because a transfer of sixty would move a shortage rather than fix one
+    run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '60' ) )
+      iv_short  = '40' ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '40' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_new_says_so.
+
+    DATA(lt_line) = run_of( VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*Nothing new to propose*' ) ).
+
+  ENDMETHOD.
+
+  METHOD one_commit_for_the_run.
+
+    " twenty-five spare in each of two plants against forty missing here, so
+    " both are worth a note and neither of them covers the shortage alone
+    run_of( VALUE #(
+      ( matnr = c_matnr werks = c_there quantity = '25' )
+      ( matnr = c_matnr werks = c_far quantity = '25' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->commits( )
+      exp = 1
+      msg = 'a proposal is a note, and the run is what has to survive' ).
+
+  ENDMETHOD.
+
+  METHOD nothing_written_is_no_commit.
+
+    " the rule feature 37 settled for a simulation: a run with nothing of its
+    " own to make durable must not make somebody else's work durable for them
+    run_of( VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_commit->commits( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_nobody_may_see.
+
+    run_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_far quantity = '100' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_there ) ) ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'nobody makes a note about a plant they may not know about' ).
+
+  ENDMETHOD.
+
+  METHOD the_day_it_is_wanted_carries.
+
+    " a proposal without the day it is for cannot be put in order of urgency,
+    " and a worklist in the order the notes were written is a worklist read
+    " from the wrong end
+    run_of(
+      it_supply   = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_req_date = '20260515' ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-needed_by
+      exp = '20260515' ).
+
+  ENDMETHOD.
+
+  METHOD a_stale_note_is_closed_first.
+
+    " the store double this class wires says the material is short, so a note
+    " about another material has nothing behind it
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = lt_line
+      iv_pattern = '*the shortage behind them has gone*' ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = mo_transfer->is_open( iv_matnr      = c_other
+                                  iv_to_werks   = c_here
+                                  iv_from_werks = c_there )
+      msg = 'a note with nothing behind it is closed before anything new is written' ).
+
+  ENDMETHOD.
+
+  METHOD and_stops_blocking_a_new_one.
+
+    " this is the defect the feature exists for. A note for the pair is open,
+    " its shortage has gone, and the material is short again for a different
+    " quantity: without the closing, IS_OPEN says "already proposed" and the
+    " new shortage is never written down.
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '5' ).
+
+    DATA(lt_before) = mo_transfer->open_for( c_here ).
+    mo_transfer->lapse( lt_before[ 1 ]-proposal ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '40'
+      msg = 'the note that is open is the one for the shortage there is now' ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_closes_nothing.
+
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    DATA(lt_line) = run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be closed*' ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = mo_transfer->is_open( iv_matnr      = c_other
+                                  iv_to_werks   = c_here
+                                  iv_from_werks = c_there )
+      msg = 'a test run of a program that changes something changes nothing' ).
+
+  ENDMETHOD.
+
+  METHOD the_notes_add_up_to_the_short.
+
+    " this is the defect the feature exists for. Forty missing, two plants
+    " with twenty-five each: before this, both were asked for forty, and a
+    " planner who raised both moved eighty and left two plants short.
+    run_of( VALUE #(
+      ( matnr = c_matnr werks = c_there quantity = '25' )
+      ( matnr = c_matnr werks = c_far quantity = '25' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_there ]-quantity
+      exp = '25'
+      msg = 'the first plant is asked for everything it can spare' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_far ]-quantity
+      exp = '15'
+      msg = 'and the next one only for what is still missing' ).
+
+  ENDMETHOD.
+
+  METHOD a_covered_shortage_asks_once.
+
+    " the first plant covers all forty, so there is nothing to ask the second
+    " for and no note to make about it
+    DATA(lt_line) = run_of( VALUE #(
+      ( matnr = c_matnr werks = c_there quantity = '100' )
+      ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_false( found( it_line    = lt_line
+                                              iv_pattern = '*3000*' ) ).
+
+  ENDMETHOD.
+
+  METHOD an_open_note_comes_off_first.
+
+    " a note for fifteen is waiting from one plant, so the second is asked
+    " for the twenty-five that is still missing and not for the forty
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '15' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ from_werks = c_far ]-quantity
+      exp = '25' ).
+
+  ENDMETHOD.
+
+  METHOD a_note_covering_it_stops_more.
+
+    " and a note that covers the whole shortage stops the run asking anybody
+    " else, which is what makes a nightly job quiet once somebody has a
+    " question in front of them
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '40' ).
+
+    DATA(lt_line) = run_of(
+      VALUE #( ( matnr = c_matnr werks = c_far quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      act = found( it_line    = lt_line
+                   iv_pattern = '*2000*40.000*already proposed*' )
+      msg = 'the waiting note is shown with the quantity it was written for' ).
+
+  ENDMETHOD.
+
+  METHOD another_plants_claim_counts.
+
+    " a third plant has already been told to take thirty of the hundred, so
+    " this one may be told to take at most seventy of it -- and it only needs
+    " forty
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '75' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    DATA(lt_open) = mo_transfer->open_for( c_here ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_open )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_open[ 1 ]-quantity
+      exp = '25'
+      msg = 'what is left of the hundred after somebody else was promised it' ).
+
+  ENDMETHOD.
+
+  METHOD the_diary_says_what_it_wrote.
+
+    " the spool is gone in a fortnight, and since feature 172 this runs
+    " unattended for plants nobody called it for
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found(
+      it_line    = mo_log->entries( )
+      iv_pattern = |proposed { c_matnr } 2000 40.000| ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_diary_counts_the_closed.
+
+    " a count rather than one line each: which notes they were is in the
+    " table with who closed them, and what the diary adds is that a run
+    " closed any at all
+    mo_transfer->propose(
+      iv_matnr      = c_other
+      iv_to_werks   = c_here
+      iv_from_werks = c_there
+      iv_quantity   = '99' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_true( found( it_line    = mo_log->entries( )
+                                             iv_pattern = 'closed 1' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_test_run_keeps_no_diary.
+
+    " a log of what a simulation would have done is a log nobody can act on,
+    " which is what feature 40 settled for the allocation
+    run_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_initial( mo_log->entries( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD a_quiet_run_keeps_no_diary.
+
+    " a nightly job over twenty plants where nothing changed must not leave
+    " twenty logs saying so: the rule feature 40 reached about the spool, and
+    " feature 138 about the mail
+    run_of( VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+  METHOD one_diary_per_plant.
+
+    " each plant is its own unit of work, so each is its own log: a run that
+    " died at the fourteenth plant leaves thirteen readable ones
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_log->saves( )
+      exp = 2
+      msg = 'the two plants that had something to write down' ).
+
+  ENDMETHOD.
+
+  METHOD run_all_of.
+
+    DATA(lt_allowed) = it_allowed.
+    IF lt_allowed IS INITIAL.
+      lt_allowed = VALUE #( ( c_here ) ( c_there ) ( c_far ) ).
+    ENDIF.
+
+    " the store double answers for the material whatever plant is asked, so
+    " every plant in the company is short of forty of it: which is the state
+    " this feature is about
+    DATA(lo_store) = NEW lcl_store_double( VALUE #(
+      ( matnr = c_matnr demand_id = 'D1' req_date = '20260401'
+        requested = '40' confirmed = 0 shortfall = '40' reason = 'S' ) ) ).
+
+    DATA(lo_cut) = NEW zcl_alloc_propose(
+      io_spare    = NEW zcl_alloc_spare(
+        io_supply   = NEW lcl_supply_double( it_supply )
+        io_demand   = NEW lcl_demand_double( VALUE #( ) )
+        io_transfer = mo_transfer )
+      io_store    = lo_store
+      io_visible  = NEW zcl_alloc_visible( NEW lcl_authority_double( lt_allowed ) )
+      io_transfer = mo_transfer
+      io_lapse    = NEW zcl_alloc_lapse(
+        io_transfer = mo_transfer
+        io_store    = lo_store )
+      io_commit   = mo_commit
+      io_log      = mo_log
+      io_plants   = NEW zcl_alloc_other_plants( ) ).
+
+    rt_line = lo_cut->run_everywhere( iv_test ).
+
+  ENDMETHOD.
+
+  METHOD every_plant_in_one_go.
+
+    " twenty plants short of each other's stock is not twenty jobs in SM37
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_there ) )
+      exp = 1 ).
+
+  ENDMETHOD.
+
+  METHOD the_first_plant_gets_it_first.
+
+    " fifty to be had in 3000 and two plants wanting forty each. 1000 is
+    " asked for first because it is the lower number, and 2000 gets what is
+    " left rather than the same fifty over again. Which plant wins is
+    " arbitrary; that it is decided rather than a matter of which job the
+    " operator started first is the point.
+    run_all_of( VALUE #( ( matnr = c_matnr werks = c_far quantity = '50' ) ) ).
+
+    DATA(lt_first) = mo_transfer->open_for( c_here ).
+    DATA(lt_next)  = mo_transfer->open_for( c_there ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_first[ 1 ]-quantity
+      exp = '40' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lt_next[ 1 ]-quantity
+      exp = '10' ).
+
+  ENDMETHOD.
+
+  METHOD a_plant_not_ours_is_skipped.
+
+    " a run that stopped at the first plant somebody is not responsible for
+    " could not be scheduled by anybody
+    DATA(lt_line) = run_all_of(
+      it_supply  = VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) )
+      it_allowed = VALUE #( ( c_here ) ( c_far ) ) ).
+
+    cl_abap_unit_assert=>assert_initial( mo_transfer->open_for( c_there ) ).
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*2 plant(s) looked at*' ) ).
+
+  ENDMETHOD.
+
+  METHOD everywhere_can_be_a_test_run.
+
+    DATA(lt_line) = run_all_of(
+      it_supply = VALUE #( ( matnr = c_matnr werks = c_far quantity = '1000' ) )
+      iv_test   = abap_true ).
+
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_transfer->open_for( c_here )
+      msg = 'a test run of a program that changes something changes nothing' ).
+    cl_abap_unit_assert=>assert_true( found( it_line    = lt_line
+                                             iv_pattern = '*would be proposed*' ) ).
+
+  ENDMETHOD.
+
+  METHOD a_fully_claimed_plant_is_out.
+
+    " and a plant whose whole shelf is spoken for is not somewhere to send
+    " anybody at all
+    mo_transfer->propose(
+      iv_matnr      = c_matnr
+      iv_to_werks   = c_far
+      iv_from_werks = c_there
+      iv_quantity   = '100' ).
+
+    run_of( VALUE #( ( matnr = c_matnr werks = c_there quantity = '100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( mo_transfer->open_for( c_here ) )
+      exp = 0 ).
+
+  ENDMETHOD.
+
+ENDCLASS.

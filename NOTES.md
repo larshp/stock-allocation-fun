@@ -245,6 +245,7 @@ in, which is also the order they make sense in.
 178. the night's order follows what reads what
 179. the rows that were answered before the field existed
 180. the lapsed notes go with the runs
+181. the proposal indexes know about the status
 
 ## Progress
 
@@ -5231,3 +5232,32 @@ in every plant of the company.
 - **The diary says how many**, and here it has to: unlike the closings of
   feature 174, there is nothing left in the table afterwards to look the
   detail up in.
+
+### Feature 181 — the proposal indexes know about the status (done)
+
+Feature 180 split `ZSTOCK_ALLOC_TRF` into two populations that grow at
+completely different rates: a small open set that is answered or lapses within
+days, and an answered set that is kept for ever. Every read of the table
+except one filters on the status that tells them apart, and neither index
+contained it, so the open notes of a plant were found by reading all of its
+history and throwing most of it away.
+
+- **`STATUS` goes third in both, ahead of the material**, because the reads
+  that matter most ask about a plant's open notes without naming a material:
+  `OPEN_FOR` for a whole plant is the worklist, and `LAPSED_BEFORE` and
+  `FORGET_LAPSED` are the reorg. A status after the material would have served
+  `IS_OPEN` and nothing else.
+- **`MAT` is the plant that is short, `SRC` the plant being asked.** The second
+  one came in with feature 170 and is the mirror: one answers "what am I
+  waiting for", the other "what have I been asked for", and only the first is
+  the table's primary key order.
+- **`HISTORY_FOR` uses the plant prefix and is content with it.** It reads
+  every status by definition -- that is what makes it the record rather than
+  the worklist -- and it is run by a person looking at a page, not by a
+  nightly job doing it per material.
+- **Nothing here can be tested.** The transpiled tests run against SQLite,
+  which has its own opinion about indexes, and abaplint checks the shape of
+  the declaration rather than the sense of it. What the write-up can do is say
+  which reads each index is for, so that the next person to add one can see
+  whether it is already served -- which is what feature 95 concluded for the
+  recorded runs.

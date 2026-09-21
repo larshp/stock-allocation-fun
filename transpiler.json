@@ -1,0 +1,26 @@
+{
+  "input_folder": [
+    "src",
+    "sap_stubs"
+  ],
+  "output_folder": "output",
+  "libs": [
+    {
+      "url": "https://github.com/open-abap/open-abap-core",
+      "folder": "/node_modules/open-abap-core",
+      "files": "/src/**/*.*"
+    }
+  ],
+  "options": {
+    "addCommonJS": true,
+    "addFilenames": true,
+    "importProg": false,
+    "setup": {
+      "filename": "../test/setup.mjs",
+      "preFunction": "initializeDatabase"
+    },
+    "unknownTypes": "runtimeError"
+  },
+  "write_source_map": true,
+  "write_unit_tests": true
+}

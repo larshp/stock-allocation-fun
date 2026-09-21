@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <PROGDIR>
+    <NAME>ZSTOCK_ALLOC_HEALTH</NAME>
+    <DBAPL>S</DBAPL>
+    <SUBC>1</SUBC>
+    <FIXPT>X</FIXPT>
+    <UCCHECK>X</UCCHECK>
+   </PROGDIR>
+   <TPOOL>
+    <item><ID>R</ID><ENTRY>Stock allocation operational health</ENTRY><LENGTH>37</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MATNR</KEY><ENTRY>Material</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_WERKS</KEY><ENTRY>Plant</ENTRY><LENGTH>13</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LGORT</KEY><ENTRY>Storage location</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CHARG</KEY><ENTRY>Batch</ENTRY><LENGTH>13</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RUNID</KEY><ENTRY>Exact run ID</ENTRY><LENGTH>13</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RID</KEY><ENTRY>Run ID contains</ENTRY><LENGTH>17</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MVT</KEY><ENTRY>Movement type</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_STRAT</KEY><ENTRY>Allocation strategy</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_STAT</KEY><ENTRY>Audit status</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_PREV</KEY><ENTRY>Run type (P preview / O operational)</ENTRY><LENGTH>36</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MSG</KEY><ENTRY>Diagnostic message contains</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MONLY</KEY><ENTRY>Message only</ENTRY><LENGTH>16</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DFROM</KEY><ENTRY>Minimum demand count</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DTO</KEY><ENTRY>Maximum demand count</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVF</KEY><ENTRY>Minimum available stock</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVT</KEY><ENTRY>Maximum available stock</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QF</KEY><ENTRY>Minimum requested quantity</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_QT</KEY><ENTRY>Maximum requested quantity</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AF</KEY><ENTRY>Minimum allocated quantity</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AT</KEY><ENTRY>Maximum allocated quantity</ENTRY><LENGTH>27</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHF</KEY><ENTRY>Minimum shortage quantity</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHT</KEY><ENTRY>Maximum shortage quantity</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPF</KEY><ENTRY>Minimum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COVF</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COVT</KEY><ENTRY>Maximum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TFROM</KEY><ENTRY>Minimum audit duration seconds</ENTRY><LENGTH>33</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TTO</KEY><ENTRY>Maximum audit duration seconds</ENTRY><LENGTH>33</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FROM</KEY><ENTRY>Audit start date from</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_TO</KEY><ENTRY>Audit start date to</ENTRY><LENGTH>21</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FFROM</KEY><ENTRY>Audit finish date from</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FTO</KEY><ENTRY>Audit finish date to</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LEGACY</KEY><ENTRY>Legacy strategy only</ENTRY><LENGTH>21</LENGTH></item>
+    <item><ID>S</ID><KEY>P_COV</KEY><ENTRY>Minimum coverage percentage</ENTRY><LENGTH>30</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LCOV</KEY><ENTRY>Minimum latest coverage percentage</ENTRY><LENGTH>36</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SPCT</KEY><ENTRY>Maximum shortage percentage</ENTRY><LENGTH>31</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CCOV</KEY><ENTRY>Minimum latest completed coverage percentage</ENTRY><LENGTH>45</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CCVMAX</KEY><ENTRY>Maximum latest completed coverage percentage</ENTRY><LENGTH>45</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSPCT</KEY><ENTRY>Maximum latest completed shortage percentage</ENTRY><LENGTH>46</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DURMAX</KEY><ENTRY>Maximum latest duration seconds</ENTRY><LENGTH>31</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDURMX</KEY><ENTRY>Maximum latest completed duration seconds</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDURMN</KEY><ENTRY>Minimum latest completed duration seconds</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSUCC</KEY><ENTRY>Require latest completed success</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSTRK</KEY><ENTRY>Minimum latest completed success streak</ENTRY><LENGTH>44</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CFAIL</KEY><ENTRY>Maximum latest completed non-success streak</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVGMAX</KEY><ENTRY>Maximum average duration seconds</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MAXDUR</KEY><ENTRY>Maximum completed duration seconds</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DURCNT</KEY><ENTRY>Minimum duration sample count</ENTRY><LENGTH>29</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RUNCNT</KEY><ENTRY>Minimum total run count</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DCMIN</KEY><ENTRY>Minimum deadline-bearing run count</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DMMIN</KEY><ENTRY>Minimum deadline mix percentage</ENTRY><LENGTH>33</LENGTH></item>
+    <item><ID>S</ID><KEY>P_PMIX</KEY><ENTRY>Warn on mixed policies</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_UMIX</KEY><ENTRY>Warn on mixed units</ENTRY><LENGTH>19</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CMIN</KEY><ENTRY>Minimum completion rate percentage</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SUCC</KEY><ENTRY>Minimum success rate percentage</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SUCNT</KEY><ENTRY>Minimum successful-run count</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ERRMAX</KEY><ENTRY>Maximum error rate percentage</ENTRY><LENGTH>31</LENGTH></item>
+    <item><ID>S</ID><KEY>P_PRTMAX</KEY><ENTRY>Maximum partial-run rate percentage</ENTRY><LENGTH>35</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FLMIN</KEY><ENTRY>Minimum full-line rate percentage</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ULMAX</KEY><ENTRY>Maximum unallocated-line rate percentage</ENTRY><LENGTH>40</LENGTH></item>
+    <item><ID>S</ID><KEY>P_PLMAX</KEY><ENTRY>Maximum partial-line rate percentage</ENTRY><LENGTH>36</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FLCNT</KEY><ENTRY>Minimum full-line count</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DMAX</KEY><ENTRY>Maximum demand count</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_RMAX</KEY><ENTRY>Maximum running count</ENTRY><LENGTH>21</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHMAX</KEY><ENTRY>Maximum shortage quantity</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LSHMAX</KEY><ENTRY>Maximum latest shortage quantity</ENTRY><LENGTH>34</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LSPCT</KEY><ENTRY>Maximum latest shortage percentage</ENTRY><LENGTH>35</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CFLMIN</KEY><ENTRY>Minimum latest completed full-line rate</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CFLMAX</KEY><ENTRY>Maximum latest completed full-line rate</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CULMAX</KEY><ENTRY>Maximum latest completed unallocated-line rate</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CPLMAX</KEY><ENTRY>Maximum latest completed partial-line rate</ENTRY><LENGTH>45</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CFLCNT</KEY><ENTRY>Minimum latest completed full-line count</ENTRY><LENGTH>43</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CACNT</KEY><ENTRY>Minimum latest completed allocated-line count</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CACMAX</KEY><ENTRY>Maximum latest completed allocated-line count</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CULCNT</KEY><ENTRY>Maximum latest completed unallocated-line count</ENTRY><LENGTH>49</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CPLCNT</KEY><ENTRY>Maximum latest completed partial-line count</ENTRY><LENGTH>46</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSHCNT</KEY><ENTRY>Maximum latest completed shortage-line count</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_LAGE</KEY><ENTRY>Maximum latest completed age seconds</ENTRY><LENGTH>36</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDAG</KEY><ENTRY>Maximum latest completed deadline age days</ENTRY><LENGTH>45</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ODMAX</KEY><ENTRY>Maximum overdue deadline mix percentage</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDMMAX</KEY><ENTRY>Maximum current-day deadline mix percentage</ENTRY><LENGTH>47</LENGTH></item>
+    <item><ID>S</ID><KEY>P_FDMMIN</KEY><ENTRY>Minimum future deadline mix percentage</ENTRY><LENGTH>42</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSHMAX</KEY><ENTRY>Maximum latest completed shortage quantity</ENTRY><LENGTH>47</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CAMIN</KEY><ENTRY>Minimum latest completed allocated quantity</ENTRY><LENGTH>47</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CRQMIN</KEY><ENTRY>Minimum latest completed requested quantity</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CRQMAX</KEY><ENTRY>Maximum latest completed requested quantity</ENTRY><LENGTH>48</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CAQMAX</KEY><ENTRY>Maximum latest completed allocated quantity</ENTRY><LENGTH>47</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CAVMIN</KEY><ENTRY>Minimum latest completed available stock</ENTRY><LENGTH>44</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CAVMAX</KEY><ENTRY>Maximum latest completed available stock</ENTRY><LENGTH>44</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDMIN</KEY><ENTRY>Minimum latest completed demand count</ENTRY><LENGTH>40</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CDMAX</KEY><ENTRY>Maximum latest completed demand count</ENTRY><LENGTH>40</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVMIN</KEY><ENTRY>Minimum available-stock warning threshold</ENTRY><LENGTH>41</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AVMAX</KEY><ENTRY>Maximum available-stock warning threshold</ENTRY><LENGTH>41</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SHELF</KEY><ENTRY>Minimum shelf-life days</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SAFON</KEY><ENTRY>Enable safety-stock range</ENTRY><LENGTH>26</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SAF</KEY><ENTRY>Minimum safety stock</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_SAFTO</KEY><ENTRY>Maximum safety stock</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_REQF</KEY><ENTRY>Requested horizon from</ENTRY><LENGTH>24</LENGTH></item>
+    <item><ID>S</ID><KEY>P_UNTIL</KEY><ENTRY>Requested horizon to</ENTRY><LENGTH>22</LENGTH></item>
+    <item><ID>S</ID><KEY>P_OVRD</KEY><ENTRY>Overdue requested horizon only</ENTRY><LENGTH>32</LENGTH></item>
+    <item><ID>S</ID><KEY>P_ODATE</KEY><ENTRY>Overdue as-of date</ENTRY><LENGTH>20</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEAD</KEY><ENTRY>Requested deadline only</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEADF</KEY><ENTRY>Requested deadline from</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DEADT</KEY><ENTRY>Requested deadline to</ENTRY><LENGTH>23</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGEF</KEY><ENTRY>Minimum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGET</KEY><ENTRY>Maximum deadline age days</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DAGED</KEY><ENTRY>Deadline age as-of date</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_DURG</KEY><ENTRY>Deadline urgency filter</ENTRY><LENGTH>25</LENGTH></item>
+    <item><ID>S</ID><KEY>P_MEINS</KEY><ENTRY>Unit</ENTRY><LENGTH>12</LENGTH></item>
+    <item><ID>S</ID><KEY>P_STALE</KEY><ENTRY>Stale threshold seconds</ENTRY><LENGTH>28</LENGTH></item>
+    <item><ID>S</ID><KEY>P_AGE_TO</KEY><ENTRY>Maximum running age seconds</ENTRY><LENGTH>31</LENGTH></item>
+    <item><ID>S</ID><KEY>P_CSV</KEY><ENTRY>CSV output</ENTRY><LENGTH>17</LENGTH></item>
+    <item><ID>S</ID><KEY>P_JSON</KEY><ENTRY>JSON output</ENTRY><LENGTH>18</LENGTH></item>
+    <item><ID>S</ID><KEY>P_META</KEY><ENTRY>JSON metadata envelope</ENTRY><LENGTH>26</LENGTH></item>
+   </TPOOL>
+  </asx:values>
+ </asx:abap>
+</abapGit>

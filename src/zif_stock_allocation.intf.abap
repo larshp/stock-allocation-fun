@@ -1,0 +1,92 @@
+INTERFACE zif_stock_allocation PUBLIC.
+  TYPES ty_material TYPE matnr.
+  TYPES ty_plant TYPE c LENGTH 4.
+  TYPES ty_storage_location TYPE c LENGTH 4.
+  TYPES ty_batch TYPE c LENGTH 10.
+  " Keep a blank initial value; SAP RSNUM itself is a ten-digit NUMC field.
+  TYPES ty_reservation_id TYPE c LENGTH 10.
+  TYPES ty_order_id TYPE c LENGTH 20.
+  TYPES ty_run_id TYPE c LENGTH 32.
+  TYPES ty_sales_document TYPE vbeln_va.
+  CONSTANTS c_sap_document_length TYPE i VALUE 10.
+  CONSTANTS c_reservation_id_length TYPE i VALUE 10.
+  TYPES ty_sales_document_type TYPE c LENGTH 4.
+  CONSTANTS c_fiscal_year_length TYPE i VALUE 4.
+  TYPES ty_sales_item TYPE n LENGTH 6.
+  TYPES ty_schedule_line TYPE n LENGTH 4.
+  TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
+  CONSTANTS c_max_quantity TYPE ty_quantity VALUE '999999999999.999'.
+  TYPES ty_unit TYPE c LENGTH 3.
+  TYPES ty_movement_type TYPE c LENGTH 3.
+  CONSTANTS c_movement_type_length TYPE i VALUE 3.
+  CONSTANTS c_zero_movement_type TYPE ty_movement_type VALUE '000'.
+  TYPES ty_priority TYPE i.
+  CONSTANTS c_max_priority TYPE ty_priority VALUE 99.
+  TYPES ty_allocation_status TYPE c LENGTH 1.
+  TYPES:
+    BEGIN OF ty_reservation_open,
+      reservation_id TYPE ty_reservation_id,
+      quantity       TYPE ty_quantity,
+    END OF ty_reservation_open.
+  TYPES tt_reservation_open TYPE SORTED TABLE OF ty_reservation_open
+    WITH UNIQUE KEY reservation_id.
+  TYPES tt_reservation_ids TYPE SORTED TABLE OF ty_reservation_id
+    WITH UNIQUE KEY table_line.
+  TYPES:
+    BEGIN OF ty_available,
+      quantity                   TYPE ty_quantity,
+      unrestricted_quantity      TYPE ty_quantity,
+      quality_inspection_qty     TYPE ty_quantity,
+      restricted_use_qty         TYPE ty_quantity,
+      blocked_stock_qty          TYPE ty_quantity,
+      transfer_stock_qty         TYPE ty_quantity,
+      reservation_quantity       TYPE ty_quantity,
+      batch_reservation_quantity TYPE ty_quantity,
+      unassigned_resv_quantity   TYPE ty_quantity,
+      unit                       TYPE ty_unit,
+      material_found             TYPE abap_bool,
+      batch_managed              TYPE abap_bool,
+      batch_found                TYPE abap_bool,
+      batch_expiration_date      TYPE d,
+      batch_restricted           TYPE abap_bool,
+      reservations_included      TYPE abap_bool,
+      sap_accounted_reservations TYPE tt_reservation_ids,
+      reusable_reservations      TYPE tt_reservation_open,
+    END OF ty_available.
+
+  TYPES:
+    BEGIN OF ty_demand,
+      allocation_run_id         TYPE ty_run_id,
+      preview                   TYPE abap_bool,
+      allocation_strategy       TYPE c LENGTH 1,
+      allocation_unit           TYPE ty_unit,
+      sales_document            TYPE ty_sales_document,
+      sales_document_type       TYPE ty_sales_document_type,
+      sales_item                TYPE ty_sales_item,
+      schedule_line             TYPE ty_schedule_line,
+      order_unit                TYPE ty_unit,
+      order_id                  TYPE ty_order_id,
+      priority                  TYPE ty_priority,
+      requested_on              TYPE d,
+      requested_deadline        TYPE d,
+      requested                 TYPE ty_quantity,
+      allocated                 TYPE ty_quantity,
+      shortage                  TYPE ty_quantity,
+      allocation_status         TYPE ty_allocation_status,
+      reservation_id            TYPE ty_reservation_id,
+      reservation_date          TYPE d,
+      reservation_movement_type TYPE ty_movement_type,
+      reservation_unit          TYPE ty_unit,
+    END OF ty_demand.
+  TYPES tt_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
+
+  METHODS allocate
+    IMPORTING
+      iv_available        TYPE ty_quantity
+    CHANGING
+      ct_demands          TYPE tt_demands
+    RETURNING
+      VALUE(rv_remaining) TYPE ty_quantity
+    RAISING
+      zcx_stock_allocation.
+ENDINTERFACE.

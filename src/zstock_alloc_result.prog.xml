@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_PROG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <PROGDIR>
+    <NAME>ZSTOCK_ALLOC_RESULT</NAME>
+    <DBAPL>S</DBAPL>
+    <SUBC>1</SUBC>
+    <FIXPT>X</FIXPT>
+    <UCCHECK>X</UCCHECK>
+   </PROGDIR>
+   <TPOOL>
+    <item>
+     <ID>R</ID>
+     <ENTRY>Stock allocation results</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MATNR</KEY>
+     <ENTRY>Material</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_WERKS</KEY>
+     <ENTRY>Plant</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_LGORT</KEY>
+    <ENTRY>Storage location</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LATEST</KEY>
+    <ENTRY>Latest matching run only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MEINS</KEY>
+     <ENTRY>Unit</ENTRY>
+     <LENGTH>12</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CHARG</KEY>
+     <ENTRY>Batch</ENTRY>
+     <LENGTH>13</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_RUNID</KEY>
+    <ENTRY>Allocation run</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_MVT</KEY>
+    <ENTRY>Allocation movement type</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SHELF</KEY>
+    <ENTRY>Minimum shelf-life days</ENTRY>
+    <LENGTH>28</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SAFON</KEY>
+    <ENTRY>Enable safety-stock range</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SAF</KEY>
+    <ENTRY>Minimum safety stock</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SAFTO</KEY>
+    <ENTRY>Maximum safety stock</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_RID</KEY>
+    <ENTRY>Run ID contains</ENTRY>
+    <LENGTH>22</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STRAT</KEY>
+     <ENTRY>Alloc strategy (P/F/N/S/L/B/E/A/W)</ENTRY>
+    <LENGTH>34</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_LEGACY</KEY>
+    <ENTRY>Legacy strategy runs only</ENTRY>
+    <LENGTH>29</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_STAT</KEY>
+     <ENTRY>Allocation status (F/P/U)</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_ASTAT</KEY>
+    <ENTRY>Audit status (R/S/P/E)</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PREV</KEY>
+    <ENTRY>Run type (P preview / O operational)</ENTRY>
+    <LENGTH>36</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+     <KEY>P_MSG</KEY>
+     <ENTRY>Audit message contains</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MONLY</KEY>
+     <ENTRY>Message only</ENTRY>
+     <LENGTH>16</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_VBELN</KEY>
+     <ENTRY>Sales document</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AUART</KEY>
+     <ENTRY>Sales document type</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_POSNR</KEY>
+     <ENTRY>Sales item</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ETENR</KEY>
+     <ENTRY>Schedule line</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_OUNIT</KEY>
+     <ENTRY>Original order unit</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_ORDER</KEY>
+     <ENTRY>Order ID</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RESID</KEY>
+     <ENTRY>Reservation ID</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RMOV</KEY>
+     <ENTRY>Reservation movement</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RUNIT</KEY>
+     <ENTRY>Reservation unit</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RSV</KEY>
+     <ENTRY>Reserved only</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_UNRSV</KEY>
+     <ENTRY>Unreserved only</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_BKLG</KEY>
+     <ENTRY>Backlog only</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_OVRD</KEY>
+    <ENTRY>Overdue requested date</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_ODATE</KEY>
+    <ENTRY>Overdue as-of date</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DEAD</KEY>
+    <ENTRY>Requested deadline only</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DEADF</KEY>
+    <ENTRY>Requested deadline from</ENTRY>
+    <LENGTH>25</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DEADT</KEY>
+    <ENTRY>Requested deadline to</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DAGEF</KEY>
+    <ENTRY>Deadline age from</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_DAGET</KEY>
+    <ENTRY>Deadline age to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGED</KEY>
+     <ENTRY>Deadline age as-of date</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DURG</KEY>
+     <ENTRY>Deadline urgency</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_REQF</KEY>
+    <ENTRY>Requested horizon from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_UNTIL</KEY>
+    <ENTRY>Requested horizon to</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_SFROM</KEY>
+    <ENTRY>Audit start date from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_STO</KEY>
+    <ENTRY>Audit start date to</ENTRY>
+    <LENGTH>21</LENGTH>
+  </item>
+  <item>
+    <ID>S</ID>
+    <KEY>P_FFROM</KEY>
+    <ENTRY>Audit finish date from</ENTRY>
+    <LENGTH>24</LENGTH>
+  </item>
+  <item>
+    <ID>S</ID>
+    <KEY>P_FTO</KEY>
+    <ENTRY>Audit finish date to</ENTRY>
+    <LENGTH>22</LENGTH>
+  </item>
+   <item>
+     <ID>S</ID>
+     <KEY>P_RFROM</KEY>
+     <ENTRY>Reservation from</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RTO</KEY>
+     <ENTRY>Reservation to</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RAGE</KEY>
+     <ENTRY>Reservation age days</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RAGETO</KEY>
+     <ENTRY>Maximum reservation age days</ENTRY>
+     <LENGTH>31</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_FROM</KEY>
+     <ENTRY>Requested from</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TO</KEY>
+     <ENTRY>Requested to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_PRIOF</KEY>
+     <ENTRY>Priority from</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_PRIOT</KEY>
+     <ENTRY>Priority to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHF</KEY>
+     <ENTRY>Shortage from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHT</KEY>
+     <ENTRY>Shortage to</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QF</KEY>
+     <ENTRY>Requested quantity from</ENTRY>
+     <LENGTH>30</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_QT</KEY>
+     <ENTRY>Requested quantity to</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AF</KEY>
+     <ENTRY>Allocated quantity from</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_AT</KEY>
+     <ENTRY>Allocated quantity to</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVF</KEY>
+     <ENTRY>Coverage from (%)</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COVT</KEY>
+     <ENTRY>Coverage to (%)</ENTRY>
+     <LENGTH>21</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPF</KEY>
+     <ENTRY>Shortage percentage from (%)</ENTRY>
+     <LENGTH>35</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPT</KEY>
+     <ENTRY>Shortage percentage to (%)</ENTRY>
+     <LENGTH>33</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DFROM</KEY>
+     <ENTRY>Demand count from</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+    <KEY>P_DTO</KEY>
+    <ENTRY>Demand count to</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVF</KEY>
+    <ENTRY>Available stock from</ENTRY>
+    <LENGTH>26</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_AVT</KEY>
+    <ENTRY>Available stock to</ENTRY>
+    <LENGTH>24</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TFROM</KEY>
+    <ENTRY>Audit duration from</ENTRY>
+    <LENGTH>23</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TTO</KEY>
+    <ENTRY>Audit duration to</ENTRY>
+    <LENGTH>21</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_PRI</KEY>
+     <ENTRY>Sort by priority</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SSTAT</KEY>
+     <ENTRY>Shortage status first</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DATE</KEY>
+     <ENTRY>Sort by requested date</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RDATE</KEY>
+     <ENTRY>Sort by reservation date</ENTRY>
+     <LENGTH>29</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SHRT</KEY>
+     <ENTRY>Sort by shortage</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_COV</KEY>
+     <ENTRY>Sort by coverage</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SPCT</KEY>
+     <ENTRY>Sort by shortage percentage</ENTRY>
+     <LENGTH>34</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DCNT</KEY>
+     <ENTRY>Sort by demand count</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DAGE</KEY>
+     <ENTRY>Sort by deadline age</ENTRY>
+     <LENGTH>22</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DUE</KEY>
+     <ENTRY>Sort by requested deadline</ENTRY>
+     <LENGTH>28</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_TDUR</KEY>
+     <ENTRY>Slowest audit duration first</ENTRY>
+     <LENGTH>32</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SUM</KEY>
+     <ENTRY>Summary only</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_MAX</KEY>
+     <ENTRY>Maximum rows</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_SKIP</KEY>
+     <ENTRY>Rows to skip</ENTRY>
+     <LENGTH>18</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_BIG</KEY>
+     <ENTRY>Largest demand first</ENTRY>
+     <LENGTH>26</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_DONE</KEY>
+     <ENTRY>Most allocated first</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_CSV</KEY>
+     <ENTRY>CSV detail output</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_JSON</KEY>
+     <ENTRY>JSON detail output</ENTRY>
+     <LENGTH>23</LENGTH>
+    </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_META</KEY>
+    <ENTRY>JSON metadata wrapper</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_TYPED</KEY>
+    <ENTRY>Typed JSON row fields</ENTRY>
+    <LENGTH>27</LENGTH>
+   </item>
+   <item>
+    <ID>S</ID>
+    <KEY>P_NDJSON</KEY>
+    <ENTRY>NDJSON detail output</ENTRY>
+    <LENGTH>20</LENGTH>
+   </item>
+   </TPOOL>
+  </asx:values>
+ </asx:abap>
+</abapGit>

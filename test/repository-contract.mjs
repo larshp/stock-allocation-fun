@@ -494,6 +494,11 @@ assert.match(
 );
 assert.match(
   sapApiStub,
+  /BAPI_SALESORDER_CHANGE[\s\S]*INNER JOIN vbap AS item_row[\s\S]*INNER JOIN vbep AS schedule_row[\s\S]*Sales-order item or schedule line was not found[\s\S]*pendingSalesOrderChanges\.push\(/,
+  "sales-order change stub must reject missing document items or schedule lines before staging a write",
+);
+assert.match(
+  sapApiStub,
   /BAPI_RESERVATION_DELETE[\s\S]*const payloadIncomplete = [\s\S]*reservation\.length !== 10[\s\S]*\^\[0-9\]\+\$[\s\S]*reservation === "0000000000"/,
   "reservation-delete API stub must validate the SAP reservation key shape",
 );
@@ -534,6 +539,56 @@ assert.match(
 );
 assert.match(
   sapApiStub,
+  /BAPI_TRANSACTION_COMMIT[\s\S]*await persistReservationChanges\(\)[\s\S]*releaseUpdateOwnerLocks\(\)[\s\S]*BAPI_TRANSACTION_ROLLBACK[\s\S]*pendingGoodsMovements\.length = 0[\s\S]*releaseUpdateOwnerLocks\(\)/,
+  "allocation SAP stub must hold its update lock through stock persistence and release it after rollback cleanup",
+);
+assert.match(
+  sapApiStub,
+  /for \(const movement of pendingGoodsMovements\)[\s\S]*UPDATE mchb SET clabs[\s\S]*UPDATE mard SET labst/,
+  "batch goods issues must persist both MCHB batch stock and MARD aggregate stock",
+);
+assert.match(
+  sapApiStub,
+  /await database\.beginTransaction\(\)[\s\S]*for \(const statement of statements\)[\s\S]*await database\.execute\(statement\)[\s\S]*database\.sqlite\.getRowsModified\(\) !== 1[\s\S]*await database\.commit\(\)[\s\S]*catch \{[\s\S]*await database\.rollback\(\)/,
+  "SAP stub commit writes must be atomic and reject stock updates that affect no row",
+);
+assert.match(
+  sapApiStub,
+  /let pendingDatabaseTransaction = false[\s\S]*pendingDatabaseTransaction = true[\s\S]*BAPI_TRANSACTION_ROLLBACK[\s\S]*pendingDatabaseTransaction && database\.inTransaction/,
+  "SAP stub rollback must only touch a database transaction owned by its commit write",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*?const unitData = getMaterialUomData\(material, client\)[\s\S]*?if \(!unitData\)[\s\S]*?Material master data not found[\s\S]*?pendingGoodsMovements\.push/,
+  "goods-movement API stub must reject unknown materials instead of returning a document without a stock update",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_GOODSMVT_CREATE[\s\S]*SELECT xchpf FROM mara[\s\S]*batchIndicator === "X" && !movementBatch[\s\S]*Batch is required for batch-managed material/,
+  "goods-movement API stub must require a batch for batch-managed materials",
+);
+assert.match(
+  sapApiStub,
+  /BAPI_RESERVATION_DELETE[\s\S]*SELECT COUNT\(\*\) FROM resb[\s\S]*Reservation does not exist/,
+  "reservation cancellation stub must reject missing documents",
+);
+assert.match(
+  sapApiStub,
+  /reservationDeleteStatements\.has\(statement\)[\s\S]*database\.sqlite\.getRowsModified\(\) < 1/,
+  "reservation cancellation commit must detect deletes that affect no rows",
+);
+assert.match(
+  sapApiStub,
+  /for \(const change of pendingSalesOrderChanges\)[\s\S]*UPDATE vbep SET wmeng[\s\S]*BAPI_SALESORDER_CHANGE[\s\S]*pendingSalesOrderChanges\.push\([\s\S]*BAPI_TRANSACTION_ROLLBACK[\s\S]*pendingSalesOrderChanges\.length = 0/,
+  "sales-order change stub must commit schedule quantities and discard pending changes on rollback",
+);
+assert.match(
+  sapApiStub,
+  /salesOrderUpdateStatements\.add\(scheduleUpdate\)[\s\S]*salesOrderUpdateStatements\.has\(statement\)[\s\S]*database\.sqlite\.getRowsModified\(\) !== 1/,
+  "sales-order schedule commits must fail when their target row was not updated",
+);
+assert.match(
+  sapApiStub,
   /const protectedLockFunctions = new Set\(\)[\s\S]*new Proxy\(abap\.FunctionModules,[\s\S]*protectedLockFunctions\.has\(property\)[\s\S]*protectedLockFunctions\.add\("ENQUEUE_EZSTOCKALLOC"\)[\s\S]*protectedLockFunctions\.add\("DEQUEUE_EZSTOCKALLOC"\)/,
   "allocation SAP lock stubs must remain active when the transpiler emits no-op lock functions",
 );
@@ -541,6 +596,11 @@ assert.match(
   sapApiStub,
   /MD_CONVERT_MATERIAL_UNIT[\s\S]*const payloadIncomplete = [\s\S]*!material[\s\S]*!unitIn[\s\S]*!unitOut[\s\S]*!Number\.isFinite\(quantity\)[\s\S]*quantity < 0[\s\S]*if \(payloadIncomplete\)[\s\S]*throw \{classic: "OTHERS"\}/,
   "material-unit conversion stub must reject incomplete or negative input payloads",
+);
+assert.match(
+  sapApiStub,
+  /const getMaterialUomData = \(material, client\) =>[\s\S]*SELECT meins FROM mara[\s\S]*SELECT meinh, umrez, umren FROM marm[\s\S]*const convertScaledQuantity = \(quantity, fromRatio, toRatio\) =>[\s\S]*convertScaledQuantity\(scaledQuantity, fromRatio, toRatio\)/,
+  "material-unit conversion stub must use exact MARM ratios for each material",
 );
 assert.match(
   sapApiStub,
@@ -915,6 +975,10 @@ const healthSource = fs.readFileSync(
 );
 const unitConversionSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.abap"),
+  "utf8",
+);
+const unitConversionTests = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_unit_conversion_sap.clas.testclasses.abap"),
   "utf8",
 );
 const allocationLockSource = fs.readFileSync(
@@ -2155,6 +2219,11 @@ assert.match(
   readmeSource,
   /JSON and typed JSON use schema version `31`; JSON `p_meta` uses schema version `32`; CSV uses schema version `31`/,
   "README must document stock JSON and metadata schema parity",
+);
+assert.match(
+  readmeSource,
+  /`unrestricted_base_quantity`, `quality_inspection_base_quantity`, `restricted_use_base_quantity`, `blocked_base_quantity`, `in_transfer_base_quantity`, `sap_reservation_base_quantity`[\s\S]*JSON and typed JSON use schema version `31`; metadata JSON uses schema `32`[\s\S]*CSV uses schema `31`/,
+  "README must document current stock category fields and machine-readable schemas",
 );
 assert.match(
   readmeSource,
@@ -6237,6 +6306,16 @@ assert.match(
   unitConversionSource,
   /CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'[\s\S]*EXCEPTIONS[\s\S]*OTHERS\s*=\s*1/,
   "unit conversion must map classic function-module exceptions into sy-subrc",
+);
+assert.match(
+  unitConversionSource,
+  /DATA lv_input TYPE menge_d[\s\S]*DATA lv_output TYPE menge_d[\s\S]*IF lv_unit_from = lv_unit_to[\s\S]*IF iv_quantity > lc_max_fm_quantity[\s\S]*Unit conversion quantity exceeds SAP function range[\s\S]*CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'/,
+  "non-identity material conversions must guard the narrower SAP quantity domain before the function call",
+);
+assert.match(
+  unitConversionTests,
+  /accepts_large_identity_qty FOR TESTING[\s\S]*rejects_overrange_fm_input FOR TESTING/,
+  "unit conversion tests must preserve large identity quantities and reject overrange function inputs",
 );
 for (const functionModule of ["ENQUEUE_EZSTOCKALLOC", "DEQUEUE_EZSTOCKALLOC"]) {
   assert.match(

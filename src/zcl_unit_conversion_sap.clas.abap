@@ -9,7 +9,6 @@ CLASS zcl_unit_conversion_sap DEFINITION
     INTERFACES zif_unit_conversion.
   PRIVATE SECTION.
     DATA mo_authority TYPE REF TO zif_unit_conversion_authority.
-    TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
     METHODS raise_error
       IMPORTING
         iv_message TYPE zif_allocation_audit=>ty_message
@@ -27,8 +26,10 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_unit_conversion~convert.
-    DATA lv_input TYPE ty_quantity.
-    DATA lv_output TYPE ty_quantity.
+    CONSTANTS lc_max_fm_quantity TYPE zif_stock_allocation=>ty_quantity
+      VALUE '9999999999.999'.
+    DATA lv_input TYPE menge_d.
+    DATA lv_output TYPE menge_d.
     DATA lv_subrc TYPE sy-subrc.
     DATA lv_unit_from TYPE zif_stock_allocation=>ty_unit.
     DATA lv_unit_to TYPE zif_stock_allocation=>ty_unit.
@@ -76,6 +77,11 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
       ENDIF.
       rv_quantity = iv_quantity.
       RETURN.
+    ENDIF.
+
+    IF iv_quantity > lc_max_fm_quantity.
+      raise_error(
+        iv_message = 'Unit conversion quantity exceeds SAP function range' ).
     ENDIF.
 
     lv_input = iv_quantity.

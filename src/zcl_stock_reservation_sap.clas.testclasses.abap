@@ -4,11 +4,17 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS delegates_to_reservation_bapi FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS stores_base_unit_qty FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS serializes_direct_reserve FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS releases_direct_reserve FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_non_positive FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_res_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_material_no_base FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_required_date FOR TESTING
       RAISING zcx_stock_allocation.
@@ -41,6 +47,10 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
     METHODS rejects_rollback_failure FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS cancels_reservation_bapi FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_cancel FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS stub_rejects_missing_cancel FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_cancel_bapi_rollback FOR TESTING
       RAISING zcx_stock_allocation.
@@ -193,6 +203,91 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
       iv_batch            = 'BATCH-001' ).
 
     cl_abap_unit_assert=>assert_not_initial( lv_document ).
+  ENDMETHOD.
+
+  METHOD stores_base_unit_qty.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_document TYPE string.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    lv_document = lo_cut->reserve(
+      iv_material         = 'MATERIAL-UOM-FRACTION'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '3'
+      iv_unit             = 'BAG'
+      iv_required_date    = '20260815' ).
+
+    SELECT SINGLE bdmng, meins FROM resb
+      WHERE rsnum = @lv_document
+      INTO (@lv_quantity, @lv_unit).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '7.5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_unit
+      exp = 'KG' ).
+
+    lo_cut->cancel(
+      iv_document      = lv_document
+      iv_plant         = '1000'
+      iv_movement_type = '201' ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_res_unit.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->reserve(
+          iv_material         = 'MATERIAL-UOM-MULTI'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'ZZZ'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation unit is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_material_no_base.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->reserve(
+          iv_material         = 'MATERIAL-NO-BASE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation unit is invalid' ).
   ENDMETHOD.
 
   METHOD rejects_non_positive.
@@ -704,6 +799,57 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining_items
       exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_cancel.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->cancel(
+          iv_document      = '8888888888'
+          iv_plant         = '1000'
+          iv_movement_type = '201' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation authorization context is unavailable' ).
+  ENDMETHOD.
+
+  METHOD stub_rejects_missing_cancel.
+    DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA ls_return TYPE bapiret2.
+    DATA lv_subrc TYPE sysubrc.
+
+    CALL FUNCTION 'BAPI_RESERVATION_DELETE'
+      EXPORTING
+        reservation = '8888888888'
+      TABLES
+        return      = lt_return
+      EXCEPTIONS
+        OTHERS      = 1.
+    lv_subrc = sy-subrc.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_subrc
+      exp = 0 ).
+    READ TABLE lt_return INDEX 1 INTO ls_return.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_return-type
+      exp = 'E' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_return-message
+      exp = 'Reservation does not exist' ).
   ENDMETHOD.
 
   METHOD rejects_cancel_bapi_rollback.

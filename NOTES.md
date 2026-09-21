@@ -1348,3 +1348,22 @@
 - Replaced reservation-breakdown sum validation in `ZSTOCK_ALLOC_STOCK` with a checked subtraction invariant so malformed packed totals are rejected without an overflowing addition.
 - Extracted stock-result validation into `ZCL_STOCK_AVAIL_VALIDATOR`; the report now rejects mismatched net quantities, reservations returned when netting was not requested, and inconsistent reservation inclusion flags. ABAP Unit covers normal, fully reserved, and malformed results.
 - Added stock-status diagnostics from MARD/MCHB: quality-inspection, restricted-use, blocked, and in-transfer base quantities are returned and exposed in human, CSV, JSON, typed JSON, and metadata summary output. These remain separate from unrestricted/allocatable stock; stock schemas advance to CSV/JSON `31` and metadata JSON `32`.
+- Guarded cross-unit calls to `MD_CONVERT_MATERIAL_UNIT` at the SAP `MENGE_D` range (`9,999,999,999.999`) and typed the FM staging fields as `MENGE_D`; same-unit identity conversions continue to support the wider application quantity range. ABAP Unit covers both paths.
+- Replaced the conversion stub's single hard-coded BOX ratio with client/material-specific MARA/MARM lookup and exact scaled-rational conversion; added multi-alternative and fractional-ratio ABAP Unit cases.
+- Verified reservation persistence too: a fractional alternative-unit reservation is stored in RESB using MARA's base unit and the correctly converted quantity, then canceled by the test.
+- Tightened the reservation test double to reject unknown units for known materials instead of persisting a quantity in an unvalidated unit; added an ABAP Unit rejection case.
+- Extended fail-closed coverage to materials with missing base units and MARM rows with zero denominators.
+- Made the conversion stub raise the SAP function exception when a valid ratio expands an in-range input beyond the `MENGE_D` output limit; added an ABAP Unit boundary case.
+- Added a one-third ratio case to verify exact rational conversion rounds to three decimal quantity places.
+- Implemented commit-scoped stock effects for successful goods issues in the SAP test double: MARD/MCHB unrestricted quantity is reduced in base units, insufficient stock is rejected for seeded materials, and rollback discards pending movements.
+- Added direct regressions for batch-level MCHB decrement and insufficient-stock rejection without a stock change.
+- Batch goods issues now validate and decrement both the selected MCHB batch balance and aggregate MARD unrestricted balance; the ABAP Unit regression checks both values after commit.
+- Added a batch goods-issue rejection case where MCHB can cover the posting but MARD aggregate stock cannot; both balances remain unchanged.
+- Made the goods-movement test double reject materials with no MARA base-unit data instead of returning a document without staging a stock movement; added a missing-material regression and seeded the document/commit fault fixtures with real stock rows.
+- Wrapped simulated reservation, batch/aggregate stock, schedule-line, and cancellation writes in one SQLite transaction; guarded stock update row counts and tested rollback when the MARD update fails after MCHB has already been applied.
+- Made reservation cancellation reject nonexistent RESB documents and fail its commit if the staged delete removes no rows; added missing-document coverage.
+- Extended commit row-count guards to sales-order schedules and tested a suppressed VBEP update; the operation fails and retains the prior requested quantity.
+- Made direct goods issues require a batch for batch-managed MARA materials; the regression confirms an unbatched issue leaves aggregate MARD stock untouched.
+- Kept the simulated update-owner lock held through committed stock persistence; rollback clears pending movements before releasing it. Added a repository contract for the ordering.
+- Made successful `BAPI_SALESORDER_CHANGE` stub calls update the matching VBEP requested quantity on commit; rollback discards staged schedule changes, with persisted-success and rollback tests.
+- Hardened sales-order change validation so a nonexistent header/item/schedule-line combination returns a BAPI error rather than a false success; added an ABAP Unit missing-schedule case.

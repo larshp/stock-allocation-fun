@@ -4,6 +4,22 @@ CLASS ltcl_stock_movement_sap DEFINITION FINAL FOR TESTING
     PRIVATE SECTION.
     METHODS delegates_to_goods_movement FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS persists_goods_issue_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS persists_batch_goods_issue FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_batch_aggregate_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unbatched_issue FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_bad_batch_indicator FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rolls_back_partial_commit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_insufficient_stock FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_gi_material FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS sets_goods_issue_header FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS locks_allocation_scope FOR TESTING
@@ -151,6 +167,250 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       exp = '2026' ).
   ENDMETHOD.
 
+  METHOD persists_goods_issue_stock.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA ls_document TYPE zif_stock_movement=>ty_document.
+    DATA lv_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    ls_document = lo_cut->post_goods_issue(
+      iv_material         = 'MATERIAL-GI-PERSIST'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '2'
+      iv_unit             = 'BOX' ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_document-number ).
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-PERSIST'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stock
+      exp = '30' ).
+  ENDMETHOD.
+
+  METHOD persists_batch_goods_issue.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA ls_document TYPE zif_stock_movement=>ty_document.
+    DATA lv_stock TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_aggregate_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    ls_document = lo_cut->post_goods_issue(
+      iv_material         = 'MATERIAL-GI-BATCH-PERSIST'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '3'
+      iv_unit             = 'EA'
+      iv_batch            = 'GIBATCH001' ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_document-number ).
+    SELECT SINGLE clabs FROM mchb
+      WHERE matnr = 'MATERIAL-GI-BATCH-PERSIST'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND charg = 'GIBATCH001'
+      INTO @lv_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stock
+      exp = '5' ).
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-BATCH-PERSIST'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_aggregate_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_aggregate_stock
+      exp = '5' ).
+  ENDMETHOD.
+
+  METHOD rejects_batch_aggregate_stock.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_batch_stock TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_aggregate_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-BATCH-AGG-LOW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '3'
+          iv_unit             = 'EA'
+          iv_batch            = 'GIBATCH002' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Insufficient unrestricted stock' ).
+    SELECT SINGLE clabs FROM mchb
+      WHERE matnr = 'MATERIAL-GI-BATCH-AGG-LOW'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND charg = 'GIBATCH002'
+      INTO @lv_batch_stock.
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-BATCH-AGG-LOW'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_aggregate_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_batch_stock
+      exp = '8' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_aggregate_stock
+      exp = '2' ).
+  ENDMETHOD.
+
+  METHOD rejects_unbatched_issue.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-REQUIRES-BATCH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '1'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Batch is required for batch-managed material' ).
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-REQUIRES-BATCH'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stock
+      exp = '8' ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_batch_indicator.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-BAD-BATCH-FLAG'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '1'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Material batch-management indicator is invalid' ).
+  ENDMETHOD.
+
+  METHOD rejects_insufficient_stock.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-INSUFFICIENT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '6'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Insufficient unrestricted stock' ).
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-INSUFFICIENT'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stock
+      exp = '5' ).
+  ENDMETHOD.
+
+  METHOD rolls_back_partial_commit.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_batch_stock TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_aggregate_stock TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-COMMIT-STOCK-FAIL'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '3'
+          iv_unit             = 'EA'
+          iv_batch            = 'GIBATCH003' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Goods movement commit failed' ).
+    SELECT SINGLE clabs FROM mchb
+      WHERE matnr = 'MATERIAL-GI-COMMIT-STOCK-FAIL'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND charg = 'GIBATCH003'
+      INTO @lv_batch_stock.
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-COMMIT-STOCK-FAIL'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_aggregate_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_batch_stock
+      exp = '8' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_aggregate_stock
+      exp = '8' ).
+  ENDMETHOD.
+
   METHOD sets_goods_issue_header.
     DATA lo_cut TYPE REF TO zif_stock_movement.
     DATA ls_document TYPE zif_stock_movement=>ty_document.
@@ -165,6 +425,31 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       iv_unit             = 'EA' ).
 
     cl_abap_unit_assert=>assert_not_initial( ls_document-number ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_gi_material.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-UNKNOWN'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Material master data not found' ).
   ENDMETHOD.
 
   METHOD locks_allocation_scope.
@@ -552,6 +837,7 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zif_stock_movement.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
+    DATA lv_stock TYPE zif_stock_allocation=>ty_quantity.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
     TRY.
@@ -571,6 +857,14 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Goods movement commit failed; Transaction rollback failed' ).
+    SELECT SINGLE labst FROM mard
+      WHERE matnr = 'MATERIAL-GI-ROLLBACK'
+        AND werks = '1000'
+        AND lgort = '0001'
+      INTO @lv_stock.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_stock
+      exp = '5' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized.

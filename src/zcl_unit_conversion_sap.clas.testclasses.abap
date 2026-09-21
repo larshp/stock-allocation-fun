@@ -10,7 +10,20 @@ CLASS ltcl_unit_conversion_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_unknown_identity_mat FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS accepts_large_identity_qty FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS converts_material_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS converts_multiple_alt_units FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS converts_fractional_ratio FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rounds_fractional_ratio FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_invalid_marm_ratio FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_overrange_fm_input FOR TESTING.
+    METHODS rejects_overrange_fm_output FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS normalizes_lowercase_units FOR TESTING
       RAISING zcx_stock_allocation.
@@ -89,6 +102,22 @@ CLASS ltcl_unit_conversion_sap IMPLEMENTATION.
       exp = '3' ).
   ENDMETHOD.
 
+  METHOD accepts_large_identity_qty.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-BOX'
+      iv_quantity  = '10000000000'
+      iv_unit_from = 'EA'
+      iv_unit_to   = 'EA' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '10000000000' ).
+  ENDMETHOD.
+
   METHOD rejects_unknown_identity_unit.
     DATA lo_cut TYPE REF TO zif_unit_conversion.
     DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
@@ -151,6 +180,123 @@ CLASS ltcl_unit_conversion_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_quantity
       exp = '20' ).
+  ENDMETHOD.
+
+  METHOD converts_multiple_alt_units.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-UOM-MULTI'
+      iv_quantity  = '2'
+      iv_unit_from = 'PAL'
+      iv_unit_to   = 'BOX' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '20' ).
+  ENDMETHOD.
+
+  METHOD converts_fractional_ratio.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-UOM-FRACTION'
+      iv_quantity  = '3'
+      iv_unit_from = 'BAG'
+      iv_unit_to   = 'KG' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '7.5' ).
+  ENDMETHOD.
+
+  METHOD rounds_fractional_ratio.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-UOM-THIRD'
+      iv_quantity  = '2'
+      iv_unit_from = 'BAG'
+      iv_unit_to   = 'KG' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '0.667' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_marm_ratio.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    TRY.
+        lo_cut->convert(
+          iv_material  = 'MATERIAL-UOM-INVALID'
+          iv_quantity  = '2'
+          iv_unit_from = 'BOX'
+          iv_unit_to   = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Unit conversion failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_overrange_fm_input.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    TRY.
+        lo_cut->convert(
+          iv_material  = 'MATERIAL-BOX'
+          iv_quantity  = '10000000000'
+          iv_unit_from = 'BOX'
+          iv_unit_to   = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Unit conversion quantity exceeds SAP function range' ).
+  ENDMETHOD.
+
+  METHOD rejects_overrange_fm_output.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    TRY.
+        lo_cut->convert(
+          iv_material  = 'MATERIAL-UOM-MULTI'
+          iv_quantity  = '1000000000'
+          iv_unit_from = 'BOX'
+          iv_unit_to   = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Unit conversion failed' ).
   ENDMETHOD.
 
   METHOD normalizes_lowercase_units.

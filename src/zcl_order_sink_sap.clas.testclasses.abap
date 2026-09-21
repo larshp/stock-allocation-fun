@@ -4,6 +4,10 @@ CLASS ltcl_order_sink_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS changes_schedule_quantity FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_noop_schedule_commit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_missing_schedule_line FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_invalid_input FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_document FOR TESTING
@@ -76,6 +80,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
 
   METHOD changes_schedule_quantity.
     DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
 
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     lo_cut->change_schedule_quantity(
@@ -84,6 +89,72 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
       iv_sales_item          = '000010'
       iv_schedule_line       = '0001'
       iv_quantity            = '4' ).
+
+    SELECT SINGLE wmeng FROM vbep
+      WHERE vbeln = '0000000001'
+        AND posnr = '000010'
+        AND etenr = '0001'
+      INTO @lv_quantity.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '4' ).
+  ENDMETHOD.
+
+  METHOD rejects_noop_schedule_commit.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '9999999920'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order change commit failed' ).
+    SELECT SINGLE wmeng FROM vbep
+      WHERE vbeln = '9999999920'
+        AND posnr = '000010'
+        AND etenr = '0001'
+      INTO @lv_quantity.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '5' ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_schedule_line.
+    DATA lo_cut TYPE REF TO zif_order_sink.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
+    TRY.
+        lo_cut->change_schedule_quantity(
+          iv_sales_document      = '7000000001'
+          iv_sales_document_type = 'OR'
+          iv_sales_item          = '000010'
+          iv_schedule_line       = '0001'
+          iv_quantity            = '4' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales-order item or schedule line was not found' ).
   ENDMETHOD.
 
   METHOD rejects_bad_document.
@@ -380,6 +451,7 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zif_order_sink.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
 
     CREATE OBJECT lo_cut TYPE zcl_order_sink_sap.
     TRY.
@@ -398,6 +470,14 @@ CLASS ltcl_order_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Sales-order change commit failed; Transaction rollback failed' ).
+    SELECT SINGLE wmeng FROM vbep
+      WHERE vbeln = '9999999904'
+        AND posnr = '000010'
+        AND etenr = '0001'
+      INTO @lv_quantity.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '12' ).
   ENDMETHOD.
 
   METHOD rejects_unauthorized.

@@ -4,6 +4,10 @@ CLASS ltcl_stock_movement_sap DEFINITION FINAL FOR TESTING
     PRIVATE SECTION.
     METHODS delegates_to_goods_movement FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS sets_goods_issue_header FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS locks_allocation_scope FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_invalid_input FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_movement_type FOR TESTING
@@ -147,8 +151,69 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
       exp = '2026' ).
   ENDMETHOD.
 
+  METHOD sets_goods_issue_header.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA ls_document TYPE zif_stock_movement=>ty_document.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    ls_document = lo_cut->post_goods_issue(
+      iv_material         = 'MATERIAL-GI-HEADER'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '2'
+      iv_unit             = 'EA' ).
+
+    cl_abap_unit_assert=>assert_not_initial( ls_document-number ).
+  ENDMETHOD.
+
+  METHOD locks_allocation_scope.
+    DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lo_lock TYPE REF TO zif_stock_allocation_lock.
+    DATA ls_document TYPE zif_stock_movement=>ty_document.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_lock TYPE zcl_stock_allocation_lock_sap.
+    CREATE OBJECT lo_cut TYPE zcl_stock_movement_sap.
+    lo_lock->acquire(
+      iv_material         = 'MATERIAL-GI-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    TRY.
+        lo_cut->post_goods_issue(
+          iv_material         = 'MATERIAL-GI-LOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '2'
+          iv_unit             = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation scope is locked by another run' ).
+
+    lo_lock->release(
+      iv_material         = 'MATERIAL-GI-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    ls_document = lo_cut->post_goods_issue(
+      iv_material         = 'MATERIAL-GI-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '2'
+      iv_unit             = 'EA' ).
+    cl_abap_unit_assert=>assert_not_initial( ls_document-number ).
+  ENDMETHOD.
+
   METHOD rejects_bapi_error.
     DATA lo_cut TYPE REF TO zif_stock_movement.
+    DATA lo_lock TYPE REF TO zif_stock_allocation_lock.
     DATA lv_raised TYPE abap_bool.
     DATA lv_message TYPE c LENGTH 220.
 
@@ -170,6 +235,15 @@ CLASS ltcl_stock_movement_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Goods movement rejected by test double' ).
+    CREATE OBJECT lo_lock TYPE zcl_stock_allocation_lock_sap.
+    lo_lock->acquire(
+      iv_material         = 'MATERIAL-GI-ERROR'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    lo_lock->release(
+      iv_material         = 'MATERIAL-GI-ERROR'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
   ENDMETHOD.
 
   METHOD rejects_bapi_classic_exception.

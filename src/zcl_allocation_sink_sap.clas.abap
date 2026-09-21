@@ -7,6 +7,13 @@ CLASS zcl_allocation_sink_sap DEFINITION
       IMPORTING
         io_read_authority  TYPE REF TO zif_allocation_read_authority OPTIONAL
         io_write_authority TYPE REF TO zif_allocation_write_authority OPTIONAL.
+    METHODS is_reservation_linked
+      IMPORTING
+        iv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id
+      RETURNING
+        VALUE(rv_linked)  TYPE abap_bool
+      RAISING
+        zcx_stock_allocation.
     INTERFACES zif_allocation_sink.
   PRIVATE SECTION.
     DATA mo_read_authority TYPE REF TO zif_allocation_read_authority.
@@ -57,6 +64,34 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       mo_write_authority = io_write_authority.
     ELSE.
       CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_auth_sap.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD is_reservation_linked.
+    DATA lv_reservation_id TYPE zstockalloc-reservation_id.
+
+    rv_linked = abap_false.
+    IF iv_reservation_id IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF mo_read_authority IS BOUND.
+      TRY.
+          mo_read_authority->check_results( ).
+        CATCH zcx_stock_allocation INTO DATA(lo_read_error).
+          IF lo_read_error->message IS INITIAL.
+            lo_read_error->message = 'Allocation result read authorization failed'.
+          ENDIF.
+          RAISE EXCEPTION lo_read_error.
+      ENDTRY.
+    ENDIF.
+
+    SELECT SINGLE reservation_id
+      FROM zstockalloc
+      WHERE reservation_id = @iv_reservation_id
+      INTO @lv_reservation_id.
+    IF sy-subrc = 0 AND lv_reservation_id IS NOT INITIAL.
+      rv_linked = abap_true.
     ENDIF.
   ENDMETHOD.
 

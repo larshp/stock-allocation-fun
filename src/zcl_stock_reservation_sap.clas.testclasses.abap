@@ -4,6 +4,10 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS delegates_to_reservation_bapi FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS serializes_direct_reserve FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS releases_direct_reserve FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_non_positive FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_required_date FOR TESTING
@@ -78,6 +82,97 @@ CLASS lcl_fail_reservation_auth IMPLEMENTATION.
 ENDCLASS.
 
 CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
+  METHOD serializes_direct_reserve.
+    DATA lo_cut TYPE REF TO zcl_stock_reservation_sap.
+    DATA lo_lock TYPE REF TO zif_stock_allocation_lock.
+    DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_lock TYPE zcl_stock_allocation_lock_sap.
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    lo_lock->acquire(
+      iv_material         = 'MATERIAL-RES-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    TRY.
+        lo_cut->reserve_serialized(
+          iv_material         = 'MATERIAL-RES-LOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '3'
+          iv_unit             = 'EA'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Allocation scope is locked by another run' ).
+
+    lo_lock->release(
+      iv_material         = 'MATERIAL-RES-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    lv_document = lo_cut->reserve_serialized(
+      iv_material         = 'MATERIAL-RES-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '3'
+      iv_unit             = 'EA'
+      iv_required_date    = '20260815' ).
+    cl_abap_unit_assert=>assert_not_initial( lv_document ).
+
+    lo_lock->acquire(
+      iv_material         = 'MATERIAL-RES-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    lo_lock->release(
+      iv_material         = 'MATERIAL-RES-LOCK'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+  ENDMETHOD.
+
+  METHOD releases_direct_reserve.
+    DATA lo_cut TYPE REF TO zcl_stock_reservation_sap.
+    DATA lo_lock TYPE REF TO zif_stock_allocation_lock.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->reserve_serialized(
+          iv_material         = 'MATERIAL-ERROR'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_quantity         = '3'
+          iv_unit             = 'EA'
+          iv_required_date    = '20260815' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation rejected by test double' ).
+
+    CREATE OBJECT lo_lock TYPE zcl_stock_allocation_lock_sap.
+    lo_lock->acquire(
+      iv_material         = 'MATERIAL-ERROR'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+    lo_lock->release(
+      iv_material         = 'MATERIAL-ERROR'
+      iv_plant            = '1000'
+      iv_storage_location = '0001' ).
+  ENDMETHOD.
+
   METHOD delegates_to_reservation_bapi.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
     DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.

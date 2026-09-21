@@ -15,7 +15,7 @@ PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 
 START-OF-SELECTION.
-  DATA lo_reservation TYPE REF TO zif_stock_reservation.
+  DATA lo_reservation TYPE REF TO zcl_stock_reservation_sap.
   DATA lo_authority TYPE REF TO zif_stock_allocation_authority.
   DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lv_json_line TYPE string.
@@ -119,7 +119,7 @@ START-OF-SELECTION.
     EXPORTING
       io_authority = lo_authority.
   TRY.
-      lv_document = lo_reservation->reserve(
+      lv_document = lo_reservation->reserve_serialized(
         iv_material         = p_matnr
         iv_plant            = p_werks
         iv_storage_location = p_lgort

@@ -1,5 +1,8 @@
 # Progress notes
 
+- Tagged direct goods-issue material documents with `ZSTOCK_ALLOC_GOODS_ISSUE` in the SAP header text; a BAPI-stub regression requires the marker, and the README now matches the live success schemas (`2`/`3`).
+- Moved reservation-snapshot ownership lookup behind `ZCL_ALLOCATION_SINK_SAP`; the cancellation report now uses the adapter, and ABAP Unit covers linked, unlinked, blank-ID, and denied-read cases.
+- Prevented direct cancellation from orphaning allocation snapshots: `ZSTOCK_ALLOC_RES_CANCEL` now requires result-read authorization and refuses reservation IDs still linked from `ZSTOCKALLOC`, directing operators to allocation reconciliation; standalone SAP reservations remain cancelable through the same BAPI adapter.
 - Fixed an overlapping-stock concurrency gap: the enqueue key no longer varies by batch, so aggregate MARD and per-batch MCHB allocations at the same material/plant/storage location serialize. The SAP lock stub now tracks held lock keys and tests that different batch scopes conflict until release.
 - Changed shared and direct sales-document identifiers to SAP Dictionary `VBELN_VA`, preserving ALPHA conversion for report parameters so users can enter document numbers in external format.
 - Changed the shared material identifier to Dictionary type `MATNR`, preserving its SAP input/output conversion routine across report parameters instead of treating external material numbers as raw 40-character strings.
@@ -115,7 +118,7 @@
 - Made capped purge selection deterministic: preview and execution now sort eligible candidates by start date, start time, and run ID before applying `iv_max_runs`, so repeated capped retention requests select the same oldest runs; ABAP Unit and repository-contract coverage protect the ordering invariant.
 - Added bounded purge retention with `ZSTOCK_ALLOC_PURGE-p_max` and `iv_max_runs`; positive values cap finalized runs selected in both preview and execution, while zero preserves unlimited behavior. Max-run filter provenance is exported, purge contracts advance to CSV `23`/`24` and JSON `25`/`26`, and ABAP Unit covers cap, remaining-row, and negative-value behavior.
 - Propagated preview provenance into rejection audits: validation, source, and post-calculation failures from preview allocations now persist `PREVIEW = X`, so `p_prev = P` does not miss failed simulations; ABAP Unit and repository-contract coverage protect the API and service propagation.
-- Corrected the SAP integration checklist so custom-table delete authorization is scoped to snapshot replacement and retention only; direct reservation cancellation uses the reservation authorization boundary and does not delete `ZSTOCKALLOC` rows.
+- Corrected the SAP integration checklist so custom-table delete authorization is scoped to snapshot replacement and retention only; direct reservation cancellation uses the reservation authorization boundary and does not delete `ZSTOCKALLOC` rows. The later snapshot-ownership guard adds result-read authorization but does not change that deletion boundary.
 - Tightened `BAPI_RESERVATION_CREATE1` stub fidelity to require the standard reservation header `CREATED_BY` identity in addition to movement/date and item fields; repository-contract coverage protects the communication-structure boundary.
 - Added an SAP-system integration checklist covering abapGit import scope, custom DDIC activation, standard table/BAPI prerequisites, authorization objects and activities, report activation, preview/execute safety, and the boundary between local stubs and target-system validation; repository-contract coverage protects the checklist anchors.
 - Centralized the SAP movement-type zero sentinel (`000`) and rejected it across reservation/goods-issue writers, cancellation, allocation service, audit, snapshot, result, and comparison boundaries; direct writer regressions are covered by ABAP Unit and repository-contract checks.
@@ -1308,3 +1311,8 @@
 - Added a shared maximum packed quantity and pre-addition aggregate guards to allocation service and adaptive strategy, with an overflow regression test.
 - Rejected persisted audit rows whose allocated and shortage values cannot be combined in the shared quantity domain.
 - Added checked accumulation for same-unit historical and per-strategy audit quantity summaries.
+- Added the `EZSTOCKALLOC` Dictionary lock object to the deployable source package and aligned SAP lock calls and test stubs with its client-aware, batch-independent material/plant/storage-location key.
+- Set the allocation lock to dialog-owner scope so reservation BAPI commits cannot release it before the allocation snapshot is saved; made the SAP test double release update-owner locks on commit, so the commit-and-serialize regression distinguishes scopes 1 and 2.
+- Mapped SAP's generated `FOREIGN_LOCK` exception to an explicit concurrent-allocation message while keeping enqueue-server failures separately diagnosable.
+- Put direct goods issues under the same material/plant/storage-location lock as allocations, holding it through the BAPI commit and releasing it after success or rollback.
+- Added a serialized reservation entry point for the standalone reserve report. It acquires the shared stock lock through reservation commit and releases after success or rollback without re-locking inside allocation runs.

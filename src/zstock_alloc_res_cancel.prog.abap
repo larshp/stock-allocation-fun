@@ -12,6 +12,8 @@ PARAMETERS p_typed AS CHECKBOX.
 START-OF-SELECTION.
   DATA lo_reservation TYPE REF TO zif_stock_reservation.
   DATA lo_authority TYPE REF TO zif_stock_allocation_authority.
+  DATA lo_sink TYPE REF TO zcl_allocation_sink_sap.
+  DATA lo_read_authority TYPE REF TO zif_allocation_read_authority.
   DATA lv_json_line TYPE string.
   DATA lv_csv_line TYPE string.
   DATA lv_error_message TYPE string.
@@ -103,7 +105,20 @@ START-OF-SELECTION.
   CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap
     EXPORTING
       io_authority = lo_authority.
+  CREATE OBJECT lo_read_authority TYPE zcl_allocation_read_auth_sap.
+  CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap
+    EXPORTING
+      io_read_authority = lo_read_authority.
   TRY.
+      IF lo_sink->is_reservation_linked(
+          iv_reservation_id = p_resid ) = abap_true.
+        DATA lo_linked_reservation_error TYPE REF TO zcx_stock_allocation.
+        CREATE OBJECT lo_linked_reservation_error.
+        lo_linked_reservation_error->message =
+          'Reservation is linked to an allocation snapshot; use allocation reconciliation to cancel it'.
+        RAISE EXCEPTION lo_linked_reservation_error.
+      ENDIF.
+
       lo_reservation->cancel(
         iv_document      = CONV string( p_resid )
         iv_plant         = p_werks

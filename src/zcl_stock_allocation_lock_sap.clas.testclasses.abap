@@ -54,6 +54,7 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zif_stock_allocation_lock.
     DATA lv_second_acquired TYPE abap_bool.
     DATA lv_second_rejected TYPE abap_bool.
+    DATA lv_second_message TYPE c LENGTH 220.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_allocation_lock_sap.
     lo_cut->acquire(
@@ -61,6 +62,14 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
       iv_plant            = '1000'
       iv_storage_location = '0001'
       iv_batch            = 'BATCH-001' ).
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait   = abap_true
+      EXCEPTIONS
+        OTHERS = 1.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
     TRY.
         lo_cut->acquire(
           iv_material         = 'MATERIAL-LOCK-COARSE'
@@ -68,8 +77,9 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
           iv_storage_location = '0001'
           iv_batch            = 'BATCH-002' ).
         lv_second_acquired = abap_true.
-      CATCH zcx_stock_allocation.
+      CATCH zcx_stock_allocation INTO DATA(lo_second_error).
         lv_second_rejected = abap_true.
+        lv_second_message = lo_second_error->message.
     ENDTRY.
     IF lv_second_acquired = abap_true.
       lo_cut->release(
@@ -84,6 +94,9 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
       iv_storage_location = '0001'
       iv_batch            = 'BATCH-001' ).
     cl_abap_unit_assert=>assert_true( lv_second_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_second_message
+      exp = 'Allocation scope is locked by another run' ).
 
     lo_cut->acquire(
       iv_material         = 'MATERIAL-LOCK-COARSE'

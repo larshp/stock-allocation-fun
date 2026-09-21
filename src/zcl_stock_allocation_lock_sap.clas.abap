@@ -20,13 +20,22 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
     "MARD aggregate stock overlaps every batch-specific MCHB scope.
     CALL FUNCTION 'ENQUEUE_EZSTOCKALLOC'
       EXPORTING
-        matnr  = iv_material
-        werks  = iv_plant
-        lgort  = iv_storage_location
-        charg  = space
+        mandt          = sy-mandt
+        matnr          = iv_material
+        werks          = iv_plant
+        lgort          = iv_storage_location
+        _scope         = '1'
       EXCEPTIONS
-        OTHERS = 1.
-    IF sy-subrc <> 0.
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+    IF sy-subrc = 1.
+      DATA lo_conflict_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_conflict_error.
+      lo_conflict_error->message =
+        'Allocation scope is locked by another run'.
+      RAISE EXCEPTION lo_conflict_error.
+    ELSEIF sy-subrc <> 0.
       DATA lo_acquire_error TYPE REF TO zcx_stock_allocation.
       CREATE OBJECT lo_acquire_error.
       lo_acquire_error->message = 'Allocation lock acquisition failed'.
@@ -47,10 +56,11 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
     "Release the same material/plant/storage lock used by acquire.
     CALL FUNCTION 'DEQUEUE_EZSTOCKALLOC'
       EXPORTING
+        mandt  = sy-mandt
         matnr  = iv_material
         werks  = iv_plant
         lgort  = iv_storage_location
-        charg  = space
+        _scope = '1'
       EXCEPTIONS
         OTHERS = 1.
     IF sy-subrc <> 0.

@@ -33,30 +33,55 @@ export function installBapiStockStub(abap) {
   let rollbackReturnInvalid = false;
   let reservationCounter = 0;
   let movementCounter = 0;
-  const allocationLocks = new Set();
+  const allocationLocks = new Map();
+  const releaseUpdateOwnerLocks = () => {
+    for (const [lockKey, lockScope] of allocationLocks) {
+      if (lockScope === "2") {
+        allocationLocks.delete(lockKey);
+      }
+    }
+  };
+  const protectedLockFunctions = new Set();
+  // ENQU transpilation imports no-op lock modules after this test setup.
+  abap.FunctionModules = new Proxy(abap.FunctionModules, {
+    set(target, property, value) {
+      if (protectedLockFunctions.has(property)) {
+        return true;
+      }
+      target[property] = value;
+      return true;
+    },
+  });
   abap.FunctionModules["ENQUEUE_EZSTOCKALLOC"] = async (input) => {
+    const lockScope = input.exporting._scope.get()?.trim();
+    const client = input.exporting.mandt.get()?.trim();
     const material = input.exporting.matnr.get()?.trim();
     const plant = input.exporting.werks.get()?.trim();
     const storageLocation = input.exporting.lgort.get()?.trim();
-    const batch = input.exporting.charg.get()?.trim();
-    const lockKey = `${material}|${plant}|${storageLocation}|${batch}`;
-    if (!material || !plant || !storageLocation
-      || allocationLocks.has(lockKey)) {
+    const lockKey = `${client}|${material}|${plant}|${storageLocation}`;
+    if ((lockScope !== "1" && lockScope !== "2")
+      || !client || !material || !plant || !storageLocation) {
       throw {classic: "OTHERS"};
+    }
+    if (allocationLocks.has(lockKey)) {
+      throw {classic: "FOREIGN_LOCK"};
     }
     if (material === "MATERIAL-LOCK-ERROR") {
       throw {classic: "OTHERS"};
     }
-    allocationLocks.add(lockKey);
+    allocationLocks.set(lockKey, lockScope);
     abap.builtin.sy.get().subrc.set(0);
   };
+  protectedLockFunctions.add("ENQUEUE_EZSTOCKALLOC");
   abap.FunctionModules["DEQUEUE_EZSTOCKALLOC"] = async (input) => {
+    const lockScope = input.exporting._scope.get()?.trim();
+    const client = input.exporting.mandt.get()?.trim();
     const material = input.exporting.matnr.get()?.trim();
     const plant = input.exporting.werks.get()?.trim();
     const storageLocation = input.exporting.lgort.get()?.trim();
-    const batch = input.exporting.charg.get()?.trim();
-    const lockKey = `${material}|${plant}|${storageLocation}|${batch}`;
-    if (!material || !plant || !storageLocation) {
+    const lockKey = `${client}|${material}|${plant}|${storageLocation}`;
+    if ((lockScope !== "1" && lockScope !== "2")
+      || !client || !material || !plant || !storageLocation) {
       throw {classic: "OTHERS"};
     }
     if (material === "MATERIAL-UNLOCK-ERROR") {
@@ -66,6 +91,7 @@ export function installBapiStockStub(abap) {
     allocationLocks.delete(lockKey);
     abap.builtin.sy.get().subrc.set(0);
   };
+  protectedLockFunctions.add("DEQUEUE_EZSTOCKALLOC");
   abap.FunctionModules["MD_CONVERT_MATERIAL_UNIT"] = async (input) => {
     const material = input.exporting.i_matnr.get()?.trim();
     const unitIn = input.exporting.i_in_me.get()?.trim();
@@ -189,6 +215,7 @@ export function installBapiStockStub(abap) {
   };
   abap.FunctionModules["BAPI_GOODSMVT_CREATE"] = async (input) => {
     const header = input.exporting.goodsmvt_header.get();
+    const headerText = header?.header_txt?.get()?.trim();
     const code = input.exporting.goodsmvt_code.get();
     const items = input.tables.goodsmvt_item.array();
     const item = items[0]?.get();
@@ -196,8 +223,11 @@ export function installBapiStockStub(abap) {
       || item?.material?.get()?.trim();
     const movementType = item?.move_type?.get()?.trim();
     const entryQuantity = Number(item?.entry_qnt?.get());
+    const headerTextMissing = material === "MATERIAL-GI-HEADER"
+      && headerText !== "ZSTOCK_ALLOC_GOODS_ISSUE";
     const payloadIncomplete = !isValidSapDate(header?.pstng_date?.get()?.trim())
       || !isValidSapDate(header?.doc_date?.get()?.trim())
+      || headerTextMissing
       || code?.gm_code?.get()?.trim() !== "03"
       || items.length !== 1
       || !material
@@ -393,6 +423,7 @@ export function installBapiStockStub(abap) {
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_TRANSACTION_COMMIT"] = async (input) => {
+    releaseUpdateOwnerLocks();
     if (commitReturnError || commitReturnInvalid) {
       input.importing.return.setField(
         "type",

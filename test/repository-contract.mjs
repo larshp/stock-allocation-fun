@@ -361,7 +361,7 @@ for (const fileName of fs.readdirSync(sourceDirectory).filter(
     const callSource = sourceText.slice(match.index, callEnd + 1);
     assert.match(
       callSource,
-      /EXCEPTIONS[\s\S]*OTHERS\s*=\s*1/,
+      /EXCEPTIONS[\s\S]*OTHERS\s*=\s*\d+/,
       `${fileName} function-module call ${match[1]} must catch classic OTHERS exceptions`,
     );
   }
@@ -429,6 +429,11 @@ assert.match(
 );
 assert.match(
   sapApiStub,
+  /const headerTextMissing = material === "MATERIAL-GI-HEADER"[\s\S]*headerText !== "ZSTOCK_ALLOC_GOODS_ISSUE"[\s\S]*\|\| headerTextMissing/,
+  "goods-movement API stub must enforce the SAP document header marker fixture",
+);
+assert.match(
+  sapApiStub,
   /BAPI_SALESORDER_CHANGE[\s\S]*const headerX = input\.exporting\.order_header_inx\.get\(\)[\s\S]*const payloadIncomplete = [\s\S]*headerX\?\.updateflag\?\.get\(\)\?\.trim\(\) !== "U"[\s\S]*schedules\.length !== 1[\s\S]*scheduleXs\.length !== 1[\s\S]*scheduleX\?\.updateflag\?\.get\(\)\?\.trim\(\) !== "U"[\s\S]*scheduleX\?\.req_qty\?\.get\(\)\?\.trim\(\) !== "X"/,
   "sales-order API stub must validate the required header and schedule payload",
 );
@@ -479,18 +484,28 @@ assert.match(
 );
 assert.match(
   sapApiStub,
-  /ENQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\s*\|\| allocationLocks\.has\(lockKey\)\)[\s\S]*throw \{classic: "OTHERS"\}[\s\S]*allocationLocks\.add\(lockKey\)/,
-  "allocation enqueue stub must require material, plant, and storage scope",
+  /ENQUEUE_EZSTOCKALLOC[\s\S]*const lockScope = input\.exporting\._scope\.get\(\)\?\.trim\(\)[\s\S]*const client = input\.exporting\.mandt\.get\(\)\?\.trim\(\)[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*const lockKey = `\$\{client\}\|\$\{material\}\|\$\{plant\}\|\$\{storageLocation\}`[\s\S]*if \(\(lockScope !== "1" && lockScope !== "2"\)[\s\S]*\|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}[\s\S]*if \(allocationLocks\.has\(lockKey\)\)[\s\S]*throw \{classic: "FOREIGN_LOCK"\}[\s\S]*allocationLocks\.set\(lockKey, lockScope\)/,
+  "allocation enqueue stub must require client, material, plant, and storage scope",
 );
 assert.match(
   sapApiStub,
-  /DEQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
-  "allocation dequeue stub must require material, plant, and storage scope",
+  /DEQUEUE_EZSTOCKALLOC[\s\S]*const lockScope = input\.exporting\._scope\.get\(\)\?\.trim\(\)[\s\S]*const client = input\.exporting\.mandt\.get\(\)\?\.trim\(\)[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*const lockKey = `\$\{client\}\|\$\{material\}\|\$\{plant\}\|\$\{storageLocation\}`[\s\S]*if \(\(lockScope !== "1" && lockScope !== "2"\)[\s\S]*\|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
+  "allocation dequeue stub must require client, material, plant, and storage scope",
 );
 assert.match(
   sapApiStub,
-  /const allocationLocks = new Set\(\)[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*allocationLocks\.delete\(lockKey\)/,
+  /const allocationLocks = new Map\(\)[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*allocationLocks\.delete\(lockKey\)/,
   "allocation SAP stub must model held locks until the matching dequeue",
+);
+assert.match(
+  sapApiStub,
+  /const releaseUpdateOwnerLocks = \(\) => \{[\s\S]*lockScope === "2"[\s\S]*allocationLocks\.delete\(lockKey\)[\s\S]*BAPI_TRANSACTION_COMMIT[\s\S]*releaseUpdateOwnerLocks\(\)/,
+  "allocation SAP stub must release update-owner locks on BAPI commit while preserving dialog-owner locks",
+);
+assert.match(
+  sapApiStub,
+  /const protectedLockFunctions = new Set\(\)[\s\S]*new Proxy\(abap\.FunctionModules,[\s\S]*protectedLockFunctions\.has\(property\)[\s\S]*protectedLockFunctions\.add\("ENQUEUE_EZSTOCKALLOC"\)[\s\S]*protectedLockFunctions\.add\("DEQUEUE_EZSTOCKALLOC"\)/,
+  "allocation SAP lock stubs must remain active when the transpiler emits no-op lock functions",
 );
 assert.match(
   sapApiStub,
@@ -830,10 +845,35 @@ const allocationLockSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_lock_sap.clas.abap"),
   "utf8",
 );
+const allocationLockObjectSource = fs.readFileSync(
+  path.join(sourceDirectory, "ezstockalloc.enqu.xml"),
+  "utf8",
+);
+assert.match(
+  allocationLockObjectSource,
+  /<VIEWNAME>EZSTOCKALLOC<\/VIEWNAME>[\s\S]*<AGGTYPE>E<\/AGGTYPE>[\s\S]*<ROOTTAB>ZSTOCKALLOC<\/ROOTTAB>/,
+  "allocation lock object must be an exclusive lock on the allocation table",
+);
+assert.deepEqual(
+  [...allocationLockObjectSource.matchAll(/<FIELDNAME>([^<]+)<\/FIELDNAME>/g)]
+    .map((match) => match[1]),
+  ["MANDT", "MATNR", "WERKS", "LGORT"],
+  "allocation lock object must scope locks by client, material, plant, and storage location",
+);
 assert.match(
   allocationLockSource,
-  /METHOD zif_stock_allocation_lock~acquire[\s\S]*ENQUEUE_EZSTOCKALLOC[\s\S]*charg\s*=\s*space[\s\S]*METHOD zif_stock_allocation_lock~release[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*charg\s*=\s*space/,
+  /METHOD zif_stock_allocation_lock~acquire[\s\S]*ENQUEUE_EZSTOCKALLOC[\s\S]*mandt\s*=\s*sy-mandt[\s\S]*lgort\s*=\s*iv_storage_location[\s\S]*_scope\s*=\s*'1'[\s\S]*METHOD zif_stock_allocation_lock~release[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*mandt\s*=\s*sy-mandt[\s\S]*lgort\s*=\s*iv_storage_location[\s\S]*_scope\s*=\s*'1'/,
   "allocation locks must serialize aggregate and batch stock at material/plant/storage scope",
+);
+assert.match(
+  allocationLockSource,
+  /foreign_lock\s*=\s*1[\s\S]*system_failure\s*=\s*2[\s\S]*OTHERS\s*=\s*3[\s\S]*Allocation scope is locked by another run[\s\S]*Allocation lock acquisition failed/,
+  "allocation lock acquisition must distinguish contention from enqueue service failures",
+);
+assert.doesNotMatch(
+  allocationLockSource,
+  /charg\s*=/,
+  "allocation lock calls must match the generic scope of the generated lock object",
 );
 const reservationSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_reservation_sap.clas.abap"),
@@ -1768,6 +1808,11 @@ assert.match(
   /strlen\(\s*lv_reservation\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length/,
   "SAP reservation creation must enforce the exact ten-character document length",
 );
+assert.match(
+  reservationSource,
+  /METHOD reserve_serialized[\s\S]*mo_lock->acquire\([\s\S]*lo_reservation->reserve\([\s\S]*CATCH zcx_stock_allocation INTO lo_error[\s\S]*mo_lock->release\([\s\S]*RAISE EXCEPTION lo_error[\s\S]*mo_lock->release\(/,
+  "direct serialized reservation creation must hold the allocation lock through BAPI commit and release it on failures",
+);
 assert.equal(
   (reservationSource.match(/<ls_return>-type\s+IS\s+NOT\s+INITIAL/g) ?? []).length,
   2,
@@ -2246,6 +2291,16 @@ assert.match(
 );
 assert.match(
   reservationCancelReportSource,
+  /lo_sink->is_reservation_linked\([\s\S]*iv_reservation_id = p_resid[\s\S]*IF[\s\S]*lo_reservation->cancel\(/,
+  "reservation cancellation report must reject allocation-linked IDs before calling SAP",
+);
+assert.match(
+  allocationSinkSource,
+  /METHOD is_reservation_linked\.[\s\S]*mo_read_authority->check_results\(\s*\)[\s\S]*SELECT SINGLE reservation_id[\s\S]*FROM zstockalloc[\s\S]*WHERE reservation_id = @iv_reservation_id[\s\S]*rv_linked = abap_true\./,
+  "reservation ownership lookup must enforce result-read authority inside the SAP sink adapter",
+);
+assert.match(
+  reservationCancelReportSource,
   /mode;generated_date;generated_time;schema_version;[\s\S]*reservation_document;plant;movement_type;status;message/,
   "reservation cancellation report must expose a stable machine-readable contract",
 );
@@ -2266,8 +2321,8 @@ assert.match(
 );
 assert.match(
   reservationCreateReportSource,
-  /lv_document\s*=\s*lo_reservation->reserve\([\s\S]*iv_material\s*=\s*p_matnr[\s\S]*iv_required_date\s*=\s*p_reqdt[\s\S]*iv_batch\s*=\s*p_charg/,
-  "reservation creation report must pass the complete reservation scope",
+  /DATA lo_reservation TYPE REF TO zcl_stock_reservation_sap[\s\S]*lv_document\s*=\s*lo_reservation->reserve_serialized\([\s\S]*iv_material\s*=\s*p_matnr[\s\S]*iv_required_date\s*=\s*p_reqdt[\s\S]*iv_batch\s*=\s*p_charg/,
+  "reservation creation report must use the serialized SAP adapter for the complete reservation scope",
 );
 assert.match(
   reservationCreateReportSource,
@@ -2478,6 +2533,11 @@ assert.match(
   "goods-issue report must validate metadata mode and publish its schema",
 );
 assert.match(
+  readmeSource,
+  /Goods-issue JSON success responses[^\n]*schema_version: 2[^\n]*metadata JSON uses schema `3`[^\n]*CSV remains schema `1`/,
+  "README must document current goods-issue JSON and CSV schema versions",
+);
+assert.match(
   goodsIssueReportSource,
   /lt_summary_fields[\s\S]*iv_name\s*=\s*'scope'[\s\S]*iv_name\s*=\s*'filters_applied'[\s\S]*iv_name\s*=\s*'filters'[\s\S]*iv_name\s*=\s*'summary'/,
   "goods-issue metadata JSON must expose scope, filters, and summary",
@@ -2651,6 +2711,16 @@ assert.match(
   movementSource,
   /iv_movement_type\s*=\s*zif_stock_allocation=>c_zero_movement_type/,
   "goods-movement BAPI adapter must reject the zero movement-type sentinel",
+);
+assert.match(
+  movementSource,
+  /io_lock\s+TYPE REF TO zif_stock_allocation_lock OPTIONAL[\s\S]*CREATE OBJECT mo_lock TYPE zcl_stock_allocation_lock_sap[\s\S]*mo_lock->acquire\([\s\S]*CALL FUNCTION 'BAPI_GOODSMVT_CREATE'[\s\S]*CATCH zcx_stock_allocation INTO lo_error[\s\S]*mo_lock->release\([\s\S]*RAISE EXCEPTION lo_error[\s\S]*mo_lock->release\(/,
+  "goods-issue BAPI adapter must share the allocation stock lock through commit and release it on failures",
+);
+assert.match(
+  movementSource,
+  /ls_header-header_txt\s*=\s*'ZSTOCK_ALLOC_GOODS_ISSUE'[\s\S]*CALL FUNCTION 'BAPI_GOODSMVT_CREATE'/,
+  "goods-issue BAPI adapter must tag the SAP material document header",
 );
 assert.match(
   auditSource,
@@ -5897,7 +5967,7 @@ for (const functionModule of ["ENQUEUE_EZSTOCKALLOC", "DEQUEUE_EZSTOCKALLOC"]) {
   assert.match(
     allocationLockSource,
     new RegExp(
-      `CALL FUNCTION '${functionModule}'[\\s\\S]*EXCEPTIONS[\\s\\S]*OTHERS\\s*=\\s*1`,
+      `CALL FUNCTION '${functionModule}'[\\s\\S]*EXCEPTIONS[\\s\\S]*OTHERS\\s*=\\s*\\d+`,
     ),
     `${functionModule} must map classic function-module exceptions into sy-subrc`,
   );

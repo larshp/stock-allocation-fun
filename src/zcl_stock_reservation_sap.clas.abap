@@ -5,10 +5,26 @@ CLASS zcl_stock_reservation_sap DEFINITION
   PUBLIC SECTION.
     METHODS constructor
       IMPORTING
-        io_authority TYPE REF TO zif_stock_allocation_authority OPTIONAL.
+        io_authority TYPE REF TO zif_stock_allocation_authority OPTIONAL
+        io_lock      TYPE REF TO zif_stock_allocation_lock OPTIONAL.
+    METHODS reserve_serialized
+      IMPORTING
+        iv_material         TYPE zif_stock_allocation=>ty_material
+        iv_plant            TYPE zif_stock_allocation=>ty_plant
+        iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
+        iv_movement_type    TYPE zif_stock_allocation=>ty_movement_type
+        iv_quantity         TYPE zif_stock_allocation=>ty_quantity
+        iv_unit             TYPE zif_stock_allocation=>ty_unit
+        iv_required_date    TYPE d
+        iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      RETURNING
+        VALUE(rv_document)  TYPE zif_stock_allocation=>ty_reservation_id
+      RAISING
+        zcx_stock_allocation.
     INTERFACES zif_stock_reservation.
   PRIVATE SECTION.
     DATA mo_authority TYPE REF TO zif_stock_allocation_authority.
+    DATA mo_lock TYPE REF TO zif_stock_allocation_lock.
     TYPES:
       BEGIN OF ty_header,
         res_date   TYPE d,
@@ -78,6 +94,71 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     ELSE.
       CREATE OBJECT mo_authority TYPE zcl_stock_alloc_auth_sap.
     ENDIF.
+    IF io_lock IS BOUND.
+      mo_lock = io_lock.
+    ELSE.
+      CREATE OBJECT mo_lock TYPE zcl_stock_allocation_lock_sap.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD reserve_serialized.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
+    DATA lo_error TYPE REF TO zcx_stock_allocation.
+    DATA lo_release_error TYPE REF TO zcx_stock_allocation.
+    DATA lv_message TYPE zif_allocation_audit=>ty_message.
+
+    lo_reservation ?= me.
+    mo_lock->acquire(
+      iv_material         = iv_material
+      iv_plant            = iv_plant
+      iv_storage_location = iv_storage_location ).
+    TRY.
+        rv_document = lo_reservation->reserve(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_movement_type    = iv_movement_type
+          iv_quantity         = iv_quantity
+          iv_unit             = iv_unit
+          iv_required_date    = iv_required_date
+          iv_batch            = iv_batch ).
+      CATCH zcx_stock_allocation INTO lo_error.
+        TRY.
+            mo_lock->release(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location ).
+          CATCH zcx_stock_allocation INTO lo_release_error.
+            IF lo_error->message IS INITIAL.
+              lo_error->message = 'Reservation creation failed'.
+            ENDIF.
+            IF lo_release_error->message IS INITIAL.
+              CONCATENATE lo_error->message
+                          'Allocation lock release failed'
+                     INTO lo_error->message SEPARATED BY '; '.
+            ELSE.
+              CONCATENATE lo_error->message
+                          'Allocation lock release failed:'
+                          lo_release_error->message
+                     INTO lo_error->message SEPARATED BY '; '.
+            ENDIF.
+        ENDTRY.
+        RAISE EXCEPTION lo_error.
+    ENDTRY.
+    TRY.
+        mo_lock->release(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location ).
+      CATCH zcx_stock_allocation INTO lo_release_error.
+        CONCATENATE 'Reservation'
+                    rv_document
+                    'was created, but allocation lock release failed:'
+                    lo_release_error->message
+               INTO lv_message SEPARATED BY space.
+        lo_release_error->message = lv_message.
+        RAISE EXCEPTION lo_release_error.
+    ENDTRY.
   ENDMETHOD.
 
   METHOD zif_stock_reservation~reserve.

@@ -55,10 +55,27 @@ CLASS lcl_blank_result_authority IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_allow_res_read_auth DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_allocation_read_authority.
+ENDCLASS.
+
+CLASS lcl_allow_res_read_auth IMPLEMENTATION.
+  METHOD zif_allocation_read_authority~check_audit.
+  ENDMETHOD.
+
+  METHOD zif_allocation_read_authority~check_results.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
+    METHODS checks_reservation_linked FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_res_link_read_auth FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS persists_allocation FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_movement_type FOR TESTING
@@ -136,6 +153,71 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
 ENDCLASS.
 
 CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
+  METHOD checks_reservation_linked.
+    DATA lo_authority TYPE REF TO lcl_allow_res_read_auth.
+    DATA lo_cut TYPE REF TO zcl_allocation_sink_sap.
+    DATA ls_allocation TYPE zstockalloc.
+
+    CREATE OBJECT lo_authority.
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap
+      EXPORTING
+        io_read_authority = lo_authority.
+    DELETE FROM zstockalloc
+      WHERE matnr = 'RES-LINK-GUARD'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND run_id = 'RUN-RES-LINK-GUARD'.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'RES-LINK-GUARD'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-RES-LINK-GUARD'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-order_id = 'ORDER-RES-LINK-GUARD'.
+    ls_allocation-reservation_id = '1234567890'.
+    INSERT zstockalloc FROM @ls_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->is_reservation_linked(
+        iv_reservation_id = '1234567890' )
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->is_reservation_linked(
+        iv_reservation_id = '1234567891' )
+      exp = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_cut->is_reservation_linked(
+        iv_reservation_id = space )
+      exp = abap_false ).
+
+    DELETE FROM zstockalloc
+      WHERE matnr = 'RES-LINK-GUARD'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND run_id = 'RUN-RES-LINK-GUARD'.
+  ENDMETHOD.
+
+  METHOD rejects_res_link_read_auth.
+    DATA lo_authority TYPE REF TO lcl_fail_result_write_auth.
+    DATA lo_cut TYPE REF TO zcl_allocation_sink_sap.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_authority.
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap
+      EXPORTING
+        io_read_authority = lo_authority.
+    TRY.
+        lo_cut->is_reservation_linked(
+          iv_reservation_id = '1234567890' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Result read authorization test failure' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD filters_by_shortage_percentage.
     DATA lo_cut TYPE REF TO zif_allocation_sink.
     DATA lt_demands TYPE zif_stock_allocation=>tt_demands.

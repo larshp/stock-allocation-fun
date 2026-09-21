@@ -5,8 +5,9 @@ CLASS zcl_allocation_sink_sap DEFINITION
   PUBLIC SECTION.
     METHODS constructor
       IMPORTING
-        io_read_authority  TYPE REF TO zif_allocation_read_authority OPTIONAL
-        io_write_authority TYPE REF TO zif_allocation_write_authority OPTIONAL.
+        io_read_authority       TYPE REF TO zif_allocation_read_authority OPTIONAL
+        io_write_authority      TYPE REF TO zif_allocation_write_authority OPTIONAL
+        io_sales_read_authority TYPE REF TO zif_source_read_authority OPTIONAL.
     METHODS is_reservation_linked
       IMPORTING
         iv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id
@@ -18,6 +19,12 @@ CLASS zcl_allocation_sink_sap DEFINITION
   PRIVATE SECTION.
     DATA mo_read_authority TYPE REF TO zif_allocation_read_authority.
     DATA mo_write_authority TYPE REF TO zif_allocation_write_authority.
+    DATA mo_sales_read_authority TYPE REF TO zif_source_read_authority.
+    METHODS authorize_sales_documents
+      IMPORTING
+        it_demands TYPE zif_stock_allocation=>tt_demands
+      RAISING
+        zcx_stock_allocation.
     METHODS validate_demand
       IMPORTING
         is_demand         TYPE zif_stock_allocation=>ty_demand
@@ -65,6 +72,89 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
     ELSE.
       CREATE OBJECT mo_write_authority TYPE zcl_allocation_write_auth_sap.
     ENDIF.
+    IF io_sales_read_authority IS BOUND.
+      mo_sales_read_authority = io_sales_read_authority.
+    ELSE.
+      CREATE OBJECT mo_sales_read_authority TYPE zcl_source_read_auth_sap.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD authorize_sales_documents.
+    TYPES:
+      BEGIN OF ty_sales_document_key,
+        sales_document TYPE vbak-vbeln,
+      END OF ty_sales_document_key.
+    TYPES tt_sales_document_keys
+      TYPE SORTED TABLE OF ty_sales_document_key WITH UNIQUE KEY sales_document.
+    TYPES:
+      BEGIN OF ty_sales_document_header,
+        sales_document       TYPE vbak-vbeln,
+        sales_document_type  TYPE vbak-auart,
+        sales_organization   TYPE vbak-vkorg,
+        distribution_channel TYPE vbak-vtweg,
+        division             TYPE vbak-spart,
+      END OF ty_sales_document_header.
+    TYPES tt_sales_document_headers
+      TYPE SORTED TABLE OF ty_sales_document_header WITH UNIQUE KEY sales_document.
+
+    DATA lt_sales_document_keys TYPE tt_sales_document_keys.
+    DATA lt_sales_document_headers TYPE tt_sales_document_headers.
+    DATA lt_authorized_documents TYPE tt_sales_document_keys.
+    FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
+    FIELD-SYMBOLS <ls_header> TYPE ty_sales_document_header.
+
+    LOOP AT it_demands ASSIGNING <ls_demand>.
+      IF <ls_demand>-sales_document IS NOT INITIAL.
+        validate_demand(
+          is_demand         = <ls_demand>
+          iv_require_run_id = abap_true ).
+        INSERT VALUE #( sales_document = <ls_demand>-sales_document )
+          INTO TABLE lt_sales_document_keys.
+      ENDIF.
+    ENDLOOP.
+    IF lines( lt_sales_document_keys ) = 0.
+      RETURN.
+    ENDIF.
+
+    mo_sales_read_authority->check_orders( ).
+    SELECT vbeln AS sales_document,
+           auart AS sales_document_type,
+           vkorg AS sales_organization,
+           vtweg AS distribution_channel,
+           spart AS division
+      FROM vbak
+      FOR ALL ENTRIES IN @lt_sales_document_keys
+      WHERE vbeln = @lt_sales_document_keys-sales_document
+      INTO CORRESPONDING FIELDS OF TABLE @lt_sales_document_headers.
+    IF lines( lt_sales_document_headers ) <> lines( lt_sales_document_keys ).
+      raise_error(
+        iv_message = 'Sales document authorization context is unavailable' ).
+    ENDIF.
+
+    LOOP AT it_demands ASSIGNING <ls_demand>.
+      IF <ls_demand>-sales_document IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      READ TABLE lt_sales_document_headers ASSIGNING <ls_header>
+        WITH TABLE KEY sales_document = <ls_demand>-sales_document.
+      IF sy-subrc <> 0
+          OR <ls_header>-sales_document_type <> <ls_demand>-sales_document_type.
+        raise_error(
+          iv_message = 'Sales document authorization context is invalid' ).
+      ENDIF.
+      READ TABLE lt_authorized_documents TRANSPORTING NO FIELDS
+        WITH TABLE KEY sales_document = <ls_demand>-sales_document.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+      mo_sales_read_authority->check_sales_document(
+        iv_document_type        = <ls_header>-sales_document_type
+        iv_sales_organization   = <ls_header>-sales_organization
+        iv_distribution_channel = <ls_header>-distribution_channel
+        iv_division             = <ls_header>-division ).
+      INSERT VALUE #( sales_document = <ls_demand>-sales_document )
+        INTO TABLE lt_authorized_documents.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD is_reservation_linked.
@@ -1019,6 +1109,7 @@ CLASS zcl_allocation_sink_sap IMPLEMENTATION.
       ENDLOOP.
       rt_demands = lt_coverage_filtered.
     ENDIF.
+    authorize_sales_documents( it_demands = rt_demands ).
     IF iv_sort_by_priority = abap_true.
       SORT rt_demands BY allocation_unit priority order_id.
     ELSEIF iv_sort_by_status = abap_true.

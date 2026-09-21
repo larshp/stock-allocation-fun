@@ -342,6 +342,16 @@ for (const fileName of [
   "vbak.tabl.xml",
   "vbap.tabl.xml",
   "vbep.tabl.xml",
+  "bapi2017_gm_head_01.tabl.xml",
+  "bapi2017_gm_code.tabl.xml",
+  "bapi2017_gm_item_create.tabl.xml",
+  "bapi2017_gm_head_ret.tabl.xml",
+  "bapi2093_res_head.tabl.xml",
+  "bapi2093_res_item.tabl.xml",
+  "bapi2093_res_no.dtel.xml",
+  "bapisdhd1x.tabl.xml",
+  "bapischdl.tabl.xml",
+  "bapischdlx.tabl.xml",
   "bapi_reservation_create.mjs",
 ]) {
   assert.equal(
@@ -578,17 +588,25 @@ for (const fileName of fs.readdirSync(stubDirectory).filter(
 )) {
   const tableStub = fs.readFileSync(path.join(stubDirectory, fileName), "utf8");
   const tableName = /<TABNAME>\s*([A-Z0-9_]+)\s*<\/TABNAME>/i.exec(tableStub)?.[1]?.toUpperCase();
+  const tableClass = /<TABCLASS>\s*([A-Z0-9_]+)\s*<\/TABCLASS>/i.exec(tableStub)?.[1]?.toUpperCase();
   assert.ok(tableName, `${fileName} must declare a SAP table identity`);
+  assert.ok(tableClass, `${fileName} must declare a SAP DDIC object class`);
   assert.doesNotMatch(
     tableName,
     /^Z/,
-    `${fileName} must describe a standard SAP table, not a custom table`,
+    `${fileName} must describe a standard SAP object, not a custom table`,
   );
-  assert.match(
-    tableStub,
-    /<DD03P>[\s\S]*?<FIELDNAME>MANDT<\/FIELDNAME>[\s\S]*?<KEYFLAG>X<\/KEYFLAG>[\s\S]*?<\/DD03P>/i,
-    `${fileName} must expose MANDT as a key field for client-safe test SQL`,
+  assert.ok(
+    tableClass === "TRANSP" || tableClass === "INTTAB",
+    `${fileName} must describe a transparent table or DDIC structure`,
   );
+  if (tableClass === "TRANSP") {
+    assert.match(
+      tableStub,
+      /<DD03P>[\s\S]*?<FIELDNAME>MANDT<\/FIELDNAME>[\s\S]*?<KEYFLAG>X<\/KEYFLAG>[\s\S]*?<\/DD03P>/i,
+      `${fileName} must expose MANDT as a key field for client-safe test SQL`,
+    );
+  }
   const fieldRows = [...tableStub.matchAll(/<DD03P>([\s\S]*?)<\/DD03P>/gi)];
   assert.ok(fieldRows.length > 0, `${fileName} must declare DDIC fields`);
   const fieldNames = new Set();
@@ -633,10 +651,30 @@ const requiredSapTableFields = new Map([
   ["VBAP", ["VBELN", "POSNR", "MATNR", "WERKS", "ABGRU", "LPRIO", "VRKME", "LOEKZ", "LIFSP"]],
   ["VBEP", ["VBELN", "POSNR", "ETENR", "EDATU", "WMENG", "BMENG", "LIFSP"]],
 ]);
+const requiredBapiStructureFields = new Map([
+  ["BAPI2017_GM_HEAD_01", ["PSTNG_DATE", "DOC_DATE", "HEADER_TXT"]],
+  ["BAPI2017_GM_CODE", ["GM_CODE"]],
+  ["BAPI2017_GM_ITEM_CREATE", ["MATERIAL", "PLANT", "STGE_LOC", "MOVE_TYPE", "ENTRY_QNT", "ENTRY_UOM", "BATCH", "MATERIAL_EXTERNAL"]],
+  ["BAPI2017_GM_HEAD_RET", ["MAT_DOC", "DOC_YEAR"]],
+  ["BAPI2093_RES_HEAD", ["RES_DATE", "CREATED_BY", "MOVE_TYPE"]],
+  ["BAPI2093_RES_ITEM", ["MATERIAL", "PLANT", "STGE_LOC", "BATCH", "ENTRY_QNT", "ENTRY_UOM", "REQ_DATE", "MATERIAL_EXTERNAL"]],
+  ["BAPISDHD1X", ["UPDATEFLAG"]],
+  ["BAPISCHDL", ["ITM_NUMBER", "SCHED_LINE", "REQ_QTY"]],
+  ["BAPISCHDLX", ["ITM_NUMBER", "SCHED_LINE", "UPDATEFLAG", "REQ_QTY"]],
+]);
 assert.match(
   salesDocumentTypeStub,
   /ROLLNAME>VBELN_VA<[\s\S]*DATATYPE>CHAR<[\s\S]*LENG>000010</,
   "SAP VBELN_VA type stub must preserve the ten-character sales-document field",
+);
+const reservationNumberTypeStub = fs.readFileSync(
+  path.join(stubDirectory, "bapi2093_res_no.dtel.xml"),
+  "utf8",
+);
+assert.match(
+  reservationNumberTypeStub,
+  /ROLLNAME>BAPI2093_RES_NO<[\s\S]*DATATYPE>NUMC<[\s\S]*LENG>000010</,
+  "SAP BAPI reservation number type stub must preserve the ten-digit identifier",
 );
 for (const [tableName, fieldNames] of requiredSapTableFields) {
   const tableStubPath = path.join(stubDirectory, `${tableName.toLowerCase()}.tabl.xml`);
@@ -646,6 +684,22 @@ for (const [tableName, fieldNames] of requiredSapTableFields) {
       tableStub,
       new RegExp(`<FIELDNAME>\\s*${fieldName}\\s*</FIELDNAME>`, "i"),
       `SAP table stub ${tableName} must expose field ${fieldName}`,
+    );
+  }
+}
+for (const [structureName, fieldNames] of requiredBapiStructureFields) {
+  const structureStubPath = path.join(stubDirectory, `${structureName.toLowerCase()}.tabl.xml`);
+  const structureStub = fs.readFileSync(structureStubPath, "utf8");
+  assert.match(
+    structureStub,
+    /<TABCLASS>INTTAB<\/TABCLASS>/,
+    `SAP BAPI structure stub ${structureName} must be a DDIC structure`,
+  );
+  for (const fieldName of fieldNames) {
+    assert.match(
+      structureStub,
+      new RegExp(`<FIELDNAME>\\s*${fieldName}\\s*</FIELDNAME>`, "i"),
+      `SAP BAPI structure stub ${structureName} must expose ${fieldName}`,
     );
   }
 }
@@ -1517,6 +1571,11 @@ assert.match(
   orderSourceSource,
   /check_sales_document\([\s\S]*iv_document_type\s*=\s*<ls_schedule>-sales_document_type[\s\S]*iv_sales_organization\s*=\s*<ls_schedule>-sales_organization[\s\S]*iv_distribution_channel\s*=\s*<ls_schedule>-distribution_channel[\s\S]*iv_division\s*=\s*<ls_schedule>-division/,
   "order demand source must enforce business authorization for each selected schedule",
+);
+assert.match(
+  allocationSinkSource,
+  /authorize_sales_documents\( it_demands = rt_demands \)[\s\S]*METHOD authorize_sales_documents[\s\S]*check_orders\( \)[\s\S]*FROM vbak[\s\S]*check_sales_document\(/,
+  "persisted allocation results must enforce current sales-document type and sales-area authorization",
 );
 assert.match(
   allocationReportSource,
@@ -2721,6 +2780,26 @@ assert.match(
   movementSource,
   /ls_header-header_txt\s*=\s*'ZSTOCK_ALLOC_GOODS_ISSUE'[\s\S]*CALL FUNCTION 'BAPI_GOODSMVT_CREATE'/,
   "goods-issue BAPI adapter must tag the SAP material document header",
+);
+assert.match(
+  movementSource,
+  /TYPES ty_header TYPE bapi2017_gm_head_01\.[\s\S]*TYPES ty_code TYPE bapi2017_gm_code\.[\s\S]*TYPES ty_item TYPE bapi2017_gm_item_create\.[\s\S]*TYPES ty_headret TYPE bapi2017_gm_head_ret\.[\s\S]*TYPES ty_return TYPE bapiret2\./,
+  "goods-issue adapter must use standard SAP BAPI DDIC structures",
+);
+assert.match(
+  reservationSource,
+  /TYPES ty_header TYPE bapi2093_res_head\.[\s\S]*TYPES ty_item TYPE bapi2093_res_item\.[\s\S]*TYPES ty_return TYPE bapiret2\./,
+  "reservation adapter must use standard SAP BAPI DDIC structures",
+);
+assert.match(
+  reservationSource,
+  /DATA lv_reservation TYPE bapi2093_res_no\.[\s\S]*DATA lv_document TYPE bapi2093_res_no\./,
+  "reservation adapter must use the standard ten-digit BAPI reservation number type",
+);
+assert.match(
+  orderSinkSource,
+  /TYPES ty_header_x TYPE bapisdhd1x\.[\s\S]*TYPES ty_schedule TYPE bapischdl\.[\s\S]*TYPES ty_schedule_x TYPE bapischdlx\.[\s\S]*TYPES ty_return TYPE bapiret2\./,
+  "sales-order update adapter must use standard SAP BAPI DDIC structures",
 );
 assert.match(
   auditSource,

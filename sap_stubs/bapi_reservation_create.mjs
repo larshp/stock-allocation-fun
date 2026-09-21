@@ -203,7 +203,7 @@ export function installBapiStockStub(abap) {
     }
     if (material === "MATERIAL-BAD-RESERVATION") {
       input.importing.reservation.set("BAD-RES");
-    } else if (material === "MATERIAL-SHORT-RESERVATION") {
+    } else if (material === "MATERIAL-PAD-RESERVATION") {
       input.importing.reservation.set("123");
     } else if (material === "MATERIAL-BAD-ZERO-RESERVATION") {
       input.importing.reservation.set("0000000000");

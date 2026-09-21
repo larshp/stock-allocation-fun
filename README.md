@@ -121,6 +121,9 @@ Current additions include adaptive strategy `A` (priority when all demand fits, 
 
 `ZSTOCK_ALLOC_RESERVE` is the guarded operational action for creating one SAP reservation outside the allocation run. It requires `p_exec`, accepts material/plant/storage-location, movement type, unit, quantity, required date, and optional batch, canonicalizes the unit, delegates validation/authorization/transaction handling to `ZCL_STOCK_RESERVATION_SAP`, and reports the returned reservation document or preserved BAPI/rollback diagnostics. Its machine-readable schema version is `1`.
 
+The reservation adapter uses SAP DDIC types `BAPI2093_RES_HEAD`, `BAPI2093_RES_ITEM`, `BAPI2093_RES_NO`, and `BAPIRET2` for create/delete calls. Matching lightweight structure descriptors live under `sap_stubs/` for lint and transpilation only; do not import these descriptors to SAP. The sales-order update adapter also uses SAP DDIC types `BAPISDHD1X`, `BAPISCHDL`, `BAPISCHDLX`, and `BAPIRET2`, with corresponding local descriptors for lint and transpilation.
+
+
 `ZSTOCK_ALLOC_CONVERT` is a read-only diagnostic report for material-specific unit conversion. It accepts material, quantity, source unit, and target unit, canonicalizes both units, delegates conversion and authority checks to `ZCL_UNIT_CONVERSION_SAP`, and reports the source and converted quantities in human, CSV, JSON, and typed JSON output. Its JSON and CSV machine-readable schema version is `1`.
 
 Fair-share allocators persist quantities to three decimal places. After proportional grants are rounded, any remaining representable `0.001` stock is redistributed deterministically without exceeding demand caps, so precision loss does not strand usable stock.
@@ -292,7 +295,7 @@ All order-update JSON success responses include generated date/time markers and 
 
 Invalid typed/CSV combinations use the shared `mode;status;schema_version;message` CSV error envelope.
 
-The `ZSTOCK_ALLOC_GOODS_ISSUE` report posts one authorized goods issue through `BAPI_GOODSMVT_CREATE` only when `p_exec` is selected; without the checkbox it performs no mutation and reports BAPI failures cleanly. Successful output includes both the material-document number and document year from `GOODSMVT_HEADRET`.
+The `ZSTOCK_ALLOC_GOODS_ISSUE` report posts one authorized goods issue through `BAPI_GOODSMVT_CREATE` only when `p_exec` is selected; without the checkbox it performs no mutation and reports BAPI failures cleanly. The SAP adapter uses the standard `BAPI2017_GM_HEAD_01`, `BAPI2017_GM_CODE`, `BAPI2017_GM_ITEM_CREATE`, `BAPI2017_GM_HEAD_RET`, and `BAPIRET2` structures, and successful output includes both the material-document number and document year from `GOODSMVT_HEADRET`. Matching lightweight type descriptors live under `sap_stubs/` for lint/transpilation and must not be imported to SAP.
 
 Selecting `p_json` on `ZSTOCK_ALLOC_GOODS_ISSUE` emits a structured success object or JSON error envelope, including the complete material-document identity.
 

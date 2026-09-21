@@ -9,42 +9,12 @@ CLASS zcl_order_sink_sap DEFINITION
     INTERFACES zif_order_sink.
   PRIVATE SECTION.
     DATA mo_authority TYPE REF TO zif_order_sink_authority.
-    TYPES:
-      BEGIN OF ty_header_x,
-        updateflag TYPE c LENGTH 1,
-      END OF ty_header_x.
-    TYPES:
-      BEGIN OF ty_schedule,
-        itm_number TYPE n LENGTH 6,
-        sched_line TYPE n LENGTH 4,
-        req_qty    TYPE p LENGTH 8 DECIMALS 3,
-      END OF ty_schedule.
+    TYPES ty_header_x TYPE bapisdhd1x.
+    TYPES ty_schedule TYPE bapischdl.
     TYPES tt_schedule TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_schedule_x,
-        itm_number TYPE n LENGTH 6,
-        sched_line TYPE n LENGTH 4,
-        updateflag TYPE c LENGTH 1,
-        req_qty    TYPE c LENGTH 1,
-      END OF ty_schedule_x.
+    TYPES ty_schedule_x TYPE bapischdlx.
     TYPES tt_schedule_x TYPE STANDARD TABLE OF ty_schedule_x WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_return,
-        type       TYPE c LENGTH 1,
-        id         TYPE c LENGTH 20,
-        number     TYPE n LENGTH 3,
-        message    TYPE c LENGTH 220,
-        log_no     TYPE c LENGTH 20,
-        log_msg_no TYPE n LENGTH 6,
-        message_v1 TYPE c LENGTH 50,
-        message_v2 TYPE c LENGTH 50,
-        message_v3 TYPE c LENGTH 50,
-        message_v4 TYPE c LENGTH 50,
-        parameter  TYPE c LENGTH 32,
-        row        TYPE i,
-        field      TYPE c LENGTH 30,
-        system     TYPE c LENGTH 10,
-    END OF ty_return.
+    TYPES ty_return TYPE bapiret2.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS raise_error
       IMPORTING

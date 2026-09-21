@@ -24,7 +24,7 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bapi_document FOR TESTING
       RAISING zcx_stock_allocation.
-    METHODS rejects_short_bapi_document FOR TESTING
+    METHODS pads_bapi_document FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_zero_bapi_document FOR TESTING
       RAISING zcx_stock_allocation.
@@ -415,30 +415,22 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
       exp = 'Reservation document returned by SAP is invalid' ).
   ENDMETHOD.
 
-  METHOD rejects_short_bapi_document.
+  METHOD pads_bapi_document.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
-    DATA lv_raised TYPE abap_bool.
-    DATA lv_message TYPE c LENGTH 220.
+    DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
-    TRY.
-        lo_cut->reserve(
-          iv_material         = 'MATERIAL-SHORT-RESERVATION'
-          iv_plant            = '1000'
-          iv_storage_location = '0001'
-          iv_movement_type    = '201'
-          iv_quantity         = '3'
-          iv_unit             = 'EA'
-          iv_required_date    = '20260815' ).
-      CATCH zcx_stock_allocation INTO DATA(lo_error).
-        lv_raised = abap_true.
-        lv_message = lo_error->message.
-    ENDTRY.
-
-    cl_abap_unit_assert=>assert_true( lv_raised ).
+    lv_document = lo_cut->reserve(
+      iv_material         = 'MATERIAL-PAD-RESERVATION'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '3'
+      iv_unit             = 'EA'
+      iv_required_date    = '20260815' ).
     cl_abap_unit_assert=>assert_equals(
-      act = lv_message
-      exp = 'Reservation document returned by SAP is invalid' ).
+      act = lv_document
+      exp = '0000000123' ).
   ENDMETHOD.
 
   METHOD rejects_zero_bapi_document.

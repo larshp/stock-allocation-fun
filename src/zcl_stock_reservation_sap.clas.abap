@@ -25,60 +25,10 @@ CLASS zcl_stock_reservation_sap DEFINITION
   PRIVATE SECTION.
     DATA mo_authority TYPE REF TO zif_stock_allocation_authority.
     DATA mo_lock TYPE REF TO zif_stock_allocation_lock.
-    TYPES:
-      BEGIN OF ty_header,
-        res_date   TYPE d,
-        created_by TYPE c LENGTH 12,
-        move_type  TYPE c LENGTH 3,
-      END OF ty_header.
-    TYPES:
-      BEGIN OF ty_item,
-        material          TYPE c LENGTH 18,
-        plant             TYPE c LENGTH 4,
-        stge_loc          TYPE c LENGTH 4,
-        batch             TYPE c LENGTH 10,
-        val_type          TYPE c LENGTH 10,
-        entry_qnt         TYPE p LENGTH 8 DECIMALS 3,
-        entry_uom         TYPE c LENGTH 3,
-        entry_uom_iso     TYPE c LENGTH 3,
-        req_date          TYPE d,
-        gl_account        TYPE c LENGTH 10,
-        acct_man          TYPE c LENGTH 1,
-        item_text         TYPE c LENGTH 50,
-        gr_rcpt           TYPE c LENGTH 12,
-        unload_pt         TYPE c LENGTH 25,
-        fixed_quan        TYPE c LENGTH 1,
-        movement          TYPE c LENGTH 1,
-        cmmt_item         TYPE c LENGTH 24,
-        funds_ctr         TYPE c LENGTH 16,
-        fund              TYPE c LENGTH 10,
-        movement_auto     TYPE c LENGTH 1,
-        grant_nbr         TYPE c LENGTH 20,
-        material_external TYPE c LENGTH 40,
-        material_guid     TYPE c LENGTH 32,
-        material_version  TYPE c LENGTH 10,
-        prio_urgency      TYPE n LENGTH 2,
-        prio_requirement  TYPE n LENGTH 3,
-        budget_period     TYPE c LENGTH 10,
-      END OF ty_item.
+    TYPES ty_header TYPE bapi2093_res_head.
+    TYPES ty_item TYPE bapi2093_res_item.
     TYPES tt_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_return,
-        type       TYPE c LENGTH 1,
-        id         TYPE c LENGTH 20,
-        number     TYPE n LENGTH 3,
-        message    TYPE c LENGTH 220,
-        log_no     TYPE c LENGTH 20,
-        log_msg_no TYPE n LENGTH 6,
-        message_v1 TYPE c LENGTH 50,
-        message_v2 TYPE c LENGTH 50,
-        message_v3 TYPE c LENGTH 50,
-        message_v4 TYPE c LENGTH 50,
-        parameter  TYPE c LENGTH 32,
-        row        TYPE i,
-        field      TYPE c LENGTH 30,
-        system     TYPE c LENGTH 10,
-    END OF ty_return.
+    TYPES ty_return TYPE bapiret2.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS raise_error
       IMPORTING
@@ -168,7 +118,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA ls_commit_return TYPE ty_return.
     DATA ls_rollback_return TYPE ty_return.
-    DATA lv_reservation TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_reservation TYPE bapi2093_res_no.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_commit_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.
@@ -254,10 +204,10 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDLOOP.
-    IF lv_reservation IS NOT INITIAL
+    IF lv_bapi_subrc = 0
         AND ( strlen( lv_reservation ) <> zif_stock_allocation=>c_reservation_id_length
-          OR lv_reservation CN '0123456789'
-          OR lv_reservation = '0000000000' )
+        OR lv_reservation CN '0123456789'
+        OR lv_reservation = '0000000000' )
         AND lv_bapi_message IS INITIAL.
       lv_bapi_message = 'Reservation document returned by SAP is invalid'.
     ENDIF.
@@ -392,7 +342,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA ls_commit_return TYPE ty_return.
     DATA ls_rollback_return TYPE ty_return.
-    DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_document TYPE bapi2093_res_no.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_commit_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.

@@ -1,5 +1,9 @@
 # Progress notes
 
+- Replaced hand-written partial reservation BAPI payload types with SAP `BAPI2093_RES_HEAD`, `BAPI2093_RES_ITEM`, `BAPI2093_RES_NO`, and `BAPIRET2` types. Added lightweight DDIC descriptors under `sap_stubs/` and repository contracts for the adapter's standard types.
+- Corrected the reservation adapter's zero-number diagnostic: a zero-initial `NUMC(10)` BAPI result had bypassed the malformed-document message. The adapter now reports the invalid SAP reservation ID, with ABAP Unit coverage.
+- Replaced hand-written partial sales-order BAPI payload types with `BAPISDHD1X`, `BAPISCHDL`, `BAPISCHDLX`, and `BAPIRET2`; added lint/transpiler descriptors and repository type contracts.
+- Replaced hand-written partial goods-movement BAPI payload types with standard `BAPI2017_GM_*` and `BAPIRET2` DDIC types. Added lightweight structure descriptors under `sap_stubs/` and contract checks that distinguish DDIC structures from client-dependent database tables.
 - Tagged direct goods-issue material documents with `ZSTOCK_ALLOC_GOODS_ISSUE` in the SAP header text; a BAPI-stub regression requires the marker, and the README now matches the live success schemas (`2`/`3`).
 - Moved reservation-snapshot ownership lookup behind `ZCL_ALLOCATION_SINK_SAP`; the cancellation report now uses the adapter, and ABAP Unit covers linked, unlinked, blank-ID, and denied-read cases.
 - Prevented direct cancellation from orphaning allocation snapshots: `ZSTOCK_ALLOC_RES_CANCEL` now requires result-read authorization and refuses reservation IDs still linked from `ZSTOCKALLOC`, directing operators to allocation reconciliation; standalone SAP reservations remain cancelable through the same BAPI adapter.

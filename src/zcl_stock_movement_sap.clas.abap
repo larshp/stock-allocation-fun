@@ -11,50 +11,12 @@ CLASS zcl_stock_movement_sap DEFINITION
   PRIVATE SECTION.
     DATA mo_authority TYPE REF TO zif_stock_movement_authority.
     DATA mo_lock TYPE REF TO zif_stock_allocation_lock.
-    TYPES:
-      BEGIN OF ty_header,
-        pstng_date TYPE d,
-        doc_date   TYPE d,
-        header_txt TYPE c LENGTH 50,
-      END OF ty_header.
-    TYPES:
-      BEGIN OF ty_code,
-        gm_code TYPE c LENGTH 2,
-      END OF ty_code.
-    TYPES:
-      BEGIN OF ty_item,
-        material          TYPE c LENGTH 18,
-        plant             TYPE c LENGTH 4,
-        stge_loc          TYPE c LENGTH 4,
-        move_type         TYPE c LENGTH 3,
-        entry_qnt         TYPE p LENGTH 8 DECIMALS 3,
-        entry_uom         TYPE c LENGTH 3,
-        batch             TYPE c LENGTH 10,
-        material_external TYPE c LENGTH 40,
-      END OF ty_item.
+    TYPES ty_header TYPE bapi2017_gm_head_01.
+    TYPES ty_code TYPE bapi2017_gm_code.
+    TYPES ty_item TYPE bapi2017_gm_item_create.
     TYPES tt_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_headret,
-        mat_doc  TYPE c LENGTH 10,
-        doc_year TYPE n LENGTH 4,
-      END OF ty_headret.
-    TYPES:
-      BEGIN OF ty_return,
-        type       TYPE c LENGTH 1,
-        id         TYPE c LENGTH 20,
-        number     TYPE n LENGTH 3,
-        message    TYPE c LENGTH 220,
-        log_no     TYPE c LENGTH 20,
-        log_msg_no TYPE n LENGTH 6,
-        message_v1 TYPE c LENGTH 50,
-        message_v2 TYPE c LENGTH 50,
-        message_v3 TYPE c LENGTH 50,
-        message_v4 TYPE c LENGTH 50,
-        parameter  TYPE c LENGTH 32,
-        row        TYPE i,
-        field      TYPE c LENGTH 30,
-        system     TYPE c LENGTH 10,
-    END OF ty_return.
+    TYPES ty_headret TYPE bapi2017_gm_head_ret.
+    TYPES ty_return TYPE bapiret2.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
     METHODS raise_error
       IMPORTING

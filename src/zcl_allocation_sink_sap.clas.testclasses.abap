@@ -68,6 +68,55 @@ CLASS lcl_allow_res_read_auth IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_sales_read_authority_probe DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_source_read_authority.
+    METHODS set_failure
+      IMPORTING
+        iv_fail TYPE abap_bool.
+  PRIVATE SECTION.
+    DATA checked_documents TYPE i.
+    DATA fail_document_check TYPE abap_bool.
+ENDCLASS.
+
+CLASS lcl_sales_read_authority_probe IMPLEMENTATION.
+  METHOD zif_source_read_authority~check_stock.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_orders.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_sales_document.
+    ADD 1 TO checked_documents.
+    cl_abap_unit_assert=>assert_equals(
+      act = checked_documents
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = iv_document_type
+      exp = 'OR' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = iv_sales_organization
+      exp = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = iv_distribution_channel
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = iv_division
+      exp = '00' ).
+    IF fail_document_check = abap_true.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Sales document read authorization test failure'.
+      RAISE EXCEPTION lo_error.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_failure.
+    fail_document_check = iv_fail.
+    CLEAR checked_documents.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
@@ -75,6 +124,8 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
     METHODS checks_reservation_linked FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_res_link_read_auth FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS checks_sales_document_auth FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS persists_allocation FOR TESTING
       RAISING zcx_stock_allocation.
@@ -216,6 +267,92 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
           exp = 'Result read authorization test failure' ).
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD checks_sales_document_auth.
+    DATA lo_result_authority TYPE REF TO lcl_allow_res_read_auth.
+    DATA lo_sales_authority TYPE REF TO lcl_sales_read_authority_probe.
+    DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA ls_allocation TYPE zstockalloc.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_result_authority.
+    CREATE OBJECT lo_sales_authority.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap
+      EXPORTING
+        io_read_authority       = lo_result_authority
+        io_sales_read_authority = lo_sales_authority.
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-SALES-AUTH'
+        AND run_id = 'RUN-SALES-AUTH'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-SALES-AUTH'.
+    CLEAR ls_run.
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-SALES-AUTH'.
+    ls_run-matnr = 'MATERIAL-SALES-AUTH'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-strategy = 'P'.
+    ls_run-movement_type = '201'.
+    ls_run-status = 'S'.
+    ls_run-preview = abap_false.
+    ls_run-requested_on_from = sy-datum.
+    ls_run-requested_on_to = sy-datum.
+    INSERT zstockalloc_run FROM @ls_run.
+    CLEAR ls_allocation.
+    ls_allocation-mandt = sy-mandt.
+    ls_allocation-matnr = 'MATERIAL-SALES-AUTH'.
+    ls_allocation-werks = '1000'.
+    ls_allocation-lgort = '0001'.
+    ls_allocation-run_id = 'RUN-SALES-AUTH'.
+    ls_allocation-allocation_unit = 'EA'.
+    ls_allocation-sales_document = '5000000001'.
+    ls_allocation-sales_document_type = 'OR'.
+    ls_allocation-sales_item = '000010'.
+    ls_allocation-schedule_line = '0001'.
+    ls_allocation-order_unit = 'EA'.
+    ls_allocation-order_id = 'SALES-AUTH-ROW'.
+    ls_allocation-requested_on = sy-datum.
+    ls_allocation-priority = 1.
+    ls_allocation-requested = 1.
+    ls_allocation-allocated = 1.
+    ls_allocation-allocation_status = 'F'.
+    ls_allocation-reservation_id = '2000000999'.
+    ls_allocation-reservation_date = sy-datum.
+    ls_allocation-reservation_movement_type = '201'.
+    ls_allocation-reservation_unit = 'EA'.
+    INSERT zstockalloc FROM @ls_allocation.
+    lt_demands = lo_sink->get_allocations(
+      iv_material         = 'MATERIAL-SALES-AUTH'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_sales_document   = '5000000001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 1 ).
+    lo_sales_authority->set_failure( iv_fail = abap_true ).
+    TRY.
+        lo_sink->get_allocations(
+          iv_material         = 'MATERIAL-SALES-AUTH'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_sales_document   = '5000000001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Sales document read authorization test failure' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-SALES-AUTH'
+        AND run_id = 'RUN-SALES-AUTH'.
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-SALES-AUTH'.
   ENDMETHOD.
 
   METHOD filters_by_shortage_percentage.

@@ -1,12 +1,14 @@
 INTERFACE zif_stock_source PUBLIC.
   METHODS get_available
     IMPORTING
-      iv_material         TYPE zif_stock_allocation=>ty_material
-      iv_plant            TYPE zif_stock_allocation=>ty_plant
-      iv_storage_location TYPE zif_stock_allocation=>ty_storage_location
-      iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_material             TYPE zif_stock_allocation=>ty_material
+      iv_plant                TYPE zif_stock_allocation=>ty_plant
+      iv_storage_location     TYPE zif_stock_allocation=>ty_storage_location
+      iv_batch                TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_include_reservations TYPE abap_bool OPTIONAL
+      it_app_reservation_ids  TYPE zif_stock_allocation=>tt_reservation_ids OPTIONAL
     RETURNING
-      VALUE(rs_available) TYPE zif_stock_allocation=>ty_available
+      VALUE(rs_available)     TYPE zif_stock_allocation=>ty_available
     RAISING
       zcx_stock_allocation.
 ENDINTERFACE.

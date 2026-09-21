@@ -4,6 +4,9 @@ CLASS ltcl_stock_json DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS escapes_json_string FOR TESTING.
     METHODS escapes_control_chars FOR TESTING.
+    METHODS escapes_all_json_control_chars FOR TESTING.
+    METHODS escapes_property_names FOR TESTING.
+    METHODS preserves_long_property_values FOR TESTING.
     METHODS formats_property FOR TESTING.
     METHODS formats_number_property FOR TESTING.
     METHODS formats_filter_number_property FOR TESTING.
@@ -31,6 +34,77 @@ CLASS ltcl_stock_json IMPLEMENTATION.
       act = zcl_stock_json=>quote(
         |ORDER{ cl_abap_char_utilities=>newline }42| )
       exp = '"ORDER\n42"' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>quote(
+        |ORDER{ cl_abap_char_utilities=>cr_lf }42| )
+      exp = '"ORDER\n42"' ).
+  ENDMETHOD.
+
+  METHOD escapes_all_json_control_chars.
+    DATA lv_value TYPE string.
+    DATA lv_expected TYPE string.
+    DATA lv_control_pair TYPE cl_abap_conv_in_ce=>ty_char2.
+    DATA lv_control TYPE c LENGTH 1.
+    DATA lv_code TYPE i.
+
+    DO 32 TIMES.
+      lv_code = sy-index - 1.
+      lv_control_pair = cl_abap_conv_in_ce=>uccpi( lv_code ).
+      lv_control = lv_control_pair(1).
+      CONCATENATE lv_value lv_control INTO lv_value.
+    ENDDO.
+    CONCATENATE
+      '\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f'
+      '\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f'
+      INTO lv_expected.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>quote( lv_value )
+      exp = |"{ lv_expected }"| ).
+  ENDMETHOD.
+
+  METHOD escapes_property_names.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>property(
+        iv_name  = 'bad"name'
+        iv_value = 'value' )
+      exp = '"bad\"name":"value"' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>number_property(
+        iv_name  = 'bad"name'
+        iv_value = 12 )
+      exp = '"bad\"name":12' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>boolean_property(
+        iv_name  = 'bad"name'
+        iv_value = abap_true )
+      exp = '"bad\"name":true' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>null_property( 'bad"name' )
+      exp = '"bad\"name":null' ).
+  ENDMETHOD.
+
+  METHOD preserves_long_property_values.
+    DATA lv_value TYPE string.
+    DATA lv_expected TYPE string.
+    DATA lv_fixed_value TYPE c LENGTH 1500.
+
+    DO 1200 TIMES.
+      CONCATENATE lv_value 'x' INTO lv_value.
+    ENDDO.
+    lv_fixed_value = lv_value.
+    CONCATENATE '"message":"' lv_value '"' INTO lv_expected.
+
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>property(
+        iv_name  = 'message'
+        iv_value = lv_value )
+      exp = lv_expected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_json=>property(
+        iv_name  = 'message'
+        iv_value = lv_fixed_value )
+      exp = lv_expected ).
   ENDMETHOD.
 
   METHOD formats_property.

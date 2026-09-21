@@ -12,6 +12,7 @@ CLASS ltcl_stock_csv DEFINITION FINAL FOR TESTING
     METHODS neutralizes_spaced_formula FOR TESTING.
     METHODS neutralizes_control_prefixes FOR TESTING.
     METHODS neutralizes_fullwidth_formula FOR TESTING.
+    METHODS neutralizes_fullwidth_prefixes FOR TESTING.
     METHODS formats_error_row FOR TESTING.
     METHODS formats_correlated_error FOR TESTING.
     METHODS formats_schema_error FOR TESTING.
@@ -142,6 +143,25 @@ CLASS ltcl_stock_csv IMPLEMENTATION.
     CONCATENATE '''' '＝1+1' INTO lv_expected_text.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_csv=>quote( '＝1+1' )
+      exp = |"{ lv_expected_text }"| ).
+  ENDMETHOD.
+
+  METHOD neutralizes_fullwidth_prefixes.
+    DATA lv_expected_text TYPE string.
+
+    CONCATENATE '''' '＋1+1' INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '＋1+1' )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR lv_expected_text.
+    CONCATENATE '''' '－1+1' INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '－1+1' )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR lv_expected_text.
+    CONCATENATE '''' '＠SUM(1,1)' INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '＠SUM(1,1)' )
       exp = |"{ lv_expected_text }"| ).
   ENDMETHOD.
 

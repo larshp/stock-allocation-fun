@@ -4,6 +4,12 @@ CLASS ltcl_unit_conversion_sap DEFINITION FINAL FOR TESTING
   PRIVATE SECTION.
     METHODS rejects_unauthorized_read FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS accepts_known_identity_units FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_identity_unit FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_identity_mat FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS converts_material_unit FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS normalizes_lowercase_units FOR TESTING
@@ -47,7 +53,7 @@ CLASS ltcl_unit_conversion_sap IMPLEMENTATION.
         lo_cut->convert(
           iv_material  = 'MATERIAL-BOX'
           iv_quantity  = '2'
-          iv_unit_from = 'BOX'
+          iv_unit_from = 'EA'
           iv_unit_to   = 'EA' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
         lv_raised = abap_true.
@@ -57,6 +63,78 @@ CLASS ltcl_unit_conversion_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Unit conversion authority test failure' ).
+  ENDMETHOD.
+
+  METHOD accepts_known_identity_units.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-BOX'
+      iv_quantity  = '2'
+      iv_unit_from = 'ea'
+      iv_unit_to   = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '2' ).
+
+    lv_quantity = lo_cut->convert(
+      iv_material  = 'MATERIAL-BOX'
+      iv_quantity  = '3'
+      iv_unit_from = 'box'
+      iv_unit_to   = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_quantity
+      exp = '3' ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_identity_unit.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    TRY.
+        lv_quantity = lo_cut->convert(
+          iv_material  = 'MATERIAL-BOX'
+          iv_quantity  = '2'
+          iv_unit_from = 'ZZZ'
+          iv_unit_to   = 'ZZZ' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Unit conversion failed' ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_identity_mat.
+    DATA lo_cut TYPE REF TO zif_unit_conversion.
+    DATA lv_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_unit_conversion_sap.
+    TRY.
+        lv_quantity = lo_cut->convert(
+          iv_material  = 'MATERIAL-UNKNOWN'
+          iv_quantity  = '2'
+          iv_unit_from = 'EA'
+          iv_unit_to   = 'EA' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Unit conversion failed' ).
   ENDMETHOD.
 
   METHOD converts_material_unit.

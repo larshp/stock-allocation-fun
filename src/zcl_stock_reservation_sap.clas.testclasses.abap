@@ -60,6 +60,10 @@ CLASS ltcl_stock_reservation_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_cancel_zero_movement FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_cancel_scope_mismatch FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_cancel_no_context FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_cancel_unauthorized FOR TESTING
@@ -685,12 +689,21 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
 
   METHOD cancels_reservation_bapi.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_remaining_items TYPE i.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
     lo_cut->cancel(
-      iv_document      = '0000000001'
+      iv_document      = '9999999987'
       iv_plant         = '1000'
       iv_movement_type = '201' ).
+
+    SELECT COUNT( * )
+      FROM resb
+      WHERE rsnum = '9999999987'
+      INTO @lv_remaining_items.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_remaining_items
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD rejects_cancel_bapi_rollback.
@@ -889,7 +902,7 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
         io_authority = lo_authority.
     TRY.
         lo_cut->zif_stock_reservation~cancel(
-          iv_document      = '0000000001'
+          iv_document      = '9999999986'
           iv_plant         = '1000'
           iv_movement_type = '201' ).
       CATCH zcx_stock_allocation INTO DATA(lo_error).
@@ -945,5 +958,49 @@ CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Reservation document is required' ).
+  ENDMETHOD.
+
+  METHOD rejects_cancel_scope_mismatch.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->cancel(
+          iv_document      = '9999999985'
+          iv_plant         = '2000'
+          iv_movement_type = '201' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation cancellation scope does not match the reservation' ).
+  ENDMETHOD.
+
+  METHOD rejects_cancel_no_context.
+    DATA lo_cut TYPE REF TO zif_stock_reservation.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
+    TRY.
+        lo_cut->cancel(
+          iv_document      = '9000000001'
+          iv_plant         = '1000'
+          iv_movement_type = '201' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Reservation authorization context is unavailable' ).
   ENDMETHOD.
 ENDCLASS.

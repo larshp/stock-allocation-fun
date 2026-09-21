@@ -77,6 +77,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_RESV</KEY>
+     <ENTRY>Net open SAP reservations</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_MEINS</KEY>
      <ENTRY>Output unit</ENTRY>
      <LENGTH>18</LENGTH>

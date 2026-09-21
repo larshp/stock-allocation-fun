@@ -2,6 +2,7 @@
 
 - Replaced hand-written partial reservation BAPI payload types with SAP `BAPI2093_RES_HEAD`, `BAPI2093_RES_ITEM`, `BAPI2093_RES_NO`, and `BAPIRET2` types. Added lightweight DDIC descriptors under `sap_stubs/` and repository contracts for the adapter's standard types.
 - Corrected the reservation adapter's zero-number diagnostic: a zero-initial `NUMC(10)` BAPI result had bypassed the malformed-document message. The adapter now reports the invalid SAP reservation ID, with ABAP Unit coverage.
+- Closed a result-read authorization gap: `ZSTOCKALLOC` access alone no longer exposes persisted sales-order details after business permissions change. Snapshot reads now load current `VBAK` authorization context and enforce document-type and sales-area display checks once per unique order.
 - Replaced hand-written partial sales-order BAPI payload types with `BAPISDHD1X`, `BAPISCHDL`, `BAPISCHDLX`, and `BAPIRET2`; added lint/transpiler descriptors and repository type contracts.
 - Replaced hand-written partial goods-movement BAPI payload types with standard `BAPI2017_GM_*` and `BAPIRET2` DDIC types. Added lightweight structure descriptors under `sap_stubs/` and contract checks that distinguish DDIC structures from client-dependent database tables.
 - Tagged direct goods-issue material documents with `ZSTOCK_ALLOC_GOODS_ISSUE` in the SAP header text; a BAPI-stub regression requires the marker, and the README now matches the live success schemas (`2`/`3`).
@@ -1320,3 +1321,25 @@
 - Mapped SAP's generated `FOREIGN_LOCK` exception to an explicit concurrent-allocation message while keeping enqueue-server failures separately diagnosable.
 - Put direct goods issues under the same material/plant/storage-location lock as allocations, holding it through the BAPI commit and releasing it after success or rollback.
 - Added a serialized reservation entry point for the standalone reserve report. It acquires the shared stock lock through reservation commit and releases after success or rollback without re-locking inside allocation runs.
+
+- Hardened direct sales-order writes by loading the current VBAK type and sales area, rejecting caller-supplied type mismatches or incomplete context, and checking both document-type and sales-area change authorization.
+
+- Hardened standalone reservation cancellation: current RESB item scopes are now loaded, must match the report's plant/movement confirmation, and each distinct persisted plant/movement type is authorized before the delete BAPI. Added the RESB stub and mismatch/missing-context regressions.
+
+- Expanded CSV formula-injection ABAP Unit coverage to include the actual UTF-8 full-width plus, minus, and at-sign markers alongside the existing full-width equals case.
+
+- Hardened shared JSON string quoting to escape the full U+0000–U+001F range, using short escapes where JSON defines them and `\u00xx` escapes for the remaining controls.
+
+- Routed field names from string, numeric, boolean, and null JSON property builders through the shared quoting routine; added quote-bearing key regressions.
+
+- Bypassed the fixed 1,024-character intermediate buffer for string, character, and numeric-text JSON properties; long string and fixed-character regressions verify the full value is preserved.
+
+- Added material/client-level batch-master support through `MCH1` alongside plant-level `MCHA`; MCH1 expiration takes precedence when populated, restriction flags from either level gate stock eligibility, and tests cover MCH1-only, conflicting records, invalid, and deleted master data.
+- Validated same-unit material conversions after read authorization: the material must exist and the unit must be its MARA base unit or a MARM alternative, with regressions for base, alternate, unknown-unit, unknown-material, and denied-read cases.
+- Added RESB-aware allocation stock accounting: unrestricted stock is reduced by active open reservation quantities, and the SAP adapter reports current open balances for app-linked reservation IDs so same-unit reruns can reuse reservations without losing their snapshot links. Cross-unit snapshot deductions now apply only when a matching SAP reservation is no longer open, preventing both double deductions and stale-snapshot undercounting; ABAP Unit covers both stale and live cross-unit snapshots.
+- Fixed the operational rerun reservation-ID filter after the end-to-end test showed it excluded every numeric SAP document number; the SAP vertical-slice test now proves that same-unit reruns retain both prior reservation IDs.
+- Made the SAP vertical-slice ABAP Unit cleanup cancel the reservations it creates and remove its own audit/snapshot rows so later tests start without residual SAP commitments.
+- Added `ZSTOCK_ALLOC_STOCK-p_resv` to optionally net active open SAP reservations and report unrestricted base stock, open reservation quantity, and net usable quantity with explicit provenance; app-snapshot netting can be combined with SAP reservation netting; linked open or fully issued reservation IDs are correlated; the snapshot amount already represented by SAP is reported separately and deducted once. Stock JSON/CSV schemas advance to `27`, metadata JSON to `28`.
+- Fixed combined stock-diagnostic overflow accounting: unbacked app snapshots now accumulate against post-RESB usable stock before totals are capped, so excess remains visible even when some snapshots are already represented by SAP reservations.
+- Extracted snapshot deduction and overflow calculation into `ZCL_STOCK_SNAPSHOT_NETTING`; ABAP Unit now verifies in-capacity deduction, exact overflow, and negative-input rejection, while the repository contract ensures the stock report uses the tested helper.
+- Restricted selected-batch stock reservation netting to RESB items assigned to that batch; unassigned reservations remain in aggregate stock netting and no longer reduce every per-batch result.

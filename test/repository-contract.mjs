@@ -19,6 +19,14 @@ const allocationReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_allocate.prog.abap"),
   "utf8",
 );
+const orderSinkSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_order_sink_sap.clas.abap"),
+  "utf8",
+);
+const orderSinkAuthoritySource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_order_sink_authority_sap.clas.abap"),
+  "utf8",
+);
 
 function readJson(fileName) {
   return JSON.parse(fs.readFileSync(path.join(repositoryDirectory, fileName), "utf8"));
@@ -53,6 +61,16 @@ assert.match(
   allocationReportSource,
   /PARAMETERS\s+p_plan\s+AS CHECKBOX[\s\S]*iv_include_preview_demands\s*=\s*p_plan[\s\S]*preview_lines/i,
   "allocation report must expose its service preview plan as JSON line details",
+);
+assert.match(
+  orderSinkSource,
+  /mo_authority->check\([\s\S]*iv_sales_document\s*=\s*iv_sales_document[\s\S]*iv_sales_document_type\s*=\s*lv_sales_document_type/,
+  "sales-order write authorization must receive the target document and caller type for validation",
+);
+assert.match(
+  orderSinkAuthoritySource,
+  /SELECT SINGLE auart, vkorg, vtweg, spart[\s\S]*FROM vbak[\s\S]*lv_document_type\s*<>\s*iv_sales_document_type[\s\S]*AUTHORITY-CHECK OBJECT 'V_VBAK_AAT'[\s\S]*FIELD lv_document_type[\s\S]*AUTHORITY-CHECK OBJECT 'V_VBAK_VKO'[\s\S]*FIELD lv_sales_organization[\s\S]*FIELD lv_distribution_channel[\s\S]*FIELD lv_division[\s\S]*FIELD '02'/,
+  "sales-order writes must authorize against the current VBAK type and sales area",
 );
 assert.match(
   allocationReportSource,
@@ -337,8 +355,10 @@ for (const fileName of [
   "marc.tabl.xml",
   "marm.tabl.xml",
   "mard.tabl.xml",
+  "mch1.tabl.xml",
   "mcha.tabl.xml",
   "mchb.tabl.xml",
+  "resb.tabl.xml",
   "vbak.tabl.xml",
   "vbap.tabl.xml",
   "vbep.tabl.xml",
@@ -645,8 +665,10 @@ const requiredSapTableFields = new Map([
   ["T001L", ["WERKS", "LGORT"]],
   ["MARD", ["MATNR", "WERKS", "LGORT", "LABST", "LVORM"]],
   ["MARM", ["MATNR", "MEINH", "UMREZ", "UMREN"]],
+  ["MCH1", ["MATNR", "CHARG", "VFDAT", "ZUSTD", "LVORM"]],
   ["MCHA", ["MATNR", "WERKS", "CHARG", "VFDAT", "ZUSTD", "LVORM"]],
   ["MCHB", ["MATNR", "WERKS", "LGORT", "CHARG", "CLABS", "LVORM"]],
+  ["RESB", ["RSNUM", "MATNR", "WERKS", "LGORT", "CHARG", "SOBKZ", "BDMNG", "MEINS", "ENMNG", "KZEAR", "XLOEK"]],
   ["VBAK", ["VBELN", "VBTYP", "AUART", "LIFSK"]],
   ["VBAP", ["VBELN", "POSNR", "MATNR", "WERKS", "ABGRU", "LPRIO", "VRKME", "LOEKZ", "LIFSP"]],
   ["VBEP", ["VBELN", "POSNR", "ETENR", "EDATU", "WMENG", "BMENG", "LIFSP"]],
@@ -933,16 +955,17 @@ const reservationSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_reservation_sap.clas.abap"),
   "utf8",
 );
+assert.match(
+  reservationSource,
+  /METHOD authorize_cancellation_scope[\s\S]*SELECT DISTINCT werks, bwart[\s\S]*FROM resb[\s\S]*does not match the reservation[\s\S]*check_cancel\([\s\S]*<ls_cancel_scope>-werks[\s\S]*<ls_cancel_scope>-bwart[\s\S]*authorize_cancellation_scope\([\s\S]*CALL FUNCTION 'BAPI_RESERVATION_DELETE'/,
+  "reservation deletion must authorize the persisted item scopes before calling SAP",
+);
 const reservationInterfaceSource = fs.readFileSync(
   path.join(sourceDirectory, "zif_stock_reservation.intf.abap"),
   "utf8",
 );
 const movementSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_movement_sap.clas.abap"),
-  "utf8",
-);
-const orderSinkSource = fs.readFileSync(
-  path.join(sourceDirectory, "zcl_order_sink_sap.clas.abap"),
   "utf8",
 );
 const orderUpdateReportSource = fs.readFileSync(
@@ -955,6 +978,14 @@ const goodsIssueReportSource = fs.readFileSync(
 );
 const stockReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_stock.prog.abap"),
+  "utf8",
+);
+const stockSnapshotNettingSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_snapshot_netting.clas.abap"),
+  "utf8",
+);
+const stockSnapshotNettingTests = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_snapshot_netting.clas.testclasses.abap"),
   "utf8",
 );
 const reservationCancelReportSource = fs.readFileSync(
@@ -1025,6 +1056,11 @@ assert.match(
   allocationServiceSource,
   /CLEAR lv_requested_total\.[\s\S]*requested\s*>\s*zif_stock_allocation=>c_max_quantity\s*-\s*lv_requested_total[\s\S]*Total requested quantity exceeds supported quantity range[\s\S]*lv_requested_total\s*=\s*lv_requested_total\s*\+\s*<ls_demand>-requested[\s\S]*iv_quantity_limit_active = abap_true[\s\S]*lv_requested_total > iv_max_requested_quantity/,
   "allocation service must guard aggregate totals even when the optional quantity cap is inactive",
+);
+assert.match(
+  allocationServiceSource,
+  /mo_stock_source->get_available\([\s\S]*iv_include_reservations\s*=\s*abap_true[\s\S]*it_app_reservation_ids\s*=\s*lt_app_reservation_ids/,
+  "allocation stock reads must include open SAP reservation requirements and identify reusable app reservations",
 );
 assert.match(
   allocationServiceSource,
@@ -1357,8 +1393,13 @@ assert.match(
 );
 assert.match(
   stockSourceSource,
-  /mo_authority->check_stock\(\s*iv_plant\s*=\s*iv_plant\s*iv_batch\s*=\s*iv_batch\s*\)/,
-  "stock source must pass plant and batch scope to read authority before selecting SAP stock",
+  /mo_authority->check_stock\(\s*iv_plant\s*=\s*iv_plant\s*iv_batch\s*=\s*iv_batch\s*iv_include_reservations\s*=\s*iv_include_reservations\s*\)/,
+  "stock source must pass plant, batch, and reservation scope to read authority before selecting SAP stock",
+);
+assert.match(
+  stockSourceSource,
+  /ELSE\.\s+SELECT rsnum AS reservation_id,[\s\S]*FROM resb[\s\S]*AND charg = @iv_batch[\s\S]*INTO CORRESPONDING FIELDS OF TABLE @lt_reservations/,
+  "selected-batch stock must net only reservations assigned to that batch",
 );
 assert.match(
   stockSourceSource,
@@ -1367,8 +1408,8 @@ assert.match(
 );
 assert.match(
   stockSourceSource,
-  /batch_restricted\s*<>\s*abap_true[\s\S]*batch_restricted\s*<>\s*abap_false/,
-  "stock source must reject noncanonical batch restriction flags",
+  /lv_batch_global_restricted\s*<>\s*abap_true[\s\S]*lv_batch_global_restricted\s*<>\s*abap_false[\s\S]*lv_batch_plant_restricted\s*<>\s*abap_true[\s\S]*lv_batch_plant_restricted\s*<>\s*abap_false[\s\S]*lv_batch_global_restricted\s*=\s*abap_true[\s\S]*lv_batch_plant_restricted\s*=\s*abap_true/,
+  "stock source must validate and combine global and plant-level batch restriction flags",
 );
 assert.match(
   stockSourceSource,
@@ -1382,8 +1423,8 @@ assert.match(
 );
 assert.match(
   stockSourceSource,
-  /lv_batch_deleted\s*<>\s*abap_true[\s\S]*lv_batch_deleted\s*<>\s*abap_false/,
-  "stock source must reject noncanonical batch deletion flags",
+  /lv_batch_global_deleted\s*<>\s*abap_true[\s\S]*lv_batch_global_deleted\s*<>\s*abap_false[\s\S]*lv_batch_plant_deleted\s*<>\s*abap_true[\s\S]*lv_batch_plant_deleted\s*<>\s*abap_false/,
+  "stock source must reject noncanonical global and plant-level batch deletion flags",
 );
 assert.match(
   allocationDateSource,
@@ -1412,7 +1453,7 @@ assert.match(
 );
 assert.match(
   sourceAuthoritySource,
-  /check_stock\.[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARA'[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARC'[\s\S]*IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCHA'/,
+  /check_stock\.[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARA'[\s\S]*verify_table\([\s\S]*iv_table\s*=\s*'MARC'[\s\S]*IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCH1'[\s\S]*iv_table\s*=\s*'MCHA'[\s\S]*IF iv_include_reservations = abap_true[\s\S]*iv_table\s*=\s*'RESB'/,
   "stock read authority must match batch and non-batch table access",
 );
 assert.match(
@@ -1535,7 +1576,7 @@ assert.match(
   /iv_required_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Reservation input is invalid/,
   "SAP reservation creation must reject malformed required dates",
 );
-for (const tableName of ["MARA", "MARC", "T001L", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
+for (const tableName of ["MARA", "MARC", "T001L", "MARD", "MCHB", "MCH1", "MCHA", "RESB", "VBAK", "VBAP", "VBEP"]) {
   assert.match(
     sourceAuthoritySource,
     new RegExp(`iv_table\\s*=\\s*'${tableName}'`),
@@ -1544,8 +1585,13 @@ for (const tableName of ["MARA", "MARC", "T001L", "MARD", "MCHB", "MCHA", "VBAK"
 }
 assert.match(
   sourceAuthoritySource,
-  /IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCHA'/,
+  /IF iv_batch IS INITIAL[\s\S]*iv_table\s*=\s*'MARD'[\s\S]*ELSE[\s\S]*iv_table\s*=\s*'MCHB'[\s\S]*iv_table\s*=\s*'MCH1'[\s\S]*iv_table\s*=\s*'MCHA'/,
   "source read authority must scope storage-table checks to the selected read path",
+);
+assert.match(
+  sourceAuthoritySource,
+  /IF iv_include_reservations = abap_true[\s\S]*iv_table\s*=\s*'RESB'/,
+  "reservation-aware stock reads must require RESB table authorization",
 );
 assert.match(
   sourceAuthoritySource,
@@ -1574,8 +1620,13 @@ assert.match(
 );
 assert.match(
   allocationSinkSource,
-  /authorize_sales_documents\( it_demands = rt_demands \)[\s\S]*METHOD authorize_sales_documents[\s\S]*check_orders\( \)[\s\S]*FROM vbak[\s\S]*check_sales_document\(/,
+  /METHOD authorize_sales_documents[\s\S]*check_orders\( \)[\s\S]*FROM vbak[\s\S]*check_sales_document\(/,
   "persisted allocation results must enforce current sales-document type and sales-area authorization",
+);
+assert.match(
+  allocationSinkSource,
+  /authorize_sales_documents\( it_demands = rt_demands \)/,
+  "allocation result reads must call the sales-document authorization guard",
 );
 assert.match(
   allocationReportSource,
@@ -2069,7 +2120,7 @@ assert.equal(
   "allocation report must version all JSON error envelopes, including run-ID variants",
 );
 for (const [reportName, reportSource, expectedCount] of [
-  ["stock", stockReportSource, 8],
+  ["stock", stockReportSource, 9],
   ["unit conversion", conversionReportSource, 5],
   ["reservation creation", reservationCreateReportSource, 6],
   ["reservation cancellation", reservationCancelReportSource, 6],
@@ -2084,12 +2135,17 @@ for (const [reportName, reportSource, expectedCount] of [
 }
 assert.match(
   readmeSource,
-  /JSON and typed JSON use schema version `25`; metadata JSON uses schema `26`/,
+  /JSON and typed JSON use schema version `27`; metadata JSON uses schema `28`/,
   "README must document stock JSON and metadata schema parity",
 );
 assert.match(
   readmeSource,
-  /## SAP integration checklist[\s\S]*Import the ABAP objects under `src\/`[\s\S]*do not import `sap_stubs\/`[\s\S]*ZSTOCKALLOC_RUN[\s\S]*MARD[\s\S]*T001L[\s\S]*MARM[\s\S]*BAPI_RESERVATION_CREATE1[\s\S]*M_MATE_MAN[\s\S]*M_MATE_WRK[\s\S]*S_TABU_NAM[\s\S]*M_MRES_BWA[\s\S]*V_VBAK_AAT[\s\S]*P_EXEC[\s\S]*npm test/,
+  /resolves batch master data at plant level through `MCHA` or at material\/client level through `MCH1`[\s\S]*`MCHA-ZUSTD`\/`MCH1-ZUSTD`[\s\S]*`MCHA-VFDAT` or `MCH1-VFDAT`[\s\S]*`MCHA`, and `MCH1`/,
+  "README must document both SAP batch-master levels and their status, expiry, and deletion fields",
+);
+assert.match(
+  readmeSource,
+  /## SAP integration checklist[\s\S]*Import the ABAP objects under `src\/`[\s\S]*do not import `sap_stubs\/`[\s\S]*ZSTOCKALLOC_RUN[\s\S]*MARD[\s\S]*T001L[\s\S]*MARM[\s\S]*RESB[\s\S]*BAPI_RESERVATION_CREATE1[\s\S]*M_MATE_MAN[\s\S]*M_MATE_WRK[\s\S]*S_TABU_NAM[\s\S]*M_MRES_BWA[\s\S]*V_VBAK_AAT[\s\S]*V_VBAK_VKO[\s\S]*P_EXEC[\s\S]*npm test/,
   "README must document the SAP import, dependency, authorization, report, and verification checklist",
 );
 assert.doesNotMatch(
@@ -2135,12 +2191,22 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /mode;generated_date;generated_time;schema_version;material;plant;[\s\S]*storage_location;batch;quantity;unit;[\s\S]*base_quantity;base_unit;[\s\S]*target_unit;converted;safety_stock;safety_stock_threshold_active;[\s\S]*safety_stock_threshold_evaluated;at_or_below_safety_stock;[\s\S]*allocatable_quantity;allocatable_quantity_status;[\s\S]*minimum_allocatable_quantity;minimum_allocatable_threshold_active;[\s\S]*minimum_allocatable_threshold_evaluated;below_minimum_allocatable;[\s\S]*maximum_allocatable_quantity;maximum_allocatable_threshold_active;[\s\S]*maximum_allocatable_threshold_evaluated;above_maximum_allocatable;[\s\S]*allocatable_range_status;[\s\S]*net_allocation_active;existing_allocated_quantity;existing_allocated_pct;[\s\S]*existing_allocation_count;existing_allocated_row_count;[\s\S]*existing_allocation_run_count;[\s\S]*existing_allocation_unit_count;[\s\S]*existing_allocation_units_mixed;[\s\S]*existing_allocations_overflow;[\s\S]*existing_allocations_overflow_quantity;[\s\S]*existing_allocations_evaluated;existing_allocations_status;[\s\S]*net_available_quantity;net_allocatable_quantity;net_allocatable_pct;[\s\S]*net_allocatable_quantity_status;[\s\S]*minimum_quantity;[\s\S]*minimum_threshold_active;[\s\S]*minimum_threshold_evaluated;below_minimum;maximum_quantity;[\s\S]*maximum_threshold_active;maximum_threshold_evaluated;above_maximum;[\s\S]*availability_status;[\s\S]*material_found;batch_managed;[\s\S]*batch_expiration_date;expiration_as_of;expiration_status;[\s\S]*remaining_shelf_life_days;minimum_shelf_life_days;[\s\S]*shelf_life_threshold_active;shelf_life_threshold_evaluated;[\s\S]*below_minimum_shelf_life;shelf_life_status;[\s\S]*allocation_eligibility_status;/,
+  /PARAMETERS p_resv AS CHECKBOX\.[\s\S]*iv_include_reservations\s*=\s*p_resv[\s\S]*iv_name\s*=\s*'unrestricted_base_quantity'[\s\S]*iv_name\s*=\s*'sap_reservation_base_quantity'[\s\S]*iv_name\s*=\s*'sap_reservations_included'/,
+  "stock report must expose optional SAP reservation netting and its quantity provenance",
+);
+assert.match(
+  stockReportSource,
+  /it_app_reservation_ids\s*=\s*lt_app_reservation_ids[\s\S]*sap_accounted_reservations\[[\s\S]*existing_allocated_quantity_already_reserved/,
+  "stock report must account for app reservations already netted from SAP stock",
+);
+assert.match(
+  stockReportSource,
+  /mode;generated_date;generated_time;schema_version;material;plant;[\s\S]*storage_location;batch;quantity;unit;[\s\S]*base_quantity;base_unit;[\s\S]*unrestricted_base_quantity;sap_reservation_base_quantity;[\s\S]*sap_reservations_included;[\s\S]*target_unit;converted;safety_stock;safety_stock_threshold_active;[\s\S]*safety_stock_threshold_evaluated;at_or_below_safety_stock;[\s\S]*allocatable_quantity;allocatable_quantity_status;[\s\S]*minimum_allocatable_quantity;minimum_allocatable_threshold_active;[\s\S]*minimum_allocatable_threshold_evaluated;below_minimum_allocatable;[\s\S]*maximum_allocatable_quantity;maximum_allocatable_threshold_active;[\s\S]*maximum_allocatable_threshold_evaluated;above_maximum_allocatable;[\s\S]*allocatable_range_status;[\s\S]*net_allocation_active;existing_allocated_quantity;[\s\S]*existing_allocated_quantity_already_reserved;[\s\S]*existing_allocated_pct;[\s\S]*existing_allocation_count;existing_allocated_row_count;[\s\S]*existing_allocation_run_count;[\s\S]*existing_allocation_unit_count;[\s\S]*existing_allocation_units_mixed;[\s\S]*existing_allocations_overflow;[\s\S]*existing_allocations_overflow_quantity;[\s\S]*existing_allocations_evaluated;existing_allocations_status;[\s\S]*net_available_quantity;net_allocatable_quantity;net_allocatable_pct;[\s\S]*net_allocatable_quantity_status;[\s\S]*minimum_quantity;[\s\S]*minimum_threshold_active;[\s\S]*minimum_threshold_evaluated;below_minimum;maximum_quantity;[\s\S]*maximum_threshold_active;maximum_threshold_evaluated;above_maximum;[\s\S]*availability_status;[\s\S]*material_found;batch_managed;[\s\S]*batch_expiration_date;expiration_as_of;expiration_status;[\s\S]*remaining_shelf_life_days;minimum_shelf_life_days;[\s\S]*shelf_life_threshold_active;shelf_life_threshold_evaluated;[\s\S]*below_minimum_shelf_life;shelf_life_status;[\s\S]*allocation_eligibility_status;/,
   "stock report CSV output must expose the availability contract",
 );
 assert.match(
   stockReportSource,
-  /APPEND zcl_stock_csv=>number\( 25 \) TO lt_csv_fields/,
+  /APPEND zcl_stock_csv=>number\( 27 \) TO lt_csv_fields/,
   "stock report CSV output must publish the current schema version",
 );
 assert.match(
@@ -2170,12 +2236,12 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /lv_json_schema\s*=\s*25[\s\S]*iv_name\s*=\s*'schema_version'[\s\S]*iv_value\s*=\s*lv_json_schema/,
-  "stock report non-metadata JSON must publish schema version 25",
+  /lv_json_schema\s*=\s*27[\s\S]*iv_name\s*=\s*'schema_version'[\s\S]*iv_value\s*=\s*lv_json_schema/,
+  "stock report non-metadata JSON must publish schema version 27",
 );
 assert.match(
   stockReportSource,
-  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*26[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
+  /PARAMETERS p_meta AS CHECKBOX\.[\s\S]*lv_json_schema\s*=\s*28[\s\S]*Metadata output requires JSON[\s\S]*Select either typed JSON or metadata output\./,
   "stock report must validate metadata mode and publish its schema",
 );
 assert.match(
@@ -2240,7 +2306,7 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /lv_existing_pct_available\s*=\s*xsdbool\([\s\S]*lv_existing_alloc_evaluated\s*=\s*abap_true[\s\S]*lv_output_quantity\s*>\s*0[\s\S]*lv_existing_alloc_qty\s*\*\s*100\s*\/\s*lv_output_quantity/,
+  /lv_existing_pct_available\s*=\s*xsdbool\([\s\S]*lv_existing_alloc_evaluated\s*=\s*abap_true[\s\S]*lv_gross_output_quantity\s*>\s*0[\s\S]*lv_existing_alloc_qty\s*\*\s*100\s*\/\s*lv_gross_output_quantity/,
   "stock report must calculate a zero-safe existing-allocation percentage",
 );
 assert.match(
@@ -2265,13 +2331,28 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /IF lv_existing_alloc_qty >= lv_output_quantity[\s\S]*lv_existing_alloc_overflow = abap_true[\s\S]*ELSEIF lv_existing_converted_qty[\s\S]*> lv_output_quantity - lv_existing_alloc_qty[\s\S]*lv_existing_alloc_overflow = abap_true/,
-  "stock report must expose when persisted allocations exceed gross stock",
+  /ls_snapshot_netting = zcl_stock_snapshot_netting=>calculate\([\s\S]*lv_existing_alloc_deduct_qty\s*=\s*ls_snapshot_netting-deduction_quantity[\s\S]*lv_existing_alloc_overflow\s*=\s*ls_snapshot_netting-overflow[\s\S]*lv_existing_alloc_overflow_qty\s*=\s*ls_snapshot_netting-overflow_quantity/,
+  "stock report must expose when unbacked persisted allocations exceed net stock",
 );
 assert.match(
   stockReportSource,
-  /lv_existing_alloc_overflow_qty[\s\S]*lv_existing_converted_qty[\s\S]*lv_output_quantity - lv_existing_alloc_qty/,
-  "stock report must quantify persisted allocation overflow",
+  /IF lv_existing_converted_qty[\s\S]*zif_stock_allocation=>c_max_quantity\s*- lv_existing_alloc_unbacked_qty[\s\S]*Unbacked snapshot quantity is out of range[\s\S]*lv_existing_alloc_unbacked_qty\s*=\s*lv_existing_alloc_unbacked_qty \+ lv_existing_converted_qty/,
+  "stock report must guard the accumulated unbacked quantity before helper netting",
+);
+assert.match(
+  stockReportSource,
+  /zcl_stock_snapshot_netting=>calculate\([\s\S]*iv_unbacked_quantity\s*=\s*lv_existing_alloc_unbacked_qty[\s\S]*iv_stock_quantity\s*=\s*lv_output_quantity/,
+  "stock report must delegate capped unbacked snapshot netting to the tested helper",
+);
+assert.match(
+  stockSnapshotNettingSource,
+  /IF iv_unbacked_quantity < 0 OR iv_stock_quantity < 0[\s\S]*iv_unbacked_quantity > iv_stock_quantity[\s\S]*overflow_quantity = iv_unbacked_quantity - iv_stock_quantity/,
+  "snapshot netting helper must reject negative inputs and report exact overflow",
+);
+assert.match(
+  stockSnapshotNettingTests,
+  /iv_unbacked_quantity = 30[\s\S]*iv_stock_quantity\s*=\s*50[\s\S]*iv_unbacked_quantity = 90[\s\S]*iv_stock_quantity\s*=\s*70[\s\S]*exp = 20[\s\S]*iv_unbacked_quantity = -1/,
+  "snapshot netting unit tests must cover capacity, overflow, and invalid quantities",
 );
 assert.match(
   stockReportSource,
@@ -2325,7 +2406,7 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /IF p_typed = abap_true[\s\S]*iv_name\s*=\s*'target_unit'[\s\S]*iv_name\s*=\s*'minimum_quantity'[\s\S]*iv_name\s*=\s*'maximum_quantity'[\s\S]*iv_name\s*=\s*'minimum_shelf_life_days'[\s\S]*iv_name\s*=\s*'safety_stock'[\s\S]*iv_name\s*=\s*'minimum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'maximum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'net_existing_allocations'[\s\S]*iv_name\s*=\s*'expiration_as_of'[\s\S]*iv_name\s*=\s*'filter_values'/,
+  /IF p_typed = abap_true[\s\S]*iv_name\s*=\s*'target_unit'[\s\S]*iv_name\s*=\s*'minimum_quantity'[\s\S]*iv_name\s*=\s*'maximum_quantity'[\s\S]*iv_name\s*=\s*'minimum_shelf_life_days'[\s\S]*iv_name\s*=\s*'safety_stock'[\s\S]*iv_name\s*=\s*'minimum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'maximum_allocatable_quantity'[\s\S]*iv_name\s*=\s*'net_existing_allocations'[\s\S]*iv_name\s*=\s*'include_sap_reservations'[\s\S]*iv_name\s*=\s*'expiration_as_of'[\s\S]*iv_name\s*=\s*'filter_values'/,
   "stock typed JSON must expose typed filter values",
 );
 assert.match(
@@ -6031,6 +6112,11 @@ assert.match(
   unitConversionSource,
   /mo_authority->check\(\s*\)/,
   "unit conversion must check authority before calling SAP conversion",
+);
+assert.match(
+  unitConversionSource,
+  /mo_authority->check\(\s*\)[\s\S]*IF lv_unit_from = lv_unit_to[\s\S]*SELECT SINGLE meins[\s\S]*FROM mara[\s\S]*SELECT SINGLE meinh[\s\S]*FROM marm/,
+  "identity unit conversions must authorize and validate the material base or alternative unit",
 );
 assert.match(
   unitConversionAuthoritySource,

@@ -30,6 +30,20 @@ CLASS zcl_stock_reservation_sap DEFINITION
     TYPES tt_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
     TYPES ty_return TYPE bapiret2.
     TYPES tt_return TYPE STANDARD TABLE OF ty_return WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_cancel_scope,
+        werks TYPE zif_stock_allocation=>ty_plant,
+        bwart TYPE zif_stock_allocation=>ty_movement_type,
+      END OF ty_cancel_scope.
+    TYPES tt_cancel_scopes TYPE SORTED TABLE OF ty_cancel_scope
+      WITH UNIQUE KEY werks bwart.
+    METHODS authorize_cancellation_scope
+      IMPORTING
+        iv_document      TYPE bapi2093_res_no
+        iv_plant         TYPE zif_stock_allocation=>ty_plant
+        iv_movement_type TYPE zif_stock_allocation=>ty_movement_type
+      RAISING
+        zcx_stock_allocation.
     METHODS raise_error
       IMPORTING
         iv_message TYPE zif_allocation_audit=>ty_message
@@ -38,6 +52,54 @@ CLASS zcl_stock_reservation_sap DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_reservation_sap IMPLEMENTATION.
+  METHOD authorize_cancellation_scope.
+    DATA lt_cancel_scopes TYPE tt_cancel_scopes.
+    FIELD-SYMBOLS <ls_cancel_scope> TYPE ty_cancel_scope.
+
+    SELECT DISTINCT werks, bwart
+      FROM resb
+      WHERE rsnum = @iv_document
+      INTO TABLE @lt_cancel_scopes.
+    IF lines( lt_cancel_scopes ) = 0.
+      raise_error(
+        iv_message = 'Reservation authorization context is unavailable' ).
+    ENDIF.
+
+    LOOP AT lt_cancel_scopes ASSIGNING <ls_cancel_scope>.
+      IF <ls_cancel_scope>-werks IS INITIAL
+          OR <ls_cancel_scope>-bwart IS INITIAL
+          OR strlen( <ls_cancel_scope>-bwart )
+               <> zif_stock_allocation=>c_movement_type_length
+          OR <ls_cancel_scope>-bwart CN '0123456789'
+          OR <ls_cancel_scope>-bwart
+               = zif_stock_allocation=>c_zero_movement_type.
+        raise_error(
+          iv_message = 'Reservation authorization context is invalid' ).
+      ENDIF.
+      IF <ls_cancel_scope>-werks <> iv_plant
+          OR <ls_cancel_scope>-bwart <> iv_movement_type.
+        raise_error(
+          iv_message = 'Reservation cancellation scope does not match the reservation' ).
+      ENDIF.
+    ENDLOOP.
+
+    IF mo_authority IS BOUND.
+      LOOP AT lt_cancel_scopes ASSIGNING <ls_cancel_scope>.
+        TRY.
+            mo_authority->check_cancel(
+              iv_plant         = <ls_cancel_scope>-werks
+              iv_movement_type = <ls_cancel_scope>-bwart ).
+          CATCH zcx_stock_allocation INTO DATA(lo_authority_error).
+            IF lo_authority_error->message IS INITIAL.
+              lo_authority_error->message =
+                'Reservation cancellation authorization failed'.
+            ENDIF.
+            RAISE EXCEPTION lo_authority_error.
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD constructor.
     IF io_authority IS BOUND.
       mo_authority = io_authority.
@@ -372,18 +434,10 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
       raise_error( iv_message = 'Reservation document is invalid' ).
     ENDIF.
 
-    IF mo_authority IS BOUND.
-      TRY.
-          mo_authority->check_cancel(
-            iv_plant         = iv_plant
-            iv_movement_type = iv_movement_type ).
-        CATCH zcx_stock_allocation INTO lo_error.
-          IF lo_error->message IS INITIAL.
-            lo_error->message = 'Reservation cancellation authorization failed'.
-          ENDIF.
-          RAISE EXCEPTION lo_error.
-      ENDTRY.
-    ENDIF.
+    authorize_cancellation_scope(
+      iv_document      = lv_document
+      iv_plant         = iv_plant
+      iv_movement_type = iv_movement_type ).
 
     CALL FUNCTION 'BAPI_RESERVATION_DELETE'
       EXPORTING

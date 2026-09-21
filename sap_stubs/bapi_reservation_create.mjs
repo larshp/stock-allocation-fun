@@ -33,6 +33,66 @@ export function installBapiStockStub(abap) {
   let rollbackReturnInvalid = false;
   let reservationCounter = 0;
   let movementCounter = 0;
+  const pendingReservationItems = [];
+  const pendingReservationDeletions = new Set();
+  const quoteSql = (value) => `'${String(value).replaceAll("'", "''")}'`;
+  const getBaseReservationQuantity = (item, material, client) => {
+    const entryQuantity = Number(item?.entry_qnt?.get());
+    const entryUnit = item?.entry_uom?.get()?.trim()?.toUpperCase();
+    const database = abap.context.databaseConnections.DEFAULT;
+    const materialRows = database?.sqlite?.exec(
+      `SELECT meins FROM mara WHERE mandt = ${quoteSql(client)} `
+      + `AND matnr = ${quoteSql(material)}`,
+    );
+    const baseUnit = materialRows?.[0]?.values?.[0]?.[0]?.trim()?.toUpperCase();
+    if (!baseUnit || !entryUnit) {
+      return {quantity: entryQuantity, unit: entryUnit};
+    }
+    if (baseUnit === entryUnit) {
+      return {quantity: entryQuantity, unit: baseUnit};
+    }
+    const alternativeRows = database?.sqlite?.exec(
+      `SELECT umrez, umren FROM marm WHERE mandt = ${quoteSql(client)} `
+      + `AND matnr = ${quoteSql(material)} `
+      + `AND meinh = ${quoteSql(entryUnit)}`,
+    );
+    const numerator = Number(alternativeRows?.[0]?.values?.[0]?.[0]);
+    const denominator = Number(alternativeRows?.[0]?.values?.[0]?.[1]);
+    if (numerator > 0 && denominator > 0) {
+      return {
+        quantity: Number((entryQuantity * numerator / denominator).toFixed(3)),
+        unit: baseUnit,
+      };
+    }
+    return {quantity: entryQuantity, unit: entryUnit};
+  };
+  const persistReservationChanges = async () => {
+    const statements = [];
+    for (const item of pendingReservationItems) {
+      statements.push(
+        `INSERT INTO resb `
+        + `(mandt, rsnum, rspos, werks, bwart, matnr, lgort, charg, sobkz, `
+        + `bdmng, meins, enmng, kzear, xloek) VALUES (`
+        + `${quoteSql(item.client)}, ${quoteSql(item.reservation)}, `
+        + `${quoteSql(item.position)}, ${quoteSql(item.plant)}, `
+        + `${quoteSql(item.movementType)}, ${quoteSql(item.material)}, `
+        + `${quoteSql(item.storageLocation)}, ${quoteSql(item.batch)}, `
+        + `${quoteSql("")}, ${quoteSql(item.quantity)}, `
+        + `${quoteSql(item.unit)}, 0, ${quoteSql("")}, ${quoteSql("")})`,
+      );
+    }
+    for (const reservation of pendingReservationDeletions) {
+      statements.push(
+        `DELETE FROM resb WHERE mandt = ${quoteSql(reservation.client)} `
+        + `AND rsnum = ${quoteSql(reservation.reservation)}`,
+      );
+    }
+    if (statements.length > 0) {
+      await abap.context.databaseConnections.DEFAULT.execute(statements);
+    }
+    pendingReservationItems.length = 0;
+    pendingReservationDeletions.clear();
+  };
   const allocationLocks = new Map();
   const releaseUpdateOwnerLocks = () => {
     for (const [lockKey, lockScope] of allocationLocks) {
@@ -209,7 +269,24 @@ export function installBapiStockStub(abap) {
       input.importing.reservation.set("0000000000");
     } else {
       reservationCounter += 1;
-      input.importing.reservation.set(String(reservationCounter).padStart(10, "0"));
+      const reservation = String(reservationCounter).padStart(10, "0");
+      const client = abap.builtin.sy.get().mandt.get()?.trim();
+      const materialNumber = item?.material_external?.get()?.trim()
+        || item?.material?.get()?.trim();
+      const baseQuantity = getBaseReservationQuantity(item, materialNumber, client);
+      input.importing.reservation.set(reservation);
+      pendingReservationItems.push({
+        client,
+        reservation,
+        position: "0001",
+        plant: item?.plant?.get()?.trim(),
+        movementType: moveType,
+        material: materialNumber,
+        storageLocation: item?.stge_loc?.get()?.trim(),
+        batch: item?.batch?.get()?.trim(),
+        quantity: baseQuantity.quantity,
+        unit: baseQuantity.unit,
+      });
     }
     abap.builtin.sy.get().subrc.set(0);
   };
@@ -420,6 +497,10 @@ export function installBapiStockStub(abap) {
       abap.builtin.sy.get().subrc.set(0);
       return;
     }
+    pendingReservationDeletions.add({
+      client: abap.builtin.sy.get().mandt.get()?.trim(),
+      reservation,
+    });
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_TRANSACTION_COMMIT"] = async (input) => {
@@ -446,9 +527,12 @@ export function installBapiStockStub(abap) {
       commitFails = false;
       throw {classic: "OTHERS"};
     }
+    await persistReservationChanges();
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["BAPI_TRANSACTION_ROLLBACK"] = async (input) => {
+    pendingReservationItems.length = 0;
+    pendingReservationDeletions.clear();
     if (rollbackReturnError || rollbackReturnInvalid) {
       input.importing.return.setField(
         "type",

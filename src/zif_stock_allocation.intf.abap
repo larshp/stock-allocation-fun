@@ -24,14 +24,28 @@ INTERFACE zif_stock_allocation PUBLIC.
   CONSTANTS c_max_priority TYPE ty_priority VALUE 99.
   TYPES ty_allocation_status TYPE c LENGTH 1.
   TYPES:
+    BEGIN OF ty_reservation_open,
+      reservation_id TYPE ty_reservation_id,
+      quantity       TYPE ty_quantity,
+    END OF ty_reservation_open.
+  TYPES tt_reservation_open TYPE SORTED TABLE OF ty_reservation_open
+    WITH UNIQUE KEY reservation_id.
+  TYPES tt_reservation_ids TYPE SORTED TABLE OF ty_reservation_id
+    WITH UNIQUE KEY table_line.
+  TYPES:
     BEGIN OF ty_available,
-      quantity              TYPE ty_quantity,
-      unit                  TYPE ty_unit,
-      material_found        TYPE abap_bool,
-      batch_managed         TYPE abap_bool,
-      batch_found           TYPE abap_bool,
-      batch_expiration_date TYPE d,
-      batch_restricted      TYPE abap_bool,
+      quantity                   TYPE ty_quantity,
+      unrestricted_quantity      TYPE ty_quantity,
+      reservation_quantity       TYPE ty_quantity,
+      unit                       TYPE ty_unit,
+      material_found             TYPE abap_bool,
+      batch_managed              TYPE abap_bool,
+      batch_found                TYPE abap_bool,
+      batch_expiration_date      TYPE d,
+      batch_restricted           TYPE abap_bool,
+      reservations_included      TYPE abap_bool,
+      sap_accounted_reservations TYPE tt_reservation_ids,
+      reusable_reservations      TYPE tt_reservation_open,
     END OF ty_available.
 
   TYPES:

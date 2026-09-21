@@ -190,6 +190,8 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lv_release_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_audit_failure_message TYPE zif_allocation_audit=>ty_message.
     DATA lv_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_reusable_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_other_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_converted_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA lo_cleanup_error TYPE REF TO zcx_stock_allocation.
     DATA lo_persistence_error TYPE REF TO zcx_stock_allocation.
@@ -207,6 +209,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_reservations TYPE STANDARD TABLE OF zif_stock_allocation=>ty_reservation_id
       WITH EMPTY KEY.
+    DATA lt_app_reservation_ids TYPE zif_stock_allocation=>tt_reservation_ids.
     DATA lt_reused TYPE STANDARD TABLE OF zif_stock_allocation=>ty_reservation_id
       WITH EMPTY KEY.
     DATA lt_existing_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_reservation_id
@@ -935,13 +938,59 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       ENDTRY.
       lv_lock_acquired = abap_true.
     ENDIF.
-    TRY.
+    IF iv_preview <> abap_true
+        OR iv_reconcile_existing = abap_true.
       TRY.
-          ls_available = mo_stock_source->get_available(
+          lt_existing = mo_sink->get_allocations(
             iv_material         = iv_material
             iv_plant            = iv_plant
             iv_storage_location = iv_storage_location
             iv_batch            = iv_batch ).
+        CATCH zcx_stock_allocation INTO lo_error.
+          IF lo_error->message IS INITIAL.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = lv_unit
+              iv_available        = 0
+              iv_message          = 'Allocation snapshot read failed' ).
+            lo_error->message = 'Allocation snapshot read failed'.
+          ELSE.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = lv_unit
+              iv_available        = 0
+              iv_message          = lo_error->message ).
+          ENDIF.
+          RAISE EXCEPTION lo_error.
+      ENDTRY.
+      IF lt_existing IS NOT INITIAL.
+        LOOP AT lt_existing ASSIGNING <ls_existing>.
+          CLEAR lv_reservation_document.
+          lv_reservation_document = <ls_existing>-reservation_id.
+          IF <ls_existing>-allocated > 0
+              AND lv_reservation_document CO '0123456789'
+              AND lv_reservation_document <> '0000000000'.
+            INSERT lv_reservation_document
+              INTO TABLE lt_app_reservation_ids.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDIF.
+    TRY.
+      TRY.
+          ls_available = mo_stock_source->get_available(
+            iv_material             = iv_material
+            iv_plant                = iv_plant
+            iv_storage_location     = iv_storage_location
+            iv_batch                = iv_batch
+            iv_include_reservations = abap_true
+            it_app_reservation_ids  = lt_app_reservation_ids ).
         CATCH zcx_stock_allocation INTO lo_error.
           IF lo_error->message IS INITIAL.
             record_rejection(
@@ -1019,6 +1068,109 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         iv_message          = 'Stock quantity is invalid' ).
       raise_error( iv_message = 'Stock quantity is invalid' ).
     ENDIF.
+    IF ls_available-reservations_included <> abap_true
+        AND ls_available-reservations_included <> abap_false.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = 0
+        iv_message          = 'Available reservation result is invalid' ).
+      raise_error( iv_message = 'Available reservation result is invalid' ).
+    ENDIF.
+    IF ls_available-reservations_included = abap_true.
+      CLEAR: lv_reusable_quantity, lv_other_reserved_quantity.
+      IF ls_available-unrestricted_quantity < 0
+          OR ls_available-reservation_quantity < 0
+          OR ls_available-unrestricted_quantity
+            > zif_stock_allocation=>c_max_quantity
+          OR ls_available-reservation_quantity
+            > zif_stock_allocation=>c_max_quantity.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Available reservation totals are invalid' ).
+        raise_error(
+          iv_message = 'Available reservation totals are invalid' ).
+      ENDIF.
+      LOOP AT ls_available-reusable_reservations
+          ASSIGNING FIELD-SYMBOL(<ls_reusable_reservation>).
+        IF NOT line_exists( lt_app_reservation_ids[
+              table_line = <ls_reusable_reservation>-reservation_id ] )
+            OR <ls_reusable_reservation>-reservation_id IS INITIAL
+            OR <ls_reusable_reservation>-reservation_id = '0000000000'
+            OR <ls_reusable_reservation>-reservation_id CN '0123456789'
+            OR <ls_reusable_reservation>-quantity <= 0.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = lv_unit
+            iv_available        = 0
+            iv_message          = 'Available reusable reservation data is invalid' ).
+          raise_error(
+            iv_message = 'Available reusable reservation data is invalid' ).
+        ENDIF.
+        READ TABLE lt_existing ASSIGNING <ls_existing>
+          WITH KEY reservation_id =
+            <ls_reusable_reservation>-reservation_id.
+        IF sy-subrc <> 0.
+          record_rejection(
+            iv_material         = iv_material
+            iv_plant            = iv_plant
+            iv_storage_location = iv_storage_location
+            iv_batch            = iv_batch
+            iv_unit             = lv_unit
+            iv_available        = 0
+            iv_message          = 'Available reservation correlation is invalid' ).
+          raise_error(
+            iv_message = 'Available reservation correlation is invalid' ).
+        ENDIF.
+        IF to_upper( <ls_existing>-allocation_unit ) = lv_unit.
+          IF <ls_reusable_reservation>-quantity
+              > zif_stock_allocation=>c_max_quantity - lv_reusable_quantity.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = lv_unit
+              iv_available        = 0
+              iv_message          = 'Reusable reservation total is out of range' ).
+            raise_error(
+              iv_message = 'Reusable reservation total is out of range' ).
+          ENDIF.
+          lv_reusable_quantity = lv_reusable_quantity
+            + <ls_reusable_reservation>-quantity.
+        ENDIF.
+      ENDLOOP.
+      IF lv_reusable_quantity > ls_available-reservation_quantity
+          OR ls_available-quantity <> COND zif_stock_allocation=>ty_quantity(
+            WHEN ls_available-reservation_quantity
+                >= ls_available-unrestricted_quantity THEN 0
+            ELSE ls_available-unrestricted_quantity
+              - ls_available-reservation_quantity ).
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Available reservation totals are inconsistent' ).
+        raise_error(
+          iv_message = 'Available reservation totals are inconsistent' ).
+      ENDIF.
+      lv_other_reserved_quantity = ls_available-reservation_quantity
+        - lv_reusable_quantity.
+    ENDIF.
     IF zcl_allocation_date_sap=>is_valid_or_initial(
          ls_available-batch_expiration_date ) <> abap_true.
       record_rejection(
@@ -1046,6 +1198,14 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       raise_error( iv_message = 'Available stock result is invalid' ).
     ENDIF.
     lv_available = ls_available-quantity.
+    IF ls_available-reservations_included = abap_true.
+      IF lv_other_reserved_quantity >= ls_available-unrestricted_quantity.
+        CLEAR lv_available.
+      ELSE.
+        lv_available = ls_available-unrestricted_quantity
+          - lv_other_reserved_quantity.
+      ENDIF.
+    ENDIF.
     IF ls_available-batch_managed = abap_true
         AND iv_batch IS INITIAL.
       record_rejection(
@@ -1466,37 +1626,6 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     ENDIF.
     IF iv_preview <> abap_true
         OR iv_reconcile_existing = abap_true.
-      TRY.
-          lt_existing = mo_sink->get_allocations(
-            iv_material         = iv_material
-            iv_plant            = iv_plant
-            iv_storage_location = iv_storage_location
-            iv_batch            = iv_batch ).
-        CATCH zcx_stock_allocation INTO lo_error.
-          IF lo_error->message IS INITIAL.
-            record_rejection(
-              iv_material         = iv_material
-              iv_plant            = iv_plant
-              iv_storage_location = iv_storage_location
-              iv_batch            = iv_batch
-              iv_unit             = lv_unit
-              iv_available        = lv_available
-              iv_message          = 'Allocation snapshot read failed' ).
-          ELSE.
-            record_rejection(
-              iv_material         = iv_material
-              iv_plant            = iv_plant
-              iv_storage_location = iv_storage_location
-              iv_batch            = iv_batch
-              iv_unit             = lv_unit
-              iv_available        = lv_available
-              iv_message          = lo_error->message ).
-          ENDIF.
-          IF lo_error->message IS INITIAL.
-            lo_error->message = 'Allocation snapshot read failed'.
-          ENDIF.
-          RAISE EXCEPTION lo_error.
-      ENDTRY.
       LOOP AT lt_existing ASSIGNING <ls_existing>.
         <ls_existing>-allocation_unit =
           to_upper( <ls_existing>-allocation_unit ).
@@ -1716,75 +1845,81 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ENDTRY.
         ENDLOOP.
       ENDIF.
-      LOOP AT lt_existing ASSIGNING <ls_existing>.
-        IF <ls_existing>-allocation_unit IS INITIAL
-            OR <ls_existing>-allocation_unit = lv_unit
-            OR <ls_existing>-allocated <= 0
-            OR <ls_existing>-reservation_id IS INITIAL.
-          CONTINUE.
-        ENDIF.
-        IF mo_unit_converter IS NOT BOUND.
-          record_rejection(
-            iv_material         = iv_material
-            iv_plant            = iv_plant
-            iv_storage_location = iv_storage_location
-            iv_batch            = iv_batch
-            iv_unit             = lv_unit
-            iv_available        = lv_available
-            iv_message          = 'Existing allocation unit conversion failed' ).
-          raise_error( iv_message = 'Existing allocation unit conversion failed' ).
-        ENDIF.
-        TRY.
-            lv_converted_quantity = mo_unit_converter->convert(
-              iv_material  = iv_material
-              iv_quantity  = <ls_existing>-allocated
-              iv_unit_from = <ls_existing>-allocation_unit
-              iv_unit_to   = lv_unit ).
-          CATCH zcx_stock_allocation INTO lo_error.
-            IF lo_error->message IS INITIAL.
-              record_rejection(
-                iv_material         = iv_material
-                iv_plant            = iv_plant
-                iv_storage_location = iv_storage_location
-                iv_batch            = iv_batch
-                iv_unit             = lv_unit
-                iv_available        = lv_available
-                iv_message          = 'Existing allocation unit conversion failed' ).
-            ELSE.
-              record_rejection(
-                iv_material         = iv_material
-                iv_plant            = iv_plant
-                iv_storage_location = iv_storage_location
-                iv_batch            = iv_batch
-                iv_unit             = lv_unit
-                iv_available        = lv_available
-                iv_message          = lo_error->message ).
-            ENDIF.
-            IF lo_error->message IS INITIAL.
-              lo_error->message = 'Existing allocation unit conversion failed'.
-            ENDIF.
-            RAISE EXCEPTION lo_error.
-        ENDTRY.
-        IF lv_converted_quantity <= 0.
-          record_rejection(
-            iv_material         = iv_material
-            iv_plant            = iv_plant
-            iv_storage_location = iv_storage_location
-            iv_batch            = iv_batch
-            iv_unit             = lv_unit
-            iv_available        = lv_available
-            iv_message          = 'Existing allocation unit conversion produced invalid quantity' ).
-          raise_error( iv_message = 'Existing allocation unit conversion produced invalid quantity' ).
-        ENDIF.
-        IF lv_reserved_quantity >= lv_available
-            OR lv_converted_quantity >= lv_available - lv_reserved_quantity.
-          " Once reservations cover available stock, larger totals are not
-          " needed and could overflow the packed quantity accumulator.
-          lv_reserved_quantity = lv_available.
-        ELSE.
-          lv_reserved_quantity = lv_reserved_quantity + lv_converted_quantity.
-        ENDIF.
-      ENDLOOP.
+      IF lt_existing IS NOT INITIAL.
+        LOOP AT lt_existing ASSIGNING <ls_existing>.
+          IF <ls_existing>-allocation_unit IS INITIAL
+              OR <ls_existing>-allocation_unit = lv_unit
+              OR <ls_existing>-allocated <= 0
+              OR <ls_existing>-reservation_id IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          IF line_exists( ls_available-reusable_reservations[
+                reservation_id = <ls_existing>-reservation_id ] ).
+            CONTINUE.
+          ENDIF.
+          IF mo_unit_converter IS NOT BOUND.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = lv_unit
+              iv_available        = lv_available
+              iv_message          = 'Existing allocation unit conversion failed' ).
+            raise_error( iv_message = 'Existing allocation unit conversion failed' ).
+          ENDIF.
+          TRY.
+              lv_converted_quantity = mo_unit_converter->convert(
+                iv_material  = iv_material
+                iv_quantity  = <ls_existing>-allocated
+                iv_unit_from = <ls_existing>-allocation_unit
+                iv_unit_to   = lv_unit ).
+            CATCH zcx_stock_allocation INTO lo_error.
+              IF lo_error->message IS INITIAL.
+                record_rejection(
+                  iv_material         = iv_material
+                  iv_plant            = iv_plant
+                  iv_storage_location = iv_storage_location
+                  iv_batch            = iv_batch
+                  iv_unit             = lv_unit
+                  iv_available        = lv_available
+                  iv_message          = 'Existing allocation unit conversion failed' ).
+              ELSE.
+                record_rejection(
+                  iv_material         = iv_material
+                  iv_plant            = iv_plant
+                  iv_storage_location = iv_storage_location
+                  iv_batch            = iv_batch
+                  iv_unit             = lv_unit
+                  iv_available        = lv_available
+                  iv_message          = lo_error->message ).
+              ENDIF.
+              IF lo_error->message IS INITIAL.
+                lo_error->message = 'Existing allocation unit conversion failed'.
+              ENDIF.
+              RAISE EXCEPTION lo_error.
+          ENDTRY.
+          IF lv_converted_quantity <= 0.
+            record_rejection(
+              iv_material         = iv_material
+              iv_plant            = iv_plant
+              iv_storage_location = iv_storage_location
+              iv_batch            = iv_batch
+              iv_unit             = lv_unit
+              iv_available        = lv_available
+              iv_message          = 'Existing allocation unit conversion produced invalid quantity' ).
+            raise_error( iv_message = 'Existing allocation unit conversion produced invalid quantity' ).
+          ENDIF.
+          IF lv_reserved_quantity >= lv_available
+              OR lv_converted_quantity >= lv_available - lv_reserved_quantity.
+            " Once reservations cover available stock, larger totals are not
+            " needed and could overflow the packed quantity accumulator.
+            lv_reserved_quantity = lv_available.
+          ELSE.
+            lv_reserved_quantity = lv_reserved_quantity + lv_converted_quantity.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
       DESCRIBE TABLE lt_existing LINES ev_existing_allocation_count.
       DESCRIBE TABLE lt_existing_units
         LINES ev_existing_alloc_unit_count.

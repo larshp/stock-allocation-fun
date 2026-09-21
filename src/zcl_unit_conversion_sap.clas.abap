@@ -32,6 +32,8 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
     DATA lv_subrc TYPE sy-subrc.
     DATA lv_unit_from TYPE zif_stock_allocation=>ty_unit.
     DATA lv_unit_to TYPE zif_stock_allocation=>ty_unit.
+    DATA lv_base_unit TYPE mara-meins.
+    DATA lv_alternative_unit TYPE marm-meinh.
 
     lv_unit_from = to_upper( iv_unit_from ).
     lv_unit_to = to_upper( iv_unit_to ).
@@ -43,11 +45,6 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
       raise_error( iv_message = 'Unit conversion input is invalid' ).
     ENDIF.
 
-    IF lv_unit_from = lv_unit_to.
-      rv_quantity = iv_quantity.
-      RETURN.
-    ENDIF.
-
     IF mo_authority IS BOUND.
       TRY.
           mo_authority->check( ).
@@ -57,6 +54,28 @@ CLASS zcl_unit_conversion_sap IMPLEMENTATION.
           ENDIF.
           RAISE EXCEPTION lo_authority_error.
       ENDTRY.
+    ENDIF.
+
+    IF lv_unit_from = lv_unit_to.
+      SELECT SINGLE meins
+        FROM mara
+        WHERE matnr = @iv_material
+        INTO @lv_base_unit.
+      IF sy-subrc <> 0.
+        raise_error( iv_message = 'Unit conversion failed' ).
+      ENDIF.
+      IF to_upper( lv_base_unit ) <> lv_unit_from.
+        SELECT SINGLE meinh
+          FROM marm
+          WHERE matnr = @iv_material
+            AND meinh = @lv_unit_from
+          INTO @lv_alternative_unit.
+        IF sy-subrc <> 0.
+          raise_error( iv_message = 'Unit conversion failed' ).
+        ENDIF.
+      ENDIF.
+      rv_quantity = iv_quantity.
+      RETURN.
     ENDIF.
 
     lv_input = iv_quantity.

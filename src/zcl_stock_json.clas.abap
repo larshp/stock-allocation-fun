@@ -82,6 +82,13 @@ ENDCLASS.
 CLASS zcl_stock_json IMPLEMENTATION.
   METHOD quote.
     DATA lv_escaped TYPE string.
+    DATA lv_code TYPE i.
+    DATA lv_control_pair TYPE cl_abap_conv_in_ce=>ty_char2.
+    DATA lv_control TYPE c LENGTH 1.
+    DATA lv_replacement TYPE string.
+    DATA lv_hex_digits TYPE string VALUE '0123456789abcdef'.
+    DATA lv_high TYPE i.
+    DATA lv_low TYPE i.
 
     lv_escaped = iv_value.
     REPLACE ALL OCCURRENCES OF '\' IN lv_escaped WITH '\\'.
@@ -90,8 +97,34 @@ CLASS zcl_stock_json IMPLEMENTATION.
       IN lv_escaped WITH '\n'.
     REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline
       IN lv_escaped WITH '\n'.
-    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab
-      IN lv_escaped WITH '\t'.
+
+    DO 32 TIMES.
+      lv_code = sy-index - 1.
+      lv_control_pair = cl_abap_conv_in_ce=>uccpi( lv_code ).
+      lv_control = lv_control_pair(1).
+      CASE lv_code.
+        WHEN 8.
+          lv_replacement = '\b'.
+        WHEN 9.
+          lv_replacement = '\t'.
+        WHEN 10.
+          lv_replacement = '\n'.
+        WHEN 12.
+          lv_replacement = '\f'.
+        WHEN 13.
+          lv_replacement = '\r'.
+        WHEN OTHERS.
+          lv_high = lv_code DIV 16.
+          lv_low = lv_code MOD 16.
+          lv_replacement = '\u00'.
+          CONCATENATE lv_replacement
+            lv_hex_digits+lv_high(1)
+            lv_hex_digits+lv_low(1)
+            INTO lv_replacement.
+      ENDCASE.
+      REPLACE ALL OCCURRENCES OF lv_control IN lv_escaped
+        WITH lv_replacement.
+    ENDDO.
     CONCATENATE '"' lv_escaped '"' INTO rv_value.
   ENDMETHOD.
 
@@ -99,22 +132,34 @@ CLASS zcl_stock_json IMPLEMENTATION.
     DATA lv_formatted TYPE c LENGTH 1024.
     DATA lv_text TYPE string.
     DATA lv_quoted TYPE string.
+    DATA lv_quoted_name TYPE string.
+    DATA lv_type TYPE c LENGTH 1.
 
-    WRITE iv_value TO lv_formatted.
-    lv_text = lv_formatted.
+    DESCRIBE FIELD iv_value TYPE lv_type.
+    IF lv_type = cl_abap_typedescr=>typekind_string
+        OR lv_type = cl_abap_typedescr=>typekind_char
+        OR lv_type = cl_abap_typedescr=>typekind_num.
+      lv_text = iv_value.
+    ELSE.
+      WRITE iv_value TO lv_formatted.
+      lv_text = lv_formatted.
+    ENDIF.
     lv_quoted = quote( lv_text ).
-    CONCATENATE '"' iv_name '":' lv_quoted INTO rv_value.
+    lv_quoted_name = quote( iv_name ).
+    CONCATENATE lv_quoted_name ':' lv_quoted INTO rv_value.
   ENDMETHOD.
 
   METHOD number_property.
     DATA lv_formatted TYPE c LENGTH 100.
     DATA lv_text TYPE string.
+    DATA lv_quoted_name TYPE string.
 
     WRITE iv_value TO lv_formatted NO-GROUPING.
     lv_text = lv_formatted.
     REPLACE ALL OCCURRENCES OF ',' IN lv_text WITH '.'.
     CONDENSE lv_text NO-GAPS.
-    CONCATENATE '"' iv_name '":' lv_text INTO rv_value.
+    lv_quoted_name = quote( iv_name ).
+    CONCATENATE lv_quoted_name ':' lv_text INTO rv_value.
   ENDMETHOD.
 
   METHOD filter_number_property.
@@ -135,17 +180,22 @@ CLASS zcl_stock_json IMPLEMENTATION.
 
   METHOD boolean_property.
     DATA lv_text TYPE string.
+    DATA lv_quoted_name TYPE string.
 
     IF iv_value = abap_true.
       lv_text = 'true'.
     ELSE.
       lv_text = 'false'.
     ENDIF.
-    CONCATENATE '"' iv_name '":' lv_text INTO rv_value.
+    lv_quoted_name = quote( iv_name ).
+    CONCATENATE lv_quoted_name ':' lv_text INTO rv_value.
   ENDMETHOD.
 
   METHOD null_property.
-    CONCATENATE '"' iv_name '":null' INTO rv_value.
+    DATA lv_quoted_name TYPE string.
+
+    lv_quoted_name = quote( iv_name ).
+    CONCATENATE lv_quoted_name ':null' INTO rv_value.
   ENDMETHOD.
 
   METHOD string_array_property.

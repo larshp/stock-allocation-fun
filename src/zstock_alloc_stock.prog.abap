@@ -10,6 +10,7 @@ PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_amin TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_amax TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_net AS CHECKBOX.
+PARAMETERS p_resv AS CHECKBOX.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_min TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_max TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
@@ -24,10 +25,14 @@ START-OF-SELECTION.
   DATA lo_converter TYPE REF TO zif_unit_conversion.
   DATA lo_sink TYPE REF TO zif_allocation_sink.
   DATA lo_conversion_error TYPE REF TO zcx_stock_allocation.
+  DATA lo_stock_result_error TYPE REF TO zcx_stock_allocation.
   DATA ls_available TYPE zif_stock_allocation=>ty_available.
   DATA lv_base_quantity TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_unrestricted_quantity TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_reservation_quantity TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_base_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lv_output_quantity TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_gross_output_quantity TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_output_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lv_target_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lv_converted TYPE abap_bool.
@@ -60,6 +65,10 @@ START-OF-SELECTION.
   DATA lv_above_allocatable_maximum TYPE abap_bool.
   DATA lv_allocatable_range_status TYPE string.
   DATA lv_existing_alloc_qty TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_existing_alloc_sap_qty TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_existing_alloc_unbacked_qty TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_existing_alloc_deduct_qty TYPE zif_stock_allocation=>ty_quantity.
+  DATA ls_snapshot_netting TYPE zcl_stock_snapshot_netting=>ty_result.
   DATA lv_existing_alloc_count TYPE i.
   DATA lv_existing_alloc_row_count TYPE i.
   DATA lv_existing_alloc_run_count TYPE i.
@@ -93,6 +102,7 @@ START-OF-SELECTION.
   DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lt_existing_allocations TYPE zif_stock_allocation=>tt_demands.
+  DATA lt_app_reservation_ids TYPE zif_stock_allocation=>tt_reservation_ids.
   DATA lt_existing_alloc_run_ids TYPE SORTED TABLE OF
     zif_stock_allocation=>ty_run_id WITH UNIQUE KEY table_line.
   DATA lt_existing_alloc_units TYPE SORTED TABLE OF
@@ -105,9 +115,9 @@ START-OF-SELECTION.
     lv_expiration_as_of = sy-datum.
   ENDIF.
   IF p_meta = abap_true.
-    lv_json_schema = 26.
+    lv_json_schema = 28.
   ELSE.
-    lv_json_schema = 25.
+    lv_json_schema = 27.
   ENDIF.
 
   IF p_csv = abap_true AND p_json = abap_true.
@@ -121,7 +131,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 25
+        iv_schema  = 27
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
@@ -135,7 +145,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 25
+        iv_schema  = 27
         iv_message = 'Metadata output requires JSON mode.' ).
       RETURN.
     ENDIF.
@@ -160,7 +170,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message' .
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 25
+        iv_schema  = 27
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / 'Stock input validation failed:', lv_error_message.
@@ -185,6 +195,8 @@ START-OF-SELECTION.
     lv_error_message = 'Maximum allocatable quantity cannot be negative'.
   ELSEIF p_net <> abap_true AND p_net IS NOT INITIAL.
     lv_error_message = 'Net allocation flag is invalid'.
+  ELSEIF p_resv <> abap_true AND p_resv IS NOT INITIAL.
+    lv_error_message = 'SAP reservation flag is invalid'.
   ELSEIF p_amin > 0 AND p_amax > 0 AND p_amin > p_amax.
     lv_error_message =
       'Minimum allocatable quantity cannot exceed maximum allocatable quantity'.
@@ -205,7 +217,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 25
+        iv_schema  = 27
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / 'Stock input validation failed:', lv_error_message.
@@ -214,16 +226,76 @@ START-OF-SELECTION.
     RETURN.
   ENDIF.
 
+  lv_existing_alloc_active = xsdbool( p_net = abap_true ).
+  IF lv_existing_alloc_active = abap_true.
+    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
+    TRY.
+        lt_existing_allocations = lo_sink->get_allocations(
+          iv_material         = p_matnr
+          iv_plant            = p_werks
+          iv_storage_location = p_lgort
+          iv_batch            = p_charg ).
+      CATCH zcx_stock_allocation INTO DATA(lo_snapshot_read_error).
+        IF lo_snapshot_read_error->message IS INITIAL.
+          lv_error_message = 'Existing allocation read failed'.
+        ELSE.
+          lv_error_message = lo_snapshot_read_error->message.
+        ENDIF.
+        IF p_json = abap_true.
+          WRITE: / zcl_stock_json=>error_with_schema(
+            iv_message = lv_error_message
+            iv_schema  = lv_json_schema ).
+        ELSEIF p_csv = abap_true.
+          WRITE: / 'mode;status;schema_version;message'.
+          WRITE: / zcl_stock_csv=>error_with_schema(
+            iv_mode    = 'zstock_alloc_stock'
+            iv_schema  = 27
+            iv_message = lv_error_message ).
+        ELSE.
+          WRITE: / 'Existing allocation read failed:', lv_error_message.
+        ENDIF.
+        RETURN.
+    ENDTRY.
+    IF p_resv = abap_true.
+      LOOP AT lt_existing_allocations
+          ASSIGNING <ls_existing_allocation>.
+        IF <ls_existing_allocation>-allocated > 0
+            AND <ls_existing_allocation>-reservation_id IS NOT INITIAL
+            AND <ls_existing_allocation>-reservation_id <> '0000000000'
+            AND <ls_existing_allocation>-reservation_id CO '0123456789'.
+          INSERT <ls_existing_allocation>-reservation_id
+            INTO TABLE lt_app_reservation_ids.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
   CREATE OBJECT lo_source TYPE zcl_stock_source_sap.
   TRY.
       ls_available = lo_source->get_available(
-        iv_material         = p_matnr
-        iv_plant            = p_werks
-        iv_storage_location = p_lgort
-        iv_batch            = p_charg ).
+        iv_material             = p_matnr
+        iv_plant                = p_werks
+        iv_storage_location     = p_lgort
+        iv_batch                = p_charg
+        iv_include_reservations = p_resv
+        it_app_reservation_ids  = lt_app_reservation_ids ).
+      IF ( ls_available-reservations_included <> abap_true
+            AND ls_available-reservations_included <> abap_false )
+          OR ( p_resv = abap_true
+            AND ls_available-reservations_included <> abap_true )
+          OR ls_available-quantity < 0
+          OR ls_available-unrestricted_quantity < 0
+          OR ls_available-reservation_quantity < 0.
+        CREATE OBJECT lo_stock_result_error.
+        lo_stock_result_error->message = 'Stock reservation result is invalid'.
+        RAISE EXCEPTION lo_stock_result_error.
+      ENDIF.
       lv_base_quantity = ls_available-quantity.
+      lv_unrestricted_quantity = ls_available-unrestricted_quantity.
+      lv_reservation_quantity = ls_available-reservation_quantity.
       lv_base_unit = ls_available-unit.
       lv_output_quantity = ls_available-quantity.
+      lv_gross_output_quantity = ls_available-unrestricted_quantity.
       lv_output_unit = ls_available-unit.
       lv_converted = abap_false.
       IF lv_target_unit IS NOT INITIAL.
@@ -240,6 +312,11 @@ START-OF-SELECTION.
         lv_output_quantity = lo_converter->convert(
           iv_material  = p_matnr
           iv_quantity  = ls_available-quantity
+          iv_unit_from = ls_available-unit
+          iv_unit_to   = lv_target_unit ).
+        lv_gross_output_quantity = lo_converter->convert(
+          iv_material  = p_matnr
+          iv_quantity  = ls_available-unrestricted_quantity
           iv_unit_from = ls_available-unit
           iv_unit_to   = lv_target_unit ).
         lv_output_unit = lv_target_unit.
@@ -259,7 +336,7 @@ START-OF-SELECTION.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_stock'
-          iv_schema  = 25
+          iv_schema  = 27
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / 'Stock read failed:', lv_error_message.
@@ -272,18 +349,15 @@ START-OF-SELECTION.
     lv_existing_alloc_active = abap_true
     AND ls_available-material_found = abap_true ).
   IF lv_existing_alloc_evaluated = abap_true.
-    CREATE OBJECT lo_sink TYPE zcl_allocation_sink_sap.
     TRY.
-        lt_existing_allocations = lo_sink->get_allocations(
-          iv_material         = p_matnr
-          iv_plant            = p_werks
-          iv_storage_location = p_lgort
-          iv_batch            = p_charg ).
         DESCRIBE TABLE lt_existing_allocations LINES lv_existing_alloc_count.
         CLEAR lt_existing_alloc_run_ids.
         CLEAR lt_existing_alloc_units.
         CLEAR lv_existing_alloc_row_count.
         CLEAR lv_existing_alloc_qty.
+        CLEAR lv_existing_alloc_sap_qty.
+        CLEAR lv_existing_alloc_unbacked_qty.
+        CLEAR lv_existing_alloc_deduct_qty.
         CLEAR lv_existing_alloc_overflow.
         CLEAR lv_existing_alloc_overflow_qty.
         LOOP AT lt_existing_allocations ASSIGNING <ls_existing_allocation>.
@@ -327,23 +401,47 @@ START-OF-SELECTION.
               'Existing allocation conversion produced invalid quantity'.
             RAISE EXCEPTION lo_conversion_error.
           ENDIF.
-          IF lv_existing_alloc_qty >= lv_output_quantity.
-            lv_existing_alloc_overflow = abap_true.
-            lv_existing_alloc_overflow_qty = lv_existing_alloc_overflow_qty
-              + lv_existing_converted_qty.
-            lv_existing_alloc_qty = lv_output_quantity.
+          IF lv_existing_alloc_qty >= lv_gross_output_quantity.
+            lv_existing_alloc_qty = lv_gross_output_quantity.
           ELSEIF lv_existing_converted_qty
-              > lv_output_quantity - lv_existing_alloc_qty.
-            lv_existing_alloc_overflow = abap_true.
-            lv_existing_alloc_overflow_qty = lv_existing_alloc_overflow_qty
-              + lv_existing_converted_qty
-              - ( lv_output_quantity - lv_existing_alloc_qty ).
-            lv_existing_alloc_qty = lv_output_quantity.
+              > lv_gross_output_quantity - lv_existing_alloc_qty.
+            lv_existing_alloc_qty = lv_gross_output_quantity.
           ELSE.
             lv_existing_alloc_qty = lv_existing_alloc_qty
               + lv_existing_converted_qty.
           ENDIF.
+          IF p_resv = abap_true
+              AND line_exists( ls_available-sap_accounted_reservations[
+                table_line = <ls_existing_allocation>-reservation_id ] ).
+            IF lv_existing_alloc_sap_qty >= lv_gross_output_quantity.
+              lv_existing_alloc_sap_qty = lv_gross_output_quantity.
+            ELSEIF lv_existing_converted_qty
+                > lv_gross_output_quantity - lv_existing_alloc_sap_qty.
+              lv_existing_alloc_sap_qty = lv_gross_output_quantity.
+            ELSE.
+              lv_existing_alloc_sap_qty = lv_existing_alloc_sap_qty
+                + lv_existing_converted_qty.
+            ENDIF.
+          ELSE.
+            IF lv_existing_converted_qty
+                > zif_stock_allocation=>c_max_quantity
+                  - lv_existing_alloc_unbacked_qty.
+              CREATE OBJECT lo_conversion_error.
+              lo_conversion_error->message =
+                'Unbacked snapshot quantity is out of range'.
+              RAISE EXCEPTION lo_conversion_error.
+            ENDIF.
+            lv_existing_alloc_unbacked_qty =
+              lv_existing_alloc_unbacked_qty + lv_existing_converted_qty.
+          ENDIF.
         ENDLOOP.
+        ls_snapshot_netting = zcl_stock_snapshot_netting=>calculate(
+          iv_unbacked_quantity = lv_existing_alloc_unbacked_qty
+          iv_stock_quantity    = lv_output_quantity ).
+        lv_existing_alloc_deduct_qty =
+          ls_snapshot_netting-deduction_quantity.
+        lv_existing_alloc_overflow = ls_snapshot_netting-overflow.
+        lv_existing_alloc_overflow_qty = ls_snapshot_netting-overflow_quantity.
         DESCRIBE TABLE lt_existing_alloc_run_ids
           LINES lv_existing_alloc_run_count.
         DESCRIBE TABLE lt_existing_alloc_units
@@ -364,7 +462,7 @@ START-OF-SELECTION.
           WRITE: / 'mode;status;schema_version;message'.
           WRITE: / zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_stock'
-            iv_schema  = 25
+            iv_schema  = 27
             iv_message = lv_error_message ).
         ELSE.
           WRITE: / 'Existing allocation read failed:', lv_error_message.
@@ -381,10 +479,10 @@ START-OF-SELECTION.
   ENDIF.
   lv_existing_pct_available = xsdbool(
     lv_existing_alloc_evaluated = abap_true
-    AND lv_output_quantity > 0 ).
+    AND lv_gross_output_quantity > 0 ).
   IF lv_existing_pct_available = abap_true.
     lv_existing_allocated_pct =
-      lv_existing_alloc_qty * 100 / lv_output_quantity.
+      lv_existing_alloc_qty * 100 / lv_gross_output_quantity.
     lv_existing_allocated_pct_text = lv_existing_allocated_pct.
   ELSE.
     CLEAR lv_existing_allocated_pct.
@@ -483,11 +581,11 @@ START-OF-SELECTION.
 
   lv_net_available_quantity = lv_output_quantity.
   IF lv_existing_alloc_evaluated = abap_true.
-    IF lv_existing_alloc_qty >= lv_output_quantity.
+    IF lv_existing_alloc_deduct_qty >= lv_output_quantity.
       CLEAR lv_net_available_quantity.
     ELSE.
       lv_net_available_quantity = lv_output_quantity
-        - lv_existing_alloc_qty.
+        - lv_existing_alloc_deduct_qty.
     ENDIF.
   ENDIF.
   lv_net_allocatable_quantity = lv_allocatable_quantity.
@@ -512,10 +610,10 @@ START-OF-SELECTION.
   ENDIF.
   lv_net_pct_available = xsdbool(
     lv_existing_alloc_evaluated = abap_true
-    AND lv_output_quantity > 0 ).
+    AND lv_gross_output_quantity > 0 ).
   IF lv_net_pct_available = abap_true.
     lv_net_allocatable_pct =
-      lv_net_allocatable_quantity * 100 / lv_output_quantity.
+      lv_net_allocatable_quantity * 100 / lv_gross_output_quantity.
     lv_net_allocatable_pct_text = lv_net_allocatable_pct.
   ELSE.
     CLEAR lv_net_allocatable_pct.
@@ -595,7 +693,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'stock' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 25 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 27 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -604,6 +702,12 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_output_unit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_base_quantity ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_base_unit ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_unrestricted_quantity ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_reservation_quantity ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      ls_available-reservations_included ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_target_unit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_converted ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_saf ) TO lt_csv_fields.
@@ -635,6 +739,8 @@ START-OF-SELECTION.
       lv_allocatable_range_status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_existing_alloc_active ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( lv_existing_alloc_qty ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_existing_alloc_sap_qty ) TO lt_csv_fields.
     IF lv_existing_pct_available = abap_true.
       APPEND zcl_stock_csv=>number(
         lv_existing_allocated_pct ) TO lt_csv_fields.
@@ -705,6 +811,8 @@ START-OF-SELECTION.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
     WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;'
       && 'storage_location;batch;quantity;unit;base_quantity;base_unit;'
+      && 'unrestricted_base_quantity;sap_reservation_base_quantity;'
+      && 'sap_reservations_included;'
       && 'target_unit;converted;safety_stock;safety_stock_threshold_active;'
       && 'safety_stock_threshold_evaluated;at_or_below_safety_stock;'
       && 'allocatable_quantity;allocatable_quantity_status;'
@@ -713,7 +821,8 @@ START-OF-SELECTION.
       && 'maximum_allocatable_quantity;maximum_allocatable_threshold_active;'
       && 'maximum_allocatable_threshold_evaluated;above_maximum_allocatable;'
       && 'allocatable_range_status;'
-      && 'net_allocation_active;existing_allocated_quantity;existing_allocated_pct;'
+      && 'net_allocation_active;existing_allocated_quantity;'
+      && 'existing_allocated_quantity_already_reserved;existing_allocated_pct;'
       && 'existing_allocation_count;existing_allocated_row_count;'
       && 'existing_allocation_run_count;existing_allocation_unit_count;'
       && 'existing_allocation_units_mixed;'
@@ -791,6 +900,27 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'base_unit'
       iv_value = lv_base_unit ) TO lt_json_fields.
+    IF p_typed = abap_true.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'unrestricted_base_quantity'
+        iv_value = lv_unrestricted_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'sap_reservation_base_quantity'
+        iv_value = lv_reservation_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'sap_reservations_included'
+        iv_value = ls_available-reservations_included ) TO lt_json_fields.
+    ELSE.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unrestricted_base_quantity'
+        iv_value = lv_unrestricted_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'sap_reservation_base_quantity'
+        iv_value = lv_reservation_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'sap_reservations_included'
+        iv_value = ls_available-reservations_included ) TO lt_json_fields.
+    ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'target_unit'
       iv_value = lv_target_unit ) TO lt_json_fields.
@@ -900,6 +1030,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'existing_allocated_quantity'
         iv_value = lv_existing_alloc_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'existing_allocated_quantity_already_reserved'
+        iv_value = lv_existing_alloc_sap_qty ) TO lt_json_fields.
       IF lv_existing_pct_available = abap_true.
         APPEND zcl_stock_json=>number_property(
           iv_name  = 'existing_allocated_pct'
@@ -939,6 +1072,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'existing_allocated_quantity'
         iv_value = lv_existing_alloc_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocated_quantity_already_reserved'
+        iv_value = lv_existing_alloc_sap_qty ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'existing_allocated_pct'
         iv_value = lv_existing_allocated_pct_text ) TO lt_json_fields.
@@ -1179,6 +1315,9 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'net_existing_allocations'
         iv_value = p_net ) TO lt_filter_value_fields.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'include_sap_reservations'
+        iv_value = p_resv ) TO lt_filter_value_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'expiration_as_of'
         iv_value = lv_expiration_as_of ) TO lt_filter_value_fields.
@@ -1263,6 +1402,12 @@ START-OF-SELECTION.
           iv_value = 'true' ) TO lt_filter_fields.
         APPEND 'net_existing_allocations' TO lt_filter_names.
       ENDIF.
+      IF p_resv = abap_true.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'include_sap_reservations'
+          iv_value = 'true' ) TO lt_filter_fields.
+        APPEND 'include_sap_reservations' TO lt_filter_names.
+      ENDIF.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
@@ -1297,6 +1442,9 @@ START-OF-SELECTION.
 
   WRITE: / 'Stock available:', lv_output_quantity, lv_output_unit,
          / 'Base stock:', lv_base_quantity, lv_base_unit,
+         / 'Unrestricted base quantity:', lv_unrestricted_quantity,
+         / 'Open SAP reservation base quantity:', lv_reservation_quantity,
+         / 'SAP reservations included:', ls_available-reservations_included,
          / 'Target unit:', lv_target_unit,
          / 'Converted:', lv_converted,
          / 'Safety stock:', p_saf,
@@ -1320,6 +1468,8 @@ START-OF-SELECTION.
          / 'Allocatable range status:', lv_allocatable_range_status,
          / 'Net existing allocations:', lv_existing_alloc_active,
          / 'Existing allocated quantity:', lv_existing_alloc_qty,
+         / 'Existing allocation quantity already reserved:',
+           lv_existing_alloc_sap_qty,
          / 'Existing allocated percentage:', lv_existing_allocated_pct_text,
          / 'Existing allocation rows:', lv_existing_alloc_count,
          / 'Existing allocated rows:', lv_existing_alloc_row_count,

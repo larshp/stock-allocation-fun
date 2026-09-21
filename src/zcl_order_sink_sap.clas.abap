@@ -70,6 +70,7 @@ CLASS zcl_order_sink_sap IMPLEMENTATION.
     IF mo_authority IS BOUND.
       TRY.
           mo_authority->check(
+            iv_sales_document      = iv_sales_document
             iv_sales_document_type = lv_sales_document_type ).
         CATCH zcx_stock_allocation INTO lo_error.
           IF lo_error->message IS INITIAL.

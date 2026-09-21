@@ -298,6 +298,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_run-unit = 'EA'.
     ls_run-strategy = 'P'.
     ls_run-movement_type = '201'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
     ls_run-status = 'S'.
     ls_run-preview = abap_false.
     ls_run-requested_on_from = sy-datum.

@@ -1,8 +1,9 @@
 INTERFACE zif_source_read_authority PUBLIC.
   METHODS check_stock
     IMPORTING
-      iv_plant TYPE zif_stock_allocation=>ty_plant
-      iv_batch TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_plant                TYPE zif_stock_allocation=>ty_plant
+      iv_batch                TYPE zif_stock_allocation=>ty_batch OPTIONAL
+      iv_include_reservations TYPE abap_bool OPTIONAL
     RAISING
       zcx_stock_allocation.
   METHODS check_orders

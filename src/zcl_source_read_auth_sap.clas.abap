@@ -54,8 +54,16 @@ CLASS zcl_source_read_auth_sap IMPLEMENTATION.
         iv_table   = 'MCHB'
         iv_message = 'Batch stock read authorization failed' ).
       verify_table(
+        iv_table   = 'MCH1'
+        iv_message = 'Global batch master read authorization failed' ).
+      verify_table(
         iv_table   = 'MCHA'
         iv_message = 'Batch master read authorization failed' ).
+    ENDIF.
+    IF iv_include_reservations = abap_true.
+      verify_table(
+        iv_table   = 'RESB'
+        iv_message = 'Reservation read authorization failed' ).
     ENDIF.
   ENDMETHOD.
 

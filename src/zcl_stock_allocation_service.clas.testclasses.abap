@@ -381,10 +381,20 @@ ENDCLASS.
 CLASS lcl_preview_reconcile_sink DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_sink.
+    METHODS set_reservation_id
+      IMPORTING iv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+  PRIVATE SECTION.
+    DATA mv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
 ENDCLASS.
 
 CLASS lcl_preview_reconcile_sink IMPLEMENTATION.
   METHOD zif_allocation_sink~get_allocations.
+    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+
+    lv_reservation_id = mv_reservation_id.
+    IF lv_reservation_id IS INITIAL.
+      lv_reservation_id = '0000000101'.
+    ENDIF.
     APPEND VALUE #( allocation_run_id         = 'OLD-PREVIEW-RECON'
                     allocation_unit           = 'BOX'
                     order_id                  = 'OLD-PREVIEW-RECON-01'
@@ -394,13 +404,17 @@ CLASS lcl_preview_reconcile_sink IMPLEMENTATION.
                     allocated                 = 2
                     shortage                  = 0
                     allocation_status         = 'F'
-                    reservation_id            = '0000000101'
+                    reservation_id            = lv_reservation_id
                     reservation_date          = sy-datum
                     reservation_movement_type = '201'
                     reservation_unit          = 'BOX' ) TO rt_demands.
   ENDMETHOD.
 
   METHOD zif_allocation_sink~save_allocations.
+  ENDMETHOD.
+
+  METHOD set_reservation_id.
+    mv_reservation_id = iv_reservation_id.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1714,6 +1728,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_unit_converter TYPE REF TO zif_unit_conversion.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
@@ -1882,7 +1897,9 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_order_source TYPE REF TO zif_order_source.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA ls_reservation_available TYPE zif_stock_allocation=>ty_available.
     DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_allocation_count TYPE i.
     DATA lv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
@@ -1907,6 +1924,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source = lo_stock_source
@@ -1989,6 +2007,21 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       lv_reservations_differ = abap_true.
     ENDIF.
     cl_abap_unit_assert=>assert_true( lv_reservations_differ ).
+    ls_reservation_available = lo_stock_source->get_available(
+      iv_material             = 'MATERIAL-PRIO'
+      iv_plant                = '1000'
+      iv_storage_location     = '0001'
+      iv_include_reservations = abap_true
+      it_app_reservation_ids  = VALUE #(
+        ( lv_reservation_id )
+        ( lv_second_reservation_id ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reservation_available-reservation_quantity
+      exp = '6' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_reservation_available-reusable_reservations[
+        reservation_id = lv_reservation_id ]-quantity
+      exp = '5' ).
 
     lv_remaining = lo_cut->allocate(
       iv_material         = 'MATERIAL-PRIO'
@@ -2080,6 +2113,22 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_unallocated_count
       exp = 0 ).
+    lo_reservation->cancel(
+      iv_document      = CONV string( lv_changed_reservation_id )
+      iv_plant         = '1000'
+      iv_movement_type = '202' ).
+    lo_reservation->cancel(
+      iv_document      = CONV string( lv_changed_second_id )
+      iv_plant         = '1000'
+      iv_movement_type = '202' ).
+    DELETE FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
+    DELETE FROM zstockalloc_run
+      WHERE matnr = 'MATERIAL-PRIO'
+        AND werks = '1000'
+        AND lgort = '0001'.
   ENDMETHOD.
 
   METHOD allocates_batch_slice.
@@ -2252,22 +2301,27 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
     DATA lo_sink TYPE REF TO zif_allocation_sink.
+    DATA lo_reconcile_sink TYPE REF TO lcl_preview_reconcile_sink.
     DATA lo_allocator TYPE REF TO zif_stock_allocation.
     DATA lo_unit_converter TYPE REF TO zif_unit_conversion.
     DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_reservation TYPE REF TO zif_stock_reservation.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_available TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_existing_count TYPE i.
     DATA lv_existing_cross_unit_qty TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_live_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE lcl_overflow_order_source.
-    CREATE OBJECT lo_sink TYPE lcl_preview_reconcile_sink.
+    CREATE OBJECT lo_reconcile_sink.
+    lo_sink = lo_reconcile_sink.
     CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
     CREATE OBJECT lo_unit_converter TYPE lcl_overflow_unit_converter.
     CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
     CREATE OBJECT lo_cut
       EXPORTING
         io_stock_source   = lo_stock_source
@@ -2308,6 +2362,45 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = '4' ).
     DELETE FROM zstockalloc_run
       WHERE run_id = @lv_run_id.
+
+    lv_live_reservation_id = lo_reservation->reserve(
+      iv_material         = 'MATERIAL-PRIO'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_movement_type    = '201'
+      iv_quantity         = '4'
+      iv_unit             = 'EA'
+      iv_required_date    = sy-datum ).
+    lo_reconcile_sink->set_reservation_id( lv_live_reservation_id ).
+
+    lv_remaining = lo_cut->allocate(
+      EXPORTING
+        iv_material                  = 'MATERIAL-PRIO'
+        iv_plant                     = '1000'
+        iv_storage_location          = '0001'
+        iv_movement_type             = '201'
+        iv_unit                      = 'EA'
+        iv_preview                   = abap_true
+        iv_reconcile_existing        = abap_true
+      IMPORTING
+        ev_run_id                    = lv_run_id
+        ev_existing_allocation_count = lv_existing_count
+        ev_existing_cross_unit_qty   = lv_existing_cross_unit_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_existing_cross_unit_qty
+      exp = '0' ).
+    SELECT SINGLE available
+      FROM zstockalloc_run
+      WHERE run_id = @lv_run_id INTO @lv_available.
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_available
+      exp = '2' ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = @lv_run_id.
+    lo_reservation->cancel(
+      iv_document      = CONV string( lv_live_reservation_id )
+      iv_plant         = '1000'
+      iv_movement_type = '201' ).
   ENDMETHOD.
 
   METHOD rejects_shortage_limit.

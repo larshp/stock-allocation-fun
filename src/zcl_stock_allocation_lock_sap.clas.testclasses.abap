@@ -3,6 +3,8 @@ CLASS ltcl_stock_allocation_lock_sap DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS acquires_and_releases FOR TESTING.
+    METHODS serializes_batch_scopes FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_enqueue_failure FOR TESTING.
     METHODS rejects_dequeue_failure FOR TESTING.
 ENDCLASS.
@@ -46,6 +48,53 @@ CLASS ltcl_stock_allocation_lock_sap IMPLEMENTATION.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD serializes_batch_scopes.
+    DATA lo_cut TYPE REF TO zif_stock_allocation_lock.
+    DATA lv_second_acquired TYPE abap_bool.
+    DATA lv_second_rejected TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocation_lock_sap.
+    lo_cut->acquire(
+      iv_material         = 'MATERIAL-LOCK-COARSE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-001' ).
+    TRY.
+        lo_cut->acquire(
+          iv_material         = 'MATERIAL-LOCK-COARSE'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_batch            = 'BATCH-002' ).
+        lv_second_acquired = abap_true.
+      CATCH zcx_stock_allocation.
+        lv_second_rejected = abap_true.
+    ENDTRY.
+    IF lv_second_acquired = abap_true.
+      lo_cut->release(
+        iv_material         = 'MATERIAL-LOCK-COARSE'
+        iv_plant            = '1000'
+        iv_storage_location = '0001'
+        iv_batch            = 'BATCH-002' ).
+    ENDIF.
+    lo_cut->release(
+      iv_material         = 'MATERIAL-LOCK-COARSE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-001' ).
+    cl_abap_unit_assert=>assert_true( lv_second_rejected ).
+
+    lo_cut->acquire(
+      iv_material         = 'MATERIAL-LOCK-COARSE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-002' ).
+    lo_cut->release(
+      iv_material         = 'MATERIAL-LOCK-COARSE'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-002' ).
   ENDMETHOD.
 
   METHOD rejects_dequeue_failure.

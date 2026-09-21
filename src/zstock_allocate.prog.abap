@@ -43,9 +43,11 @@ PARAMETERS p_from TYPE d.
 PARAMETERS p_until TYPE d.
 PARAMETERS p_durg TYPE c LENGTH 11.
 PARAMETERS p_test AS CHECKBOX.
+PARAMETERS p_plan AS CHECKBOX.
 PARAMETERS p_recon AS CHECKBOX.
 PARAMETERS p_json AS CHECKBOX.
 PARAMETERS p_csv AS CHECKBOX.
+PARAMETERS p_ndjson AS CHECKBOX.
 PARAMETERS p_meta AS CHECKBOX.
 PARAMETERS p_typed AS CHECKBOX.
 
@@ -90,15 +92,35 @@ START-OF-SELECTION.
   DATA lv_existing_alloc_unit_count TYPE i.
   DATA lv_existing_cross_unit_qty TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_existing_recon_evaluated TYPE abap_bool.
+  DATA lt_preview_demands TYPE zif_stock_allocation=>tt_demands.
+  DATA lt_preview_rows TYPE zcl_stock_json=>tt_strings.
+  DATA lt_preview_row_fields TYPE zcl_stock_json=>tt_strings.
+  DATA ls_preview_demand TYPE zif_stock_allocation=>ty_demand.
+  DATA lv_preview_row_json TYPE string.
+  DATA lv_preview_lines_json TYPE string.
+  DATA lv_preview_summary_json TYPE string.
+  DATA lv_preview_status TYPE string.
+  DATA ls_preview_summary TYPE zcl_stock_preview_summary=>ty_summary.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.
   DATA lt_scope_fields TYPE zcl_stock_json=>tt_strings.
   DATA lt_filter_fields TYPE zcl_stock_json=>tt_strings.
   DATA lt_filter_names TYPE zcl_stock_json=>tt_strings.
   DATA lv_csv_line TYPE string.
+  DATA lv_csv_schema TYPE i.
+  DATA lv_json_schema TYPE i.
   DATA lt_csv_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 
   lv_unit = to_upper( p_meins ).
+  lv_csv_schema = 59.
+  lv_json_schema = 59.
+  IF p_plan = abap_true AND p_csv = abap_true.
+    lv_csv_schema = 60.
+  ENDIF.
+  IF p_plan = abap_true
+      AND ( p_json = abap_true OR p_ndjson = abap_true ).
+    lv_json_schema = 60.
+  ENDIF.
   lv_deadline_urgency_input = to_lower( p_durg ).
   lv_deadline_urgency_filter = lv_deadline_urgency_input.
   IF lv_deadline_urgency_filter IS INITIAL.
@@ -113,7 +135,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Deadline urgency filter is invalid'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -121,7 +143,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Deadline urgency filter is invalid' ).
       RETURN.
     ENDIF.
@@ -132,7 +154,36 @@ START-OF-SELECTION.
   IF p_csv = abap_true AND p_json = abap_true.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Select only one export mode: CSV or JSON'
-      iv_schema  = 58 ).
+      iv_schema  = lv_json_schema ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_ndjson = abap_true AND p_json = abap_false.
+    IF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = lv_csv_schema
+        iv_message = 'NDJSON output requires JSON mode' ).
+    ELSE.
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'NDJSON output requires JSON mode'
+        iv_schema  = lv_json_schema ).
+      WRITE: / lv_json_line.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_ndjson = abap_true AND p_plan = abap_false.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'NDJSON output requires a preview line plan'
+      iv_schema  = lv_json_schema ).
+    WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_ndjson = abap_true AND p_meta = abap_true.
+    lv_json_line = zcl_stock_json=>error_with_schema(
+      iv_message = 'NDJSON output cannot be combined with metadata output'
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
@@ -141,13 +192,13 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Typed output requires JSON mode.'
-      iv_schema  = 58 ).
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
@@ -156,28 +207,51 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Metadata output requires JSON mode.' ).
       RETURN.
     ENDIF.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Metadata output requires JSON mode.'
-      iv_schema  = 58 ).
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
     RETURN.
   ENDIF.
   IF p_meta = abap_true AND p_typed = abap_true.
     lv_json_line = zcl_stock_json=>error_with_schema(
       iv_message = 'Select either typed JSON or metadata output.'
-      iv_schema  = 58 ).
+      iv_schema  = lv_json_schema ).
     WRITE: / lv_json_line.
+    RETURN.
+  ENDIF.
+  IF p_plan = abap_true AND p_test <> abap_true.
+    IF p_json = abap_true.
+      lv_json_line = zcl_stock_json=>error_with_schema(
+        iv_message = 'Preview line plan requires preview mode'
+        iv_schema  = lv_json_schema ).
+      WRITE: / lv_json_line.
+    ELSEIF p_csv = abap_true.
+      WRITE: / 'mode;status;schema_version;message'.
+      WRITE: / zcl_stock_csv=>error_with_schema(
+        iv_mode    = 'zstock_allocate'
+        iv_schema  = lv_csv_schema
+        iv_message = 'Preview line plan requires preview mode' ).
+    ELSE.
+      WRITE: / 'Preview line plan requires preview mode'.
+    ENDIF.
+    RETURN.
+  ENDIF.
+  IF p_plan = abap_true
+      AND p_json <> abap_true
+      AND p_csv <> abap_true.
+    WRITE: / 'Preview line plan requires JSON or CSV output'.
     RETURN.
   ENDIF.
   IF p_shmax < 0.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -185,7 +259,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum shortage must not be negative' ).
       RETURN.
     ENDIF.
@@ -196,7 +270,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage percentage must be between 0 and 100'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -204,7 +278,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum shortage percentage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -215,7 +289,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum coverage must be between 0 and 100'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -223,7 +297,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum coverage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -234,7 +308,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum full-line percentage must be between 0 and 100'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -242,7 +316,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum full-line percentage must be between 0 and 100' ).
       RETURN.
     ENDIF.
@@ -253,7 +327,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum full lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -261,7 +335,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum full lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -272,7 +346,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum full lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -280,7 +354,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum full lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -291,7 +365,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum demand count must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -299,7 +373,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum demand count must not be negative' ).
       RETURN.
     ENDIF.
@@ -310,7 +384,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum requested quantity must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -318,7 +392,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum requested quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -329,7 +403,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum allocated quantity must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -337,7 +411,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum allocated quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -348,7 +422,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum allocated quantity must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -356,7 +430,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum allocated quantity must not be negative' ).
       RETURN.
     ENDIF.
@@ -367,7 +441,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Minimum allocated lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -375,7 +449,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Minimum allocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -386,7 +460,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum allocated lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -394,7 +468,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum allocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -405,7 +479,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum unallocated lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -413,7 +487,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum unallocated lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -424,7 +498,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum partial lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -432,7 +506,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum partial lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -443,7 +517,7 @@ START-OF-SELECTION.
     IF p_json = abap_true.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Maximum shortage lines must not be negative'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -451,7 +525,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Maximum shortage lines must not be negative' ).
       RETURN.
     ENDIF.
@@ -466,7 +540,7 @@ START-OF-SELECTION.
       lv_json_line = zcl_stock_json=>error_with_schema(
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
           && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).'
-        iv_schema  = 58 ).
+        iv_schema  = lv_json_schema ).
       WRITE: / lv_json_line.
       RETURN.
     ENDIF.
@@ -474,7 +548,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_allocate'
-        iv_schema  = 58
+        iv_schema  = lv_csv_schema
         iv_message = 'Allocation strategy must be P (priority), F (FIFO), N (full-only), S (smallest), L (largest),'
           && ' B (best-fit), E (fair-share), A (adaptive), or W (weighted).' ).
       RETURN.
@@ -543,12 +617,12 @@ START-OF-SELECTION.
         IF lo_read_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Audit read authorization is missing'
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_read_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -557,12 +631,12 @@ START-OF-SELECTION.
         IF lo_read_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = 'Audit read authorization is missing' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = lo_read_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -589,12 +663,12 @@ START-OF-SELECTION.
         IF lo_write_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Allocation write authorization is missing'
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_write_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -603,12 +677,12 @@ START-OF-SELECTION.
         IF lo_write_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = 'Allocation write authorization is missing' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = lo_write_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -690,13 +764,15 @@ START-OF-SELECTION.
           iv_shline_limit_active         = p_slg
           iv_max_shortage_lines          = p_slmax
           iv_strategy                    = p_strat
+          iv_include_preview_demands     = p_plan
           iv_preview                     = p_test
         IMPORTING
           ev_run_id                      = lv_run_id
           ev_existing_allocation_count   = lv_existing_allocation_count
           ev_existing_alloc_unit_count   =
             lv_existing_alloc_unit_count
-          ev_existing_cross_unit_qty     = lv_existing_cross_unit_qty ).
+          ev_existing_cross_unit_qty     = lv_existing_cross_unit_qty
+          ev_preview_demands             = lt_preview_demands ).
     CATCH zcx_stock_allocation INTO DATA(lo_allocation_error).
       TRY.
           ls_summary = lo_audit->get_summary(
@@ -719,11 +795,11 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
-                iv_schema  = 58 ).
+                iv_schema  = lv_json_schema ).
             ELSE.
               lv_json_line = zcl_stock_json=>error_with_schema_run_id(
                 iv_message = lv_error_message
-                iv_schema  = 58
+                iv_schema  = lv_json_schema
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -742,12 +818,12 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 58
+                iv_schema  = lv_csv_schema
                 iv_message = lv_error_message ).
             ELSE.
               lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 58
+                iv_schema  = lv_csv_schema
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
@@ -779,11 +855,11 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_json_line = zcl_stock_json=>error_with_schema(
                 iv_message = lv_error_message
-                iv_schema  = 58 ).
+                iv_schema  = lv_json_schema ).
             ELSE.
               lv_json_line = zcl_stock_json=>error_with_schema_run_id(
                 iv_message = lv_error_message
-                iv_schema  = 58
+                iv_schema  = lv_json_schema
                 iv_run_id  = lv_run_id ).
             ENDIF.
             WRITE: / lv_json_line.
@@ -793,12 +869,12 @@ START-OF-SELECTION.
             IF lv_run_id IS INITIAL.
               lv_csv_line = zcl_stock_csv=>error_with_schema(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 58
+                iv_schema  = lv_csv_schema
                 iv_message = lv_error_message ).
             ELSE.
               lv_csv_line = zcl_stock_csv=>error_with_schema_run_id(
                 iv_mode    = 'zstock_allocate'
-                iv_schema  = 58
+                iv_schema  = lv_csv_schema
                 iv_message = lv_error_message
                 iv_run_id  = lv_run_id ).
             ENDIF.
@@ -837,12 +913,12 @@ START-OF-SELECTION.
         IF lo_summary_error->message IS INITIAL.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = 'Run summary is unavailable'
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ELSE.
           lv_error_message = lo_summary_error->message.
           lv_json_line = zcl_stock_json=>error_with_schema(
             iv_message = lv_error_message
-            iv_schema  = 58 ).
+            iv_schema  = lv_json_schema ).
         ENDIF.
         WRITE: / lv_json_line.
         RETURN.
@@ -851,12 +927,12 @@ START-OF-SELECTION.
         IF lo_summary_error->message IS INITIAL.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = 'Run summary is unavailable' ).
         ELSE.
           lv_csv_line = zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_allocate'
-            iv_schema  = 58
+            iv_schema  = lv_csv_schema
             iv_message = lo_summary_error->message ).
         ENDIF.
         WRITE: / 'mode;status;schema_version;message'.
@@ -932,7 +1008,133 @@ START-OF-SELECTION.
   lv_oldest_deadline_urgency = ls_summary-oldest_deadline_urgency.
   lv_newest_deadline_urgency = ls_summary-newest_deadline_urgency.
   lv_requested = ls_summary-requested.
+  IF p_plan = abap_true.
+    ls_preview_summary = zcl_stock_preview_summary=>calculate(
+      it_demands            = lt_preview_demands
+      iv_remaining_quantity = lv_remaining ).
+  ENDIF.
   IF p_csv = abap_true.
+    IF p_plan = abap_true.
+      WRITE: / 'record_type;schema_version;run_id;material;plant;'
+        && 'storage_location;batch;unit;strategy;generated_date;generated_time;'
+        && 'preview_reconciliation_active;existing_reconciliation_evaluated;'
+        && 'existing_allocation_count;existing_allocation_unit_count;'
+        && 'existing_cross_unit_quantity;preview_line_count;remaining_quantity;'
+        && 'preview_requested_quantity;preview_allocated_quantity;'
+        && 'preview_shortage_quantity;preview_coverage_pct;preview_full_count;'
+        && 'preview_partial_count;preview_unallocated_count;order_id;'
+        && 'sales_document;sales_document_type;sales_item;schedule_line;'
+        && 'priority;requested_on;source_order_unit;requested_quantity;'
+        && 'allocated_quantity;shortage_quantity;allocation_status'.
+      CLEAR lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( 'summary' ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_run_id ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_unit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote( p_recon ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>quote(
+        lv_existing_recon_evaluated ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        lv_existing_allocation_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        lv_existing_alloc_unit_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        lv_existing_cross_unit_qty ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-demand_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-remaining_quantity ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-requested_quantity ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-allocated_quantity ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-shortage_quantity ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-coverage_pct ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-full_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-partial_count ) TO lt_csv_fields.
+      APPEND zcl_stock_csv=>number(
+        ls_preview_summary-unallocated_count ) TO lt_csv_fields.
+      DO 12 TIMES.
+        APPEND zcl_stock_csv=>quote( space ) TO lt_csv_fields.
+      ENDDO.
+      CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
+      WRITE: / lv_csv_line.
+      LOOP AT lt_preview_demands INTO ls_preview_demand.
+        CLEAR: lt_csv_fields, lv_preview_status.
+        CASE ls_preview_demand-allocation_status.
+          WHEN 'F'.
+            lv_preview_status = 'full'.
+          WHEN 'P'.
+            lv_preview_status = 'partial'.
+          WHEN 'U'.
+            lv_preview_status = 'unallocated'.
+          WHEN OTHERS.
+            lv_preview_status = 'n/a'.
+        ENDCASE.
+        APPEND zcl_stock_csv=>quote( 'line' ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number( 60 ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( lv_run_id ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( p_charg ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( lv_unit ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( p_recon ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          lv_existing_recon_evaluated ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          lv_existing_allocation_count ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          lv_existing_alloc_unit_count ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          lv_existing_cross_unit_qty ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          lines( lt_preview_demands ) ) TO lt_csv_fields.
+        DO 8 TIMES.
+          APPEND zcl_stock_csv=>quote( space ) TO lt_csv_fields.
+        ENDDO.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-order_id ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-sales_document ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-sales_document_type ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-sales_item ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-schedule_line ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          ls_preview_demand-priority ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-requested_on ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote(
+          ls_preview_demand-order_unit ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          ls_preview_demand-requested ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          ls_preview_demand-allocated ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>number(
+          ls_preview_demand-shortage ) TO lt_csv_fields.
+        APPEND zcl_stock_csv=>quote( lv_preview_status ) TO lt_csv_fields.
+        CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
+        WRITE: / lv_csv_line.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
     CLEAR lt_csv_fields.
     IF p_test = abap_true.
       APPEND zcl_stock_csv=>quote( 'preview' ) TO lt_csv_fields.
@@ -951,7 +1153,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( lv_strategy ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 58 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 59 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -1209,7 +1411,7 @@ START-OF-SELECTION.
     IF p_typed = abap_true.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 58 ) TO lt_json_fields.
+        iv_value = lv_json_schema ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'typed'
         iv_value = abap_true ) TO lt_json_fields.
@@ -1694,7 +1896,7 @@ START-OF-SELECTION.
     ELSE.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 58 ) TO lt_json_fields.
+        iv_value = lv_json_schema ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'remaining'
         iv_value = lv_remaining ) TO lt_json_fields.
@@ -2059,6 +2261,241 @@ START-OF-SELECTION.
     APPEND zcl_stock_json=>property(
       iv_name  = 'last_message'
       iv_value = ls_summary-last_message ) TO lt_json_fields.
+    IF p_typed = abap_true.
+      APPEND zcl_stock_json=>boolean_property(
+        iv_name  = 'preview_plan_included'
+        iv_value = p_plan ) TO lt_json_fields.
+    ELSE.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'preview_plan_included'
+        iv_value = p_plan ) TO lt_json_fields.
+    ENDIF.
+    IF p_plan = abap_true.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'preview_line_count'
+          iv_value = lines( lt_preview_demands ) ) TO lt_json_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'preview_line_count'
+          iv_value = lines( lt_preview_demands ) ) TO lt_json_fields.
+      ENDIF.
+      CLEAR lt_preview_row_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'unit'
+        iv_value = lv_unit ) TO lt_preview_row_fields.
+      IF p_typed = abap_true.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'remaining_quantity'
+          iv_value = ls_preview_summary-remaining_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'requested_quantity'
+          iv_value = ls_preview_summary-requested_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'allocated_quantity'
+          iv_value = ls_preview_summary-allocated_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'shortage_quantity'
+          iv_value = ls_preview_summary-shortage_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'coverage_pct'
+          iv_value = ls_preview_summary-coverage_pct )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'demand_count'
+          iv_value = ls_preview_summary-demand_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'full_count'
+          iv_value = ls_preview_summary-full_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'partial_count'
+          iv_value = ls_preview_summary-partial_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>number_property(
+          iv_name  = 'unallocated_count'
+          iv_value = ls_preview_summary-unallocated_count )
+          TO lt_preview_row_fields.
+      ELSE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'remaining_quantity'
+          iv_value = ls_preview_summary-remaining_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'requested_quantity'
+          iv_value = ls_preview_summary-requested_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'allocated_quantity'
+          iv_value = ls_preview_summary-allocated_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'shortage_quantity'
+          iv_value = ls_preview_summary-shortage_quantity )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'coverage_pct'
+          iv_value = ls_preview_summary-coverage_pct )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'demand_count'
+          iv_value = ls_preview_summary-demand_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'full_count'
+          iv_value = ls_preview_summary-full_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'partial_count'
+          iv_value = ls_preview_summary-partial_count )
+          TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'unallocated_count'
+          iv_value = ls_preview_summary-unallocated_count )
+          TO lt_preview_row_fields.
+      ENDIF.
+      CONCATENATE LINES OF lt_preview_row_fields
+        INTO lv_preview_row_json SEPARATED BY ','.
+      CONCATENATE '"preview_summary":{' lv_preview_row_json '}'
+        INTO lv_preview_summary_json.
+      APPEND lv_preview_summary_json TO lt_json_fields.
+      IF p_ndjson = abap_true.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'record_type'
+          iv_value = 'summary' ) TO lt_json_fields.
+        CONCATENATE LINES OF lt_json_fields
+          INTO lv_json_line SEPARATED BY ','.
+        CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
+        WRITE: / lv_json_line.
+        CLEAR lt_json_fields.
+      ENDIF.
+      CLEAR lt_preview_rows.
+      LOOP AT lt_preview_demands INTO ls_preview_demand.
+        CLEAR lt_preview_row_fields.
+        IF p_ndjson = abap_true.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'record_type'
+            iv_value = 'line' ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>number_property(
+            iv_name  = 'schema_version'
+            iv_value = lv_json_schema ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'run_id'
+            iv_value = lv_run_id ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'material'
+            iv_value = p_matnr ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'plant'
+            iv_value = p_werks ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'storage_location'
+            iv_value = p_lgort ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'batch'
+            iv_value = p_charg ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'unit'
+            iv_value = lv_unit ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'strategy'
+            iv_value = lv_strategy ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'generated_date'
+            iv_value = sy-datum ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'generated_time'
+            iv_value = sy-uzeit ) TO lt_preview_row_fields.
+        ENDIF.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'order_id'
+          iv_value = ls_preview_demand-order_id ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'sales_document'
+          iv_value = ls_preview_demand-sales_document ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'sales_document_type'
+          iv_value = ls_preview_demand-sales_document_type ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'sales_item'
+          iv_value = ls_preview_demand-sales_item ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'schedule_line'
+          iv_value = ls_preview_demand-schedule_line ) TO lt_preview_row_fields.
+        IF p_typed = abap_true.
+          APPEND zcl_stock_json=>number_property(
+            iv_name  = 'priority'
+            iv_value = ls_preview_demand-priority ) TO lt_preview_row_fields.
+        ELSE.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'priority'
+            iv_value = ls_preview_demand-priority ) TO lt_preview_row_fields.
+        ENDIF.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'requested_on'
+          iv_value = ls_preview_demand-requested_on ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'source_order_unit'
+          iv_value = ls_preview_demand-order_unit ) TO lt_preview_row_fields.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'quantity_unit'
+          iv_value = lv_unit ) TO lt_preview_row_fields.
+        IF p_typed = abap_true.
+          APPEND zcl_stock_json=>number_property(
+            iv_name  = 'requested_quantity'
+            iv_value = ls_preview_demand-requested ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>number_property(
+            iv_name  = 'allocated_quantity'
+            iv_value = ls_preview_demand-allocated ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>number_property(
+            iv_name  = 'shortage_quantity'
+            iv_value = ls_preview_demand-shortage ) TO lt_preview_row_fields.
+        ELSE.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'requested_quantity'
+            iv_value = ls_preview_demand-requested ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'allocated_quantity'
+            iv_value = ls_preview_demand-allocated ) TO lt_preview_row_fields.
+          APPEND zcl_stock_json=>property(
+            iv_name  = 'shortage_quantity'
+            iv_value = ls_preview_demand-shortage ) TO lt_preview_row_fields.
+        ENDIF.
+        CASE ls_preview_demand-allocation_status.
+          WHEN 'F'.
+            lv_preview_status = 'full'.
+          WHEN 'P'.
+            lv_preview_status = 'partial'.
+          WHEN 'U'.
+            lv_preview_status = 'unallocated'.
+          WHEN OTHERS.
+            lv_preview_status = 'n/a'.
+        ENDCASE.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'allocation_status'
+          iv_value = lv_preview_status ) TO lt_preview_row_fields.
+        CONCATENATE LINES OF lt_preview_row_fields
+          INTO lv_preview_row_json SEPARATED BY ','.
+        CONCATENATE '{' lv_preview_row_json '}' INTO lv_preview_row_json.
+        IF p_ndjson = abap_true.
+          WRITE: / lv_preview_row_json.
+        ELSE.
+          APPEND lv_preview_row_json TO lt_preview_rows.
+        ENDIF.
+      ENDLOOP.
+      IF p_ndjson = abap_false.
+        CONCATENATE LINES OF lt_preview_rows
+          INTO lv_preview_lines_json SEPARATED BY ','.
+        CONCATENATE '"preview_lines":[' lv_preview_lines_json ']'
+          INTO lv_preview_lines_json.
+        APPEND lv_preview_lines_json TO lt_json_fields.
+      ENDIF.
+    ENDIF.
     IF p_meta = abap_true.
       lt_summary_fields = lt_json_fields.
       CLEAR lt_scope_fields.
@@ -2103,11 +2540,17 @@ START-OF-SELECTION.
           iv_value = 'true' ) TO lt_filter_fields.
         APPEND 'preview_reconciliation' TO lt_filter_names.
       ENDIF.
+      IF p_plan = abap_true.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'preview_plan_included'
+          iv_value = p_plan ) TO lt_filter_fields.
+        APPEND 'preview_plan_included' TO lt_filter_names.
+      ENDIF.
       APPEND 'deadline_urgency_filter' TO lt_filter_names.
       CLEAR lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'schema_version'
-        iv_value = 58 ) TO lt_json_fields.
+        iv_value = lv_json_schema ) TO lt_json_fields.
       IF p_test = abap_true.
         APPEND zcl_stock_json=>property(
           iv_name  = 'mode'
@@ -2136,9 +2579,11 @@ START-OF-SELECTION.
         iv_name   = 'summary'
         it_fields = lt_summary_fields ) TO lt_json_fields.
     ENDIF.
-    CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
-    CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
-    WRITE: / lv_json_line.
+    IF p_ndjson = abap_false.
+      CONCATENATE LINES OF lt_json_fields INTO lv_json_line SEPARATED BY ','.
+      CONCATENATE '{' lv_json_line '}' INTO lv_json_line.
+      WRITE: / lv_json_line.
+    ENDIF.
     RETURN.
   ENDIF.
   WRITE: / 'Strategy:', lv_strategy,

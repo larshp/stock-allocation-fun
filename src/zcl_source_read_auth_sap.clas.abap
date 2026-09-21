@@ -21,12 +21,30 @@ ENDCLASS.
 
 CLASS zcl_source_read_auth_sap IMPLEMENTATION.
   METHOD zif_source_read_authority~check_stock.
+    AUTHORITY-CHECK OBJECT 'M_MATE_MAN'
+      ID 'ACTVT' FIELD '03'.
+    IF sy-subrc <> 0.
+      raise_error(
+        iv_message = 'Material master read authorization failed' ).
+    ENDIF.
+
+    AUTHORITY-CHECK OBJECT 'M_MATE_WRK'
+      ID 'ACTVT' FIELD '03'
+      ID 'WERKS' FIELD iv_plant.
+    IF sy-subrc <> 0.
+      raise_error(
+        iv_message = 'Plant stock read authorization failed' ).
+    ENDIF.
+
     verify_table(
       iv_table   = 'MARA'
       iv_message = 'Material read authorization failed' ).
     verify_table(
       iv_table   = 'MARC'
       iv_message = 'Plant material read authorization failed' ).
+    verify_table(
+      iv_table   = 'T001L'
+      iv_message = 'Storage location read authorization failed' ).
     IF iv_batch IS INITIAL.
       verify_table(
         iv_table   = 'MARD'
@@ -51,6 +69,25 @@ CLASS zcl_source_read_auth_sap IMPLEMENTATION.
     verify_table(
       iv_table   = 'VBEP'
       iv_message = 'Sales-order schedule read authorization failed' ).
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_sales_document.
+    AUTHORITY-CHECK OBJECT 'V_VBAK_AAT'
+      ID 'AUART' FIELD iv_document_type
+      ID 'ACTVT' FIELD '03'.
+    IF sy-subrc <> 0.
+      raise_error(
+        iv_message = 'Sales document type read authorization failed' ).
+    ENDIF.
+
+    AUTHORITY-CHECK OBJECT 'V_VBAK_VKO'
+      ID 'VKORG' FIELD iv_sales_organization
+      ID 'VTWEG' FIELD iv_distribution_channel
+      ID 'SPART' FIELD iv_division
+      ID 'ACTVT' FIELD '03'.
+    IF sy-subrc <> 0.
+      raise_error( iv_message = 'Sales area read authorization failed' ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD verify_table.

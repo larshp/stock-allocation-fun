@@ -47,8 +47,48 @@ CLASS zcl_stock_csv IMPLEMENTATION.
   METHOD quote.
     DATA lv_text TYPE string.
     DATA lv_escaped TYPE string.
+    DATA lv_first_character TYPE c LENGTH 1.
+    DATA lv_formula_offset TYPE i.
+    DATA lv_text_length TYPE i.
+    DATA lv_carriage_return TYPE c LENGTH 1.
+    DATA lv_prefix_added TYPE abap_bool.
 
     lv_text = iv_value.
+    lv_text_length = strlen( lv_text ).
+    lv_carriage_return = cl_abap_char_utilities=>cr_lf.
+    WHILE lv_formula_offset < lv_text_length.
+      lv_first_character = lv_text+lv_formula_offset(1).
+      IF lv_first_character = space.
+        lv_formula_offset = lv_formula_offset + 1.
+      ELSEIF lv_first_character = cl_abap_char_utilities=>horizontal_tab
+          OR lv_first_character = cl_abap_char_utilities=>newline
+          OR lv_first_character = lv_carriage_return
+          OR lv_first_character = cl_abap_char_utilities=>vertical_tab
+          OR lv_first_character = cl_abap_char_utilities=>form_feed
+          OR lv_first_character = cl_abap_char_utilities=>backspace.
+        CONCATENATE '''' lv_text INTO lv_text.
+        lv_prefix_added = abap_true.
+        EXIT.
+      ELSE.
+        EXIT.
+      ENDIF.
+    ENDWHILE.
+    IF lv_prefix_added <> abap_true
+        AND lv_formula_offset < lv_text_length.
+      lv_first_character = lv_text+lv_formula_offset(1).
+      IF lv_first_character = '='
+          OR lv_first_character = '+'
+          OR lv_first_character = '-'
+          OR lv_first_character = '@'.
+        CONCATENATE cl_abap_char_utilities=>horizontal_tab lv_text
+          INTO lv_text.
+      ELSEIF lv_first_character = '＝'
+          OR lv_first_character = '＋'
+          OR lv_first_character = '－'
+          OR lv_first_character = '＠'.
+        CONCATENATE '''' lv_text INTO lv_text.
+      ENDIF.
+    ENDIF.
     lv_escaped = lv_text.
     REPLACE ALL OCCURRENCES OF '"' IN lv_escaped WITH '""'.
     CONCATENATE '"' lv_escaped '"' INTO rv_value.

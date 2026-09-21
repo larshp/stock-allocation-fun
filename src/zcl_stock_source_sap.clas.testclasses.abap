@@ -10,15 +10,26 @@ CLASS lcl_stock_read_auth_fail IMPLEMENTATION.
 
   METHOD zif_source_read_authority~check_orders.
   ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_sales_document.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
+  PUBLIC SECTION.
+    INTERFACES zif_source_read_authority.
   PRIVATE SECTION.
+    DATA mv_authorized_plant TYPE zif_stock_allocation=>ty_plant.
+    DATA mv_authorized_batch TYPE zif_stock_allocation=>ty_batch.
     METHODS reads_current_client_stock FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS forwards_stock_scope FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_incomplete_scope FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_unknown_sloc FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_invalid_output FOR TESTING
       RAISING zcx_stock_allocation.
@@ -35,6 +46,43 @@ CLASS ltcl_stock_source_sap DEFINITION FINAL FOR TESTING
 ENDCLASS.
 
 CLASS ltcl_stock_source_sap IMPLEMENTATION.
+  METHOD zif_source_read_authority~check_stock.
+    mv_authorized_plant = iv_plant.
+    mv_authorized_batch = iv_batch.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_orders.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_sales_document.
+  ENDMETHOD.
+
+  METHOD forwards_stock_scope.
+    DATA lo_authority TYPE REF TO zif_source_read_authority.
+    DATA lo_cut TYPE REF TO zif_stock_source.
+    DATA ls_available TYPE zif_stock_allocation=>ty_available.
+
+    lo_authority ?= me.
+    CREATE OBJECT lo_cut TYPE zcl_stock_source_sap
+      EXPORTING
+        io_authority = lo_authority.
+    ls_available = lo_cut->get_available(
+      iv_material         = 'MATERIAL-BATCH'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_batch            = 'BATCH-001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-quantity
+      exp = '4' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_authorized_plant
+      exp = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_authorized_batch
+      exp = 'BATCH-001' ).
+  ENDMETHOD.
+
   METHOD rejects_unauthorized_read.
     DATA lo_authority TYPE REF TO zif_source_read_authority.
     DATA lo_cut TYPE REF TO zif_stock_source.
@@ -81,6 +129,28 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Stock read scope is incomplete' ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_sloc.
+    DATA lo_cut TYPE REF TO zif_stock_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_source_sap.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-STOCK'
+          iv_plant            = '1000'
+          iv_storage_location = '0099' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Storage location is invalid for plant' ).
   ENDMETHOD.
 
   METHOD reads_current_client_stock.

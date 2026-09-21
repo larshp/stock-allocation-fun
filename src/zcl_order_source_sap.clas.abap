@@ -11,17 +11,20 @@ CLASS zcl_order_source_sap DEFINITION
     DATA mo_authority TYPE REF TO zif_source_read_authority.
     TYPES:
       BEGIN OF ty_schedule,
-        order_id            TYPE c LENGTH 10,
-        sales_document_type TYPE zif_stock_allocation=>ty_sales_document_type,
-        item_id             TYPE n LENGTH 6,
-        schedule_line       TYPE n LENGTH 4,
-        order_unit          TYPE c LENGTH 3,
-        item_deleted        TYPE c LENGTH 1,
-        item_delivery_block TYPE c LENGTH 2,
-        delivery_priority   TYPE n LENGTH 2,
-        requested_on        TYPE d,
-        requested           TYPE p LENGTH 8 DECIMALS 3,
-        confirmed           TYPE p LENGTH 8 DECIMALS 3,
+        order_id             TYPE zif_stock_allocation=>ty_sales_document,
+        sales_document_type  TYPE zif_stock_allocation=>ty_sales_document_type,
+        sales_organization   TYPE vbak-vkorg,
+        distribution_channel TYPE vbak-vtweg,
+        division             TYPE vbak-spart,
+        item_id              TYPE zif_stock_allocation=>ty_sales_item,
+        schedule_line        TYPE zif_stock_allocation=>ty_schedule_line,
+        order_unit           TYPE zif_stock_allocation=>ty_unit,
+        item_deleted         TYPE c LENGTH 1,
+        item_delivery_block  TYPE c LENGTH 2,
+        delivery_priority    TYPE n LENGTH 2,
+        requested_on         TYPE d,
+        requested            TYPE p LENGTH 8 DECIMALS 3,
+        confirmed            TYPE p LENGTH 8 DECIMALS 3,
     END OF ty_schedule.
     TYPES tt_schedule TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
     METHODS raise_error
@@ -43,6 +46,8 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
   METHOD zif_order_source~get_open_demands.
     DATA lt_schedule TYPE tt_schedule.
     DATA ls_demand TYPE zif_stock_allocation=>ty_demand.
+    DATA lv_requested_on_from TYPE d.
+    DATA lv_requested_on_to TYPE d.
     FIELD-SYMBOLS <ls_schedule> TYPE ty_schedule.
 
     IF iv_material IS INITIAL OR iv_plant IS INITIAL.
@@ -69,8 +74,19 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND iv_requested_on_from > iv_requested_on_to ).
       raise_error( iv_message = 'Requested delivery date range is invalid' ).
     ENDIF.
+    lv_requested_on_from = iv_requested_on_from.
+    IF lv_requested_on_from IS INITIAL.
+      lv_requested_on_from = '00000000'.
+    ENDIF.
+    lv_requested_on_to = iv_requested_on_to.
+    IF lv_requested_on_to IS INITIAL.
+      lv_requested_on_to = '99999999'.
+    ENDIF.
     SELECT item~vbeln AS order_id,
            header~auart AS sales_document_type,
+           header~vkorg AS sales_organization,
+           header~vtweg AS distribution_channel,
+           header~spart AS division,
            item~posnr AS item_id,
            schedule~etenr AS schedule_line,
            item~vrkme AS order_unit,
@@ -93,8 +109,8 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
         AND schedule~lifsp = ''
         AND header~vbtyp = 'C'
         AND header~lifsk = ''
-        AND schedule~edatu >= '00000000'
-        AND schedule~edatu <= '99999999'
+        AND schedule~edatu >= @lv_requested_on_from
+        AND schedule~edatu <= @lv_requested_on_to
         AND ( schedule~wmeng > schedule~bmeng
           OR schedule~wmeng < 0
           OR schedule~bmeng < 0 ) INTO TABLE @lt_schedule.
@@ -121,20 +137,27 @@ CLASS zcl_order_source_sap IMPLEMENTATION.
       IF <ls_schedule>-item_delivery_block IS NOT INITIAL.
         CONTINUE.
       ENDIF.
-      IF iv_requested_on_from IS NOT INITIAL
-          AND <ls_schedule>-requested_on < iv_requested_on_from.
-        CONTINUE.
-      ENDIF.
-      IF iv_requested_on_to IS NOT INITIAL
-          AND <ls_schedule>-requested_on > iv_requested_on_to.
-        CONTINUE.
-      ENDIF.
       IF <ls_schedule>-requested < 0
           OR <ls_schedule>-confirmed < 0.
         raise_error( iv_message = 'Open demand quantity is invalid' ).
       ENDIF.
       IF <ls_schedule>-requested <= <ls_schedule>-confirmed.
         CONTINUE.
+      ENDIF.
+      IF mo_authority IS BOUND.
+        TRY.
+            mo_authority->check_sales_document(
+              iv_document_type        = <ls_schedule>-sales_document_type
+              iv_sales_organization   = <ls_schedule>-sales_organization
+              iv_distribution_channel = <ls_schedule>-distribution_channel
+              iv_division             = <ls_schedule>-division ).
+          CATCH zcx_stock_allocation INTO DATA(lo_sales_auth_error).
+            IF lo_sales_auth_error->message IS INITIAL.
+              lo_sales_auth_error->message =
+                'Sales document read authorization failed'.
+            ENDIF.
+            RAISE EXCEPTION lo_sales_auth_error.
+        ENDTRY.
       ENDIF.
       CLEAR ls_demand.
       ls_demand-sales_document = <ls_schedule>-order_id.

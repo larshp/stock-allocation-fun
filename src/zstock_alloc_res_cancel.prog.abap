@@ -1,6 +1,6 @@
 REPORT zstock_alloc_res_cancel.
 
-PARAMETERS p_resid TYPE zif_stock_allocation=>ty_order_id OBLIGATORY.
+PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id OBLIGATORY.
 PARAMETERS p_werks TYPE zif_stock_allocation=>ty_plant OBLIGATORY.
 PARAMETERS p_bwart TYPE zif_stock_allocation=>ty_movement_type OBLIGATORY.
 PARAMETERS p_exec AS CHECKBOX.
@@ -105,7 +105,7 @@ START-OF-SELECTION.
       io_authority = lo_authority.
   TRY.
       lo_reservation->cancel(
-        iv_document      = p_resid
+        iv_document      = CONV string( p_resid )
         iv_plant         = p_werks
         iv_movement_type = p_bwart ).
     CATCH zcx_stock_allocation INTO DATA(lo_error).

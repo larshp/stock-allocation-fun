@@ -6,6 +6,8 @@ CLASS ltcl_stock_allocator_auto DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS uses_fair_share_when_scarce FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_total_qty_overflow FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_duplicate_keys FOR TESTING
       RAISING zcx_stock_allocation.
 ENDCLASS.
@@ -68,6 +70,34 @@ CLASS ltcl_stock_allocator_auto IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
       exp = '0' ).
+  ENDMETHOD.
+
+  METHOD rejects_total_qty_overflow.
+    DATA lo_cut TYPE REF TO zif_stock_allocation.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_cut TYPE zcl_stock_allocator_auto.
+    APPEND VALUE #( order_id  = 'MAXIMUM'
+                    requested = zif_stock_allocation=>c_max_quantity )
+      TO lt_demands.
+    APPEND VALUE #( order_id  = 'OVERFLOW'
+                    requested = '0.001' ) TO lt_demands.
+
+    TRY.
+        lo_cut->allocate(
+          EXPORTING
+            iv_available = 1
+          CHANGING
+            ct_demands   = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Total requested quantity exceeds supported quantity range' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
   METHOD rejects_duplicate_keys.

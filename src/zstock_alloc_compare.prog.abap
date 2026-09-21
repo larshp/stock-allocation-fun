@@ -171,9 +171,9 @@ PARAMETERS p_nordun TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_order TYPE zif_stock_allocation=>ty_order_id.
 PARAMETERS p_oorder TYPE zif_stock_allocation=>ty_order_id.
 PARAMETERS p_norder TYPE zif_stock_allocation=>ty_order_id.
-PARAMETERS p_resid TYPE zif_stock_allocation=>ty_order_id.
-PARAMETERS p_oresid TYPE zif_stock_allocation=>ty_order_id.
-PARAMETERS p_nresid TYPE zif_stock_allocation=>ty_order_id.
+PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id.
+PARAMETERS p_oresid TYPE zif_stock_allocation=>ty_reservation_id.
+PARAMETERS p_nresid TYPE zif_stock_allocation=>ty_reservation_id.
 PARAMETERS p_oast TYPE zif_allocation_audit=>ty_run_status.
 PARAMETERS p_nast TYPE zif_allocation_audit=>ty_run_status.
 PARAMETERS p_ostr TYPE zif_allocation_audit=>ty_strategy.
@@ -503,8 +503,8 @@ START-OF-SELECTION.
   DATA lv_resid_filter TYPE string.
   DATA lv_old_resid_filter TYPE string.
   DATA lv_new_resid_filter TYPE string.
-  DATA lv_old_resid TYPE zif_stock_allocation=>ty_order_id.
-  DATA lv_new_resid TYPE zif_stock_allocation=>ty_order_id.
+  DATA lv_old_resid TYPE zif_stock_allocation=>ty_reservation_id.
+  DATA lv_new_resid TYPE zif_stock_allocation=>ty_reservation_id.
   DATA lv_batch_filter TYPE string.
   DATA lv_old_batch_filter TYPE string.
   DATA lv_new_batch_filter TYPE string.

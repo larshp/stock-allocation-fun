@@ -21,7 +21,7 @@ START-OF-SELECTION.
   DATA lv_json_line TYPE string.
   DATA lv_csv_line TYPE string.
   DATA lv_error_message TYPE string.
-  DATA lv_document TYPE zif_stock_allocation=>ty_order_id.
+  DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
   DATA lv_json_schema TYPE i.
   DATA lt_json_fields TYPE STANDARD TABLE OF string WITH EMPTY KEY.
   DATA lt_summary_fields TYPE zcl_stock_json=>tt_strings.

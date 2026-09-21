@@ -1,5 +1,5 @@
 INTERFACE zif_order_sink PUBLIC.
-  TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES ty_sales_document TYPE zif_stock_allocation=>ty_sales_document.
   TYPES ty_sales_document_type TYPE zif_stock_allocation=>ty_sales_document_type.
   TYPES ty_sales_item TYPE n LENGTH 6.
   TYPES ty_schedule_line TYPE n LENGTH 4.

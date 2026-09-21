@@ -36,6 +36,14 @@ CLASS zcl_allocation_audit_sap DEFINITION
         iv_message TYPE zif_allocation_audit=>ty_message
       RAISING
         zcx_stock_allocation.
+    METHODS sum_quantity
+      IMPORTING
+        iv_current      TYPE zif_stock_allocation=>ty_quantity
+        iv_addend       TYPE zif_stock_allocation=>ty_quantity
+      RETURNING
+        VALUE(rv_total) TYPE zif_stock_allocation=>ty_quantity
+      RAISING
+        zcx_stock_allocation.
 ENDCLASS.
 
 CLASS zcl_allocation_audit_sap IMPLEMENTATION.
@@ -340,7 +348,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_protected_running TYPE i.
     DATA lv_protected_unknown TYPE i.
     DATA lv_protected_reservation TYPE i.
-    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
+    DATA lv_reservation_id TYPE zstockalloc-reservation_id.
     DATA lt_candidates TYPE STANDARD TABLE OF ty_purge_candidate WITH EMPTY KEY.
     DATA ls_candidate TYPE ty_purge_candidate.
     IF iv_run_id IS INITIAL.
@@ -801,7 +809,7 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lv_snapshot_count TYPE i.
     DATA lv_selected_count TYPE i.
-    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
+    DATA lv_reservation_id TYPE zstockalloc-reservation_id.
 
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -1533,91 +1541,149 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
         ENDIF.
       ENDIF.
       IF rs_summary-mixed_units <> abap_true.
-        rs_summary-allocated = rs_summary-allocated + <ls_run>-allocated.
-        rs_summary-shortage = rs_summary-shortage + <ls_run>-shortage.
-        rs_summary-requested = rs_summary-requested
-          + <ls_run>-allocated + <ls_run>-shortage.
+        rs_summary-allocated = sum_quantity(
+          iv_current = rs_summary-allocated
+          iv_addend  = <ls_run>-allocated ).
+        rs_summary-shortage = sum_quantity(
+          iv_current = rs_summary-shortage
+          iv_addend  = <ls_run>-shortage ).
+        rs_summary-requested = sum_quantity(
+          iv_current = rs_summary-requested
+          iv_addend  = <ls_run>-allocated ).
+        rs_summary-requested = sum_quantity(
+          iv_current = rs_summary-requested
+          iv_addend  = <ls_run>-shortage ).
         CASE <ls_run>-strategy.
           WHEN 'P'.
-            rs_summary-priority_allocated =
-              rs_summary-priority_allocated + <ls_run>-allocated.
-            rs_summary-priority_shortage =
-              rs_summary-priority_shortage + <ls_run>-shortage.
-            rs_summary-priority_requested =
-              rs_summary-priority_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-priority_allocated = sum_quantity(
+              iv_current = rs_summary-priority_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-priority_shortage = sum_quantity(
+              iv_current = rs_summary-priority_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-priority_requested = sum_quantity(
+              iv_current = rs_summary-priority_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-priority_requested = sum_quantity(
+              iv_current = rs_summary-priority_requested
+              iv_addend  = <ls_run>-shortage ).
           WHEN 'F'.
-            rs_summary-fifo_allocated =
-              rs_summary-fifo_allocated + <ls_run>-allocated.
-            rs_summary-fifo_shortage =
-              rs_summary-fifo_shortage + <ls_run>-shortage.
-            rs_summary-fifo_requested =
-              rs_summary-fifo_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-fifo_allocated = sum_quantity(
+              iv_current = rs_summary-fifo_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-fifo_shortage = sum_quantity(
+              iv_current = rs_summary-fifo_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-fifo_requested = sum_quantity(
+              iv_current = rs_summary-fifo_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-fifo_requested = sum_quantity(
+              iv_current = rs_summary-fifo_requested
+              iv_addend  = <ls_run>-shortage ).
           WHEN 'N'.
-            rs_summary-full_only_allocated =
-              rs_summary-full_only_allocated + <ls_run>-allocated.
-            rs_summary-full_only_shortage =
-              rs_summary-full_only_shortage + <ls_run>-shortage.
-            rs_summary-full_only_requested =
-              rs_summary-full_only_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-full_only_allocated = sum_quantity(
+              iv_current = rs_summary-full_only_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-full_only_shortage = sum_quantity(
+              iv_current = rs_summary-full_only_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-full_only_requested = sum_quantity(
+              iv_current = rs_summary-full_only_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-full_only_requested = sum_quantity(
+              iv_current = rs_summary-full_only_requested
+              iv_addend  = <ls_run>-shortage ).
           WHEN 'S'.
-            rs_summary-smallest_allocated =
-              rs_summary-smallest_allocated + <ls_run>-allocated.
-            rs_summary-smallest_shortage =
-              rs_summary-smallest_shortage + <ls_run>-shortage.
-            rs_summary-smallest_requested =
-              rs_summary-smallest_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-smallest_allocated = sum_quantity(
+              iv_current = rs_summary-smallest_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-smallest_shortage = sum_quantity(
+              iv_current = rs_summary-smallest_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-smallest_requested = sum_quantity(
+              iv_current = rs_summary-smallest_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-smallest_requested = sum_quantity(
+              iv_current = rs_summary-smallest_requested
+              iv_addend  = <ls_run>-shortage ).
           WHEN 'L'.
-            rs_summary-largest_allocated =
-              rs_summary-largest_allocated + <ls_run>-allocated.
-            rs_summary-largest_shortage =
-              rs_summary-largest_shortage + <ls_run>-shortage.
-            rs_summary-largest_requested =
-              rs_summary-largest_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-largest_allocated = sum_quantity(
+              iv_current = rs_summary-largest_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-largest_shortage = sum_quantity(
+              iv_current = rs_summary-largest_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-largest_requested = sum_quantity(
+              iv_current = rs_summary-largest_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-largest_requested = sum_quantity(
+              iv_current = rs_summary-largest_requested
+              iv_addend  = <ls_run>-shortage ).
           WHEN 'B'.
-            rs_summary-best_allocated =
-              rs_summary-best_allocated + <ls_run>-allocated.
-            rs_summary-best_shortage =
-              rs_summary-best_shortage + <ls_run>-shortage.
-            rs_summary-best_requested =
-              rs_summary-best_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
-            WHEN 'E'.
-              rs_summary-fair_allocated =
-                rs_summary-fair_allocated + <ls_run>-allocated.
-            rs_summary-fair_shortage =
-              rs_summary-fair_shortage + <ls_run>-shortage.
-                rs_summary-fair_requested =
-                  rs_summary-fair_requested + <ls_run>-allocated
-                  + <ls_run>-shortage.
-            WHEN 'W'.
-              rs_summary-weighted_allocated =
-                rs_summary-weighted_allocated + <ls_run>-allocated.
-              rs_summary-weighted_shortage =
-                rs_summary-weighted_shortage + <ls_run>-shortage.
-              rs_summary-weighted_requested =
-                rs_summary-weighted_requested + <ls_run>-allocated
-                + <ls_run>-shortage.
-            WHEN 'A'.
-              rs_summary-adaptive_allocated =
-                rs_summary-adaptive_allocated + <ls_run>-allocated.
-              rs_summary-adaptive_shortage =
-                rs_summary-adaptive_shortage + <ls_run>-shortage.
-              rs_summary-adaptive_requested =
-                rs_summary-adaptive_requested + <ls_run>-allocated
-                + <ls_run>-shortage.
-            WHEN OTHERS.
-            rs_summary-legacy_allocated =
-              rs_summary-legacy_allocated + <ls_run>-allocated.
-            rs_summary-legacy_shortage =
-              rs_summary-legacy_shortage + <ls_run>-shortage.
-            rs_summary-legacy_requested =
-              rs_summary-legacy_requested + <ls_run>-allocated
-              + <ls_run>-shortage.
+            rs_summary-best_allocated = sum_quantity(
+              iv_current = rs_summary-best_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-best_shortage = sum_quantity(
+              iv_current = rs_summary-best_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-best_requested = sum_quantity(
+              iv_current = rs_summary-best_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-best_requested = sum_quantity(
+              iv_current = rs_summary-best_requested
+              iv_addend  = <ls_run>-shortage ).
+          WHEN 'E'.
+            rs_summary-fair_allocated = sum_quantity(
+              iv_current = rs_summary-fair_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-fair_shortage = sum_quantity(
+              iv_current = rs_summary-fair_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-fair_requested = sum_quantity(
+              iv_current = rs_summary-fair_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-fair_requested = sum_quantity(
+              iv_current = rs_summary-fair_requested
+              iv_addend  = <ls_run>-shortage ).
+          WHEN 'W'.
+            rs_summary-weighted_allocated = sum_quantity(
+              iv_current = rs_summary-weighted_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-weighted_shortage = sum_quantity(
+              iv_current = rs_summary-weighted_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-weighted_requested = sum_quantity(
+              iv_current = rs_summary-weighted_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-weighted_requested = sum_quantity(
+              iv_current = rs_summary-weighted_requested
+              iv_addend  = <ls_run>-shortage ).
+          WHEN 'A'.
+            rs_summary-adaptive_allocated = sum_quantity(
+              iv_current = rs_summary-adaptive_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-adaptive_shortage = sum_quantity(
+              iv_current = rs_summary-adaptive_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-adaptive_requested = sum_quantity(
+              iv_current = rs_summary-adaptive_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-adaptive_requested = sum_quantity(
+              iv_current = rs_summary-adaptive_requested
+              iv_addend  = <ls_run>-shortage ).
+          WHEN OTHERS.
+            rs_summary-legacy_allocated = sum_quantity(
+              iv_current = rs_summary-legacy_allocated
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-legacy_shortage = sum_quantity(
+              iv_current = rs_summary-legacy_shortage
+              iv_addend  = <ls_run>-shortage ).
+            rs_summary-legacy_requested = sum_quantity(
+              iv_current = rs_summary-legacy_requested
+              iv_addend  = <ls_run>-allocated ).
+            rs_summary-legacy_requested = sum_quantity(
+              iv_current = rs_summary-legacy_requested
+              iv_addend  = <ls_run>-shortage ).
         ENDCASE.
       ENDIF.
       rs_summary-full_count = rs_summary-full_count + <ls_run>-full_count.
@@ -2472,6 +2538,10 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
       <ls_run>-status = to_upper( <ls_run>-status ).
       <ls_run>-strategy = to_upper( <ls_run>-strategy ).
       validate_run( is_run = <ls_run> ).
+      IF <ls_run>-shortage
+          > zif_stock_allocation=>c_max_quantity - <ls_run>-allocated.
+        raise_error( iv_message = 'Audit run data is invalid' ).
+      ENDIF.
       IF lv_preview_filter = 'P'
           AND <ls_run>-preview <> abap_true.
         DELETE rt_runs.
@@ -3187,6 +3257,16 @@ CLASS zcl_allocation_audit_sap IMPLEMENTATION.
           iv_date ) <> abap_true.
       raise_error( iv_message = iv_message ).
     ENDIF.
+  ENDMETHOD.
+
+  METHOD sum_quantity.
+    IF iv_current < 0
+        OR iv_addend < 0
+        OR iv_addend > zif_stock_allocation=>c_max_quantity - iv_current.
+      raise_error(
+        iv_message = 'Audit summary quantity exceeds supported quantity range' ).
+    ENDIF.
+    rv_total = iv_current + iv_addend.
   ENDMETHOD.
 
   METHOD rollback_and_raise.

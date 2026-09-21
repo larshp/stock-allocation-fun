@@ -109,6 +109,10 @@ CLASS ltcl_allocation_sink_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_inconsistent_run FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_preview_run_snapshot FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_preview_demand FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_finalized_run FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS filters_by_run_and_status FOR TESTING
@@ -1892,10 +1896,10 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     ls_corrupt-allocated = '1'.
     ls_corrupt-shortage = '0'.
     ls_corrupt-allocation_status = 'F'.
-    ls_corrupt-reservation_id = '2000000005'.
+    ls_corrupt-reservation_id = '2000000005X'.
     ls_corrupt-reservation_date = '20260101'.
     ls_corrupt-reservation_movement_type = '201'.
-    ls_corrupt-reservation_unit = 'BOX'.
+    ls_corrupt-reservation_unit = 'EA'.
     INSERT zstockalloc FROM @ls_corrupt.
 
     TRY.
@@ -3064,6 +3068,122 @@ CLASS ltcl_allocation_sink_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-INCONSISTENT-SCOPE'.
+  ENDMETHOD.
+
+  METHOD rejects_preview_run_snapshot.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_order_id TYPE zstockalloc-order_id.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-PREVIEW-SNAPSHOT'.
+    ls_run-matnr = 'MATERIAL-PREVIEW-SNAPSHOT'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-preview = abap_true.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( order_id                  = 'PREVIEW-SNAPSHOT'
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = '2000000023'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-PREVIEW-SNAPSHOT'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-PREVIEW-SNAPSHOT'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Preview run cannot persist allocation snapshots' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE order_id
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PREVIEW-SNAPSHOT'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND order_id = 'PREVIEW-SNAPSHOT'
+      INTO @lv_order_id.
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( sy-subrc <> 0 ) ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-PREVIEW-SNAPSHOT'.
+  ENDMETHOD.
+
+  METHOD rejects_preview_demand.
+    DATA lo_cut TYPE REF TO zif_allocation_sink.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_order_id TYPE zstockalloc-order_id.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-PREVIEW-DEMAND-MARKER'.
+    ls_run-matnr = 'MATERIAL-PREVIEW-DEMAND'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-status = 'R'.
+    ls_run-available = 1.
+    ls_run-demand_count = 1.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_sink_sap.
+    APPEND VALUE #( order_id                  = 'PREVIEW-DEMAND'
+                    preview                   = abap_true
+                    requested                 = '1'
+                    allocated                 = '1'
+                    allocation_status         = 'F'
+                    reservation_id            = '2000000024'
+                    reservation_date          = sy-datum
+                    reservation_movement_type = '201'
+                    reservation_unit          = 'EA' ) TO lt_demands.
+    TRY.
+        lo_cut->save_allocations(
+          iv_material         = 'MATERIAL-PREVIEW-DEMAND'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_run_id           = 'RUN-PREVIEW-DEMAND-MARKER'
+          iv_unit             = 'EA'
+          it_demands          = lt_demands ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Preview demand cannot be persisted as an allocation snapshot' ).
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    SELECT SINGLE order_id
+      FROM zstockalloc
+      WHERE matnr = 'MATERIAL-PREVIEW-DEMAND'
+        AND werks = '1000'
+        AND lgort = '0001'
+        AND order_id = 'PREVIEW-DEMAND'
+      INTO @lv_order_id.
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool( sy-subrc <> 0 ) ).
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-PREVIEW-DEMAND-MARKER'.
   ENDMETHOD.
 
   METHOD rejects_finalized_run.

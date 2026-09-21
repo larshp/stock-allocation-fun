@@ -26,7 +26,7 @@ PARAMETERS p_posnr TYPE zif_stock_allocation=>ty_sales_item.
 PARAMETERS p_etenr TYPE zif_stock_allocation=>ty_schedule_line.
 PARAMETERS p_ounit TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_order TYPE zif_stock_allocation=>ty_order_id.
-PARAMETERS p_resid TYPE zif_stock_allocation=>ty_order_id.
+PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id.
 PARAMETERS p_rmov TYPE zif_stock_allocation=>ty_movement_type.
 PARAMETERS p_runit TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_rsv AS CHECKBOX.

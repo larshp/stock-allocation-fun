@@ -30,6 +30,7 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     DATA lv_material_deleted TYPE c LENGTH 1.
     DATA lv_plant_material_deleted TYPE c LENGTH 1.
     DATA lv_batch_deleted TYPE c LENGTH 1.
+    DATA lv_storage_location TYPE t001l-lgort.
 
     IF iv_material IS INITIAL
         OR iv_plant IS INITIAL
@@ -38,13 +39,24 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     ENDIF.
     IF mo_authority IS BOUND.
       TRY.
-          mo_authority->check_stock( iv_batch = iv_batch ).
+          mo_authority->check_stock(
+            iv_plant = iv_plant
+            iv_batch = iv_batch ).
         CATCH zcx_stock_allocation INTO DATA(lo_authority_error).
           IF lo_authority_error->message IS INITIAL.
             lo_authority_error->message = 'Stock read authorization failed'.
           ENDIF.
           RAISE EXCEPTION lo_authority_error.
       ENDTRY.
+    ENDIF.
+    SELECT SINGLE lgort
+      FROM t001l
+      WHERE werks = @iv_plant
+        AND lgort = @iv_storage_location
+        INTO @lv_storage_location.
+    IF sy-subrc <> 0.
+      raise_error(
+        iv_message = 'Storage location is invalid for plant' ).
     ENDIF.
     IF iv_batch IS INITIAL.
       CLEAR lv_stock_deleted.

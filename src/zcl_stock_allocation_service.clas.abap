@@ -61,11 +61,13 @@ CLASS zcl_stock_allocation_service DEFINITION
         iv_shline_limit_active         TYPE abap_bool OPTIONAL
         iv_max_shortage_lines          TYPE i OPTIONAL
         iv_strategy                    TYPE zif_allocation_audit=>ty_strategy OPTIONAL
+        iv_include_preview_demands     TYPE abap_bool OPTIONAL
        EXPORTING
          ev_run_id                     TYPE zif_allocation_audit=>ty_run_id
          ev_existing_allocation_count  TYPE i
          ev_existing_alloc_unit_count  TYPE i
          ev_existing_cross_unit_qty    TYPE zif_stock_allocation=>ty_quantity
+         ev_preview_demands            TYPE zif_stock_allocation=>tt_demands
       RETURNING
          VALUE(rv_remaining)           TYPE zif_stock_allocation=>ty_quantity
       RAISING
@@ -203,11 +205,11 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
     DATA lt_existing TYPE zif_stock_allocation=>tt_demands.
     DATA lt_existing_units TYPE SORTED TABLE OF zif_stock_allocation=>ty_unit
       WITH UNIQUE KEY table_line.
-    DATA lt_reservations TYPE STANDARD TABLE OF zif_stock_allocation=>ty_order_id
+    DATA lt_reservations TYPE STANDARD TABLE OF zif_stock_allocation=>ty_reservation_id
       WITH EMPTY KEY.
-    DATA lt_reused TYPE STANDARD TABLE OF zif_stock_allocation=>ty_order_id
+    DATA lt_reused TYPE STANDARD TABLE OF zif_stock_allocation=>ty_reservation_id
       WITH EMPTY KEY.
-    DATA lt_existing_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_order_id
+    DATA lt_existing_reservation_ids TYPE SORTED TABLE OF zif_stock_allocation=>ty_reservation_id
       WITH UNIQUE KEY table_line.
     DATA lt_cancel_movement_types TYPE SORTED TABLE OF zif_stock_allocation=>ty_movement_type
       WITH UNIQUE KEY table_line.
@@ -215,18 +217,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_existing_unit TYPE zif_stock_allocation=>ty_unit.
     DATA lv_existing_run_id TYPE zif_stock_allocation=>ty_run_id.
-    DATA lv_reservation_document TYPE c LENGTH 10.
+    DATA lv_reservation_document TYPE zif_stock_allocation=>ty_reservation_id.
     DATA lv_strategy TYPE zif_allocation_audit=>ty_strategy.
     DATA lv_unit TYPE zif_stock_allocation=>ty_unit.
     FIELD-SYMBOLS <ls_demand> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_original> TYPE zif_stock_allocation=>ty_demand.
     FIELD-SYMBOLS <ls_existing> TYPE zif_stock_allocation=>ty_demand.
-    FIELD-SYMBOLS <lv_reservation> TYPE zif_stock_allocation=>ty_order_id.
+    FIELD-SYMBOLS <ls_preview_demand> TYPE zif_stock_allocation=>ty_demand.
+    FIELD-SYMBOLS <lv_reservation> TYPE zif_stock_allocation=>ty_reservation_id.
 
     CLEAR: ev_run_id,
       ev_existing_allocation_count,
       ev_existing_alloc_unit_count,
-      ev_existing_cross_unit_qty.
+      ev_existing_cross_unit_qty,
+      ev_preview_demands.
     mv_requested_on_from = iv_requested_on_from.
     mv_requested_on_to = iv_requested_on_to.
     mv_movement_type = iv_movement_type.
@@ -309,6 +313,36 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       ENDIF.
       raise_error(
         iv_message = 'Invalid existing-allocation reconciliation flag' ).
+    ENDIF.
+
+    IF iv_include_preview_demands IS NOT INITIAL
+        AND iv_include_preview_demands <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Invalid preview-demand output flag' ).
+      ENDIF.
+      raise_error( iv_message = 'Invalid preview-demand output flag' ).
+    ENDIF.
+    IF iv_include_preview_demands = abap_true
+        AND iv_preview <> abap_true.
+      IF mo_audit IS BOUND.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = 0
+          iv_message          = 'Preview-demand output requires preview mode' ).
+      ENDIF.
+      raise_error(
+        iv_message = 'Preview-demand output requires preview mode' ).
     ENDIF.
 
     IF iv_movement_type IS NOT INITIAL
@@ -1086,6 +1120,20 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       raise_error( iv_message = 'Batch expiration date is required for shelf-life policy' ).
     ENDIF.
     IF iv_min_shelf_life > 0.
+      IF zcl_allocation_date_sap=>can_add_days(
+           iv_date = sy-datum
+           iv_days = iv_min_shelf_life ) <> abap_true.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Minimum shelf-life threshold exceeds the supported date range' ).
+        raise_error(
+          iv_message = 'Minimum shelf-life threshold exceeds the supported date range' ).
+      ENDIF.
       lv_min_shelf_life_date = sy-datum + iv_min_shelf_life.
       IF ls_available-batch_expiration_date < lv_min_shelf_life_date.
         record_rejection(
@@ -1387,23 +1435,34 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
           ENDIF.
         ENDIF.
     ENDLOOP.
-    IF iv_quantity_limit_active = abap_true.
-      CLEAR lv_requested_total.
-      LOOP AT lt_demands ASSIGNING <ls_demand>.
-        IF <ls_demand>-requested > iv_max_requested_quantity
-            - lv_requested_total.
-          record_rejection(
-            iv_material         = iv_material
-            iv_plant            = iv_plant
-            iv_storage_location = iv_storage_location
-            iv_batch            = iv_batch
-            iv_unit             = lv_unit
-            iv_available        = lv_available
-            iv_message          = 'Maximum requested quantity exceeded' ).
-          raise_error( iv_message = 'Maximum requested quantity exceeded' ).
-        ENDIF.
-        lv_requested_total = lv_requested_total + <ls_demand>-requested.
-      ENDLOOP.
+    CLEAR lv_requested_total.
+    LOOP AT lt_demands ASSIGNING <ls_demand>.
+      IF <ls_demand>-requested
+          > zif_stock_allocation=>c_max_quantity - lv_requested_total.
+        record_rejection(
+          iv_material         = iv_material
+          iv_plant            = iv_plant
+          iv_storage_location = iv_storage_location
+          iv_batch            = iv_batch
+          iv_unit             = lv_unit
+          iv_available        = lv_available
+          iv_message          = 'Total requested quantity exceeds supported quantity range' ).
+        raise_error(
+          iv_message = 'Total requested quantity exceeds supported quantity range' ).
+      ENDIF.
+      lv_requested_total = lv_requested_total + <ls_demand>-requested.
+    ENDLOOP.
+    IF iv_quantity_limit_active = abap_true
+        AND lv_requested_total > iv_max_requested_quantity.
+      record_rejection(
+        iv_material         = iv_material
+        iv_plant            = iv_plant
+        iv_storage_location = iv_storage_location
+        iv_batch            = iv_batch
+        iv_unit             = lv_unit
+        iv_available        = lv_available
+        iv_message          = 'Maximum requested quantity exceeded' ).
+      raise_error( iv_message = 'Maximum requested quantity exceeded' ).
     ENDIF.
     IF iv_preview <> abap_true
         OR iv_reconcile_existing = abap_true.
@@ -1477,7 +1536,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             OR <ls_existing>-sales_document = '0000000000'
             OR ( <ls_existing>-reservation_id IS NOT INITIAL
               AND strlen( <ls_existing>-reservation_id )
-                  <> zif_stock_allocation=>c_sap_document_length )
+                  <> zif_stock_allocation=>c_reservation_id_length )
             OR ( <ls_existing>-reservation_id IS NOT INITIAL
               AND <ls_existing>-reservation_id CN '0123456789 ' )
             OR ( <ls_existing>-reservation_id IS NOT INITIAL
@@ -2194,7 +2253,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             ENDIF.
             lv_reservation_document = <ls_demand>-reservation_id.
             IF strlen( <ls_demand>-reservation_id )
-                  <> zif_stock_allocation=>c_sap_document_length
+                  <> zif_stock_allocation=>c_reservation_id_length
                 OR lv_reservation_document CN '0123456789'
                 OR lv_reservation_document = '0000000000'.
               lv_reservation_failed = abap_true.
@@ -2211,7 +2270,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         LOOP AT lt_reservations ASSIGNING <lv_reservation>.
           TRY.
               mo_reservation->cancel(
-                iv_document      = <lv_reservation>
+                iv_document      = CONV string( <lv_reservation> )
                 iv_plant         = iv_plant
                 iv_movement_type = iv_movement_type ).
             CATCH zcx_stock_allocation INTO lo_cleanup_error.
@@ -2344,7 +2403,7 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
         LOOP AT lt_reservations ASSIGNING <lv_reservation>.
           TRY.
               mo_reservation->cancel(
-                iv_document      = <lv_reservation>
+                iv_document      = CONV string( <lv_reservation> )
                 iv_plant         = iv_plant
                 iv_movement_type = iv_movement_type ).
             CATCH zcx_stock_allocation INTO lo_cleanup_error.
@@ -2444,8 +2503,9 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
             TRANSPORTING NO FIELDS.
           IF sy-subrc <> 0.
             TRY.
+                lv_reservation_document = <ls_existing>-reservation_id.
                 mo_reservation->cancel(
-                  iv_document      = <ls_existing>-reservation_id
+                  iv_document      = CONV string( lv_reservation_document )
                   iv_plant         = iv_plant
                   iv_movement_type = <ls_existing>-reservation_movement_type ).
               CATCH zcx_stock_allocation INTO lo_cleanup_error.
@@ -2575,6 +2635,15 @@ CLASS zcl_stock_allocation_service IMPLEMENTATION.
       CREATE OBJECT lo_error.
       lo_error->message = lv_message.
       RAISE EXCEPTION lo_error.
+    ENDIF.
+    IF iv_include_preview_demands = abap_true.
+      ev_preview_demands = lt_demands.
+      LOOP AT ev_preview_demands ASSIGNING <ls_preview_demand>.
+        <ls_preview_demand>-allocation_run_id = lv_run_id.
+        <ls_preview_demand>-preview = abap_true.
+        <ls_preview_demand>-allocation_strategy = lv_strategy.
+        <ls_preview_demand>-allocation_unit = lv_unit.
+      ENDLOOP.
     ENDIF.
   ENDMETHOD.
 

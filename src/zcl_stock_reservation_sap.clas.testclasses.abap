@@ -80,7 +80,7 @@ ENDCLASS.
 CLASS ltcl_stock_reservation_sap IMPLEMENTATION.
   METHOD delegates_to_reservation_bapi.
     DATA lo_cut TYPE REF TO zif_stock_reservation.
-    DATA lv_document TYPE zif_stock_allocation=>ty_order_id.
+    DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
 
     CREATE OBJECT lo_cut TYPE zcl_stock_reservation_sap.
     lv_document = lo_cut->reserve(

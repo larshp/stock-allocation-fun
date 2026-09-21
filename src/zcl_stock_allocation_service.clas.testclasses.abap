@@ -28,6 +28,8 @@ CLASS ltcl_stock_alloc_service_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_quantity_limit FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_sum_overflow FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_allocation_limit FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_min_alloc_limit FOR TESTING
@@ -309,6 +311,33 @@ CLASS lcl_overflow_order_source IMPLEMENTATION.
                     order_unit   = 'EA'
                     requested_on = sy-datum
                     requested    = 1 ) TO rt_demands.
+  ENDMETHOD.
+ENDCLASS.
+
+CLASS lcl_sum_overflow_order_src DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_order_source.
+ENDCLASS.
+
+CLASS lcl_sum_overflow_order_src IMPLEMENTATION.
+  METHOD zif_order_source~get_open_demands.
+    APPEND VALUE #( sales_document      = '5000000001'
+                    sales_document_type = 'OR'
+                    sales_item          = '000010'
+                    schedule_line       = '0001'
+                    order_id            = '50000000010000100001'
+                    order_unit          = 'EA'
+                    requested_on        = sy-datum
+                    requested           = zif_stock_allocation=>c_max_quantity )
+      TO rt_demands.
+    APPEND VALUE #( sales_document      = '5000000002'
+                    sales_document_type = 'OR'
+                    sales_item          = '000010'
+                    schedule_line       = '0001'
+                    order_id            = '50000000020000100001'
+                    order_unit          = 'EA'
+                    requested_on        = sy-datum
+                    requested           = '0.001' ) TO rt_demands.
   ENDMETHOD.
 ENDCLASS.
 
@@ -1856,12 +1885,12 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
     DATA lv_remaining TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_allocation_count TYPE i.
-    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
-    DATA lv_second_reservation_id TYPE zif_stock_allocation=>ty_order_id.
-    DATA lv_rerun_reservation_id TYPE zif_stock_allocation=>ty_order_id.
-    DATA lv_rerun_second_reservation_id TYPE zif_stock_allocation=>ty_order_id.
-    DATA lv_changed_reservation_id TYPE zif_stock_allocation=>ty_order_id.
-    DATA lv_changed_second_id TYPE zif_stock_allocation=>ty_order_id.
+    DATA lv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_second_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_rerun_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_rerun_second_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_changed_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
+    DATA lv_changed_second_id TYPE zif_stock_allocation=>ty_reservation_id.
     DATA lv_reservations_differ TYPE abap_bool.
     DATA lv_run_count TYPE i.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
@@ -2873,6 +2902,43 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       exp = 'Maximum requested quantity exceeded' ).
   ENDMETHOD.
 
+  METHOD rejects_sum_overflow.
+    DATA lo_stock_source TYPE REF TO zif_stock_source.
+    DATA lo_order_source TYPE REF TO zif_order_source.
+    DATA lo_allocator TYPE REF TO zif_stock_allocation.
+    DATA lo_audit TYPE REF TO zif_allocation_audit.
+    DATA lo_cut TYPE REF TO zcl_stock_allocation_service.
+    DATA lv_raised TYPE abap_bool.
+
+    CREATE OBJECT lo_stock_source TYPE lcl_overflow_stock_source.
+    CREATE OBJECT lo_order_source TYPE lcl_sum_overflow_order_src.
+    CREATE OBJECT lo_allocator TYPE zcl_stock_allocator.
+    CREATE OBJECT lo_audit TYPE zcl_allocation_audit_sap.
+    CREATE OBJECT lo_cut
+      EXPORTING
+        io_stock_source = lo_stock_source
+        io_order_source = lo_order_source
+        io_allocator    = lo_allocator
+        io_audit        = lo_audit.
+
+    TRY.
+        lo_cut->allocate(
+          iv_material         = 'MATERIAL-SUM-OVERFLOW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001'
+          iv_movement_type    = '201'
+          iv_unit             = 'EA'
+          iv_preview          = abap_true ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Total requested quantity exceeds supported quantity range' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
   METHOD rejects_allocation_limit.
     DATA lo_stock_source TYPE REF TO zif_stock_source.
     DATA lo_order_source TYPE REF TO zif_order_source.
@@ -3390,6 +3456,7 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
     DATA lv_preview TYPE abap_bool.
     DATA lv_before_count TYPE i.
     DATA lv_after_count TYPE i.
+    DATA lt_preview_demands TYPE zif_stock_allocation=>tt_demands.
 
     CREATE OBJECT lo_stock_source TYPE zcl_stock_source_sap.
     CREATE OBJECT lo_order_source TYPE zcl_order_source_sap.
@@ -3412,14 +3479,16 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
 
     lv_remaining = lo_cut->allocate(
       EXPORTING
-      iv_material         = 'MATERIAL-PRIO'
-      iv_plant            = '1000'
-      iv_storage_location = '0001'
-      iv_movement_type    = '201'
-      iv_unit             = 'EA'
-      iv_preview          = abap_true
+        iv_material                = 'MATERIAL-PRIO'
+        iv_plant                   = '1000'
+        iv_storage_location        = '0001'
+        iv_movement_type           = '201'
+        iv_unit                    = 'EA'
+        iv_preview                 = abap_true
+        iv_include_preview_demands = abap_true
       IMPORTING
-        ev_run_id         = lv_run_id ).
+        ev_run_id                  = lv_run_id
+        ev_preview_demands         = lt_preview_demands ).
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_remaining
@@ -3440,6 +3509,23 @@ CLASS ltcl_stock_alloc_service_sap IMPLEMENTATION.
       INTO @lv_preview.
     cl_abap_unit_assert=>assert_equals(
       act = lv_preview
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_preview_demands )
+      exp = 2 ).
+    READ TABLE lt_preview_demands ASSIGNING FIELD-SYMBOL(<ls_preview_demand>)
+      INDEX 1.
+    cl_abap_unit_assert=>assert_equals(
+      act = sy-subrc
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = <ls_preview_demand>-allocation_run_id
+      exp = lv_run_id ).
+    cl_abap_unit_assert=>assert_equals(
+      act = <ls_preview_demand>-allocation_unit
+      exp = 'EA' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = <ls_preview_demand>-preview
       exp = abap_true ).
   ENDMETHOD.
 

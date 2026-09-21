@@ -33,28 +33,37 @@ export function installBapiStockStub(abap) {
   let rollbackReturnInvalid = false;
   let reservationCounter = 0;
   let movementCounter = 0;
+  const allocationLocks = new Set();
   abap.FunctionModules["ENQUEUE_EZSTOCKALLOC"] = async (input) => {
     const material = input.exporting.matnr.get()?.trim();
     const plant = input.exporting.werks.get()?.trim();
     const storageLocation = input.exporting.lgort.get()?.trim();
-    if (!material || !plant || !storageLocation) {
+    const batch = input.exporting.charg.get()?.trim();
+    const lockKey = `${material}|${plant}|${storageLocation}|${batch}`;
+    if (!material || !plant || !storageLocation
+      || allocationLocks.has(lockKey)) {
       throw {classic: "OTHERS"};
     }
     if (material === "MATERIAL-LOCK-ERROR") {
       throw {classic: "OTHERS"};
     }
+    allocationLocks.add(lockKey);
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["DEQUEUE_EZSTOCKALLOC"] = async (input) => {
     const material = input.exporting.matnr.get()?.trim();
     const plant = input.exporting.werks.get()?.trim();
     const storageLocation = input.exporting.lgort.get()?.trim();
+    const batch = input.exporting.charg.get()?.trim();
+    const lockKey = `${material}|${plant}|${storageLocation}|${batch}`;
     if (!material || !plant || !storageLocation) {
       throw {classic: "OTHERS"};
     }
     if (material === "MATERIAL-UNLOCK-ERROR") {
+      allocationLocks.delete(lockKey);
       throw {classic: "OTHERS"};
     }
+    allocationLocks.delete(lockKey);
     abap.builtin.sy.get().subrc.set(0);
   };
   abap.FunctionModules["MD_CONVERT_MATERIAL_UNIT"] = async (input) => {

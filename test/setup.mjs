@@ -7,6 +7,7 @@ export async function initializeDatabase(abap, schemas, insert) {
   await database.execute(schemas.sqlite);
   await database.execute(insert);
   await database.execute([
+    "INSERT INTO t001l (mandt, werks, lgort) VALUES ('000', '1000', '0001');",
     "INSERT INTO mara (mandt, matnr, meins) VALUES ('000', 'MATERIAL-STOCK', 'EA');",
     "INSERT INTO mara (mandt, matnr, meins) VALUES ('000', 'MATERIAL-PRIO', 'ea');",
     "INSERT INTO mara (mandt, matnr, meins) VALUES ('000', 'MATERIAL-TXN-FAIL', 'EA');",
@@ -77,7 +78,7 @@ export async function initializeDatabase(abap, schemas, insert) {
     "INSERT INTO mchb (mandt, matnr, werks, lgort, charg, clabs) VALUES ('000', 'MATERIAL-EXPIRING', '1000', '0001', 'EXPIRE-01', 4);",
     "INSERT INTO mcha (mandt, matnr, werks, charg, vfdat) VALUES ('000', 'MATERIAL-EXPIRING', '1000', 'EXPIRE-01', '20260810');",
     "INSERT INTO mard (mandt, matnr, werks, lgort, labst) VALUES ('001', 'MATERIAL-STOCK', '1000', '0001', 99);",
-    "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', '1000000001', 'C', 'OR', '');",
+    "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk, vkorg, vtweg, spart) VALUES ('000', '1000000001', 'C', 'OR', '', '1000', '10', '00');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', '0000000000', 'C', 'OR', '');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', '1000000002', 'C', 'OR', '');",
     "INSERT INTO vbak (mandt, vbeln, vbtyp, auart, lifsk) VALUES ('000', '1000000003', 'C', 'OR', '');",

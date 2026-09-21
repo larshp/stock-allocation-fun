@@ -171,6 +171,12 @@ START-OF-SELECTION.
     lv_error_message = 'Minimum shelf life cannot be negative'.
   ELSEIF p_shelf > 0 AND p_charg IS INITIAL.
     lv_error_message = 'Minimum shelf life requires a batch'.
+  ELSEIF p_shelf > 0
+      AND zcl_allocation_date_sap=>can_add_days(
+        iv_date = lv_expiration_as_of
+        iv_days = p_shelf ) <> abap_true.
+    lv_error_message =
+      'Minimum shelf-life threshold exceeds the supported date range'.
   ELSEIF p_saf < 0.
     lv_error_message = 'Safety stock cannot be negative'.
   ELSEIF p_amin < 0.

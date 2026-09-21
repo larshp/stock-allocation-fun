@@ -275,6 +275,12 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_PLAN</KEY>
+     <ENTRY>Include preview line plan</ENTRY>
+     <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_RECON</KEY>
      <ENTRY>Reconcile existing allocations in preview</ENTRY>
      <LENGTH>43</LENGTH>
@@ -290,6 +296,12 @@
      <KEY>P_CSV</KEY>
      <ENTRY>CSV summary output</ENTRY>
      <LENGTH>25</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_NDJSON</KEY>
+     <ENTRY>NDJSON preview plan</ENTRY>
+     <LENGTH>22</LENGTH>
     </item>
     <item>
      <ID>S</ID>

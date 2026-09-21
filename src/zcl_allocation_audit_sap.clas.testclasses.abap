@@ -138,6 +138,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_corrupt_read FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS rejects_quantity_sum_overflow FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_negative_policy_read FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_count_read FOR TESTING
@@ -169,6 +171,8 @@ CLASS ltcl_allocation_audit_sap DEFINITION FINAL FOR TESTING
     METHODS summarizes_adaptive_branch FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS summarizes_weighted_strategy FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_summary_qty_overflow FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS latest_summary_tie_breaker FOR TESTING
       RAISING zcx_stock_allocation.
@@ -583,6 +587,62 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-weighted_coverage
       exp = '62.50' ).
+  ENDMETHOD.
+
+  METHOD rejects_summary_qty_overflow.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
+    DATA lv_raised TYPE abap_bool.
+    DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-SUM-OVERFLOW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = zif_stock_allocation=>c_max_quantity
+      iv_demand_count     = 1
+      iv_strategy         = 'P' ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_run_id
+      iv_status     = 'S'
+      iv_available  = zif_stock_allocation=>c_max_quantity
+      iv_allocated  = zif_stock_allocation=>c_max_quantity
+      iv_shortage   = 0
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    lv_run_id = lo_cut->start_run(
+      iv_material         = 'MATERIAL-AUDIT-SUM-OVERFLOW'
+      iv_plant            = '1000'
+      iv_storage_location = '0001'
+      iv_unit             = 'EA'
+      iv_available        = zif_stock_allocation=>c_max_quantity
+      iv_demand_count     = 1
+      iv_strategy         = 'P' ).
+    lo_cut->finish_run(
+      iv_run_id     = lv_run_id
+      iv_status     = 'S'
+      iv_available  = zif_stock_allocation=>c_max_quantity
+      iv_allocated  = zif_stock_allocation=>c_max_quantity
+      iv_shortage   = 0
+      iv_full_count = 1
+      iv_message    = '' ).
+
+    TRY.
+        ls_summary = lo_cut->get_summary(
+          iv_material         = 'MATERIAL-AUDIT-SUM-OVERFLOW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit summary quantity exceeds supported quantity range' ).
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 
   METHOD latest_summary_tie_breaker.
@@ -1620,6 +1680,49 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     ENDTRY.
     DELETE FROM zstockalloc_run
       WHERE run_id = 'RUN-AUDIT-CORRUPT'.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_quantity_sum_overflow.
+    DATA lo_cut TYPE REF TO zif_allocation_audit.
+    DATA ls_run TYPE zstockalloc_run.
+    DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_raised TYPE abap_bool.
+
+    ls_run-mandt = sy-mandt.
+    ls_run-run_id = 'RUN-AUDIT-QUANTITY-OVERFLOW'.
+    ls_run-matnr = 'MATERIAL-AUDIT-QUANTITY-OVERFLOW'.
+    ls_run-werks = '1000'.
+    ls_run-lgort = '0001'.
+    ls_run-unit = 'EA'.
+    ls_run-start_date = sy-datum.
+    ls_run-start_time = sy-uzeit.
+    ls_run-finish_date = sy-datum.
+    ls_run-finish_time = sy-uzeit.
+    ls_run-status = 'P'.
+    ls_run-available = zif_stock_allocation=>c_max_quantity.
+    ls_run-allocated = zif_stock_allocation=>c_max_quantity.
+    ls_run-shortage = '0.001'.
+    ls_run-demand_count = 1.
+    ls_run-partial_count = 1.
+    ls_run-message = 'Corrupt quantity overflow fixture'.
+    INSERT zstockalloc_run FROM @ls_run.
+
+    CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
+    TRY.
+        lt_runs = lo_cut->get_runs(
+          iv_material         = 'MATERIAL-AUDIT-QUANTITY-OVERFLOW'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        cl_abap_unit_assert=>assert_equals(
+          act = lo_error->message
+          exp = 'Audit run data is invalid' ).
+    ENDTRY.
+
+    DELETE FROM zstockalloc_run
+      WHERE run_id = 'RUN-AUDIT-QUANTITY-OVERFLOW'.
     cl_abap_unit_assert=>assert_true( lv_raised ).
   ENDMETHOD.
 

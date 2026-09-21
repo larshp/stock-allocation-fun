@@ -10,12 +10,12 @@ INTERFACE zif_stock_reservation PUBLIC.
       iv_required_date    TYPE d
       iv_batch            TYPE zif_stock_allocation=>ty_batch OPTIONAL
     RETURNING
-      VALUE(rv_document)  TYPE zif_stock_allocation=>ty_order_id
+      VALUE(rv_document)  TYPE zif_stock_allocation=>ty_reservation_id
     RAISING
       zcx_stock_allocation.
   METHODS cancel
     IMPORTING
-      iv_document      TYPE zif_stock_allocation=>ty_order_id
+      iv_document      TYPE string
       iv_plant         TYPE zif_stock_allocation=>ty_plant
       iv_movement_type TYPE zif_stock_allocation=>ty_movement_type
     RAISING

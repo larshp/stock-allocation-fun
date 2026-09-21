@@ -32,7 +32,7 @@ INTERFACE zif_allocation_sink PUBLIC.
       iv_schedule_line              TYPE zif_stock_allocation=>ty_schedule_line OPTIONAL
       iv_order_unit                 TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_order_id                   TYPE zif_stock_allocation=>ty_order_id OPTIONAL
-      iv_reservation_id             TYPE zif_stock_allocation=>ty_order_id OPTIONAL
+      iv_reservation_id             TYPE zif_stock_allocation=>ty_reservation_id OPTIONAL
       iv_movement_type              TYPE zif_stock_allocation=>ty_movement_type OPTIONAL
       iv_reservation_unit           TYPE zif_stock_allocation=>ty_unit OPTIONAL
       iv_reserved_only              TYPE abap_bool OPTIONAL

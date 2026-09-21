@@ -7,6 +7,18 @@ const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = path.resolve(testDirectory, "..");
 const sourceDirectory = path.join(repositoryDirectory, "src");
 const stubDirectory = path.join(repositoryDirectory, "sap_stubs");
+const salesDocumentTypeStub = fs.readFileSync(
+  path.join(stubDirectory, "vbeln_va.dtel.xml"),
+  "utf8",
+);
+const stockAllocationTableSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstockalloc.tabl.xml"),
+  "utf8",
+);
+const allocationReportSource = fs.readFileSync(
+  path.join(sourceDirectory, "zstock_allocate.prog.abap"),
+  "utf8",
+);
 
 function readJson(fileName) {
   return JSON.parse(fs.readFileSync(path.join(repositoryDirectory, fileName), "utf8"));
@@ -32,6 +44,126 @@ const abaplint = readJson("abaplint.json");
 const transpiler = readJson("transpiler.json");
 const packageJson = readJson("package.json");
 const packageLock = readJson("package-lock.json");
+assert.equal(
+  packageJson.scripts.verify,
+  "npm test",
+  "verify must reuse the lint and transpile checks already run by npm test",
+);
+assert.match(
+  allocationReportSource,
+  /PARAMETERS\s+p_plan\s+AS CHECKBOX[\s\S]*iv_include_preview_demands\s*=\s*p_plan[\s\S]*preview_lines/i,
+  "allocation report must expose its service preview plan as JSON line details",
+);
+assert.match(
+  allocationReportSource,
+  /p_plan\s*=\s*abap_true\s+AND\s+p_test\s*<>\s*abap_true[\s\S]*Preview line plan requires preview mode/i,
+  "allocation preview line details must be rejected outside preview mode",
+);
+assert.match(
+  allocationReportSource,
+  /p_plan\s*=\s*abap_true\s+AND\s+p_json\s*<>\s*abap_true\s+AND\s+p_csv\s*<>\s*abap_true[\s\S]*Preview line plan requires JSON or CSV output/i,
+  "allocation preview line details must require JSON or CSV output",
+);
+assert.match(
+  allocationReportSource,
+  /PARAMETERS\s+p_ndjson\s+AS CHECKBOX[\s\S]*p_ndjson\s*=\s*abap_true\s+AND\s+p_json\s*=\s*abap_false[\s\S]*NDJSON output requires JSON mode[\s\S]*p_ndjson\s*=\s*abap_true\s+AND\s+p_plan\s*=\s*abap_false[\s\S]*NDJSON output requires a preview line plan/i,
+  "allocation NDJSON must require JSON mode and a preview line plan",
+);
+const allocationNdjsonPlanStart = allocationReportSource.indexOf(
+  "APPEND lv_preview_summary_json TO lt_json_fields.",
+);
+assert.notEqual(
+  allocationNdjsonPlanStart,
+  -1,
+  "allocation preview JSON summary must exist before its line records",
+);
+const allocationNdjsonPlan = allocationReportSource.slice(allocationNdjsonPlanStart);
+assert.match(
+  allocationNdjsonPlan,
+  /iv_value\s*=\s*'summary'[\s\S]*WRITE:\s*\/\s*lv_json_line[\s\S]*LOOP AT lt_preview_demands INTO ls_preview_demand\.[\s\S]*IF p_ndjson = abap_true\.[\s\S]*WRITE:\s*\/\s*lv_preview_row_json[\s\S]*ELSE\.[\s\S]*APPEND lv_preview_row_json TO lt_preview_rows/i,
+  "allocation NDJSON must write the summary first and stream each line as it is built",
+);
+assert.match(
+  allocationNdjsonPlan,
+  /IF p_ndjson = abap_false\.[\s\S]*CONCATENATE LINES OF lt_preview_rows/i,
+  "allocation NDJSON must not buffer line records in the JSON array",
+);
+assert.match(
+  allocationReportSource,
+  /record_type;schema_version;run_id;material[\s\S]*preview_line_count;remaining_quantity[\s\S]*preview_unallocated_count;order_id[\s\S]*LOOP AT lt_preview_demands INTO ls_preview_demand[\s\S]*'line'/i,
+  "allocation preview plans must support one CSV row per simulated demand line",
+);
+assert.match(
+  allocationReportSource,
+  /zcl_stock_preview_summary=>calculate\([\s\S]*it_demands\s*=\s*lt_preview_demands[\s\S]*iv_remaining_quantity\s*=\s*lv_remaining/i,
+  "CSV preview summary metrics must be calculated from simulated demands",
+);
+assert.match(
+  allocationReportSource,
+  /lv_csv_schema\s*=\s*59[\s\S]*IF\s+p_plan\s*=\s*abap_true\s+AND\s+p_csv\s*=\s*abap_true[\s\S]*lv_csv_schema\s*=\s*60[\s\S]*zcl_stock_csv=>error_with_schema\([\s\S]*iv_schema\s*=\s*lv_csv_schema/i,
+  "CSV preview plan errors must advertise the same schema as preview plan rows",
+);
+const previewCsvHeaderStart = allocationReportSource.indexOf(
+  "WRITE: / 'record_type;schema_version;run_id;material;plant;'",
+);
+assert.notEqual(previewCsvHeaderStart, -1, "CSV preview plan header must exist");
+const previewCsvHeaderEnd = allocationReportSource.indexOf(
+  "allocation_status'.",
+  previewCsvHeaderStart,
+);
+assert.notEqual(previewCsvHeaderEnd, -1, "CSV preview plan header must be complete");
+const previewCsvHeader = allocationReportSource
+  .slice(
+    previewCsvHeaderStart,
+    previewCsvHeaderEnd + "allocation_status'".length,
+  )
+  .match(/'([^']*)'/g)
+  .map((field) => field.slice(1, -1))
+  .join("");
+assert.equal(
+  previewCsvHeader.split(";").length,
+  37,
+  "CSV preview plan must declare all summary and line columns",
+);
+const previewCsvLineStart = allocationReportSource.indexOf(
+  "LOOP AT lt_preview_demands INTO ls_preview_demand.",
+  previewCsvHeaderEnd,
+);
+const previewCsvLineEnd = allocationReportSource.indexOf(
+  "ENDLOOP.",
+  previewCsvLineStart,
+);
+assert.notEqual(previewCsvLineStart, -1, "CSV preview plan must emit demand rows");
+assert.notEqual(previewCsvLineEnd, -1, "CSV preview plan demand loop must close");
+const previewCsvSummary = allocationReportSource.slice(
+  previewCsvHeaderEnd,
+  previewCsvLineStart,
+);
+const previewCsvSummaryPadding = previewCsvSummary.search(/DO\s+12\s+TIMES/i);
+assert.notEqual(previewCsvSummaryPadding, -1);
+const previewCsvSummaryFields = (previewCsvSummary
+  .slice(0, previewCsvSummaryPadding)
+  .match(
+  /APPEND zcl_stock_csv=>/g,
+) ?? []).length;
+assert.equal(
+  previewCsvSummaryFields + 12,
+  37,
+  "CSV preview summary row must match the 37-column header",
+);
+const previewCsvLine = allocationReportSource.slice(
+  previewCsvLineStart,
+  previewCsvLineEnd,
+);
+const previewCsvLineAppendStatements = (previewCsvLine.match(
+  /APPEND zcl_stock_csv=>/g,
+) ?? []).length;
+assert.match(previewCsvLine, /DO\s+8\s+TIMES/i);
+assert.equal(
+  previewCsvLineAppendStatements - 1 + 8,
+  37,
+  "Each CSV preview line row must match the 37-column header",
+);
 const readmeSource = fs.readFileSync(path.join(repositoryDirectory, "README.md"), "utf8");
 const workflowPath = path.join(repositoryDirectory, ".github", "workflows", "verify.yml");
 assert.ok(fs.existsSync(workflowPath), "CI verification workflow must be present");
@@ -347,13 +479,18 @@ assert.match(
 );
 assert.match(
   sapApiStub,
-  /ENQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
+  /ENQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\s*\|\| allocationLocks\.has\(lockKey\)\)[\s\S]*throw \{classic: "OTHERS"\}[\s\S]*allocationLocks\.add\(lockKey\)/,
   "allocation enqueue stub must require material, plant, and storage scope",
 );
 assert.match(
   sapApiStub,
   /DEQUEUE_EZSTOCKALLOC[\s\S]*const material = input\.exporting\.matnr\.get\(\)\?\.trim\(\)[\s\S]*const plant = input\.exporting\.werks\.get\(\)\?\.trim\(\)[\s\S]*const storageLocation = input\.exporting\.lgort\.get\(\)\?\.trim\(\)[\s\S]*if \(!material \|\| !plant \|\| !storageLocation\)[\s\S]*throw \{classic: "OTHERS"\}/,
   "allocation dequeue stub must require material, plant, and storage scope",
+);
+assert.match(
+  sapApiStub,
+  /const allocationLocks = new Set\(\)[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*allocationLocks\.delete\(lockKey\)/,
+  "allocation SAP stub must model held locks until the matching dequeue",
 );
 assert.match(
   sapApiStub,
@@ -472,6 +609,7 @@ for (const fileName of fs.readdirSync(stubDirectory).filter(
 const requiredSapTableFields = new Map([
   ["MARA", ["MATNR", "MEINS", "XCHPF", "LVORM"]],
   ["MARC", ["MATNR", "WERKS", "LVORM"]],
+  ["T001L", ["WERKS", "LGORT"]],
   ["MARD", ["MATNR", "WERKS", "LGORT", "LABST", "LVORM"]],
   ["MARM", ["MATNR", "MEINH", "UMREZ", "UMREN"]],
   ["MCHA", ["MATNR", "WERKS", "CHARG", "VFDAT", "ZUSTD", "LVORM"]],
@@ -480,6 +618,11 @@ const requiredSapTableFields = new Map([
   ["VBAP", ["VBELN", "POSNR", "MATNR", "WERKS", "ABGRU", "LPRIO", "VRKME", "LOEKZ", "LIFSP"]],
   ["VBEP", ["VBELN", "POSNR", "ETENR", "EDATU", "WMENG", "BMENG", "LIFSP"]],
 ]);
+assert.match(
+  salesDocumentTypeStub,
+  /ROLLNAME>VBELN_VA<[\s\S]*DATATYPE>CHAR<[\s\S]*LENG>000010</,
+  "SAP VBELN_VA type stub must preserve the ten-character sales-document field",
+);
 for (const [tableName, fieldNames] of requiredSapTableFields) {
   const tableStubPath = path.join(stubDirectory, `${tableName.toLowerCase()}.tabl.xml`);
   const tableStub = fs.readFileSync(tableStubPath, "utf8");
@@ -600,6 +743,11 @@ assert.match(
   /Plant material data is missing/,
   "SAP stock source must reject material stock without plant data",
 );
+assert.match(
+  stockSourceSource,
+  /SELECT SINGLE lgort[\s\S]*FROM t001l[\s\S]*WHERE werks = @iv_plant[\s\S]*AND lgort = @iv_storage_location[\s\S]*Storage location is invalid for plant/,
+  "SAP stock source must reject storage locations that are not assigned to the requested plant",
+);
 const orderSourceSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_order_source_sap.clas.abap"),
   "utf8",
@@ -613,9 +761,10 @@ assert.match(
   /iv_table\s*=\s*'MARC'[\s\S]*Plant material read authorization failed/,
   "stock read authorization must cover MARC plant data",
 );
-const allocationReportSource = fs.readFileSync(
-  path.join(sourceDirectory, "zstock_allocate.prog.abap"),
-  "utf8",
+assert.match(
+  sourceAuthoritySource,
+  /iv_table\s*=\s*'T001L'[\s\S]*Storage location read authorization failed/,
+  "stock read authorization must cover T001L storage-location master data",
 );
 const transactionInterfaceSource = fs.readFileSync(
   path.join(sourceDirectory, "zif_allocation_transaction.intf.abap"),
@@ -633,8 +782,16 @@ const stockAllocationInterfaceSource = fs.readFileSync(
   path.join(sourceDirectory, "zif_stock_allocation.intf.abap"),
   "utf8",
 );
+const orderSinkInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_order_sink.intf.abap"),
+  "utf8",
+);
 const allocationSinkInterfaceSource = fs.readFileSync(
   path.join(sourceDirectory, "zif_allocation_sink.intf.abap"),
+  "utf8",
+);
+const stockAllocationCompareInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_stock_allocation_compare.intf.abap"),
   "utf8",
 );
 const auditSource = fs.readFileSync(
@@ -673,8 +830,17 @@ const allocationLockSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_allocation_lock_sap.clas.abap"),
   "utf8",
 );
+assert.match(
+  allocationLockSource,
+  /METHOD zif_stock_allocation_lock~acquire[\s\S]*ENQUEUE_EZSTOCKALLOC[\s\S]*charg\s*=\s*space[\s\S]*METHOD zif_stock_allocation_lock~release[\s\S]*DEQUEUE_EZSTOCKALLOC[\s\S]*charg\s*=\s*space/,
+  "allocation locks must serialize aggregate and batch stock at material/plant/storage scope",
+);
 const reservationSource = fs.readFileSync(
   path.join(sourceDirectory, "zcl_stock_reservation_sap.clas.abap"),
+  "utf8",
+);
+const reservationInterfaceSource = fs.readFileSync(
+  path.join(sourceDirectory, "zif_stock_reservation.intf.abap"),
   "utf8",
 );
 const movementSource = fs.readFileSync(
@@ -747,6 +913,25 @@ for (const allocatorFile of [
     `${allocatorFile} must reject priorities above the SAP range`,
   );
 }
+const autoAllocatorSource = fs.readFileSync(
+  path.join(sourceDirectory, "zcl_stock_allocator_auto.clas.abap"),
+  "utf8",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /c_max_quantity TYPE ty_quantity VALUE '999999999999\.999'/,
+  "shared quantity typing must define its supported maximum aggregate",
+);
+assert.match(
+  autoAllocatorSource,
+  /requested\s*>\s*zif_stock_allocation=>c_max_quantity\s*-\s*lv_requested_total[\s\S]*Total requested quantity exceeds supported quantity range[\s\S]*lv_requested_total\s*=\s*lv_requested_total\s*\+\s*<ls_demand>-requested/,
+  "adaptive allocation must reject requested-total overflow before summing",
+);
+assert.match(
+  allocationServiceSource,
+  /CLEAR lv_requested_total\.[\s\S]*requested\s*>\s*zif_stock_allocation=>c_max_quantity\s*-\s*lv_requested_total[\s\S]*Total requested quantity exceeds supported quantity range[\s\S]*lv_requested_total\s*=\s*lv_requested_total\s*\+\s*<ls_demand>-requested[\s\S]*iv_quantity_limit_active = abap_true[\s\S]*lv_requested_total > iv_max_requested_quantity/,
+  "allocation service must guard aggregate totals even when the optional quantity cap is inactive",
+);
 assert.match(
   allocationServiceSource,
   /<ls_existing>-priority\s*<\s*0/,
@@ -883,13 +1068,23 @@ assert.match(
 );
 assert.match(
   allocationSinkSource,
-  /iv_reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*iv_reservation_id\s+CN\s+'0123456789\s*'[\s\S]*lv_reservation_document_filter\s+CN\s+'0123456789'[\s\S]*lv_reservation_document_filter\s*=\s*'0000000000'/,
+  /iv_reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*iv_reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length[\s\S]*iv_reservation_id\s+CN\s+'0123456789\s*'[\s\S]*lv_reservation_document_filter\s+CN\s+'0123456789'[\s\S]*lv_reservation_document_filter\s*=\s*'0000000000'/,
   "allocation result reads must reject malformed numeric reservation filters",
 );
 assert.match(
   allocationSinkSource,
   /is_demand-reservation_id\s*=\s*'0000000000'/,
   "allocation snapshots must reject the all-zero reservation sentinel",
+);
+assert.match(
+  allocationSinkSource,
+  /iv_require_operational\s*=\s*abap_true[\s\S]*SELECT SINGLE[\s\S]*strategy, preview[\s\S]*IF lv_run_preview <> abap_true AND lv_run_preview <> abap_false[\s\S]*IF iv_require_operational = abap_true\s+AND lv_run_preview = abap_true[\s\S]*Preview run cannot persist allocation snapshots/,
+  "allocation snapshot persistence must reject preview audit runs",
+);
+assert.match(
+  allocationSinkSource,
+  /ls_demand-preview IS NOT INITIAL[\s\S]*Preview demand cannot be persisted as an allocation snapshot/,
+  "allocation snapshot persistence must reject preview-marked demand rows",
 );
 assert.match(
   allocationSinkSource,
@@ -1068,8 +1263,8 @@ assert.match(
 );
 assert.match(
   stockSourceSource,
-  /mo_authority->check_stock\(\s*iv_batch\s*=\s*iv_batch\s*\)/,
-  "stock source must check read authority before selecting SAP stock",
+  /mo_authority->check_stock\(\s*iv_plant\s*=\s*iv_plant\s*iv_batch\s*=\s*iv_batch\s*\)/,
+  "stock source must pass plant and batch scope to read authority before selecting SAP stock",
 );
 assert.match(
   stockSourceSource,
@@ -1102,6 +1297,11 @@ assert.match(
   "shared SAP date validation must check calendar month lengths and leap years",
 );
 assert.match(
+  allocationDateSource,
+  /METHOD can_add_days\.[\s\S]*lv_last_supported_date TYPE d VALUE '99991231'[\s\S]*lv_last_supported_date - iv_date[\s\S]*iv_days <= lv_maximum_days/,
+  "shared date validation must reject day additions beyond the supported DATS range",
+);
+assert.match(
   allocationTimeSource,
   /CLASS-METHODS\s+is_valid_or_initial[\s\S]*lv_hour[\s\S]*lv_minute[\s\S]*lv_second[\s\S]*lv_hour\s*<=\s*23[\s\S]*lv_minute\s*<=\s*59[\s\S]*lv_second\s*<=\s*59/,
   "shared SAP time validation must check clock bounds",
@@ -1125,6 +1325,11 @@ assert.match(
   orderSourceSource,
   /io_authority\s+TYPE REF TO zif_source_read_authority/,
   "order source must expose an injectable read-authority port",
+);
+assert.match(
+  orderSourceSource,
+  /BEGIN OF ty_schedule,[\s\S]*order_id\s+TYPE zif_stock_allocation=>ty_sales_document[\s\S]*item_id\s+TYPE zif_stock_allocation=>ty_sales_item[\s\S]*schedule_line\s+TYPE zif_stock_allocation=>ty_schedule_line[\s\S]*order_unit\s+TYPE zif_stock_allocation=>ty_unit/,
+  "order source projections must preserve the shared SAP document, item, schedule, and unit types",
 );
 assert.match(
   orderSourceSource,
@@ -1158,8 +1363,13 @@ assert.match(
 );
 assert.match(
   orderSourceSource,
-  /schedule~edatu\s*>=\s*'00000000'[\s\S]*schedule~edatu\s*<=\s*'99999999'[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial/,
-  "order source must validate every candidate requested date before horizon filtering",
+  /lv_requested_on_from\s*=\s*iv_requested_on_from[\s\S]*IF lv_requested_on_from IS INITIAL[\s\S]*lv_requested_on_from\s*=\s*'00000000'[\s\S]*lv_requested_on_to\s*=\s*iv_requested_on_to[\s\S]*IF lv_requested_on_to IS INITIAL[\s\S]*lv_requested_on_to\s*=\s*'99999999'/,
+  "order source must expand an omitted requested-date horizon to the full DATS range",
+);
+assert.match(
+  orderSourceSource,
+  /schedule~edatu\s*>=\s*@lv_requested_on_from[\s\S]*schedule~edatu\s*<=\s*@lv_requested_on_to[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial/,
+  "order source must push the requested-date horizon into SQL and validate returned dates",
 );
 assert.match(
   allocationServiceSource,
@@ -1231,7 +1441,7 @@ assert.match(
   /iv_required_date[\s\S]*zcl_allocation_date_sap=>is_valid_or_initial[\s\S]*Reservation input is invalid/,
   "SAP reservation creation must reject malformed required dates",
 );
-for (const tableName of ["MARA", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
+for (const tableName of ["MARA", "MARC", "T001L", "MARD", "MCHB", "MCHA", "VBAK", "VBAP", "VBEP"]) {
   assert.match(
     sourceAuthoritySource,
     new RegExp(`iv_table\\s*=\\s*'${tableName}'`),
@@ -1250,8 +1460,23 @@ assert.match(
 );
 assert.match(
   sourceAuthoritySource,
+  /AUTHORITY-CHECK OBJECT 'M_MATE_MAN'[\s\S]*ID 'ACTVT' FIELD '03'[\s\S]*AUTHORITY-CHECK OBJECT 'M_MATE_WRK'[\s\S]*ID 'ACTVT' FIELD '03'[\s\S]*ID 'WERKS' FIELD iv_plant/,
+  "stock read authority must require material-master display and plant-scoped stock display",
+);
+assert.match(
+  sourceAuthoritySource,
   /ID 'ACTVT' FIELD '03'/,
   "source read authority must check activity 03",
+);
+assert.match(
+  sourceAuthoritySource,
+  /check_sales_document[\s\S]*AUTHORITY-CHECK OBJECT 'V_VBAK_AAT'[\s\S]*ID 'AUART' FIELD iv_document_type[\s\S]*AUTHORITY-CHECK OBJECT 'V_VBAK_VKO'[\s\S]*ID 'VKORG' FIELD iv_sales_organization[\s\S]*ID 'VTWEG' FIELD iv_distribution_channel[\s\S]*ID 'SPART' FIELD iv_division[\s\S]*ID 'ACTVT' FIELD '03'/,
+  "sales order reads must check document-type and sales-area display authorization",
+);
+assert.match(
+  orderSourceSource,
+  /check_sales_document\([\s\S]*iv_document_type\s*=\s*<ls_schedule>-sales_document_type[\s\S]*iv_sales_organization\s*=\s*<ls_schedule>-sales_organization[\s\S]*iv_distribution_channel\s*=\s*<ls_schedule>-distribution_channel[\s\S]*iv_division\s*=\s*<ls_schedule>-division/,
+  "order demand source must enforce business authorization for each selected schedule",
 );
 assert.match(
   allocationReportSource,
@@ -1525,7 +1750,7 @@ assert.match(
 );
 assert.match(
   reservationSource,
-  /strlen\(\s*iv_document\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  /strlen\(\s*iv_document\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length/,
   "SAP reservation cancellation must use the shared document-length contract",
 );
 assert.match(
@@ -1540,7 +1765,7 @@ assert.match(
 );
 assert.match(
   reservationSource,
-  /strlen\(\s*lv_reservation\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length/,
+  /strlen\(\s*lv_reservation\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length/,
   "SAP reservation creation must enforce the exact ten-character document length",
 );
 assert.equal(
@@ -1557,6 +1782,21 @@ assert.match(
   auditSource,
   /is_run-min_shelf_life\s*<\s*0[\s\S]*is_run-safety_stock\s*<\s*0/,
   "audit run reads must reject negative policy values",
+);
+assert.match(
+  auditSource,
+  /validate_run\( is_run = <ls_run> \)\.[\s\S]*shortage\s*>\s*zif_stock_allocation=>c_max_quantity\s*-\s*<ls_run>-allocated[\s\S]*Audit run data is invalid[\s\S]*<ls_run>-requested\s*=\s*<ls_run>-allocated\s*\+\s*<ls_run>-shortage/,
+  "audit reads must reject overflowing allocated-plus-shortage totals before computing requested quantity",
+);
+assert.match(
+  auditSource,
+  /METHOD sum_quantity\.[\s\S]*iv_addend\s*>\s*zif_stock_allocation=>c_max_quantity\s*-\s*iv_current[\s\S]*Audit summary quantity exceeds supported quantity range/,
+  "audit summary accumulation must reject aggregate overflow before addition",
+);
+assert.match(
+  auditSource,
+  /METHOD zif_allocation_audit~get_summary\.[\s\S]*?rs_summary-allocated\s*=\s*sum_quantity\(/,
+  "audit summaries must use the guarded quantity accumulator",
 );
 assert.match(
   auditSource,
@@ -1590,7 +1830,7 @@ assert.match(
 );
 assert.match(
   allocationServiceSource,
-  /<ls_existing>-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*<ls_existing>-reservation_id\s+CN\s+'0123456789\s*'/,
+  /<ls_existing>-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*<ls_existing>-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length[\s\S]*<ls_existing>-reservation_id\s+CN\s+'0123456789\s*'/,
   "allocation service must reject short numeric existing reservation documents",
 );
 assert.match(
@@ -1690,7 +1930,7 @@ for (const [reportName, reportSource] of [
 ]) {
   assert.equal(
     (reportSource.match(/iv_name\s*=\s*'schema_version'/g) ?? []).length,
-    reportName === "allocation" || reportName === "health" || reportName === "stock" || reportName === "unit conversion" || reportName === "goods issue" || reportName === "reservation creation" || reportName === "reservation cancellation" || reportName === "sales-order update" ? 3 : 2,
+    reportName === "allocation" ? 4 : reportName === "health" || reportName === "stock" || reportName === "unit conversion" || reportName === "goods issue" || reportName === "reservation creation" || reportName === "reservation cancellation" || reportName === "sales-order update" ? 3 : 2,
     `${reportName} report must expose schema_version in typed and untyped JSON`,
   );
 }
@@ -1720,8 +1960,8 @@ assert.match(
   "CSV helper must preserve run IDs in schema-versioned errors",
 );
 assert.equal(
-  (allocationReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
-  31,
+(allocationReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
+  35,
   "allocation report must version all JSON error envelopes, including run-ID variants",
 );
 for (const [reportName, reportSource, expectedCount] of [
@@ -1745,7 +1985,7 @@ assert.match(
 );
 assert.match(
   readmeSource,
-  /## SAP integration checklist[\s\S]*Import the ABAP objects under `src\/`[\s\S]*do not import `sap_stubs\/`[\s\S]*ZSTOCKALLOC_RUN[\s\S]*MARD[\s\S]*MARM[\s\S]*BAPI_RESERVATION_CREATE1[\s\S]*S_TABU_NAM[\s\S]*M_MRES_BWA[\s\S]*V_VBAK_AAT[\s\S]*P_EXEC[\s\S]*npm test/,
+  /## SAP integration checklist[\s\S]*Import the ABAP objects under `src\/`[\s\S]*do not import `sap_stubs\/`[\s\S]*ZSTOCKALLOC_RUN[\s\S]*MARD[\s\S]*T001L[\s\S]*MARM[\s\S]*BAPI_RESERVATION_CREATE1[\s\S]*M_MATE_MAN[\s\S]*M_MATE_WRK[\s\S]*S_TABU_NAM[\s\S]*M_MRES_BWA[\s\S]*V_VBAK_AAT[\s\S]*P_EXEC[\s\S]*npm test/,
   "README must document the SAP import, dependency, authorization, report, and verification checklist",
 );
 assert.doesNotMatch(
@@ -1760,8 +2000,8 @@ assert.match(
 );
 assert.match(
   readmeSource,
-  /Successful CSV and JSON allocation contracts now use schema version `58`/,
-  "README must document allocation JSON schema parity",
+  /Default allocation CSV and JSON contracts use schema version `59`\. Preview-plan CSV and JSON outputs use schema `60` with current-preview summary metrics and per-line outcomes/,
+  "README must document allocation output schema versions",
 );
 assert.match(
   readmeSource,
@@ -1861,8 +2101,13 @@ assert.match(
 );
 assert.match(
   stockReportSource,
-  /PARAMETERS p_shelf TYPE i DEFAULT 0[\s\S]*p_shelf < 0[\s\S]*Minimum shelf life cannot be negative[\s\S]*p_shelf > 0 AND p_charg IS INITIAL[\s\S]*Minimum shelf life requires a batch[\s\S]*remaining_shelf_life_days[\s\S]*minimum_shelf_life_days[\s\S]*shelf_life_threshold_active[\s\S]*shelf_life_threshold_evaluated[\s\S]*below_minimum_shelf_life[\s\S]*shelf_life_status/,
+  /PARAMETERS p_shelf TYPE i DEFAULT 0[\s\S]*p_shelf < 0[\s\S]*Minimum shelf life cannot be negative[\s\S]*p_shelf > 0 AND p_charg IS INITIAL[\s\S]*Minimum shelf life requires a batch[\s\S]*can_add_days\([\s\S]*iv_date = lv_expiration_as_of[\s\S]*iv_days = p_shelf[\s\S]*remaining_shelf_life_days[\s\S]*minimum_shelf_life_days[\s\S]*shelf_life_threshold_active[\s\S]*shelf_life_threshold_evaluated[\s\S]*below_minimum_shelf_life[\s\S]*shelf_life_status/,
   "stock report must evaluate and export minimum shelf-life provenance",
+);
+assert.match(
+  allocationServiceSource,
+  /IF iv_min_shelf_life > 0\.[\s\S]*can_add_days\([\s\S]*iv_date = sy-datum[\s\S]*iv_days = iv_min_shelf_life[\s\S]*Minimum shelf-life threshold exceeds the supported date range[\s\S]*lv_min_shelf_life_date = sy-datum \+ iv_min_shelf_life/,
+  "allocation service must check shelf-life date arithmetic before adding days",
 );
 assert.match(
   stockReportSource,
@@ -1996,7 +2241,7 @@ assert.match(
 );
 assert.match(
   reservationCancelReportSource,
-  /lo_reservation->cancel\([\s\S]*iv_document\s*=\s*p_resid[\s\S]*iv_plant\s*=\s*p_werks[\s\S]*iv_movement_type\s*=\s*p_bwart/,
+  /lo_reservation->cancel\([\s\S]*iv_document\s*=\s*CONV string\( p_resid \)[\s\S]*iv_plant\s*=\s*p_werks[\s\S]*iv_movement_type\s*=\s*p_bwart/,
   "reservation cancellation report must pass the complete cancellation scope",
 );
 assert.match(
@@ -2264,7 +2509,7 @@ assert.match(
 );
 assert.match(
   allocationSinkSource,
-  /is_demand-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_sap_document_length[\s\S]*is_demand-reservation_id\s+CN\s+'0123456789\s*'/,
+  /is_demand-reservation_id\s+IS\s+NOT\s+INITIAL[\s\S]*strlen\(\s*is_demand-reservation_id\s*\)\s*<>\s*zif_stock_allocation=>c_reservation_id_length[\s\S]*is_demand-reservation_id\s+CN\s+'0123456789\s*'/,
   "allocation snapshots must reject malformed reservation documents",
 );
 assert.match(
@@ -2291,6 +2536,46 @@ assert.match(
   movementSource,
   /strlen\(\s*ls_headret-doc_year\s*\)\s*<>\s*zif_stock_allocation=>c_fiscal_year_length/,
   "SAP goods movement must enforce the exact four-character fiscal-year length",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /TYPES ty_material TYPE matnr\./,
+  "shared material identifiers must retain the SAP MATNR conversion semantics",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /TYPES ty_reservation_id TYPE c LENGTH 10/,
+  "reservation operations must use the ten-character SAP reservation identifier width",
+);
+assert.match(
+  stockAllocationInterfaceSource,
+  /reservation_id\s+TYPE ty_reservation_id/,
+  "allocation demand rows must retain reservation IDs as ten-character reservation identifiers",
+);
+assert.match(
+  allocationSinkSource,
+  /INTO CORRESPONDING FIELDS OF TABLE @lt_persisted_allocations[\s\S]*<ls_persisted_allocation>-reservation_id[\s\S]*strlen\(\s*<ls_persisted_allocation>-reservation_id\s*\)[\s\S]*MOVE-CORRESPONDING <ls_persisted_allocation> TO ls_demand/,
+  "stored CHAR20 reservation IDs must be validated before conversion into the ten-character demand type",
+);
+assert.match(
+  stockAllocationTableSource,
+  /FIELDNAME>RESERVATION_ID<\/FIELDNAME><POSITION>0019<\/POSITION><DATATYPE>CHAR<\/DATATYPE><LENG>000020/,
+  "reservation ID typing must preserve the existing 20-character persistence field",
+);
+assert.match(
+  reservationInterfaceSource,
+  /rv_document\)\s+TYPE zif_stock_allocation=>ty_reservation_id[\s\S]*iv_document\s+TYPE string/,
+  "reservation creation must use the dedicated type and cancellation must retain raw input for validation",
+);
+assert.match(
+  reservationCancelReportSource,
+  /PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id OBLIGATORY/,
+  "reservation cancellation screen must use the exact reservation identifier width",
+);
+assert.match(
+  stockAllocationCompareInterfaceSource,
+  /old_reservation_id\s+TYPE zif_stock_allocation=>ty_reservation_id[\s\S]*new_reservation_id\s+TYPE zif_stock_allocation=>ty_reservation_id/,
+  "comparison rows must keep old and new reservation values in the reservation identifier type",
 );
 assert.match(
   stockAllocationInterfaceSource,
@@ -2329,8 +2614,13 @@ assert.match(
 );
 assert.match(
   stockAllocationInterfaceSource,
-  /ty_sales_document\s+TYPE\s+c\s+LENGTH\s+10[\s\S]*c_sap_document_length\s+TYPE\s+i\s+VALUE\s+10/,
+  /ty_sales_document\s+TYPE\s+vbeln_va[\s\S]*c_sap_document_length\s+TYPE\s+i\s+VALUE\s+10/,
   "the shared SAP document contract must define a ten-character length",
+);
+assert.match(
+  orderSinkInterfaceSource,
+  /ty_sales_document\s+TYPE\s+zif_stock_allocation=>ty_sales_document/,
+  "direct sales-order updates must reuse the SAP-converted sales-document type",
 );
 assert.match(
   orderSinkSource,
@@ -2489,13 +2779,18 @@ assert.match(
 );
 assert.match(
   allocationReportSource,
-  /APPEND zcl_stock_csv=>number\( 58 \)/,
+  /APPEND zcl_stock_csv=>number\( 59 \)/,
   "allocation CSV schema must include the preview-reconciliation contract version",
 );
 assert.equal(
-  (allocationReportSource.match(/iv_value = 58 \) TO lt_json_fields/g) ?? []).length,
+  (allocationReportSource.match(/iv_value = lv_json_schema \) TO lt_json_fields/g) ?? []).length,
   3,
-  "allocation JSON success schemas must use version 58",
+  "allocation JSON success envelopes must use the selected schema version",
+);
+assert.match(
+  allocationReportSource,
+  /lv_json_schema\s*=\s*59[\s\S]*IF\s+p_plan\s*=\s*abap_true\s+AND\s*\(\s*p_json\s*=\s*abap_true\s+OR\s+p_ndjson\s*=\s*abap_true\s*\)[\s\S]*lv_json_schema\s*=\s*60[\s\S]*preview_summary[\s\S]*preview_lines/i,
+  "JSON and NDJSON preview plans must expose their own summary at schema 60",
 );
 assert.match(
   allocationReportSource,
@@ -4538,6 +4833,11 @@ const resultSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_result.prog.abap"),
   "utf8",
 );
+assert.match(
+  resultSource,
+  /PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id/,
+  "allocation result reservation filter must use the dedicated ten-character identifier type",
+);
 const purgeReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_purge.prog.abap"),
   "utf8",
@@ -4664,6 +4964,11 @@ assert.match(
 const compareReportSource = fs.readFileSync(
   path.join(sourceDirectory, "zstock_alloc_compare.prog.abap"),
   "utf8",
+);
+assert.match(
+  compareReportSource,
+  /PARAMETERS p_resid TYPE zif_stock_allocation=>ty_reservation_id[\s\S]*PARAMETERS p_oresid TYPE zif_stock_allocation=>ty_reservation_id[\s\S]*PARAMETERS p_nresid TYPE zif_stock_allocation=>ty_reservation_id/,
+  "comparison reservation filters must use the dedicated ten-character identifier type",
 );
 assert.equal(
   (compareReportSource.match(/zcl_stock_json=>error_with_schema/g) ?? []).length,
@@ -5445,6 +5750,11 @@ assert.match(
   allocationSinkInterfaceSource,
   /iv_run_deadline_urgency\s+TYPE\s+string/,
   "allocation sink must expose the originating deadline urgency selector",
+);
+assert.match(
+  allocationSinkInterfaceSource,
+  /iv_reservation_id\s+TYPE\s+zif_stock_allocation=>ty_reservation_id/,
+  "allocation result filters must use the dedicated reservation identifier type",
 );
 assert.match(
   allocationSinkSource,

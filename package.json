@@ -5,7 +5,7 @@
     "lint": "abaplint abaplint.json",
     "transpile": "abap_transpile transpiler.json",
     "test": "npm run lint && npm run transpile && node output/index.mjs && node test/compare-contract.mjs && node test/repository-contract.mjs",
-    "verify": "npm run lint && npm test"
+    "verify": "npm test"
   },
   "devDependencies": {
     "@abaplint/database-sqlite": "^2.13.83",

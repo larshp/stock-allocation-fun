@@ -1,5 +1,14 @@
 # Progress notes
 
+- Fixed an overlapping-stock concurrency gap: the enqueue key no longer varies by batch, so aggregate MARD and per-batch MCHB allocations at the same material/plant/storage location serialize. The SAP lock stub now tracks held lock keys and tests that different batch scopes conflict until release.
+- Changed shared and direct sales-document identifiers to SAP Dictionary `VBELN_VA`, preserving ALPHA conversion for report parameters so users can enter document numbers in external format.
+- Changed the shared material identifier to Dictionary type `MATNR`, preserving its SAP input/output conversion routine across report parameters instead of treating external material numbers as raw 40-character strings.
+- Added T001L validation to stock reads. Invalid or plant-mismatched storage locations now fail explicitly instead of returning a misleading zero-stock result; the local SAP table stub, fixture, auth check, and ABAP Unit regression are included.
+- Added SAP business-scope authorization to direct stock reads: the source-read port now receives the plant and enforces `M_MATE_MAN` plus `M_MATE_WRK` activity `03` before table-level checks. A regression verifies plant and batch scope reach the authority adapter.
+- Added sales-document display authorization to open-order reads. For each open schedule line the order source checks both document type and sales area through the injectable authority interface before returning demand; unauthorized scope raises a generic error and stops allocation.
+- Added opt-in `ZSTOCK_ALLOCATE-p_plan` JSON preview details. The service returns validated demand-line allocation decisions with preview/run provenance only after successful audit finalization; the report emits document/schedule keys, priority, requested date, normalized quantities/unit, and full/partial/unallocated status. The option requires preview plus JSON and allocation schemas advance to `59`.
+- Extended CSV formula-injection hardening to leading vertical-tab, form-feed, and backspace characters; added regression cases for each control prefix.
+- Hardened shared CSV quoting against spreadsheet formula injection by prefixing formula-leading text (including after spaces) with a tab and neutralizing leading control/full-width markers; added focused ABAP Unit regressions. Simplified `npm run verify` to reuse the lint pass inside `npm test`, avoiding duplicate lint work.
 - Added opt-in `ZSTOCK_ALLOCATE-p_recon` preview reconciliation: persisted allocation snapshots are validated and existing cross-unit reservations are converted/capped before preview allocation, while reservation and snapshot writes remain disabled. Allocation output now reports whether reconciliation was evaluated, the inspected snapshot-row count, the distinct represented allocation-unit count, and the deducted cross-unit quantity; contracts advance to schema `58`.
 - Added `ZSTOCK_ALLOC_STOCK-p_net` reconciliation telemetry: stock output now reports the persisted allocation-row count alongside converted existing allocation quantity, advancing stock schemas to `16`/`17` for ordinary/metadata JSON and CSV.
 - Added `ZSTOCK_ALLOC_STOCK-p_net` staged quantity telemetry: `net_available_quantity` now exposes stock after existing allocations and before the retained safety-stock floor, advancing stock schemas to `17`/`18`.
@@ -1274,6 +1283,7 @@
 - Added optional `ZSTOCK_ALLOC_HEALTH-p_cstrk` minimum latest-completed success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `111`.
 - Added optional `ZSTOCK_ALLOC_HEALTH-p_cfail` maximum latest-completed non-success-streak warning threshold with zero-completed-run-safe semantics, advancing health schema to `112`.
 - Added optional `ZSTOCK_ALLOC_HEALTH-p_cacnt` minimum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics, advancing health schema to `113`.
+- Pushed requested-delivery horizon bounds into the open-order SQL query so narrow horizons transfer fewer schedule rows; returned schedule dates remain validated before use.
 - Added optional `ZSTOCK_ALLOC_HEALTH-p_cacmax` maximum latest-completed allocated-line-count warning threshold (`full + partial`) with zero-demand-safe semantics and min/max validation, advancing health schema to `114`.
 - Added persisted `ZSTOCKALLOC_RUN-PREVIEW` provenance. Allocation-service previews now pass the marker through `start_run`, audit reads return it on `ty_run`, and invalid direct audit flags are rejected.
 - Added `ZSTOCK_ALLOC_HISTORY-p_prev` preview/operational run-type filtering (`P`/`O`) with audit API propagation, filter provenance, and history schema updates to JSON `27`/`44` and matching CSV contracts.
@@ -1283,3 +1293,18 @@
 - Extended `ZSTOCK_ALLOC_COMPARE` with common `p_prev` and side-specific `p_oprev`/`p_nprev` preview-versus-operational run-type filters. Effective old/new provenance now reaches both audit and allocation-snapshot reads, and comparison CSV/JSON/NDJSON/human metadata exposes the requested filters plus selected run preview flags; comparison schema advanced to `96`.
 - Added purge provenance scoping: `ZSTOCK_ALLOC_PURGE-p_prev` and the retention API now select preview (`P`) or operational (`O`) runs before candidate protection/deletion. Filter provenance is emitted in human/CSV/JSON output, with schemas advancing to CSV `21`/`22` and JSON `23`/`24`; ABAP Unit covers preview-only and operational-only cleanup.
 - Added common and old/new side-specific audit lifecycle finish-date windows to ZSTOCK_ALLOC_COMPARE; effective bounds reach originating-run and snapshot reads, are exposed across human/CSV/JSON/NDJSON/typed provenance, advance comparison contextual schemas to 98, and include common-versus-side validation and contract coverage.
+- Added a dedicated ten-character reservation identifier type across demand rows, comparison output, reservation operations, service collections, and report filters; cancellation retains raw string input for exact length validation, and stored CHAR20 values are checked before conversion while the ZSTOCKALLOC persistence field remains unchanged.
+- Prevented allocation snapshot persistence against preview audit runs and preview-marked demand rows; the write path checks preview provenance before replacing saved snapshots, with regression tests asserting rejected writes leave no snapshot rows.
+- Added CSV preview line plans to ZSTOCK_ALLOCATE: schema 60 emits one summary row and one safely quoted line row per simulated sales schedule line.
+- Aligned CSV error envelopes with the selected allocation CSV schema so preview-plan failures also report schema 60.
+- Strengthened the repository contract to verify CSV preview header, summary, and line rows all use the same 37-column shape.
+- Added current-preview quantity totals, remaining stock, coverage, and status counts to the CSV plan summary.
+- Extracted preview aggregation into a testable ABAP class and covered mixed, partial, and empty preview totals with ABAP Unit.
+- Added a typed and untyped JSON preview_summary matching the CSV plan totals; allocation plan JSON now uses schema 60 and its error envelopes follow the selected schema.
+- Added allocation preview-plan NDJSON: schema 60 writes one self-contained summary record followed by self-contained schedule-line records, with each line written as it is constructed.
+- Kept schema 60 on invalid NDJSON preview-plan error envelopes even when `p_json` was omitted.
+- Reused the shared SAP-compatible sales-document, item, schedule-line, and unit types in the order-source schedule projection.
+- Added bounded day-addition validation and applied it to allocation and stock-report shelf-life thresholds before DATS arithmetic.
+- Added a shared maximum packed quantity and pre-addition aggregate guards to allocation service and adaptive strategy, with an overflow regression test.
+- Rejected persisted audit rows whose allocated and shortage values cannot be combined in the shared quantity domain.
+- Added checked accumulation for same-unit historical and per-strategy audit quantity summaries.

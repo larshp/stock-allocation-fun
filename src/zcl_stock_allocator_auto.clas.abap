@@ -29,6 +29,11 @@ CLASS zcl_stock_allocator_auto IMPLEMENTATION.
           OR <ls_demand>-priority > zif_stock_allocation=>c_max_priority.
         raise_error( iv_message = 'Allocation demand is invalid' ).
       ENDIF.
+      IF <ls_demand>-requested
+          > zif_stock_allocation=>c_max_quantity - lv_requested_total.
+        raise_error(
+          iv_message = 'Total requested quantity exceeds supported quantity range' ).
+      ENDIF.
       lv_requested_total = lv_requested_total + <ls_demand>-requested.
     ENDLOOP.
 

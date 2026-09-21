@@ -8,6 +8,12 @@ CLASS zcl_allocation_date_sap DEFINITION
         iv_date         TYPE d
       RETURNING
         VALUE(rv_valid) TYPE abap_bool.
+    CLASS-METHODS can_add_days
+      IMPORTING
+        iv_date           TYPE d
+        iv_days           TYPE i
+      RETURNING
+        VALUE(rv_can_add) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_allocation_date_sap IMPLEMENTATION.
@@ -51,6 +57,23 @@ CLASS zcl_allocation_date_sap IMPLEMENTATION.
     ENDCASE.
     IF lv_day <= lv_days.
       rv_valid = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD can_add_days.
+    DATA lv_last_supported_date TYPE d VALUE '99991231'.
+    DATA lv_maximum_days TYPE i.
+
+    rv_can_add = abap_false.
+    IF iv_days < 0
+        OR iv_date IS INITIAL
+        OR is_valid_or_initial( iv_date ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    lv_maximum_days = lv_last_supported_date - iv_date.
+    IF iv_days <= lv_maximum_days.
+      rv_can_add = abap_true.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.

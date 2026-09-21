@@ -1,17 +1,21 @@
 INTERFACE zif_stock_allocation PUBLIC.
-  TYPES ty_material TYPE c LENGTH 40.
+  TYPES ty_material TYPE matnr.
   TYPES ty_plant TYPE c LENGTH 4.
   TYPES ty_storage_location TYPE c LENGTH 4.
   TYPES ty_batch TYPE c LENGTH 10.
+  " Keep a blank initial value; SAP RSNUM itself is a ten-digit NUMC field.
+  TYPES ty_reservation_id TYPE c LENGTH 10.
   TYPES ty_order_id TYPE c LENGTH 20.
   TYPES ty_run_id TYPE c LENGTH 32.
-  TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES ty_sales_document TYPE vbeln_va.
   CONSTANTS c_sap_document_length TYPE i VALUE 10.
+  CONSTANTS c_reservation_id_length TYPE i VALUE 10.
   TYPES ty_sales_document_type TYPE c LENGTH 4.
   CONSTANTS c_fiscal_year_length TYPE i VALUE 4.
   TYPES ty_sales_item TYPE n LENGTH 6.
   TYPES ty_schedule_line TYPE n LENGTH 4.
   TYPES ty_quantity TYPE p LENGTH 8 DECIMALS 3.
+  CONSTANTS c_max_quantity TYPE ty_quantity VALUE '999999999999.999'.
   TYPES ty_unit TYPE c LENGTH 3.
   TYPES ty_movement_type TYPE c LENGTH 3.
   CONSTANTS c_movement_type_length TYPE i VALUE 3.
@@ -49,7 +53,7 @@ INTERFACE zif_stock_allocation PUBLIC.
       allocated                 TYPE ty_quantity,
       shortage                  TYPE ty_quantity,
       allocation_status         TYPE ty_allocation_status,
-      reservation_id            TYPE ty_order_id,
+      reservation_id            TYPE ty_reservation_id,
       reservation_date          TYPE d,
       reservation_movement_type TYPE ty_movement_type,
       reservation_unit          TYPE ty_unit,

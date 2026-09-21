@@ -8,6 +8,10 @@ CLASS ltcl_stock_csv DEFINITION FINAL FOR TESTING
     METHODS formats_decimal_number FOR TESTING.
     METHODS formats_negative_number FOR TESTING.
     METHODS quotes_typed_text FOR TESTING.
+    METHODS neutralizes_formula_prefixes FOR TESTING.
+    METHODS neutralizes_spaced_formula FOR TESTING.
+    METHODS neutralizes_control_prefixes FOR TESTING.
+    METHODS neutralizes_fullwidth_formula FOR TESTING.
     METHODS formats_error_row FOR TESTING.
     METHODS formats_correlated_error FOR TESTING.
     METHODS formats_schema_error FOR TESTING.
@@ -58,6 +62,87 @@ CLASS ltcl_stock_csv IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = zcl_stock_csv=>quote( lv_material )
       exp = '"MAT-01"' ).
+  ENDMETHOD.
+
+  METHOD neutralizes_formula_prefixes.
+    DATA lv_tab TYPE string.
+
+    lv_tab = cl_abap_char_utilities=>horizontal_tab.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '=1+1' )
+      exp = |"{ lv_tab }=1+1"| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '+1+1' )
+      exp = |"{ lv_tab }+1+1"| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '-1+1' )
+      exp = |"{ lv_tab }-1+1"| ).
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '@SUM(1,1)' )
+      exp = |"{ lv_tab }@SUM(1,1)"| ).
+  ENDMETHOD.
+
+  METHOD neutralizes_spaced_formula.
+    DATA lv_tab TYPE string.
+
+    lv_tab = cl_abap_char_utilities=>horizontal_tab.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( ' =1+1' )
+      exp = |"{ lv_tab } =1+1"| ).
+  ENDMETHOD.
+
+  METHOD neutralizes_control_prefixes.
+    DATA lv_tab TYPE string.
+    DATA lv_payload TYPE string.
+    DATA lv_expected_text TYPE string.
+
+    lv_tab = cl_abap_char_utilities=>horizontal_tab.
+    CONCATENATE lv_tab '=1+1' INTO lv_payload.
+    CONCATENATE '''' lv_payload INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( lv_payload )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR: lv_payload,
+           lv_expected_text.
+    CONCATENATE cl_abap_char_utilities=>newline '=1+1'
+      INTO lv_payload.
+    CONCATENATE '''' lv_payload INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( lv_payload )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR: lv_payload,
+           lv_expected_text.
+    CONCATENATE cl_abap_char_utilities=>vertical_tab '=1+1'
+      INTO lv_payload.
+    CONCATENATE '''' lv_payload INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( lv_payload )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR: lv_payload,
+           lv_expected_text.
+    CONCATENATE cl_abap_char_utilities=>form_feed '=1+1'
+      INTO lv_payload.
+    CONCATENATE '''' lv_payload INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( lv_payload )
+      exp = |"{ lv_expected_text }"| ).
+    CLEAR: lv_payload,
+           lv_expected_text.
+    CONCATENATE cl_abap_char_utilities=>backspace '=1+1'
+      INTO lv_payload.
+    CONCATENATE '''' lv_payload INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( lv_payload )
+      exp = |"{ lv_expected_text }"| ).
+  ENDMETHOD.
+
+  METHOD neutralizes_fullwidth_formula.
+    DATA lv_expected_text TYPE string.
+
+    CONCATENATE '''' '＝1+1' INTO lv_expected_text.
+    cl_abap_unit_assert=>assert_equals(
+      act = zcl_stock_csv=>quote( '＝1+1' )
+      exp = |"{ lv_expected_text }"| ).
   ENDMETHOD.
 
   METHOD formats_error_row.

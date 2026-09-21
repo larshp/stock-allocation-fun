@@ -533,14 +533,14 @@ CLASS lcl_allocation_sink_stub DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_allocation_sink.
     METHODS was_saved RETURNING VALUE(rv_saved) TYPE abap_bool.
-    METHODS reservation_id RETURNING VALUE(rv_id) TYPE zif_stock_allocation=>ty_order_id.
+    METHODS reservation_id RETURNING VALUE(rv_id) TYPE zif_stock_allocation=>ty_reservation_id.
     METHODS run_id RETURNING VALUE(rv_id) TYPE zif_stock_allocation=>ty_run_id.
     METHODS set_existing
       IMPORTING
         it_demands TYPE zif_stock_allocation=>tt_demands.
   PRIVATE SECTION.
     DATA mv_saved TYPE abap_bool.
-    DATA mv_reservation_id TYPE zif_stock_allocation=>ty_order_id.
+    DATA mv_reservation_id TYPE zif_stock_allocation=>ty_reservation_id.
     DATA mv_run_id TYPE zif_stock_allocation=>ty_run_id.
     DATA mt_existing TYPE zif_stock_allocation=>tt_demands.
 ENDCLASS.

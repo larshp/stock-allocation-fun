@@ -10,12 +10,22 @@ CLASS lcl_order_read_auth_fail IMPLEMENTATION.
   METHOD zif_source_read_authority~check_orders.
     RAISE EXCEPTION TYPE zcx_stock_allocation.
   ENDMETHOD.
+  METHOD zif_source_read_authority~check_sales_document.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
   DURATION SHORT
   RISK LEVEL HARMLESS.
+  PUBLIC SECTION.
+    INTERFACES zif_source_read_authority.
   PRIVATE SECTION.
+    DATA mv_reject_sales_document TYPE abap_bool.
+    DATA mv_sales_document_checks TYPE i.
+    DATA mv_document_type TYPE zif_stock_allocation=>ty_sales_document_type.
+    DATA mv_sales_organization TYPE vbak-vkorg.
+    DATA mv_distribution_channel TYPE vbak-vtweg.
+    DATA mv_division TYPE vbak-spart.
     METHODS maps_delivery_priority FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS canonicalizes_sales_type FOR TESTING
@@ -46,11 +56,96 @@ CLASS ltcl_order_source_sap DEFINITION FINAL FOR TESTING
       RAISING zcx_stock_allocation.
     METHODS rejects_bad_requested_date FOR TESTING
       RAISING zcx_stock_allocation.
+    METHODS ignores_bad_date_outside_range FOR TESTING
+      RAISING zcx_stock_allocation.
     METHODS rejects_unauthorized_read FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS checks_sales_document_scope FOR TESTING
+      RAISING zcx_stock_allocation.
+    METHODS rejects_sales_document_auth FOR TESTING
       RAISING zcx_stock_allocation.
 ENDCLASS.
 
 CLASS ltcl_order_source_sap IMPLEMENTATION.
+  METHOD zif_source_read_authority~check_stock.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_orders.
+  ENDMETHOD.
+
+  METHOD zif_source_read_authority~check_sales_document.
+    mv_sales_document_checks = mv_sales_document_checks + 1.
+    mv_document_type = iv_document_type.
+    mv_sales_organization = iv_sales_organization.
+    mv_distribution_channel = iv_distribution_channel.
+    mv_division = iv_division.
+    IF mv_reject_sales_document = abap_true.
+      DATA lo_error TYPE REF TO zcx_stock_allocation.
+      CREATE OBJECT lo_error.
+      lo_error->message = 'Sales document read authorization failed'.
+      RAISE EXCEPTION lo_error.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD checks_sales_document_scope.
+    DATA lo_authority TYPE REF TO zif_source_read_authority.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+
+    lo_authority ?= me.
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap
+      EXPORTING
+        io_authority = lo_authority.
+    lt_demands = lo_cut->get_open_demands(
+      iv_material = 'MATERIAL-PRIO'
+      iv_plant    = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_sales_document_checks
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_document_type
+      exp = 'OR' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_sales_organization
+      exp = '1000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_distribution_channel
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = mv_division
+      exp = '00' ).
+  ENDMETHOD.
+
+  METHOD rejects_sales_document_auth.
+    DATA lo_authority TYPE REF TO zif_source_read_authority.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lv_raised TYPE abap_bool.
+    DATA lv_message TYPE c LENGTH 220.
+
+    lo_authority ?= me.
+    mv_reject_sales_document = abap_true.
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap
+      EXPORTING
+        io_authority = lo_authority.
+    TRY.
+        lo_cut->get_open_demands(
+          iv_material = 'MATERIAL-PRIO'
+          iv_plant    = '1000' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_error).
+        lv_raised = abap_true.
+        lv_message = lo_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Sales document read authorization failed' ).
+  ENDMETHOD.
+
   METHOD canonicalizes_sales_type.
     DATA lo_cut TYPE REF TO zif_order_source.
     DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
@@ -296,6 +391,22 @@ CLASS ltcl_order_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lv_message
       exp = 'Open demand requested date is invalid' ).
+  ENDMETHOD.
+
+  METHOD ignores_bad_date_outside_range.
+    DATA lo_cut TYPE REF TO zif_order_source.
+    DATA lt_demands TYPE zif_stock_allocation=>tt_demands.
+
+    CREATE OBJECT lo_cut TYPE zcl_order_source_sap.
+    lt_demands = lo_cut->get_open_demands(
+      iv_material          = 'MATERIAL-BAD-DATE'
+      iv_plant             = '1000'
+      iv_requested_on_from = '20270101'
+      iv_requested_on_to   = '20270131' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( lt_demands )
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD rejects_bad_deletion_flag.

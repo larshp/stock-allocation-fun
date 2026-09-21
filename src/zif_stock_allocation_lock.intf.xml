@@ -5,7 +5,7 @@
    <VSEOINTERF>
     <CLSNAME>ZIF_STOCK_ALLOCATION_LOCK</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>Stock allocation lock contract</DESCRIPT>
+    <DESCRIPT>Material/storage-level stock allocation lock contract</DESCRIPT>
     <EXPOSURE>2</EXPOSURE>
     <STATE>1</STATE>
     <UNICODE>X</UNICODE>

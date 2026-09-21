@@ -5,7 +5,7 @@
    <VSEOINTERF>
     <CLSNAME>ZIF_SOURCE_READ_AUTHORITY</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>Source read authorization contract</DESCRIPT>
+    <DESCRIPT>Source and business-scope read authorization contract</DESCRIPT>
     <EXPOSURE>2</EXPOSURE>
     <STATE>1</STATE>
     <UNICODE>X</UNICODE>

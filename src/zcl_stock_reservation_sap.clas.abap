@@ -87,7 +87,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA ls_commit_return TYPE ty_return.
     DATA ls_rollback_return TYPE ty_return.
-    DATA lv_reservation TYPE c LENGTH 10.
+    DATA lv_reservation TYPE zif_stock_allocation=>ty_reservation_id.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_commit_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.
@@ -174,7 +174,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
     IF lv_reservation IS NOT INITIAL
-        AND ( strlen( lv_reservation ) <> zif_stock_allocation=>c_sap_document_length
+        AND ( strlen( lv_reservation ) <> zif_stock_allocation=>c_reservation_id_length
           OR lv_reservation CN '0123456789'
           OR lv_reservation = '0000000000' )
         AND lv_bapi_message IS INITIAL.
@@ -183,7 +183,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     IF lv_bapi_error = abap_true
         OR lv_bapi_subrc <> 0
         OR lv_reservation IS INITIAL
-        OR strlen( lv_reservation ) <> zif_stock_allocation=>c_sap_document_length
+        OR strlen( lv_reservation ) <> zif_stock_allocation=>c_reservation_id_length
         OR lv_reservation CN '0123456789'
         OR lv_reservation = '0000000000'.
       CLEAR: ls_rollback_return,
@@ -311,7 +311,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
     DATA lt_return TYPE tt_return.
     DATA ls_commit_return TYPE ty_return.
     DATA ls_rollback_return TYPE ty_return.
-    DATA lv_document TYPE c LENGTH 10.
+    DATA lv_document TYPE zif_stock_allocation=>ty_reservation_id.
     DATA lv_bapi_subrc TYPE sy-subrc.
     DATA lv_commit_subrc TYPE sy-subrc.
     DATA lv_rollback_subrc TYPE sy-subrc.
@@ -332,7 +332,7 @@ CLASS zcl_stock_reservation_sap IMPLEMENTATION.
       raise_error( iv_message = 'Reservation document is required' ).
     ENDIF.
     IF strlen( iv_document )
-          <> zif_stock_allocation=>c_sap_document_length.
+          <> zif_stock_allocation=>c_reservation_id_length.
       raise_error( iv_message = 'Reservation document is invalid' ).
     ENDIF.
     lv_document = iv_document.

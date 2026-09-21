@@ -17,12 +17,13 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
       RAISE EXCEPTION lo_input_error.
     ENDIF.
 
+    "MARD aggregate stock overlaps every batch-specific MCHB scope.
     CALL FUNCTION 'ENQUEUE_EZSTOCKALLOC'
       EXPORTING
         matnr  = iv_material
         werks  = iv_plant
         lgort  = iv_storage_location
-        charg  = iv_batch
+        charg  = space
       EXCEPTIONS
         OTHERS = 1.
     IF sy-subrc <> 0.
@@ -43,12 +44,13 @@ CLASS zcl_stock_allocation_lock_sap IMPLEMENTATION.
       RAISE EXCEPTION lo_release_input_error.
     ENDIF.
 
+    "Release the same material/plant/storage lock used by acquire.
     CALL FUNCTION 'DEQUEUE_EZSTOCKALLOC'
       EXPORTING
         matnr  = iv_material
         werks  = iv_plant
         lgort  = iv_storage_location
-        charg  = iv_batch
+        charg  = space
       EXCEPTIONS
         OTHERS = 1.
     IF sy-subrc <> 0.

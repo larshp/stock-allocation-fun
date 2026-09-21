@@ -53,6 +53,8 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     DATA lt_reservations TYPE tt_reservation_rows.
     DATA lv_open_quantity TYPE zif_stock_allocation=>ty_quantity.
     DATA lv_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_batch_reserved_quantity TYPE zif_stock_allocation=>ty_quantity.
+    DATA lv_unassigned_resv_qty TYPE zif_stock_allocation=>ty_quantity.
     DATA ls_reusable_reservation TYPE zif_stock_allocation=>ty_reservation_open.
 
     IF iv_material IS INITIAL
@@ -88,21 +90,33 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     ENDIF.
     IF iv_batch IS INITIAL.
       CLEAR lv_stock_deleted.
-      SELECT SINGLE labst, lvorm
+      SELECT SINGLE labst, insme, einme, speme, umlme, lvorm
         FROM mard
 
         WHERE matnr = @iv_material
           AND werks = @iv_plant
-          AND lgort = @iv_storage_location INTO ( @rs_available-quantity, @lv_stock_deleted ).
+          AND lgort = @iv_storage_location
+        INTO ( @rs_available-quantity,
+               @rs_available-quality_inspection_qty,
+               @rs_available-restricted_use_qty,
+               @rs_available-blocked_stock_qty,
+               @rs_available-transfer_stock_qty,
+               @lv_stock_deleted ).
     ELSE.
       CLEAR lv_stock_deleted.
-      SELECT SINGLE clabs, lvorm
+      SELECT SINGLE clabs, cinsm, ceinm, cspem, cumlm, lvorm
         FROM mchb
 
         WHERE matnr = @iv_material
           AND werks = @iv_plant
           AND lgort = @iv_storage_location
-          AND charg = @iv_batch INTO ( @rs_available-quantity, @lv_stock_deleted ).
+          AND charg = @iv_batch
+        INTO ( @rs_available-quantity,
+               @rs_available-quality_inspection_qty,
+               @rs_available-restricted_use_qty,
+               @rs_available-blocked_stock_qty,
+               @rs_available-transfer_stock_qty,
+               @lv_stock_deleted ).
     ENDIF.
     IF sy-subrc <> 0.
       CLEAR rs_available-quantity.
@@ -112,7 +126,11 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
     ELSEIF lv_stock_deleted = 'X'.
       raise_error( iv_message = 'Stock record is marked for deletion' ).
     ENDIF.
-    IF rs_available-quantity < 0.
+    IF rs_available-quantity < 0
+        OR rs_available-quality_inspection_qty < 0
+        OR rs_available-restricted_use_qty < 0
+        OR rs_available-blocked_stock_qty < 0
+        OR rs_available-transfer_stock_qty < 0.
       raise_error( iv_message = 'Stock quantity is invalid' ).
     ENDIF.
     rs_available-unrestricted_quantity = rs_available-quantity.
@@ -170,7 +188,7 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
             AND werks = @iv_plant
             AND lgort = @iv_storage_location
             AND sobkz = @space
-            AND charg = @iv_batch
+            AND ( charg = @iv_batch OR charg = @space )
           INTO CORRESPONDING FIELDS OF TABLE @lt_reservations.
       ENDIF.
 
@@ -215,6 +233,13 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
           raise_error( iv_message = 'Reservation quantity total is out of range' ).
         ENDIF.
         lv_reserved_quantity = lv_reserved_quantity + lv_open_quantity.
+        IF <ls_reservation>-batch IS INITIAL.
+          lv_unassigned_resv_qty =
+            lv_unassigned_resv_qty + lv_open_quantity.
+        ELSE.
+          lv_batch_reserved_quantity =
+            lv_batch_reserved_quantity + lv_open_quantity.
+        ENDIF.
         IF line_exists( it_app_reservation_ids[
               table_line = <ls_reservation>-reservation_id ] ).
           READ TABLE rs_available-reusable_reservations
@@ -242,6 +267,8 @@ CLASS zcl_stock_source_sap IMPLEMENTATION.
 
       rs_available-unrestricted_quantity = rs_available-quantity.
       rs_available-reservation_quantity = lv_reserved_quantity.
+      rs_available-batch_reservation_quantity = lv_batch_reserved_quantity.
+      rs_available-unassigned_resv_quantity = lv_unassigned_resv_qty.
       rs_available-reservations_included = abap_true.
       IF lv_reserved_quantity >= rs_available-quantity.
         CLEAR rs_available-quantity.

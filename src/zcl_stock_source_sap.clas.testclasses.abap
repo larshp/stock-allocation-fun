@@ -175,6 +175,18 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
       act = ls_available-unit
       exp = 'EA' ).
     cl_abap_unit_assert=>assert_true( ls_available-material_found ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-quality_inspection_qty
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-restricted_use_qty
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-blocked_stock_qty
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-transfer_stock_qty
+      exp = 5 ).
     ls_available = lo_cut->get_available(
       iv_material         = 'MATERIAL-BATCH'
       iv_plant            = '1000'
@@ -197,6 +209,18 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
       act = ls_available-batch_expiration_date
       exp = '20261231' ).
     cl_abap_unit_assert=>assert_true( ls_available-batch_found ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-quality_inspection_qty
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-restricted_use_qty
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-blocked_stock_qty
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-transfer_stock_qty
+      exp = 4 ).
 
     ls_available = lo_cut->get_available(
       iv_material         = 'MATERIAL-BATCH'
@@ -264,6 +288,12 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_available-reservation_quantity
       exp = '5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-batch_reservation_quantity
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-unassigned_resv_quantity
+      exp = '5' ).
     cl_abap_unit_assert=>assert_true( ls_available-reservations_included ).
 
     ls_available = lo_cut->get_available(
@@ -274,7 +304,17 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_available-quantity
       exp = '8' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-reservation_quantity
+      exp = '12' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-batch_reservation_quantity
+      exp = '10' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-unassigned_resv_quantity
+      exp = '2' ).
 
+    " Selected batch plus unassigned reservations, excluding other batches.
     ls_available = lo_cut->get_available(
       iv_material             = 'MATERIAL-RESERVED-BATCH'
       iv_plant                = '1000'
@@ -284,6 +324,15 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_available-quantity
       exp = '7' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-reservation_quantity
+      exp = '5' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-batch_reservation_quantity
+      exp = '3' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_available-unassigned_resv_quantity
+      exp = '2' ).
 
     CREATE OBJECT lo_reservation TYPE zcl_stock_reservation_sap.
     lv_reservation_id = lo_reservation->reserve(
@@ -377,6 +426,22 @@ CLASS ltcl_stock_source_sap IMPLEMENTATION.
       CATCH zcx_stock_allocation INTO DATA(lo_quantity_error).
         lv_raised = abap_true.
         lv_message = lo_quantity_error->message.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_message
+      exp = 'Stock quantity is invalid' ).
+
+    CLEAR: lv_raised, lv_message.
+    TRY.
+        lo_cut->get_available(
+          iv_material         = 'MATERIAL-NEGATIVE-STATUS'
+          iv_plant            = '1000'
+          iv_storage_location = '0001' ).
+      CATCH zcx_stock_allocation INTO DATA(lo_status_quantity_error).
+        lv_raised = abap_true.
+        lv_message = lo_status_quantity_error->message.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_raised ).

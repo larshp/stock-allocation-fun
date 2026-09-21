@@ -10,6 +10,8 @@ PARAMETERS p_saf TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_amin TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_amax TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
 PARAMETERS p_net AS CHECKBOX.
+PARAMETERS p_runid TYPE zif_stock_allocation=>ty_run_id.
+PARAMETERS p_rid TYPE zif_stock_allocation=>ty_run_id.
 PARAMETERS p_resv AS CHECKBOX.
 PARAMETERS p_meins TYPE zif_stock_allocation=>ty_unit.
 PARAMETERS p_min TYPE zif_stock_allocation=>ty_quantity DEFAULT 0.
@@ -25,11 +27,12 @@ START-OF-SELECTION.
   DATA lo_converter TYPE REF TO zif_unit_conversion.
   DATA lo_sink TYPE REF TO zif_allocation_sink.
   DATA lo_conversion_error TYPE REF TO zcx_stock_allocation.
-  DATA lo_stock_result_error TYPE REF TO zcx_stock_allocation.
   DATA ls_available TYPE zif_stock_allocation=>ty_available.
   DATA lv_base_quantity TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_unrestricted_quantity TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_reservation_quantity TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_batch_reservation_quantity TYPE zif_stock_allocation=>ty_quantity.
+  DATA lv_unassigned_resv_qty TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_base_unit TYPE zif_stock_allocation=>ty_unit.
   DATA lv_output_quantity TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_gross_output_quantity TYPE zif_stock_allocation=>ty_quantity.
@@ -77,6 +80,8 @@ START-OF-SELECTION.
   DATA lv_existing_alloc_overflow TYPE abap_bool.
   DATA lv_existing_alloc_overflow_qty TYPE zif_stock_allocation=>ty_quantity.
   DATA lv_existing_alloc_active TYPE abap_bool.
+  DATA lv_run_id_filter TYPE zif_stock_allocation=>ty_run_id.
+  DATA lv_run_id_contains_filter TYPE zif_stock_allocation=>ty_run_id.
   DATA lv_existing_alloc_evaluated TYPE abap_bool.
   DATA lv_existing_alloc_status TYPE string.
   DATA lv_existing_allocated_pct TYPE p LENGTH 8 DECIMALS 2.
@@ -110,14 +115,16 @@ START-OF-SELECTION.
   FIELD-SYMBOLS <ls_existing_allocation> TYPE zif_stock_allocation=>ty_demand.
 
   lv_target_unit = to_upper( p_meins ).
+  lv_run_id_filter = to_upper( p_runid ).
+  lv_run_id_contains_filter = to_upper( p_rid ).
   lv_expiration_as_of = p_expdt.
   IF lv_expiration_as_of IS INITIAL.
     lv_expiration_as_of = sy-datum.
   ENDIF.
   IF p_meta = abap_true.
-    lv_json_schema = 28.
+    lv_json_schema = 32.
   ELSE.
-    lv_json_schema = 27.
+    lv_json_schema = 31.
   ENDIF.
 
   IF p_csv = abap_true AND p_json = abap_true.
@@ -131,7 +138,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 27
+        iv_schema  = 31
         iv_message = 'Typed output requires JSON mode.' ).
       RETURN.
     ENDIF.
@@ -145,7 +152,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 27
+        iv_schema  = 31
         iv_message = 'Metadata output requires JSON mode.' ).
       RETURN.
     ENDIF.
@@ -170,7 +177,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message' .
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 27
+        iv_schema  = 31
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / 'Stock input validation failed:', lv_error_message.
@@ -195,6 +202,9 @@ START-OF-SELECTION.
     lv_error_message = 'Maximum allocatable quantity cannot be negative'.
   ELSEIF p_net <> abap_true AND p_net IS NOT INITIAL.
     lv_error_message = 'Net allocation flag is invalid'.
+  ELSEIF ( p_runid IS NOT INITIAL OR p_rid IS NOT INITIAL )
+      AND p_net <> abap_true.
+    lv_error_message = 'Allocation run filters require net allocation mode'.
   ELSEIF p_resv <> abap_true AND p_resv IS NOT INITIAL.
     lv_error_message = 'SAP reservation flag is invalid'.
   ELSEIF p_amin > 0 AND p_amax > 0 AND p_amin > p_amax.
@@ -217,7 +227,7 @@ START-OF-SELECTION.
       WRITE: / 'mode;status;schema_version;message'.
       WRITE: / zcl_stock_csv=>error_with_schema(
         iv_mode    = 'zstock_alloc_stock'
-        iv_schema  = 27
+        iv_schema  = 31
         iv_message = lv_error_message ).
     ELSE.
       WRITE: / 'Stock input validation failed:', lv_error_message.
@@ -234,7 +244,9 @@ START-OF-SELECTION.
           iv_material         = p_matnr
           iv_plant            = p_werks
           iv_storage_location = p_lgort
-          iv_batch            = p_charg ).
+          iv_batch            = p_charg
+          iv_run_id           = lv_run_id_filter
+          iv_run_id_contains  = lv_run_id_contains_filter ).
       CATCH zcx_stock_allocation INTO DATA(lo_snapshot_read_error).
         IF lo_snapshot_read_error->message IS INITIAL.
           lv_error_message = 'Existing allocation read failed'.
@@ -249,7 +261,7 @@ START-OF-SELECTION.
           WRITE: / 'mode;status;schema_version;message'.
           WRITE: / zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_stock'
-            iv_schema  = 27
+            iv_schema  = 31
             iv_message = lv_error_message ).
         ELSE.
           WRITE: / 'Existing allocation read failed:', lv_error_message.
@@ -279,20 +291,15 @@ START-OF-SELECTION.
         iv_batch                = p_charg
         iv_include_reservations = p_resv
         it_app_reservation_ids  = lt_app_reservation_ids ).
-      IF ( ls_available-reservations_included <> abap_true
-            AND ls_available-reservations_included <> abap_false )
-          OR ( p_resv = abap_true
-            AND ls_available-reservations_included <> abap_true )
-          OR ls_available-quantity < 0
-          OR ls_available-unrestricted_quantity < 0
-          OR ls_available-reservation_quantity < 0.
-        CREATE OBJECT lo_stock_result_error.
-        lo_stock_result_error->message = 'Stock reservation result is invalid'.
-        RAISE EXCEPTION lo_stock_result_error.
-      ENDIF.
+      zcl_stock_avail_validator=>validate(
+        iv_include_reservations = p_resv
+        is_available            = ls_available ).
       lv_base_quantity = ls_available-quantity.
       lv_unrestricted_quantity = ls_available-unrestricted_quantity.
       lv_reservation_quantity = ls_available-reservation_quantity.
+      lv_batch_reservation_quantity =
+        ls_available-batch_reservation_quantity.
+      lv_unassigned_resv_qty = ls_available-unassigned_resv_quantity.
       lv_base_unit = ls_available-unit.
       lv_output_quantity = ls_available-quantity.
       lv_gross_output_quantity = ls_available-unrestricted_quantity.
@@ -336,7 +343,7 @@ START-OF-SELECTION.
         WRITE: / 'mode;status;schema_version;message'.
         WRITE: / zcl_stock_csv=>error_with_schema(
           iv_mode    = 'zstock_alloc_stock'
-          iv_schema  = 27
+          iv_schema  = 31
           iv_message = lv_error_message ).
       ELSE.
         WRITE: / 'Stock read failed:', lv_error_message.
@@ -462,7 +469,7 @@ START-OF-SELECTION.
           WRITE: / 'mode;status;schema_version;message'.
           WRITE: / zcl_stock_csv=>error_with_schema(
             iv_mode    = 'zstock_alloc_stock'
-            iv_schema  = 27
+            iv_schema  = 31
             iv_message = lv_error_message ).
         ELSE.
           WRITE: / 'Existing allocation read failed:', lv_error_message.
@@ -693,7 +700,7 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>quote( 'stock' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-datum ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( sy-uzeit ) TO lt_csv_fields.
-    APPEND zcl_stock_csv=>number( 27 ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number( 31 ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_matnr ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_werks ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( p_lgort ) TO lt_csv_fields.
@@ -705,9 +712,21 @@ START-OF-SELECTION.
     APPEND zcl_stock_csv=>number(
       lv_unrestricted_quantity ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number(
+      ls_available-quality_inspection_qty ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_available-restricted_use_qty ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_available-blocked_stock_qty ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      ls_available-transfer_stock_qty ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
       lv_reservation_quantity ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote(
       ls_available-reservations_included ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_batch_reservation_quantity ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>number(
+      lv_unassigned_resv_qty ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_target_unit ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_converted ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>number( p_saf ) TO lt_csv_fields.
@@ -805,14 +824,21 @@ START-OF-SELECTION.
       lv_below_minimum_shelf_life ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_shelf_life_status ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( lv_eligibility_status ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote( lv_run_id_filter ) TO lt_csv_fields.
+    APPEND zcl_stock_csv=>quote(
+      lv_run_id_contains_filter ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( ls_available-batch_restricted ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( 'success' ) TO lt_csv_fields.
     APPEND zcl_stock_csv=>quote( 'Stock read completed' ) TO lt_csv_fields.
     CONCATENATE LINES OF lt_csv_fields INTO lv_csv_line SEPARATED BY ';'.
     WRITE: / 'mode;generated_date;generated_time;schema_version;material;plant;'
       && 'storage_location;batch;quantity;unit;base_quantity;base_unit;'
-      && 'unrestricted_base_quantity;sap_reservation_base_quantity;'
+      && 'unrestricted_base_quantity;quality_inspection_base_quantity;'
+      && 'restricted_use_base_quantity;blocked_base_quantity;'
+      && 'in_transfer_base_quantity;sap_reservation_base_quantity;'
       && 'sap_reservations_included;'
+      && 'sap_batch_reservation_base_quantity;'
+      && 'sap_unassigned_reservation_base_quantity;'
       && 'target_unit;converted;safety_stock;safety_stock_threshold_active;'
       && 'safety_stock_threshold_evaluated;at_or_below_safety_stock;'
       && 'allocatable_quantity;allocatable_quantity_status;'
@@ -839,7 +865,8 @@ START-OF-SELECTION.
       && 'remaining_shelf_life_days;minimum_shelf_life_days;'
       && 'shelf_life_threshold_active;shelf_life_threshold_evaluated;'
       && 'below_minimum_shelf_life;shelf_life_status;'
-      && 'allocation_eligibility_status;'
+      && 'allocation_eligibility_status;existing_allocation_run_id_filter;'
+      && 'existing_allocation_run_id_contains_filter;'
       && 'batch_restricted;status;message'.
     WRITE: / lv_csv_line.
     RETURN.
@@ -905,21 +932,57 @@ START-OF-SELECTION.
         iv_name  = 'unrestricted_base_quantity'
         iv_value = lv_unrestricted_quantity ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
+        iv_name  = 'quality_inspection_base_quantity'
+        iv_value = ls_available-quality_inspection_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'restricted_use_base_quantity'
+        iv_value = ls_available-restricted_use_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'blocked_base_quantity'
+        iv_value = ls_available-blocked_stock_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'in_transfer_base_quantity'
+        iv_value = ls_available-transfer_stock_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
         iv_name  = 'sap_reservation_base_quantity'
         iv_value = lv_reservation_quantity ) TO lt_json_fields.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'sap_reservations_included'
         iv_value = ls_available-reservations_included ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'sap_batch_reservation_base_quantity'
+        iv_value = lv_batch_reservation_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>number_property(
+        iv_name  = 'sap_unassigned_reservation_base_quantity'
+        iv_value = lv_unassigned_resv_qty ) TO lt_json_fields.
     ELSE.
       APPEND zcl_stock_json=>property(
         iv_name  = 'unrestricted_base_quantity'
         iv_value = lv_unrestricted_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'quality_inspection_base_quantity'
+        iv_value = ls_available-quality_inspection_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'restricted_use_base_quantity'
+        iv_value = ls_available-restricted_use_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'blocked_base_quantity'
+        iv_value = ls_available-blocked_stock_qty ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'in_transfer_base_quantity'
+        iv_value = ls_available-transfer_stock_qty ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'sap_reservation_base_quantity'
         iv_value = lv_reservation_quantity ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'sap_reservations_included'
         iv_value = ls_available-reservations_included ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'sap_batch_reservation_base_quantity'
+        iv_value = lv_batch_reservation_quantity ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'sap_unassigned_reservation_base_quantity'
+        iv_value = lv_unassigned_resv_qty ) TO lt_json_fields.
     ENDIF.
     APPEND zcl_stock_json=>property(
       iv_name  = 'target_unit'
@@ -1027,6 +1090,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>boolean_property(
         iv_name  = 'net_allocation_active'
         iv_value = lv_existing_alloc_active ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_run_id_filter'
+        iv_value = lv_run_id_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_run_id_contains_filter'
+        iv_value = lv_run_id_contains_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>number_property(
         iv_name  = 'existing_allocated_quantity'
         iv_value = lv_existing_alloc_qty ) TO lt_json_fields.
@@ -1069,6 +1138,12 @@ START-OF-SELECTION.
       APPEND zcl_stock_json=>property(
         iv_name  = 'net_allocation_active'
         iv_value = lv_existing_alloc_active ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_run_id_filter'
+        iv_value = lv_run_id_filter ) TO lt_json_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'existing_allocation_run_id_contains_filter'
+        iv_value = lv_run_id_contains_filter ) TO lt_json_fields.
       APPEND zcl_stock_json=>property(
         iv_name  = 'existing_allocated_quantity'
         iv_value = lv_existing_alloc_qty ) TO lt_json_fields.
@@ -1319,6 +1394,12 @@ START-OF-SELECTION.
         iv_name  = 'include_sap_reservations'
         iv_value = p_resv ) TO lt_filter_value_fields.
       APPEND zcl_stock_json=>property(
+        iv_name  = 'allocation_run_id'
+        iv_value = lv_run_id_filter ) TO lt_filter_value_fields.
+      APPEND zcl_stock_json=>property(
+        iv_name  = 'allocation_run_id_contains'
+        iv_value = lv_run_id_contains_filter ) TO lt_filter_value_fields.
+      APPEND zcl_stock_json=>property(
         iv_name  = 'expiration_as_of'
         iv_value = lv_expiration_as_of ) TO lt_filter_value_fields.
       APPEND zcl_stock_json=>object_property(
@@ -1402,6 +1483,18 @@ START-OF-SELECTION.
           iv_value = 'true' ) TO lt_filter_fields.
         APPEND 'net_existing_allocations' TO lt_filter_names.
       ENDIF.
+      IF lv_run_id_filter IS NOT INITIAL.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'allocation_run_id'
+          iv_value = lv_run_id_filter ) TO lt_filter_fields.
+        APPEND 'allocation_run_id' TO lt_filter_names.
+      ENDIF.
+      IF lv_run_id_contains_filter IS NOT INITIAL.
+        APPEND zcl_stock_json=>property(
+          iv_name  = 'allocation_run_id_contains'
+          iv_value = lv_run_id_contains_filter ) TO lt_filter_fields.
+        APPEND 'allocation_run_id_contains' TO lt_filter_names.
+      ENDIF.
       IF p_resv = abap_true.
         APPEND zcl_stock_json=>property(
           iv_name  = 'include_sap_reservations'
@@ -1443,7 +1536,16 @@ START-OF-SELECTION.
   WRITE: / 'Stock available:', lv_output_quantity, lv_output_unit,
          / 'Base stock:', lv_base_quantity, lv_base_unit,
          / 'Unrestricted base quantity:', lv_unrestricted_quantity,
+         / 'Quality-inspection base quantity:',
+           ls_available-quality_inspection_qty,
+         / 'Restricted-use base quantity:', ls_available-restricted_use_qty,
+         / 'Blocked base quantity:', ls_available-blocked_stock_qty,
+         / 'Stock-in-transfer base quantity:', ls_available-transfer_stock_qty,
          / 'Open SAP reservation base quantity:', lv_reservation_quantity,
+         / 'Open batch-assigned SAP reservation base quantity:',
+           lv_batch_reservation_quantity,
+         / 'Open unassigned SAP reservation base quantity:',
+           lv_unassigned_resv_qty,
          / 'SAP reservations included:', ls_available-reservations_included,
          / 'Target unit:', lv_target_unit,
          / 'Converted:', lv_converted,
@@ -1467,6 +1569,9 @@ START-OF-SELECTION.
          / 'Above maximum allocatable:', lv_above_allocatable_maximum,
          / 'Allocatable range status:', lv_allocatable_range_status,
          / 'Net existing allocations:', lv_existing_alloc_active,
+         / 'Existing allocation run ID filter:', lv_run_id_filter,
+         / 'Existing allocation run ID contains filter:',
+           lv_run_id_contains_filter,
          / 'Existing allocated quantity:', lv_existing_alloc_qty,
          / 'Existing allocation quantity already reserved:',
            lv_existing_alloc_sap_qty,

@@ -77,6 +77,18 @@
     </item>
     <item>
      <ID>S</ID>
+     <KEY>P_RUNID</KEY>
+     <ENTRY>Allocation run ID filter</ENTRY>
+     <LENGTH>24</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
+     <KEY>P_RID</KEY>
+     <ENTRY>Allocation run ID fragment</ENTRY>
+     <LENGTH>27</LENGTH>
+    </item>
+    <item>
+     <ID>S</ID>
      <KEY>P_RESV</KEY>
      <ENTRY>Net open SAP reservations</ENTRY>
      <LENGTH>25</LENGTH>

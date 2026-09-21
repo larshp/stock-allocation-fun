@@ -1072,10 +1072,17 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
     DATA ls_summary TYPE zif_allocation_audit=>ty_summary.
     DATA lv_run_id TYPE zif_allocation_audit=>ty_run_id.
     DATA lt_runs TYPE zif_allocation_audit=>tt_runs.
+    DATA lv_oldest_window_start TYPE d.
     DATA lv_oldest_deadline TYPE d.
+    DATA lv_newest_window_start TYPE d.
     DATA lv_newest_deadline TYPE d.
     DATA lv_raised TYPE abap_bool.
     DATA ls_last_run TYPE zif_allocation_audit=>ty_run.
+
+    lv_oldest_window_start = sy-datum - 51.
+    lv_oldest_deadline = sy-datum - 45.
+    lv_newest_window_start = sy-datum + 9.
+    lv_newest_deadline = sy-datum + 15.
 
     CREATE OBJECT lo_cut TYPE zcl_allocation_audit_sap.
     lv_run_id = lo_cut->start_run(
@@ -1087,8 +1094,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_unit              = 'EA'
       iv_available         = '10'
       iv_demand_count      = 1
-      iv_requested_on_from = '20260801'
-      iv_requested_on_to   = '20260807' ).
+      iv_requested_on_from = lv_oldest_window_start
+      iv_requested_on_to   = lv_oldest_deadline ).
     lo_cut->finish_run(
       iv_run_id     = lv_run_id
       iv_status     = 'S'
@@ -1108,8 +1115,8 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       iv_unit              = 'EA'
       iv_available         = '8'
       iv_demand_count      = 1
-      iv_requested_on_from = '20260901'
-      iv_requested_on_to   = '20260907' ).
+      iv_requested_on_from = lv_newest_window_start
+      iv_requested_on_to   = lv_newest_deadline ).
     lo_cut->finish_run(
       iv_run_id     = lv_run_id
       iv_status     = 'S'
@@ -1174,8 +1181,6 @@ CLASS ltcl_allocation_audit_sap IMPLEMENTATION.
       exp = ls_last_run-unallocated_count ).
     cl_abap_unit_assert=>assert_initial(
       ls_summary-min_shelf_life_context ).
-    lv_oldest_deadline = '20260807'.
-    lv_newest_deadline = '20260907'.
     cl_abap_unit_assert=>assert_equals(
       act = ls_summary-oldest_deadline_age_days
       exp = sy-datum - lv_oldest_deadline ).

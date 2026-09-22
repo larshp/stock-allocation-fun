@@ -7,8 +7,12 @@ under `stubs/`, while custom `Z*` objects live under `src/`.
 ## Current feature
 
 The stock service reads unrestricted-use quantity for a material and plant from
-`MARD-LABST`. The database read is isolated in `ZCL_MARD_STOCK_REPOSITORY` and
-can be replaced through `ZIF_STOCK_REPOSITORY` in tests or other integrations.
+`MARD-LABST` (in the material's base unit). The database read is isolated in
+`ZCL_MARD_STOCK_REPOSITORY` and can be replaced through
+`ZIF_STOCK_REPOSITORY` in tests or other integrations. It can also preview a
+request against that quantity, returning the allocated amount and any shortfall.
+Negative requests raise `ZCX_INVALID_STOCK_REQUEST`; negative stock is treated
+as unavailable for allocation.
 
 ## Development
 

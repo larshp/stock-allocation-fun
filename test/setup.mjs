@@ -34,4 +34,12 @@ export async function setup(abap, schemas, insert) {
       ('123', '0000000100', '${item}', '', '${order}', 'MAT1', '1000', '0001', 'EA',
        ${required}, ${withdrawn}, '${date}', '${deleted}', '${finalIssue}', '${sign}', '${special}');`);
   }
+  // Manual reservations are isolated from the selected order fixtures above.
+  await db.execute(`INSERT INTO resb
+    (mandt, rsnum, rspos, rsart, aufnr, matnr, werks, lgort, meins,
+     bdmng, enmng, bdter, xloek, kzear, shkzg, sobkz) VALUES
+    ('123', '0000000200', '0001', '', '', 'MAT1', '1000', '0001', 'EA',
+     0.300, 0.100, '20260906', '', '', 'H', ''),
+    ('123', '0000000200', '0002', '', '', 'MAT1', '1000', '0001', 'EA',
+     -1, 0, '20260906', '', '', 'H', '');`);
 }

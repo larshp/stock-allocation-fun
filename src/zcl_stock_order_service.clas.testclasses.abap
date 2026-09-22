@@ -6,6 +6,7 @@ CLASS lcl_sources DEFINITION FINAL.
     DATA response_stocks TYPE zif_stock_alloc_types=>ty_stocks.
     DATA captured_orders TYPE zif_stock_order_source=>ty_orders.
     DATA captured_date TYPE d.
+    DATA captured_from TYPE d.
     DATA order_calls TYPE i.
     DATA stock_calls TYPE i.
     DATA fail_orders TYPE abap_bool.
@@ -16,6 +17,7 @@ CLASS lcl_sources IMPLEMENTATION.
     order_calls = order_calls + 1.
     captured_orders = orders.
     captured_date = through_date.
+    captured_from = from_date.
     IF fail_orders = abap_true.
       RAISE EXCEPTION TYPE zcx_stock_alloc
         EXPORTING reason = 'Order read failed'.
@@ -39,7 +41,14 @@ CLASS ltcl_order_service DEFINITION FINAL FOR TESTING DURATION SHORT RISK LEVEL 
     METHODS skips_empty_work FOR TESTING RAISING zcx_stock_alloc.
     METHODS validates_selection FOR TESTING.
     METHODS validates_horizon FOR TESTING.
+    METHODS inclusive_window FOR TESTING RAISING zcx_stock_alloc.
+    METHODS rejects_invalid_window FOR TESTING.
+    METHODS rejects_early_demand FOR TESTING.
     METHODS validates_returned_demand FOR TESTING.
+    METHODS rejects_unselected_origin FOR TESTING.
+    METHODS requires_returned_origin FOR TESTING.
+    METHODS rejects_changed_policy FOR TESTING.
+    METHODS respects_selected_orders FOR TESTING RAISING zcx_stock_alloc.
     METHODS propagates_order_errors FOR TESTING.
     METHODS requires_both_sources FOR TESTING.
     METHODS assert_selection_rejected.
@@ -50,7 +59,8 @@ CLASS ltcl_order_service IMPLEMENTATION.
     sources = NEW #( ).
     sources->response_requests = VALUE #( ( request_id = 'ORDER-COMPONENT' material = 'MAT1'
       plant = '1000' storage = '0001' unit = 'EA' quantity = 8
-      required_date = '20260906' allow_partial = abap_true ) ).
+      required_date = '20260906' priority = 1 allow_partial = abap_true
+      origin = VALUE #( order_id = '000000001000' ) ) ).
     sources->response_stocks = VALUE #( ( material = 'MAT1' plant = '1000' storage = '0001'
       unit = 'EA' quantity = 5 ) ).
     orders = VALUE #( ( order_id = '000000001000' priority = 1 allow_partial = abap_true ) ).
@@ -143,6 +153,114 @@ CLASS ltcl_order_service IMPLEMENTATION.
         service->simulate( orders ).
         cl_abap_unit_assert=>fail( 'Invalid order demand accepted' ).
       CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_unselected_origin.
+    sources->response_requests[ 1 ]-origin-order_id = '000000009999'.
+    TRY.
+        service->simulate( orders ).
+        cl_abap_unit_assert=>fail( 'Demand from an unselected order accepted' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD requires_returned_origin.
+    CLEAR sources->response_requests[ 1 ]-origin.
+    TRY.
+        service->simulate( orders ).
+        cl_abap_unit_assert=>fail( 'Order demand without provenance accepted' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_changed_policy.
+    DO 2 TIMES.
+      IF sy-index = 1.
+        sources->response_requests[ 1 ]-priority = 0.
+      ELSE.
+        sources->response_requests[ 1 ]-priority = 1.
+        sources->response_requests[ 1 ]-allow_partial = abap_false.
+      ENDIF.
+      TRY.
+          service->simulate( orders ).
+          cl_abap_unit_assert=>fail( 'Source changed the selected order policy' ).
+        CATCH zcx_stock_alloc.
+          cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
+      ENDTRY.
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD respects_selected_orders.
+    APPEND VALUE #( order_id = '000000002000' priority = 0 allow_partial = abap_false ) TO orders.
+    DATA(extra) = sources->response_requests[ 1 ].
+    extra-request_id = 'SECOND-ORDER'.
+    extra-origin-order_id = '000000002000'.
+    extra-priority = 0.
+    extra-allow_partial = abap_false.
+    extra-quantity = 3.
+    APPEND extra TO sources->response_requests.
+    DATA(result) = service->simulate( orders ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-request_id
+                                      exp   = 'SECOND-ORDER' ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 2 ]-allocated
+                                      exp   = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = sources->stock_calls
+                                      exp   = 1 ).
+  ENDMETHOD.
+
+  METHOD inclusive_window.
+    DATA(result) = service->simulate( orders       = orders
+                                      through_date = '20260906'
+                                      from_date    = '20260906' ).
+    cl_abap_unit_assert=>assert_equals( act = result[ 1 ]-allocated
+                                      exp   = 5 ).
+    cl_abap_unit_assert=>assert_equals( act = sources->captured_from
+                                      exp   = '20260906' ).
+    cl_abap_unit_assert=>assert_equals( act = sources->captured_date
+                                      exp   = '20260906' ).
+    result = service->simulate( orders ).
+    cl_abap_unit_assert=>assert_equals( act = sources->captured_from
+                                      exp   = '00010101' ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_window.
+    DATA dates TYPE STANDARD TABLE OF d WITH DEFAULT KEY.
+    dates = VALUE #( ( '00000000' ) ( '20260229' ) ( '20260908' ) ).
+    LOOP AT dates INTO DATA(date).
+      TRY.
+          service->simulate( orders       = orders
+                             through_date = '20260907'
+                             from_date    = date ).
+          cl_abap_unit_assert=>fail( 'Invalid order date window accepted' ).
+        CATCH zcx_stock_alloc.
+          cl_abap_unit_assert=>assert_initial( sources->order_calls ).
+          cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
+      ENDTRY.
+    ENDLOOP.
+    TRY.
+        service->simulate( orders       = VALUE #( )
+                           through_date = '20260906'
+                           from_date    = '20260907' ).
+        cl_abap_unit_assert=>fail( 'Invalid empty-selection window accepted' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_initial( sources->order_calls ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD rejects_early_demand.
+    TRY.
+        service->simulate( orders    = orders
+                           from_date = '20260907' ).
+        cl_abap_unit_assert=>fail( 'Source demand before window accepted' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_equals( act = sources->order_calls
+                                          exp   = 1 ).
         cl_abap_unit_assert=>assert_initial( sources->stock_calls ).
     ENDTRY.
   ENDMETHOD.

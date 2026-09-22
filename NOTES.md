@@ -59,10 +59,78 @@
   is validated before filtering; out-of-window demand does not consume stock or
   trigger reads. 92 ABAP Unit methods, demo and SQL-count checks pass; zero lint issues.
 
+## 2026-09-22
+
+- Verified existing order/reservation provenance propagation and independent-write
+  guards, including the four regression methods absent from earlier progress notes.
+  The starting suite contained 96 ABAP Unit methods. Updated README with the contract.
+- Added optional inclusive `from_date` to order source, policy and simulation APIs.
+  Kept the existing defaults and calls compatible. Reversed/invalid windows fail
+  before reads; injected sources cannot return earlier demand. Five new tests cover
+  boundaries, validation, empty results and preservation of stock when earlier RESB
+  components are excluded. All 101 methods passed at this checkpoint.
+- Fixed dependency pinning when npm `ignore-scripts=true` disables prelint/preunit.
+  Both main scripts now explicitly verify/prepare open-abap-core. Fetched the locked
+  revision and confirmed lint/transpile use the local cache; recorded in ANOMALIES.md.
+- Added `zcl_stock_alloc_comparison` for per-request scenario gains/losses, before/after
+  shortages and deterministic output. It rejects different request sets or changed
+  demand/origin, preserves units and handles decimal and maximum-quantity deltas.
+  Seven tests include a real priority-change allocation scenario and malformed inputs.
+- `npm.cmd test` passes 108 ABAP Unit methods, the demo and stock SQL-read checks with
+  zero abaplint issues against the locked dependency; npm lifecycle hooks remain disabled.
+- Added `zcl_stock_order_summary` with per-order component counts, quantity-derived
+  status, earliest shortage date and original shortage allocations for drill-down.
+  It rejects missing order origins and invalid results, keeps unlike units separate,
+  and produces stable ordering. Seven pure tests and one RESB/service integration
+  fixture brought the passing suite to 116 methods.
+- Reproduced acceptance of demand from an unselected order returned by an injected
+  source. Order simulation now checks origins against a hashed order selection and
+  requires each request to retain the selected priority/partial policy before any
+  stock read. Four tests cover unselected/missing origins, policy overrides and
+  valid multi-order prioritization. Documented the stricter custom-source contract.
+- Latest `npm.cmd test`: 120 ABAP Unit methods, demo and SQL-count checks passed;
+  zero lint issues. The new reporting and source contract are documented in README.
+- Verified SAP's GM code 03 reservation-reference contract and added
+  `zif_stock_reserved_issue` / `zcl_stock_reserved_issue_sap`. Maps full reservation
+  keys, quantity, unit and storage; leaves SAP-derived material/plant/movement/account
+  fields initial. Requires complete, unique reservation references even for zero rows.
+  Default simulation, caller-owned LUW and no forced final issue mirror existing APIs.
+- Extracted the shared goods-issue BAPI call, error-message preservation and document
+  key validation into an abstract protected base. Existing cost-center tests still
+  pass. Extended standard item stubs under stubs only; abapGit imports remain src-only.
+- Added 13 reserved-issue tests covering decimals, references, duplicate keys, blank
+  record types/manual reservations, simulation, warnings/errors, document keys and
+  the failing standard stub. A RESB-to-service-to-adapter fixture checks planned
+  withdrawals of 8 and 2 without forcing completion of the remaining shortage.
+- Confirmed fresh transpiler 2.13.90 output correctly declares `$return` in both BAPI
+  function groups. Removed the obsolete generated-JavaScript patch and reran tests
+  directly against unmodified transpiler output. Recorded the resolution in ANOMALIES.md.
+- Latest `npm.cmd test`: 133 ABAP Unit methods, demo and SQL-count checks pass with
+  zero lint issues. Real SAP posting, locks and reservation revalidation remain
+  integration responsibilities documented alongside the new usage example.
+- Added injectable `zif_stock_reservation_source` with a keyed RESB implementation
+  for fresh outstanding issue quantities and reservation identity. Includes manual
+  reservations, excludes closed/non-issue/special-stock rows, deduplicates read keys
+  and rejects incomplete references and negative open-item quantities.
+- Added `zcl_stock_reserved_checked`, a reserved-writer wrapper checking the exact
+  positive-allocation key set, identity and sufficient outstanding demand before
+  invoking a writer. It validates input before reads, checks all rows before writing,
+  preserves parameters/results/errors and rereads on every call. Locking and fresh
+  stock checks remain caller responsibilities. Shared reservation-key validation now
+  serves both the low-level writer and this wrapper.
+- Reproduced a runtime failure on nested hashed-table keys in transpiler/runtime
+  2.13.90. Replaced the index with flat reservation keys and an embedded request;
+  documented the workaround in ANOMALIES.md without modifying generated JavaScript.
+- Added ten wrapper tests and six SAP-reader fixture tests, including fractional
+  manual demand, stale identity, all-row validation, exact quantity boundaries and
+  source anomalies. Extended the existing order-to-BAPI mapping fixture through the
+  new checker and real local RESB reader. `npm.cmd test` passes all 149 methods,
+  demo and SQL-count checks with zero lint issues.
+
 ## Next iterations
 
-- Preserve SAP order/reservation provenance and reject accidental independent
-  cost-center writes for demand that already references a reservation.
+- Add optional stock revalidation for proposed issue quantities, preserving safety
+  stock/commitment policies and checking cumulative consumption at each location.
 - Validate real SAP integration contracts, authorizations and client handling when
   a development system becomes available; do not treat local stubs as SAP proof.
 - Revisit bulk stock reads when the transpiler supports the joined FAE expression.

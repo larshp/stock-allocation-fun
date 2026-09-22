@@ -2,13 +2,6 @@
 
 ## Open
 
-- Transpiler 2.13.74 emits `let return = INPUT.tables?.return` for a BAPI TABLES
-  parameter, while its references correctly use `$return`. The local test command
-  applies an exact, single-line correction per generated function group in
-  `mb_bus2093.fugr.mjs` and `mb_bus2017.fugr.mjs`.
-  The SAP ABAP signature is unchanged, and lint/transpile syntax checks stay enabled.
-  Remove `test/fix-transpiled-bapi.mjs` after an upstream release fixes declarations.
-
 - The transpiler does not emit implicit SAP client predicates for this SELECT.
   SQLite fixtures therefore use one client; native SAP client isolation needs an
   ABAP Unit/integration check in the target system. Production uses normal Open SQL
@@ -18,10 +11,16 @@
   contracts, but cannot validate SAP authorizations, customizing, locking or updates.
 - A MARD unrestricted-stock snapshot is not ATP. Production callers must account
   for existing requirements and obtain appropriate locks before making reservations.
-- The goods-issue adapter covers independent cost-center consumption only (201),
-  with no batch, serial number, special stock or reservation reference support.
-  Its local standard stub always returns an error; real SAP posting and accounting
+- The goods-issue adapters cover independent cost-center consumption (201) and
+  reservation-referenced issues. Batch, serial number and special-stock parameters
+  are not exposed. Their local standard stub always returns an error; real SAP posting and accounting
   behavior require development-system integration validation.
+- The reserved-issue adapter maps reservation keys; SAP derives material, plant,
+  movement and account assignment from those keys. The optional checked wrapper
+  re-reads RESB identity and outstanding demand, but does not acquire locks or check
+  stock, order status, movement permission or backflush eligibility. Callers must
+  keep the snapshot stable under appropriate locks through posting and supply those
+  remaining checks. The low-level writer can still be used independently.
 - The RESB adapter reads explicitly selected order components but does not check
   order release/TECO status. It excludes special stock rather than allocating it;
   callers must select eligible orders and use the appropriate downstream process.
@@ -31,6 +30,31 @@
   were removed without introducing a cache across calls.
 
 ## Resolved
+
+- Runtime 2.13.90 failed with `Cannot read properties of undefined (reading 'get')`
+  when inserting a request into a hashed table keyed by nested `origin-reservation`
+  components. Lint and transpilation had succeeded. The checked-issue wrapper now
+  indexes a flat reservation key with the request as payload; duplicate/missing-key
+  regressions and the complete SAP-reader-to-writer fixture pass in both tool stages.
+
+- Transpiler 2.13.74 emitted the reserved JavaScript identifier `return` for a BAPI
+  TABLES declaration. Inspected fresh output from pinned 2.13.90: both standard
+  function groups now emit `$return` correctly. Removed the generated-code patch
+  and validated direct transpiler output with reservation and goods-issue stub tests.
+
+- The order service validated request quantities and dates but trusted source order
+  membership and policy. An injected source could allocate stock to an unselected
+  order or omit provenance, bypassing downstream guards against independent writes.
+  Reproduced with an unselected-order regression, then added hashed membership and
+  priority/partial-policy checks before stock reads. Missing origins are rejected;
+  custom order sources must now populate the documented provenance/policy contract.
+
+- With npm `ignore-scripts=true`, automatic prelint/preunit hooks were skipped.
+  Without `.deps`, lint and transpile silently cloned the current dependency head,
+  violating the revision lock (and failing offline). Main lint/unit commands now
+  invoke dependency preparation explicitly, which checks the lock and clean cache
+  before either tool starts. Validated with lifecycle hooks disabled and the pinned
+  local checkout; no global npm setting was changed.
 
 - Reservation validation rejected valid decimal allocations in the transpiled
   runtime: `0.300 - 0.100` compared directly with `0.200` used binary floating-point

@@ -6,7 +6,8 @@ ENDCLASS.
 CLASS zcl_stock_order_source_sap IMPLEMENTATION.
   METHOD zif_stock_order_source~read.
     zcl_stock_order_policy=>validate( orders       = orders
-                                      through_date = through_date ).
+                                      through_date = through_date
+                                      from_date    = from_date ).
     LOOP AT orders INTO DATA(order).
       DATA components TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
       SELECT rsnum, rspos, rsart, matnr, werks, lgort, meins, bdmng, enmng, bdter
@@ -17,6 +18,7 @@ CLASS zcl_stock_order_source_sap IMPLEMENTATION.
           AND shkzg = 'H'
           AND sobkz = @space
           AND bdter <= @through_date
+          AND bdter >= @from_date
         INTO CORRESPONDING FIELDS OF TABLE @components.
       LOOP AT components INTO DATA(component).
         IF component-bdmng < 0 OR component-enmng < 0.

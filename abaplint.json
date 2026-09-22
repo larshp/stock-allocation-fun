@@ -1,0 +1,29 @@
+{
+  "global": { "files": "/{src,stubs}/**/*.*" },
+  "dependencies": [{
+    "url": "https://github.com/open-abap/open-abap-core",
+    "folder": "/.deps/73399856030a849c849dfa303a8ac896acc9241a",
+    "files": "/src/**/*.*"
+  }],
+  "syntax": { "version": "v750", "errorNamespace": "." },
+  "rules": {
+    "check_syntax": true,
+    "check_ddic": true,
+    "check_include": true,
+    "parser_missing_space": true,
+    "method_implemented_twice": true,
+    "parser_error": true,
+    "unknown_types": true,
+    "implement_methods": true,
+    "global_class": true,
+    "xml_consistency": true,
+    "modify_only_own_db_tables": true,
+    "align_type_expressions": true,
+    "easy_to_find_messages": true,
+    "max_one_method_parameter_per_line": true,
+    "align_parameters": true,
+    "local_testclass_consistency": true,
+    "allowed_object_naming": true,
+    "line_length": true
+  }
+}

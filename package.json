@@ -1,0 +1,21 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tested ABAP stock allocation with SAP integration boundaries",
+  "scripts": {
+    "deps": "node test/prepare-dependencies.mjs",
+    "lint": "npm run deps && abaplint",
+    "transpile": "npm run deps && abap_transpile abap_transpile.json",
+    "unit": "npm run transpile && node output/index.mjs && node test/demo.mjs && node test/order-demo.mjs && node test/stock-read-performance.mjs",
+    "demo": "npm run transpile && node test/demo.mjs && node test/order-demo.mjs",
+    "demo:orders": "npm run transpile && node test/order-demo.mjs",
+    "test": "npm run lint && npm run unit"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "2.120.57",
+    "@abaplint/database-sqlite": "2.13.83",
+    "@abaplint/runtime": "2.13.90",
+    "@abaplint/transpiler-cli": "2.13.90"
+  }
+}

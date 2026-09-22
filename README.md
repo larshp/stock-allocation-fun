@@ -9,10 +9,13 @@ under `stubs/`, while custom `Z*` objects live under `src/`.
 The stock service reads unrestricted-use quantity for a material and plant from
 `MARD-LABST` (in the material's base unit). The database read is isolated in
 `ZCL_MARD_STOCK_REPOSITORY` and can be replaced through
-`ZIF_STOCK_REPOSITORY` in tests or other integrations. It can also preview a
-request against that quantity, returning the allocated amount and any shortfall.
-Negative requests raise `ZCX_INVALID_STOCK_REQUEST`; negative stock is treated
-as unavailable for allocation.
+`ZIF_STOCK_REPOSITORY` in tests or other integrations. The service can preview
+one request or a batch of demand lines, returning each allocated amount and
+shortfall. Batch lines use the input order as priority; each result reports the
+remaining balance before its line is allocated. Each material/plant balance is
+read once and consumed across the matching lines. Negative requests raise
+`ZCX_INVALID_STOCK_REQUEST`; negative stock is treated as unavailable.
+Previews do not persist allocations or write stock.
 
 ## Development
 

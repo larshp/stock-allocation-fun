@@ -12,7 +12,9 @@
 - Added allocation previews that cap an individual request to available stock,
   report a shortfall, treat negative stock as unavailable, and reject negative
   requested quantities.
+- Added ordered multi-line allocation with per-material/plant stock caching so
+  repeated demand lines cannot allocate the same stock more than once.
 - Verification: `npm.cmd test` passed; abaplint reported zero issues and the
-  transpiler ran all six ABAP Unit test methods successfully.
+  transpiler ran all eight ABAP Unit test methods successfully.
 - Remaining planned integration: read and write orders, then post confirmed
   stock movements through a SAP standard goods-movement API.

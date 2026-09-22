@@ -27,6 +27,7 @@ Custom objects live in `src/`; local SAP substitutes live in `stubs/`.
   to test mode and leaving transaction completion to the integrating application.
 - Stage goods issues against existing reservation items, preserving their SAP references.
 - Revalidate reservation identity and remaining demand before staging referenced issues.
+- Optionally recheck cumulative issue quantities against fresh adjusted stock.
 
 ## Local development
 
@@ -45,11 +46,21 @@ Dependency preparation runs explicitly even when npm lifecycle hooks are disable
 with `ignore-scripts`. The lock and both tool configurations must point to the same revision. Generated
 JavaScript, dependency caches and node_modules are ignored. CI executes the same command.
 
-Run `npm run demo` for a verified, read-only example with fixed sample data. On
-Windows with restricted PowerShell scripts, use `npm.cmd run demo` or `npm.cmd test`.
+Run `npm run demo` for both verified, read-only examples with fixed sample data.
+The demo command transpiles and runs the reports without the database test fixtures.
+On Windows with restricted PowerShell scripts, use `npm.cmd run demo` or `npm.cmd test`.
 In SAP, execute report `ZSTOCK_ALLOC_DEMO`. Its three requests demonstrate priority,
 safety stock, commitments, partial fulfillment and whole-lot rounding. Available
 stock is 15 ST; allocations are 8, 4 and 3 ST. No database or BAPI is called.
+
+Run `npm run demo:orders` or SAP report `ZSTOCK_ORDER_DEMO` for the order workflow.
+Two orders compete for 10 ST of PART, while a separate component uses 2 KG of FLUID.
+The report shows per-order fulfillment and a 6 ST shortage, compares a replenishment
+scenario with 16 ST of PART, then previews three checked issue items. Reducing PART
+to 15 ST demonstrates that stock revalidation blocks a second preview call.
+Its sources and writer are local report classes: no database or BAPI is called, and
+the preview writer rejects actual posting mode. This demonstrates orchestration, not
+SAP posting or locking. Both report outputs are checked by `npm test`.
 
 ## SAP installation and use
 
@@ -211,6 +222,14 @@ commitments or constitute an ATP promise. The BAPI adapter requests an SAP ATP c
 actual behavior depends on target-system customizing. SAP describes MARD-LABST as
 [unrestricted stock](https://help.sap.com/docs/SCMCSCPP/7497fe04b3da40b98a1f748d75dea162/fb40a46f730c1014b20cb6168adf95d3.html).
 
+The reader uses two guarded `FOR ALL ENTRIES` selections: MARD for the distinct
+requested material/plant/storage keys, then MARA for the distinct materials actually
+found. Empty requests skip all SQL, and no matching stock skips the material read.
+It retains every location key, returns sorted rows, rejects missing/blank base units
+and refreshes all data on each call. The transpiler expands these selections into
+per-key queries; local SQL-count tests verify guards and deduplication, not native
+SAP performance. Measure database packaging and execution plans on the target system.
+
 To validate a cost-center reservation, call `zif_stock_reservation~create` on
 `zcl_stock_reservation_sap`, passing allocations, cost center and base date.
 Its default `test_run = abap_true` creates no document. An explicit false value
@@ -287,7 +306,8 @@ reservation demand before invoking it:
 ```abap
 reserved_issuer = NEW zcl_stock_reserved_checked(
   source = NEW zcl_stock_reserv_source_sap( )
-  writer = NEW zcl_stock_reserved_issue_sap( ) ).
+  writer = NEW zcl_stock_reserved_issue_sap( )
+  stock_source = NEW zcl_stock_source_sap( ) ).
 reserved_result = reserved_issuer->create(
   allocations = order_allocations
   posting_date = '20260922'
@@ -312,11 +332,25 @@ are read once; incomplete keys and negative open-item quantities are rejected.
 Source request IDs need not match the original simulation: matching uses reservation
 keys and the identity fields above. The wrapper rejects unexpected source items.
 
-This check covers a reservation snapshot, not stock availability, movement permission,
-order status or backflush eligibility. The caller must hold suitable locks through
-revalidation and posting and own commit/rollback. Without those locks, a reservation
-can change after the read. The low-level SAP writer remains available for applications
-that already implement these checks in their transaction boundary.
+The optional `stock_source` adds a fresh stock check after all reservation checks
+pass. It reads only positive proposed issues and reuses the allocator to check their
+cumulative consumption per material/plant/storage/unit. It checks the allocated
+quantity, not the original demand or shortage. Every proposed issue must fit in full;
+the wrapper never reduces quantities or posts a subset. Missing stock, incompatible
+units, duplicate stock locations, invalid stock rows or any shortage stop the writer.
+The original allocations and write parameters remain unchanged.
+
+To preserve safety stock and external commitments, pass a `zcl_stock_source_adjusted`
+or another source returning those adjustments. Commitments must exclude the demands
+being issued to avoid counting them twice. Stock is read again on each call, including
+test mode; reservation failures skip the stock read entirely. Omitting `stock_source`
+retains reservation-only checking. Explicitly supplying an unbound source is rejected.
+
+These are snapshot checks, not locks or an SAP ATP promise. Movement permission,
+order status and backflush eligibility are outside this wrapper. The caller must hold
+suitable locks through revalidation and posting and own commit/rollback. Without
+those locks, stock or a reservation can change after the read. The low-level SAP writer
+remains available for applications that implement these checks in their transaction boundary.
 
 Pure allocator and test-double tests are portable ABAP Unit tests. Database fixture
 and standard-stub tests run locally through the transpiler; they are not native SAP

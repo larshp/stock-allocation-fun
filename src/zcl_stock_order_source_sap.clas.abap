@@ -8,11 +8,16 @@ CLASS zcl_stock_order_source_sap IMPLEMENTATION.
     zcl_stock_order_policy=>validate( orders       = orders
                                       through_date = through_date
                                       from_date    = from_date ).
-    LOOP AT orders INTO DATA(order).
-      DATA components TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
-      SELECT rsnum, rspos, rsart, matnr, werks, lgort, meins, bdmng, enmng, bdter
+    IF orders IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA selected TYPE HASHED TABLE OF zif_stock_order_source=>ty_order WITH UNIQUE KEY order_id.
+    selected = orders.
+    DATA components TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
+    SELECT rsnum, rspos, rsart, aufnr, matnr, werks, lgort, meins, bdmng, enmng, bdter
         FROM resb
-        WHERE aufnr = @order-order_id
+        FOR ALL ENTRIES IN @orders
+        WHERE aufnr = @orders-order_id
           AND xloek = @space
           AND kzear = @space
           AND shkzg = 'H'
@@ -20,7 +25,12 @@ CLASS zcl_stock_order_source_sap IMPLEMENTATION.
           AND bdter <= @through_date
           AND bdter >= @from_date
         INTO CORRESPONDING FIELDS OF TABLE @components.
-      LOOP AT components INTO DATA(component).
+    LOOP AT components INTO DATA(component).
+        READ TABLE selected INTO DATA(order) WITH TABLE KEY order_id = component-aufnr.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_stock_alloc
+            EXPORTING reason = 'Order read returned an unselected order'.
+        ENDIF.
         IF component-bdmng < 0 OR component-enmng < 0.
           RAISE EXCEPTION TYPE zcx_stock_alloc
             EXPORTING reason = 'Negative order component quantities require investigation'.
@@ -41,7 +51,6 @@ CLASS zcl_stock_order_source_sap IMPLEMENTATION.
                                                  reservation_type = component-rsart )
                         priority      = order-priority
                         allow_partial = order-allow_partial ) TO requests.
-      ENDLOOP.
     ENDLOOP.
     DATA(validator) = NEW zcl_stock_allocator( ).
     validator->validate( stocks   = VALUE #( )

@@ -127,13 +127,45 @@
   new checker and real local RESB reader. `npm.cmd test` passes all 149 methods,
   demo and SQL-count checks with zero lint issues.
 
+- Added optional `stock_source` to the checked reserved writer. After reservation
+  validation, it uses a fresh stock read and the allocator to check all positive
+  proposed issue quantities cumulatively. It preserves safety/commitment adjustments,
+  rejects any shortage without changing quantities, and forwards the original call
+  only when every check passes. Omitted stock sources retain the previous contract;
+  explicitly supplied unbound sources are rejected.
+- Added eight regression methods for exact coverage, combined consumption, adjusted
+  stock, invalid/missing stock, repeated reads, source failures, read avoidance and
+  missing dependencies. Extended the RESB-to-BAPI fixture with the real local MARD/MARA
+  reader. `npm.cmd test` passes 157 ABAP Unit methods, demo and SQL-count checks with
+  zero lint issues. README documents usage, unchanged allocations and caller-owned locks.
+
+- Added runnable `ZSTOCK_ORDER_DEMO`: local order/stock/reservation sources and a
+  preview-only writer show mixed-unit order summaries, a replenishment comparison,
+  successful checked preview and blocking when stock subsequently falls. It calls
+  no database or BAPI. A new isolated Node smoke check verifies all reported results.
+- Added `npm run demo:orders` and a shared `transpile` command. `npm run demo` now
+  runs both reports without running database fixtures; the full suite still includes
+  both output checks. The dedicated demo and `npm.cmd test` pass: 157 ABAP Unit methods,
+  two report smoke checks and SQL-count checks, zero lint issues.
+
+- Revisited bulk stock reads using the installed transpiler. Replaced per-location
+  SELECT SINGLE calls with a guarded MARD FAE, followed by a guarded MARA FAE for
+  distinct found materials. Preserved exact location keys, sorted output, negative
+  stock clamping, missing-unit errors and fresh snapshots. No joined FAE is needed.
+- Added five reader regressions for exact tuples, equal-quantity locations, absent
+  locations, blank units and a missing master among valid rows. SQL instrumentation
+  now proves empty requests read nothing and absent stock skips MARA. The runtime
+  expands FAE per key, so these counts are not a native SAP performance benchmark.
+- `npm.cmd test` passes 162 ABAP Unit methods, both demos and SQL-count checks with
+  zero lint issues. Updated the historical FAE anomaly and documented native
+  measurement requirements.
+
 ## Next iterations
 
-- Add optional stock revalidation for proposed issue quantities, preserving safety
-  stock/commitment policies and checking cumulative consumption at each location.
 - Validate real SAP integration contracts, authorizations and client handling when
   a development system becomes available; do not treat local stubs as SAP proof.
-- Revisit bulk stock reads when the transpiler supports the joined FAE expression.
+- Apply the validated bulk-read pattern to order and reservation sources, retaining
+  exact reference keys and per-order allocation policies.
 - All custom ABAP objects live in src; SAP standard test substitutes live in stubs.
 - SAP import is restricted to src through .abapgit.xml.
 

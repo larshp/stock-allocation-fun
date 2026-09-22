@@ -17,17 +17,18 @@
   behavior require development-system integration validation.
 - The reserved-issue adapter maps reservation keys; SAP derives material, plant,
   movement and account assignment from those keys. The optional checked wrapper
-  re-reads RESB identity and outstanding demand, but does not acquire locks or check
-  stock, order status, movement permission or backflush eligibility. Callers must
+  re-reads RESB identity and outstanding demand and can recheck adjusted stock through
+  an optional stock source. It does not acquire locks or check order status, movement
+  permission or backflush eligibility. Callers must
   keep the snapshot stable under appropriate locks through posting and supply those
   remaining checks. The low-level writer can still be used independently.
 - The RESB adapter reads explicitly selected order components but does not check
   order release/TECO status. It excludes special stock rather than allocating it;
   callers must select eligible orders and use the appropriate downstream process.
-- The stock reader currently performs one MARD read per distinct location and one
-  MARA read per distinct found material per call. Large selection performance
-  still needs SAP measurement; repeated material-master reads across locations
-  were removed without introducing a cache across calls.
+- The stock reader uses two guarded bulk FAE statements for MARD and MARA. Runtime
+  2.13.90 expands FAE into per-key SQL queries, so local query counts verify keys
+  and empty-input guards but are not native SAP benchmarks. Database packaging,
+  execution plans and large-selection performance still need target-system measurement.
 
 ## Resolved
 
@@ -81,6 +82,8 @@
 - Escaped `@requests-field` in a joined FOR ALL ENTRIES query was emitted as
   JavaScript object text followed by SQL subtraction. Classic syntax was also
   rejected by strict syntax checking. Replaced it with deduplicated, fully keyed
-  SELECT SINGLE reads. A future bulk reader should retest FAE support first.
+  SELECT SINGLE reads initially. With pinned 2.13.90, two separate guarded FAE reads
+  now pass for MARD and MARA, including missing-master and equal-quantity-location
+  regressions. This implementation does not depend on a joined FAE expression.
 - The SQLite driver has an independent published version (2.13.40), rather than
   the transpiler/runtime version (2.13.74); pinned the available driver.

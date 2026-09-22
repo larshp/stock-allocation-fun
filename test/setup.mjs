@@ -8,14 +8,17 @@ export async function setup(abap, schemas, insert) {
   await db.execute(insert);
   // Fixtures are outside production ABAP; SAP standard tables are never written by src.
   await db.execute(`INSERT INTO mara (mandt, matnr, meins) VALUES
-    ('123', 'MAT1', 'EA'), ('123', 'NEGATIVE', 'KG'), ('123', 'DELETED', 'EA');`);
+    ('123', 'MAT1', 'EA'), ('123', 'NEGATIVE', 'KG'), ('123', 'DELETED', 'EA'),
+    ('123', 'BLANK_UNIT', '');`);
   await db.execute(`INSERT INTO mard (mandt, matnr, werks, lgort, labst, lvorm) VALUES
     ('123', 'MAT1', '1000', '0001', 10, ''),
     ('123', 'MAT1', '1000', '0002', 25, ''),
+    ('123', 'MAT1', '1000', '0003', 10, ''),
     ('123', 'MAT1', '2000', '0001', 50, ''),
     ('123', 'NEGATIVE', '1000', '0001', -3, ''),
     ('123', 'DELETED', '1000', '0001', 100, 'X'),
-    ('123', 'NO_MASTER', '1000', '0001', 5, '');`);
+    ('123', 'NO_MASTER', '1000', '0001', 5, ''),
+    ('123', 'BLANK_UNIT', '1000', '0001', 5, '');`);
   const components = [
     ['0001', '000000001000', 10, 2, '20260906', '', '', 'H', ''],
     ['0002', '000000001000', 6, 0, '20260907', '', '', 'H', ''],

@@ -249,8 +249,9 @@ CLASS ltcl_reserved_issue IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD consumes_order_simulation.
-    writer = NEW zcl_stock_reserved_checked( source  = NEW zcl_stock_reserv_source_sap( )
-                                              writer = gateway ).
+    writer = NEW zcl_stock_reserved_checked( source        = NEW zcl_stock_reserv_source_sap( )
+                                              writer       = gateway
+                                              stock_source = NEW zcl_stock_source_sap( ) ).
     DATA(service) = NEW zcl_stock_order_service( order_source = NEW zcl_stock_order_source_sap( )
                                                 stock_source  = NEW zcl_stock_source_sap( ) ).
     allocations = service->simulate( VALUE #( ( order_id = '000000001000' allow_partial = abap_true ) ) ).

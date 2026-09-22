@@ -2,12 +2,14 @@ CLASS zcl_stock_reserved_checked DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES zif_stock_reserved_issue.
     METHODS constructor
-      IMPORTING source TYPE REF TO zif_stock_reservation_source
-                writer TYPE REF TO zif_stock_reserved_issue
+      IMPORTING source       TYPE REF TO zif_stock_reservation_source
+                writer       TYPE REF TO zif_stock_reserved_issue
+                stock_source TYPE REF TO zif_stock_source OPTIONAL
       RAISING zcx_stock_alloc.
   PRIVATE SECTION.
     DATA source TYPE REF TO zif_stock_reservation_source.
     DATA writer TYPE REF TO zif_stock_reserved_issue.
+    DATA stock_source TYPE REF TO zif_stock_source.
 ENDCLASS.
 
 CLASS zcl_stock_reserved_checked IMPLEMENTATION.
@@ -17,7 +19,12 @@ CLASS zcl_stock_reserved_checked IMPLEMENTATION.
         EXPORTING reason = 'A reservation source and writer are required'.
     ENDIF.
     me->source = source.
+    IF stock_source IS SUPPLIED AND stock_source IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_stock_alloc
+        EXPORTING reason = 'A supplied stock source must be bound'.
+    ENDIF.
     me->writer = writer.
+    me->stock_source = stock_source.
   ENDMETHOD.
 
   METHOD zif_stock_reserved_issue~create.
@@ -85,6 +92,27 @@ CLASS zcl_stock_reserved_checked IMPLEMENTATION.
           EXPORTING reason = |Reservation demand is below the proposed issue for { allocation-request_id }|.
       ENDIF.
     ENDLOOP.
+    IF stock_source IS BOUND.
+      DATA proposed TYPE zif_stock_alloc_types=>ty_requests.
+      LOOP AT allocations INTO allocation WHERE allocated > 0.
+        " Check agreed issue quantities, not the original unfulfilled demand.
+        APPEND VALUE #( request_id    = allocation-request_id
+                        material      = allocation-material
+                        plant         = allocation-plant
+                        storage       = allocation-storage
+                        unit          = allocation-unit
+                        required_date = allocation-required_date
+                        quantity      = allocation-allocated
+                        origin        = allocation-origin ) TO proposed.
+      ENDLOOP.
+      DATA(rechecked) = NEW zcl_stock_allocator( )->allocate(
+        stocks   = stock_source->read( proposed )
+        requests = proposed ).
+      LOOP AT rechecked INTO DATA(check) WHERE shortage > 0.
+        RAISE EXCEPTION TYPE zcx_stock_alloc
+          EXPORTING reason = |Current stock cannot cover the proposed issue for { check-request_id }|.
+      ENDLOOP.
+    ENDIF.
     result = writer->create( allocations   = allocations
                              posting_date  = posting_date
                              document_date = document_date

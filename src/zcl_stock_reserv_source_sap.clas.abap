@@ -15,20 +15,23 @@ CLASS zcl_stock_reserv_source_sap IMPLEMENTATION.
     DATA(keys) = references.
     SORT keys BY reservation reservation_item reservation_type.
     DELETE ADJACENT DUPLICATES FROM keys COMPARING reservation reservation_item reservation_type.
-    LOOP AT keys INTO reference.
-      DATA component TYPE resb.
-      SELECT SINGLE * FROM resb
-        WHERE rsnum = @reference-reservation
-          AND rspos = @reference-reservation_item
-          AND rsart = @reference-reservation_type
-        INTO @component.
-      IF sy-subrc <> 0.
-        CONTINUE.
-      ENDIF.
-      IF component-xloek <> space OR component-kzear <> space
-          OR component-shkzg <> 'H' OR component-sobkz <> space.
-        CONTINUE.
-      ENDIF.
+    IF keys IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA components TYPE STANDARD TABLE OF resb WITH DEFAULT KEY.
+    SELECT rsnum, rspos, rsart, aufnr, matnr, werks, lgort, meins, bdmng, enmng, bdter
+      FROM resb
+      FOR ALL ENTRIES IN @keys
+      WHERE rsnum = @keys-reservation
+        AND rspos = @keys-reservation_item
+        AND rsart = @keys-reservation_type
+        AND xloek = @space
+        AND kzear = @space
+        AND shkzg = 'H'
+        AND sobkz = @space
+      INTO CORRESPONDING FIELDS OF TABLE @components.
+    SORT components BY rsnum rspos rsart.
+    LOOP AT components INTO DATA(component).
       IF component-bdmng < 0 OR component-enmng < 0.
         RAISE EXCEPTION TYPE zcx_stock_alloc
           EXPORTING reason = 'Negative reservation quantities require investigation'.

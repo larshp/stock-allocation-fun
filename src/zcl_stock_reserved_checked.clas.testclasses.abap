@@ -2,6 +2,11 @@ CLASS lcl_boundary DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_reservation_source.
     INTERFACES zif_stock_reserved_issue.
+    INTERFACES zif_stock_source.
+    DATA stocks TYPE zif_stock_alloc_types=>ty_stocks.
+    DATA stock_requests TYPE zif_stock_alloc_types=>ty_requests.
+    DATA stock_reads TYPE i.
+    DATA fail_stock TYPE abap_bool.
     DATA requests TYPE zif_stock_alloc_types=>ty_requests.
     DATA captured_keys TYPE zif_stock_reservation_source=>ty_references.
     DATA captured_allocations TYPE zif_stock_alloc_types=>ty_allocations.
@@ -16,6 +21,14 @@ CLASS lcl_boundary DEFINITION FINAL.
 ENDCLASS.
 
 CLASS lcl_boundary IMPLEMENTATION.
+  METHOD zif_stock_source~read.
+    stock_reads = stock_reads + 1.
+    stock_requests = requests.
+    IF fail_stock = abap_true.
+      RAISE EXCEPTION TYPE zcx_stock_alloc EXPORTING reason = 'Stock read failed'.
+    ENDIF.
+    stocks = me->stocks.
+  ENDMETHOD.
   METHOD zif_stock_reservation_source~read.
     reads = reads + 1.
     captured_keys = references.
@@ -55,12 +68,153 @@ CLASS ltcl_checked DEFINITION FINAL FOR TESTING DURATION SHORT RISK LEVEL HARMLE
     METHODS validates_header FOR TESTING.
     METHODS propagates_failures FOR TESTING.
     METHODS requires_dependencies FOR TESTING.
+    METHODS checks_proposed_quantities FOR TESTING RAISING zcx_stock_alloc.
+    METHODS checks_cumulative_stock FOR TESTING RAISING zcx_stock_alloc.
+    METHODS honors_stock_adjustments FOR TESTING RAISING zcx_stock_alloc.
+    METHODS rejects_bad_stock FOR TESTING RAISING zcx_stock_alloc.
+    METHODS fresh_stock_each_call FOR TESTING RAISING zcx_stock_alloc.
+    METHODS stock_read_errors FOR TESTING RAISING zcx_stock_alloc.
+    METHODS skips_stock_on_bad_reservation FOR TESTING RAISING zcx_stock_alloc.
+    METHODS requires_supplied_stock FOR TESTING.
+    METHODS enable_stock_check RAISING zcx_stock_alloc.
     METHODS assert_rejected.
 ENDCLASS.
 
 CLASS ltcl_checked IMPLEMENTATION.
+  METHOD enable_stock_check.
+    checked = NEW zcl_stock_reserved_checked( source       = boundary
+                                              writer       = boundary
+                                              stock_source = boundary ).
+  ENDMETHOD.
+
+  METHOD checks_proposed_quantities.
+    enable_stock_check( ).
+    DATA(original) = allocations.
+    checked->create( allocations   = allocations
+                     posting_date  = '20260922'
+                     document_date = '20260921' ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->stock_reads exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lines( boundary->stock_requests ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->stock_requests[ 1 ]-quantity exp = 5 ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->stock_requests[ 1 ]-origin exp = allocations[ 1 ]-origin ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->captured_allocations exp = original ).
+    cl_abap_unit_assert=>assert_equals( act = allocations exp = original ).
+    cl_abap_unit_assert=>assert_true( boundary->captured_test ).
+  ENDMETHOD.
+
+  METHOD checks_cumulative_stock.
+    enable_stock_check( ).
+    allocations[ 2 ]-allocated = 2.
+    allocations[ 2 ]-shortage = 4.
+    APPEND VALUE #( request_id = 'SECOND-CURRENT' material = 'MAT1' plant = '1000'
+      storage = '0001' unit = 'EA' required_date = '20260907' quantity = 6
+      origin = allocations[ 2 ]-origin ) TO boundary->requests.
+    assert_rejected( ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->stock_reads exp = 1 ).
+    boundary->stocks[ 1 ]-quantity = 7.
+    checked->create( allocations   = allocations
+                     posting_date  = '20260922'
+                     document_date = '20260921'
+                     test_run      = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->writes exp = 1 ).
+    cl_abap_unit_assert=>assert_false( boundary->captured_test ).
+  ENDMETHOD.
+
+  METHOD honors_stock_adjustments.
+    DATA(adjusted) = NEW zcl_stock_source_adjusted(
+      source      = boundary
+      adjustments = VALUE #( ( material = 'MAT1' plant = '1000' storage = '0001'
+                                unit = 'EA' safety_stock = 2 committed = 3 ) ) ).
+    checked = NEW zcl_stock_reserved_checked( source       = boundary
+                                              writer       = boundary
+                                              stock_source = adjusted ).
+    boundary->stocks[ 1 ]-quantity = 9.
+    assert_rejected( ).
+    boundary->stocks[ 1 ]-quantity = 10.
+    checked->create( allocations   = allocations
+                     posting_date  = '20260922'
+                     document_date = '20260921' ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->writes exp = 1 ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_stock.
+    enable_stock_check( ).
+    DATA(original) = boundary->stocks.
+    DO 5 TIMES.
+      boundary->stocks = original.
+      CASE sy-index.
+        WHEN 1.
+          CLEAR boundary->stocks.
+        WHEN 2.
+          boundary->stocks[ 1 ]-unit = 'KG'.
+        WHEN 3.
+          boundary->stocks[ 1 ]-quantity = -1.
+        WHEN 4.
+          APPEND boundary->stocks[ 1 ] TO boundary->stocks.
+        WHEN 5.
+          boundary->stocks[ 1 ]-storage = '0002'.
+      ENDCASE.
+      assert_rejected( ).
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD fresh_stock_each_call.
+    enable_stock_check( ).
+    checked->create( allocations   = allocations
+                     posting_date  = '20260922'
+                     document_date = '20260921' ).
+    boundary->stocks[ 1 ]-quantity = 4.
+    TRY.
+        checked->create( allocations   = allocations
+                         posting_date  = '20260922'
+                         document_date = '20260921' ).
+        cl_abap_unit_assert=>fail( 'Old stock snapshot reused' ).
+      CATCH zcx_stock_alloc.
+        cl_abap_unit_assert=>assert_equals( act = boundary->stock_reads exp = 2 ).
+        cl_abap_unit_assert=>assert_equals( act = boundary->writes exp = 1 ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD stock_read_errors.
+    enable_stock_check( ).
+    boundary->fail_stock = abap_true.
+    TRY.
+        checked->create( allocations   = allocations
+                         posting_date  = '20260922'
+                         document_date = '20260921' ).
+        cl_abap_unit_assert=>fail( 'Stock failure ignored' ).
+      CATCH zcx_stock_alloc INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals( act = error->reason exp = 'Stock read failed' ).
+        cl_abap_unit_assert=>assert_initial( boundary->writes ).
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD skips_stock_on_bad_reservation.
+    enable_stock_check( ).
+    CLEAR boundary->requests.
+    assert_rejected( ).
+    cl_abap_unit_assert=>assert_initial( boundary->stock_reads ).
+    CLEAR allocations.
+    assert_rejected( ).
+    cl_abap_unit_assert=>assert_equals( act = boundary->reads exp = 1 ).
+  ENDMETHOD.
+
+  METHOD requires_supplied_stock.
+    DATA no_stock TYPE REF TO zif_stock_source.
+    TRY.
+        checked = NEW zcl_stock_reserved_checked( source      = boundary
+                                                 writer       = boundary
+                                                 stock_source = no_stock ).
+        cl_abap_unit_assert=>fail( 'Explicitly missing stock source accepted' ).
+      CATCH zcx_stock_alloc INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals( act = error->reason exp = 'A supplied stock source must be bound' ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD setup.
     boundary = NEW #( ).
+    boundary->stocks = VALUE #( ( material = 'MAT1' plant = '1000' storage = '0001'
+      unit = 'EA' quantity = 5 ) ).
     checked = NEW zcl_stock_reserved_checked( source = boundary writer = boundary ).
     allocations = VALUE #( ( request_id = 'ORIGINAL' material = 'MAT1' plant = '1000'
       storage = '0001' unit = 'EA' required_date = '20260906' requested = 8 allocated = 5 shortage = 3

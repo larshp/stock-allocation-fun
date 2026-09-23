@@ -811,3 +811,11 @@
 - Latest verification after batch-level stock-transfer inquiry: `npm.cmd test`
   passed; abaplint reported zero issues across 64 files and the transpiler ran
   all 346 ABAP Unit methods.
+- Added `ALLOCATE_PLANTS_DATE_ATP` for unit-aware dated cross-plant estimates.
+  It returns the unchanged local allocation plus plant-level ATP checks for
+  positive source splits, grouping allocated base quantities cumulatively by
+  source plant and date. Tests cover shared same-date groups, later cumulative
+  quantities across requests, and early rejection of a missing check rule.
+- Latest verification after dated cross-plant ATP support: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 348 ABAP Unit methods.

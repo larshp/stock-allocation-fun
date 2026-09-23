@@ -38,4 +38,16 @@ CLASS zcl_stock_transfer_repository IMPLEMENTATION.
     rs_balance-sloc_transfer_quantity = lv_location_quantity.
   ENDMETHOD.
 
+  METHOD zif_stock_transfer_repository~get_stock_in_transfer_by_batch.
+    SELECT lgort AS storage_location,
+           charg AS batch,
+           cumlm AS transfer_quantity
+      FROM mchb
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+        AND cumlm <> 0
+      ORDER BY lgort, charg
+      INTO TABLE @rt_balances.
+  ENDMETHOD.
+
 ENDCLASS.

@@ -723,3 +723,91 @@
   two-step flow validates all demands and source splits before posting and
   reports in-transit stock when putaway fails after removal. Tests cover the
   two movement legs and reject same-plant source splits before calling SAP.
+- Latest verification after cross-plant two-step transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 316 ABAP Unit methods.
+- Added `TRANSFER_PLANT_2STEP_UNITS` to accept unit-aware cross-plant location
+  allocations. It checks summary and split base units against material unit
+  mappings, then posts canonical base-unit quantities through 303/305.
+  Tests cover both posting legs and pre-post summary and split unit mismatches.
+- Latest verification after unit-aware cross-plant two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 319 ABAP Unit methods.
+- Added a plant two-step regression for a 303 removal that commits before the
+  305 putaway fails. It confirms the result reports stock in transit and keeps
+  the removal and putaway responses separate.
+- Latest verification after plant putaway failure coverage: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 320 ABAP Unit methods.
+- Added `TRANSFER_PLANT_BATCH_TWO_STEP` for exact-batch cross-plant allocations.
+  It preserves a demand's selected batch across every 303 removal and its 305
+  putaway, and rejects mismatched source batches before posting. Tests cover
+  multiple source splits and batch mismatch rejection.
+- Latest verification after batch-aware cross-plant two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 322 ABAP Unit methods.
+- Added `TRANSFER_PLANT_BATCH_2STEP_UOM` for unit-aware exact-batch cross-plant
+  results. It checks summary and split base units against the material mapping
+  and posts canonical quantities through 303/305 without losing the batch.
+  Tests cover both posting legs and pre-post summary and split unit mismatches.
+- Latest verification after unit-aware batch two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 325 ABAP Unit methods.
+- Added `TRANSFER_PLANT_FEFO_TWO_STEP` for cross-plant FEFO results. It retains
+  preview order on 303 removals and groups putaway quantities by request and
+  batch, so source splits from one batch become one 305 item. Tests cover
+  multiple batches, same-batch split grouping, and missing batch rejection.
+- Latest verification after cross-plant FEFO two-step transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 327 ABAP Unit methods.
+- Added `TRANSFER_PLANT_FEFO_2STEP_UOM` for unit-aware cross-plant FEFO results.
+  It checks summary and batch split base units against the supplied material
+  mapping and retains canonical quantities through grouped 303/305 posting.
+  Tests cover batch grouping and pre-post summary and split unit mismatches.
+- Latest verification after unit-aware cross-plant FEFO two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 330 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_FEFO_2STEP` for same-plant FEFO results. It retains
+  preview order on 313 removals and combines same-batch source-location splits
+  into per-batch 315 putaway items. Tests cover order, grouping, and rejection
+  of a missing batch before posting.
+- Latest verification after same-plant FEFO two-step transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 332 ABAP Unit methods.
+- Added `TRANSFER_LOC_FEFO_2STEP_UOM` for unit-aware same-plant FEFO results.
+  It checks summary and batch split base units against material mappings, then
+  posts canonical quantities through grouped 313/315 movements. Tests cover
+  batch grouping and pre-post summary and split unit mismatches.
+- Latest verification after unit-aware same-plant FEFO two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 335 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_BATCH_2STEP` for exact-batch location allocation
+  results. It preserves the one batch across 313 source removals and combines
+  same-batch source-location splits into one 315 putaway per request. Tests
+  cover movement fields, combined quantity, and rejection of mixed batches
+  before posting.
+- Latest verification after exact-batch same-plant two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 337 ABAP Unit methods.
+- Added `TRANSFER_LOC_BATCH_2STEP_UOM` for unit-aware exact-batch location
+  results. It checks the summary and source split base units against the
+  material mapping, then posts canonical quantities through 313/315. Tests
+  cover grouped batch quantities and pre-post summary and split unit mismatches.
+- Latest verification after unit-aware exact-batch same-plant two-step transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 340 ABAP Unit methods.
+- Added optional SAP ATP checking to `PREVIEW_FOR_COST_CENTER`. The result
+  carries a separate plant-level ATP response based on the requested material
+  base quantity and required date; it does not alter local allocation or
+  success. Tests cover a local shortfall with ATP confirmation and missing-rule
+  rejection before stock reads.
+- Latest verification after cost-center preview ATP support: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 342 ABAP Unit methods.
+- Added `GET_STOCK_IN_TRANSFER_BY_BATCH` for storage-location stock in transfer
+  from `MCHB-CUMLM`, plus `GET_BATCH_TRANSFER_IN_UNIT` for requested-unit
+  quantities with the base-unit balance retained. Tests cover batch/location
+  mapping, alternative-unit conversion, and validation before repository reads.
+- Latest verification after batch-level stock-transfer inquiry: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 346 ABAP Unit methods.

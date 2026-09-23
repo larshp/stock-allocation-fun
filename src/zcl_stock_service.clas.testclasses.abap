@@ -378,6 +378,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_across_plants FOR TESTING.
     METHODS allocates_plants_by_date FOR TESTING.
     METHODS allocates_dated_plant_units FOR TESTING.
+    METHODS compares_dated_plant_atp FOR TESTING.
+    METHODS rejects_dated_plant_atp_rule FOR TESTING.
     METHODS rejects_dated_plant_uom FOR TESTING.
     METHODS rejects_missing_dated_source FOR TESTING.
     METHODS protects_cross_plant_safety FOR TESTING.
@@ -2187,6 +2189,193 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD compares_dated_plant_atp.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261201'
+      iv_quantity = '10.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261201'
+      iv_quantity = '20.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261231'
+      iv_quantity = '20.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261231'
+      iv_quantity = '20.000' ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    lo_availability_api->set_result(
+      is_result = VALUE #(
+        available_at_plant_quantity = '9.000'
+        dialog_flag                 = 'X'
+        is_fully_available          = abap_false
+        is_check_relevant           = abap_true ) ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(ls_result) = lo_cut->allocate_plants_date_atp(
+      it_demands    = VALUE zcl_stock_service=>ty_unit_date_plant_demands(
+        ( request_id         = 'REQ-A'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          required_date      = '20261201'
+          requested_quantity = '1.000'
+          requested_unit     = 'BOX' )
+        ( request_id         = 'REQ-B'
+          material           = 'MAT-1'
+          target_plant       = '9001'
+          required_date      = '20261201'
+          requested_quantity = '4.000'
+          requested_unit     = 'EA' )
+        ( request_id         = 'REQ-C'
+          material           = 'MAT-1'
+          target_plant       = '9002'
+          required_date      = '20261231'
+          requested_quantity = '1.000'
+          requested_unit     = 'BOX' ) )
+      it_sources    = VALUE zcl_stock_service=>ty_plant_sources(
+        ( request_id = 'REQ-A' source_plant = '2000' )
+        ( request_id = 'REQ-A' source_plant = '3000' )
+        ( request_id = 'REQ-B' source_plant = '2000' )
+        ( request_id = 'REQ-B' source_plant = '3000' )
+        ( request_id = 'REQ-C' source_plant = '2000' )
+        ( request_id = 'REQ-C' source_plant = '3000' ) )
+      iv_check_rule = 'A' ).
+    DATA(lt_requests) = lo_availability_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-local_estimate-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lines( ls_result-local_estimate-plant_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lines( ls_result-atp_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'REQ-A'
+      act = ls_result-atp_checks[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = ls_result-atp_checks[ 1 ]-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_result-atp_checks[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_result-atp_checks[ 1 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'REQ-B'
+      act = ls_result-atp_checks[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3000'
+      act = ls_result-atp_checks[ 3 ]-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-atp_checks[ 3 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = ls_result-atp_checks[ 4 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_result-atp_checks[ 5 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_result-atp_checks[ 5 ]-atp_result-available_at_plant_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_requests[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261201'
+      act = lt_requests[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = lt_requests[ 1 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261231'
+      act = lt_requests[ 2 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = lt_requests[ 2 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3000'
+      act = lt_requests[ 3 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = lt_requests[ 3 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = lt_requests[ 4 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_dated_plant_atp_rule.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_plants_date_atp(
+          it_demands    = VALUE zcl_stock_service=>ty_unit_date_plant_demands(
+            ( request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              required_date      = '20261231'
+              requested_quantity = '1.000'
+              requested_unit     = 'EA' ) )
+          it_sources    = VALUE zcl_stock_service=>ty_plant_sources(
+            ( request_id = 'REQ-1' source_plant = '2000' ) )
+          iv_check_rule = space ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_availability_api->get_check_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_dated_plant_uom.

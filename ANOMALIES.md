@@ -41,9 +41,12 @@ FEFO cost-center reservations reuse the local `MCHB`/`MCHA`/`MCH1` expiry and
 reservation estimate; the test doubles do not validate those reads. This local
 FEFO choice bypasses SAP's configured batch-determination strategy; verify that
 the target BAPI accepts the selected item-level batches and check its ATP
-result. `preview_for_cost_center` and the pre-BAPI allocation use the local
-stock estimate only; preview itself does not call SAP ATP or persist a
-reservation.
+result. `preview_for_cost_center` uses the local stock estimate by default. Its
+optional `iv_check_atp` setting adds a plant-level SAP ATP result separately;
+the ATP request does not retain a batch or storage-location restriction and
+does not change the local allocation or preview success flag. Preview does not
+persist a reservation. The ATP API is mocked locally, so confirm the target
+release's BAPI signature and check-rule behavior in SAP.
 
 Order allocation subtracts active movement type 231 reservations from
 `RESB-BDMNG - RESB-ENMNG`, grouped by material, plant, item, schedule line,
@@ -123,6 +126,11 @@ The unit-aware inquiry converts these base-unit quantities using the material's
 repository read. Local tests use fake stock and UOM repositories; verify unit
 ratios, both fields, and the aggregate query against the target SAP release
 ([SAP stock in transfer fields](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362168094.html)).
+The batch inquiry reads `MCHB-CUMLM` for nonzero storage-location transfer
+balances and returns them by batch and location. SAP lists this field as stock
+in transfer between storage locations ([SAP stock types](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167795.html)).
+The local MCHB stub and tests cover only the required field and service mapping;
+verify the query and unit semantics against the deployed release.
 
 Cross-plant allocation preview consumes unrestricted stock estimates from the
 source plants in the caller-supplied order and location balances in ascending
@@ -199,11 +207,43 @@ two-step flow only after checking summary and split base units against the
 material mapping. Local tests use a BAPI double; verify canonical quantities
 and movement fields in the target release.
 
+`TRANSFER_LOCATION_FEFO_2STEP` preserves FEFO split order for movement 313 and
+combines same-request, same-batch source splits into separate 315 putaway items.
+Local tests use a BAPI double; verify batch fields and transfer configuration
+in the target release.
+
+`TRANSFER_LOC_FEFO_2STEP_UOM` checks summary and split base units against
+material mappings before posting canonical quantities. Local tests use a BAPI
+double; verify unit and batch behavior in the target release.
+
 `TRANSFER_PLANT_TWO_STEP` maps cross-plant location allocations to movement 303
 removals and one 305 putaway item per request. The two postings commit
 separately; a successful removal followed by failed putaway leaves stock in
 transit and is reported in the result. Local tests use a BAPI double; verify
 movement fields and transfer configuration in the target release.
+
+`TRANSFER_PLANT_2STEP_UNITS` accepts unit-aware allocation results only when
+summary and split base units match the material unit mapping. It posts canonical
+base-unit quantities. Local tests use a BAPI double; verify quantities and
+movement fields in the target release.
+
+`TRANSFER_PLANT_BATCH_TWO_STEP` preserves the selected exact batch on both
+303/305 legs and rejects a source split whose batch differs from the demand.
+Local tests use a BAPI double; verify batch handling for these movements in the
+target release.
+
+`TRANSFER_PLANT_BATCH_2STEP_UOM` also checks summary and source split base
+units against material mappings before posting canonical quantities. Local
+tests use a BAPI double; verify batch and unit behavior in the target release.
+
+`TRANSFER_PLANT_FEFO_TWO_STEP` preserves the FEFO split order for movement 303
+and combines source splits by request and batch into separate movement 305
+putaway items. Local tests use a BAPI double; verify batch and transfer
+configuration in the target release.
+
+`TRANSFER_PLANT_FEFO_2STEP_UOM` checks summary and batch split base units
+against material mappings before posting canonical quantities. Local tests use
+a BAPI double; verify quantity and batch behavior in the target release.
 
 Exact-batch cross-plant allocation uses the repository's `MCHB-CLABS` and
 `RESB` availability estimate and preserves the requested batch across source
@@ -454,6 +494,11 @@ canonical; source-unit demand and split quantities are rounded to the quantity
 field's precision. Local tests use UOM and stock repository doubles and do not
 execute the live unit-ratio or dated-stock queries. The result remains a
 planning estimate without location splits.
+`ALLOCATE_PLANTS_DATE_ATP` checks only positive source splits from that local
+estimate. Its client-side cumulative quantity is grouped by source plant,
+base unit, and date from this request list; it does not check an unallocated
+shortfall, model concurrent requests, or replace SAP's checking-rule scope.
+The ATP result remains separate from local allocation and success.
 
 `ALLOCATE_DATE_DEMANDS_ATP` groups dated unit-aware demands by material, plant,
 base unit, and required date. It checks the cumulative base-unit quantity once

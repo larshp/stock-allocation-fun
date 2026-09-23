@@ -55,6 +55,12 @@ material-specific units. It converts demand to base units before stock reads,
 preserves date priority and each request's source-plant order, and returns both
 unit views for demand and source-plant splits. Optional dated PO, STO in-transit,
 and production receipts and safety-stock protection follow the base-unit method.
+`ALLOCATE_PLANTS_DATE_ATP` accepts those unit-aware dated requests and adds SAP
+ATP checks for positive local source-plant allocations. It groups quantities by
+source plant and required date, checks the cumulative base-unit quantity through
+each date, and returns each source split's allocated quantity and cumulative
+ATP result separately from the local estimate. The checks do not change local
+allocations or resolve local shortfalls.
 `ALLOCATE_PLANTS_IN_UNITS` accepts material-specific demand units and returns
 the demand summary plus plant and location splits in both the source unit and
 base unit. It caches and validates material/unit ratios before reading stock.
@@ -239,6 +245,21 @@ location splits and posts 303 removals followed by one 305 putaway item per
 request. It returns both posting results and sets `is_in_transit` when removal
 commits but putaway fails. Supply a destination storage location per request;
 complete allocation is required by default, and test runs simulate both steps.
+`TRANSFER_PLANT_2STEP_UNITS` accepts unit-aware cross-plant results and checks
+the summary and source split base units against each material mapping before
+posting the same 303/305 flow.
+`TRANSFER_PLANT_BATCH_TWO_STEP` accepts exact-batch cross-plant allocations,
+requires each source split to match the request batch, and preserves that batch
+on the 303 removal and 305 putaway items.
+`TRANSFER_PLANT_BATCH_2STEP_UOM` accepts unit-aware exact-batch allocations,
+checks summary and source split base units against the supplied material unit
+mapping, and posts canonical base-unit quantities while retaining the batch.
+`TRANSFER_PLANT_FEFO_TWO_STEP` accepts cross-plant FEFO results, posts 303
+removals in preview order, and posts one 305 item per request and selected
+batch, combining same-batch source splits at the destination.
+`TRANSFER_PLANT_FEFO_2STEP_UOM` checks the unit-aware FEFO summary and each
+batch split against the material base-unit mapping, then posts canonical
+base-unit quantities through the same grouped 303/305 flow.
 Previews do not reserve stock, so availability can change before posting.
 `TRANSFER_LOCATION_ALLOCATION` accepts an `ALLOCATE_BY_STORAGE_LOCATION`
 result and posts each source-location split as a 311 goods movement within the
@@ -268,9 +289,22 @@ posts 313 removals followed by one 315 putaway item per request, with the
 request's split quantities combined. Its result carries both posting results
 and sets `is_in_transit` if removal committed but putaway failed. Test runs
 simulate both steps without committing.
+`TRANSFER_LOCATION_BATCH_2STEP` accepts exact-batch allocation results,
+preserves the selected batch on each 313 removal, and combines source-location
+splits into one 315 putaway item per request. It rejects a request whose splits
+contain more than one batch.
+`TRANSFER_LOC_BATCH_2STEP_UOM` accepts unit-aware exact-batch results, checks
+the summary and each source split against the material base-unit mapping, and
+posts the canonical quantities through the same grouped 313/315 path.
 `TRANSFER_LOCATION_2STEP_UNITS` accepts unit-aware storage-location allocation
 results and uses each split's canonical base-unit quantity, after checking the
 summary and split base units against the supplied material mapping.
+`TRANSFER_LOCATION_FEFO_2STEP` accepts same-plant FEFO results, posts 313
+removals in preview order, then posts one 315 item per request and batch,
+combining same-batch source-location splits at the destination.
+`TRANSFER_LOC_FEFO_2STEP_UOM` validates the unit-aware FEFO summary and each
+batch split against material base-unit mappings, then posts canonical quantities
+through the same grouped 313/315 path.
 The service also posts purchase-order goods receipts with movement type 101 and
 PO-referenced returns to vendor with movement type 122, both with movement
 indicator `B` and purchase-order/item reference; and production-order receipts
@@ -293,6 +327,12 @@ unrestricted stock ([SAP stock in transfer fields](https://help.sap.com/docs/SUP
 material-specific unit and includes the requested and base units. It uses the
 material's `MARA`/`MARM` conversion ratio and rejects an unknown unit before
 reading transfer balances.
+`GET_STOCK_IN_TRANSFER_BY_BATCH` reports nonzero storage-location transfer
+quantities by batch and storage location from `MCHB-CUMLM`.
+`GET_BATCH_TRANSFER_IN_UNIT` adds the requested-unit quantity while
+retaining the canonical base-unit balance. These batch rows describe transfers
+between storage locations; plant-to-plant transfer stock remains available only
+as an aggregate plant quantity.
 
 `ZCL_SALES_ORDER_SERVICE` reads sales order item details through
 `BAPISDORDER_GETDETAILEDLIST` and creates orders through
@@ -431,10 +471,12 @@ movement type 201 as goods issue to cost center and stores the movement type
 and account assignment on the reservation header ([movement type](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest), [reservation structure](https://help.sap.com/docs/SAP_ERP/c8f06b9bc95747ca832ad21e94f577fb/ade0ba538c95b54ce10000000a174cb4.html)).
 
 `preview_for_cost_center` runs the same allocation and validation steps but
-does not call the reservation API. It returns the available quantity,
-allocation, shortfall, and location or batch splits for callers that need to
-review a cost-center request before creating it. Full-allocation requirements
-are reported in the preview result.
+does not call the reservation API. Set `iv_check_atp = abap_true` and supply
+`iv_atp_check_rule` to attach a SAP ATP result in `atp_result`. ATP checks the
+base-unit request at plant level and does not constrain the result to a selected
+batch or storage location. Its result is reported separately from local
+allocation and does not change the preview success flag or splits. Full-
+allocation requirements are reported in the preview result.
 
 Set `iv_use_fefo_batches = abap_true` to reserve automatically selected
 batches by earliest expiration date. The as-of date defaults to today;

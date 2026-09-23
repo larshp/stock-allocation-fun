@@ -22,6 +22,9 @@ CLASS lcl_stock_transfer_repo_double DEFINITION FINAL.
     METHODS set_balance
       IMPORTING
         is_balance TYPE zif_stock_transfer_repository=>ty_balance.
+    METHODS set_batch_balances
+      IMPORTING
+        it_balances TYPE zif_stock_transfer_repository=>ty_batch_balances.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -36,6 +39,7 @@ CLASS lcl_stock_transfer_repo_double DEFINITION FINAL.
         VALUE(rv_storage_location) TYPE mard-lgort.
   PRIVATE SECTION.
     DATA ms_balance TYPE zif_stock_transfer_repository=>ty_balance.
+    DATA mt_batch_balances TYPE zif_stock_transfer_repository=>ty_batch_balances.
     DATA mv_read_count TYPE i.
     DATA mv_material TYPE marc-matnr.
     DATA mv_plant TYPE marc-werks.
@@ -45,6 +49,10 @@ ENDCLASS.
 CLASS lcl_stock_transfer_repo_double IMPLEMENTATION.
   METHOD set_balance.
     ms_balance = is_balance.
+  ENDMETHOD.
+
+  METHOD set_batch_balances.
+    mt_batch_balances = it_balances.
   ENDMETHOD.
 
   METHOD get_read_count.
@@ -70,6 +78,13 @@ CLASS lcl_stock_transfer_repo_double IMPLEMENTATION.
     mv_storage_location = iv_storage_location.
     rs_balance = ms_balance.
   ENDMETHOD.
+
+  METHOD zif_stock_transfer_repository~get_stock_in_transfer_by_batch.
+    ADD 1 TO mv_read_count.
+    mv_material = iv_material.
+    mv_plant = iv_plant.
+    rt_balances = mt_batch_balances.
+  ENDMETHOD.
 ENDCLASS.
 
 CLASS ltcl_stock_transfer_service DEFINITION FINAL
@@ -82,9 +97,13 @@ CLASS ltcl_stock_transfer_service DEFINITION FINAL
     METHODS setup.
     METHODS returns_transfer_balances FOR TESTING.
     METHODS returns_transfer_in_unit FOR TESTING.
+    METHODS returns_batch_transfer FOR TESTING.
+    METHODS returns_batch_transfer_in_unit FOR TESTING.
     METHODS aggregates_without_location FOR TESTING.
     METHODS rejects_missing_material_key FOR TESTING.
     METHODS rejects_unknown_transfer_unit FOR TESTING.
+    METHODS rejects_missing_batch_key FOR TESTING.
+    METHODS rejects_unknown_batch_unit FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_transfer_service IMPLEMENTATION.
@@ -163,6 +182,102 @@ CLASS ltcl_stock_transfer_service IMPLEMENTATION.
       act = mo_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD returns_batch_transfer.
+    mo_repository->set_batch_balances(
+      it_balances = VALUE #(
+        ( storage_location  = '0001'
+          batch             = 'B-1'
+          transfer_quantity = '12.000' )
+        ( storage_location  = '0002'
+          batch             = 'B-2'
+          transfer_quantity = '3.500' ) ) ).
+
+    DATA(lt_results) = mo_cut->get_stock_in_transfer_by_batch(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = lt_results[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = lt_results[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_results[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cumlm( '12.000' )
+      act = lt_results[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-2'
+      act = lt_results[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cumlm( '3.500' )
+      act = lt_results[ 2 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = mo_repository->get_last_material( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = mo_repository->get_last_plant( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD returns_batch_transfer_in_unit.
+    mo_repository->set_batch_balances(
+      it_balances = VALUE #(
+        ( storage_location  = '0001'
+          batch             = 'B-1'
+          transfer_quantity = '12.000' )
+        ( storage_location  = '0002'
+          batch             = 'B-2'
+          transfer_quantity = '6.000' ) ) ).
+
+    DATA(lt_results) = mo_cut->get_batch_transfer_in_unit(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      iv_unit     = 'BOX' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_results[ 1 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BOX'
+      act = lt_results[ 1 ]-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_results[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cumlm( '12.000' )
+      act = lt_results[ 1 ]-base_transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_results[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cumlm( '6.000' )
+      act = lt_results[ 2 ]-base_transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 2 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
   METHOD aggregates_without_location.
     DATA(ls_result) = mo_cut->get_stock_in_transfer(
       iv_material = 'MAT-1'
@@ -203,6 +318,45 @@ CLASS ltcl_stock_transfer_service IMPLEMENTATION.
 
     TRY.
         mo_cut->get_stock_in_transfer_in_unit(
+          iv_material = 'MAT-1'
+          iv_plant    = '1000'
+          iv_unit     = 'CSH' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_batch_key.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->get_stock_in_transfer_by_batch(
+          iv_material = 'MAT-1'
+          iv_plant    = space ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_batch_unit.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->get_batch_transfer_in_unit(
           iv_material = 'MAT-1'
           iv_plant    = '1000'
           iv_unit     = 'CSH' ).

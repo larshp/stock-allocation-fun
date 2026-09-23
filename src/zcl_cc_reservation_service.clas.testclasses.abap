@@ -187,6 +187,50 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_cc_atp_api_double DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_material_availability_api.
+    METHODS set_result
+      IMPORTING
+        is_result TYPE zif_material_availability_api=>ty_result.
+    METHODS get_request
+      RETURNING
+        VALUE(rs_request) TYPE zif_material_availability_api=>ty_request.
+    METHODS get_check_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+  PRIVATE SECTION.
+    DATA ms_result TYPE zif_material_availability_api=>ty_result.
+    DATA ms_request TYPE zif_material_availability_api=>ty_request.
+    DATA mv_check_count TYPE i.
+ENDCLASS.
+
+CLASS lcl_cc_atp_api_double IMPLEMENTATION.
+  METHOD set_result.
+    ms_result = is_result.
+  ENDMETHOD.
+
+  METHOD get_request.
+    rs_request = ms_request.
+  ENDMETHOD.
+
+  METHOD get_check_count.
+    rv_count = mv_check_count.
+  ENDMETHOD.
+
+  METHOD zif_material_availability_api~check_availability.
+    ADD 1 TO mv_check_count.
+    ms_request = is_request.
+    rs_result = ms_result.
+    rs_result-material = is_request-material.
+    rs_result-plant = is_request-plant.
+    rs_result-unit = is_request-unit.
+    rs_result-check_rule = is_request-check_rule.
+    rs_result-required_date = is_request-required_date.
+    rs_result-requested_quantity = is_request-requested_quantity.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_cost_center_reservation DEFINITION FINAL
   FOR TESTING
   DURATION SHORT
@@ -195,6 +239,7 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     DATA mo_stock_repo TYPE REF TO lcl_cost_center_stock_repo.
     DATA mo_uom_repo TYPE REF TO lcl_cost_center_uom_repo.
     DATA mo_res_api TYPE REF TO lcl_cost_center_res_api.
+    DATA mo_atp_api TYPE REF TO lcl_cc_atp_api_double.
     DATA mo_cut TYPE REF TO zcl_cc_reservation_service.
     METHODS setup.
     METHODS commits_partial_res FOR TESTING.
@@ -206,6 +251,8 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS reserves_fefo_batches FOR TESTING.
     METHODS falls_back_for_fefo FOR TESTING.
     METHODS previews_fefo_without_bapi FOR TESTING.
+    METHODS previews_cost_center_atp FOR TESTING.
+    METHODS rejects_atp_without_rule FOR TESTING.
     METHODS previews_short_full_req FOR TESTING.
     METHODS selects_exact_batch FOR TESTING.
     METHODS requires_full_stock FOR TESTING.
@@ -232,6 +279,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     mo_uom_repo = NEW lcl_cost_center_uom_repo( ).
     mo_uom_repo->set_base_unit( iv_base_unit = 'EA' ).
     mo_res_api = NEW lcl_cost_center_res_api( ).
+    mo_atp_api = NEW lcl_cc_atp_api_double( ).
     mo_res_api->set_create_result(
       is_result = VALUE #(
         reservation_number = '9000000001'
@@ -239,9 +287,10 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     mo_res_api->set_commit_result(
       is_result = VALUE #( is_successful = abap_true ) ).
     mo_cut = NEW zcl_cc_reservation_service(
-      io_stock_repository = mo_stock_repo
-      io_reservation_api  = mo_res_api
-      io_uom_repository   = mo_uom_repo ).
+      io_stock_repository          = mo_stock_repo
+      io_reservation_api           = mo_res_api
+      io_uom_repository            = mo_uom_repo
+      io_material_availability_api = mo_atp_api ).
   ENDMETHOD.
 
   METHOD commits_partial_res.
@@ -708,6 +757,98 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_res_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_atp_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_cost_center_atp.
+    mo_uom_repo->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    mo_atp_api->set_result(
+      is_result = VALUE #(
+        available_at_plant_quantity = '20.000'
+        confirmed_date              = '20261001'
+        confirmed_quantity          = '12.000'
+        is_fully_available          = abap_true
+        is_check_relevant           = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-100'
+      iv_requested_quantity = '1.000'
+      iv_unit               = 'BOX'
+      iv_required_date      = '20261001'
+      iv_require_full_alloc = abap_true
+      iv_check_atp          = abap_true
+      iv_atp_check_rule     = 'A' ).
+    DATA(ls_atp_request) = mo_atp_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-atp_result-is_fully_available ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = ls_result-atp_result-available_at_plant_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_result-atp_result-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = ls_result-atp_result-check_rule ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_result-atp_result-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-atp_result-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_atp_request-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_atp_request-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_atp_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_atp_without_rule.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_for_cost_center(
+          iv_material           = 'MAT-1'
+          iv_plant              = '1000'
+          iv_cost_center        = 'COST-100'
+          iv_requested_quantity = '2.000'
+          iv_unit               = 'EA'
+          iv_check_atp          = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_atp_api->get_check_count( ) ).
   ENDMETHOD.
 
   METHOD previews_short_full_req.

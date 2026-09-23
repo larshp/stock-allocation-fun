@@ -18,6 +18,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         available_quantity      TYPE mard-labst,
         allocated_quantity      TYPE mard-labst,
         shortfall_quantity      TYPE mard-labst,
+        atp_result              TYPE zif_material_availability_api=>ty_result,
         storage_allocations     TYPE zcl_stock_service=>ty_storage_allocations,
         batch_allocations       TYPE zcl_stock_service=>ty_batch_allocations,
         reservation_number      TYPE bapi2093_res_key-reserv_no,
@@ -27,9 +28,11 @@ CLASS zcl_cc_reservation_service DEFINITION
 
     METHODS constructor
       IMPORTING
-        io_stock_repository TYPE REF TO zif_stock_repository
-        io_reservation_api  TYPE REF TO zif_cc_reservation_api OPTIONAL
-        io_uom_repository   TYPE REF TO zif_material_uom_repository OPTIONAL.
+        io_stock_repository          TYPE REF TO zif_stock_repository
+        io_reservation_api           TYPE REF TO zif_cc_reservation_api OPTIONAL
+        io_uom_repository            TYPE REF TO zif_material_uom_repository OPTIONAL
+        io_material_availability_api TYPE REF TO
+          zif_material_availability_api OPTIONAL.
 
     METHODS reserve_for_cost_center
       IMPORTING
@@ -70,6 +73,9 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_fefo_min_days        TYPE i DEFAULT 0
         iv_require_full_alloc   TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
+        iv_check_atp            TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule       TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
       RETURNING
         VALUE(rs_result)        TYPE ty_result
       RAISING
@@ -117,7 +123,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
 
   METHOD constructor.
     mo_stock_service = NEW zcl_stock_service(
-      io_stock_repository = io_stock_repository ).
+      io_stock_repository          = io_stock_repository
+      io_material_availability_api = io_material_availability_api ).
 
     IF io_reservation_api IS BOUND.
       mo_reservation_api = io_reservation_api.
@@ -215,6 +222,12 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD preview_for_cost_center.
+    IF iv_check_atp = abap_true
+        AND ( iv_atp_check_rule IS NOT SUPPLIED
+          OR iv_atp_check_rule IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
     DATA(ls_prepared) = prepare_reservation(
       iv_material             = iv_material
       iv_plant                = iv_plant
@@ -234,6 +247,18 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_require_full_alloc   = iv_require_full_alloc
       iv_protect_safety_stock = iv_protect_safety_stock ).
     rs_result = ls_prepared-result.
+
+    IF iv_check_atp = abap_true.
+      rs_result-atp_result = mo_stock_service->check_atp_request(
+        is_request = VALUE #(
+          material           = ls_prepared-result-material
+          plant              = ls_prepared-result-plant
+          unit               = ls_prepared-result-base_unit
+          check_rule         = iv_atp_check_rule
+          required_date      = iv_required_date
+          requested_quantity =
+            ls_prepared-result-base_requested_quantity ) ).
+    ENDIF.
   ENDMETHOD.
 
   METHOD prepare_reservation.

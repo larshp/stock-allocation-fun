@@ -179,6 +179,25 @@ CLASS zcl_stock_service DEFINITION
         plant_allocations TYPE ty_unit_date_plant_source_allocs,
       END OF ty_unit_date_plant_result.
     TYPES:
+      BEGIN OF ty_plant_date_atp_check,
+        request_id               TYPE c LENGTH 30,
+        material                 TYPE mard-matnr,
+        target_plant             TYPE mard-werks,
+        source_plant             TYPE mard-werks,
+        required_date            TYPE resb-bdter,
+        base_unit                TYPE mara-meins,
+        allocated_base_quantity  TYPE mard-labst,
+        cumulative_base_quantity TYPE mard-labst,
+        atp_result               TYPE zif_material_availability_api=>ty_result,
+      END OF ty_plant_date_atp_check.
+    TYPES ty_plant_date_atp_checks TYPE STANDARD TABLE OF
+      ty_plant_date_atp_check WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_plant_date_atp_result,
+        local_estimate TYPE ty_unit_date_plant_result,
+        atp_checks     TYPE ty_plant_date_atp_checks,
+      END OF ty_plant_date_atp_result.
+    TYPES:
       BEGIN OF ty_plant_demand_allocation,
         request_id         TYPE c LENGTH 30,
         material           TYPE mard-matnr,
@@ -836,6 +855,20 @@ CLASS zcl_stock_service DEFINITION
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)          TYPE ty_unit_date_plant_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS allocate_plants_date_atp
+      IMPORTING
+        it_demands                TYPE ty_unit_date_plant_demands
+        it_sources                TYPE ty_plant_sources
+        iv_check_rule             TYPE zif_material_availability_api=>ty_check_rule
+        iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)          TYPE ty_plant_date_atp_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -2521,6 +2554,112 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_numerator     = ls_context-ratio-numerator
         iv_denominator   = ls_context-ratio-denominator ).
       APPEND ls_unit_source TO rs_result-plant_allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD allocate_plants_date_atp.
+    DATA lt_atp_days TYPE ty_dated_atp_days.
+    DATA lv_cumulative_quantity TYPE mard-labst.
+    DATA lv_previous_material TYPE mard-matnr.
+    DATA lv_previous_plant TYPE mard-werks.
+    DATA lv_previous_unit TYPE mara-meins.
+    DATA ls_atp_day TYPE ty_dated_atp_day.
+    FIELD-SYMBOLS <ls_atp_day> TYPE ty_dated_atp_day.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = allocate_plants_date_units(
+      it_demands                = it_demands
+      it_sources                = it_sources
+      iv_include_po_receipts    = iv_include_po_receipts
+      iv_include_sto_in_transit = iv_include_sto_in_transit
+      iv_include_prod_receipts  = iv_include_prod_receipts
+      iv_protect_safety_stock   = iv_protect_safety_stock ).
+
+    LOOP AT rs_result-local_estimate-plant_allocations
+      INTO DATA(ls_source_allocation).
+      IF ls_source_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE lt_atp_days ASSIGNING <ls_atp_day>
+        WITH TABLE KEY
+          material = ls_source_allocation-allocation-material
+          plant = ls_source_allocation-allocation-source_plant
+          base_unit = ls_source_allocation-base_unit
+          required_date =
+            ls_source_allocation-allocation-required_date.
+      IF sy-subrc = 0.
+        <ls_atp_day>-demand_quantity = <ls_atp_day>-demand_quantity
+          + ls_source_allocation-allocation-allocated_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material        = ls_source_allocation-allocation-material
+          plant           = ls_source_allocation-allocation-source_plant
+          base_unit       = ls_source_allocation-base_unit
+          required_date   =
+            ls_source_allocation-allocation-required_date
+          demand_quantity =
+            ls_source_allocation-allocation-allocated_quantity )
+          INTO TABLE lt_atp_days.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
+      IF sy-tabix = 1
+          OR <ls_atp_day>-material <> lv_previous_material
+          OR <ls_atp_day>-plant <> lv_previous_plant
+          OR <ls_atp_day>-base_unit <> lv_previous_unit.
+        CLEAR lv_cumulative_quantity.
+      ENDIF.
+      lv_cumulative_quantity = lv_cumulative_quantity
+        + <ls_atp_day>-demand_quantity.
+      <ls_atp_day>-cumulative_quantity = lv_cumulative_quantity.
+      <ls_atp_day>-atp_result = check_atp_request(
+        is_request = VALUE #(
+          material           = <ls_atp_day>-material
+          plant              = <ls_atp_day>-plant
+          unit               = <ls_atp_day>-base_unit
+          check_rule         = iv_check_rule
+          required_date      = <ls_atp_day>-required_date
+          requested_quantity = lv_cumulative_quantity ) ).
+      lv_previous_material = <ls_atp_day>-material.
+      lv_previous_plant = <ls_atp_day>-plant.
+      lv_previous_unit = <ls_atp_day>-base_unit.
+    ENDLOOP.
+
+    LOOP AT rs_result-local_estimate-plant_allocations
+      INTO ls_source_allocation.
+      IF ls_source_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE lt_atp_days INTO ls_atp_day
+        WITH TABLE KEY
+          material = ls_source_allocation-allocation-material
+          plant = ls_source_allocation-allocation-source_plant
+          base_unit = ls_source_allocation-base_unit
+          required_date =
+            ls_source_allocation-allocation-required_date.
+      APPEND VALUE #(
+        request_id               =
+          ls_source_allocation-allocation-request_id
+        material                 =
+          ls_source_allocation-allocation-material
+        target_plant             =
+          ls_source_allocation-allocation-target_plant
+        source_plant             =
+          ls_source_allocation-allocation-source_plant
+        required_date            =
+          ls_source_allocation-allocation-required_date
+        base_unit                = ls_source_allocation-base_unit
+        allocated_base_quantity  =
+          ls_source_allocation-allocation-allocated_quantity
+        cumulative_base_quantity = ls_atp_day-cumulative_quantity
+        atp_result               = ls_atp_day-atp_result )
+        TO rs_result-atp_checks.
     ENDLOOP.
   ENDMETHOD.
 

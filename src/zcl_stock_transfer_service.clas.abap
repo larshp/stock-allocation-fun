@@ -22,6 +22,29 @@ CLASS zcl_stock_transfer_service DEFINITION
         plant_transfer_quantity TYPE mard-labst,
         sloc_transfer_quantity  TYPE mard-labst,
       END OF ty_result_in_unit.
+    TYPES:
+      BEGIN OF ty_batch_transfer,
+        material          TYPE mchb-matnr,
+        plant             TYPE mchb-werks,
+        storage_location  TYPE mchb-lgort,
+        batch             TYPE mchb-charg,
+        transfer_quantity TYPE mchb-cumlm,
+      END OF ty_batch_transfer.
+    TYPES ty_batch_transfers TYPE STANDARD TABLE OF ty_batch_transfer
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_transfer_in_unit,
+        material               TYPE mchb-matnr,
+        plant                  TYPE mchb-werks,
+        storage_location       TYPE mchb-lgort,
+        batch                  TYPE mchb-charg,
+        base_unit              TYPE mara-meins,
+        unit                   TYPE mara-meins,
+        base_transfer_quantity TYPE mchb-cumlm,
+        transfer_quantity      TYPE mard-labst,
+      END OF ty_batch_transfer_in_unit.
+    TYPES ty_batch_transfers_in_unit TYPE STANDARD TABLE OF
+      ty_batch_transfer_in_unit WITH EMPTY KEY.
 
     METHODS constructor
       IMPORTING
@@ -46,6 +69,25 @@ CLASS zcl_stock_transfer_service DEFINITION
         iv_storage_location TYPE mard-lgort OPTIONAL
       RETURNING
         VALUE(rs_result)    TYPE ty_result_in_unit
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS get_stock_in_transfer_by_batch
+      IMPORTING
+        iv_material       TYPE mchb-matnr
+        iv_plant          TYPE mchb-werks
+      RETURNING
+        VALUE(rt_results) TYPE ty_batch_transfers
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS get_batch_transfer_in_unit
+      IMPORTING
+        iv_material       TYPE mchb-matnr
+        iv_plant          TYPE mchb-werks
+        iv_unit           TYPE mara-meins
+      RETURNING
+        VALUE(rt_results) TYPE ty_batch_transfers_in_unit
       RAISING
         zcx_invalid_stock_request.
 
@@ -127,6 +169,56 @@ CLASS zcl_stock_transfer_service IMPLEMENTATION.
       iv_base_quantity = ls_balance-sloc_transfer_quantity
       iv_numerator     = ls_ratio-numerator
       iv_denominator   = ls_ratio-denominator ).
+  ENDMETHOD.
+
+  METHOD get_stock_in_transfer_by_batch.
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(lt_balances) = mo_repository->get_stock_in_transfer_by_batch(
+      iv_material = iv_material
+      iv_plant    = iv_plant ).
+
+    LOOP AT lt_balances INTO DATA(ls_balance).
+      APPEND VALUE #(
+        material          = iv_material
+        plant             = iv_plant
+        storage_location  = ls_balance-storage_location
+        batch             = ls_balance-batch
+        transfer_quantity = ls_balance-transfer_quantity )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_batch_transfer_in_unit.
+    IF iv_material IS INITIAL OR iv_plant IS INITIAL
+        OR iv_unit IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(ls_ratio) = get_material_unit_ratio(
+      iv_material = iv_material
+      iv_unit     = iv_unit ).
+    DATA(lt_balances) = mo_repository->get_stock_in_transfer_by_batch(
+      iv_material = iv_material
+      iv_plant    = iv_plant ).
+
+    LOOP AT lt_balances INTO DATA(ls_balance).
+      APPEND VALUE #(
+        material               = iv_material
+        plant                  = iv_plant
+        storage_location       = ls_balance-storage_location
+        batch                  = ls_balance-batch
+        base_unit              = ls_ratio-base_unit
+        unit                   = iv_unit
+        base_transfer_quantity = ls_balance-transfer_quantity
+        transfer_quantity      = convert_transfer_quantity(
+          iv_base_quantity = ls_balance-transfer_quantity
+          iv_numerator     = ls_ratio-numerator
+          iv_denominator   = ls_ratio-denominator ) )
+        TO rt_results.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD get_material_unit_ratio.

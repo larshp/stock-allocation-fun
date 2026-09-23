@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+    <asx:values>
+      <DD02V>
+        <TABNAME>BAPI2017_GM_HEAD_01</TABNAME>
+        <DDLANGUAGE>E</DDLANGUAGE>
+        <TABCLASS>INTTAB</TABCLASS>
+        <DDTEXT>Goods Movement Header</DDTEXT>
+      </DD02V>
+      <DD03P_TABLE>
+        <DD03P>
+          <FIELDNAME>PSTNG_DATE</FIELDNAME>
+          <POSITION>0001</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>DOC_DATE</FIELDNAME>
+          <POSITION>0002</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>REF_DOC_NO</FIELDNAME>
+          <POSITION>0003</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000016</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000032</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>HEADER_TXT</FIELDNAME>
+          <POSITION>0004</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000025</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000050</INTLEN>
+        </DD03P>
+      </DD03P_TABLE>
+    </asx:values>
+  </asx:abap>
+</abapGit>

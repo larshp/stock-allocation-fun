@@ -3,14 +3,14 @@
   <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
     <asx:values>
       <DD02V>
-        <TABNAME>MARD</TABNAME>
+        <TABNAME>MARC</TABNAME>
         <DDLANGUAGE>E</DDLANGUAGE>
         <TABCLASS>TRANSP</TABCLASS>
-        <DDTEXT>Storage Location Data for Material</DDTEXT>
+        <DDTEXT>Plant Data for Material</DDTEXT>
         <CONTFLAG>A</CONTFLAG>
       </DD02V>
       <DD09L>
-        <TABNAME>MARD</TABNAME>
+        <TABNAME>MARC</TABNAME>
         <AS4LOCAL>A</AS4LOCAL>
         <TABKAT>0</TABKAT>
         <TABART>APPL0</TABART>
@@ -45,44 +45,17 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>LGORT</FIELDNAME>
+          <FIELDNAME>UMLMC</FIELDNAME>
           <POSITION>0004</POSITION>
-          <KEYFLAG>X</KEYFLAG>
-          <DATATYPE>CHAR</DATATYPE>
-          <LENG>000004</LENG>
-          <INTTYPE>C</INTTYPE>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>LABST</FIELDNAME>
+          <FIELDNAME>EISBE</FIELDNAME>
           <POSITION>0005</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>UMLME</FIELDNAME>
-          <POSITION>0006</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>INSME</FIELDNAME>
-          <POSITION>0007</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>SPEME</FIELDNAME>
-          <POSITION>0008</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
           <DECIMALS>000003</DECIMALS>

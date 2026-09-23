@@ -19,6 +19,13 @@ CLASS zcl_goods_movement_service DEFINITION
       END OF ty_transfer_material_unit.
     TYPES ty_transfer_material_units TYPE STANDARD TABLE OF
       ty_transfer_material_unit WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_two_step_transfer_result,
+        removal_result TYPE zif_goods_movement_api=>ty_result,
+        putaway_result TYPE zif_goods_movement_api=>ty_result,
+        is_successful  TYPE abap_bool,
+        is_in_transit  TYPE abap_bool,
+      END OF ty_two_step_transfer_result.
 
     METHODS constructor
       IMPORTING
@@ -39,6 +46,123 @@ CLASS zcl_goods_movement_service DEFINITION
       IMPORTING
         is_header                  TYPE zif_goods_movement_api=>ty_header
         is_allocation              TYPE zcl_stock_service=>ty_plant_allocation_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_plant_two_step
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_plant_allocation_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_two_step_transfer_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_allocation
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_location_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_two_step
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_location_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_two_step_transfer_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_2step_units
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_location_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_two_step_transfer_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_units_alloc
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_location_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_batch_alloc
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_batch_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_fefo_alloc
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_batch_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_fefo_units
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_batch_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_location_batch_units
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_batch_result
         it_destinations            TYPE ty_transfer_destinations
         it_material_units          TYPE ty_transfer_material_units
         iv_test_run                TYPE abap_bool DEFAULT abap_false
@@ -125,6 +249,7 @@ CLASS zcl_goods_movement_service DEFINITION
         zcx_invalid_goods_movement.
 
   PRIVATE SECTION.
+    TYPES ty_movement_type TYPE c LENGTH 3.
     TYPES:
       BEGIN OF ty_transfer_request_key,
         request_id TYPE c LENGTH 30,
@@ -193,8 +318,24 @@ CLASS zcl_goods_movement_service DEFINITION
         iv_test_run                TYPE abap_bool
         iv_require_full_allocation TYPE abap_bool
         iv_require_batch           TYPE abap_bool
+        iv_movement_type           TYPE ty_movement_type DEFAULT '301'
       RETURNING
         VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_two_step_splits
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        it_demands                 TYPE ty_transfer_demands
+        it_splits                  TYPE ty_transfer_splits
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool
+        iv_require_full_allocation TYPE abap_bool
+        iv_removal_movement_type   TYPE ty_movement_type
+      RETURNING
+        VALUE(rs_result)           TYPE ty_two_step_transfer_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -478,6 +619,661 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_require_batch           = abap_false ).
   ENDMETHOD.
 
+  METHOD transfer_location_allocation.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-request_id
+        material           = ls_allocation-material
+        target_plant       = ls_allocation-plant
+        requested_quantity = ls_allocation-requested_quantity
+        available_quantity = ls_allocation-available_quantity
+        allocated_quantity = ls_allocation-allocated_quantity
+        shortfall_quantity = ls_allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-storage_allocations
+      INTO DATA(ls_storage_allocation).
+      APPEND VALUE #(
+        request_id         = ls_storage_allocation-request_id
+        material           = ls_storage_allocation-material
+        target_plant       = ls_storage_allocation-plant
+        source_plant       = ls_storage_allocation-plant
+        storage_location   = ls_storage_allocation-storage_location
+        available_quantity = ls_storage_allocation-allocated_quantity
+        allocated_quantity = ls_storage_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_false
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
+  METHOD transfer_location_two_step.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-request_id
+        material           = ls_allocation-material
+        target_plant       = ls_allocation-plant
+        requested_quantity = ls_allocation-requested_quantity
+        available_quantity = ls_allocation-available_quantity
+        allocated_quantity = ls_allocation-allocated_quantity
+        shortfall_quantity = ls_allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-storage_allocations
+      INTO DATA(ls_storage_allocation).
+      APPEND VALUE #(
+        request_id         = ls_storage_allocation-request_id
+        material           = ls_storage_allocation-material
+        target_plant       = ls_storage_allocation-plant
+        source_plant       = ls_storage_allocation-plant
+        storage_location   = ls_storage_allocation-storage_location
+        available_quantity = ls_storage_allocation-allocated_quantity
+        allocated_quantity = ls_storage_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_two_step_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_removal_movement_type   = '313' ).
+  ENDMETHOD.
+
+  METHOD transfer_plant_two_step.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-request_id
+        material           = ls_allocation-material
+        target_plant       = ls_allocation-target_plant
+        requested_quantity = ls_allocation-requested_quantity
+        available_quantity = ls_allocation-available_quantity
+        allocated_quantity = ls_allocation-allocated_quantity
+        shortfall_quantity = ls_allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations
+      INTO DATA(ls_location_allocation).
+      APPEND VALUE #(
+        request_id         = ls_location_allocation-request_id
+        material           = ls_location_allocation-material
+        target_plant       = ls_location_allocation-target_plant
+        source_plant       = ls_location_allocation-source_plant
+        storage_location   = ls_location_allocation-storage_location
+        available_quantity = ls_location_allocation-available_quantity
+        allocated_quantity = ls_location_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_two_step_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_removal_movement_type   = '303' ).
+  ENDMETHOD.
+
+  METHOD transfer_two_step_splits.
+    DATA lv_putaway_movement_type TYPE ty_movement_type.
+    DATA lt_seen_requests TYPE ty_transfer_request_keys.
+    DATA lt_seen_destinations TYPE ty_transfer_request_keys.
+    DATA lt_seen_material_units TYPE ty_transfer_material_keys.
+    DATA lt_seen_splits TYPE ty_transfer_split_keys.
+    DATA lt_transfer_quantities TYPE ty_transfer_quantities.
+    DATA lt_removal_items TYPE zif_goods_movement_api=>ty_items.
+    DATA lt_putaway_items TYPE zif_goods_movement_api=>ty_items.
+    DATA ls_demand TYPE ty_transfer_demand.
+    DATA ls_split TYPE ty_transfer_split.
+    DATA ls_destination TYPE ty_transfer_destination.
+    DATA ls_material_unit TYPE ty_transfer_material_unit.
+    DATA ls_transfer_quantity TYPE ty_transfer_quantity.
+    FIELD-SYMBOLS <ls_transfer_quantity> TYPE ty_transfer_quantity.
+
+    IF it_demands IS INITIAL
+        OR ( iv_removal_movement_type <> '303'
+          AND iv_removal_movement_type <> '313' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    lv_putaway_movement_type = COND #(
+      WHEN iv_removal_movement_type = '303' THEN '305'
+      ELSE '315' ).
+
+    LOOP AT it_demands INTO ls_demand.
+      IF ls_demand-request_id IS INITIAL
+          OR ls_demand-material IS INITIAL
+          OR ls_demand-target_plant IS INITIAL
+          OR ls_demand-batch IS NOT INITIAL
+          OR ls_demand-requested_quantity < 0
+          OR ls_demand-available_quantity < 0
+          OR ls_demand-allocated_quantity < 0
+          OR ls_demand-shortfall_quantity < 0
+          OR ls_demand-allocated_quantity > ls_demand-requested_quantity
+          OR ls_demand-allocated_quantity > ls_demand-available_quantity
+          OR ls_demand-allocated_quantity + ls_demand-shortfall_quantity
+            <> ls_demand-requested_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      INSERT VALUE #( request_id = ls_demand-request_id )
+        INTO TABLE lt_seen_requests.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        request_id = ls_demand-request_id
+        quantity   = 0 ) INTO TABLE lt_transfer_quantities.
+
+      IF ls_demand-base_unit IS NOT INITIAL.
+        READ TABLE it_material_units INTO ls_material_unit
+          WITH KEY material = ls_demand-material.
+        IF sy-subrc <> 0
+            OR ls_demand-base_unit <> ls_material_unit-base_unit.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDIF.
+      IF iv_require_full_allocation = abap_true
+          AND ls_demand-shortfall_quantity > 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_destinations INTO ls_destination.
+      IF ls_destination-request_id IS INITIAL
+          OR ls_destination-receiving_storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #( request_id = ls_destination-request_id )
+        INTO TABLE lt_seen_destinations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_demands INTO ls_demand
+        WITH KEY request_id = ls_destination-request_id.
+      IF sy-subrc <> 0 OR ls_demand-allocated_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_material_units INTO ls_material_unit.
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL
+          OR ls_material_unit-base_unit_iso IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #( material = ls_material_unit-material )
+        INTO TABLE lt_seen_material_units.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_splits INTO ls_split.
+      IF ls_split-allocated_quantity < 0
+          OR ls_split-available_quantity < 0
+          OR ls_split-allocated_quantity > ls_split-available_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF ls_split-allocated_quantity = 0.
+        CONTINUE.
+      ENDIF.
+      IF ls_split-request_id IS INITIAL
+          OR ls_split-material IS INITIAL
+          OR ls_split-target_plant IS INITIAL
+          OR ls_split-source_plant IS INITIAL
+          OR ls_split-storage_location IS INITIAL
+          OR ls_split-batch IS NOT INITIAL
+          OR ( iv_removal_movement_type = '303'
+            AND ls_split-source_plant = ls_split-target_plant )
+          OR ( iv_removal_movement_type = '313'
+            AND ls_split-source_plant <> ls_split-target_plant ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      READ TABLE it_demands INTO ls_demand
+        WITH KEY request_id = ls_split-request_id.
+      IF sy-subrc <> 0
+          OR ls_demand-material <> ls_split-material
+          OR ls_demand-target_plant <> ls_split-target_plant.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_destinations INTO ls_destination
+        WITH KEY request_id = ls_split-request_id.
+      IF sy-subrc <> 0
+          OR ( iv_removal_movement_type = '313'
+            AND ls_destination-receiving_storage_location
+              = ls_split-storage_location ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        request_id       = ls_split-request_id
+        source_plant     = ls_split-source_plant
+        storage_location = ls_split-storage_location )
+        INTO TABLE lt_seen_splits.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_material_units INTO ls_material_unit
+        WITH KEY material = ls_split-material.
+      IF sy-subrc <> 0
+          OR ( ls_split-base_unit IS NOT INITIAL
+            AND ls_split-base_unit <> ls_material_unit-base_unit ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        material                   = ls_split-material
+        plant                      = ls_split-source_plant
+        storage_location           = ls_split-storage_location
+        movement_type              = iv_removal_movement_type
+        quantity                   = ls_split-allocated_quantity
+        entry_unit                 = ls_material_unit-base_unit
+        entry_unit_iso             = ls_material_unit-base_unit_iso
+        receiving_plant            = COND #(
+          WHEN iv_removal_movement_type = '303'
+            THEN ls_split-target_plant )
+        receiving_storage_location = COND #(
+          WHEN iv_removal_movement_type = '313'
+            THEN ls_destination-receiving_storage_location ) )
+        TO lt_removal_items.
+
+      READ TABLE lt_transfer_quantities ASSIGNING <ls_transfer_quantity>
+        WITH TABLE KEY request_id = ls_split-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_transfer_quantity>-quantity = <ls_transfer_quantity>-quantity
+        + ls_split-allocated_quantity.
+    ENDLOOP.
+
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_transfer_quantities INTO ls_transfer_quantity
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0
+          OR ls_transfer_quantity-quantity <> ls_demand-allocated_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF ls_demand-allocated_quantity = 0.
+        CONTINUE.
+      ENDIF.
+      READ TABLE it_destinations INTO ls_destination
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_material_units INTO ls_material_unit
+        WITH KEY material = ls_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        material         = ls_demand-material
+        plant            = ls_demand-target_plant
+        storage_location = ls_destination-receiving_storage_location
+        movement_type    = lv_putaway_movement_type
+        quantity         = ls_demand-allocated_quantity
+        entry_unit       = ls_material_unit-base_unit
+        entry_unit_iso   = ls_material_unit-base_unit_iso )
+        TO lt_putaway_items.
+    ENDLOOP.
+
+    IF lt_removal_items IS INITIAL OR lt_putaway_items IS INITIAL.
+      rs_result-is_successful = abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'No allocated quantity to transfer' )
+        TO rs_result-removal_result-messages.
+      RETURN.
+    ENDIF.
+
+    rs_result-removal_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '04'
+      it_items    = lt_removal_items
+      iv_test_run = iv_test_run ).
+    IF rs_result-removal_result-is_successful = abap_false.
+      RETURN.
+    ENDIF.
+    IF iv_test_run = abap_false.
+      rs_result-is_in_transit = abap_true.
+    ENDIF.
+
+    rs_result-putaway_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '04'
+      it_items    = lt_putaway_items
+      iv_test_run = iv_test_run ).
+    IF rs_result-putaway_result-is_successful = abap_true.
+      rs_result-is_successful = abap_true.
+      rs_result-is_in_transit = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD transfer_location_2step_units.
+    DATA ls_base_allocation TYPE zcl_stock_service=>ty_location_result.
+    DATA ls_material_unit TYPE ty_transfer_material_unit.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_unit_allocation).
+      IF ls_unit_allocation-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_material_units INTO ls_material_unit
+        WITH KEY material = ls_unit_allocation-allocation-material.
+      IF sy-subrc <> 0
+          OR ls_material_unit-base_unit <> ls_unit_allocation-base_unit.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND ls_unit_allocation-allocation
+        TO ls_base_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-storage_allocations INTO DATA(ls_unit_split).
+      IF ls_unit_split-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE it_material_units INTO ls_material_unit
+        WITH KEY material = ls_unit_split-storage_allocation-material.
+      IF sy-subrc <> 0
+          OR ls_material_unit-base_unit <> ls_unit_split-base_unit.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND ls_unit_split-storage_allocation
+        TO ls_base_allocation-storage_allocations.
+    ENDLOOP.
+
+    rs_result = transfer_location_two_step(
+      is_header                  = is_header
+      is_allocation              = ls_base_allocation
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
+  ENDMETHOD.
+
+  METHOD transfer_location_units_alloc.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-allocation-request_id
+        material           = ls_allocation-allocation-material
+        target_plant       = ls_allocation-allocation-plant
+        base_unit          = ls_allocation-base_unit
+        requested_quantity =
+          ls_allocation-allocation-requested_quantity
+        available_quantity =
+          ls_allocation-allocation-available_quantity
+        allocated_quantity =
+          ls_allocation-allocation-allocated_quantity
+        shortfall_quantity =
+          ls_allocation-allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-storage_allocations
+      INTO DATA(ls_storage_allocation).
+      APPEND VALUE #(
+        request_id         =
+          ls_storage_allocation-storage_allocation-request_id
+        material           =
+          ls_storage_allocation-storage_allocation-material
+        target_plant       =
+          ls_storage_allocation-storage_allocation-plant
+        source_plant       =
+          ls_storage_allocation-storage_allocation-plant
+        storage_location   =
+          ls_storage_allocation-storage_allocation-storage_location
+        base_unit          = ls_storage_allocation-base_unit
+        available_quantity =
+          ls_storage_allocation-storage_allocation-allocated_quantity
+        allocated_quantity =
+          ls_storage_allocation-storage_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_false
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
+  METHOD transfer_location_batch_alloc.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-request_id
+        material           = ls_allocation-material
+        target_plant       = ls_allocation-plant
+        requested_quantity = ls_allocation-requested_quantity
+        available_quantity = ls_allocation-available_quantity
+        allocated_quantity = ls_allocation-allocated_quantity
+        shortfall_quantity = ls_allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_batch_allocation).
+      APPEND VALUE #(
+        request_id         = ls_batch_allocation-request_id
+        material           = ls_batch_allocation-material
+        target_plant       = ls_batch_allocation-plant
+        source_plant       = ls_batch_allocation-plant
+        storage_location   = ls_batch_allocation-storage_location
+        batch              = ls_batch_allocation-batch
+        available_quantity = ls_batch_allocation-allocated_quantity
+        allocated_quantity = ls_batch_allocation-allocated_quantity )
+        TO lt_splits.
+
+      READ TABLE lt_demands ASSIGNING FIELD-SYMBOL(<ls_demand>)
+        WITH KEY request_id = ls_batch_allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF <ls_demand>-batch IS NOT INITIAL
+          AND <ls_demand>-batch <> ls_batch_allocation-batch.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_demand>-batch = ls_batch_allocation-batch.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_true
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
+  METHOD transfer_location_fefo_alloc.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      APPEND VALUE #(
+        request_id         = ls_allocation-request_id
+        material           = ls_allocation-material
+        target_plant       = ls_allocation-plant
+        requested_quantity = ls_allocation-requested_quantity
+        available_quantity = ls_allocation-available_quantity
+        allocated_quantity = ls_allocation-allocated_quantity
+        shortfall_quantity = ls_allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_batch_allocation).
+      APPEND VALUE #(
+        request_id         = ls_batch_allocation-request_id
+        material           = ls_batch_allocation-material
+        target_plant       = ls_batch_allocation-plant
+        source_plant       = ls_batch_allocation-plant
+        storage_location   = ls_batch_allocation-storage_location
+        batch              = ls_batch_allocation-batch
+        available_quantity = ls_batch_allocation-allocated_quantity
+        allocated_quantity = ls_batch_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_true
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
+  METHOD transfer_location_fefo_units.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_unit_allocation).
+      APPEND VALUE #(
+        request_id         = ls_unit_allocation-allocation-request_id
+        material           = ls_unit_allocation-allocation-material
+        target_plant       = ls_unit_allocation-allocation-plant
+        base_unit          = ls_unit_allocation-base_unit
+        requested_quantity =
+          ls_unit_allocation-allocation-requested_quantity
+        available_quantity =
+          ls_unit_allocation-allocation-available_quantity
+        allocated_quantity =
+          ls_unit_allocation-allocation-allocated_quantity
+        shortfall_quantity =
+          ls_unit_allocation-allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_unit_split).
+      APPEND VALUE #(
+        request_id         = ls_unit_split-batch_allocation-request_id
+        material           = ls_unit_split-batch_allocation-material
+        target_plant       = ls_unit_split-batch_allocation-plant
+        source_plant       = ls_unit_split-batch_allocation-plant
+        storage_location   =
+          ls_unit_split-batch_allocation-storage_location
+        batch              = ls_unit_split-batch_allocation-batch
+        base_unit          = ls_unit_split-base_unit
+        available_quantity =
+          ls_unit_split-batch_allocation-allocated_quantity
+        allocated_quantity =
+          ls_unit_split-batch_allocation-allocated_quantity )
+        TO lt_splits.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_true
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
+  METHOD transfer_location_batch_units.
+    DATA lt_demands TYPE ty_transfer_demands.
+    DATA lt_splits TYPE ty_transfer_splits.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_unit_allocation).
+      APPEND VALUE #(
+        request_id         = ls_unit_allocation-allocation-request_id
+        material           = ls_unit_allocation-allocation-material
+        target_plant       = ls_unit_allocation-allocation-plant
+        base_unit          = ls_unit_allocation-base_unit
+        requested_quantity =
+          ls_unit_allocation-allocation-requested_quantity
+        available_quantity =
+          ls_unit_allocation-allocation-available_quantity
+        allocated_quantity =
+          ls_unit_allocation-allocation-allocated_quantity
+        shortfall_quantity =
+          ls_unit_allocation-allocation-shortfall_quantity )
+        TO lt_demands.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_unit_split).
+      APPEND VALUE #(
+        request_id         = ls_unit_split-batch_allocation-request_id
+        material           = ls_unit_split-batch_allocation-material
+        target_plant       = ls_unit_split-batch_allocation-plant
+        source_plant       = ls_unit_split-batch_allocation-plant
+        storage_location   =
+          ls_unit_split-batch_allocation-storage_location
+        batch              = ls_unit_split-batch_allocation-batch
+        base_unit          = ls_unit_split-base_unit
+        available_quantity =
+          ls_unit_split-batch_allocation-allocated_quantity
+        allocated_quantity =
+          ls_unit_split-batch_allocation-allocated_quantity )
+        TO lt_splits.
+
+      READ TABLE lt_demands ASSIGNING FIELD-SYMBOL(<ls_demand>)
+        WITH KEY request_id = ls_unit_split-batch_allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF <ls_demand>-batch IS NOT INITIAL
+          AND <ls_demand>-batch <> ls_unit_split-batch_allocation-batch.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_demand>-batch = ls_unit_split-batch_allocation-batch.
+    ENDLOOP.
+
+    rs_result = transfer_plant_splits(
+      is_header                  = is_header
+      it_demands                 = lt_demands
+      it_splits                  = lt_splits
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation
+      iv_require_batch           = abap_true
+      iv_movement_type           = '311' ).
+  ENDMETHOD.
+
   METHOD transfer_plant_batch_alloc.
     DATA lt_demands TYPE ty_transfer_demands.
     DATA lt_splits TYPE ty_transfer_splits.
@@ -699,7 +1495,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA ls_transfer_quantity TYPE ty_transfer_quantity.
     FIELD-SYMBOLS <ls_transfer_quantity> TYPE ty_transfer_quantity.
 
-    IF it_demands IS INITIAL.
+    IF it_demands IS INITIAL
+        OR ( iv_movement_type <> '301'
+          AND iv_movement_type <> '311' ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -787,7 +1585,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_split-material IS INITIAL
           OR ls_split-target_plant IS INITIAL
           OR ls_split-source_plant IS INITIAL
-          OR ls_split-source_plant = ls_split-target_plant
+          OR ( iv_movement_type = '301'
+            AND ls_split-source_plant = ls_split-target_plant )
+          OR ( iv_movement_type = '311'
+            AND ls_split-source_plant <> ls_split-target_plant )
           OR ls_split-storage_location IS INITIAL
           OR ( iv_require_batch = abap_true AND ls_split-batch IS INITIAL ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -815,7 +1616,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
       READ TABLE it_destinations INTO ls_destination
         WITH KEY request_id = ls_split-request_id.
-      IF sy-subrc <> 0.
+      IF sy-subrc <> 0
+          OR ( iv_movement_type = '311'
+            AND ls_destination-receiving_storage_location
+              = ls_split-storage_location ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       READ TABLE it_material_units INTO ls_material_unit
@@ -831,11 +1635,12 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         plant                      = ls_split-source_plant
         storage_location           = ls_split-storage_location
         batch                      = ls_split-batch
-        movement_type              = '301'
+        movement_type              = iv_movement_type
         quantity                   = ls_split-allocated_quantity
         entry_unit                 = ls_material_unit-base_unit
         entry_unit_iso             = ls_material_unit-base_unit_iso
-        receiving_plant            = ls_split-target_plant
+        receiving_plant            = COND #(
+          WHEN iv_movement_type = '301' THEN ls_split-target_plant )
         receiving_storage_location =
           ls_destination-receiving_storage_location ) TO lt_items.
 

@@ -38,6 +38,15 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     METHODS set_stock
       IMPORTING
         iv_quantity TYPE mard-labst.
+    METHODS set_date_stock
+      IMPORTING
+        iv_quantity                TYPE mard-labst
+        iv_date                    TYPE resb-bdter
+        iv_material                TYPE mard-matnr DEFAULT 'MAT-1'
+        iv_plant                   TYPE mard-werks DEFAULT '1000'
+        iv_receipt_quantity        TYPE mard-labst DEFAULT 0
+        iv_sto_in_transit_quantity TYPE mard-labst DEFAULT 0
+        iv_prod_receipt_quantity   TYPE mard-labst DEFAULT 0.
     METHODS set_plant_stock
       IMPORTING
         iv_material TYPE mard-matnr
@@ -91,7 +100,20 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
       END OF ty_plant_location_stock.
     TYPES ty_plant_location_stocks TYPE STANDARD TABLE OF
       ty_plant_location_stock WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_date_stock,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        required_date           TYPE resb-bdter,
+        available_quantity      TYPE mard-labst,
+        receipt_quantity        TYPE mard-labst,
+        sto_in_transit_quantity TYPE mard-labst,
+        prod_receipt_quantity   TYPE mard-labst,
+      END OF ty_date_stock.
+    TYPES ty_date_stocks TYPE STANDARD TABLE OF ty_date_stock
+      WITH EMPTY KEY.
     DATA mv_quantity TYPE mard-labst.
+    DATA mt_date_stocks TYPE ty_date_stocks.
     DATA mv_safety_stock TYPE marc-eisbe.
     DATA ms_stock_status TYPE zif_stock_repository=>ty_stock_status.
     DATA mt_location_stock_status TYPE zif_stock_repository=>ty_stock_status_locations.
@@ -111,6 +133,20 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
     mt_location_stock = VALUE #(
       ( storage_location   = '0001'
         available_quantity = iv_quantity ) ).
+  ENDMETHOD.
+
+  METHOD set_date_stock.
+    DELETE mt_date_stocks WHERE material = iv_material
+      AND plant = iv_plant
+      AND required_date = iv_date.
+    APPEND VALUE #(
+      material                = iv_material
+      plant                   = iv_plant
+      required_date           = iv_date
+      available_quantity      = iv_quantity
+      receipt_quantity        = iv_receipt_quantity
+      sto_in_transit_quantity = iv_sto_in_transit_quantity
+      prod_receipt_quantity   = iv_prod_receipt_quantity ) TO mt_date_stocks.
   ENDMETHOD.
 
   METHOD set_plant_stock.
@@ -188,6 +224,26 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_by_date.
+    ADD 1 TO mv_read_count.
+    READ TABLE mt_date_stocks INTO DATA(ls_date_stock)
+      WITH KEY material = iv_material
+               plant = iv_plant
+               required_date = iv_required_date.
+    IF sy-subrc = 0.
+      rv_quantity = ls_date_stock-available_quantity.
+      IF iv_include_po_receipts = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-receipt_quantity.
+      ENDIF.
+      IF iv_include_sto_in_transit = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-sto_in_transit_quantity.
+      ENDIF.
+      IF iv_include_prod_receipts = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-prod_receipt_quantity.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     ADD 1 TO mv_read_count.
     rv_quantity = mv_safety_stock.
@@ -233,6 +289,55 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 
+CLASS lcl_availability_api_double DEFINITION FINAL.
+  PUBLIC SECTION.
+    TYPES ty_requests TYPE STANDARD TABLE OF
+      zif_material_availability_api=>ty_request WITH EMPTY KEY.
+    INTERFACES zif_material_availability_api.
+    METHODS set_result
+      IMPORTING
+        is_result TYPE zif_material_availability_api=>ty_result.
+    METHODS get_requests
+      RETURNING
+        VALUE(rt_requests) TYPE ty_requests.
+    METHODS get_request
+      RETURNING
+        VALUE(rs_request) TYPE zif_material_availability_api=>ty_request.
+    METHODS get_check_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+  PRIVATE SECTION.
+    DATA mt_requests TYPE ty_requests.
+    DATA ms_result TYPE zif_material_availability_api=>ty_result.
+    DATA ms_request TYPE zif_material_availability_api=>ty_request.
+    DATA mv_check_count TYPE i.
+ENDCLASS.
+
+CLASS lcl_availability_api_double IMPLEMENTATION.
+  METHOD set_result.
+    ms_result = is_result.
+  ENDMETHOD.
+
+  METHOD get_request.
+    rs_request = ms_request.
+  ENDMETHOD.
+
+  METHOD get_requests.
+    rt_requests = mt_requests.
+  ENDMETHOD.
+
+  METHOD get_check_count.
+    rv_count = mv_check_count.
+  ENDMETHOD.
+
+  METHOD zif_material_availability_api~check_availability.
+    ADD 1 TO mv_check_count.
+    ms_request = is_request.
+    APPEND is_request TO mt_requests.
+    rs_result = ms_result.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS ltcl_stock_service DEFINITION FINAL
   FOR TESTING
   DURATION SHORT
@@ -250,12 +355,31 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_invalid_fefo_status FOR TESTING.
     METHODS returns_zero_when_no_stock FOR TESTING.
     METHODS allocates_requested_quantity FOR TESTING.
+    METHODS allocates_request_by_date FOR TESTING.
+    METHODS allocates_with_po_receipts FOR TESTING.
+    METHODS allocates_with_sto_in_transit FOR TESTING.
+    METHODS allocates_with_prod_receipts FOR TESTING.
+    METHODS allocates_demands_by_date FOR TESTING.
+    METHODS allocates_dated_unit_demands FOR TESTING.
+    METHODS rejects_unknown_date_unit FOR TESTING.
+    METHODS rejects_invalid_dated_list FOR TESTING.
+    METHODS protects_dated_safety_stock FOR TESTING.
+    METHODS rejects_missing_demand_date FOR TESTING.
+    METHODS compares_dated_bulk_atp FOR TESTING.
+    METHODS rejects_bulk_atp_without_rule FOR TESTING.
+    METHODS compares_dated_stock_with_atp FOR TESTING.
+    METHODS compares_dated_alt_unit_atp FOR TESTING.
+    METHODS rejects_incomplete_atp_request FOR TESTING.
     METHODS reports_partial_shortfall FOR TESTING.
     METHODS negative_stock_is_unavailable FOR TESTING.
     METHODS rejects_negative_request FOR TESTING.
     METHODS allocates_demands_in_order FOR TESTING.
     METHODS keeps_plant_stock_separate FOR TESTING.
     METHODS allocates_across_plants FOR TESTING.
+    METHODS allocates_plants_by_date FOR TESTING.
+    METHODS allocates_dated_plant_units FOR TESTING.
+    METHODS rejects_dated_plant_uom FOR TESTING.
+    METHODS rejects_missing_dated_source FOR TESTING.
     METHODS protects_cross_plant_safety FOR TESTING.
     METHODS rejects_invalid_plant_sources FOR TESTING.
     METHODS allocates_plants_in_units FOR TESTING.
@@ -826,6 +950,775 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_allocation-shortfall_quantity ).
   ENDMETHOD.
 
+  METHOD allocates_request_by_date.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity = '12.000'
+      iv_date     = '20261231' ).
+
+    DATA(ls_allocation) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '15.000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261231'
+      act = ls_allocation-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD allocates_with_po_receipts.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity         = '8.000'
+      iv_receipt_quantity = '3.000'
+      iv_date             = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '10.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material            = 'MAT-1'
+      iv_plant               = '1000'
+      iv_required_date       = '20261231'
+      iv_requested_quantity  = '10.000'
+      iv_include_po_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_projected-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_with_sto_in_transit.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '8.000'
+      iv_receipt_quantity        = '3.000'
+      iv_sto_in_transit_quantity = '4.000'
+      iv_date                    = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '10.000' ).
+    DATA(ls_po_projected) = lo_cut->allocate_request_by_date(
+      iv_material            = 'MAT-1'
+      iv_plant               = '1000'
+      iv_required_date       = '20261231'
+      iv_requested_quantity  = '10.000'
+      iv_include_po_receipts = abap_true ).
+    DATA(ls_sto_projected) = lo_cut->allocate_request_by_date(
+      iv_material               = 'MAT-1'
+      iv_plant                  = '1000'
+      iv_required_date          = '20261231'
+      iv_requested_quantity     = '10.000'
+      iv_include_sto_in_transit = abap_true ).
+    DATA(ls_all_projected) = lo_cut->allocate_request_by_date(
+      iv_material               = 'MAT-1'
+      iv_plant                  = '1000'
+      iv_required_date          = '20261231'
+      iv_requested_quantity     = '10.000'
+      iv_include_po_receipts    = abap_true
+      iv_include_sto_in_transit = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = ls_po_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_sto_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = ls_all_projected-available_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_with_prod_receipts.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity              = '8.000'
+      iv_prod_receipt_quantity = '6.000'
+      iv_date                  = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '15.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material              = 'MAT-1'
+      iv_plant                 = '1000'
+      iv_required_date         = '20261231'
+      iv_requested_quantity    = '15.000'
+      iv_include_prod_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '14.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '14.000' )
+      act = ls_projected-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_projected-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_demands_by_date.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity = '4.000'
+      iv_date     = '20261201' ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '8.000'
+      iv_date                    = '20261231'
+      iv_receipt_quantity        = '5.000'
+      iv_sto_in_transit_quantity = '2.000'
+      iv_prod_receipt_quantity   = '1.000' ).
+    lo_repository->set_safety_stock( iv_quantity = '1.000' ).
+
+    DATA(lt_allocations) = lo_cut->allocate_demands_by_date(
+      it_demands                = VALUE zcl_stock_service=>ty_dated_demands(
+        ( request_id         = 'LATE-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261231'
+          requested_quantity = '5.000' )
+        ( request_id         = 'EARLY'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261201'
+          requested_quantity = '4.000' )
+        ( request_id         = 'LATE-2'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261231'
+          requested_quantity = '4.000' ) )
+      iv_include_po_receipts    = abap_true
+      iv_include_sto_in_transit = abap_true
+      iv_include_prod_receipts  = abap_true
+      iv_protect_safety_stock   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-1'
+      act = lt_allocations[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = lt_allocations[ 1 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_allocations[ 1 ]-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY'
+      act = lt_allocations[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-2'
+      act = lt_allocations[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_allocations[ 3 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD allocates_dated_unit_demands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_quantity = '8.000'
+      iv_date     = '20261201' ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '20.000'
+      iv_date                    = '20261231'
+      iv_receipt_quantity        = '5.000'
+      iv_sto_in_transit_quantity = '2.000'
+      iv_prod_receipt_quantity   = '1.000' ).
+    lo_repository->set_safety_stock( iv_quantity = '1.000' ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_allocations) = lo_cut->allocate_date_demands_in_units(
+      it_demands                = VALUE #(
+        ( request_id         = 'LATE-BOX'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261231'
+          requested_quantity = '1.000'
+          requested_unit     = 'BOX' )
+        ( request_id         = 'EARLY-EA'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261201'
+          requested_quantity = '4.000'
+          requested_unit     = 'EA' )
+        ( request_id         = 'LATE-EA'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261231'
+          requested_quantity = '3.000'
+          requested_unit     = 'EA' ) )
+      iv_include_po_receipts    = abap_true
+      iv_include_sto_in_transit = abap_true
+      iv_include_prod_receipts  = abap_true
+      iv_protect_safety_stock   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-BOX'
+      act = lt_allocations[ 1 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = lt_allocations[ 1 ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '23.000' )
+      act = lt_allocations[ 1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.917' )
+      act = lt_allocations[ 1 ]-available_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = lt_allocations[ 1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-EA'
+      act = lt_allocations[ 2 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_allocations[ 2 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_allocations[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-EA'
+      act = lt_allocations[ 3 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = lt_allocations[ 3 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_allocations[ 3 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_date_unit.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_date_demands_in_units(
+          it_demands = VALUE #(
+            ( request_id         = 'VALID'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_date      = '20261201'
+              requested_quantity = '1.000'
+              requested_unit     = 'BOX' )
+            ( request_id         = 'UNKNOWN'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_date      = '20261231'
+              requested_quantity = '1.000'
+              requested_unit     = 'CASE' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_dated_list.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_demands_by_date(
+          it_demands = VALUE zcl_stock_service=>ty_dated_demands(
+            ( request_id         = 'VALID'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_date      = '20261201'
+              requested_quantity = '2.000' )
+            ( request_id         = 'NO-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD protects_dated_safety_stock.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity = '12.000'
+      iv_date     = '20261231' ).
+    lo_repository->set_safety_stock( iv_quantity = '3.000' ).
+
+    DATA(ls_allocation) = lo_cut->allocate_request_by_date(
+      iv_material             = 'MAT-1'
+      iv_plant                = '1000'
+      iv_required_date        = '20261231'
+      iv_requested_quantity   = '10.000'
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_demand_date.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_exception_raised TYPE abap_bool.
+    DATA lv_required_date TYPE resb-bdter.
+
+    TRY.
+        lo_cut->allocate_request_by_date(
+          iv_material           = 'MAT-1'
+          iv_plant              = '1000'
+          iv_required_date      = lv_required_date
+          iv_requested_quantity = '1.000' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD compares_dated_stock_with_atp.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '12.000'
+      iv_date                    = '20261231'
+      iv_receipt_quantity        = '2.000'
+      iv_sto_in_transit_quantity = '4.000'
+      iv_prod_receipt_quantity   = '3.000' ).
+    lo_availability_api->set_result(
+      is_result = VALUE #(
+        material                       = 'MAT-1'
+        plant                          = '1000'
+        unit                           = 'EA'
+        check_rule                     = 'A'
+        required_date                  = '20261231'
+        requested_quantity             = '10.000'
+        available_at_plant_quantity    = '6.000'
+        end_of_replenishment_lead_time = '20270115'
+        confirmation_lines             = VALUE #(
+          ( requested_date     = '20261231'
+            requested_quantity = '10.000'
+            confirmed_date     = '20270102'
+            confirmed_quantity = '6.000' )
+          ( requested_date     = '20270107'
+            requested_quantity = '4.000'
+            confirmed_date     = '20270109'
+            confirmed_quantity = '4.000' ) )
+        confirmed_date                 = '20270102'
+        confirmed_quantity             = '6.000'
+        dialog_flag                    = 'X'
+        is_fully_available             = abap_false
+        is_check_relevant              = abap_true ) ).
+
+    DATA(ls_result) = lo_cut->allocate_request_date_atp(
+      iv_material               = 'MAT-1'
+      iv_plant                  = '1000'
+      iv_unit                   = 'EA'
+      iv_check_rule             = 'A'
+      iv_required_date          = '20261231'
+      iv_requested_quantity     = '10.000'
+      iv_include_po_receipts    = abap_true
+      iv_include_sto_in_transit = abap_true
+      iv_include_prod_receipts  = abap_true ).
+    DATA(ls_request) = lo_availability_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '21.000' )
+      act = ls_result-local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_result-local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-atp_result-available_at_plant_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270115'
+      act = ls_result-atp_result-end_of_replenishment_lead_time ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270102'
+      act = ls_result-atp_result-confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-atp_result-confirmed_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-atp_result-confirmation_lines ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270109'
+      act = ls_result-atp_result-confirmation_lines[ 2 ]-confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-atp_result-confirmation_lines[ 2 ]-confirmed_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = ls_request-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_request-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = ls_request-check_rule ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261231'
+      act = ls_request-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_request-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD compares_dated_bulk_atp.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    lo_repository->set_date_stock(
+      iv_quantity = '50.000'
+      iv_date     = '20261201' ).
+    lo_repository->set_date_stock(
+      iv_quantity = '50.000'
+      iv_date     = '20261231' ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    lo_availability_api->set_result(
+      is_result = VALUE #(
+        available_at_plant_quantity = '15.000'
+        dialog_flag                 = 'X'
+        is_fully_available          = abap_false
+        is_check_relevant           = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(lt_allocations) = lo_cut->allocate_date_demands_atp(
+      it_demands    = VALUE zcl_stock_service=>ty_date_unit_demands(
+        ( request_id         = 'LATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261231'
+          requested_quantity = '2.000'
+          requested_unit     = 'BOX' )
+        ( request_id         = 'EARLY-EA'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261201'
+          requested_quantity = '4.000'
+          requested_unit     = 'EA' )
+        ( request_id         = 'EARLY-BOX'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261201'
+          requested_quantity = '1.000'
+          requested_unit     = 'BOX' ) )
+      iv_check_rule = 'A' ).
+    DATA(lt_requests) = lo_availability_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE'
+      act = lt_allocations[ 1 ]-local_estimate-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '40.000' )
+      act = lt_allocations[ 1 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '34.000' )
+      act = lt_allocations[ 1 ]-local_estimate-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-EA'
+      act = lt_allocations[ 2 ]-local_estimate-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '16.000' )
+      act = lt_allocations[ 2 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '16.000' )
+      act = lt_allocations[ 3 ]-cumulative_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = lt_allocations[ 3 ]-atp_result-available_at_plant_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261201'
+      act = lt_requests[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_requests[ 1 ]-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '16.000' )
+      act = lt_requests[ 1 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261231'
+      act = lt_requests[ 2 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '40.000' )
+      act = lt_requests[ 2 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_availability_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bulk_atp_without_rule.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_date_demands_atp(
+          it_demands    = VALUE zcl_stock_service=>ty_date_unit_demands(
+            ( request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_date      = '20261231'
+              requested_quantity = '1.000'
+              requested_unit     = 'EA' ) )
+          iv_check_rule = space ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD compares_dated_alt_unit_atp.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    lo_repository->set_date_stock(
+      iv_quantity = '20.000'
+      iv_date     = '20261231' ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(ls_result) = lo_cut->allocate_request_date_atp(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_unit               = 'BOX'
+      iv_check_rule         = 'A'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '2.000' ).
+    DATA(ls_request) = lo_availability_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '24.000' )
+      act = ls_result-local_estimate-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = ls_result-local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BOX'
+      act = ls_request-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_request-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_atp_request.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_material_availability_api = lo_availability_api ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_request_date_atp(
+          iv_material           = 'MAT-1'
+          iv_plant              = '1000'
+          iv_unit               = 'EA'
+          iv_check_rule         = space
+          iv_required_date      = '20261231'
+          iv_requested_quantity = '1.000' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
   METHOD reports_partial_shortfall.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     DATA(lo_cut) = NEW zcl_stock_service(
@@ -1081,6 +1974,274 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '2.000' ) )
           it_sources = VALUE #(
             ( request_id = 'UNKNOWN' source_plant = '1000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD allocates_plants_by_date.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261201'
+      iv_quantity = '5.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261201'
+      iv_quantity = '10.000' ).
+    lo_repository->set_date_stock(
+      iv_material         = 'MAT-1'
+      iv_plant            = '2000'
+      iv_date             = '20261231'
+      iv_quantity         = '15.000'
+      iv_receipt_quantity = '4.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261231'
+      iv_quantity = '10.000' ).
+    lo_repository->set_safety_stock( iv_quantity = '1.000' ).
+
+    DATA(ls_result) = lo_cut->allocate_plants_by_date(
+      it_demands              = VALUE zcl_stock_service=>ty_date_plant_demands(
+        ( request_id         = 'LATE'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          required_date      = '20261231'
+          requested_quantity = '12.000' )
+        ( request_id         = 'EARLY'
+          material           = 'MAT-1'
+          target_plant       = '9001'
+          required_date      = '20261201'
+          requested_quantity = '8.000' ) )
+      it_sources              = VALUE zcl_stock_service=>ty_plant_sources(
+        ( request_id = 'LATE' source_plant = '3000' )
+        ( request_id = 'LATE' source_plant = '2000' )
+        ( request_id = 'EARLY' source_plant = '2000' )
+        ( request_id = 'EARLY' source_plant = '3000' ) )
+      iv_include_po_receipts  = abap_true
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE'
+      act = ls_result-allocations[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '19.000' )
+      act = ls_result-allocations[ 1 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY'
+      act = ls_result-allocations[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '13.000' )
+      act = ls_result-allocations[ 2 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_result-allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_result-plant_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3000'
+      act = ls_result-plant_allocations[ 1 ]-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_result-plant_allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = ls_result-plant_allocations[ 2 ]-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = ls_result-plant_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY'
+      act = ls_result-plant_allocations[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-plant_allocations[ 3 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-plant_allocations[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD allocates_dated_plant_units.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261201'
+      iv_quantity = '10.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261201'
+      iv_quantity = '20.000' ).
+    lo_repository->set_date_stock(
+      iv_material         = 'MAT-1'
+      iv_plant            = '2000'
+      iv_date             = '20261231'
+      iv_quantity         = '20.000'
+      iv_receipt_quantity = '2.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261231'
+      iv_quantity = '20.000' ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(ls_result) = lo_cut->allocate_plants_date_units(
+      it_demands             = VALUE zcl_stock_service=>ty_unit_date_plant_demands(
+        ( request_id         = 'LATE'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          required_date      = '20261231'
+          requested_quantity = '1.000'
+          requested_unit     = 'BOX' )
+        ( request_id         = 'EARLY'
+          material           = 'MAT-1'
+          target_plant       = '9001'
+          required_date      = '20261201'
+          requested_quantity = '2.000'
+          requested_unit     = 'BOX' ) )
+      it_sources             = VALUE zcl_stock_service=>ty_plant_sources(
+        ( request_id = 'LATE' source_plant = '3000' )
+        ( request_id = 'LATE' source_plant = '2000' )
+        ( request_id = 'EARLY' source_plant = '2000' )
+        ( request_id = 'EARLY' source_plant = '3000' ) )
+      iv_include_po_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE'
+      act = ls_result-allocations[ 1 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-allocations[ 1 ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '18.000' )
+      act = ls_result-allocations[ 1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = ls_result-allocations[ 1 ]-available_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_result-allocations[ 1 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY'
+      act = ls_result-allocations[ 2 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '24.000' )
+      act = ls_result-allocations[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_result-plant_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3000'
+      act = ls_result-plant_allocations[ 1 ]-allocation-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-plant_allocations[ 1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = ls_result-plant_allocations[ 1 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = ls_result-plant_allocations[ 2 ]-allocation-source_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-plant_allocations[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY'
+      act = ls_result-plant_allocations[ 3 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_dated_plant_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_plants_date_units(
+          it_demands = VALUE zcl_stock_service=>ty_unit_date_plant_demands(
+            ( request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              required_date      = '20261231'
+              requested_quantity = '1.000'
+              requested_unit     = 'CASE' ) )
+          it_sources = VALUE zcl_stock_service=>ty_plant_sources(
+            ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_dated_source.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_plants_by_date(
+          it_demands = VALUE zcl_stock_service=>ty_date_plant_demands(
+            ( request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              required_date      = '20261231'
+              requested_quantity = '2.000' ) )
+          it_sources = VALUE zcl_stock_service=>ty_plant_sources( ) ).
       CATCH zcx_invalid_stock_request.
         lv_raised = abap_true.
     ENDTRY.

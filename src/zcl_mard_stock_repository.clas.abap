@@ -36,6 +36,179 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       iv_reserved_quantity     = lv_reserved_quantity ).
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_by_date.
+    TYPES:
+      BEGIN OF ty_po_schedule,
+        scheduled_quantity  TYPE eket-menge,
+        issued_quantity     TYPE eket-wamng,
+        received_quantity   TYPE eket-wemng,
+        order_to_base_num   TYPE ekpo-umrez,
+        order_to_base_denom TYPE ekpo-umren,
+      END OF ty_po_schedule.
+    DATA lt_po_schedules TYPE STANDARD TABLE OF ty_po_schedule
+      WITH EMPTY KEY.
+    DATA lv_unrestricted_quantity TYPE mard-labst.
+    DATA lv_reserved_quantity TYPE resb-bdmng.
+    DATA lv_withdrawn_quantity TYPE resb-enmng.
+    DATA lv_initial_date TYPE resb-bdter.
+    DATA lv_initial_po_date TYPE eket-eindt.
+    DATA lv_inbound_quantity TYPE decfloat34.
+    DATA lv_sto_in_transit_quantity TYPE decfloat34.
+    DATA lv_prod_receipt_quantity TYPE decfloat34.
+    TYPES:
+      BEGIN OF ty_prod_receipt,
+        order_quantity      TYPE afpo-psmng,
+        received_quantity   TYPE afpo-wemng,
+        order_to_base_num   TYPE afpo-umrez,
+        order_to_base_denom TYPE afpo-umren,
+      END OF ty_prod_receipt.
+    DATA lt_prod_receipts TYPE STANDARD TABLE OF ty_prod_receipt
+      WITH EMPTY KEY.
+
+    CLEAR lv_initial_date.
+    CLEAR lv_initial_po_date.
+    SELECT SUM( labst )
+      FROM mard
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+      INTO @lv_unrestricted_quantity.
+
+    SELECT SUM( bdmng ), SUM( enmng )
+      FROM resb
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+        AND ( bdter <= @iv_required_date OR bdter = @lv_initial_date )
+      INTO ( @lv_reserved_quantity, @lv_withdrawn_quantity ).
+
+    IF iv_include_po_receipts = abap_true.
+      DATA(lo_po_quantity_calc) = NEW zcl_po_sched_qty_calc( ).
+      SELECT eket~menge AS scheduled_quantity,
+             eket~wemng AS received_quantity,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        WHERE ekpo~matnr = @iv_material
+          AND ekpo~werks = @iv_plant
+          AND ekpo~pstyp = '0'
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~elikz = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND ekpo~insmk = @space
+          AND eket~eindt > @lv_initial_po_date
+          AND eket~eindt <= @iv_required_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_po_schedules.
+
+      LOOP AT lt_po_schedules INTO DATA(ls_po_schedule).
+        lv_inbound_quantity = lv_inbound_quantity
+          + lo_po_quantity_calc->calculate_open_base_quantity(
+              iv_scheduled_quantity  = ls_po_schedule-scheduled_quantity
+              iv_received_quantity   = ls_po_schedule-received_quantity
+              iv_order_to_base_num   = ls_po_schedule-order_to_base_num
+              iv_order_to_base_denom = ls_po_schedule-order_to_base_denom ).
+      ENDLOOP.
+
+      lv_unrestricted_quantity = lv_unrestricted_quantity
+        + CONV mard-labst( lv_inbound_quantity ).
+    ENDIF.
+
+    IF iv_include_sto_in_transit = abap_true.
+      CLEAR lv_sto_in_transit_quantity.
+      DATA(lo_sto_quantity_calc) = NEW zcl_po_sched_qty_calc( ).
+      SELECT eket~wamng AS issued_quantity,
+             eket~wemng AS received_quantity,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
+        WHERE ekpo~matnr = @iv_material
+          AND ekpo~werks = @iv_plant
+          AND ekpo~pstyp = '7'
+          AND ekko~reswk <> @space
+          AND ekko~bsakz <> 'T'
+          AND ( ekko~bstyp = 'F' OR ekko~bstyp = 'L' )
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~stapo = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND ekpo~insmk = @space
+          AND eket~eindt > @lv_initial_po_date
+          AND eket~eindt <= @iv_required_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_po_schedules.
+
+      LOOP AT lt_po_schedules INTO DATA(ls_sto_schedule).
+        lv_sto_in_transit_quantity = lv_sto_in_transit_quantity
+          + lo_sto_quantity_calc->calculate_open_issued_qty(
+              iv_issued_quantity     = ls_sto_schedule-issued_quantity
+              iv_received_quantity   = ls_sto_schedule-received_quantity
+              iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
+              iv_order_to_base_denom = ls_sto_schedule-order_to_base_denom ).
+      ENDLOOP.
+
+      lv_unrestricted_quantity = lv_unrestricted_quantity
+        + CONV mard-labst( lv_sto_in_transit_quantity ).
+    ENDIF.
+
+    IF iv_include_prod_receipts = abap_true.
+      CLEAR lv_prod_receipt_quantity.
+      DATA(lo_prod_quantity_calc) = NEW zcl_prod_order_qty_calc( ).
+      SELECT afpo~psmng AS order_quantity,
+             afpo~wemng AS received_quantity,
+             afpo~umrez AS order_to_base_num,
+             afpo~umren AS order_to_base_denom
+        FROM afpo
+        INNER JOIN afko
+          ON afko~aufnr = afpo~aufnr
+        INNER JOIN aufk
+          ON aufk~aufnr = afpo~aufnr
+        WHERE afpo~matnr = @iv_material
+          AND afpo~werks = @iv_plant
+          AND afpo~wepos = 'X'
+          AND afpo~xloek = @space
+          AND afpo~elikz = @space
+          AND afpo~kdauf = @space
+          AND afpo~knttp = @space
+          AND aufk~autyp = '10'
+          AND aufk~phas1 = 'X'
+          AND aufk~phas2 = @space
+          AND aufk~phas3 = @space
+          AND aufk~loekz = @space
+          AND afko~gltrp > @lv_initial_po_date
+          AND afko~gltrp <= @iv_required_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_prod_receipts.
+
+      LOOP AT lt_prod_receipts INTO DATA(ls_prod_receipt).
+        lv_prod_receipt_quantity = lv_prod_receipt_quantity
+          + lo_prod_quantity_calc->calculate_open_base_quantity(
+              iv_order_quantity      = ls_prod_receipt-order_quantity
+              iv_received_quantity   = ls_prod_receipt-received_quantity
+              iv_order_to_base_num   = ls_prod_receipt-order_to_base_num
+              iv_order_to_base_denom = ls_prod_receipt-order_to_base_denom ).
+      ENDLOOP.
+
+      lv_unrestricted_quantity = lv_unrestricted_quantity
+        + CONV mard-labst( lv_prod_receipt_quantity ).
+    ENDIF.
+
+    lv_reserved_quantity = lv_reserved_quantity
+      - lv_withdrawn_quantity.
+    rv_quantity = NEW zcl_stock_avail_qty_calc( )->calculate(
+      iv_unrestricted_quantity = lv_unrestricted_quantity
+      iv_reserved_quantity     = lv_reserved_quantity ).
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     SELECT SINGLE eisbe
       FROM marc

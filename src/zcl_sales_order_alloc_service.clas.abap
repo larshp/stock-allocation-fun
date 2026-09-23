@@ -45,12 +45,24 @@ CLASS zcl_sales_order_alloc_service DEFINITION
     TYPES ty_sales_unit_allocations TYPE STANDARD TABLE OF
       ty_sales_unit_allocation WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_atp_check,
+        request_id                    TYPE c LENGTH 30,
+        item_number                   TYPE c LENGTH 6,
+        schedule_line                 TYPE c LENGTH 4,
+        line_requested_quantity       TYPE mard-labst,
+        cumulative_requested_quantity TYPE mard-labst,
+        result                        TYPE zif_material_availability_api=>ty_result,
+      END OF ty_atp_check.
+    TYPES ty_atp_checks TYPE STANDARD TABLE OF ty_atp_check
+      WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_result,
         sales_document         TYPE zif_sales_order_api=>ty_sales_document,
         allocations            TYPE zcl_stock_service=>ty_allocations,
         storage_allocations    TYPE zcl_stock_service=>ty_storage_allocations,
         batch_allocations      TYPE zcl_stock_service=>ty_batch_allocations,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
+        atp_checks             TYPE ty_atp_checks,
         messages               TYPE zif_sales_order_api=>ty_messages,
         is_successful          TYPE abap_bool,
       END OF ty_result.
@@ -68,10 +80,12 @@ CLASS zcl_sales_order_alloc_service DEFINITION
 
     METHODS constructor
       IMPORTING
-        io_sales_order_api  TYPE REF TO zif_sales_order_api
-        io_stock_repository TYPE REF TO zif_stock_repository
-        io_reservation_api  TYPE REF TO zif_so_reservation_api
-          OPTIONAL.
+        io_sales_order_api           TYPE REF TO zif_sales_order_api
+        io_stock_repository          TYPE REF TO zif_stock_repository
+        io_reservation_api           TYPE REF TO zif_so_reservation_api
+          OPTIONAL
+        io_material_availability_api TYPE REF TO
+          zif_material_availability_api OPTIONAL.
 
     METHODS preview_order
       IMPORTING
@@ -84,6 +98,9 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         iv_prioritize_by_date   TYPE abap_bool DEFAULT abap_false
         iv_use_confirmed_qty    TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
+        iv_check_atp            TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule       TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
       RETURNING
         VALUE(rs_result)        TYPE ty_result
       RAISING
@@ -120,6 +137,39 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         messages               TYPE zif_sales_order_api=>ty_messages,
         is_successful          TYPE abap_bool,
       END OF ty_prepared.
+    TYPES:
+      BEGIN OF ty_atp_demand,
+        source_index       TYPE i,
+        request_id         TYPE c LENGTH 30,
+        item_number        TYPE c LENGTH 6,
+        schedule_line      TYPE c LENGTH 4,
+        material           TYPE mard-matnr,
+        plant              TYPE mard-werks,
+        unit               TYPE mara-meins,
+        required_date      TYPE d,
+        requested_quantity TYPE mard-labst,
+      END OF ty_atp_demand.
+    TYPES ty_atp_demands TYPE STANDARD TABLE OF ty_atp_demand
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_atp_day_total,
+        material            TYPE mard-matnr,
+        plant               TYPE mard-werks,
+        unit                TYPE mara-meins,
+        required_date       TYPE d,
+        date_quantity       TYPE mard-labst,
+        cumulative_quantity TYPE mard-labst,
+        result              TYPE zif_material_availability_api=>ty_result,
+      END OF ty_atp_day_total.
+    TYPES ty_atp_day_totals TYPE STANDARD TABLE OF ty_atp_day_total
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_indexed_atp_check,
+        source_index TYPE i,
+        atp_check    TYPE ty_atp_check,
+      END OF ty_indexed_atp_check.
+    TYPES ty_indexed_atp_checks TYPE STANDARD TABLE OF
+      ty_indexed_atp_check WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_selection_key,
         item_number   TYPE c LENGTH 6,
@@ -175,6 +225,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         iv_prioritize_by_date   TYPE abap_bool DEFAULT abap_false
         iv_use_confirmed_qty    TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
+        iv_check_atp            TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_prepared)      TYPE ty_prepared
       RAISING
@@ -212,7 +263,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     mo_sales_order_service = NEW zcl_sales_order_service(
       io_api = io_sales_order_api ).
     mo_stock_service = NEW zcl_stock_service(
-      io_stock_repository = io_stock_repository ).
+      io_stock_repository          = io_stock_repository
+      io_material_availability_api = io_material_availability_api ).
     IF io_reservation_api IS BOUND.
       mo_reservation_api = io_reservation_api.
     ELSE.
@@ -222,6 +274,14 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
   METHOD preview_order.
     DATA ls_prepared TYPE ty_prepared.
+    DATA lt_atp_demands TYPE ty_atp_demands.
+    DATA lt_atp_day_totals TYPE ty_atp_day_totals.
+    DATA lt_indexed_atp_checks TYPE ty_indexed_atp_checks.
+    IF iv_check_atp = abap_true
+        AND ( iv_atp_check_rule IS NOT SUPPLIED
+          OR iv_atp_check_rule IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
     IF it_batch_selections IS SUPPLIED
         AND it_location_selections IS SUPPLIED.
       ls_prepared = prepare_order_allocations(
@@ -234,7 +294,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           iv_fefo_min_days
         iv_prioritize_by_date   = iv_prioritize_by_date
         iv_use_confirmed_qty    = iv_use_confirmed_qty
-        iv_protect_safety_stock = iv_protect_safety_stock ).
+        iv_protect_safety_stock = iv_protect_safety_stock
+        iv_check_atp            = iv_check_atp ).
     ELSEIF it_batch_selections IS SUPPLIED.
       ls_prepared = prepare_order_allocations(
         iv_sales_document       = iv_sales_document
@@ -245,7 +306,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           iv_fefo_min_days
         iv_prioritize_by_date   = iv_prioritize_by_date
         iv_use_confirmed_qty    = iv_use_confirmed_qty
-        iv_protect_safety_stock = iv_protect_safety_stock ).
+        iv_protect_safety_stock = iv_protect_safety_stock
+        iv_check_atp            = iv_check_atp ).
     ELSEIF it_location_selections IS SUPPLIED.
       ls_prepared = prepare_order_allocations(
         iv_sales_document       = iv_sales_document
@@ -256,7 +318,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           iv_fefo_min_days
         iv_prioritize_by_date   = iv_prioritize_by_date
         iv_use_confirmed_qty    = iv_use_confirmed_qty
-        iv_protect_safety_stock = iv_protect_safety_stock ).
+        iv_protect_safety_stock = iv_protect_safety_stock
+        iv_check_atp            = iv_check_atp ).
     ELSE.
       ls_prepared = prepare_order_allocations(
         iv_sales_document       = iv_sales_document
@@ -266,7 +329,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           iv_fefo_min_days
         iv_prioritize_by_date   = iv_prioritize_by_date
         iv_use_confirmed_qty    = iv_use_confirmed_qty
-        iv_protect_safety_stock = iv_protect_safety_stock ).
+        iv_protect_safety_stock = iv_protect_safety_stock
+        iv_check_atp            = iv_check_atp ).
     ENDIF.
     rs_result-sales_document = iv_sales_document.
     rs_result-allocations = ls_prepared-allocations.
@@ -276,6 +340,113 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ls_prepared-sales_unit_allocations.
     rs_result-messages = ls_prepared-messages.
     rs_result-is_successful = ls_prepared-is_successful.
+
+    IF iv_check_atp = abap_true
+        AND ls_prepared-is_successful = abap_true.
+      LOOP AT ls_prepared-order_items INTO DATA(ls_atp_item)
+        WHERE open_base_quantity > 0.
+        DATA lv_request_id TYPE c LENGTH 30.
+        IF ls_atp_item-schedule_line IS INITIAL.
+          CONCATENATE iv_sales_document ls_atp_item-item_number
+            INTO lv_request_id SEPARATED BY '/'.
+        ELSE.
+          CONCATENATE iv_sales_document ls_atp_item-item_number
+            ls_atp_item-schedule_line
+            INTO lv_request_id SEPARATED BY '/'.
+        ENDIF.
+        APPEND VALUE #(
+          source_index       = sy-tabix
+          request_id         = lv_request_id
+          item_number        = ls_atp_item-item_number
+          schedule_line      = ls_atp_item-schedule_line
+          material           = ls_atp_item-material
+          plant              = ls_atp_item-plant
+          unit               = ls_atp_item-base_unit
+          required_date      = ls_atp_item-requested_date
+          requested_quantity = ls_atp_item-open_base_quantity )
+          TO lt_atp_demands.
+      ENDLOOP.
+
+      SORT lt_atp_demands BY material plant unit required_date
+        source_index.
+      FIELD-SYMBOLS <ls_atp_day_total> TYPE ty_atp_day_total.
+      LOOP AT lt_atp_demands INTO DATA(ls_atp_day_demand).
+        READ TABLE lt_atp_day_totals ASSIGNING <ls_atp_day_total>
+          WITH KEY material = ls_atp_day_demand-material
+                   plant = ls_atp_day_demand-plant
+                   unit = ls_atp_day_demand-unit
+                   required_date = ls_atp_day_demand-required_date.
+        IF sy-subrc = 0.
+          <ls_atp_day_total>-date_quantity =
+            <ls_atp_day_total>-date_quantity
+            + ls_atp_day_demand-requested_quantity.
+        ELSE.
+          APPEND VALUE #(
+            material      = ls_atp_day_demand-material
+            plant         = ls_atp_day_demand-plant
+            unit          = ls_atp_day_demand-unit
+            required_date = ls_atp_day_demand-required_date
+            date_quantity = ls_atp_day_demand-requested_quantity )
+            TO lt_atp_day_totals.
+        ENDIF.
+      ENDLOOP.
+
+      SORT lt_atp_day_totals BY material plant unit required_date.
+      DATA lv_previous_material TYPE mard-matnr.
+      DATA lv_previous_plant TYPE mard-werks.
+      DATA lv_previous_unit TYPE mara-meins.
+      DATA lv_cumulative_quantity TYPE mard-labst.
+      DATA lv_first_demand TYPE abap_bool VALUE abap_true.
+
+      LOOP AT lt_atp_day_totals ASSIGNING <ls_atp_day_total>.
+        IF lv_first_demand = abap_true
+            OR lv_previous_material <> <ls_atp_day_total>-material
+            OR lv_previous_plant <> <ls_atp_day_total>-plant
+            OR lv_previous_unit <> <ls_atp_day_total>-unit.
+          CLEAR lv_cumulative_quantity.
+          lv_previous_material = <ls_atp_day_total>-material.
+          lv_previous_plant = <ls_atp_day_total>-plant.
+          lv_previous_unit = <ls_atp_day_total>-unit.
+          lv_first_demand = abap_false.
+        ENDIF.
+        lv_cumulative_quantity = lv_cumulative_quantity
+          + <ls_atp_day_total>-date_quantity.
+        <ls_atp_day_total>-cumulative_quantity = lv_cumulative_quantity.
+        <ls_atp_day_total>-result = mo_stock_service->check_atp_request(
+          is_request = VALUE #(
+            material           = <ls_atp_day_total>-material
+            plant              = <ls_atp_day_total>-plant
+            unit               = <ls_atp_day_total>-unit
+            check_rule         = iv_atp_check_rule
+            required_date      = <ls_atp_day_total>-required_date
+            requested_quantity = lv_cumulative_quantity ) ).
+      ENDLOOP.
+
+      LOOP AT lt_atp_demands INTO DATA(ls_atp_demand).
+        READ TABLE lt_atp_day_totals INTO DATA(ls_atp_day_total)
+          WITH KEY material = ls_atp_demand-material
+                   plant = ls_atp_demand-plant
+                   unit = ls_atp_demand-unit
+                   required_date = ls_atp_demand-required_date.
+        APPEND VALUE #(
+          source_index = ls_atp_demand-source_index
+          atp_check    = VALUE #(
+            request_id                    = ls_atp_demand-request_id
+            item_number                   = ls_atp_demand-item_number
+            schedule_line                 = ls_atp_demand-schedule_line
+            line_requested_quantity       =
+              ls_atp_demand-requested_quantity
+            cumulative_requested_quantity =
+              ls_atp_day_total-cumulative_quantity
+            result                        = ls_atp_day_total-result ) )
+          TO lt_indexed_atp_checks.
+      ENDLOOP.
+
+      SORT lt_indexed_atp_checks BY source_index.
+      LOOP AT lt_indexed_atp_checks INTO DATA(ls_indexed_atp_check).
+        APPEND ls_indexed_atp_check-atp_check TO rs_result-atp_checks.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD reserve_order.
@@ -596,6 +767,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         APPEND VALUE #(
           type    = 'E'
           message = 'Open schedule line lacks a requested date' )
+          TO rs_prepared-messages.
+        RETURN.
+      ENDIF.
+
+      IF iv_check_atp = abap_true
+          AND ls_validated_item-requested_date IS INITIAL.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'ATP preview requires a requested date for each open item' )
           TO rs_prepared-messages.
         RETURN.
       ENDIF.

@@ -65,6 +65,17 @@ INTERFACE zif_stock_repository PUBLIC.
     RETURNING
       VALUE(rv_quantity) TYPE mard-labst.
 
+  METHODS get_available_stock_by_date
+    IMPORTING
+      iv_material               TYPE mard-matnr
+      iv_plant                  TYPE mard-werks
+      iv_required_date          TYPE resb-bdter
+      iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
+      iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
+      RETURNING
+      VALUE(rv_quantity)        TYPE mard-labst.
+
   METHODS get_safety_stock
     IMPORTING
       iv_material        TYPE mard-matnr

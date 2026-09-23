@@ -54,10 +54,13 @@
   base-unit split quantities. The service checks result base units against the
   supplied material-unit mapping. Added tests for non-batch splits, batch
   preservation, base-unit quantities, and mapping mismatch rejection.
+- Added `TRANSFER_PLANT_FEFO_UNITS` to post unit-aware FEFO cross-plant splits
+  as a single 301 movement, retaining batch IDs and canonical base-unit
+  quantities. Added success and base-unit mismatch tests.
 - Resolved the earlier schedule-date note: schedule-line dates now pass into
   reservations; confirmed delivery dates remain outside the read model.
 - Latest verification: `npm.cmd test` passed; abaplint reported zero issues
-  and the transpiler ran all 239 ABAP Unit test methods.
+  and the transpiler ran all 241 ABAP Unit test methods.
 
 ## 2026-09-22
 
@@ -505,3 +508,218 @@
 - Latest verification after location unit allocation: `npm.cmd test` passed;
   abaplint reported zero issues and the transpiler ran all 208 ABAP Unit
   methods.
+- Added `ALLOCATE_REQUEST_BY_DATE` for a date-scoped plant availability estimate.
+  It nets active unrestricted reservations due by the requested date, returns
+  the usual available/allocated/shortfall quantities, and supports optional
+  static safety-stock protection. Tests cover the dated split, safety-stock
+  adjustment, and missing-date rejection. This remains a local estimate based
+  on current stock and does not model future receipts or SAP ATP.
+- Latest verification after date-scoped allocation: `npm.cmd test` passed;
+  abaplint reported zero issues and the transpiler ran all 244 ABAP Unit
+  methods.
+- Added the `ZIF_MATERIAL_AVAILABILITY_API` boundary and BAPI adapter for
+  `BAPI_MATERIAL_AVAILABILITY`. `ALLOCATE_REQUEST_DATE_ATP` now returns the
+  SAP-confirmed quantity/date and dialog status beside the date-scoped local
+  allocation, using the caller's unit and checking rule. Tests verify request
+  mapping and preserve the distinction between local and SAP quantities; the
+  adapter still requires validation against the target SAP function signature.
+- Latest verification after the ATP adapter: `npm.cmd test` passed; abaplint
+  reported zero issues and the transpiler ran all 246 ABAP Unit methods.
+- Extended `preview_order` with opt-in `iv_check_atp` and a caller-supplied
+  checking rule. It requests a check per positive open schedule line using the
+  cumulative open demand for that material, plant, and base unit through the
+  required date. Same-date lines use the combined quantity due that day, and
+  results retain both line and cumulative quantities in original order. The
+  checks remain separate from local allocations. It rejects missing rules
+  before order/stock reads and missing dates before stock allocation. Tests
+  cover out-of-order and same-date lines, separate ATP/local quantities, and
+  invalid rule/date inputs. SAP documents accumulation limits for this BAPI,
+  so target checking configuration and live results still require validation.
+- Latest verification after cumulative sales-order ATP checks: `npm.cmd test`
+  passed; abaplint reported zero issues and the transpiler ran all 249 ABAP
+  Unit methods.
+- Added `ALLOCATE_DEMANDS_BY_DATE` for a set of requests sharing dated stock.
+  It validates the full list before reads, allocates in ascending required-date
+  order with input order as the tie-breaker, shares stock across later dates,
+  caches repeated date snapshots and safety stock, and returns rows in input
+  order. Tests cover an out-of-order list, repeated dates, shared stock,
+  safety-stock protection, read caching, and rejection before reads.
+- Latest verification after bulk dated allocation: `npm.cmd test` passed;
+  abaplint reported zero issues and the transpiler ran all 251 ABAP Unit
+  methods.
+- Added opt-in `iv_include_po_receipts` to single-date, bulk-date, and
+  date-based ATP comparison methods. The MARD repository adds the open
+  remainder of dated standard stock
+  PO schedule lines from `EKET`, filters deleted, completed, account-assigned,
+  return, no-GR, and non-unrestricted stock-type items in `EKPO`, and converts
+  PO units to base units through `UMREZ/UMREN`. Added a pure schedule-quantity
+  converter with tests for partial receipts, conversion ratios, closed lines,
+  and invalid ratios. The option is off by default; PO release and supplier-
+  confirmation state are not modeled.
+- Latest verification after purchase-receipt projections: `npm.cmd test` passed;
+  abaplint reported zero issues and the transpiler ran all 256 ABAP Unit
+  methods.
+- Added opt-in `iv_include_sto_in_transit` to single-date, bulk-date, and
+  date-based ATP comparison methods. The MARD repository projects schedule-line
+  quantities already issued from stock-transfer items (`EKPO-PSTYP = '7'`) and
+  still outstanding at receipt (`EKET-WAMNG - EKET-WEMNG`), due by the required
+  date. It requires a supplying plant, excludes transport-document types and
+  statistical items, and accepts PO/scheduling-agreement document categories.
+  It converts the PO unit to the base unit and filters deleted,
+  account-assigned, returns, no-GR, and non-unrestricted receiving items. Planned
+  but unissued transfers are excluded, and the flag is off by default. Tests
+  cover the converter, independent and combined PO/STO options, bulk allocation,
+  and ATP comparison. Live STO schedule data and stock-type behavior still need
+  validation in the target SAP system.
+- Latest verification after STO in-transit projection: `npm.cmd test` passed;
+  abaplint reported zero issues and the transpiler ran all 258 ABAP Unit
+  methods.
+- Added opt-in `iv_include_prod_receipts` to single-date, bulk-date, and
+  date-based ATP comparison. The MARD repository projects open production-order
+  item quantity (`AFPO-PSMNG - AFPO-WEMNG`) from released, GR-relevant category
+  10 orders due by `AFKO-GLTRP`. It excludes deleted, completed, make-to-order,
+  and account-assigned items and converts production units with
+  `AFPO-UMREZ/UMREN`. A pure converter and dated-allocation tests cover partial
+  receipts, closed orders, invalid conversions, and the opt-in behavior. Basic
+  finish date and expected stock type remain estimates; target SAP validation
+  is still needed.
+- Latest verification after production-receipt projection: `npm.cmd test`
+  passed; abaplint reported zero issues across 63 files and the transpiler ran
+  all 262 ABAP Unit methods.
+- Extended `ZIF_MATERIAL_AVAILABILITY_API` results with all `WMDVEX` dated
+  confirmation lines, including requested date/quantity and confirmed
+  date/quantity. The BAPI adapter maps every returned row; the existing scalar
+  confirmation fields continue to mirror the first row. Added pure mapping
+  tests for multiple and empty confirmation tables, plus a stock-service test
+  that verifies multiple rows survive the ATP comparison result.
+- Latest verification after preserving full ATP confirmations: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 264 ABAP Unit methods.
+- Added `ENDLEADTME` to the material availability result as
+  `end_of_replenishment_lead_time`, typed from `BAPICM61M-WZTER`. The BAPI
+  adapter maps the date and the stock-service test verifies it survives the ATP
+  result path. SAP documents that this date is returned when replenishment lead
+  time is active; the target release's function signature still needs live
+  validation.
+- Latest verification after exposing the replenishment lead-time date:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 264 ABAP Unit methods.
+- Updated sales-order ATP preview to call the availability API once per unique
+  material/plant/base-unit/required-date group. Same-date lines continue to
+  report their individual demand and shared cumulative quantity, while reusing
+  the group's ATP result. The regression test verifies two calls for three
+  positive schedule lines spanning two dates.
+- Latest verification after reusing same-date ATP results: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 264 ABAP Unit methods.
+- Added `ALLOCATE_DATE_DEMANDS_IN_UNITS` to combine date-priority allocation
+  with material-specific input units. It validates request IDs and unit ratios
+  before stock reads, caches repeated ratios, shares dated balances in base
+  units, applies the existing receipt and safety-stock options, and returns
+  canonical base quantities with rounded source-unit availability/allocation
+  values. Tests cover out-of-order mixed-unit demand, all three receipt options,
+  safety stock, and unknown-unit rejection before stock reads.
+- Latest verification after dated unit-aware allocation: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 266
+  ABAP Unit methods.
+- Added `ALLOCATE_PLANTS_BY_DATE` to allocate dated demands from caller-ordered
+  source plants. It processes earliest dates first, shares each source balance
+  across requests, caches date snapshots and safety stock, supports projected
+  PO/STO/production receipts, and returns plant splits in request/source order.
+  It is a planning preview without storage-location splits. Tests cover reversed
+  input dates, per-request source priority, shared stock across dates, receipts,
+  safety-stock protection, and missing-source rejection before stock reads.
+- Latest verification after dated cross-plant allocation: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 268 ABAP Unit methods.
+- Added `ALLOCATE_PLANTS_DATE_UNITS` to combine dated cross-plant allocation
+  with material-specific input units. It caches unit ratios, converts demand to
+  base units, preserves date priority and caller source order, and returns
+  converted demand and source-plant split details alongside canonical base-unit
+  values. Tests cover receipt projection, shared stock across dates, source
+  priority, output order, unit conversion, and unknown-unit rejection.
+- Latest verification after dated cross-plant unit allocation: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 270 ABAP Unit methods.
+- Corrected `ALLOCATE_REQUEST_DATE_ATP` to convert the caller's unit quantity
+  to the material base unit for the local stock estimate while keeping the
+  original unit and quantity on the SAP ATP request. Added an alternative-unit
+  regression test and supplied the UOM test double to the existing ATP test.
+- Latest verification after the ATP unit correction: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 271
+  ABAP Unit methods.
+- Added `ALLOCATE_DATE_DEMANDS_ATP` to compare unit-aware dated allocations with
+  SAP ATP using cumulative base-unit demand per material/plant/unit/date. It
+  shares one ATP response across same-day requests, returns results in input
+  order, and keeps SAP ATP separate from the local receipt/safety-stock estimate.
+  The test covers mixed input units, same-day aggregation, date priority, and
+  reduced ATP calls for shared date groups.
+- Latest verification after bulk dated ATP comparison: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 273
+  ABAP Unit methods.
+- Added `TRANSFER_LOCATION_ALLOCATION` to post `ALLOCATE_BY_STORAGE_LOCATION`
+  source splits as movement 311 items to a caller-selected destination per
+  request. It reuses transfer completeness, split-total, unit-mapping, simulation,
+  and transaction checks, and rejects a destination equal to a source location.
+  Tests cover multiple source locations and same-location rejection.
+- Latest verification after storage-location allocation transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 275 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_BATCH_ALLOC` for exact-batch `ALLOCATE_BY_BATCH`
+  results. It posts movement 311 items per source location, retains each batch,
+  and rejects a result that mixes batches for one request before calling SAP.
+  Tests cover a multi-location batch transfer and mixed-batch rejection.
+- Latest verification after batch location transfer: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 277
+  ABAP Unit methods.
+- Added `TRANSFER_LOCATION_UNITS_ALLOC` to post unit-aware storage-location
+  allocations as movement 311 items, carrying canonical base-unit split
+  quantities and validating the result's base unit against the supplied
+  material mapping. Tests cover multiple base-unit splits and unit mismatch
+  rejection.
+- Latest verification after unit-aware location transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 298 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_BATCH_UNITS` to post unit-aware exact-batch location
+  allocations as movement 311 items. It preserves each batch, uses canonical
+  base-unit split quantities, and rejects mixed batches or base-unit mismatches
+  before the BAPI call. Tests cover a multi-location transfer and both invalid
+  result cases.
+- Latest verification after unit-aware batch location transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 301 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_FEFO_ALLOC` to post same-plant FEFO batch/location
+  splits as 311 items. It carries each selected batch and keeps the preview's
+  split order, including requests allocated from more than one batch. Tests
+  cover a two-batch transfer and missing-batch rejection before the BAPI call.
+- Latest verification after FEFO location transfer: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 303
+  ABAP Unit methods.
+- Added `TRANSFER_LOCATION_FEFO_UNITS` for unit-aware FEFO location results. It
+  posts canonical base-unit quantities and supports multiple FEFO-selected
+  batches per request, preserving the preview's split order. Tests cover a
+  mixed-batch transfer and rejection of a base-unit mismatch.
+- Latest verification after unit-aware FEFO location transfer: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files and the transpiler ran
+  all 305 ABAP Unit methods.
+- Added `TRANSFER_LOCATION_TWO_STEP` to turn validated storage-location splits
+  into movement 313 removals and one 315 putaway item per request. Its result
+  exposes both posting responses and marks stock still in transit when the
+  second posting fails after removal committed. Tests cover both steps,
+  preflight rejection, test run behavior, and pending putaway reporting.
+- Latest verification after two-step location transfer: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files and the transpiler ran all 311
+  ABAP Unit methods.
+- Added `TRANSFER_LOCATION_2STEP_UNITS`, which validates unit-aware location
+  summaries and splits against material base-unit mappings before using the
+  313/315 flow. It posts canonical base-unit quantities and reuses the two-step
+  result status for failures between removal and putaway. Tests cover posting
+  both legs and pre-post rejection of summary and split unit mismatches.
+- Latest verification after unit-aware two-step location transfer:
+  `npm.cmd test` passed; abaplint reported zero issues across 64 files and the
+  transpiler ran all 314 ABAP Unit methods.
+- Added `TRANSFER_PLANT_TWO_STEP` to map cross-plant allocation location splits
+  to movement 303 removals and one 305 putaway item per request. The shared
+  two-step flow validates all demands and source splits before posting and
+  reports in-transit stock when putaway fails after removal. Tests cover the
+  two movement legs and reject same-plant source splits before calling SAP.

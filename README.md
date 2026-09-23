@@ -43,6 +43,18 @@ material/source-plant stock balance is read once. The optional
 `iv_protect_safety_stock` flag subtracts static source-plant safety stock before
 allocation. This is an allocation preview only; it does not reserve stock or
 post an interplant transfer.
+`ALLOCATE_PLANTS_BY_DATE` adds required dates and uses the same caller-ordered
+source plants. Earlier demands consume shared material/source-plant balances
+before later dates, with input order breaking same-date ties. It supports the
+dated PO, STO in-transit, and production receipt projections plus source safety
+stock protection. Results return in input order with source-plant splits. This
+is a planning estimate and does not return storage-location splits or create a
+transfer because projected receipts have no storage-location assignment.
+`ALLOCATE_PLANTS_DATE_UNITS` accepts the same dated cross-plant requests in
+material-specific units. It converts demand to base units before stock reads,
+preserves date priority and each request's source-plant order, and returns both
+unit views for demand and source-plant splits. Optional dated PO, STO in-transit,
+and production receipts and safety-stock protection follow the base-unit method.
 `ALLOCATE_PLANTS_IN_UNITS` accepts material-specific demand units and returns
 the demand summary plus plant and location splits in both the source unit and
 base unit. It caches and validates material/unit ratios before reading stock.
@@ -91,6 +103,63 @@ change their availability ([SAP stock types](https://help.sap.com/doc/a6a8c7536e
 available quantity, and safety-stock values in a requested material unit. The
 result includes both the requested unit and the material base unit; conversion
 uses the material's `MARA`/`MARM` ratio.
+`ALLOCATE_REQUEST_BY_DATE` estimates a single material/plant allocation for a
+required date. It subtracts active unrestricted reservations due on or before
+that date, including reservations without a requirement date, and returns the
+available quantity, allocation, and shortfall. Optional static safety-stock
+protection works like the other plant allocation methods. Set
+`iv_include_po_receipts = abap_true` to add remaining standard stock PO schedule
+quantities due by that date, converted from the PO unit to the base unit. This
+excludes PO items marked for quality-inspection or blocked stock. The actual
+goods receipt can still use a different stock type, so treat this as a local
+projection rather than SAP ATP or a historical stock reconstruction.
+Set `iv_include_sto_in_transit = abap_true` to also include stock-transfer
+schedule quantities already issued but not yet received, dated by the schedule
+delivery date. Planned but unissued transfers are excluded. This estimate starts
+from `MARD-LABST` and does not add SAP's separate in-transit stock balance.
+Set `iv_include_prod_receipts = abap_true` to add open receipts from released
+production orders whose basic finish date is on or before the requested date.
+The estimate excludes make-to-order and completed order items; production output
+may still be delayed or posted to a different stock type.
+`ALLOCATE_DEMANDS_BY_DATE` handles a list of dated requests with unique request
+IDs. It allocates earlier requirements first, shares each material/plant
+balance across dates, and keeps input order for requests with the same date.
+Identical material/plant/date estimates are read once, and optional static
+safety-stock protection is cached per material/plant. The result is returned in
+input order; each row's available quantity reflects stock remaining after
+earlier requests for that material/plant. The same opt-in receipt flag applies
+to each dated stock estimate.
+`ALLOCATE_DATE_DEMANDS_IN_UNITS` accepts the same dated request list in
+material-specific units. It validates and caches unit ratios before stock
+reads, converts demands to base units, and returns each dated allocation with
+both base-unit quantities and rounded source-unit quantities. It uses the same
+date priority, safety-stock protection, and optional PO, STO in-transit, and
+production receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
+`ALLOCATE_DATE_DEMANDS_ATP` also checks those dated requests with SAP ATP. It
+converts them to base units for local allocation and sends one cumulative ATP
+check per material/plant/base-unit/required-date group. Requests sharing a date
+share that result; returned rows stay in input order and include both the local
+estimate and cumulative base-unit quantity sent to SAP.
+`ALLOCATE_REQUEST_DATE_ATP` returns that local estimate together with a
+`BAPI_MATERIAL_AVAILABILITY` result for the supplied material, plant, unit,
+checking rule, date, and quantity. The SAP result includes plant-level
+available quantity, every dated confirmation line, the replenishment lead-time
+end date when configured, and the dialog status, so callers can review
+configured ATP alongside the local allocation result. The legacy scalar
+confirmation date and quantity mirror the first line. SAP returns the lead-time
+end date only when replenishment lead time is active for the check. The local
+estimate accepts the optional PO, STO in-transit, and production receipt flags.
+The SAP check retains the supplied unit and quantity; the local estimate
+converts the request to the material base unit before reading stock.
+For sales orders, `preview_order` can set `iv_check_atp = abap_true` and provide
+`iv_atp_check_rule`; the result contains one plant-level ATP check for each
+positive open schedule line in `atp_checks`. The SAP request uses the cumulative
+open quantity for the same material, plant, and base unit through that line's
+required date. Lines sharing a date receive the same cumulative quantity.
+Each result also reports the line quantity and cumulative quantity separately.
+These checks do not replace local allocation splits or change the local preview
+success flag, so callers should inspect the ATP statuses separately. Open
+item-level fallback rows without a requested date are rejected in this mode.
 `GET_STOCK_STATUS_BY_LOCATION` returns the same stock-category breakdown for
 each storage location, along with available unrestricted quantity after active
 reservations. Plant-level reservations are distributed across locations in
@@ -163,15 +232,51 @@ its own movement item. `TRANSFER_PLANT_UNITS_ALLOC` and
 `TRANSFER_PLANT_BATCH_UNITS` accept ordinary and exact-batch unit-aware
 allocation results directly and post their canonical base-unit split quantities,
 checking the result's base unit against the supplied material unit mapping.
+`TRANSFER_PLANT_FEFO_UNITS` does the same for unit-aware FEFO results while
+preserving each selected batch in its own movement item.
+`TRANSFER_PLANT_TWO_STEP` accepts cross-plant allocation results with source
+location splits and posts 303 removals followed by one 305 putaway item per
+request. It returns both posting results and sets `is_in_transit` when removal
+commits but putaway fails. Supply a destination storage location per request;
+complete allocation is required by default, and test runs simulate both steps.
 Previews do not reserve stock, so availability can change before posting.
-Storage-location transfers (311/312) require a receiving storage location;
-two-step transfers use separate 313 removal and 315 putaway postings. It
-posts purchase-order goods receipts with movement type 101 and PO-referenced
-returns to vendor with movement type 122, both with movement indicator `B` and
-purchase-order/item reference; and production-order receipts with GM
-code 02, movement type 101, order reference, and indicator `F`. Material, plant,
-and storage location may be inherited from the referenced order. It requires
-each movement quantity to include both SAP's unit and its ISO code. It supports
+`TRANSFER_LOCATION_ALLOCATION` accepts an `ALLOCATE_BY_STORAGE_LOCATION`
+result and posts each source-location split as a 311 goods movement within the
+same plant. Supply a receiving storage location by request ID and each material's
+base unit and ISO code. Complete allocation is required by default; partial
+transfer can be enabled explicitly. The destination must differ from each
+source location.
+`TRANSFER_LOCATION_BATCH_ALLOC` accepts `ALLOCATE_BY_BATCH` results and keeps
+each exact batch on its source-location movement item. It rejects missing or
+mixed batches within one request and uses the same complete-allocation and
+destination rules as the non-batch transfer.
+`TRANSFER_LOCATION_UNITS_ALLOC` accepts unit-aware location allocation results
+and posts the canonical base-unit quantity for each source-location split.
+Supply the matching material base-unit mapping and destination per request.
+`TRANSFER_LOCATION_BATCH_UNITS` accepts `ALLOCATE_BY_BATCH_IN_UNITS` results,
+preserves each batch on its source-location item, and posts canonical base-unit
+split quantities. Each request must resolve to one consistent batch.
+`TRANSFER_LOCATION_FEFO_ALLOC` accepts `ALLOCATE_BY_EXPIRY` results and posts
+each selected batch/location split in the preview's order, allowing one request
+to move multiple FEFO-selected batches.
+`TRANSFER_LOCATION_FEFO_UNITS` accepts unit-aware FEFO results and posts each
+split using its canonical base-unit quantity while preserving the selected
+batches and their order.
+Storage-location transfers (311/312) require a receiving storage location.
+`TRANSFER_LOCATION_TWO_STEP` accepts storage-location allocation results and
+posts 313 removals followed by one 315 putaway item per request, with the
+request's split quantities combined. Its result carries both posting results
+and sets `is_in_transit` if removal committed but putaway failed. Test runs
+simulate both steps without committing.
+`TRANSFER_LOCATION_2STEP_UNITS` accepts unit-aware storage-location allocation
+results and uses each split's canonical base-unit quantity, after checking the
+summary and split base units against the supplied material mapping.
+The service also posts purchase-order goods receipts with movement type 101 and
+PO-referenced returns to vendor with movement type 122, both with movement
+indicator `B` and purchase-order/item reference; and production-order receipts
+with GM code 02, movement type 101, order reference, and indicator `F`. Material,
+plant, and storage location may be inherited from the referenced order. It
+requires each movement quantity to include both SAP's unit and its ISO code. It supports
 BAPI test runs and commits or rolls back based on the BAPI result ([BAPI
 movement codes and required receipt fields](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)).
 It can cancel a complete material document or selected items by document number
@@ -365,6 +470,13 @@ The allocation service only passes positive open base-unit quantities to the
 stock preview and skips a failed or incomplete order read. Active, non-deleted
 reservations for unrestricted stock are subtracted from `MARD-LABST`; this is
 not a full ATP calculation and does not include every SAP planning element.
+Set `iv_check_atp = abap_true` on `preview_order` to request SAP ATP checks for
+remaining open schedule lines. It performs one BAPI call per unique
+material/plant/base-unit/required-date group using the cumulative open demand
+through that date, then includes the shared result on each matching schedule
+line. Each line's own and cumulative quantities are returned alongside the SAP
+result, separately from local allocation; ATP checks do not alter the local
+splits or success flag.
 `GET_STOCK_STATUS` reports raw plant totals for `MARD-LABST`, `MARD-INSME`, and
 `MARD-SPEME`, plus active unrestricted `RESB` reservations net of withdrawals
 and a clamped available-unrestricted estimate. Local tests use a fake

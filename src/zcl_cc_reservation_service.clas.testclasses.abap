@@ -33,6 +33,10 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
     ADD 1 TO mv_read_count.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_by_date.
+    ADD 1 TO mv_read_count.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     ADD 1 TO mv_read_count.
   ENDMETHOD.

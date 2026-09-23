@@ -139,14 +139,71 @@ reserve stock, so SAP can reject the transfer if balances change. The workflow
 does not check stock-transfer configuration, plant-specific material
 extensions, transfer lead times, or in-transit quantities. Unit-aware result
 wrappers are accepted directly by `TRANSFER_PLANT_UNITS_ALLOC` and
-`TRANSFER_PLANT_BATCH_UNITS`; these methods post canonical base-unit split
-quantities and validate the supplied material/base-unit mapping. Use 303/305
-postings when the process requires two-step in-transit handling. The unit-aware
-allocation variant converts through
+`TRANSFER_PLANT_BATCH_UNITS`; `TRANSFER_PLANT_FEFO_UNITS` also accepts the
+unit-aware FEFO result and preserves the selected batch on each movement item.
+These methods post canonical base-unit split quantities and validate the supplied
+material/base-unit mapping. Use 303/305 postings when the process requires
+two-step in-transit handling. The unit-aware allocation variant converts through
 `MARA`/`MARM` and rounds displayed source-unit values to quantity-field
 precision; use the base-unit splits as canonical amounts. Local tests use
 repository doubles; validate source eligibility, conversion factors, ATP, and
 the goods movement in the target system.
+`TRANSFER_LOCATION_ALLOCATION` maps `ALLOCATE_BY_STORAGE_LOCATION` base-unit
+splits to movement 311 items and uses one destination storage location per
+request. It checks split totals and rejects a destination matching any source
+location. The preview does not reserve stock; local tests use a BAPI double, so
+verify movement 311 fields and storage-location transfer configuration in the
+target release.
+`TRANSFER_LOCATION_BATCH_ALLOC` uses the same path for `ALLOCATE_BY_BATCH`
+results and preserves the selected batch on each source-location item. Its
+summary type does not contain a batch, so the transfer boundary derives and
+validates one consistent batch from the split rows for each request. Validate
+batch field behavior with movement 311 in the target release.
+
+`TRANSFER_LOCATION_UNITS_ALLOC` maps unit-aware storage-location splits to
+movement 311 items using the canonical base-unit quantities. It checks the
+allocation's base unit against the supplied material unit mapping. The local
+test uses a BAPI double; verify movement fields and storage-location transfer
+configuration in the target release.
+
+`TRANSFER_LOCATION_BATCH_UNITS` maps `ALLOCATE_BY_BATCH_IN_UNITS` splits to
+movement 311 items with canonical base-unit quantities and preserves the exact
+batch. The result summary has no batch field, so the transfer boundary derives
+and checks one consistent batch per request. Local tests use a BAPI double;
+verify movement fields and storage-location transfer configuration in the
+target release.
+
+`TRANSFER_LOCATION_FEFO_ALLOC` maps `ALLOCATE_BY_EXPIRY` batch/location splits
+to movement 311 items and preserves the preview's batch order, including
+multiple batches for one request. It trusts the supplied result's batch and
+quantity values; the preview does not reserve stock. Local tests use a BAPI
+double, so verify movement fields and storage-location transfer configuration
+in the target release.
+
+`TRANSFER_LOCATION_FEFO_UNITS` maps unit-aware FEFO batch/location splits to
+movement 311 items using canonical base-unit quantities. It permits several
+FEFO-selected batches per request and validates every split's base unit against
+the material mapping. Local tests use a BAPI double; verify the movement fields
+and transfer configuration in the target release.
+
+`TRANSFER_LOCATION_TWO_STEP` posts movement 313 removals and then one 315
+putaway item per request, combining that request's source splits. The postings
+commit separately. If putaway fails after a
+successful removal, stock remains in transit and the result reports
+`is_in_transit = abap_true` so the caller can reconcile or retry putaway. Local
+tests use a BAPI double; verify movement 313/315 fields and transfer
+configuration in the target release.
+
+`TRANSFER_LOCATION_2STEP_UNITS` converts unit-aware split results to the same
+two-step flow only after checking summary and split base units against the
+material mapping. Local tests use a BAPI double; verify canonical quantities
+and movement fields in the target release.
+
+`TRANSFER_PLANT_TWO_STEP` maps cross-plant location allocations to movement 303
+removals and one 305 putaway item per request. The two postings commit
+separately; a successful removal followed by failed putaway leaves stock in
+transit and is reported in the result. Local tests use a BAPI double; verify
+movement fields and transfer configuration in the target release.
 
 Exact-batch cross-plant allocation uses the repository's `MCHB-CLABS` and
 `RESB` availability estimate and preserves the requested batch across source
@@ -226,8 +283,12 @@ strategy is configured. Open reservations without `LGORT` are deducted from
 the first available locations in that order. A sales-order location choice is
 a hard restriction by default; callers may opt to use it as the first
 preference and fall back to other locations in ascending code order. The
-preview does not emulate SAP's picking or ATP decision. Validate target-system
-picking strategy before using the result as warehouse instructions.
+preview does not emulate SAP's picking strategy. `preview_order` can opt into
+plant-level ATP checks with `iv_check_atp`; those results are returned beside
+the local allocation and do not change its splits. ATP checks do not emulate
+local location or FEFO selection, and the default preview remains local-only.
+Validate target-system picking strategy before using the result as warehouse
+instructions.
 
 Sales-order batch choices may identify an order item and schedule line to
 select a separate batch per open schedule line. An item-only choice continues
@@ -252,8 +313,10 @@ covered with local fake repository data; the tests do not validate the target
 system's `MCHA` / `MCH1` expiration-date reads.
 
 Opt-in order date priority uses the requested schedule date to order the local
-allocation and reservation requests. SAP's later ATP check and configured
-priority rules can produce a different confirmation result.
+allocation and reservation requests. When `iv_check_atp` is enabled, preview
+also asks SAP about each remaining open schedule line; the resulting
+confirmation can still differ from local allocation and configured priority
+rules can change the result at reservation time.
 
 The stock-status inquiry aggregates the partial local `MARD` stub's `LABST`,
 `INSME`, and `SPEME` fields and net active unrestricted `RESB` reservations
@@ -297,6 +360,148 @@ expiration-date rule used by local FEFO allocation and sorts eligible dated
 batches first. The local query estimates availability from `MCHB` and `RESB`;
 verify stock status and expiration-date selection against live data in the
 target release. This inquiry does not invoke SAP batch determination.
+
+`ALLOCATE_REQUEST_BY_DATE` uses current unrestricted `MARD-LABST` and subtracts
+active unrestricted `RESB` requirements whose `BDTER` is on or before the
+requested date, including rows with an initial date. By default it does not
+project receipts, reconstruct historical stock, or apply SAP ATP checking rules.
+When `iv_include_po_receipts` is true, it adds open, dated schedule quantities
+from standard stock purchasing items (`EKPO-PSTYP = '0'`, blank account
+assignment, not deleted, not delivery-complete, not a returns item, and goods
+receipt expected and `EKPO-INSMK` blank for unrestricted stock). It uses
+`EKET-MENGE - EKET-WEMNG` and converts the remaining PO-unit quantity to the
+material base unit with `EKPO-UMREZ/UMREN`. SAP maps
+schedule-line ordered and received quantities to `EKET-MENGE` and `EKET-WEMNG`
+([purchase-order schedule lines](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/af9ef57f504840d2b81be8667206d485/1d6f6bea1c3b4f049742e15a81ff86a0.html))
+and defines `UMREZ/UMREN` as the order-unit to base-unit conversion
+([purchase-unit conversion](https://help.sap.com/docs/SUPPORT_CONTENT/bwdabc/3361382941.html)).
+SAP identifies `EKPO-INSMK` as the purchasing-item stock type
+([EKPO field mapping](https://help.sap.com/docs/signavio-process-insights/administration-guide/be4b0a35f6d048eb979899f569509c78.html)); SAP notes that inspection
+stock is not available for stock removal
+([inspection stock behavior](https://help.sap.com/docs/SAP_ERP/34fc810a607e4ae5a287b6e233b8566f/9e8fc95360267214e10000000a174cb4.html?version=6.17.latest)).
+This estimate does not check PO release status, supplier confirmations,
+delivery blocks, subcontracting receipts, or returns; scheduled supply may not
+arrive as planned. Material QM settings and goods-receipt posting can also
+route a receipt to a different stock type than the PO item's `INSMK` value suggests
+([PO receipt stock types](https://help.sap.com/docs/PRODUCT_ID/91b21005dded4984bcccf4a69ae1300c/9763bd534f22b44ce10000000a174cb4.html)).
+Rows with nonpositive conversion ratios are ignored. Local tests use repository
+doubles and do not execute the `EKET`/`EKPO` join or validate it against live
+purchasing data, so confirm field definitions and filters in the target SAP
+release.
+
+When `iv_include_sto_in_transit` is true, the date estimate separately adds
+stock-transfer item schedule quantities already issued but not yet received
+(`EKET-WAMNG - EKET-WEMNG`) when `EKET-EINDT` is on or before the required date.
+It filters deleted, returns, no-GR, account-assigned, and non-unrestricted
+receiving items, requires a supplying plant in `EKKO-RESWK`, excludes transport
+document types and statistical `EKPO-STAPO` items, and accepts purchasing
+document categories `F` and `L`. It converts from the PO unit to the material
+base unit with `EKPO-UMREZ/UMREN`. SAP defines `WAMNG` as the quantity issued
+from the supplying plant and `WEMNG` as the schedule-line quantity received
+([STO schedule-line quantities](https://help.sap.com/docs/PRODUCT_ID/368810f3ef2842fab17899c6ffd4e0c8/662f8e536beee647e10000000a441470.html)).
+SAP's cross-company in-transit view also filters for an issuing plant, excludes
+transport-document types and statistical items, and derives in-transit quantity
+from issued minus received
+([SAP STO in-transit filters](https://help.sap.com/docs/CARAB/e95c8443f589486bbfec99331049704a/6d107c520ca9214fe10000000a445394.html)).
+The repository base is `MARD-LABST`, not the receiving plant's stock-in-transit
+balance; SAP documents `MARC-TRAME` as stock in transit for applicable
+intra-company stock transport orders and says it decreases at goods receipt
+([stock in transit](https://help.sap.com/docs/nullSUPPORT_CONTENT/erpscm/3362168094.html)).
+Only issued-minus-received quantity is projected; planned but unissued transfers
+are excluded. The schedule date is treated as the date stock can be used. This
+does not validate actual delivery dates, cross-company behavior, schedule-line
+unit consistency, or target-system filters, so confirm these against live STOs.
+
+When `iv_include_prod_receipts` is true, the date estimate adds open quantities
+from released production-order items (`AFPO-PSMNG - AFPO-WEMNG`) with a goods
+receipt expected, due by the order's basic finish date (`AFKO-GLTRP`). It
+restricts to production-order category 10, excludes deleted, delivery-complete,
+make-to-order, and account-assigned items, and ignores orders outside the
+released phase or already completed/closed. Quantities are converted to the
+material base unit with `AFPO-UMREZ/UMREN`. SAP documents `GLTRP` as the basic
+finish date and `PSMNG`/`WEMNG` as order quantity and received quantity
+([production-order header fields](https://help.sap.com/docs/SAP_PROFITABILITY_PERFORMANCE_MANAGEMENT/7fa13890d47b4c69bbb62175e84e4aa8/76029ca2ca28471e97fd73d0ffed318f.html),
+[production-order item fields](https://help.sap.com/doc/63369768645a4883b468546b2c122b23/3.19/en-US/Sample%20Content%20Process%20Mining%20on%20SAP%20S4HANA%20Production%20Planning.pdf)).
+SAP's manufacturing-order date view also limits receipts to at least partially
+released orders that expect a goods receipt
+([manufacturing-order date filters](https://help.sap.com/docs/SAP_HANA_LIVE/e31f67ce301b459b81a0c92d3b51d65b/6b9c57f2bc3443ad98d3cd7fb470112a.html)).
+The local estimate treats basic finish date as stock-availability date and does
+not account for production delays, scrap/tolerance, QM inspection routing, or
+special stocks beyond the excluded sales-order/account assignments. Confirm the
+phase flags, quantity units, date choice, and receipt stock type against the
+target release; repository doubles do not execute these joins.
+`ALLOCATE_DEMANDS_BY_DATE` sorts valid unique request IDs by material, plant,
+required date, and input position, then subtracts earlier allocations from each
+later date's local estimate so the same stock is not promised twice. Repeated
+material/plant/date estimates and static safety-stock reads are cached during a
+call. Results return in input order. Same-date requests retain input priority;
+the optional PO receipt projection is applied to each date snapshot. This
+remains a deterministic local estimate, not SAP's full ATP calculation.
+`ALLOCATE_DATE_DEMANDS_IN_UNITS` converts each dated demand with the material's
+`MARA`/`MARM` ratio before stock reads, caches repeated ratios, and reuses the
+same dated allocation path. Base-unit quantities are canonical; source-unit
+availability, allocation, and shortfall are rounded to the quantity-field
+precision. Tests use UOM and stock repository doubles and do not execute the
+live `MARA`/`MARM` or date-based stock queries.
+`ALLOCATE_PLANTS_BY_DATE` applies the date projection to caller-ordered source
+plants and shares each material/source-plant balance across earlier demands.
+It returns plant-level splits only; projected receipts cannot be assigned to a
+storage location, so this result is for planning and cannot be posted directly
+as the location-level transfer allocation.
+`ALLOCATE_PLANTS_DATE_UNITS` converts each dated demand using `MARA`/`MARM`
+before invoking that same plant-level projection. Returned base-unit values are
+canonical; source-unit demand and split quantities are rounded to the quantity
+field's precision. Local tests use UOM and stock repository doubles and do not
+execute the live unit-ratio or dated-stock queries. The result remains a
+planning estimate without location splits.
+
+`ALLOCATE_DATE_DEMANDS_ATP` groups dated unit-aware demands by material, plant,
+base unit, and required date. It checks the cumulative base-unit quantity once
+per date group and shares the result with requests due on that date. This
+client-side accumulation only includes the supplied request list and cannot
+replace SAP's checking-rule configuration or account for concurrent demand.
+The local estimate's receipt and safety-stock options do not modify the SAP ATP
+request; validate both results against the target system.
+
+`ALLOCATE_REQUEST_DATE_ATP` combines that local estimate with
+`BAPI_MATERIAL_AVAILABILITY`, passing one required date and quantity in
+`WMDVSX` and mapping plant availability plus all dated confirmation rows from
+`WMDVEX`; the scalar confirmation fields retain the first row for convenience.
+It also returns `ENDLEADTME` as `end_of_replenishment_lead_time`; SAP only
+populates this date when replenishment lead time is active for the check.
+SAP describes `WMDVEX` as an output table containing ATP dates and receipt
+quantities ([BAPI output](https://help.sap.com/docs/SUPPORT_CONTENT/sapo/3354623243.html)).
+SAP documents blank `DIALOGFLAG` as fully available, `X` as partial
+or unavailable, and `N` as not relevant to the check
+([BAPI availability behavior](https://help.sap.com/docs/SUPPORT_CONTENT/sapo/3354623243.html)).
+The result depends on the requested checking rule and target ATP configuration.
+Local tests use an API double and cannot validate the FM parameter names, DDIC
+types, checking-rule behavior, or returned quantities in the target SAP
+release. The adapter uses `BAPICM61M-WZTER` for `ENDLEADTME`; verify this and
+the returned date against the target release. The local estimate converts the
+supplied quantity from `iv_unit` to the material base unit before reading stock;
+the SAP API still receives the original quantity and unit. This relies on the
+local `MARA`/`MARM` ratio and should be checked in the target release.
+`preview_order` can request one such plant-level check per positive
+open schedule line; item-level fallback rows without a date are rejected.
+Before checking, it sorts those lines by required date and accumulates demand
+within each material/plant/base-unit group. All lines in the same group and date
+are checked against the full cumulative quantity due through that date, while
+the result reports both the line quantity and cumulative quantity. This avoids
+checking each line as an independent request against the same ATP balance. The
+service now makes one BAPI call per unique material/plant/base-unit/date group
+and attaches that result to each matching schedule line. SAP
+documents that checks without cumulative quantities can overconfirm and
+recommends accumulation rule 3 in the relevant configuration
+([ATP accumulation](https://help.sap.com/docs/SUPPORT_CONTENT/sapo/3354623235.html));
+SAP also documents limitations checking requirement quantities with this BAPI
+([KBA 1751389](https://userapps.support.sap.com/sap/support/knowledge/en/1751389)).
+The client-side total includes only open lines in this preview and does not
+reproduce all configured accumulation or concurrent demand, so validate the
+checking rule and results in the target system. Checks use base-unit quantities
+and preserve the local allocation and success values. The result set is
+separate from local batch/location splits and does not model SAP picking or
+batch determination.
 
 ## Resolved
 

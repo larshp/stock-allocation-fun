@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+    <asx:values>
+      <DD02V>
+        <TABNAME>MARM</TABNAME>
+        <DDLANGUAGE>E</DDLANGUAGE>
+        <TABCLASS>TRANSP</TABCLASS>
+        <DDTEXT>Units of Measure for Material</DDTEXT>
+        <CONTFLAG>A</CONTFLAG>
+      </DD02V>
+      <DD03P_TABLE>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000040</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000080</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MEINH</FIELDNAME>
+          <POSITION>0002</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>UNIT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>UMREZ</FIELDNAME>
+          <POSITION>0003</POSITION>
+          <DATATYPE>DEC</DATATYPE>
+          <LENG>000005</LENG>
+          <DECIMALS>000000</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000003</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>UMREN</FIELDNAME>
+          <POSITION>0004</POSITION>
+          <DATATYPE>DEC</DATATYPE>
+          <LENG>000005</LENG>
+          <DECIMALS>000000</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000003</INTLEN>
+        </DD03P>
+      </DD03P_TABLE>
+    </asx:values>
+  </asx:abap>
+</abapGit>

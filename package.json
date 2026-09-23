@@ -1,0 +1,18 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An ABAP stock allocation solution for SAP systems",
+  "scripts": {
+    "lint": "abaplint",
+    "transpile": "rimraf output && abap_transpile abap_transpile.json",
+    "unit": "npm run transpile && node output/index.mjs",
+    "test": "npm run lint && npm run unit"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "^2.120.19",
+    "@abaplint/runtime": "^2.13.50",
+    "@abaplint/transpiler-cli": "^2.13.50",
+    "rimraf": "^6.1.3"
+  }
+}

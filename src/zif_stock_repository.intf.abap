@@ -72,6 +72,7 @@ INTERFACE zif_stock_repository PUBLIC.
       iv_required_date          TYPE resb-bdter
       iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
       iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
+      iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
       iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
       RETURNING
       VALUE(rv_quantity)        TYPE mard-labst.

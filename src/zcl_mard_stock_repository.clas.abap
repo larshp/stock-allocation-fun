@@ -42,6 +42,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         scheduled_quantity  TYPE eket-menge,
         issued_quantity     TYPE eket-wamng,
         received_quantity   TYPE eket-wemng,
+        delivery_complete   TYPE ekpo-elikz,
         order_to_base_num   TYPE ekpo-umrez,
         order_to_base_denom TYPE ekpo-umren,
       END OF ty_po_schedule.
@@ -54,6 +55,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lv_initial_po_date TYPE eket-eindt.
     DATA lv_inbound_quantity TYPE decfloat34.
     DATA lv_sto_in_transit_quantity TYPE decfloat34.
+    DATA lv_unissued_sto_quantity TYPE decfloat34.
     DATA lv_prod_receipt_quantity TYPE decfloat34.
     TYPES:
       BEGIN OF ty_prod_receipt,
@@ -119,11 +121,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         + CONV mard-labst( lv_inbound_quantity ).
     ENDIF.
 
-    IF iv_include_sto_in_transit = abap_true.
+    IF iv_include_sto_in_transit = abap_true
+        OR iv_include_unissued_sto = abap_true.
       CLEAR lv_sto_in_transit_quantity.
+      CLEAR lv_unissued_sto_quantity.
       DATA(lo_sto_quantity_calc) = NEW zcl_po_sched_qty_calc( ).
-      SELECT eket~wamng AS issued_quantity,
+      SELECT eket~menge AS scheduled_quantity,
+             eket~wamng AS issued_quantity,
              eket~wemng AS received_quantity,
+             ekpo~elikz AS delivery_complete,
              ekpo~umrez AS order_to_base_num,
              ekpo~umren AS order_to_base_denom
         FROM eket
@@ -149,16 +155,31 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         INTO CORRESPONDING FIELDS OF TABLE @lt_po_schedules.
 
       LOOP AT lt_po_schedules INTO DATA(ls_sto_schedule).
-        lv_sto_in_transit_quantity = lv_sto_in_transit_quantity
-          + lo_sto_quantity_calc->calculate_open_issued_qty(
-              iv_issued_quantity     = ls_sto_schedule-issued_quantity
-              iv_received_quantity   = ls_sto_schedule-received_quantity
-              iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
-              iv_order_to_base_denom = ls_sto_schedule-order_to_base_denom ).
+        IF iv_include_sto_in_transit = abap_true.
+          lv_sto_in_transit_quantity = lv_sto_in_transit_quantity
+            + lo_sto_quantity_calc->calculate_open_issued_qty(
+                iv_issued_quantity     = ls_sto_schedule-issued_quantity
+                iv_received_quantity   = ls_sto_schedule-received_quantity
+                iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
+                iv_order_to_base_denom =
+                  ls_sto_schedule-order_to_base_denom ).
+        ENDIF.
+        IF iv_include_unissued_sto = abap_true
+            AND ls_sto_schedule-delivery_complete = space.
+          lv_unissued_sto_quantity = lv_unissued_sto_quantity
+            + lo_sto_quantity_calc->calculate_open_unissued_qty(
+                iv_scheduled_quantity  =
+                  ls_sto_schedule-scheduled_quantity
+                iv_issued_quantity     = ls_sto_schedule-issued_quantity
+                iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
+                iv_order_to_base_denom =
+                  ls_sto_schedule-order_to_base_denom ).
+        ENDIF.
       ENDLOOP.
 
       lv_unrestricted_quantity = lv_unrestricted_quantity
-        + CONV mard-labst( lv_sto_in_transit_quantity ).
+        + CONV mard-labst(
+            lv_sto_in_transit_quantity + lv_unissued_sto_quantity ).
     ENDIF.
 
     IF iv_include_prod_receipts = abap_true.

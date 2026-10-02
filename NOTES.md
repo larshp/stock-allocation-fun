@@ -1,5 +1,19 @@
 # Development notes
 
+## 2026-10-02
+
+- Added opt-in projection of dated stock-transfer schedule quantities that
+  have not yet been issued. The stock repository calculates the difference
+  between `EKET-MENGE` and `EKET-WAMNG`, converts it to the material base unit,
+  and shares the existing
+  STO filters and schedule-date cutoff. It skips items marked completely
+  delivered and can be combined with issued in-transit quantities.
+- Carried the option through single, bulk, unit-aware, ATP, and cross-plant
+  dated allocation methods. Added quantity-calculator and local allocation
+  tests for default-off behavior, alternative STO states, and combined totals.
+- Target-system verification remains necessary for STO query filters and
+  schedule-line quantity/unit semantics; local tests use repository doubles.
+
 ## 2026-09-23
 
 - Sales-order reads retain the `BAPISDIT-SALES_QTY1/SALES_QTY2` conversion

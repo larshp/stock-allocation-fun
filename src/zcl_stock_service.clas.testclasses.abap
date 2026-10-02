@@ -46,6 +46,7 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
         iv_plant                   TYPE mard-werks DEFAULT '1000'
         iv_receipt_quantity        TYPE mard-labst DEFAULT 0
         iv_sto_in_transit_quantity TYPE mard-labst DEFAULT 0
+        iv_unissued_sto_quantity   TYPE mard-labst DEFAULT 0
         iv_prod_receipt_quantity   TYPE mard-labst DEFAULT 0.
     METHODS set_plant_stock
       IMPORTING
@@ -108,6 +109,7 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
         available_quantity      TYPE mard-labst,
         receipt_quantity        TYPE mard-labst,
         sto_in_transit_quantity TYPE mard-labst,
+        unissued_sto_quantity   TYPE mard-labst,
         prod_receipt_quantity   TYPE mard-labst,
       END OF ty_date_stock.
     TYPES ty_date_stocks TYPE STANDARD TABLE OF ty_date_stock
@@ -146,6 +148,7 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       available_quantity      = iv_quantity
       receipt_quantity        = iv_receipt_quantity
       sto_in_transit_quantity = iv_sto_in_transit_quantity
+      unissued_sto_quantity   = iv_unissued_sto_quantity
       prod_receipt_quantity   = iv_prod_receipt_quantity ) TO mt_date_stocks.
   ENDMETHOD.
 
@@ -237,6 +240,9 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       ENDIF.
       IF iv_include_sto_in_transit = abap_true.
         rv_quantity = rv_quantity + ls_date_stock-sto_in_transit_quantity.
+      ENDIF.
+      IF iv_include_unissued_sto = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-unissued_sto_quantity.
       ENDIF.
       IF iv_include_prod_receipts = abap_true.
         rv_quantity = rv_quantity + ls_date_stock-prod_receipt_quantity.
@@ -358,6 +364,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_request_by_date FOR TESTING.
     METHODS allocates_with_po_receipts FOR TESTING.
     METHODS allocates_with_sto_in_transit FOR TESTING.
+    METHODS includes_unissued_sto_receipts FOR TESTING.
     METHODS allocates_with_prod_receipts FOR TESTING.
     METHODS allocates_demands_by_date FOR TESTING.
     METHODS allocates_dated_unit_demands FOR TESTING.
@@ -1068,6 +1075,46 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '15.000' )
       act = ls_all_projected-available_quantity ).
+  ENDMETHOD.
+
+  METHOD includes_unissued_sto_receipts.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '8.000'
+      iv_sto_in_transit_quantity = '4.000'
+      iv_unissued_sto_quantity   = '5.000'
+      iv_date                    = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '20.000' ).
+    DATA(ls_unissued) = lo_cut->allocate_request_by_date(
+      iv_material             = 'MAT-1'
+      iv_plant                = '1000'
+      iv_required_date        = '20261231'
+      iv_requested_quantity   = '20.000'
+      iv_include_unissued_sto = abap_true ).
+    DATA(ls_both_sto_states) = lo_cut->allocate_request_by_date(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_required_date            = '20261231'
+      iv_requested_quantity       = '20.000'
+      iv_include_sto_in_transit   = abap_true
+      iv_include_unissued_sto     = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '13.000' )
+      act = ls_unissued-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '17.000' )
+      act = ls_both_sto_states-available_quantity ).
   ENDMETHOD.
 
   METHOD allocates_with_prod_receipts.

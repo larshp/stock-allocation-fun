@@ -123,6 +123,15 @@ Set `iv_include_sto_in_transit = abap_true` to also include stock-transfer
 schedule quantities already issued but not yet received, dated by the schedule
 delivery date. Planned but unissued transfers are excluded. This estimate starts
 from `MARD-LABST` and does not add SAP's separate in-transit stock balance.
+Set `iv_include_unissued_sto = abap_true` to project the scheduled STO
+quantity that has not yet been issued (`EKET-MENGE - EKET-WAMNG`) by its
+schedule delivery date, converted to the material base unit. It skips items
+marked completely delivered. This option is off by default and can be combined
+with the in-transit option to include both unissued and issued-but-unreceived
+quantities. SAP exposes the schedule, issued, and received quantities on STO
+schedule lines ([STO schedule-line quantities](https://help.sap.com/docs/PRODUCT_ID/368810f3ef2842fab17899c6ffd4e0c8/662f8e536beee647e10000000a441470.html)).
+Treat planned transfers as a local estimate; they may not be issued or received
+on schedule.
 Set `iv_include_prod_receipts = abap_true` to add open receipts from released
 production orders whose basic finish date is on or before the requested date.
 The estimate excludes make-to-order and completed order items; production output
@@ -139,8 +148,8 @@ to each dated stock estimate.
 material-specific units. It validates and caches unit ratios before stock
 reads, converts demands to base units, and returns each dated allocation with
 both base-unit quantities and rounded source-unit quantities. It uses the same
-date priority, safety-stock protection, and optional PO, STO in-transit, and
-production receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
+date priority, safety-stock protection, and optional PO, issued or unissued STO,
+and production receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
 `ALLOCATE_DATE_DEMANDS_ATP` also checks those dated requests with SAP ATP. It
 converts them to base units for local allocation and sends one cumulative ATP
 check per material/plant/base-unit/required-date group. Requests sharing a date

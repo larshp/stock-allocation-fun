@@ -60,6 +60,21 @@ INTERFACE zif_stock_repository PUBLIC.
     END OF ty_batch_stock_status.
   TYPES ty_batch_stock_statuses TYPE STANDARD TABLE OF
     ty_batch_stock_status WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_projected_receipt,
+      material             TYPE mard-matnr,
+      plant                TYPE mard-werks,
+      base_unit            TYPE mara-meins,
+      receipt_date         TYPE d,
+      quantity             TYPE mard-labst,
+      source_type          TYPE c LENGTH 16,
+      source_document      TYPE c LENGTH 35,
+      source_item          TYPE c LENGTH 10,
+      source_plant         TYPE eban-reswk,
+      source_schedule_line TYPE eket-etenr,
+    END OF ty_projected_receipt.
+  TYPES ty_projected_receipts TYPE STANDARD TABLE OF
+    ty_projected_receipt WITH EMPTY KEY.
 
   METHODS get_unrestricted_stock
     IMPORTING
@@ -70,16 +85,36 @@ INTERFACE zif_stock_repository PUBLIC.
 
   METHODS get_available_stock_by_date
     IMPORTING
-      iv_material               TYPE mard-matnr
-      iv_plant                  TYPE mard-werks
-      iv_required_date          TYPE resb-bdter
-      iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
-      iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
-      iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
-      iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
-      iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
+      iv_material                 TYPE mard-matnr
+      iv_plant                    TYPE mard-werks
+      iv_required_date            TYPE resb-bdter
+      iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
+      iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
+      iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
+      iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
+      iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
+      iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
       RETURNING
-      VALUE(rv_quantity)        TYPE mard-labst.
+      VALUE(rv_quantity)          TYPE mard-labst.
+
+  METHODS get_projected_receipts
+    IMPORTING
+      iv_material                 TYPE mard-matnr
+      iv_plant                    TYPE mard-werks
+      iv_through_date             TYPE d
+      iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
+      iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
+      iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
+      iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
+      iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
+      RETURNING
+      VALUE(rt_receipts)          TYPE ty_projected_receipts
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_safety_stock
     IMPORTING

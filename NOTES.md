@@ -1049,3 +1049,408 @@
 - Latest verification after cost-center ATP quantity reporting: `npm.cmd test`
   passed; abaplint reported zero issues across 65 files and the transpiler ran
   all 381 ABAP Unit methods.
+- Added single-order and bulk production-component ATP previews. They convert
+  open reservation quantities to base units, accumulate checks by material,
+  plant, base unit, and required date, and return raw SAP ATP results with
+  confirmed/unconfirmed cumulative quantities. Blank rules and undated or
+  incomplete open components are rejected before any ATP call.
+- Latest verification after production-component ATP preview: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 385 ABAP Unit methods. The SAP repository query and live ATP behavior
+  remain unverified locally.
+- Extended both production-component ATP preview entry points with a separate
+  local dated stock estimate. It shares stock across component dates and can
+  include PO/STO/production receipts, subtract unissued STO demand, and protect
+  static safety stock. Added coverage for date-group aggregation, receipt
+  projection, safety-stock protection, and the single-order wrapper.
+- Latest verification after component stock/ATP comparison: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 385 ABAP Unit methods.
+- Added `component_local_estimate` so each production component gets a
+  deterministic share of the date group's local allocation. Components consume
+  the shared date balance in production-order, reservation, and item order;
+  group-level estimates remain available beside the per-component split. Tests
+  cover partial allocation across same-date components, including an
+  alternative-unit component.
+- Latest verification after per-component stock splits: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 385
+  ABAP Unit methods.
+- Added `SUMMARIZE_COMPONENT_READINESS` to roll local component allocations up
+  by production order, including covered/short counts, date range, first
+  shortage date, and a local-ready flag. It validates reservation keys and
+  quantity consistency. Tests cover mixed-ready orders, date ranges, first
+  shortage selection, and malformed rows.
+- Latest verification after component readiness summaries: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 387 ABAP Unit methods.
+- Added single-order and bulk local-only component stock previews. They share
+  the same conversion, dated stock grouping, receipt projection, safety-stock,
+  and component-split logic as ATP previews, while skipping the ATP API and
+  checking-rule requirement. Tests verify local shortfall output and zero ATP
+  calls through both entry points.
+- Latest verification after local-only component previews: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 388 ABAP Unit methods.
+- Added `SUMMARIZE_COMPONENT_SHORTAGES`, which groups valid component preview
+  rows by material, plant, base unit, and required date. It reports component
+  counts, distinct affected production orders, and summed requested, allocated,
+  and shortfall quantities, returning only groups with local shortfall. The
+  validation also ensures every local allocation matches the row's available
+  quantity before this roll-up is calculated.
+- Latest verification after component shortage summaries: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 389 ABAP Unit methods.
+- Added component-level ATP confirmation and unconfirmed quantities. The split
+  assigns each date's nonnegative increase in cumulative confirmation across
+  same-date component rows in production-order/reservation/item order, while
+  preserving the existing repeated cumulative group totals. Tests cover
+  partial same-date allocation and the increase at a later required date.
+- Latest verification after per-component ATP confirmation splits:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 389 ABAP Unit methods.
+- Added `SUMMARIZE_ORDER_ATP` for check-relevant component ATP rows. It groups
+  counts and quantities by production order, material, plant, and base unit,
+  tracks date range and first unconfirmed date, and rejects inconsistent or
+  unchecked ATP rows. Tests cover partial, full, and unconfirmed components
+  across different base units and dates.
+- Latest verification after order ATP summaries: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 390
+  ABAP Unit methods.
+- Made production-component ATP confirmation date-aware. The shared confirmation
+  splitter now accepts an optional required-date cutoff; component previews use
+  it to exclude confirmations after the requirement date and undated lines,
+  while retaining the complete raw ATP response. Existing callers without a
+  cutoff keep their prior all-lines behavior. Tests cover due, later, and
+  undated confirmation lines and the downstream component split.
+- Latest verification after date-limited component ATP confirmation:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 391 ABAP Unit methods.
+- Added `SUGGEST_COMP_REPLENISHMENT` to turn local component shortage rows into
+  base-unit quantity suggestions using optional per-material/plant/unit
+  minimums and order multiples. It rounds up, reports surplus, validates
+  policy and shortage keys, and uses the exact shortfall if no policy is
+  supplied. It does not create SAP purchasing documents or adjust dates for
+  lead times.
+- Latest verification after component replenishment suggestions:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 393 ABAP Unit methods.
+- Integrated replenishment suggestions with a bulk MARC/MARA policy repository.
+  Caller overrides win. SAP lot-for-lot (`DISLS = EX`) applies `BSTMI` and
+  `BSTRF`; fixed lot (`FX`) applies `BSTFE`; other procedures return the exact
+  shortfall with an explicit unsupported origin. Results report policy origin
+  and lot-size procedure. Added MARC stubs for the required planning fields and
+  documented the procedures that are not modeled.
+- Latest verification after procedure-aware MARC replenishment policies:
+  `npm.cmd test` passed; abaplint reported zero issues across 67 files and the
+  transpiler ran all 393 ABAP Unit methods. `git diff --check` passed.
+- Added maximum-lot splitting for `EX` replenishment suggestions from
+  `MARC-BSTMA`. Results include total receipt count and the final receipt
+  quantity; a split remainder is raised to minimum quantity and rounded. Invalid
+  minimum/maximum combinations or an unfit rounded remainder are marked
+  unsupported and fall back to the exact shortage.
+- Latest verification after maximum-lot splitting: `npm.cmd test` passed;
+  abaplint reported zero issues across 67 files and the transpiler ran all 393
+  ABAP Unit methods.
+- Added the raw material procurement type (`MARC-BESKZ`) and special
+  procurement key (`MARC-SOBSL`) to the policy lookup and recommendation result.
+  This exposes SAP's routing context to callers without trying to resolve
+  vendor/source-of-supply customizing in the quantity suggestion service.
+- Latest verification after adding procurement-route context: `npm.cmd test`
+  passed; abaplint reported zero issues across 67 files and the transpiler ran
+  all 393 ABAP Unit methods.
+- Added material-master lead-time estimates to replenishment suggestions for
+  externally procured materials without a special procurement key. The bulk
+  lookup now returns `MARC-PLIFZ`/`WEBAZ`, `T001W-FABKL`, and `T399D-BZTEK`;
+  the dates use calendar days for planned delivery and factory-calendar
+  workdays for goods receipt and purchasing processing. Results distinguish
+  missing policy/calendar data, special sourcing, in-house/ambiguous
+  procurement, unsupported procurement, calendar errors, and estimates. Public
+  status constants make the result contract easier for callers to consume.
+  Added tests for a successful date calculation, unsupported routes, missing
+  calendar data, and calendar API failure. The estimate is material-master
+  based and indicative; source-specific purchasing data and MRP margins are not
+  modeled. The target SAP calendar function modules and joined customizing
+  tables still require target-release validation.
+- Latest verification after replenishment timing estimates and status constants:
+  `npm.cmd test` passed; abaplint reported zero issues across 69 files and the
+  transpiler ran all 393 ABAP Unit methods.
+- Added source-specific planned delivery time support for a purchasing info
+  record already resolved by the caller. Caller policies can pass vendor,
+  purchasing organization, info-record number/category, and `EINE-APLFZ`; a
+  positive source lead time takes precedence over the policy's generic planned
+  delivery value. Zero falls back to that caller-supplied material lead time.
+  Suggestions preserve source identity and identify the source of effective
+  planned delivery days. Incomplete source identity or a source supplied for a
+  non-external/special-procurement policy is rejected. Added minimal EINA/EINE
+  stubs for DDIC typing and tests for positive source override, zero fallback,
+  and invalid source context. No automatic source determination or EINA/EINE
+  query is performed; the host must apply SAP's source-list, quota, validity,
+  and purchasing-organization rules before passing a source.
+- Latest verification after source-specific delivery-time support:
+  `npm.cmd test` passed; abaplint reported zero issues across 69 files and the
+  transpiler ran all 393 ABAP Unit methods.
+- Added deterministic requisition-release urgency to replenishment suggestions.
+  Callers can supply an as-of date; it defaults to `sy-datum`. When a release
+  date estimate exists, results report whether that date is overdue and the
+  elapsed calendar days. Tests cover an overdue source-based date and a release
+  due today, including the explicit as-of date in the result.
+- Latest verification after release-date urgency: `npm.cmd test` passed;
+  abaplint reported zero issues across 69 files and the transpiler ran all 393
+  ABAP Unit methods.
+- Added optional chronological netting of lot-size rounding surplus across
+  dated component shortages. The default still plans each date independently;
+  `iv_net_prior_surplus = abap_true` orders shortages by material, plant, unit,
+  and date, carries leftover surplus forward, and emits `COVERED_BY_SURPLUS`
+  rows when no new receipt is needed. Results expose each row's net planning
+  quantity, prior surplus used, and remaining carry. The behavior only nets
+  suggestions produced in this call and assumes prior surplus is available by
+  later required dates; it does not replace projected receipt previews.
+- Latest verification after dated surplus netting: `npm.cmd test` passed;
+  abaplint reported zero issues across 69 files and the transpiler ran all 394
+  ABAP Unit methods. `git diff --check` passed.
+- Added optional dated receipt netting to replenishment suggestions. Callers can
+  pass validated PO, stock-transfer, or production receipt quantities; the
+  service consumes supply by material, plant, unit, and receipt date, and
+  reports `projected_receipt_used_qty` separately from suggestion rounding
+  surplus. Optional receipt source identities are returned with each consumed
+  line for traceability. Fully covered dates identify receipt-only or combined
+  receipt and surplus coverage. Receipt input triggers chronological shortage
+  processing through a key/date-sorted supply index that preserves caller order
+  within a date; the service performs no receipt-source query.
+- Latest verification after projected receipt netting: `npm.cmd test` passed;
+  abaplint reported zero issues across 69 files and the transpiler ran all 395
+  ABAP Unit methods.
+- Added `GET_PROJECTED_RECEIPTS` to the stock repository and stock service. It
+  exposes source-level PO, issued/unissued STO, and released production receipt
+  rows with base-unit quantity, receipt date, and document/item/schedule-line
+  identity. Callers can map those rows directly into replenishment suggestions;
+  each source group remains opt-in and the target SAP queries still require
+  release validation.
+- Added `SUGGEST_COMP_REPL_FROM_STOCK`, which gathers selected receipt
+  types once per unique material/plant through the latest shortage date, then
+  nets the returned rows by base-unit key and required date. This removes the
+  manual receipt mapping step while preserving caller policy and date controls.
+- Latest verification after receipt-source integration: `npm.cmd test` passed;
+  abaplint reported zero issues across 69 files and the transpiler ran all 397
+  ABAP Unit methods.
+- Filtered PO, STO, and production receipt rows after conversion to the stock
+  quantity type. Very small positive calculated quantities can round to zero at
+  that boundary; the adapter now omits those zero-quantity rows so the public
+  receipt contract stays strictly positive.
+- Latest verification after the SAP receipt precision guard: `npm.cmd test`
+  passed; abaplint reported zero issues across 69 files and the transpiler ran
+  all 397 ABAP Unit methods. `git diff --check` passed.
+- Added `pr_release_urgency` to replenishment suggestions as a direct status for
+  estimated requisition release timing: `NO_ESTIMATE`, `OVERDUE`, `DUE_TODAY`,
+  or `UPCOMING`. Existing release-date, overdue flag, and day-count fields stay
+  available. Tests cover all four states using a fixed as-of date.
+- Latest verification after release urgency categorization: `npm.cmd test`
+  passed; abaplint reported zero issues across 69 files and the transpiler ran
+  all 398 ABAP Unit methods. `git diff --check` passed.
+- Added purchase requisition creation from replenishment suggestions through a
+  `BAPI_PR_CREATE` adapter and injectable API. Positive suggestions become one
+  requisition item per planned receipt lot, preserving maximum/fixed lot splits;
+  inconsistent count/quantity combinations are rejected before the BAPI call.
+  The service supports BAPI test-run mode, commits only successful writes with a
+  returned requisition number, and rolls back API, document-number, and commit
+  failures. Covered zero-quantity suggestions are a successful no-op. The
+  service accepts a caller-selected PR type plus optional purchasing group and
+  organization, and leaves vendor/source selection to SAP.
+- Added minimal local DDIC stubs for the BAPI PR header and item structures.
+  The function module and transaction calls are isolated in the SAP adapter;
+  local service tests use a fake. Target-release BAPI fields and customizing
+  remain unverified here.
+- Latest verification after requisition creation: `npm.cmd test` passed;
+  abaplint reported zero issues across 73 files and the transpiler ran all 403
+  ABAP Unit methods. `git diff --check` passed.
+- Restricted requisition creation to suggestions explicitly marked as externally
+  procured (`F`) with no special procurement key. Missing, in-house, ambiguous,
+  and special-procurement routes now fail validation before any BAPI call;
+  tests cover those cases.
+- Latest verification after requisition procurement-route validation:
+  `npm.cmd test` passed; abaplint reported zero issues across 73 files and the
+  transpiler ran all 403 ABAP Unit methods. `git diff --check` passed.
+- Added `submitted_items` to the requisition result. Each row returns its PR
+  item number and 1-based source suggestion index, preserving the mapping when
+  a maximum/fixed-lot suggestion expands into multiple PR items. The mapping is
+  available for normal writes and BAPI test-runs.
+- Latest verification after PR item-to-suggestion mapping: `npm.cmd test`
+  passed; abaplint reported zero issues across 73 files and the transpiler ran
+  all 403 ABAP Unit methods. `git diff --check` passed.
+- Added optional per-suggestion purchasing group and purchasing organization
+  overrides for requisition creation. Controls use the returned 1-based source
+  suggestion index; blank fields inherit method defaults. Duplicate,
+  out-of-range, covered-suggestion, and empty controls fail before the BAPI.
+- Latest verification after per-suggestion purchasing controls: `npm.cmd test`
+  passed; abaplint reported zero issues across 73 files and the transpiler ran
+  all 403 ABAP Unit methods. `git diff --check` passed.
+- Preserved structured `BAPIRET2` message context in requisition results,
+  including message class/number, variables, parameter, item row, field,
+  system, and log identifiers for create and commit messages. Tests confirm
+  errors retain their field/item context through rollback handling.
+- Latest verification after structured requisition diagnostics: `npm.cmd test`
+  passed; abaplint reported zero issues across 73 files and the transpiler ran
+  all 403 ABAP Unit methods. `git diff --check` passed.
+- Mapped BAPI `PRITEM` and `PRITEMX` message rows back to the generated
+  requisition item number and original source suggestion index. Rows outside
+  the submitted item table remain unlinked instead of being assigned a false
+  source.
+- Latest verification after requisition message-to-suggestion correlation:
+  `npm.cmd test` passed; abaplint reported zero issues across 73 files and the
+  transpiler ran all 403 ABAP Unit methods. `git diff --check` passed.
+- Added explicit requisition outcome flags for test-run mode, whether the BAPI
+  was called, and whether commit succeeded. Covered-only suggestions return a
+  successful no-op with both BAPI/commit flags false; simulation calls remain
+  uncommitted.
+- Latest verification after requisition outcome flags: `npm.cmd test` passed;
+  abaplint reported zero issues across 73 files and the transpiler ran all 403
+  ABAP Unit methods. `git diff --check` passed.
+- Preserved caller-resolved purchasing source details when creating requisitions:
+  the selected vendor is sent as the PR fixed vendor, the source purchasing
+  organization is used ahead of the global default, and explicit per-suggestion
+  controls remain able to override it. Extracted BAPI item/flag mapping into a
+  testable mapper and reject partial source identities before calling SAP.
+- Latest verification after selected-source propagation: `npm.cmd test`
+  passed; abaplint reported zero issues across 75 files and the transpiler ran
+  all 404 ABAP Unit methods. `git diff --check` passed.
+- Forwarded the selected purchasing info-record number to the PR item as
+  `INFO_REC`, including its X flag; the mapper test also confirms both values
+  stay initial for automatically sourced items. Source category remains
+  available in the originating suggestion.
+- Latest verification after info-record propagation: `npm.cmd test` passed;
+  abaplint reported zero issues across 75 files and the transpiler ran all 404
+  ABAP Unit methods. `git diff --check` passed.
+- Added opt-in purchase requisition receipts to projected supply. Remaining
+  quantity is `EBAN-MENGE - EBAN-BSMNG`, converted from the requisition unit to
+  the material base unit and traced to BANFN/BNFPO. The repository excludes
+  deleted, completed, requester-blocked, nonstandard, account-assigned, and
+  special-stock items. The flag flows through stock receipt reads and component
+  replenishment suggestions; it defaults off. Release strategy and supplier
+  commitment are not evaluated, so the projection remains indicative.
+- Added local quantity-calculator and service coverage for open and fully
+  ordered quantities, alternate-unit conversion, default-off behavior, and
+  shortage netting. Typed the calculator test values to avoid character-based
+  numeric comparison in the transpiler runtime.
+- Latest verification after PR receipt projection: `npm.cmd test` passed;
+  abaplint reported zero issues across 77 files and the transpiler ran all 407
+  ABAP Unit methods. `git diff --check` passed.
+- Extended `iv_include_pr_receipts` through single, bulk, unit-aware, ATP
+  preview, and cross-plant dated stock allocation. Dated local availability
+  reuses the centralized projected-receipt rows and adds only PRs due by the
+  requested date. SAP ATP requests remain unchanged. Added coverage for
+  default-off and opt-in dated allocation.
+- Verification after dated PR receipt support: `npm.cmd test` passed;
+  abaplint reported zero issues across 77 files and the transpiler ran all 407
+  ABAP Unit methods. `git diff --check` passed.
+- Carried the option into component stock/ATP previews and multi-sales-order
+  dated previews and reservations. Component coverage verifies local supply
+  changes while ATP stays independent; sales-order coverage verifies the
+  default-off and enabled paths.
+- Verification after higher-level PR projection integration: `npm.cmd test`
+  passed; abaplint reported zero issues across 77 files and the transpiler ran
+  all 407 ABAP Unit methods. `git diff --check` passed.
+- Added a distinct opt-in `iv_include_sto_pr_receipts` source for stock-transfer
+  requisitions (EBAN item category 7). It projects open `MENGE - BSMNG` by
+  requested date, converts to the base unit, identifies rows as `STO_PR`, and
+  exposes issuing plant `RESWK` as `source_plant`. The option flows through
+  dated allocation, component replenishment, component previews, and
+  multi-sales-order previews/reservations. It remains separate from direct
+  vendor PRs and stock-transfer orders.
+- Added local coverage for source selection/traceability, default-off and
+  enabled dated allocation, component replenishment, and sales-order preview.
+  Verification after stock-transfer requisition projection: `npm.cmd test`
+  passed; abaplint reported zero issues across 77 files and the transpiler ran
+  all 409 ABAP Unit methods. `git diff --check` passed.
+- Added opt-in planned-order supply from `PLAF`, distinct from released
+  production orders. The projection excludes fixed orders, planning scenarios,
+  special stock, and sales-order-specific proposals. It converts `GSMNG` to the
+  material base unit, dates supply by `PEDTR`, and requires the basic start and
+  finish dates to fall within the
+  current allocation horizon. `PLANNED_ORDER` preserves the source order number.
+  The new flag defaults off and flows through stock allocation, component
+  replenishment and previews, and sales-order dated preview/reservation APIs.
+- Added calculator and service-double coverage for unit conversion,
+  default-off behavior, dated availability, replenishment netting, and the
+  component and sales-order flows. Planned-order database selection remains
+  unverified against a live SAP release; see `ANOMALIES.md` for the field and
+  lifecycle assumptions.
+- Verification after planned-order supply support: `npm.cmd test` passed;
+  abaplint reported zero issues across 79 files and the transpiler ran all 413
+  ABAP Unit methods. `git diff --check` passed.
+- Added a bulk read-only purchasing info-record candidate lookup keyed by
+  material, plant, purchasing organization, and delivery date. It filters
+  standard, nondeleted candidates within inclusive validity dates, keeps both
+  plant-specific and organization-level records, and ranks an optional
+  preferred vendor first followed by plant-specific matches. It returns all
+  matches so the caller can apply configured SAP source-list/quota/contract
+  rules and choose the source. Local service
+  tests cover ranking, date boundaries, filtering, and invalid requests; the
+  live EINA/EINE join still needs target-release validation.
+- Added optional request-level preferred-vendor ranking to source candidates.
+  Preferred vendors sort before plant-specific scope; both flags are returned
+  and all valid matches remain visible for caller review. Added coverage for a
+  preferred organization-level candidate outranking a plant-specific record.
+- Included the info-record's inclusive `valid_from`/`valid_to` dates in each
+  candidate so callers can display the matched source window alongside the
+  requested delivery date.
+- Latest verification after source candidate ranking and validity details:
+  `npm.cmd test` passed; abaplint reported zero issues across 83 files, the
+  transpiler wrote 699 objects, and the transpiler ran all 417 ABAP Unit
+  methods. `git diff --check` passed.
+- Extended purchasing-source review with plant source-list rules. The repository
+  bulk-reads `MARC-KORDB` and `EORD`; blocked matching sources are excluded, and
+  mandatory source lists require an unblocked entry covering the delivery date.
+  Only vendor-only source-list records validate an info-record candidate;
+  outline-agreement entries remain separate sources.
+  Candidates expose fixed-source and MRP-use flags plus the source-list record
+  and validity period, and return the material's quota-arrangement usage flag.
+  When quota usage is configured, the service reads active classic
+  external-supplier items from `EQUK`/`EQUP`, calculates their documented
+  `(allocated + base) / quota` rating, and ranks matching quota items before
+  the existing fixed-source, preferred-vendor, and plant-specific signals.
+  Equal zero ratings use higher quota first. Candidates with no matching quota
+  item remain available after assigned quota candidates. Tests cover quota
+  ratings, zero-rating ties, and avoiding quota reads when `MARC-USEQU` is
+  unset, alongside source-list filtering and date rules.
+  This remains an advisory snapshot: it does not reserve quota, model splitting
+  quotas or special procurement, or replace SAP source determination.
+- Verification after quota-aware candidate ranking: `npm.cmd test` passed;
+  abaplint reported zero issues across 83 files, the transpiler wrote 702
+  objects, and the project contains 425 ABAP Unit test methods.
+  `git diff --check` passed. The `EQUK`/`EQUP` SQL has not been executed against a live
+  SAP system.
+- Added a bulk `TMQ2` read keyed by the material's `MARC-USEQU` code. Candidate
+  results now carry the configured inclusion flags for requisitions, purchase
+  orders, scheduling-agreement schedules, planned orders, automatic MRP,
+  production orders, and invoices; quota items are loaded only when a matching
+  usage rule exists. For direct requisition previews, equal quota ratings now
+  follow quota item sequence. SAP Help and its direct requisition sourcing
+  guidance describe different zero-rating tie behavior, so the discrepancy and
+  target-workflow validation are documented in `ANOMALIES.md`.
+- Verification after quota-usage context support: `npm.cmd test` passed;
+  abaplint reported zero issues across 83 files, transpilation wrote 703
+  objects, and 426 ABAP Unit test methods are present. `git diff --check`
+  passed. The `TMQ2`/`EQUK`/`EQUP` queries still need target-system validation.
+- Added `EINE-AUT_SOURCE` to the info-record read and expose it on each candidate
+  as `is_auto_source_relevant`. This closes the automatic-sourcing visibility
+  gap while retaining non-marked records for manual review; the flag does not
+  replace source determination. SAP identifies the field in KBA 2411004 and
+  documents its MRP role. Tests cover both marked and unmarked candidate
+  results. The backend `EINE` field and query still need target-release
+  validation.
+- Verification after automatic-sourcing metadata: `npm.cmd test` passed;
+  abaplint reported zero issues across 83 files, transpilation wrote 703
+  objects, and the project contains 427 ABAP Unit test methods.
+  `git diff --check` passed.
+- Added optional base-unit request quantities to source candidate lookup.
+  Candidates now return `EINE-MINBM`/`EINE-BSTMA` in the purchasing unit and
+  converted bounds using `EINA-UMREZ`/`UMREN`; `quantity_limit_status` reports
+  inclusive range, below/above limit, unit mismatch, missing conversion, or
+  invalid range. Requests without a quantity retain the candidate and report
+  `NOT_REQUESTED`. The result is advisory because SAP MRP may handle minimum
+  quantities differently by workflow; see `ANOMALIES.md`.
+- Verification after quantity-range preview: `npm.cmd test` passed; abaplint
+  reported zero issues across 83 files, transpilation wrote 703 objects, and
+  431 ABAP Unit test methods are present. The transpiled runner executed the
+  source-candidate boundary, conversion, unit-mismatch, missing-conversion,
+  invalid-range, and request-validation tests. `git diff --check` passed.

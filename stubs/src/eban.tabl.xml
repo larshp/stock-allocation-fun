@@ -3,14 +3,14 @@
   <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
     <asx:values>
       <DD02V>
-        <TABNAME>MARC</TABNAME>
+        <TABNAME>EBAN</TABNAME>
         <DDLANGUAGE>E</DDLANGUAGE>
         <TABCLASS>TRANSP</TABCLASS>
-        <DDTEXT>Plant Data for Material</DDTEXT>
+        <DDTEXT>Purchase Requisition</DDTEXT>
         <CONTFLAG>A</CONTFLAG>
       </DD02V>
       <DD09L>
-        <TABNAME>MARC</TABNAME>
+        <TABNAME>EBAN</TABNAME>
         <AS4LOCAL>A</AS4LOCAL>
         <TABKAT>0</TABKAT>
         <TABART>APPL0</TABART>
@@ -27,9 +27,26 @@
           <INTLEN>000006</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>MATNR</FIELDNAME>
+          <FIELDNAME>BANFN</FIELDNAME>
           <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>BNFPO</FIELDNAME>
+          <POSITION>0003</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000005</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000005</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0004</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000040</LENG>
           <INTTYPE>C</INTTYPE>
@@ -37,42 +54,22 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>WERKS</FIELDNAME>
-          <POSITION>0003</POSITION>
-          <KEYFLAG>X</KEYFLAG>
+          <POSITION>0005</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000004</LENG>
           <INTTYPE>C</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>UMLMC</FIELDNAME>
-          <POSITION>0004</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>EISBE</FIELDNAME>
-          <POSITION>0005</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>BSTMI</FIELDNAME>
+          <FIELDNAME>LFDAT</FIELDNAME>
           <POSITION>0006</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000004</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BSTFE</FIELDNAME>
+          <FIELDNAME>MENGE</FIELDNAME>
           <POSITION>0007</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
@@ -81,7 +78,7 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BSTRF</FIELDNAME>
+          <FIELDNAME>BSMNG</FIELDNAME>
           <POSITION>0008</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
@@ -90,24 +87,23 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>DISLS</FIELDNAME>
+          <FIELDNAME>MEINS</FIELDNAME>
           <POSITION>0009</POSITION>
-          <DATATYPE>CHAR</DATATYPE>
-          <LENG>000002</LENG>
+          <DATATYPE>UNIT</DATATYPE>
+          <LENG>000003</LENG>
           <INTTYPE>C</INTTYPE>
-          <INTLEN>000004</INTLEN>
+          <INTLEN>000006</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BSTMA</FIELDNAME>
+          <FIELDNAME>LOEKZ</FIELDNAME>
           <POSITION>0010</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BESKZ</FIELDNAME>
+          <FIELDNAME>EBAKZ</FIELDNAME>
           <POSITION>0011</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
@@ -115,31 +111,31 @@
           <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>SOBSL</FIELDNAME>
+          <FIELDNAME>BLCKD</FIELDNAME>
           <POSITION>0012</POSITION>
           <DATATYPE>CHAR</DATATYPE>
-          <LENG>000002</LENG>
+          <LENG>000001</LENG>
           <INTTYPE>C</INTTYPE>
-          <INTLEN>000004</INTLEN>
+          <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>PLIFZ</FIELDNAME>
+          <FIELDNAME>PSTYP</FIELDNAME>
           <POSITION>0013</POSITION>
-          <DATATYPE>DEC</DATATYPE>
-          <LENG>000003</LENG>
-          <INTTYPE>P</INTTYPE>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>WEBAZ</FIELDNAME>
+          <FIELDNAME>KNTTP</FIELDNAME>
           <POSITION>0014</POSITION>
-          <DATATYPE>DEC</DATATYPE>
-          <LENG>000003</LENG>
-          <INTTYPE>P</INTTYPE>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>KORDB</FIELDNAME>
+          <FIELDNAME>SOBKZ</FIELDNAME>
           <POSITION>0015</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
@@ -147,12 +143,12 @@
           <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>USEQU</FIELDNAME>
+          <FIELDNAME>RESWK</FIELDNAME>
           <POSITION>0016</POSITION>
           <DATATYPE>CHAR</DATATYPE>
-          <LENG>000001</LENG>
+          <LENG>000004</LENG>
           <INTTYPE>C</INTTYPE>
-          <INTLEN>000002</INTLEN>
+          <INTLEN>000008</INTLEN>
         </DD03P>
       </DD03P_TABLE>
     </asx:values>

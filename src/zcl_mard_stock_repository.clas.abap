@@ -10,6 +10,463 @@ ENDCLASS.
 
 CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
+  METHOD zif_stock_repository~get_projected_receipts.
+    TYPES:
+      BEGIN OF ty_schedule,
+        source_document      TYPE eket-ebeln,
+        source_item          TYPE eket-ebelp,
+        source_schedule_line TYPE eket-etenr,
+        receipt_date         TYPE eket-eindt,
+        scheduled_quantity   TYPE eket-menge,
+        issued_quantity      TYPE eket-wamng,
+        received_quantity    TYPE eket-wemng,
+        delivery_complete    TYPE ekpo-elikz,
+        order_to_base_num    TYPE ekpo-umrez,
+        order_to_base_denom  TYPE ekpo-umren,
+      END OF ty_schedule.
+    TYPES:
+      BEGIN OF ty_production_receipt,
+        production_order    TYPE afpo-aufnr,
+        production_item     TYPE afpo-posnr,
+        receipt_date        TYPE afko-gltrp,
+        order_quantity      TYPE afpo-psmng,
+        received_quantity   TYPE afpo-wemng,
+        order_to_base_num   TYPE afpo-umrez,
+        order_to_base_denom TYPE afpo-umren,
+      END OF ty_production_receipt.
+    TYPES:
+      BEGIN OF ty_pr_receipt,
+        source_document          TYPE eban-banfn,
+        source_item              TYPE eban-bnfpo,
+        item_category            TYPE eban-pstyp,
+        supplying_plant          TYPE eban-reswk,
+        receipt_date             TYPE eban-lfdat,
+        requested_quantity       TYPE eban-menge,
+        ordered_quantity         TYPE eban-bsmng,
+        requisition_unit         TYPE eban-meins,
+        base_unit                TYPE mara-meins,
+        unit_to_base_numerator   TYPE marm-umrez,
+        unit_to_base_denominator TYPE marm-umren,
+      END OF ty_pr_receipt.
+    TYPES:
+      BEGIN OF ty_planned_receipt,
+        planned_order            TYPE plaf-plnum,
+        receipt_date             TYPE plaf-pedtr,
+        planned_quantity         TYPE plaf-gsmng,
+        order_unit               TYPE plaf-meins,
+        base_unit                TYPE mara-meins,
+        unit_to_base_numerator   TYPE marm-umrez,
+        unit_to_base_denominator TYPE marm-umren,
+      END OF ty_planned_receipt.
+    DATA lt_schedules TYPE STANDARD TABLE OF ty_schedule WITH EMPTY KEY.
+    DATA lt_production_receipts TYPE STANDARD TABLE OF
+      ty_production_receipt WITH EMPTY KEY.
+    DATA lt_pr_receipts TYPE STANDARD TABLE OF ty_pr_receipt WITH EMPTY KEY.
+    DATA lt_planned_receipts TYPE STANDARD TABLE OF ty_planned_receipt
+      WITH EMPTY KEY.
+    DATA lv_base_unit TYPE mara-meins.
+    DATA lv_initial_date TYPE d.
+
+    IF iv_material IS INITIAL
+        OR iv_plant IS INITIAL
+        OR iv_through_date IS INITIAL
+        OR ( iv_include_po_receipts <> abap_true
+          AND iv_include_po_receipts <> abap_false )
+        OR ( iv_include_sto_in_transit <> abap_true
+          AND iv_include_sto_in_transit <> abap_false )
+        OR ( iv_include_unissued_sto <> abap_true
+          AND iv_include_unissued_sto <> abap_false )
+        OR ( iv_include_prod_receipts <> abap_true
+          AND iv_include_prod_receipts <> abap_false )
+        OR ( iv_include_pr_receipts <> abap_true
+          AND iv_include_pr_receipts <> abap_false )
+        OR ( iv_include_sto_pr_receipts <> abap_true
+          AND iv_include_sto_pr_receipts <> abap_false )
+        OR ( iv_include_planned_receipts <> abap_true
+          AND iv_include_planned_receipts <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF iv_include_po_receipts <> abap_true
+        AND iv_include_sto_in_transit <> abap_true
+        AND iv_include_unissued_sto <> abap_true
+        AND iv_include_prod_receipts <> abap_true
+        AND iv_include_pr_receipts <> abap_true
+        AND iv_include_sto_pr_receipts <> abap_true
+        AND iv_include_planned_receipts <> abap_true.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE meins
+      FROM mara
+      WHERE matnr = @iv_material
+      INTO @lv_base_unit.
+    IF lv_base_unit IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF iv_include_po_receipts = abap_true.
+      SELECT eket~ebeln AS source_document,
+             eket~ebelp AS source_item,
+             eket~etenr AS source_schedule_line,
+             eket~eindt AS receipt_date,
+             eket~menge AS scheduled_quantity,
+             eket~wamng AS issued_quantity,
+             eket~wemng AS received_quantity,
+             ekpo~elikz AS delivery_complete,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        WHERE ekpo~matnr = @iv_material
+          AND ekpo~werks = @iv_plant
+          AND ekpo~pstyp = '0'
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~elikz = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND ekpo~insmk = @space
+          AND eket~eindt > @lv_initial_date
+          AND eket~eindt <= @iv_through_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_schedules.
+
+      DATA(lo_po_calculator) = NEW zcl_po_sched_qty_calc( ).
+      LOOP AT lt_schedules INTO DATA(ls_po_schedule).
+        DATA(lv_po_quantity) = lo_po_calculator->calculate_open_base_quantity(
+          iv_scheduled_quantity  = ls_po_schedule-scheduled_quantity
+          iv_received_quantity   = ls_po_schedule-received_quantity
+          iv_order_to_base_num   = ls_po_schedule-order_to_base_num
+          iv_order_to_base_denom = ls_po_schedule-order_to_base_denom ).
+        DATA(lv_po_base_quantity) = CONV mard-labst( lv_po_quantity ).
+        IF lv_po_base_quantity > 0.
+          APPEND VALUE #(
+            material             = iv_material
+            plant                = iv_plant
+            base_unit            = lv_base_unit
+            receipt_date         = ls_po_schedule-receipt_date
+            quantity             = lv_po_base_quantity
+            source_type          = 'PO'
+            source_document      = ls_po_schedule-source_document
+            source_item          = ls_po_schedule-source_item
+            source_schedule_line = ls_po_schedule-source_schedule_line )
+            TO rt_receipts.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF iv_include_sto_in_transit = abap_true
+        OR iv_include_unissued_sto = abap_true.
+      CLEAR lt_schedules.
+      SELECT eket~ebeln AS source_document,
+             eket~ebelp AS source_item,
+             eket~etenr AS source_schedule_line,
+             eket~eindt AS receipt_date,
+             eket~menge AS scheduled_quantity,
+             eket~wamng AS issued_quantity,
+             eket~wemng AS received_quantity,
+             ekpo~elikz AS delivery_complete,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
+        WHERE ekpo~matnr = @iv_material
+          AND ekpo~werks = @iv_plant
+          AND ekpo~pstyp = '7'
+          AND ekko~reswk <> @space
+          AND ekko~bsakz <> 'T'
+          AND ( ekko~bstyp = 'F' OR ekko~bstyp = 'L' )
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~stapo = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND ekpo~insmk = @space
+          AND eket~eindt > @lv_initial_date
+          AND eket~eindt <= @iv_through_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_schedules.
+
+      DATA(lo_sto_calculator) = NEW zcl_po_sched_qty_calc( ).
+      LOOP AT lt_schedules INTO DATA(ls_sto_schedule).
+        IF iv_include_sto_in_transit = abap_true.
+          DATA(lv_issued_quantity) =
+            lo_sto_calculator->calculate_open_issued_qty(
+              iv_issued_quantity     = ls_sto_schedule-issued_quantity
+              iv_received_quantity   = ls_sto_schedule-received_quantity
+              iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
+              iv_order_to_base_denom =
+                ls_sto_schedule-order_to_base_denom ).
+          DATA(lv_issued_base_quantity) =
+            CONV mard-labst( lv_issued_quantity ).
+          IF lv_issued_base_quantity > 0.
+            APPEND VALUE #(
+              material             = iv_material
+              plant                = iv_plant
+              base_unit            = lv_base_unit
+              receipt_date         = ls_sto_schedule-receipt_date
+              quantity             = lv_issued_base_quantity
+              source_type          = 'STO_IN_TRANSIT'
+              source_document      = ls_sto_schedule-source_document
+              source_item          = ls_sto_schedule-source_item
+              source_schedule_line = ls_sto_schedule-source_schedule_line )
+              TO rt_receipts.
+          ENDIF.
+        ENDIF.
+        IF iv_include_unissued_sto = abap_true
+            AND ls_sto_schedule-delivery_complete = space.
+          DATA(lv_unissued_quantity) =
+            lo_sto_calculator->calculate_open_unissued_qty(
+              iv_scheduled_quantity  = ls_sto_schedule-scheduled_quantity
+              iv_issued_quantity     = ls_sto_schedule-issued_quantity
+              iv_order_to_base_num   = ls_sto_schedule-order_to_base_num
+              iv_order_to_base_denom =
+                ls_sto_schedule-order_to_base_denom ).
+          DATA(lv_unissued_base_quantity) =
+            CONV mard-labst( lv_unissued_quantity ).
+          IF lv_unissued_base_quantity > 0.
+            APPEND VALUE #(
+              material             = iv_material
+              plant                = iv_plant
+              base_unit            = lv_base_unit
+              receipt_date         = ls_sto_schedule-receipt_date
+              quantity             = lv_unissued_base_quantity
+              source_type          = 'STO_UNISSUED'
+              source_document      = ls_sto_schedule-source_document
+              source_item          = ls_sto_schedule-source_item
+              source_schedule_line = ls_sto_schedule-source_schedule_line )
+              TO rt_receipts.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF iv_include_prod_receipts = abap_true.
+      SELECT afpo~aufnr AS production_order,
+             afpo~posnr AS production_item,
+             afko~gltrp AS receipt_date,
+             afpo~psmng AS order_quantity,
+             afpo~wemng AS received_quantity,
+             afpo~umrez AS order_to_base_num,
+             afpo~umren AS order_to_base_denom
+        FROM afpo
+        INNER JOIN afko
+          ON afko~aufnr = afpo~aufnr
+        INNER JOIN aufk
+          ON aufk~aufnr = afpo~aufnr
+        WHERE afpo~matnr = @iv_material
+          AND afpo~werks = @iv_plant
+          AND afpo~wepos = 'X'
+          AND afpo~xloek = @space
+          AND afpo~elikz = @space
+          AND afpo~kdauf = @space
+          AND afpo~knttp = @space
+          AND aufk~autyp = '10'
+          AND aufk~phas1 = 'X'
+          AND aufk~phas2 = @space
+          AND aufk~phas3 = @space
+          AND aufk~loekz = @space
+          AND afko~gltrp > @lv_initial_date
+          AND afko~gltrp <= @iv_through_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_production_receipts.
+
+      DATA(lo_production_calculator) = NEW zcl_prod_order_qty_calc( ).
+      LOOP AT lt_production_receipts INTO DATA(ls_production_receipt).
+        DATA(lv_production_quantity) =
+          lo_production_calculator->calculate_open_base_quantity(
+            iv_order_quantity      = ls_production_receipt-order_quantity
+            iv_received_quantity   = ls_production_receipt-received_quantity
+            iv_order_to_base_num   = ls_production_receipt-order_to_base_num
+            iv_order_to_base_denom = ls_production_receipt-order_to_base_denom ).
+        DATA(lv_production_base_quantity) =
+          CONV mard-labst( lv_production_quantity ).
+        IF lv_production_base_quantity > 0.
+          APPEND VALUE #(
+            material        = iv_material
+            plant           = iv_plant
+            base_unit       = lv_base_unit
+            receipt_date    = ls_production_receipt-receipt_date
+            quantity        = lv_production_base_quantity
+            source_type     = 'PRODUCTION'
+            source_document = ls_production_receipt-production_order
+            source_item     = ls_production_receipt-production_item )
+            TO rt_receipts.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF iv_include_pr_receipts = abap_true
+        OR iv_include_sto_pr_receipts = abap_true.
+      IF iv_include_pr_receipts = abap_true.
+        SELECT eban~banfn AS source_document,
+               eban~bnfpo AS source_item,
+               eban~pstyp AS item_category,
+               eban~reswk AS supplying_plant,
+               eban~lfdat AS receipt_date,
+               eban~menge AS requested_quantity,
+               eban~bsmng AS ordered_quantity,
+               eban~meins AS requisition_unit,
+               mara~meins AS base_unit,
+               marm~umrez AS unit_to_base_numerator,
+               marm~umren AS unit_to_base_denominator
+          FROM eban
+          INNER JOIN mara
+            ON mara~matnr = eban~matnr
+          LEFT OUTER JOIN marm
+            ON marm~matnr = eban~matnr
+           AND marm~meinh = eban~meins
+          WHERE eban~matnr = @iv_material
+            AND eban~werks = @iv_plant
+            AND eban~lfdat > @lv_initial_date
+            AND eban~lfdat <= @iv_through_date
+            AND eban~loekz = @space
+            AND eban~ebakz = @space
+            AND eban~blckd <> '1'
+            AND eban~pstyp = '0'
+            AND eban~knttp = @space
+            AND eban~sobkz = @space
+            AND eban~menge > eban~bsmng
+          INTO CORRESPONDING FIELDS OF TABLE @lt_pr_receipts.
+      ENDIF.
+
+      IF iv_include_sto_pr_receipts = abap_true.
+        SELECT eban~banfn AS source_document,
+               eban~bnfpo AS source_item,
+               eban~pstyp AS item_category,
+               eban~reswk AS supplying_plant,
+               eban~lfdat AS receipt_date,
+               eban~menge AS requested_quantity,
+               eban~bsmng AS ordered_quantity,
+               eban~meins AS requisition_unit,
+               mara~meins AS base_unit,
+               marm~umrez AS unit_to_base_numerator,
+               marm~umren AS unit_to_base_denominator
+          FROM eban
+          INNER JOIN mara
+            ON mara~matnr = eban~matnr
+          LEFT OUTER JOIN marm
+            ON marm~matnr = eban~matnr
+           AND marm~meinh = eban~meins
+          WHERE eban~matnr = @iv_material
+            AND eban~werks = @iv_plant
+            AND eban~reswk <> @space
+            AND eban~reswk <> eban~werks
+            AND eban~lfdat > @lv_initial_date
+            AND eban~lfdat <= @iv_through_date
+            AND eban~loekz = @space
+            AND eban~ebakz = @space
+            AND eban~blckd <> '1'
+            AND eban~pstyp = '7'
+            AND eban~knttp = @space
+            AND eban~sobkz = @space
+            AND eban~menge > eban~bsmng
+          APPENDING CORRESPONDING FIELDS OF TABLE @lt_pr_receipts.
+      ENDIF.
+
+      DATA(lo_pr_calculator) = NEW zcl_pr_open_qty_calc( ).
+      LOOP AT lt_pr_receipts INTO DATA(ls_pr_receipt).
+        DATA(lv_pr_unit_numerator) =
+          ls_pr_receipt-unit_to_base_numerator.
+        DATA(lv_pr_unit_denominator) =
+          ls_pr_receipt-unit_to_base_denominator.
+        IF ls_pr_receipt-requisition_unit = ls_pr_receipt-base_unit.
+          lv_pr_unit_numerator = 1.
+          lv_pr_unit_denominator = 1.
+        ENDIF.
+        DATA(lv_pr_open_base_quantity) =
+          lo_pr_calculator->calculate_open_base_quantity(
+            iv_requested_quantity = ls_pr_receipt-requested_quantity
+            iv_ordered_quantity   = ls_pr_receipt-ordered_quantity
+            iv_unit_to_base_num   = lv_pr_unit_numerator
+            iv_unit_to_base_denom = lv_pr_unit_denominator ).
+        DATA(lv_pr_quantity) = CONV mard-labst(
+          lv_pr_open_base_quantity ).
+        IF lv_pr_quantity > 0.
+          APPEND VALUE #(
+            material        = iv_material
+            plant           = iv_plant
+            base_unit       = ls_pr_receipt-base_unit
+            receipt_date    = ls_pr_receipt-receipt_date
+            quantity        = lv_pr_quantity
+            source_type     = COND #(
+              WHEN ls_pr_receipt-item_category = '7'
+              THEN 'STO_PR'
+              ELSE 'PR' )
+            source_document = ls_pr_receipt-source_document
+            source_item     = ls_pr_receipt-source_item
+            source_plant    = ls_pr_receipt-supplying_plant )
+            TO rt_receipts.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF iv_include_planned_receipts = abap_true.
+      SELECT plaf~plnum AS planned_order,
+             plaf~pedtr AS receipt_date,
+             plaf~gsmng AS planned_quantity,
+             plaf~meins AS order_unit,
+             mara~meins AS base_unit,
+             marm~umrez AS unit_to_base_numerator,
+             marm~umren AS unit_to_base_denominator
+        FROM plaf
+        INNER JOIN mara
+          ON mara~matnr = plaf~matnr
+        LEFT OUTER JOIN marm
+          ON marm~matnr = plaf~matnr
+         AND marm~meinh = plaf~meins
+        WHERE plaf~matnr = @iv_material
+          AND plaf~pwwrk = @iv_plant
+          AND plaf~auffx = @space
+          AND plaf~plscn = @space
+          AND plaf~sobkz = @space
+          AND plaf~kdauf = @space
+          AND plaf~gsmng > 0
+          AND plaf~psttr >= @sy-datum
+          AND plaf~psttr <= @iv_through_date
+          AND plaf~pedtr >= @sy-datum
+          AND plaf~pedtr <= @iv_through_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_planned_receipts.
+
+      DATA(lo_planned_calculator) = NEW zcl_planned_order_qty_calc( ).
+      LOOP AT lt_planned_receipts INTO DATA(ls_planned_receipt).
+        DATA(lv_planned_unit_numerator) =
+          ls_planned_receipt-unit_to_base_numerator.
+        DATA(lv_planned_unit_denominator) =
+          ls_planned_receipt-unit_to_base_denominator.
+        IF ls_planned_receipt-order_unit = ls_planned_receipt-base_unit.
+          lv_planned_unit_numerator = 1.
+          lv_planned_unit_denominator = 1.
+        ENDIF.
+        DATA(lv_planned_quantity) =
+          lo_planned_calculator->calculate_open_base_quantity(
+            iv_planned_quantity   = ls_planned_receipt-planned_quantity
+            iv_unit_to_base_num   = lv_planned_unit_numerator
+            iv_unit_to_base_denom = lv_planned_unit_denominator ).
+        DATA(lv_planned_base_quantity) = CONV mard-labst(
+          lv_planned_quantity ).
+        IF lv_planned_base_quantity > 0.
+          APPEND VALUE #(
+            material        = iv_material
+            plant           = iv_plant
+            base_unit       = ls_planned_receipt-base_unit
+            receipt_date    = ls_planned_receipt-receipt_date
+            quantity        = lv_planned_base_quantity
+            source_type     = 'PLANNED_ORDER'
+            source_document = ls_planned_receipt-planned_order )
+            TO rt_receipts.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    SORT rt_receipts BY material plant base_unit receipt_date source_type
+      source_document source_item source_schedule_line.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_unrestricted_stock.
     DATA lv_unrestricted_quantity TYPE mard-labst.
     DATA lv_reserved_quantity TYPE resb-bdmng.
@@ -59,6 +516,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lv_unissued_sto_quantity TYPE decfloat34.
     DATA lv_outgoing_sto_quantity TYPE decfloat34.
     DATA lv_prod_receipt_quantity TYPE decfloat34.
+    DATA lv_projected_receipt_quantity TYPE mard-labst.
     TYPES:
       BEGIN OF ty_prod_receipt,
         order_quantity      TYPE afpo-psmng,
@@ -68,6 +526,19 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       END OF ty_prod_receipt.
     DATA lt_prod_receipts TYPE STANDARD TABLE OF ty_prod_receipt
       WITH EMPTY KEY.
+
+    IF iv_include_pr_receipts <> abap_true
+        AND iv_include_pr_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_include_sto_pr_receipts <> abap_true
+        AND iv_include_sto_pr_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_include_planned_receipts <> abap_true
+        AND iv_include_planned_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
 
     CLEAR lv_initial_date.
     CLEAR lv_initial_po_date.
@@ -267,6 +738,26 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
       lv_unrestricted_quantity = lv_unrestricted_quantity
         + CONV mard-labst( lv_prod_receipt_quantity ).
+    ENDIF.
+
+    IF iv_include_pr_receipts = abap_true
+        OR iv_include_sto_pr_receipts = abap_true
+        OR iv_include_planned_receipts = abap_true.
+      CLEAR lv_projected_receipt_quantity.
+      DATA(lt_projected_receipts) =
+        zif_stock_repository~get_projected_receipts(
+        iv_material                 = iv_material
+        iv_plant                    = iv_plant
+        iv_through_date             = iv_required_date
+        iv_include_pr_receipts      = iv_include_pr_receipts
+        iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
+        iv_include_planned_receipts = iv_include_planned_receipts ).
+      LOOP AT lt_projected_receipts INTO DATA(ls_projected_receipt).
+        lv_projected_receipt_quantity = lv_projected_receipt_quantity
+          + ls_projected_receipt-quantity.
+      ENDLOOP.
+      lv_unrestricted_quantity = lv_unrestricted_quantity
+        + lv_projected_receipt_quantity.
     ENDIF.
 
     lv_reserved_quantity = lv_reserved_quantity

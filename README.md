@@ -179,20 +179,46 @@ Set `iv_include_prod_receipts = abap_true` to add open receipts from released
 production orders whose basic finish date is on or before the requested date.
 The estimate excludes make-to-order and completed order items; production output
 may still be delayed or posted to a different stock type.
+Set `iv_include_planned_receipts = abap_true` to include unfixed planned orders
+whose basic start and finish dates fall between today and the requested date.
+The projection converts `PLAF-GSMNG` from the planned-order unit to the material
+base unit and identifies each row as `PLANNED_ORDER`, keyed by the planned order
+number. It excludes fixed planned orders, planning-scenario orders, special
+stock, and orders assigned to a sales document. Planned orders are MRP proposals
+that can be changed or deleted before conversion, so this is indicative supply
+rather than a firm receipt; the flag
+defaults to false and does not affect SAP ATP. SAP documents the planned-order
+selection fields and conversion lifecycle ([selection criteria](https://help.sap.com/docs/SCMCSCPP/b654ceec39734aca96c6d395cdc7c69f/f39d21900a69431c9a71f12ea897ccc4.html), [planned-order conversion](https://help.sap.com/docs/PRODUCT_ID/af9ef57f504840d2b81be8667206d485/c498b6535fe6b74ce10000000a44147b.html?locale=en-US&state=PRODUCTION&version=latest)).
+`GET_PROJECTED_RECEIPTS` exposes those same open PO, issued or unissued STO,
+released production, and planned-order quantities as dated base-unit rows with
+source-document identity and item/schedule-line fields where they apply. Each
+source group is opt-in with its own receipt flag; `source_type` is `PO`,
+`STO_IN_TRANSIT`, `STO_UNISSUED`, `PRODUCTION`, or `PLANNED_ORDER`. Production
+rows have no schedule-line number, and planned-order rows have no item or
+schedule-line number. Convert its
+result with `CORRESPONDING #( )` to
+`ZCL_PROD_COMP_SERVICE=>TY_PROJECTED_RECEIPTS` and pass it to
+`SUGGEST_COMP_REPLENISHMENT` for date-aware netting. This shares the stock
+repository's documented filters and remains a projection; callers should
+review supplier, transfer, production, planned-order, and receipt-status
+assumptions before acting on it. `SUGGEST_COMP_REPL_FROM_STOCK` combines those calls: it
+loads the selected receipt types once per material/plant through the latest
+shortage date, then nets eligible receipts by required date.
 `ALLOCATE_DEMANDS_BY_DATE` handles a list of dated requests with unique request
 IDs. It allocates earlier requirements first, shares each material/plant
 balance across dates, and keeps input order for requests with the same date.
 Identical material/plant/date estimates are read once, and optional static
 safety-stock protection is cached per material/plant. The result is returned in
 input order; each row's available quantity reflects stock remaining after
-earlier requests for that material/plant. The same opt-in receipt flag applies
-to each dated stock estimate.
+earlier requests for that material/plant. The same opt-in receipt flags apply
+to each dated stock estimate, including planned orders when
+`iv_include_planned_receipts` is enabled.
 `ALLOCATE_DATE_DEMANDS_IN_UNITS` accepts the same dated request list in
 material-specific units. It validates and caches unit ratios before stock
 reads, converts demands to base units, and returns each dated allocation with
 both base-unit quantities and rounded source-unit quantities. It uses the same
 date priority, safety-stock protection, and optional PO, issued or unissued STO,
-and production receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
+production, and planned-order receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
 `ALLOCATE_DATE_DEMANDS_ATP` also checks those dated requests with SAP ATP. It
 converts them to base units for local allocation and sends one cumulative ATP
 check per material/plant/base-unit/required-date group. Requests sharing a date
@@ -490,8 +516,8 @@ reservations. Its `sales_unit_allocations` retain document, item, and schedule
 keys plus requested, available, allocated, and shortfall quantities in both
 sales and base units. Pass `iv_use_confirmed_qty = abap_true` to size each
 line from confirmed open quantity. Optional dated stock inputs include PO
-receipts, issued or unissued STO quantities, production receipts, and
-safety-stock protection. Pass `iv_check_atp = abap_true` with
+receipts, issued or unissued STO quantities, production and planned-order
+receipts, and safety-stock protection. Pass `iv_check_atp = abap_true` with
 `iv_atp_check_rule` to include SAP ATP responses in `atp_checks`; requests are
 combined across the supplied orders by material, plant, and date, with demand
 accumulated through each date. ATP responses are reported separately and do
@@ -598,6 +624,233 @@ support test runs. Quantities use the component reservation unit. SAP generates 
 reservations when production orders are created; movement type 261 is the
 standard goods issue for order components
 ([withdrawing material components](https://help.sap.com/docs/SAP_ERP/bfece09273bd474d82fdd97bae070c25/c803b753128eb44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest)).
+`PREVIEW_COMPONENTS_ATP` and `PREVIEW_COMPONENTS_ATP_BULK` check open
+components against SAP ATP without posting a goods movement. They convert
+reservation quantities to each material's base unit, then make one ATP request
+per material, plant, base unit, and required-date group using the cumulative
+open quantity through that date. Each returned component includes its own base
+quantity, the cumulative quantity, the SAP result, confirmed and unconfirmed
+quantities for the cumulative check, and a local dated stock estimate.
+Components sharing a date share the group estimate and cumulative ATP values;
+the local estimate allocates the date's total after earlier component dates.
+`component_local_estimate` also allocates that date's local quantity to
+individual component rows in production-order, reservation, and item order. It
+reports each row's requested, available-before-row, allocated, and shortfall
+base quantities, so partial local stock can be traced to a specific component.
+The group-level ATP confirmation remains cumulative and repeats on each row.
+For component previews it counts dated confirmations on or before each required
+date; future or undated confirmation lines remain visible in `atp_result` but
+do not count as confirmed by that component date.
+`component_confirmed_quantity` and `component_unconfirmed_quantity` allocate
+the increase in due-date confirmation between cumulative checks across the
+components on that date, in production-order/reservation/item order. They give
+a deterministic component view of the aggregate ATP result; SAP does not
+confirm an individual production reservation through this grouped request.
+The local estimate can include PO receipts, issued STO receipts, unissued STO
+receipts, released production receipts, planned orders, outgoing unissued STO
+demand, and static safety stock with `iv_include_po_receipts`,
+`iv_include_sto_in_transit`, `iv_include_unissued_sto`,
+`iv_include_prod_receipts`, `iv_include_planned_receipts`,
+`iv_subtract_unissued_sto`, and `iv_protect_safety_stock`. These options affect
+the local estimate only. The SAP request covers only the supplied orders and
+does not add local batch or storage-location restrictions.
+`PREVIEW_COMPONENTS_STOCK` and `PREVIEW_COMPONENTS_STOCK_BULK` return the same
+local date-group and per-component estimates without requiring an ATP checking
+rule or calling the availability API. In those results, ATP confirmation
+quantities and the raw ATP result remain initial.
+`SUMMARIZE_COMPONENT_READINESS` rolls preview rows up by production order. It
+reports the open, locally covered, and locally short component counts, the
+required-date range, the first local shortage date, and `is_locally_ready`.
+This status uses the local component allocations only; review the ATP results
+separately for SAP confirmation status. `SUMMARIZE_COMPONENT_SHORTAGES` groups
+the same rows by material, plant, base unit, and required date. It reports
+component and affected-order counts plus requested, allocated, and shortfall
+base quantities, omitting groups with no local shortfall. `SUMMARIZE_ORDER_ATP`
+summarizes the per-component ATP split by production order, material, plant,
+and base unit. It reports fully, partially, and unconfirmed component counts,
+requested/confirmed/unconfirmed base quantities, required-date range, first
+unconfirmed date, and `is_split_fully_confirmed`. Quantities remain separated
+by material and unit, and the status describes the deterministic component
+split rather than an order-level result returned by SAP.
+`SUGGEST_COMP_REPLENISHMENT` turns component shortage rows into base-unit
+quantity suggestions. Caller policies override material master planning data.
+For materials without an override, the service reads the base unit from `MARA`
+and `MARC-DISLS`, lot quantities `BSTMI`/`BSTMA`/`BSTFE`/`BSTRF`, procurement
+type `BESKZ`, special procurement key `SOBSL`, lead-time fields `PLIFZ` and
+`WEBAZ`, plant calendar `T001W-FABKL`, and purchasing processing days
+`T399D-BZTEK` in one bulk read. Lot-for-lot
+(`EX`) suggestions apply minimum quantity, maximum lot
+size, and PO rounding value; fixed lot (`FX`) suggestions use the fixed
+quantity. For `EX`, the result includes the aggregate quantity, receipt count,
+and final receipt quantity after maximum-lot splitting. Other lot-sizing
+procedures or incompatible `EX` settings return the exact shortfall and mark
+`policy_origin` as `UNSUPPORTED`. Results identify whether a policy came from
+the caller, MARC, was missing, or was unsupported. Caller policies without a
+lot-sizing procedure continue to treat their minimum, fixed quantity, and
+order multiple as direct rules. Results also return the raw procurement type
+and special procurement key for caller routing; the service does not determine
+a vendor or source of supply. For external procurement without a special key,
+results also estimate `estimated_delivery_date`, `latest_purchase_order_date`,
+and `latest_pr_release_date` using the material/plant lead times and plant
+factory calendar. `WEBAZ` and `BZTEK` are treated as workdays; `PLIFZ` is treated
+as calendar days. `lead_time_status` can be `MATERIAL_ESTIMATE`, `NO_POLICY`,
+`IN_HOUSE`, `AMBIGUOUS`, `SPECIAL_SOURCE`, `MISSING_CALENDAR`,
+`CALENDAR_ERROR`, `UNSUPPORTED`, `COVERED_BY_SURPLUS`,
+`COVERED_BY_RECEIPT`, or `COVERED_BY_SUPPLY`. A caller that has already resolved a
+purchasing info record can provide its vendor, purchasing organization, record
+number, category, and `source_planned_delivery_days` on the caller policy. A
+positive info-record lead time overrides `planned_delivery_days`; zero falls
+back to the caller's `planned_delivery_days` value. The result preserves source
+identity and reports `lead_time_days_origin` as `INFO_RECORD`, `CALLER`,
+`MATERIAL`, or `NONE`. The estimate does not determine a SAP source or evaluate
+quota arrangements, contracts, prices, or purchasing-organization policy.
+`ZCL_REPL_SOURCE_SERVICE->GET_VALID_PIR_CANDIDATES` bulk-lists standard
+purchasing info records whose material, purchasing organization, plant scope,
+deletion indicators, and inclusive validity dates match each request. It reads
+`MARC-KORDB` and matching `EORD` entries: blocked matching sources are excluded;
+when the source-list requirement is set, only candidates with an unblocked
+vendor entry without an outline-agreement item, valid on the requested delivery
+date, are returned. Candidates
+include both info-record and source-list validity windows, fixed-source status,
+MRP source-list usage, whether the info record is marked for automatic sourcing,
+the material's quota-arrangement usage setting, and whether they are listed.
+The automatic-sourcing flag is returned as `is_auto_source_relevant`; candidates
+with the flag off remain visible for manual review. When `MARC-USEQU` is set,
+it also reads active classic external-supplier quota items and reports each matching vendor's
+`(quota-allocated quantity + quota base quantity) / quota` rating. Assigned
+quota items rank by lowest rating; equal ratings in this purchase-requisition
+candidate path follow quota item sequence. The classic quota guide describes a
+higher-quota tie for zero ratings, so validate the target source-determination
+workflow before treating preview order as an assignment. Candidates then rank
+by fixed-source flag, optional request
+`preferred_vendor`, and plant-specific info records. A vendor without a
+matching quota item remains visible after quota-assigned candidates so callers
+can review the whole candidate set. Each result also includes the matching
+`TMQ2` usage rule, showing whether purchase requisitions, purchase orders,
+scheduling-agreement schedules, planned orders, automatic MRP, production
+orders, and invoices contribute to quota allocation.
+Requests can optionally include `requested_quantity` and
+`requested_quantity_unit` in the info record's base unit. Candidates return the
+raw `EINE-MINBM` and `EINE-BSTMA` limits in `purchase_order_unit`, plus their
+converted values as `minimum_order_quantity_base` and
+`maximum_order_quantity_base` in `base_unit`. `quantity_limit_status` is `N`
+when no quantity was supplied, `I` within the inclusive range, `L` below
+minimum, `H` above maximum, `U` when the request/base units differ, `C` when a
+needed unit conversion is missing, or `R` for an invalid stored range. This
+compares the maintained info-record limits; it is not a source assignment. SAP documents
+that the minimum quantity may be ignored by MRP in some PR creation scenarios
+([KBA 2468048](https://userapps.support.sap.com/sap/support/knowledge/en/2468048)),
+so validate the host workflow and release.
+For materials without a source-list requirement, an unlisted info record can
+still appear if no active blocking entry matches it. The method returns the
+`EINE-AUT_SOURCE` indicator but does not assign a source or treat the flag as a
+complete source-determination result. Callers must apply the flag when the
+workflow requires automatic sourcing and evaluate the remaining SAP
+source-determination rules before acting on a candidate. The quota rating is a
+read-only snapshot and does not reserve quota or reproduce SAP's complete source
+determination. Split quotas, other procurement categories, special procurement
+types, quota maximum quantities, and release-specific
+behavior remain for the host application to evaluate. SAP documents the
+quota-rating formula in its [quota source determination guide](https://help.sap.com/docs/PRODUCT_ID/af9ef57f504840d2b81be8667206d485/907fb65334e6b54ce10000000a174cb4.html). SAP describes
+different tie behavior for quota determination and direct requisition source
+determination ([requisition sourcing](https://learning.sap.com/courses/purchasing-in-sap-s-4hana/controlling-source-determination-with-quota-arrangements-1));
+validate the actual workflow and release. The replenishment
+estimate also returns `as_of_date`, `pr_release_is_overdue`, and
+`pr_release_days_overdue`. Pass `iv_as_of_date` for a fixed evaluation date; it
+defaults to `sy-datum`. The overdue day count uses calendar days and is
+calculated only when a requisition release date was estimated; otherwise it is
+zero. `pr_release_urgency` gives a direct status of `NO_ESTIMATE`, `OVERDUE`,
+`DUE_TODAY`, or `UPCOMING`; use the date and overdue-day fields when a numeric
+lead time is needed. The estimate
+remains indicative and does not create purchase documents or reserve stock.
+Pass returned suggestions to `zcl_replenishment_req_service` to create a
+purchase requisition through `BAPI_PR_CREATE`. It creates one requisition item
+for each planned receipt lot, preserving the lot split, base unit, plant,
+quantity, and required date; zero-quantity covered rows are skipped.
+`iv_test_run = abap_true` asks the BAPI to simulate creation and skips commit.
+Normal writes commit only after the BAPI succeeds and returns a requisition
+number; errors trigger rollback. The service accepts a requisition type (default
+`NB`) and optional purchasing group and organization. It leaves vendor/source
+selection to SAP when the suggestion has no caller-resolved source. Suggestions
+that carry a complete purchasing info-record source preserve its vendor as the
+fixed vendor and use its purchasing organization; explicit per-suggestion
+controls can override that organization. The info-record number remains source
+metadata and is passed on the PR item as `INFO_REC`; the source category stays
+in the suggestion. It only accepts externally procured (`F`) suggestions
+without a special procurement key; in-house, ambiguous, special-source, and
+unresolved routes are rejected. Verify BAPI availability, required item fields,
+document type, and purchasing configuration in the target SAP release. The
+result's `submitted_items` echoes the PR item number and a 1-based
+`source_suggestion_index` for every line, including split lots and BAPI
+test-runs, so the caller can reconcile each item to its original suggestion.
+Pass optional `it_purchasing_controls` rows keyed by that 1-based suggestion
+index to override purchasing group and/or organization for only that
+suggestion; each blank control field inherits the method-level default.
+Duplicate indexes, indexes outside the suggestion table, covered suggestions,
+and rows with neither value are rejected before the BAPI call.
+Each returned SAP message preserves its BAPIRET2 type, class, number, text
+variables, parameter, row, field, system, and log identifiers so callers can
+present or log structured item-level diagnostics. Messages that point to a
+`PRITEM` or `PRITEMX` row also include the corresponding generated item number
+and source suggestion index when the row maps to a submitted item.
+The result reports `is_test_run`, `bapi_was_called`, and `is_committed` so a
+successful simulation or covered-row no-op can be distinguished from a
+requisition committed to SAP.
+With no projected receipts and `iv_net_prior_surplus = abap_false`, each dated
+shortage is lot-sized independently and results keep the input order. Set
+`iv_net_prior_surplus = abap_true` to process shortages in
+material, plant, unit, and required-date order, and carry unused rounding
+surplus from an earlier suggestion into later dates for the same material,
+plant, and unit. `planning_shortfall_qty` reports the quantity still to plan;
+`prior_surplus_used_qty` reports the amount covered by that carry. A fully
+covered date remains in the result with zero suggested quantity and
+`lead_time_status = COVERED_BY_SURPLUS`. In this mode,
+`rounding_surplus_base_quantity` reports the remaining carry after that date.
+Pass `it_projected_receipts` to net caller-supplied PO, stock-transfer, or
+production receipts against shortages. Each row provides material, plant, base
+unit, receipt date, and positive quantity. Optional source type/document/item
+fields are returned per consumed line in `projected_receipt_uses`; source type
+and document must be supplied together. Receipts dated on or before a required
+date are consumed earliest-date first. Results report the total in
+`projected_receipt_used_qty`; a date covered by projected receipts has
+`COVERED_BY_RECEIPT` status, or `COVERED_BY_SUPPLY` when prior suggestion
+surplus also contributes. Supplying receipts makes shortages process in
+chronological key/date order even when `iv_net_prior_surplus` is false. The
+service does not query receipt sources itself: pass only receipts the caller
+has validated for the relevant dates. Review timing estimates and statuses
+before using the quantities for execution.
+For repository-backed receipt reads, set `iv_include_pr_receipts = abap_true`
+on `zcl_stock_service=>get_projected_receipts`; the default is false. The
+returned `PR` rows identify the requisition through `source_document` (BANFN)
+and `source_item` (BNFPO), and include only the unconverted amount
+`EBAN-MENGE - EBAN-BSMNG` due by `EBAN-LFDAT`, converted to the material base
+unit. `zcl_prod_comp_service=>suggest_comp_repl_from_stock` accepts the same
+flag and nets those rows into shortage dates automatically. PR rows are
+restricted to nondeleted, incomplete, nonblocked standard stock items without
+account assignment or special stock; review [the PR receipt assumptions](ANOMALIES.md)
+for release-status and target-system limits. The dated stock allocation methods
+also accept `iv_include_pr_receipts`, adding eligible PR quantities to each
+date's local available-stock estimate. When an allocation method also requests
+SAP ATP, the flag affects only the local estimate; it does not change the ATP
+request or SAP's response. The same flag is available on component stock/ATP
+previews and multi-sales-order dated previews/reservations, so those workflows
+can use the same opt-in projection. Reservation writes still depend on SAP
+accepting the actual request; confirm stock and ATP before committing a write
+based on projected future supply.
+Planned-order rows can also be netted into component replenishment suggestions
+through `iv_include_planned_receipts = abap_true` on
+`suggest_comp_repl_from_stock`; the flag is available on component previews and
+multi-sales-order dated previews and reservations. Review the planned-order
+selection assumptions in [ANOMALIES.md](ANOMALIES.md) before acting on this
+nonfirm MRP proposal quantity.
+Stock-transfer requisitions use a separate opt-in,
+`iv_include_sto_pr_receipts = abap_true`. Their returned `STO_PR` rows retain
+the issuing plant in `source_plant` (`EBAN-RESWK`) and the receiving plant in
+`plant` (`EBAN-WERKS`). This keeps direct procurement PR and interplant PR
+supply independently selectable.
+Compare statuses and origins with the public
+`ZCL_PROD_COMP_SERVICE=>C_REPL_*` constants. See
+[replenishment assumptions](ANOMALIES.md) for target-release validation details.
 
 `ZCL_CC_RESERVATION_SERVICE` creates material reservations for a cost center
 with movement type 201. A request may specify one batch. A supplied storage
@@ -676,9 +929,9 @@ report also returns static `MARC-EISBE` and an available quantity after that
 buffer; neither quantity represents every ATP element or dynamic safety-stock
 behavior.
 Date-based projections can add PO receipts, issued or unissued STO quantities,
-subtract unissued outgoing STO quantities, and add released production
-receipts. These are local schedule estimates from
-`EKET`, `EKPO`, `EKKO`, `AFPO`, `AFKO`, and `AUFK`; repository doubles do not
+subtract unissued outgoing STO quantities, and add released production and
+unfixed planned-order receipts. These are local schedule estimates from
+`EKET`, `EKPO`, `EKKO`, `AFPO`, `AFKO`, `AUFK`, and `PLAF`; repository doubles do not
 execute those database queries or validate live schedule filters and units.
 They do not replace SAP ATP.
 `GET_STOCK_STATUS_BY_LOCATION` aggregates the same category quantities by

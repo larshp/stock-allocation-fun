@@ -148,40 +148,46 @@ CLASS zcl_sales_order_alloc_service DEFINITION
 
     METHODS preview_orders_by_date
       IMPORTING
-        it_sales_documents        TYPE ty_sales_documents
-        iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_use_confirmed_qty      TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
-        iv_check_atp              TYPE abap_bool DEFAULT abap_false
-        iv_atp_check_rule         TYPE zif_material_availability_api=>ty_check_rule
+        it_sales_documents          TYPE ty_sales_documents
+        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
+        iv_use_confirmed_qty        TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        iv_check_atp                TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule           TYPE zif_material_availability_api=>ty_check_rule
           OPTIONAL
       RETURNING
-        VALUE(rs_result)          TYPE ty_multi_order_preview_result
+        VALUE(rs_result)            TYPE ty_multi_order_preview_result
       RAISING
         zcx_invalid_sales_order
         zcx_invalid_stock_request.
 
     METHODS reserve_orders_by_date
       IMPORTING
-        it_sales_documents         TYPE ty_sales_documents
-        iv_test_run                TYPE abap_bool DEFAULT abap_false
-        iv_require_full_allocation TYPE abap_bool DEFAULT abap_false
-        iv_include_po_receipts     TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit  TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto   TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts   TYPE abap_bool DEFAULT abap_false
-        iv_use_confirmed_qty       TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock    TYPE abap_bool DEFAULT abap_false
-        iv_check_atp               TYPE abap_bool DEFAULT abap_false
-        iv_atp_check_rule          TYPE zif_material_availability_api=>ty_check_rule
+        it_sales_documents          TYPE ty_sales_documents
+        iv_test_run                 TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation  TYPE abap_bool DEFAULT abap_false
+        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
+        iv_use_confirmed_qty        TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        iv_check_atp                TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule           TYPE zif_material_availability_api=>ty_check_rule
           OPTIONAL
       RETURNING
-        VALUE(rs_result)           TYPE ty_multi_order_reserve_result
+        VALUE(rs_result)            TYPE ty_multi_order_reserve_result
       RAISING
         zcx_invalid_sales_order
         zcx_invalid_stock_request.
@@ -728,6 +734,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     DATA lv_numerator TYPE bapisdit-sales_qty1.
     DATA lv_denominator TYPE bapisdit-sales_qty2.
 
+    IF iv_include_sto_pr_receipts <> abap_true
+        AND iv_include_sto_pr_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_include_planned_receipts <> abap_true
+        AND iv_include_planned_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
     IF iv_check_atp = abap_true
         AND ( iv_atp_check_rule IS NOT SUPPLIED
           OR iv_atp_check_rule IS INITIAL ).
@@ -888,13 +903,16 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     ENDIF.
 
     DATA(lt_allocations) = mo_stock_service->allocate_demands_by_date(
-      it_demands                = lt_demands
-      iv_include_po_receipts    = iv_include_po_receipts
-      iv_include_sto_in_transit = iv_include_sto_in_transit
-      iv_include_unissued_sto   = iv_include_unissued_sto
-      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
-      iv_include_prod_receipts  = iv_include_prod_receipts
-      iv_protect_safety_stock   = iv_protect_safety_stock ).
+      it_demands                  = lt_demands
+      iv_include_po_receipts      = iv_include_po_receipts
+      iv_include_sto_in_transit   = iv_include_sto_in_transit
+      iv_include_unissued_sto     = iv_include_unissued_sto
+      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
+      iv_include_prod_receipts    = iv_include_prod_receipts
+      iv_include_pr_receipts      = iv_include_pr_receipts
+      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
+      iv_include_planned_receipts = iv_include_planned_receipts
+      iv_protect_safety_stock     = iv_protect_safety_stock ).
 
     LOOP AT lt_allocations INTO DATA(ls_allocation).
       READ TABLE lt_contexts INTO DATA(ls_context)
@@ -1069,16 +1087,19 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     ENDIF.
 
     DATA(ls_preview) = preview_orders_by_date(
-      it_sales_documents        = it_sales_documents
-      iv_include_po_receipts    = iv_include_po_receipts
-      iv_include_sto_in_transit = iv_include_sto_in_transit
-      iv_include_unissued_sto   = iv_include_unissued_sto
-      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
-      iv_include_prod_receipts  = iv_include_prod_receipts
-      iv_use_confirmed_qty      = iv_use_confirmed_qty
-      iv_protect_safety_stock   = iv_protect_safety_stock
-      iv_check_atp              = iv_check_atp
-      iv_atp_check_rule         = iv_atp_check_rule ).
+      it_sales_documents          = it_sales_documents
+      iv_include_po_receipts      = iv_include_po_receipts
+      iv_include_sto_in_transit   = iv_include_sto_in_transit
+      iv_include_unissued_sto     = iv_include_unissued_sto
+      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
+      iv_include_prod_receipts    = iv_include_prod_receipts
+      iv_include_pr_receipts      = iv_include_pr_receipts
+      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
+      iv_include_planned_receipts = iv_include_planned_receipts
+      iv_use_confirmed_qty        = iv_use_confirmed_qty
+      iv_protect_safety_stock     = iv_protect_safety_stock
+      iv_check_atp                = iv_check_atp
+      iv_atp_check_rule           = iv_atp_check_rule ).
     rs_result-sales_unit_allocations = ls_preview-sales_unit_allocations.
     rs_result-atp_checks = ls_preview-atp_checks.
     rs_result-messages = ls_preview-messages.

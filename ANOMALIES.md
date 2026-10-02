@@ -1,8 +1,24 @@
 # Anomalies
 
-Known scope limitation: local `MARD`, `MARC`, `MARA`, `VBAP`, `VBEP`, `VBUP`, and BAPI
-dictionary definitions model only the fields used by this project. The SAP
-system's delivered definitions are authoritative at deployment time. BAPI
+Planned-order receipts are an optional local estimate from `PLAF`, not a firm
+commitment. The repository includes only unfixed orders (`AUFFX` blank), orders
+outside planning scenarios (`PLSCN` blank) and special-stock segments
+(`SOBKZ` blank), with no sales-order assignment (`KDAUF` blank), positive
+`GSMNG`, and basic start/finish dates from today through the requested horizon.
+Quantity conversion uses `PLAF-MEINS` and the
+material's `MARA-MEINS`/`MARM` conversion. Local tests use a fake repository and
+cannot validate the target release's PLAF DDIC fields, planned-order lifecycle,
+conversion ratios, or live selection results. SAP describes the selection
+fields and dates in its [planned-order coverage criteria](https://help.sap.com/docs/SCMCSCPP/b654ceec39734aca96c6d395cdc7c69f/f39d21900a69431c9a71f12ea897ccc4.html)
+and explains that a planned order remains a proposal until
+[conversion](https://help.sap.com/docs/PRODUCT_ID/af9ef57f504840d2b81be8667206d485/c498b6535fe6b74ce10000000a44147b.html?locale=en-US&state=PRODUCTION&version=latest).
+Planned orders may be rescheduled, changed, or deleted, and the local estimate
+does not reserve capacity, validate component availability, or call SAP ATP.
+
+Known scope limitation: local `MARD`, `MARC`, `MARA`, `PLAF`, `EINA`, `EINE`,
+`VBAP`, `VBEP`, `VBUP`, and BAPI dictionary definitions model only the fields
+used by this project. The SAP system's delivered definitions are authoritative
+at deployment time. BAPI
 calls and the sales-order repository's database reads cannot be exercised by
 the local transpiler tests; those tests use fake APIs. Local linting and
 transpilation also do not validate `CALL FUNCTION` parameter names against SAP
@@ -143,6 +159,250 @@ entry unit. Material, plant, and storage location may be derived from the
 production order. Verify optional-field behavior and order numbering in the
 target SAP release; the test suite uses a fake API and does not post a live
 production receipt ([SAP BAPI movement field requirements](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)).
+
+Production component ATP preview groups open `RESB` quantities from the
+supplied production orders by material, plant, base unit, and required date.
+It converts reservation units with the material `MARA`/`MARM` ratio and sends
+cumulative quantities through each date to the availability BAPI. The raw ATP
+result and confirmed/unconfirmed cumulative quantities repeat on components
+sharing a group. A separate local dated allocation estimate is also returned for
+each material/plant/base-unit/date group, with optional PO/STO/production
+receipts, unissued STO subtraction, and static safety-stock protection. This
+projection follows the local stock repository's date rules and is not SAP ATP.
+The preview also splits each date-group local allocation across component rows
+in production-order/reservation/item order; that priority is a local preview
+policy, not SAP component selection or picking.
+`SUMMARIZE_COMPONENT_READINESS` aggregates those local component splits by
+order, rejects incomplete or duplicate reservation keys and inconsistent
+quantity splits, and does not infer an order-level SAP ATP status. A ready flag
+therefore means only that the supplied preview rows have no local shortfall.
+`SUMMARIZE_COMPONENT_SHORTAGES` groups valid supplied preview rows by material,
+plant, base unit, and required date, and returns only groups with positive local
+shortfall. Its affected-order count is distinct per group; requested,
+allocated, and shortfall totals describe the supplied component rows. It is a
+prioritization summary of the local preview allocation, not a reservation or an
+independent recalculation of SAP ATP.
+`PREVIEW_COMPONENTS_STOCK` and its bulk variant run the same local estimate
+without an ATP checking rule or availability BAPI call; their ATP fields are
+left initial. Their repository reads still depend on the local projection
+implementation and are covered with test doubles, not a target SAP database.
+Local tests use repository and ATP doubles; they do not execute the `RESB`
+query, projected-receipt database reads, or validate live ATP rule behavior.
+The cumulative input includes open components only from supplied orders, and
+the plant-level ATP request does not retain batch or storage-location
+restrictions. Validate the BAPI result and checking rule in the target system
+before operational use.
+Component ATP quantities are requested cumulatively by material, plant, base
+unit, and date. The per-component confirmation fields split the nonnegative
+increase in confirmations dated on or before each required date between
+successive cumulative checks across same-date component rows in
+production-order/reservation/item order, capped at that date's demand. Undated
+and later confirmations stay in the raw SAP result but are excluded from the
+date-limited split. This is a deterministic allocation for review; it does not
+identify which SAP reservation received a confirmation, and changes to SAP
+confirmations across dates can change the group totals. Other callers of the
+shared splitter that omit its optional required date continue to count all
+returned confirmation lines.
+`SUMMARIZE_ORDER_ATP` accepts only check-relevant ATP rows with internally
+consistent group and component quantities. It aggregates component splits per
+order/material/plant/base-unit so unlike units are never added together. Its
+order summary inherits the preview's deterministic allocation policy and is
+not an SAP production-order confirmation status.
+`SUGGEST_COMP_REPLENISHMENT` rounds each supplied material/plant/unit/date
+shortage independently. Caller policies override the plant material settings.
+If an override is absent, one guarded bulk read loads `MARA-MEINS` and
+`MARC-DISLS`, `BSTMI`, `BSTMA`, `BSTFE`, `BSTRF`, `BESKZ`, `SOBSL`, `PLIFZ`,
+and `WEBAZ`, plus plant calendar `T001W-FABKL` and purchasing processing time
+`T399D-BZTEK`. For the supported
+lot-for-lot procedure (`EX`), it applies minimum quantity, maximum lot size,
+and rounding value. When maximum lot splitting creates a final partial receipt,
+minimum and rounding are applied to that remainder; the result reports
+aggregate quantity, receipt count, and final receipt quantity. For fixed lot
+(`FX`), it uses the fixed quantity. Other procedures, including an `FX` row
+without a positive fixed quantity and incompatible `EX` limits, leave the
+shortfall exact and return `policy_origin = UNSUPPORTED`. A missing MARC row
+returns the exact shortfall with `policy_origin = NONE`. Caller policies
+without `lot_size_procedure` continue to treat their minimum, fixed quantity,
+and order multiple as direct rules. Unit mismatches, duplicate
+policies/shortage keys, and inconsistent quantities are rejected. Multiple
+due-date rows for one material remain separate.
+
+For externally procured materials with no special procurement key, the
+suggestion estimates latest receipt, purchase-order, and requisition release
+dates. It subtracts `WEBAZ` and `BZTEK` in plant factory-calendar workdays, and
+`PLIFZ` as calendar days; the factory calendar is read from `T001W-FABKL`. SAP
+describes these separate scheduling inputs for individual procurement
+([scheduling inputs](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/7b24a64d9d0941bda1afa753263d9e39/5a66b65334e6b54ce10000000a174cb4.html),
+[calendar functions](https://help.sap.com/docs/PRODUCT_ID/4605bbe706b94a13a97c8befa17f76d9/48dfbc1aab14280fe10000000a42189c.html)).
+The result compares the latest requisition release date with `iv_as_of_date`
+(default `sy-datum`) and reports `pr_release_is_overdue` plus calendar days
+overdue. These fields only indicate lateness relative to the estimate; an
+empty release date means there is no estimate to compare, so callers must also
+check `lead_time_status`. `pr_release_urgency` summarizes the same date as
+`NO_ESTIMATE`, `OVERDUE`, `DUE_TODAY`, or `UPCOMING`; the numeric overdue count
+and original date remain available for prioritization.
+Without projected receipts, shortages are lot-sized independently unless the
+caller opts into prior-surplus netting with `iv_net_prior_surplus = abap_true`.
+Netting sorts rows by material,
+plant, base unit, and required date, then carries rounding excess forward only
+within that key. Results report the remaining planning quantity and prior
+surplus consumed; a fully covered date has zero suggested quantity and
+`COVERED_BY_SURPLUS` status. In this mode, `rounding_surplus_base_quantity`
+reports the carry left after the current date. Callers can also pass validated
+dated supply rows through `it_projected_receipts`; the service consumes matching
+receipts on or before each requirement date and reports their use separately.
+Optional source type/document/item values flow to `projected_receipt_uses` for
+traceability; source type and document must be supplied together. When receipts
+are supplied, shortage rows are processed in chronological key and date order.
+The service does not query PO, STO, or production receipt sources; callers must
+ensure the input rows are valid for the planning horizon.
+Check delivery-date and lead-time status fields before acting on a netted plan.
+The result marks missing policy/calendar, unsupported procurement, special
+sources, and calendar failures explicitly. Callers that already resolved an
+external purchasing source can include its vendor, purchasing organization,
+info-record number/category, and `EINE-APLFZ` value in the caller policy. A
+positive source delivery time overrides `MARC-PLIFZ`; a zero source time falls
+back to the `planned_delivery_days` supplied on that policy. The result returns
+the source identity and a `lead_time_days_origin` of `INFO_RECORD`, `CALLER`,
+`MATERIAL`, or `NONE`. The service does not determine or validate the source.
+SAP source determination depends on sources valid for the requirement date and
+may consider source lists and quota arrangements ([source determination](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/af9ef57f504840d2b81be8667206d485/79bbb853dcfcb44ce10000000a174cb4.html?locale=en-US&q=procurement+scheduling+agreements&version=LATEST));
+info-record data is maintained by vendor/material and purchasing organization
+or plant ([purchasing info record](https://help.sap.com/docs/SAP_S4HANA_CLOUD_PE/af9ef57f504840d2b81be8667206d485/4b7fb65334e6b54ce10000000a174cb4.html?version=2023.latest)).
+`ZCL_REPL_SOURCE_SERVICE` offers a read-only candidate list from `EINA`/`EINE`
+and source-list context from `MARC`/`EORD`. It filters standard info records by
+material, purchasing organization, plant scope, deletion indicators, and
+inclusive `EINA-LIFAB`/`LIFBI` dates. When `MARC-KORDB` requires a source list,
+it returns a vendor only when an unblocked vendor-only `EORD` entry without an
+outline-agreement item covers the delivery date; an active matching blocked
+vendor entry is excluded. Candidates expose
+the list requirement, listed/fixed/MRP-usage flags, and source-list record and
+validity window, plus the `MARC-USEQU` quota-usage setting. When quota usage is
+configured, the service also reads active `EQUK`/`EQUP` classic external
+supplier quota items and reports the rating `(QUMNG + QUBMG) / QUOTE` for a
+matching vendor item. Assigned items rank by ascending rating. For this
+purchase-requisition candidate path, equal ratings use ascending quota item
+number; other candidates remain visible after quota items, then fixed-source,
+preferred-vendor, and plant-specific flags rank the remaining candidates. SAP
+documents the formula and highest-quota tie for zero ratings in its [quota
+source determination guide](https://help.sap.com/docs/PRODUCT_ID/af9ef57f504840d2b81be8667206d485/907fb65334e6b54ce10000000a174cb4), while its direct requisition sourcing guidance says equal ratings use the first item ([requisition sourcing](https://learning.sap.com/courses/purchasing-in-sap-s-4hana/controlling-source-determination-with-quota-arrangements-1)).
+The service now reads the matching `TMQ2` usage rule and returns the flags that
+show whether purchase requisitions, purchase orders, scheduling-agreement
+schedules, planned orders, automatic MRP, production orders, and invoices
+contribute to quota allocation. SAP documents quota usage as controlling which
+business operations contribute to quota allocation ([quota usage](https://help.sap.com/docs/SAP_ERP/66326f67e0e1416d83c0fdfa4060189d/7d97b6535fe6b74ce10000000a174cb4.html)).
+A missing rule prevents the quota-item query.
+The caller still must validate the correct tie path and quota usage behavior for
+the target SAP workflow and release.
+The candidate read also exposes `EINE-AUT_SOURCE` as
+`is_auto_source_relevant`. SAP documents that an info record must be marked for
+automatic sourcing to serve as an MRP source ([source determination](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/af9ef57f504840d2b81be8667206d485/79bbb853dcfcb44ce10000000a174cb4.html?locale=en-US&q=procurement+scheduling+agreements); [SAP KBA field identification](https://userapps.support.sap.com/sap/support/knowledge/en/2411004)).
+The service keeps unmarked info records in the advisory result so direct/manual
+review remains possible; the returned flag is not a complete decision that SAP
+will select the source. Field availability and SQL behavior still require
+verification in the target SAP release.
+When a request supplies a positive quantity and base unit, the candidate also
+compares it with `EINE-MINBM`/`EINE-BSTMA` after converting those purchasing-unit
+limits through `EINA-UMREZ`/`EINA-UMREN`. The status distinguishes within range,
+below minimum, above maximum, base-unit mismatch, missing conversion, and an
+invalid range. This is only a comparison of maintained PIR limits: SAP KBA
+2468048 documents MRP PR scenarios where the minimum quantity is not considered
+([KBA 2468048](https://userapps.support.sap.com/sap/support/knowledge/en/2468048)).
+Confirm the exact quantity behavior for the source-determination workflow and
+target release. The `EINA`/`EINE` fields and conversion orientation still need
+validation against the live backend.
+SAP identifies `EORD-AUTET` as usage in automatic
+MRP ([source-list field catalog](https://help.sap.com/docs/signavio-process-insights/administration-guide/be4b0a35f6d048eb979899f569509c78.html)).
+SAP defines source-list periods for when orders
+may or may not be placed and describes fixed and blocked sources
+([source-list behavior](https://help.sap.com/docs/PRODUCT_ID/af9ef57f504840d2b81be8667206d485/7b7fb65334e6b54ce10000000a174cb4.html),
+[material/plant attributes](https://help.sap.com/docs/SAP_ERP/beef6a3baaa149d18944b7170c427838/a785d45556af7b43e10000000a4450e5.html)).
+This is still a candidate lookup, not SAP source determination: quota ratings
+are read-only snapshots and do not reserve or increment allocated quantities.
+The preview does not implement split quotas, other procurement categories,
+special procurement types, maximum quota quantities, or all purchasing and
+release-specific rules. It also does not evaluate contracts or conditions
+([source determination](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/af9ef57f504840d2b81be8667206d485/79bbb853dcfcb44ce10000000a174cb4.html?locale=en-US&q=procurement+scheduling+agreements&version=LATEST)).
+The local EINA/EINE/MARC/EORD/EQUK/EQUP/TMQ2 stubs are partial, and local tests use a repository
+double rather than executing the table queries. Verify field availability,
+deletion and blocking semantics, and SQL behavior in the target SAP release.
+Pass a source only after the host application has selected it. Vendor calendars,
+goods receipt capacity, and MRP scheduling margins are not modeled. The
+estimate is indicative and does not create or reserve stock or a purchasing
+document. Local tests do not execute the MARC/MARA/T001W/T399D query or
+factory-calendar function modules; verify field availability, join keys,
+function parameters, and dates against the target SAP release.
+
+`ZCL_REPLENISHMENT_REQ_SERVICE` creates requisitions from positive suggestions
+through `BAPI_PR_CREATE`, one PR item per planned lot. It validates that lot
+count, final-lot quantity, and total suggestion reconcile before calling SAP.
+Covered zero-quantity rows are skipped. `iv_test_run = abap_true` invokes the
+BAPI simulation path and skips commit; normal writes commit only after a
+successful BAPI response with a requisition number, and roll back errors. The
+service passes material, plant, base unit, required date, and optional
+purchasing group/organization. It only accepts explicit external procurement
+(`MARC-BESKZ = F`) with no special procurement key; in-house, ambiguous,
+special-source, and missing procurement routes are rejected before the BAPI
+call. It does not select a vendor or source of supply, create account
+assignments, or create services/non-stock items. When the caller has resolved a
+complete info-record source, the service forwards its vendor as `FIXED_VEND`
+and its purchasing organization to the item. A per-suggestion purchasing
+control can explicitly override that organization; the info-record category
+remains source metadata, while its number is also sent in the `INFO_REC` item
+field. SAP's
+Fieldglass integration mapping also uses the BAPI item's `FIXED_VEND` and
+`PURCH_ORG` fields ([SAP mapping reference](https://help.sap.com/docs/SAP%20Fieldglass%20Integration%20Add-On/e745d2cc4d114bbf92d2eea49eda9af4/9de8ee962b294286874958a919381f93.html)).
+The local `BAPIMEREQITEMIMP`/`BAPIMEREQITEMX` stubs and mapper include
+`INFO_REC`; confirm its availability and update-flag behavior against the
+target SAP release. Local tests use a fake API and a local BAPI mapper;
+verify `BAPI_PR_CREATE`, DDIC field names, required-field behavior, custom PR
+type, authorization, and purchasing defaults against the target SAP release.
+The returned `submitted_items` table preserves each generated item number and
+its 1-based source suggestion index, including the same source index for all
+lots split from one suggestion. It reports submitted proposal rows for both
+normal creation and test runs; it does not claim item acceptance independently
+of the overall BAPI result.
+Callers can pass `it_purchasing_controls` keyed by the source suggestion index
+to override purchasing group and/or organization on selected suggestions;
+blank fields inherit the method defaults. Duplicate, out-of-range, covered-row,
+and empty controls are rejected before BAPI execution. SAP still validates the
+item-level purchasing values against the target system's configuration.
+The result preserves the BAPIRET2 message identifiers, text variables,
+parameter/row/field location, system, and log identifiers for both create and
+commit responses. Local tests verify service-level propagation with fake API
+messages; create messages for `PRITEM`/`PRITEMX` rows also carry generated item
+number and source suggestion index. `is_test_run`, `bapi_was_called`, and
+`is_committed` distinguish simulation and covered-row no-op results from
+committed requisitions. The live BAPI call and target-release message set are
+not exercised.
+SAP documents `BAPI_PR_CREATE` as the supported Enjoy requisition
+interface and recommends committing successful BAPI writes with
+`BAPI_TRANSACTION_COMMIT` ([purchasing BAPIs](https://help.sap.com/docs/SUPPORT_CONTENT/spmm/3362167428.html));
+its BAPI guide defines `TESTRUN = 'X'` as simulation without database updates
+([test-run behavior](https://help.sap.com/saphelp_aii710/helpdata/en/df/0495dbbd6f11d1ad09080009b0fb56/content.htm?no_cache=true)).
+
+The policy lookup also returns raw `MARC-BESKZ` procurement type and `SOBSL`
+special procurement key so the caller can route a suggestion. Standard material
+master procurement types distinguish in-house (`E`), external (`F`), and both
+(`X`); special procurement keys depend on system customizing ([SAP procurement
+types](https://help.sap.com/docs/SAP_S4HANA_CLOUD/c0c54048d35849128be8e872df5bea6d/050d78ed8b954b308256fa86506fc938.html),
+[SAP special procurement](https://help.sap.com/docs/SAP_ERP_SPV/85d3fce10e264972a0155c8b46ecf93b/8d1eba53422bb54ce10000000a174cb4.html)).
+The service does not resolve vendors, source lists, quota arrangements, or
+source-of-supply priorities.
+
+The lot-size procedure controls which master settings SAP considers: SAP
+documents minimum lot size, maximum lot size, and rounding for lot-for-lot
+planning, while fixed lot sizing is a separate procedure ([SAP lot-sizing
+procedure](https://help.sap.com/docs/PRODUCT_ID/cd9e0c364e1e41e19ea633db7862222e/e52ec95360267614e10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=7.0.3),
+[SAP fixed lot size](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/f899ce30af9044299d573ea30b533f1c/4e30c95360267614e10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=2023.latest),
+[SAP rounding and maximum-lot splitting](https://help.sap.com/saphelp_SCM700_ehp01/helpdata/en/be/30c95360267614e10000000a174cb4/content.htm?no_cache=true)).
+This suggestion API only models `EX` and `FX`; it does not model period
+lot-sizing, rounding profiles, automatic source determination, or MRP area
+settings. Source-specific planned delivery time is used only when the caller
+provides a pre-resolved purchasing info record. Local lint/transpilation does not execute the
+MARC/MARA query against an SAP system; verify field availability and SQL
+behavior against the target release before deployment. The field names and
+descriptions are listed in [SAP material and plant attributes](https://help.sap.com/docs/SAP_ERP/beef6a3baaa149d18944b7170c427838/a785d45556af7b43e10000000a4450e5.html).
 
 Two-step stock transfers use separate goods-movement calls: 303/305 between
 plants and 313/315 between storage locations. Removal items carry the receiving
@@ -582,6 +842,58 @@ not account for production delays, scrap/tolerance, QM inspection routing, or
 special stocks beyond the excluded sales-order/account assignments. Confirm the
 phase flags, quantity units, date choice, and receipt stock type against the
 target release; repository doubles do not execute these joins.
+`GET_PROJECTED_RECEIPTS` returns the individual rows behind these estimates,
+including base-unit quantity and PO/STO schedule-line or production-order item
+identity. Its source flags are independent; open unissued STO quantity is
+separate from issued-but-unreceived transfer quantity. The method uses the same
+filters and quantity converters as the dated-stock estimate so callers can
+feed its rows to replenishment netting without rebuilding SAP joins. Local
+tests exercise the stock-service contract with a repository double; they do not
+run the `MARA`/`EKET`/`EKPO`/`EKKO`/`AFPO`/`AFKO`/`AUFK` queries. Validate field
+availability, status filters, date choice, and conversions in the target SAP
+release. `SUGGEST_COMP_REPL_FROM_STOCK` gathers one receipt result per
+unique material/plant through the latest shortage date, retains only matching
+base units, and applies the same chronological receipt netting. It does not
+change the source filters or verify supplier and schedule execution status.
+When `iv_include_pr_receipts` is true, both APIs also return purchase
+requisition items due by the requested horizon. The query subtracts ordered
+quantity (`EBAN-BSMNG`) from requested quantity (`EBAN-MENGE`), converts the
+remaining amount from `EBAN-MEINS` to `MARA-MEINS` with `MARM-UMREZ`/`UMREN`,
+and traces each row to BANFN/BNFPO. It excludes deleted, completed, requester-
+blocked, nonstandard, account-assigned, and special-stock items. SAP's
+cross-plant planning guidance documents the deletion, completion, blocked,
+item-category, and account-assignment filters
+([requirement coverage selection](https://help.sap.com/docs/SCMCSCPP/b654ceec39734aca96c6d395cdc7c69f/f39d21900a69431c9a71f12ea897ccc4.html));
+the EBAN field catalog identifies MENGE as requisition quantity and BSMNG as
+ordered quantity ([purchase requisition fields](https://help.sap.com/saphelp_aii710/helpdata/en/a3/9857a130f74936ae53aed874867dc3/content.htm?no_cache=true)).
+The local estimate does not check release strategy/status, purchasing
+organization, source determination, or supplier commitment, and it assumes the
+remaining PR quantity will arrive on its requested delivery date. Check these
+policies, EBAN/MARM field availability, and conversion/rounding in the target
+release; local repository tests use a fake and do not execute the query.
+Treat this projection as planning supply, not confirmed inbound supply.
+The dated stock-allocation methods accept the same opt-in flag and add the
+projected PR amount to their local available quantity. The scalar stock
+estimate does not retain PR document trace rows, and combining it with an ATP
+preview does not send the PR data to SAP or change the ATP result. Local tests
+verify flag propagation and arithmetic with a repository double; they do not
+execute the `EBAN` query. Component stock/ATP previews and multi-sales-order
+dated preview/reservation methods also carry the flag through to that local
+estimate. A reservation based on future PR supply is still subject to the live
+BAPI and ATP checks; the projection itself does not reserve or confirm inbound
+stock.
+Stock-transfer requisitions are selected separately with
+`iv_include_sto_pr_receipts`: the query requires item category 7 and a nonblank
+`EBAN-RESWK` that differs from the receiving `EBAN-WERKS`, returns source type `STO_PR`, and retains `RESWK` as
+`source_plant`. SAP documents purchase requisitions as stock-transfer
+documents and describes the stock-transfer requisition item category
+([stock transfer in Purchasing](https://help.sap.com/docs/SAP_ERP/b704a8db767040a08100adc846218964/0f62bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.18.latest),
+[requirement coverage filters](https://help.sap.com/docs/SCMCSCPP/b654ceec39734aca96c6d395cdc7c69f/f39d21900a69431c9a71f12ea897ccc4.html)).
+The remaining quantity still uses `MENGE - BSMNG` and the requested delivery
+date. It excludes the same deleted, completed, blocked, account-assigned, and
+special-stock items, and does not check release status, supplying-plant
+availability, or transfer execution. Verify `RESWK`, item-category values, and
+the conversion behavior in the target release.
 `ALLOCATE_DEMANDS_BY_DATE` sorts valid unique request IDs by material, plant,
 required date, and input position, then subtracts earlier allocations from each
 later date's local estimate so the same stock is not promised twice. Repeated
@@ -690,3 +1002,15 @@ batch determination.
   `MCHA-VFDAT` remained character data in transpiler tests, breaking date
   subtraction. The shared eligibility helper uses generic `TYPE d`, which
   normalizes the DATS value; date-boundary tests and FEFO regression tests pass.
+- The transpiler runtime's `DECFLOAT34` conversion from `INT8` fails because
+  its conversion path expects a `get()` method. Replenishment quantity scaling
+  converts the integer through `STRING` before `DECFLOAT34`; lot-split unit
+  tests pass with that workaround.
+- SAP receipt calculators can return a positive fractional quantity that rounds
+  to zero when converted to the stock quantity type. The receipt adapter now
+  validates the converted value before appending a source row, preserving the
+  contract that projected receipt quantities are positive.
+- Flat source-list contexts repeat plant-level settings alongside detail rows.
+  A later row with an initial quota flag could clear the material's `USEQU`
+  value during candidate assembly. The service now preserves a noninitial
+  setting across rows; the quota-usage assertion covers the regression.

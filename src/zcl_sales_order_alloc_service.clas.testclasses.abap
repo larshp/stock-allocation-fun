@@ -39,6 +39,15 @@ CLASS lcl_alloc_stock_repo DEFINITION FINAL.
     METHODS set_stock
       IMPORTING
         iv_quantity TYPE mard-labst.
+    METHODS set_pr_receipt_quantity
+      IMPORTING
+        iv_quantity TYPE mard-labst.
+    METHODS set_sto_pr_receipt_quantity
+      IMPORTING
+        iv_quantity TYPE mard-labst.
+    METHODS set_planned_receipt_quantity
+      IMPORTING
+        iv_quantity TYPE mard-labst.
     METHODS set_location_stocks
       IMPORTING
         it_stock TYPE zif_stock_repository=>ty_location_stocks.
@@ -56,6 +65,9 @@ CLASS lcl_alloc_stock_repo DEFINITION FINAL.
         VALUE(rv_count) TYPE i.
   PRIVATE SECTION.
     DATA mv_quantity TYPE mard-labst.
+    DATA mv_pr_receipt_quantity TYPE mard-labst.
+    DATA mv_sto_pr_receipt_quantity TYPE mard-labst.
+    DATA mv_planned_receipt_quantity TYPE mard-labst.
     DATA mv_safety_stock TYPE marc-eisbe.
     DATA mv_read_count TYPE i.
     DATA mt_location_stock TYPE zif_stock_repository=>ty_location_stocks.
@@ -101,9 +113,33 @@ CLASS lcl_alloc_stock_repo IMPLEMENTATION.
     rv_quantity = mv_quantity.
   ENDMETHOD.
 
+  METHOD set_pr_receipt_quantity.
+    mv_pr_receipt_quantity = iv_quantity.
+  ENDMETHOD.
+
+  METHOD set_sto_pr_receipt_quantity.
+    mv_sto_pr_receipt_quantity = iv_quantity.
+  ENDMETHOD.
+
+  METHOD set_planned_receipt_quantity.
+    mv_planned_receipt_quantity = iv_quantity.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_available_stock_by_date.
     ADD 1 TO mv_read_count.
     rv_quantity = mv_quantity.
+    IF iv_include_pr_receipts = abap_true.
+      rv_quantity = rv_quantity + mv_pr_receipt_quantity.
+    ENDIF.
+    IF iv_include_sto_pr_receipts = abap_true.
+      rv_quantity = rv_quantity + mv_sto_pr_receipt_quantity.
+    ENDIF.
+    IF iv_include_planned_receipts = abap_true.
+      rv_quantity = rv_quantity + mv_planned_receipt_quantity.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_projected_receipts.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_safety_stock.
@@ -301,6 +337,9 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     DATA mo_cut TYPE REF TO zcl_sales_order_alloc_service.
     METHODS setup.
     METHODS previews_multi_orders_date FOR TESTING.
+    METHODS previews_multi_order_pr_supply FOR TESTING.
+    METHODS previews_multi_sto_supply FOR TESTING.
+    METHODS previews_multi_planned_supply FOR TESTING.
     METHODS previews_multi_existing_res FOR TESTING.
     METHODS previews_multi_confirmed_qty FOR TESTING.
     METHODS reserves_multi_orders_by_date FOR TESTING.
@@ -436,6 +475,110 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_multi_order_pr_supply.
+    mo_stock_repository->set_stock( iv_quantity = 0 ).
+    mo_stock_repository->set_pr_receipt_quantity( iv_quantity = '12.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '12.000' ) ) ) ) ).
+
+    DATA(ls_local) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #( ( '0000004711' ) ) ).
+    DATA(ls_projected) = mo_cut->preview_orders_by_date(
+      it_sales_documents     = VALUE #( ( '0000004711' ) )
+      iv_include_pr_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_local-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_projected-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-sales_unit_allocations[ 1 ]-shortfall_base_quantity ).
+  ENDMETHOD.
+
+  METHOD previews_multi_sto_supply.
+    mo_stock_repository->set_stock( iv_quantity = 0 ).
+    mo_stock_repository->set_sto_pr_receipt_quantity(
+      iv_quantity = '12.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '12.000' ) ) ) ) ).
+
+    DATA(ls_local) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #( ( '0000004711' ) ) ).
+    DATA(ls_projected) = mo_cut->preview_orders_by_date(
+      it_sales_documents         = VALUE #( ( '0000004711' ) )
+      iv_include_sto_pr_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_local-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_projected-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-sales_unit_allocations[ 1 ]-shortfall_base_quantity ).
+  ENDMETHOD.
+
+  METHOD previews_multi_planned_supply.
+    mo_stock_repository->set_stock( iv_quantity = 0 ).
+    mo_stock_repository->set_planned_receipt_quantity(
+      iv_quantity = '12.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '12.000' ) ) ) ) ).
+
+    DATA(ls_local) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #( ( '0000004711' ) ) ).
+    DATA(ls_projected) = mo_cut->preview_orders_by_date(
+      it_sales_documents          = VALUE #( ( '0000004711' ) )
+      iv_include_planned_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_local-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_projected-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-sales_unit_allocations[ 1 ]-shortfall_base_quantity ).
   ENDMETHOD.
 
   METHOD previews_multi_existing_res.

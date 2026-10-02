@@ -35,20 +35,26 @@ ENDCLASS.
 CLASS lcl_stock_repository_double DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_repository.
+    METHODS set_projected_receipts
+      IMPORTING
+        it_receipts TYPE zif_stock_repository=>ty_projected_receipts.
     METHODS set_stock
       IMPORTING
         iv_quantity TYPE mard-labst.
     METHODS set_date_stock
       IMPORTING
-        iv_quantity                TYPE mard-labst
-        iv_date                    TYPE resb-bdter
-        iv_material                TYPE mard-matnr DEFAULT 'MAT-1'
-        iv_plant                   TYPE mard-werks DEFAULT '1000'
-        iv_receipt_quantity        TYPE mard-labst DEFAULT 0
-        iv_sto_in_transit_quantity TYPE mard-labst DEFAULT 0
-        iv_unissued_sto_quantity   TYPE mard-labst DEFAULT 0
-        iv_outgoing_sto_quantity   TYPE mard-labst DEFAULT 0
-        iv_prod_receipt_quantity   TYPE mard-labst DEFAULT 0.
+        iv_quantity                 TYPE mard-labst
+        iv_date                     TYPE resb-bdter
+        iv_material                 TYPE mard-matnr DEFAULT 'MAT-1'
+        iv_plant                    TYPE mard-werks DEFAULT '1000'
+        iv_receipt_quantity         TYPE mard-labst DEFAULT 0
+        iv_sto_in_transit_quantity  TYPE mard-labst DEFAULT 0
+        iv_unissued_sto_quantity    TYPE mard-labst DEFAULT 0
+        iv_outgoing_sto_quantity    TYPE mard-labst DEFAULT 0
+        iv_prod_receipt_quantity    TYPE mard-labst DEFAULT 0
+        iv_pr_receipt_quantity      TYPE mard-labst DEFAULT 0
+        iv_sto_pr_receipt_quantity  TYPE mard-labst DEFAULT 0
+        iv_planned_receipt_quantity TYPE mard-labst DEFAULT 0.
     METHODS set_plant_stock
       IMPORTING
         iv_material TYPE mard-matnr
@@ -104,19 +110,24 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
       ty_plant_location_stock WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_stock,
-        material                TYPE mard-matnr,
-        plant                   TYPE mard-werks,
-        required_date           TYPE resb-bdter,
-        available_quantity      TYPE mard-labst,
-        receipt_quantity        TYPE mard-labst,
-        sto_in_transit_quantity TYPE mard-labst,
-        unissued_sto_quantity   TYPE mard-labst,
-        outgoing_sto_quantity   TYPE mard-labst,
-        prod_receipt_quantity   TYPE mard-labst,
+        material                 TYPE mard-matnr,
+        plant                    TYPE mard-werks,
+        required_date            TYPE resb-bdter,
+        available_quantity       TYPE mard-labst,
+        receipt_quantity         TYPE mard-labst,
+        sto_in_transit_quantity  TYPE mard-labst,
+        unissued_sto_quantity    TYPE mard-labst,
+        outgoing_sto_quantity    TYPE mard-labst,
+        prod_receipt_quantity    TYPE mard-labst,
+        pr_receipt_quantity      TYPE mard-labst,
+        sto_pr_receipt_quantity  TYPE mard-labst,
+        planned_receipt_quantity TYPE mard-labst,
       END OF ty_date_stock.
     TYPES ty_date_stocks TYPE STANDARD TABLE OF ty_date_stock
       WITH EMPTY KEY.
     DATA mv_quantity TYPE mard-labst.
+    DATA mt_projected_receipts TYPE
+      zif_stock_repository=>ty_projected_receipts.
     DATA mt_date_stocks TYPE ty_date_stocks.
     DATA mv_safety_stock TYPE marc-eisbe.
     DATA ms_stock_status TYPE zif_stock_repository=>ty_stock_status.
@@ -132,6 +143,10 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
 ENDCLASS.
 
 CLASS lcl_stock_repository_double IMPLEMENTATION.
+  METHOD set_projected_receipts.
+    mt_projected_receipts = it_receipts.
+  ENDMETHOD.
+
   METHOD set_stock.
     mv_quantity = iv_quantity.
     mt_location_stock = VALUE #(
@@ -144,15 +159,19 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       AND plant = iv_plant
       AND required_date = iv_date.
     APPEND VALUE #(
-      material                = iv_material
-      plant                   = iv_plant
-      required_date           = iv_date
-      available_quantity      = iv_quantity
-      receipt_quantity        = iv_receipt_quantity
-      sto_in_transit_quantity = iv_sto_in_transit_quantity
-      unissued_sto_quantity   = iv_unissued_sto_quantity
-      outgoing_sto_quantity   = iv_outgoing_sto_quantity
-      prod_receipt_quantity   = iv_prod_receipt_quantity ) TO mt_date_stocks.
+      material                 = iv_material
+      plant                    = iv_plant
+      required_date            = iv_date
+      available_quantity       = iv_quantity
+      receipt_quantity         = iv_receipt_quantity
+      sto_in_transit_quantity  = iv_sto_in_transit_quantity
+      unissued_sto_quantity    = iv_unissued_sto_quantity
+      outgoing_sto_quantity    = iv_outgoing_sto_quantity
+      prod_receipt_quantity    = iv_prod_receipt_quantity
+      pr_receipt_quantity      = iv_pr_receipt_quantity
+      sto_pr_receipt_quantity  = iv_sto_pr_receipt_quantity
+      planned_receipt_quantity = iv_planned_receipt_quantity )
+      TO mt_date_stocks.
   ENDMETHOD.
 
   METHOD set_plant_stock.
@@ -253,10 +272,58 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       IF iv_include_prod_receipts = abap_true.
         rv_quantity = rv_quantity + ls_date_stock-prod_receipt_quantity.
       ENDIF.
+      IF iv_include_pr_receipts = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-pr_receipt_quantity.
+      ENDIF.
+      IF iv_include_sto_pr_receipts = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-sto_pr_receipt_quantity.
+      ENDIF.
+      IF iv_include_planned_receipts = abap_true.
+        rv_quantity = rv_quantity + ls_date_stock-planned_receipt_quantity.
+      ENDIF.
       IF rv_quantity < 0.
         CLEAR rv_quantity.
       ENDIF.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_projected_receipts.
+    ADD 1 TO mv_read_count.
+    LOOP AT mt_projected_receipts INTO DATA(ls_receipt)
+        WHERE material = iv_material
+          AND plant = iv_plant
+          AND receipt_date <= iv_through_date.
+      CASE ls_receipt-source_type.
+        WHEN 'PO'.
+          IF iv_include_po_receipts = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'STO_IN_TRANSIT'.
+          IF iv_include_sto_in_transit = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'STO_UNISSUED'.
+          IF iv_include_unissued_sto = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'PRODUCTION'.
+          IF iv_include_prod_receipts = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'PR'.
+          IF iv_include_pr_receipts = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'STO_PR'.
+          IF iv_include_sto_pr_receipts = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+        WHEN 'PLANNED_ORDER'.
+          IF iv_include_planned_receipts = abap_true.
+            APPEND ls_receipt TO rt_receipts.
+          ENDIF.
+      ENDCASE.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_safety_stock.
@@ -389,6 +456,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
   PRIVATE SECTION.
     METHODS returns_available_quantity FOR TESTING.
     METHODS returns_stock_status FOR TESTING.
+    METHODS reads_projected_receipts FOR TESTING.
     METHODS returns_stock_status_in_unit FOR TESTING.
     METHODS returns_location_stock_status FOR TESTING.
     METHODS returns_location_status_unit FOR TESTING.
@@ -400,6 +468,9 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS returns_zero_when_no_stock FOR TESTING.
     METHODS allocates_requested_quantity FOR TESTING.
     METHODS allocates_request_by_date FOR TESTING.
+    METHODS allocates_with_pr_receipts FOR TESTING.
+    METHODS allocates_with_sto_pr_receipts FOR TESTING.
+    METHODS allocates_plan_supply FOR TESTING.
     METHODS allocates_with_po_receipts FOR TESTING.
     METHODS allocates_with_sto_in_transit FOR TESTING.
     METHODS includes_unissued_sto_receipts FOR TESTING.
@@ -415,6 +486,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_bulk_atp_without_rule FOR TESTING.
     METHODS compares_dated_stock_with_atp FOR TESTING.
     METHODS compares_dated_alt_unit_atp FOR TESTING.
+    METHODS limits_atp_confirmation_date FOR TESTING.
     METHODS rejects_bad_atp_split_inputs FOR TESTING.
     METHODS rejects_incomplete_atp_request FOR TESTING.
     METHODS reports_partial_shortfall FOR TESTING.
@@ -525,6 +597,176 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_status-blocked_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD reads_projected_receipts.
+    DATA lv_invalid_request_rejected TYPE abap_bool.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material     = 'MAT-1'
+          plant        = '1000'
+          base_unit    = 'EA'
+          receipt_date = '20261024'
+          quantity     = '1.000'
+          source_type  = 'STO_IN_TRANSIT' )
+        ( material             = 'MAT-1'
+          plant                = '1000'
+          base_unit            = 'EA'
+          receipt_date         = '20261022'
+          quantity             = '2.500'
+          source_type          = 'PO'
+          source_document      = '4500000010'
+          source_item          = '00020'
+          source_schedule_line = '0002' )
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261023'
+          quantity        = '3.000'
+          source_type     = 'PRODUCTION'
+          source_document = '0000004711'
+          source_item     = '0010' )
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261022'
+          quantity        = '0.500'
+          source_type     = 'PR'
+          source_document = '0010001234'
+          source_item     = '00010' )
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261023'
+          quantity        = '4.000'
+          source_type     = 'STO_PR'
+          source_document = '0010001235'
+          source_item     = '00020'
+          source_plant    = '2000' )
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261023'
+          quantity        = '5.000'
+          source_type     = 'PLANNED_ORDER'
+          source_document = '0000001236' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_receipts) = lo_cut->get_projected_receipts(
+      iv_material              = 'MAT-1'
+      iv_plant                 = '1000'
+      iv_through_date          = '20261023'
+      iv_include_po_receipts   = abap_true
+      iv_include_prod_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PO'
+      act = lt_receipts[ 1 ]-source_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000010'
+      act = lt_receipts[ 1 ]-source_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_receipts[ 1 ]-source_schedule_line ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRODUCTION'
+      act = lt_receipts[ 2 ]-source_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV d( '20261023' )
+      act = lt_receipts[ 2 ]-receipt_date ).
+    DATA(lt_pr_receipts) = lo_cut->get_projected_receipts(
+      iv_material            = 'MAT-1'
+      iv_plant               = '1000'
+      iv_through_date        = '20261023'
+      iv_include_pr_receipts = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_pr_receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010001234'
+      act = lt_pr_receipts[ 1 ]-source_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PR'
+      act = lt_pr_receipts[ 1 ]-source_type ).
+    DATA(lt_sto_pr_receipts) = lo_cut->get_projected_receipts(
+      iv_material                = 'MAT-1'
+      iv_plant                   = '1000'
+      iv_through_date            = '20261023'
+      iv_include_sto_pr_receipts = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_sto_pr_receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'STO_PR'
+      act = lt_sto_pr_receipts[ 1 ]-source_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_sto_pr_receipts[ 1 ]-source_plant ).
+    DATA(lt_planned_receipts) = lo_cut->get_projected_receipts(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_through_date             = '20261023'
+      iv_include_planned_receipts = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned_receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PLANNED_ORDER'
+      act = lt_planned_receipts[ 1 ]-source_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001236'
+      act = lt_planned_receipts[ 1 ]-source_document ).
+    DATA(lo_prod_comp) = NEW zcl_prod_comp_service( ).
+    DATA(lt_suggestions) = lo_prod_comp->suggest_comp_replenishment(
+      it_shortages          = VALUE #(
+        ( material                = 'MAT-1'
+          plant                   = '1000'
+          base_unit               = 'EA'
+          required_date           = '20261023'
+          component_count         = 1
+          affected_order_count    = 1
+          requested_base_quantity = '0.500'
+          allocated_base_quantity = '0.000'
+          shortfall_base_quantity = '0.500' ) )
+      it_policies           = VALUE #(
+        ( material           = 'MAT-1'
+          plant              = '1000'
+          base_unit          = 'EA'
+          lot_size_procedure = 'EX'
+          procurement_type   = 'F' ) )
+      it_projected_receipts = CORRESPONDING #( lt_receipts )
+      iv_as_of_date         = '20261020' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_suggestions[ 1 ]-projected_receipt_used_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_suggestions[ 1 ]-suggested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000010'
+      act = lt_suggestions[ 1 ]-projected_receipt_uses[ 1 ]-source_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_repository->get_read_count( ) ).
+    TRY.
+        DATA(lt_invalid_receipts) = lo_cut->get_projected_receipts(
+          iv_material     = 'MAT-1'
+          iv_plant        = '1000'
+          iv_through_date = '00000000' ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_request_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_request_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
@@ -1039,6 +1281,108 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD allocates_with_pr_receipts.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity            = '8.000'
+      iv_pr_receipt_quantity = '3.000'
+      iv_date                = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '10.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material            = 'MAT-1'
+      iv_plant               = '1000'
+      iv_required_date       = '20261231'
+      iv_requested_quantity  = '10.000'
+      iv_include_pr_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_projected-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_with_sto_pr_receipts.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity                = '5.000'
+      iv_sto_pr_receipt_quantity = '4.000'
+      iv_date                    = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '8.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material                = 'MAT-1'
+      iv_plant                   = '1000'
+      iv_required_date           = '20261231'
+      iv_requested_quantity      = '8.000'
+      iv_include_sto_pr_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_projected-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_plan_supply.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_quantity                 = '5.000'
+      iv_planned_receipt_quantity = '4.000'
+      iv_date                     = '20261231' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261231'
+      iv_requested_quantity = '8.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_required_date            = '20261231'
+      iv_requested_quantity       = '8.000'
+      iv_include_planned_receipts = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_projected-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_projected-shortfall_quantity ).
   ENDMETHOD.
 
   METHOD allocates_with_po_receipts.
@@ -1920,6 +2264,42 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD limits_atp_confirmation_date.
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = NEW lcl_stock_repository_double( ) ).
+    DATA(ls_atp_result) = VALUE zif_material_availability_api=>ty_result(
+      confirmation_lines = VALUE #(
+        ( confirmed_date = '20261005' confirmed_quantity = '4.000' )
+        ( confirmed_date = '20261007' confirmed_quantity = '3.000' )
+        ( confirmed_quantity = '2.000' ) )
+      is_check_relevant  = abap_true ).
+
+    DATA(ls_due_split) = lo_cut->get_atp_confirmation_split(
+      iv_requested_base_quantity = '10.000'
+      iv_required_date           = '20261005'
+      is_atp_result              = ls_atp_result ).
+    DATA(ls_later_split) = lo_cut->get_atp_confirmation_split(
+      iv_requested_base_quantity = '10.000'
+      iv_required_date           = '20261007'
+      is_atp_result              = ls_atp_result ).
+    DATA(ls_all_split) = lo_cut->get_atp_confirmation_split(
+      iv_requested_base_quantity = '10.000'
+      is_atp_result              = ls_atp_result ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_due_split-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_due_split-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = ls_later_split-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_all_split-confirmed_base_quantity ).
   ENDMETHOD.
 
   METHOD rejects_bad_atp_split_inputs.

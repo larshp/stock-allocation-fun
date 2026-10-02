@@ -5,14 +5,82 @@
 - Added opt-in projection of dated stock-transfer schedule quantities that
   have not yet been issued. The stock repository calculates the difference
   between `EKET-MENGE` and `EKET-WAMNG`, converts it to the material base unit,
-  and shares the existing
-  STO filters and schedule-date cutoff. It skips items marked completely
-  delivered and can be combined with issued in-transit quantities.
+  and shares the existing STO filters and schedule-date cutoff. It skips items
+  marked completely delivered and can be combined with issued in-transit
+  quantities.
 - Carried the option through single, bulk, unit-aware, ATP, and cross-plant
   dated allocation methods. Added quantity-calculator and local allocation
   tests for default-off behavior, alternative STO states, and combined totals.
 - Target-system verification remains necessary for STO query filters and
   schedule-line quantity/unit semantics; local tests use repository doubles.
+- Verification: `npm.cmd test` passed; abaplint reported zero issues across 64
+  files, and the transpiler ran all 332 ABAP Unit methods.
+- Added `iv_subtract_unissued_sto` to subtract open outbound STO schedule
+  quantities from the supplying plant's dated balance. The amount is
+  `EKET-MENGE - EKET-WAMNG`, converted to the material base unit and scoped by
+  `EKKO-RESWK`, with STO item/document filters and a due-date cutoff. It is
+  opt-in and carried through single, bulk, unit-aware, ATP, and cross-plant date paths.
+  Added service coverage for single requests, shared bulk priority, and
+  cross-plant source balances.
+- Verification after outgoing STO deductions: `npm.cmd test` passed; abaplint
+  reported zero issues across 64 files, and the transpiler ran all 333 ABAP
+  Unit methods.
+- Added `preview_orders_by_date` for multi-sales-order dated allocation. Open
+  items share each material/plant balance, requested dates determine priority,
+  and document/item order resolves same-date ties. The preview subtracts each
+  order's active reservations, returns sales- and base-unit summaries, and
+  supports confirmed-demand sizing plus optional dated receipts, STO
+  quantities, production receipts, safety-stock protection, and cumulative
+  SAP ATP checks. Added coverage for shared stock, confirmed quantities, ATP
+  aggregation, and sales-unit conversions across orders.
+- Verification after multi-order dated preview: `npm.cmd test` passed; abaplint
+  reported zero issues across 64 files, and the transpiler ran all 335 ABAP
+  Unit methods.
+- Added `reserve_orders_by_date` to reserve positive allocations from the
+  shared multi-order date plan. It supports simulation and full-allocation
+  enforcement, sends all line requests through one reservation transaction,
+  and rolls back if creation or commit fails. Allocation results now retain
+  required dates for reservation mapping. Tests cover cross-order quantities,
+  full-allocation rejection, simulation, and create/commit rollback.
+- Latest verification after multi-order reservation support: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files, and the transpiler ran
+  all 340 ABAP Unit methods.
+- Sorted multi-order reservation requests by material, plant, and required
+  date so API calls follow the same due-date priority as shared-stock planning;
+  stable sorting preserves caller order for ties. Added a regression test with
+  input document/date order reversed.
+- Verification after due-date-ordered reservation submission: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files, and the transpiler ran
+  all 341 ABAP Unit methods.
+- Added reservation-response reconciliation to both single- and multi-order
+  flows. Each returned row must match one pending request by request ID,
+  quantity, date, and any explicit storage location or batch; regular runs also
+  require a reservation number. A mismatch rolls back before commit. Added a
+  malformed cross-order response test.
+- Verification after reservation-response validation: `npm.cmd test` passed;
+  abaplint reported zero issues across 64 files, and the transpiler ran all
+  342 ABAP Unit methods.
+- Added a bulk sales-order reservation query and used it in multi-order dated
+  previews, replacing one reservation read per order with one keyed query.
+  Empty document lists return without running the database selection; the
+  preview validates blank and duplicate keys before the bulk call. Added tests
+  for per-order matching and read-count reduction.
+- Verification after bulk reservation reads: `npm.cmd test` passed; abaplint
+  reported zero issues across 64 files, and the transpiler ran all 343 ABAP
+  Unit methods.
+- `reserve_orders_by_date` now accepts the preview's optional cumulative ATP
+  diagnostics and returns them beside its reservation results. The diagnostics
+  remain separate from local allocation and the reservation API's own ATP
+  checks. Extended cross-order reservation coverage for shared-date ATP totals.
+- Verification after ATP diagnostics on multi-order reservation: `npm.cmd test`
+  passed; abaplint reported zero issues across 64 files, and the transpiler ran
+  all 343 ABAP Unit methods.
+- Replaced multi-order request-context scans with a hashed request-ID index
+  and sorted bulk-reservation rows by sales document, avoiding repeated full
+  table scans while retaining caller and date priority.
+- Verification after keyed multi-order lookups: `npm.cmd test` passed; abaplint
+  reported zero issues across 64 files, and the transpiler ran all 343 ABAP
+  Unit methods.
 
 ## 2026-09-23
 
@@ -833,3 +901,15 @@
 - Latest verification after dated cross-plant ATP support: `npm.cmd test`
   passed; abaplint reported zero issues across 64 files and the transpiler ran
   all 348 ABAP Unit methods.
+- Added sales-order-scoped reservation release. The finder discovers open
+  movement-231 RESB documents, excluding reservation documents that have another
+  open item outside the requested order and stock scope. The service reuses the
+  existing simulation, commit, and rollback path; no matching reservations is
+  an idempotent success. It also previews eligible numbers without calling the
+  BAPI and supports narrowing to one order item. Item-scoped releases skip a
+  reservation document containing an open item for another order line. Local
+  tests cover preview, item scope forwarding, deletion, simulation, no matches,
+  and blank order input. The database query still needs target-SAP validation.
+- Latest verification after reservation release preview: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 353
+  ABAP Unit methods.

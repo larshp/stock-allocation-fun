@@ -704,6 +704,12 @@ CLASS zcl_stock_service DEFINITION
       RETURNING
         VALUE(rt_reservations) TYPE zif_stock_repository=>ty_sales_order_reservations.
 
+    METHODS get_order_reservations_bulk
+      IMPORTING
+        it_sales_documents     TYPE zif_stock_repository=>ty_sales_order_documents
+      RETURNING
+        VALUE(rt_reservations) TYPE zif_stock_repository=>ty_sales_order_reservations.
+
     METHODS allocate_request
       IMPORTING
         iv_material             TYPE mard-matnr
@@ -724,6 +730,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -737,6 +744,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -750,6 +758,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -764,6 +773,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -782,6 +792,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -844,6 +855,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -858,6 +870,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -873,6 +886,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock   TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -1461,6 +1475,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_sales_document = iv_sales_document ).
   ENDMETHOD.
 
+  METHOD get_order_reservations_bulk.
+    rt_reservations = mo_stock_repository->get_order_reservations_bulk(
+      it_sales_documents = it_sales_documents ).
+  ENDMETHOD.
+
   METHOD allocate_request.
     DATA(lt_demands) = VALUE ty_demands(
       ( material           = iv_material
@@ -1493,6 +1512,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_include_po_receipts    = iv_include_po_receipts
         iv_include_sto_in_transit = iv_include_sto_in_transit
         iv_include_unissued_sto   = iv_include_unissued_sto
+        iv_subtract_unissued_sto  = iv_subtract_unissued_sto
         iv_include_prod_receipts  = iv_include_prod_receipts ).
 
     IF iv_protect_safety_stock = abap_true.
@@ -1574,6 +1594,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_include_po_receipts    = iv_include_po_receipts
             iv_include_sto_in_transit = iv_include_sto_in_transit
             iv_include_unissued_sto   = iv_include_unissued_sto
+            iv_subtract_unissued_sto  = iv_subtract_unissued_sto
             iv_include_prod_receipts  = iv_include_prod_receipts ).
 
         IF iv_protect_safety_stock = abap_true.
@@ -1703,6 +1724,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_include_po_receipts    = iv_include_po_receipts
       iv_include_sto_in_transit = iv_include_sto_in_transit
       iv_include_unissued_sto   = iv_include_unissued_sto
+      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
       iv_include_prod_receipts  = iv_include_prod_receipts
       iv_protect_safety_stock   = iv_protect_safety_stock ).
 
@@ -1754,6 +1776,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_include_po_receipts    = iv_include_po_receipts
       iv_include_sto_in_transit = iv_include_sto_in_transit
       iv_include_unissued_sto   = iv_include_unissued_sto
+      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
       iv_include_prod_receipts  = iv_include_prod_receipts
       iv_protect_safety_stock   = iv_protect_safety_stock ).
 
@@ -1845,6 +1868,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_include_po_receipts    = iv_include_po_receipts
       iv_include_sto_in_transit = iv_include_sto_in_transit
       iv_include_unissued_sto   = iv_include_unissued_sto
+      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
       iv_include_prod_receipts  = iv_include_prod_receipts
       iv_protect_safety_stock   = iv_protect_safety_stock ).
 
@@ -2337,6 +2361,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
               iv_include_po_receipts    = iv_include_po_receipts
               iv_include_sto_in_transit = iv_include_sto_in_transit
               iv_include_unissued_sto   = iv_include_unissued_sto
+              iv_subtract_unissued_sto  = iv_subtract_unissued_sto
               iv_include_prod_receipts  = iv_include_prod_receipts ).
 
           IF iv_protect_safety_stock = abap_true.
@@ -2525,6 +2550,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_include_po_receipts    = iv_include_po_receipts
       iv_include_sto_in_transit = iv_include_sto_in_transit
       iv_include_unissued_sto   = iv_include_unissued_sto
+      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
       iv_include_prod_receipts  = iv_include_prod_receipts
       iv_protect_safety_stock   = iv_protect_safety_stock ).
 
@@ -2591,6 +2617,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_include_po_receipts    = iv_include_po_receipts
       iv_include_sto_in_transit = iv_include_sto_in_transit
       iv_include_unissued_sto   = iv_include_unissued_sto
+      iv_subtract_unissued_sto  = iv_subtract_unissued_sto
       iv_include_prod_receipts  = iv_include_prod_receipts
       iv_protect_safety_stock   = iv_protect_safety_stock ).
 

@@ -29,6 +29,7 @@ INTERFACE zif_stock_repository PUBLIC.
     ty_stock_status_location WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_sales_order_reservation,
+      sales_document   TYPE resb-kdauf,
       material         TYPE resb-matnr,
       plant            TYPE resb-werks,
       item_number      TYPE resb-kdpos,
@@ -38,6 +39,8 @@ INTERFACE zif_stock_repository PUBLIC.
     END OF ty_sales_order_reservation.
   TYPES ty_sales_order_reservations TYPE STANDARD TABLE OF
     ty_sales_order_reservation WITH EMPTY KEY.
+  TYPES ty_sales_order_documents TYPE STANDARD TABLE OF resb-kdauf
+    WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_batch_stock,
       storage_location   TYPE mard-lgort,
@@ -73,6 +76,7 @@ INTERFACE zif_stock_repository PUBLIC.
       iv_include_po_receipts    TYPE abap_bool DEFAULT abap_false
       iv_include_sto_in_transit TYPE abap_bool DEFAULT abap_false
       iv_include_unissued_sto   TYPE abap_bool DEFAULT abap_false
+      iv_subtract_unissued_sto  TYPE abap_bool DEFAULT abap_false
       iv_include_prod_receipts  TYPE abap_bool DEFAULT abap_false
       RETURNING
       VALUE(rv_quantity)        TYPE mard-labst.
@@ -87,6 +91,12 @@ INTERFACE zif_stock_repository PUBLIC.
   METHODS get_sales_order_reservations
     IMPORTING
       iv_sales_document      TYPE resb-kdauf
+    RETURNING
+      VALUE(rt_reservations) TYPE ty_sales_order_reservations.
+
+  METHODS get_order_reservations_bulk
+    IMPORTING
+      it_sales_documents     TYPE ty_sales_order_documents
     RETURNING
       VALUE(rt_reservations) TYPE ty_sales_order_reservations.
 

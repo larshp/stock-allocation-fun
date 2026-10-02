@@ -116,6 +116,11 @@ CLASS lcl_alloc_stock_repo IMPLEMENTATION.
     rt_reservations = mt_sales_order_reservations.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_order_reservations_bulk.
+    ADD 1 TO mv_read_count.
+    rt_reservations = mt_sales_order_reservations.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_stock_status.
     ADD 1 TO mv_read_count.
     CLEAR rs_status.
@@ -295,6 +300,17 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     DATA mo_availability_api TYPE REF TO lcl_sales_atp_api_double.
     DATA mo_cut TYPE REF TO zcl_sales_order_alloc_service.
     METHODS setup.
+    METHODS previews_multi_orders_date FOR TESTING.
+    METHODS previews_multi_existing_res FOR TESTING.
+    METHODS previews_multi_confirmed_qty FOR TESTING.
+    METHODS reserves_multi_orders_by_date FOR TESTING.
+    METHODS reserves_multi_due_first FOR TESTING.
+    METHODS simulates_multi_order_res FOR TESTING.
+    METHODS rejects_short_multi_reserve FOR TESTING.
+    METHODS rolls_back_multi_order_res FOR TESTING.
+    METHODS rolls_back_multi_commit_err FOR TESTING.
+    METHODS rejects_bad_multi_res_result FOR TESTING.
+    METHODS prepare_multi_res_fixture.
     METHODS maps_open_items_to_allocation FOR TESTING.
     METHODS previews_order_lines_with_atp FOR TESTING.
     METHODS rejects_atp_without_rule FOR TESTING.
@@ -354,6 +370,445 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       io_stock_repository          = mo_stock_repository
       io_reservation_api           = mo_reservation_api
       io_material_availability_api = mo_availability_api ).
+  ENDMETHOD.
+
+  METHOD previews_multi_orders_date.
+    mo_stock_repository->set_stock( iv_quantity = '20.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number            = '000010'
+              schedule_line          = '0001'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              entry_unit             = 'BOX'
+              sales_unit_numerator   = 12
+              sales_unit_denominator = 1
+              base_unit              = 'EA'
+              requested_date         = '20261005'
+              open_base_quantity     = '12.000' )
+            ( item_number        = '000020'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261015'
+              open_base_quantity = '12.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_result-sales_unit_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = ls_result-sales_unit_allocations[ 1 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_result-sales_unit_allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = ls_result-sales_unit_allocations[ 3 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_result-sales_unit_allocations[ 3 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = ls_result-sales_unit_allocations[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.333' )
+      act = ls_result-sales_unit_allocations[ 3 ]-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = ls_result-sales_unit_allocations[ 4 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_multi_existing_res.
+    mo_stock_repository->set_stock( iv_quantity = '6.000' ).
+    mo_stock_repository->set_sales_order_reservations(
+      it_reservations = VALUE #(
+        ( sales_document   = '0000004711'
+          material         = 'MAT-1'
+          plant            = '1000'
+          item_number      = '000010'
+          schedule_line    = '0001'
+          requirement_date = '20261005'
+          open_quantity    = '4.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '6.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-sales_unit_allocations[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_multi_confirmed_qty.
+    mo_stock_repository->set_stock( iv_quantity = '10.000' ).
+    mo_availability_api->set_result(
+      is_result = VALUE #(
+        available_at_plant_quantity = '4.000'
+        confirmed_date              = '20261005'
+        confirmed_quantity          = '4.000'
+        is_fully_available          = abap_false
+        is_check_relevant           = abap_true ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number                  = '000010'
+              schedule_line                = '0001'
+              has_confirmed_quantity       = abap_true
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              entry_unit                   = 'EA'
+              base_unit                    = 'EA'
+              requested_date               = '20261005'
+              open_quantity                = '12.000'
+              open_base_quantity           = '12.000'
+              confirmed_quantity           = '6.000'
+              open_confirmed_quantity      = '6.000'
+              confirmed_base_quantity      = '6.000'
+              open_confirmed_base_quantity = '6.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents   = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_use_confirmed_qty = abap_true
+      iv_check_atp         = abap_true
+      iv_atp_check_rule    = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-sales_unit_allocations[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-atp_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-atp_checks[ 1 ]-line_requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-atp_checks[ 1 ]-cumulative_requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-atp_checks[ 2 ]-result-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD prepare_multi_res_fixture.
+    mo_stock_repository->set_stock( iv_quantity = '10.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '6.000' ) ) ) ) ).
+  ENDMETHOD.
+
+  METHOD reserves_multi_orders_by_date.
+    prepare_multi_res_fixture( ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_check_atp       = abap_true
+      iv_atp_check_rule  = 'A' ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = lt_requests[ 1 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = lt_requests[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = lt_requests[ 2 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_requests[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_requests[ 2 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-atp_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-atp_checks[ 2 ]-cumulative_requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_multi_due_first.
+    mo_stock_repository->set_stock( iv_quantity = '14.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261015'
+              open_base_quantity = '6.000' )
+            ( item_number        = '000010'
+              schedule_line      = '0002'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '6.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_requests[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = lt_requests[ 1 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_requests[ 2 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = lt_requests[ 2 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_requests[ 3 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = lt_requests[ 3 ]-sales_document ).
+  ENDMETHOD.
+
+  METHOD simulates_multi_order_res.
+    prepare_multi_res_fixture( ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_test_run        = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_reservation_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-reservations ) ).
+  ENDMETHOD.
+
+  METHOD rejects_short_multi_reserve.
+    prepare_multi_res_fixture( ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents         = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_require_full_allocation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-messages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_multi_order_res.
+    prepare_multi_res_fixture( ).
+    mo_reservation_api->set_create_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Reservation creation failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-reservations ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_multi_commit_err.
+    prepare_multi_res_fixture( ).
+    mo_reservation_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-reservations ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_multi_res_result.
+    prepare_multi_res_fixture( ).
+    mo_reservation_api->set_create_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        reservations  = VALUE #(
+          ( request_id         = 'UNMATCHED'
+            reservation_number = '9000000001'
+            required_date      = '20261005'
+            quantity           = '6.000' )
+          ( request_id         = '0000004712/000010/0001'
+            reservation_number = '9000000002'
+            required_date      = '20261005'
+            quantity           = '4.000' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-reservations ) ).
   ENDMETHOD.
 
   METHOD maps_open_items_to_allocation.

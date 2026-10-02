@@ -4,9 +4,19 @@ CLASS zcl_so_reservation_service DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_order_delete_result,
+        sales_document      TYPE resb-kdauf,
+        item_number         TYPE resb-kdpos,
+        reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
+        messages            TYPE zif_so_reservation_api=>ty_messages,
+        is_successful       TYPE abap_bool,
+      END OF ty_order_delete_result.
+
     METHODS constructor
       IMPORTING
-        io_api TYPE REF TO zif_so_reservation_api OPTIONAL.
+        io_api                TYPE REF TO zif_so_reservation_api OPTIONAL
+        io_reservation_finder TYPE REF TO zif_so_reservation_finder OPTIONAL.
 
     METHODS delete_reservations
       IMPORTING
@@ -17,8 +27,28 @@ CLASS zcl_so_reservation_service DEFINITION
       RAISING
         zcx_invalid_reservation.
 
+    METHODS delete_order_reservations
+      IMPORTING
+        iv_sales_document TYPE resb-kdauf
+        iv_item_number    TYPE resb-kdpos OPTIONAL
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_order_delete_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS preview_order_release
+      IMPORTING
+        iv_sales_document TYPE resb-kdauf
+        iv_item_number    TYPE resb-kdpos OPTIONAL
+      RETURNING
+        VALUE(rs_result)  TYPE ty_order_delete_result
+      RAISING
+        zcx_invalid_reservation.
+
   PRIVATE SECTION.
-    DATA mo_api TYPE REF TO zif_so_reservation_api.
+    DATA mo_api                TYPE REF TO zif_so_reservation_api.
+    DATA mo_reservation_finder TYPE REF TO zif_so_reservation_finder.
 ENDCLASS.
 
 CLASS zcl_so_reservation_service IMPLEMENTATION.
@@ -29,6 +59,42 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
     ELSE.
       mo_api = NEW zcl_bapi_so_reservation_api( ).
     ENDIF.
+
+    IF io_reservation_finder IS BOUND.
+      mo_reservation_finder = io_reservation_finder.
+    ELSE.
+      mo_reservation_finder = NEW zcl_mard_stock_repository( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD delete_order_reservations.
+    rs_result = preview_order_release(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number ).
+
+    IF rs_result-reservation_numbers IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_delete_result) = delete_reservations(
+      it_reservation_numbers = rs_result-reservation_numbers
+      iv_test_run            = iv_test_run ).
+    rs_result-messages = ls_delete_result-messages.
+    rs_result-is_successful = ls_delete_result-is_successful.
+  ENDMETHOD.
+
+  METHOD preview_order_release.
+    IF iv_sales_document IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    rs_result-sales_document = iv_sales_document.
+    rs_result-item_number = iv_item_number.
+    rs_result-reservation_numbers =
+      mo_reservation_finder->get_open_reservation_numbers(
+        iv_sales_document = iv_sales_document
+        iv_item_number    = iv_item_number ).
+    rs_result-is_successful = abap_true.
   ENDMETHOD.
 
   METHOD delete_reservations.

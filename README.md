@@ -46,15 +46,16 @@ post an interplant transfer.
 `ALLOCATE_PLANTS_BY_DATE` adds required dates and uses the same caller-ordered
 source plants. Earlier demands consume shared material/source-plant balances
 before later dates, with input order breaking same-date ties. It supports the
-dated PO, STO in-transit, and production receipt projections plus source safety
-stock protection. Results return in input order with source-plant splits. This
+dated PO, issued or unissued STO, and production receipt projections plus source
+safety-stock protection. Results return in input order with source-plant splits. This
 is a planning estimate and does not return storage-location splits or create a
 transfer because projected receipts have no storage-location assignment.
 `ALLOCATE_PLANTS_DATE_UNITS` accepts the same dated cross-plant requests in
 material-specific units. It converts demand to base units before stock reads,
 preserves date priority and each request's source-plant order, and returns both
-unit views for demand and source-plant splits. Optional dated PO, STO in-transit,
-and production receipts and safety-stock protection follow the base-unit method.
+unit views for demand and source-plant splits. Optional dated PO, issued or
+unissued STO, and production receipts and safety-stock protection follow the
+base-unit method.
 `ALLOCATE_PLANTS_DATE_ATP` accepts those unit-aware dated requests and adds SAP
 ATP checks for positive local source-plant allocations. It groups quantities by
 source plant and required date, checks the cumulative base-unit quantity through
@@ -121,8 +122,9 @@ goods receipt can still use a different stock type, so treat this as a local
 projection rather than SAP ATP or a historical stock reconstruction.
 Set `iv_include_sto_in_transit = abap_true` to also include stock-transfer
 schedule quantities already issued but not yet received, dated by the schedule
-delivery date. Planned but unissued transfers are excluded. This estimate starts
-from `MARD-LABST` and does not add SAP's separate in-transit stock balance.
+delivery date. Planned but unissued transfers are excluded by default. This
+estimate starts from `MARD-LABST` and does not add SAP's separate in-transit
+stock balance.
 Set `iv_include_unissued_sto = abap_true` to project the scheduled STO
 quantity that has not yet been issued (`EKET-MENGE - EKET-WAMNG`) by its
 schedule delivery date, converted to the material base unit. It skips items
@@ -132,6 +134,14 @@ quantities. SAP exposes the schedule, issued, and received quantities on STO
 schedule lines ([STO schedule-line quantities](https://help.sap.com/docs/PRODUCT_ID/368810f3ef2842fab17899c6ffd4e0c8/662f8e536beee647e10000000a441470.html)).
 Treat planned transfers as a local estimate; they may not be issued or received
 on schedule.
+Set `iv_subtract_unissued_sto = abap_true` on dated allocations to reduce the
+supplying plant's available quantity by open outgoing STO schedule quantities
+that have not yet been issued and are due by the requested date. The estimate
+uses `EKKO-RESWK` for the issuing plant and subtracts `EKET-MENGE -
+EKET-WAMNG`, converted to the material base unit. This option is off by
+default; it accounts for planned outbound transfers without changing the
+physical-stock read. SAP identifies `RESWK` as the supplying plant in an STO
+([EKKO field definition](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/6b120435270a45c8b81b203e74c62aae/a1cfb17cbdfa48418b665ae94c15dc79.html)).
 Set `iv_include_prod_receipts = abap_true` to add open receipts from released
 production orders whose basic finish date is on or before the requested date.
 The estimate excludes make-to-order and completed order items; production output
@@ -163,7 +173,8 @@ end date when configured, and the dialog status, so callers can review
 configured ATP alongside the local allocation result. The legacy scalar
 confirmation date and quantity mirror the first line. SAP returns the lead-time
 end date only when replenishment lead time is active for the check. The local
-estimate accepts the optional PO, STO in-transit, and production receipt flags.
+estimate accepts the optional PO, issued or unissued STO, and production receipt
+flags.
 The SAP check retains the supplied unit and quantity; the local estimate
 converts the request to the material base unit before reading stock.
 For sales orders, `preview_order` can set `iv_check_atp = abap_true` and provide
@@ -355,11 +366,12 @@ quantities in the material base unit using the sales item's conversion ratio.
 An alternative-unit item with no valid ratio or material base unit makes the
 read unsuccessful. Schedule-line reads also retain `VBEP-BMENG` confirmed
 quantities and the undelivered confirmed amount in both sales and base units.
-Pass `iv_use_confirmed_qty = abap_true` to `preview_order` or `reserve_order`
-to size demand from each schedule line's confirmed quantity minus deliveries,
-capped at its ordered open quantity. The default continues to use ordered open
-quantity. Confirmed-quantity mode requires schedule-line confirmation data and
-returns an error before stock reads for an open item without it.
+Pass `iv_use_confirmed_qty = abap_true` to `preview_order`, `reserve_order`, or
+`preview_orders_by_date` to size demand from each schedule line's confirmed
+quantity minus deliveries, capped at its ordered open quantity. The default
+continues to use ordered open quantity. Confirmed-quantity mode requires
+schedule-line confirmation data and returns an error before stock reads for an
+open item without it.
 
 `ZCL_SALES_ORDER_ALLOC_SERVICE` connects that open demand to the batch stock
 preview and returns allocations keyed by sales document and item. By default,
@@ -402,6 +414,43 @@ Preview and reservation use only the selected batch and pass it through to the
 reservation BAPI. Item-wide and schedule-line choices cannot be mixed on one
 item.
 
+`preview_orders_by_date` previews open items from multiple sales documents
+against shared material/plant stock. Pass unique, nonblank document numbers in
+`it_sales_documents`. The service loads their active reservations in one bulk
+repository read, subtracts them from each order, and requires a requested date
+on every remaining open item.
+Earlier dates receive stock first; items with the same date follow document
+and item/schedule input order. The method only previews and does not create
+reservations. Its `sales_unit_allocations` retain document, item, and schedule
+keys plus requested, available, allocated, and shortfall quantities in both
+sales and base units. Pass `iv_use_confirmed_qty = abap_true` to size each
+line from confirmed open quantity. Optional dated stock inputs include PO
+receipts, issued or unissued STO quantities, production receipts, and
+safety-stock protection. Pass `iv_check_atp = abap_true` with
+`iv_atp_check_rule` to include SAP ATP responses in `atp_checks`; requests are
+combined across the supplied orders by material, plant, and date, with demand
+accumulated through each date. ATP responses are reported separately and do
+not change the local allocation or its success flag.
+
+`reserve_orders_by_date` creates reservations for the positive allocations from
+the same shared dated preview and accepts the same receipt, confirmed-demand,
+and safety-stock options. Each request ID retains its sales document,
+item, and schedule-line key, with the required date carried separately; SAP
+determines the storage location and batch because this aggregate dated
+allocation does not select either. All created reservations commit in one
+transaction, and any creation or commit error triggers rollback. Set
+`iv_test_run = abap_true` to simulate the reservation calls. By default,
+positive allocations are reserved and shortfalls remain in the result; set
+`iv_require_full_allocation = abap_true` to reject any preview shortfall before
+the reservation API is called. Reservation requests are submitted by material,
+plant, and required date, with stable input order for same-date ties. Before
+commit, the service matches every API response to one pending request and
+checks its quantity, date, and any requested location or batch; mismatches roll
+back the transaction. Set `iv_check_atp = abap_true` and provide
+`iv_atp_check_rule` to return cumulative ATP diagnostics in `atp_checks` with
+the reservation result. These diagnostics do not change the local allocation;
+the reservation API still runs its own ATP check for each reservation request.
+
 Call `preview_order` or `reserve_order` with `iv_use_fefo_batches = abap_true`
 to choose batches automatically by earliest expiration date. The as-of date
 defaults to the current date and can be set with `iv_fefo_as_of_date`. FEFO can
@@ -431,6 +480,13 @@ reproduce time-dependent buffers or the target system's configured ATP scope
 number through `BAPI_RESERVATION_DELETE`. It rejects an empty list, blank
 numbers, and duplicate numbers, then deletes the list in one transaction. The
 service supports BAPI test runs and rolls back if a delete or commit fails.
+Its sales-order method discovers open movement-231 reservations from `RESB`.
+It only releases a document when every open item in that document belongs to
+the requested sales order and uses the same movement and stock scope. An order
+can preview the eligible reservation numbers without a BAPI call, optionally
+scoped to one sales-order item. Item-scoped release also requires every open
+item in the reservation document to match that item. An order with no matching
+documents returns success without starting a BAPI transaction.
 
 `ZCL_SO_RESERVATION_READ_SERVICE` reads reservation items through
 `BAPI_RESERVATION_GETDETAIL1`, including their SAP item number, record type,
@@ -535,6 +591,12 @@ repository and do not execute the MARD, RESB, or MARC database queries. The
 report also returns static `MARC-EISBE` and an available quantity after that
 buffer; neither quantity represents every ATP element or dynamic safety-stock
 behavior.
+Date-based projections can add PO receipts, issued or unissued STO quantities,
+subtract unissued outgoing STO quantities, and add released production
+receipts. These are local schedule estimates from
+`EKET`, `EKPO`, `EKKO`, `AFPO`, `AFKO`, and `AUFK`; repository doubles do not
+execute those database queries or validate live schedule filters and units.
+They do not replace SAP ATP.
 `GET_STOCK_STATUS_BY_LOCATION` aggregates the same category quantities by
 `LGORT`; its available-unrestricted values use the location reservation
 calculator, including the deterministic distribution of plant-level

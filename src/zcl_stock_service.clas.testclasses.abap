@@ -47,6 +47,7 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
         iv_receipt_quantity        TYPE mard-labst DEFAULT 0
         iv_sto_in_transit_quantity TYPE mard-labst DEFAULT 0
         iv_unissued_sto_quantity   TYPE mard-labst DEFAULT 0
+        iv_outgoing_sto_quantity   TYPE mard-labst DEFAULT 0
         iv_prod_receipt_quantity   TYPE mard-labst DEFAULT 0.
     METHODS set_plant_stock
       IMPORTING
@@ -110,6 +111,7 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
         receipt_quantity        TYPE mard-labst,
         sto_in_transit_quantity TYPE mard-labst,
         unissued_sto_quantity   TYPE mard-labst,
+        outgoing_sto_quantity   TYPE mard-labst,
         prod_receipt_quantity   TYPE mard-labst,
       END OF ty_date_stock.
     TYPES ty_date_stocks TYPE STANDARD TABLE OF ty_date_stock
@@ -149,6 +151,7 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       receipt_quantity        = iv_receipt_quantity
       sto_in_transit_quantity = iv_sto_in_transit_quantity
       unissued_sto_quantity   = iv_unissued_sto_quantity
+      outgoing_sto_quantity   = iv_outgoing_sto_quantity
       prod_receipt_quantity   = iv_prod_receipt_quantity ) TO mt_date_stocks.
   ENDMETHOD.
 
@@ -244,8 +247,14 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       IF iv_include_unissued_sto = abap_true.
         rv_quantity = rv_quantity + ls_date_stock-unissued_sto_quantity.
       ENDIF.
+      IF iv_subtract_unissued_sto = abap_true.
+        rv_quantity = rv_quantity - ls_date_stock-outgoing_sto_quantity.
+      ENDIF.
       IF iv_include_prod_receipts = abap_true.
         rv_quantity = rv_quantity + ls_date_stock-prod_receipt_quantity.
+      ENDIF.
+      IF rv_quantity < 0.
+        CLEAR rv_quantity.
       ENDIF.
     ENDIF.
   ENDMETHOD.
@@ -256,6 +265,11 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
+    ADD 1 TO mv_read_count.
+    rt_reservations = mt_sales_order_reservations.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_order_reservations_bulk.
     ADD 1 TO mv_read_count.
     rt_reservations = mt_sales_order_reservations.
   ENDMETHOD.
@@ -365,6 +379,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_with_po_receipts FOR TESTING.
     METHODS allocates_with_sto_in_transit FOR TESTING.
     METHODS includes_unissued_sto_receipts FOR TESTING.
+    METHODS subtracts_unissued_sto_demand FOR TESTING.
     METHODS allocates_with_prod_receipts FOR TESTING.
     METHODS allocates_demands_by_date FOR TESTING.
     METHODS allocates_dated_unit_demands FOR TESTING.
@@ -1099,12 +1114,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       iv_requested_quantity   = '20.000'
       iv_include_unissued_sto = abap_true ).
     DATA(ls_both_sto_states) = lo_cut->allocate_request_by_date(
-      iv_material                 = 'MAT-1'
-      iv_plant                    = '1000'
-      iv_required_date            = '20261231'
-      iv_requested_quantity       = '20.000'
-      iv_include_sto_in_transit   = abap_true
-      iv_include_unissued_sto     = abap_true ).
+      iv_material               = 'MAT-1'
+      iv_plant                  = '1000'
+      iv_required_date          = '20261231'
+      iv_requested_quantity     = '20.000'
+      iv_include_sto_in_transit = abap_true
+      iv_include_unissued_sto   = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '8.000' )
@@ -1115,6 +1130,88 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '17.000' )
       act = ls_both_sto_states-available_quantity ).
+  ENDMETHOD.
+
+  METHOD subtracts_unissued_sto_demand.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_date_stock(
+      iv_material              = 'MAT-1'
+      iv_plant                 = '1000'
+      iv_date                  = '20261210'
+      iv_quantity              = '20.000'
+      iv_outgoing_sto_quantity = '5.000' ).
+    lo_repository->set_date_stock(
+      iv_material              = 'MAT-1'
+      iv_plant                 = '2000'
+      iv_date                  = '20261210'
+      iv_quantity              = '20.000'
+      iv_outgoing_sto_quantity = '5.000' ).
+
+    DATA(ls_local) = lo_cut->allocate_request_by_date(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_required_date      = '20261210'
+      iv_requested_quantity = '18.000' ).
+    DATA(ls_projected) = lo_cut->allocate_request_by_date(
+      iv_material              = 'MAT-1'
+      iv_plant                 = '1000'
+      iv_required_date         = '20261210'
+      iv_requested_quantity    = '18.000'
+      iv_subtract_unissued_sto = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = ls_local-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = ls_projected-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_projected-shortfall_quantity ).
+
+    DATA(lt_bulk_allocations) = lo_cut->allocate_demands_by_date(
+      it_demands               = VALUE zcl_stock_service=>ty_dated_demands(
+        ( request_id         = 'FIRST'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261210'
+          requested_quantity = '8.000' )
+        ( request_id         = 'SECOND'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261210'
+          requested_quantity = '8.000' ) )
+      iv_subtract_unissued_sto = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = lt_bulk_allocations[ 1 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_bulk_allocations[ 2 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_bulk_allocations[ 2 ]-allocated_quantity ).
+
+    DATA(ls_plant_result) = lo_cut->allocate_plants_by_date(
+      it_demands               = VALUE zcl_stock_service=>ty_date_plant_demands(
+        ( request_id         = 'PLANT'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          required_date      = '20261210'
+          requested_quantity = '18.000' ) )
+      it_sources               = VALUE zcl_stock_service=>ty_plant_sources(
+        ( request_id = 'PLANT' source_plant = '2000' ) )
+      iv_subtract_unissued_sto = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = ls_plant_result-allocations[ 1 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '15.000' )
+      act = ls_plant_result-allocations[ 1 ]-allocated_quantity ).
   ENDMETHOD.
 
   METHOD allocates_with_prod_receipts.

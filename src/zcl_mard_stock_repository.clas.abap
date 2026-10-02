@@ -5,6 +5,7 @@ CLASS zcl_mard_stock_repository DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_stock_repository.
+    INTERFACES zif_so_reservation_finder.
 ENDCLASS.
 
 CLASS zcl_mard_stock_repository IMPLEMENTATION.
@@ -56,6 +57,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lv_inbound_quantity TYPE decfloat34.
     DATA lv_sto_in_transit_quantity TYPE decfloat34.
     DATA lv_unissued_sto_quantity TYPE decfloat34.
+    DATA lv_outgoing_sto_quantity TYPE decfloat34.
     DATA lv_prod_receipt_quantity TYPE decfloat34.
     TYPES:
       BEGIN OF ty_prod_receipt,
@@ -182,6 +184,50 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
             lv_sto_in_transit_quantity + lv_unissued_sto_quantity ).
     ENDIF.
 
+    IF iv_subtract_unissued_sto = abap_true.
+      CLEAR lv_outgoing_sto_quantity.
+      DATA(lo_outgoing_sto_calc) = NEW zcl_po_sched_qty_calc( ).
+      SELECT eket~menge AS scheduled_quantity,
+             eket~wamng AS issued_quantity,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
+        WHERE ekpo~matnr = @iv_material
+          AND ekko~reswk = @iv_plant
+          AND ekpo~werks <> @iv_plant
+          AND ekpo~pstyp = '7'
+          AND ekko~bsakz <> 'T'
+          AND ( ekko~bstyp = 'F' OR ekko~bstyp = 'L' )
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~elikz = @space
+          AND ekpo~stapo = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND eket~eindt > @lv_initial_po_date
+          AND eket~eindt <= @iv_required_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_po_schedules.
+
+      LOOP AT lt_po_schedules INTO DATA(ls_outgoing_sto).
+        lv_outgoing_sto_quantity = lv_outgoing_sto_quantity
+          + lo_outgoing_sto_calc->calculate_open_unissued_qty(
+              iv_scheduled_quantity  =
+                ls_outgoing_sto-scheduled_quantity
+              iv_issued_quantity     = ls_outgoing_sto-issued_quantity
+              iv_order_to_base_num   = ls_outgoing_sto-order_to_base_num
+              iv_order_to_base_denom =
+                ls_outgoing_sto-order_to_base_denom ).
+      ENDLOOP.
+
+      lv_unrestricted_quantity = lv_unrestricted_quantity
+        - CONV mard-labst( lv_outgoing_sto_quantity ).
+    ENDIF.
+
     IF iv_include_prod_receipts = abap_true.
       CLEAR lv_prod_receipt_quantity.
       DATA(lo_prod_quantity_calc) = NEW zcl_prod_order_qty_calc( ).
@@ -239,8 +285,114 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
+    DATA lt_sales_documents TYPE zif_stock_repository=>ty_sales_order_documents.
+
+    APPEND iv_sales_document TO lt_sales_documents.
+    rt_reservations = zif_stock_repository~get_order_reservations_bulk(
+      it_sales_documents = lt_sales_documents ).
+  ENDMETHOD.
+
+  METHOD zif_so_reservation_finder~get_open_reservation_numbers.
+    TYPES:
+      BEGIN OF ty_reservation_item_scope,
+        reservation_number TYPE resb-rsnum,
+        sales_document     TYPE resb-kdauf,
+        item_number        TYPE resb-kdpos,
+        movement_type      TYPE resb-bwart,
+        special_stock      TYPE resb-sobkz,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_item_scope.
+    DATA lt_candidate_numbers TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+    DATA lt_reservation_items TYPE STANDARD TABLE OF ty_reservation_item_scope
+      WITH EMPTY KEY.
+    DATA lt_safe_numbers TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+
+    IF iv_sales_document IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT rsnum AS reservation_number,
+           kdauf AS sales_document,
+           kdpos AS item_number,
+           bwart AS movement_type,
+           sobkz AS special_stock,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      WHERE kdauf = @iv_sales_document
+        AND bwart = '231'
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
+
+    LOOP AT lt_reservation_items INTO DATA(ls_target_item).
+      IF ls_target_item-required_quantity <= ls_target_item-withdrawn_quantity.
+        CONTINUE.
+      ENDIF.
+      IF iv_item_number IS NOT INITIAL
+          AND ls_target_item-item_number <> iv_item_number.
+        CONTINUE.
+      ENDIF.
+      INSERT ls_target_item-reservation_number INTO TABLE lt_candidate_numbers.
+    ENDLOOP.
+
+    IF lt_candidate_numbers IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    CLEAR lt_reservation_items.
+    SELECT rsnum AS reservation_number,
+           kdauf AS sales_document,
+           kdpos AS item_number,
+           bwart AS movement_type,
+           sobkz AS special_stock,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      FOR ALL ENTRIES IN @lt_candidate_numbers
+      WHERE rsnum = @lt_candidate_numbers-table_line
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
+
+    LOOP AT lt_candidate_numbers INTO DATA(lv_candidate_number).
+      DATA(lv_is_order_only) = abap_true.
+      DATA(lv_has_open_item) = abap_false.
+      LOOP AT lt_reservation_items INTO DATA(ls_reservation_item)
+          WHERE reservation_number = lv_candidate_number.
+        IF ls_reservation_item-required_quantity
+            <= ls_reservation_item-withdrawn_quantity.
+          CONTINUE.
+        ENDIF.
+        lv_has_open_item = abap_true.
+        IF ls_reservation_item-sales_document <> iv_sales_document
+            OR ( iv_item_number IS NOT INITIAL
+              AND ls_reservation_item-item_number <> iv_item_number )
+            OR ls_reservation_item-movement_type <> '231'
+            OR ls_reservation_item-special_stock <> space.
+          lv_is_order_only = abap_false.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      IF lv_is_order_only = abap_true AND lv_has_open_item = abap_true.
+        INSERT lv_candidate_number INTO TABLE lt_safe_numbers.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_safe_numbers INTO DATA(lv_safe_number).
+      APPEND lv_safe_number TO rt_reservation_numbers.
+    ENDLOOP.
+    SORT rt_reservation_numbers.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_order_reservations_bulk.
     TYPES:
       BEGIN OF ty_reservation_total,
+        sales_document     TYPE resb-kdauf,
         material           TYPE resb-matnr,
         plant              TYPE resb-werks,
         item_number        TYPE resb-kdpos,
@@ -252,7 +404,12 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lt_reservation_totals TYPE STANDARD TABLE OF
       ty_reservation_total WITH EMPTY KEY.
 
-    SELECT matnr AS material,
+    IF it_sales_documents IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT kdauf AS sales_document,
+           matnr AS material,
            werks AS plant,
            kdpos AS item_number,
            kdein AS schedule_line,
@@ -260,12 +417,13 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
            SUM( bdmng ) AS required_quantity,
            SUM( enmng ) AS withdrawn_quantity
       FROM resb
-      WHERE kdauf = @iv_sales_document
+      FOR ALL ENTRIES IN @it_sales_documents
+      WHERE kdauf = @it_sales_documents-table_line
         AND bwart = '231'
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
-      GROUP BY matnr, werks, kdpos, kdein, bdter
+      GROUP BY kdauf, matnr, werks, kdpos, kdein, bdter
       INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_totals.
 
     LOOP AT lt_reservation_totals INTO DATA(ls_reservation_total).
@@ -275,6 +433,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         CONTINUE.
       ENDIF.
       APPEND VALUE #(
+        sales_document   = ls_reservation_total-sales_document
         material         = ls_reservation_total-material
         plant            = ls_reservation_total-plant
         item_number      = ls_reservation_total-item_number
@@ -282,8 +441,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         requirement_date = ls_reservation_total-requirement_date
         open_quantity    = lv_open_quantity ) TO rt_reservations.
     ENDLOOP.
-    SORT rt_reservations BY item_number material plant schedule_line
-      requirement_date.
+    SORT rt_reservations BY sales_document item_number material plant
+      schedule_line requirement_date.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_status.

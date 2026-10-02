@@ -57,11 +57,43 @@ doubles; verify `KDAUF`, `KDPOS`, `KDEIN`, `BDTER`, and the BAPI's target-releas
 assignment behavior in SAP. SAP documents the reservation requirement date on the
 reservation item ([reservation requirement date](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167776.html)).
 
+`preview_orders_by_date` extends that reservation deduction across each supplied
+sales document and allocates all remaining dated items against shared local
+material/plant estimates. Local tests verify cross-order stock priority using
+fakes; they do not exercise live order reads, reservation queries, or dated
+stock projections. Confirmed-demand mode uses `VBEP-BMENG - VBEP-VSMNG`, capped
+at ordered open quantity, and requires schedule-line confirmation data. Confirm
+the open-item dates, confirmation quantities, and reservation matching against
+real orders, and compare the preview with SAP stock/ATP results before relying
+on it for operational decisions. Optional ATP responses are a separate BAPI
+check and do not alter the local estimate or success flag; the fake ATP API in
+local tests cannot verify live check-rule behavior. The method itself does not
+post reservations.
+
+The multi-order preview now loads active sales-order reservation totals with a
+bulk `RESB` selection keyed by the supplied documents, then applies each row to
+its matching order. Local tests use a repository double and cannot validate the
+target system's `FOR ALL ENTRIES` SQL plan or `RESB` filters; inspect the query
+and its runtime cost with representative order lists in SAP.
+
+`reserve_orders_by_date` sends the shared preview's positive allocations as
+separate sales-order reservation requests and commits them in one transaction.
+Local API doubles verify the rollback path and request mapping, but cannot
+validate multiple `BAPI_RESERVATION_CREATE1` calls for different sales orders
+within one live SAP transaction. Check this flow, ATP/customizing behavior,
+and SAP's storage-location and batch determination in the target release.
+
 Reservation release calls `BAPI_RESERVATION_DELETE` once per reservation
 number inside one BAPI transaction. SAP controls whether a reservation can be
 deleted, including reservations already partly or fully issued. Verify the
 BAPI signature and deletion behavior in the target release; local tests use
 an API double and do not exercise SAP reservation status rules.
+
+Sales-order-scoped release discovers open movement-231 reservation items in
+`RESB` and excludes documents that contain any other open item. The two reads
+are not an SAP reservation lock; concurrent changes can still occur before the
+BAPI delete. Verify the `RESB` filters and document behavior on the target
+release. The local transpiler does not execute these database queries.
 
 Reservation inquiry reads items through `BAPI_RESERVATION_GETDETAIL1`. Its
 adapter maps the partial local `BAPI2093_RES_ITEM_DETAIL` stub. Verify the
@@ -447,10 +479,28 @@ The repository base is `MARD-LABST`, not the receiving plant's stock-in-transit
 balance; SAP documents `MARC-TRAME` as stock in transit for applicable
 intra-company stock transport orders and says it decreases at goods receipt
 ([stock in transit](https://help.sap.com/docs/nullSUPPORT_CONTENT/erpscm/3362168094.html)).
-Only issued-minus-received quantity is projected; planned but unissued transfers
-are excluded. The schedule date is treated as the date stock can be used. This
-does not validate actual delivery dates, cross-company behavior, schedule-line
-unit consistency, or target-system filters, so confirm these against live STOs.
+Only issued-minus-received quantity is projected by default. When
+`iv_include_unissued_sto` is true, the estimate also adds scheduled-minus-issued
+quantity (`EKET-MENGE - EKET-WAMNG`) for items not marked completely delivered.
+Both values are converted from the PO unit to the material base unit; SAP
+exposes the schedule, issued, and received quantities on STO schedule lines
+([STO schedule-line quantities](https://help.sap.com/docs/PRODUCT_ID/368810f3ef2842fab17899c6ffd4e0c8/662f8e536beee647e10000000a441470.html)).
+The schedule date is treated as the date stock can be used. The planned amount
+may not be issued or received on schedule. This does not validate actual
+delivery dates, cross-company behavior, schedule-line unit consistency, or
+target-system filters, so confirm these against live STOs. Local tests use
+repository doubles and do not execute the `EKET`/`EKPO`/`EKKO` query.
+
+When `iv_subtract_unissued_sto` is true, the date estimate also subtracts
+outstanding scheduled STO quantities not yet issued at the supplying plant in
+`EKKO-RESWK`. It uses `EKET-MENGE - EKET-WAMNG` due by the required date, skips
+completed, deleted, statistical, returns, account-assigned, and no-GR items,
+and converts the order unit through `EKPO-UMREZ/UMREN`. SAP documents `RESWK`
+as the supplying (issuing) plant
+([EKKO field definition](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/6b120435270a45c8b81b203e74c62aae/a1cfb17cbdfa48418b665ae94c15dc79.html)).
+Issued quantities are already reflected in source stock and are not subtracted
+again. The schedule date is only a planning cutoff; local tests do not execute
+this database query or validate target-system STO lifecycle behavior.
 
 When `iv_include_prod_receipts` is true, the date estimate adds open quantities
 from released production-order items (`AFPO-PSMNG - AFPO-WEMNG`) with a goods

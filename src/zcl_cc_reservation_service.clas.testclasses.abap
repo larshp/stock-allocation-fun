@@ -45,6 +45,10 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
     ADD 1 TO mv_read_count.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_order_reservations_bulk.
+    ADD 1 TO mv_read_count.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_stock_status.
     ADD 1 TO mv_read_count.
   ENDMETHOD.

@@ -6,24 +6,26 @@ CLASS zcl_cc_reservation_service DEFINITION
   PUBLIC SECTION.
     TYPES:
       BEGIN OF ty_result,
-        material                TYPE mard-matnr,
-        plant                   TYPE mard-werks,
-        storage_location        TYPE mard-lgort,
-        batch                   TYPE mchb-charg,
-        cost_center             TYPE bapi2093_res_head-costcenter,
-        requested_quantity      TYPE mard-labst,
-        source_unit             TYPE mara-meins,
-        base_requested_quantity TYPE mard-labst,
-        base_unit               TYPE mara-meins,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        atp_result              TYPE zif_material_availability_api=>ty_result,
-        storage_allocations     TYPE zcl_stock_service=>ty_storage_allocations,
-        batch_allocations       TYPE zcl_stock_service=>ty_batch_allocations,
-        reservation_number      TYPE bapi2093_res_key-reserv_no,
-        messages                TYPE zif_cc_reservation_api=>ty_messages,
-        is_successful           TYPE abap_bool,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        storage_location          TYPE mard-lgort,
+        batch                     TYPE mchb-charg,
+        cost_center               TYPE bapi2093_res_head-costcenter,
+        requested_quantity        TYPE mard-labst,
+        source_unit               TYPE mara-meins,
+        base_requested_quantity   TYPE mard-labst,
+        base_unit                 TYPE mara-meins,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+        atp_result                TYPE zif_material_availability_api=>ty_result,
+        storage_allocations       TYPE zcl_stock_service=>ty_storage_allocations,
+        batch_allocations         TYPE zcl_stock_service=>ty_batch_allocations,
+        reservation_number        TYPE bapi2093_res_key-reserv_no,
+        messages                  TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful             TYPE abap_bool,
       END OF ty_result.
 
     METHODS constructor
@@ -258,6 +260,15 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           required_date      = iv_required_date
           requested_quantity =
             ls_prepared-result-base_requested_quantity ) ).
+      DATA(ls_confirmation_split) =
+        mo_stock_service->get_atp_confirmation_split(
+          iv_requested_base_quantity =
+            ls_prepared-result-base_requested_quantity
+          is_atp_result              = rs_result-atp_result ).
+      rs_result-confirmed_base_quantity =
+        ls_confirmation_split-confirmed_base_quantity.
+      rs_result-unconfirmed_base_quantity =
+        ls_confirmation_split-unconfirmed_base_quantity.
     ENDIF.
   ENDMETHOD.
 

@@ -21,10 +21,13 @@ CLASS zcl_goods_movement_service DEFINITION
       ty_transfer_material_unit WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_two_step_transfer_result,
-        removal_result TYPE zif_goods_movement_api=>ty_result,
-        putaway_result TYPE zif_goods_movement_api=>ty_result,
-        is_successful  TYPE abap_bool,
-        is_in_transit  TYPE abap_bool,
+        removal_result  TYPE zif_goods_movement_api=>ty_result,
+        putaway_result  TYPE zif_goods_movement_api=>ty_result,
+        reversal_result TYPE zif_goods_movement_api=>ty_result,
+        putaway_items   TYPE zif_goods_movement_api=>ty_items,
+        is_successful   TYPE abap_bool,
+        is_in_transit   TYPE abap_bool,
+        is_cancelled    TYPE abap_bool,
       END OF ty_two_step_transfer_result.
 
     METHODS constructor
@@ -111,6 +114,19 @@ CLASS zcl_goods_movement_service DEFINITION
       IMPORTING
         is_header                  TYPE zif_goods_movement_api=>ty_header
         is_allocation              TYPE zcl_stock_service=>ty_unit_plant_fefo_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_two_step_transfer_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS transfer_fefo_date_uom_2step
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
         it_destinations            TYPE ty_transfer_destinations
         it_material_units          TYPE ty_transfer_material_units
         iv_test_run                TYPE abap_bool DEFAULT abap_false
@@ -354,6 +370,19 @@ CLASS zcl_goods_movement_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS transfer_fefo_date_uom
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        is_allocation              TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
+        it_destinations            TYPE ty_transfer_destinations
+        it_material_units          TYPE ty_transfer_material_units
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
     METHODS cancel
       IMPORTING
         iv_material_document TYPE zif_goods_movement_api=>ty_material_document
@@ -362,6 +391,25 @@ CLASS zcl_goods_movement_service DEFINITION
         it_item_numbers      TYPE zif_goods_movement_api=>ty_material_document_items OPTIONAL
       RETURNING
         VALUE(rs_result)     TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS retry_transfer_putaway
+      IMPORTING
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        is_transfer_result TYPE ty_two_step_transfer_result
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)   TYPE ty_two_step_transfer_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS cancel_transfer_in_transit
+      IMPORTING
+        is_transfer_result TYPE ty_two_step_transfer_result
+        iv_posting_date    TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)   TYPE ty_two_step_transfer_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -465,6 +513,12 @@ CLASS zcl_goods_movement_service DEFINITION
         VALUE(rs_result)           TYPE ty_two_step_transfer_result
       RAISING
         zcx_invalid_goods_movement.
+
+    METHODS to_plant_fefo_uom
+      IMPORTING
+        is_allocation    TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
+      RETURNING
+        VALUE(rs_result) TYPE zcl_stock_service=>ty_unit_plant_fefo_result.
 
     DATA mo_api TYPE REF TO zif_goods_movement_api.
 ENDCLASS.
@@ -1211,6 +1265,18 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_require_full_allocation = iv_require_full_allocation ).
   ENDMETHOD.
 
+  METHOD transfer_fefo_date_uom_2step.
+    DATA(ls_fefo_allocation) = to_plant_fefo_uom(
+      is_allocation = is_allocation ).
+    rs_result = transfer_plant_fefo_2step_uom(
+      is_header                  = is_header
+      is_allocation              = ls_fefo_allocation
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
+  ENDMETHOD.
+
   METHOD transfer_plant_2step_units.
     DATA ls_base_allocation TYPE zcl_stock_service=>ty_plant_allocation_result.
     DATA ls_material_unit TYPE ty_transfer_material_unit.
@@ -1511,6 +1577,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    rs_result-putaway_items = lt_putaway_items.
     IF lt_removal_items IS INITIAL OR lt_putaway_items IS INITIAL.
       rs_result-is_successful = abap_true.
       APPEND VALUE #(
@@ -1539,6 +1606,71 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_test_run = iv_test_run ).
     IF rs_result-putaway_result-is_successful = abap_true.
       rs_result-is_successful = abap_true.
+      rs_result-is_in_transit = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD retry_transfer_putaway.
+    DATA lv_movement_type TYPE ty_movement_type.
+
+    IF is_transfer_result-is_in_transit <> abap_true
+        OR is_transfer_result-is_successful = abap_true
+        OR is_transfer_result-removal_result-is_successful <> abap_true
+        OR is_transfer_result-putaway_items IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT is_transfer_result-putaway_items INTO DATA(ls_item).
+      IF ls_item-movement_type <> '305'
+          AND ls_item-movement_type <> '315'.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF lv_movement_type IS INITIAL.
+        lv_movement_type = ls_item-movement_type.
+      ELSEIF lv_movement_type <> ls_item-movement_type.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result = is_transfer_result.
+    rs_result-putaway_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '04'
+      it_items    = is_transfer_result-putaway_items
+      iv_test_run = iv_test_run ).
+    rs_result-is_successful = abap_false.
+    rs_result-is_in_transit = abap_true.
+    IF iv_test_run = abap_false
+        AND rs_result-putaway_result-is_successful = abap_true.
+      rs_result-is_successful = abap_true.
+      rs_result-is_in_transit = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD cancel_transfer_in_transit.
+    IF is_transfer_result-is_in_transit <> abap_true
+        OR is_transfer_result-is_successful = abap_true
+        OR is_transfer_result-is_cancelled = abap_true
+        OR is_transfer_result-removal_result-is_successful <> abap_true
+        OR is_transfer_result-removal_result-material_document IS INITIAL
+        OR is_transfer_result-removal_result-fiscal_year IS INITIAL
+        OR is_transfer_result-putaway_items IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    rs_result = is_transfer_result.
+    rs_result-reversal_result = cancel(
+      iv_material_document = is_transfer_result-removal_result-material_document
+      iv_fiscal_year       = is_transfer_result-removal_result-fiscal_year
+      iv_posting_date      = iv_posting_date ).
+    rs_result-is_successful = abap_false.
+    rs_result-is_cancelled = abap_false.
+    rs_result-is_in_transit = abap_true.
+
+    IF rs_result-reversal_result-is_successful = abap_true.
+      rs_result-is_successful = abap_true.
+      rs_result-is_cancelled = abap_true.
       rs_result-is_in_transit = abap_false.
     ENDIF.
   ENDMETHOD.
@@ -2047,6 +2179,73 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_allocation
       iv_require_batch           = abap_true ).
+  ENDMETHOD.
+
+  METHOD to_plant_fefo_uom.
+    LOOP AT is_allocation-allocations INTO DATA(ls_unit_allocation).
+      APPEND VALUE #(
+        allocation                = VALUE #(
+          request_id         = ls_unit_allocation-allocation-request_id
+          material           = ls_unit_allocation-allocation-material
+          target_plant       = ls_unit_allocation-allocation-target_plant
+          requested_quantity = ls_unit_allocation-allocation-requested_quantity
+          available_quantity = ls_unit_allocation-allocation-available_quantity
+          allocated_quantity = ls_unit_allocation-allocation-allocated_quantity
+          shortfall_quantity = ls_unit_allocation-allocation-shortfall_quantity )
+        source_quantity           = ls_unit_allocation-source_quantity
+        source_unit               = ls_unit_allocation-source_unit
+        base_quantity             = ls_unit_allocation-base_quantity
+        base_unit                 = ls_unit_allocation-base_unit
+        available_source_quantity =
+          ls_unit_allocation-available_source_quantity
+        allocated_source_quantity =
+          ls_unit_allocation-allocated_source_quantity
+        shortfall_source_quantity =
+          ls_unit_allocation-shortfall_source_quantity )
+        TO rs_result-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_unit_source).
+      APPEND VALUE #(
+        allocation                = VALUE #(
+          request_id         = ls_unit_source-allocation-request_id
+          material           = ls_unit_source-allocation-material
+          target_plant       = ls_unit_source-allocation-target_plant
+          source_plant       = ls_unit_source-allocation-source_plant
+          available_quantity = ls_unit_source-allocation-available_quantity
+          allocated_quantity = ls_unit_source-allocation-allocated_quantity )
+        source_unit               = ls_unit_source-source_unit
+        base_unit                 = ls_unit_source-base_unit
+        available_source_quantity =
+          ls_unit_source-available_source_quantity
+        allocated_source_quantity =
+          ls_unit_source-allocated_source_quantity )
+        TO rs_result-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_unit_batch).
+      APPEND VALUE #(
+        allocation                = ls_unit_batch-allocation-allocation
+        source_unit               = ls_unit_batch-source_unit
+        base_unit                 = ls_unit_batch-base_unit
+        available_source_quantity =
+          ls_unit_batch-available_source_quantity
+        allocated_source_quantity =
+          ls_unit_batch-allocated_source_quantity )
+        TO rs_result-batch_allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD transfer_fefo_date_uom.
+    DATA(ls_fefo_allocation) = to_plant_fefo_uom(
+      is_allocation = is_allocation ).
+    rs_result = transfer_plant_fefo_units(
+      is_header                  = is_header
+      is_allocation              = ls_fefo_allocation
+      it_destinations            = it_destinations
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
   ENDMETHOD.
 
   METHOD transfer_plant_splits.

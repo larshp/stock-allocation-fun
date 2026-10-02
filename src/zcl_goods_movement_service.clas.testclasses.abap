@@ -221,6 +221,10 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS rejects_2step_batch_split_uom FOR TESTING.
     METHODS rejects_plant_2step_same_plant FOR TESTING.
     METHODS reports_plant_2step_putaway FOR TESTING.
+    METHODS retries_pending_putaway FOR TESTING.
+    METHODS rejects_non_putaway_retry FOR TESTING.
+    METHODS cancels_pending_transfer FOR TESTING.
+    METHODS recovers_location_putaway FOR TESTING.
     METHODS transfers_plant_2step_units FOR TESTING.
     METHODS rejects_plant_2step_unit FOR TESTING.
     METHODS rejects_plant_2step_split_unit FOR TESTING.
@@ -267,6 +271,8 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS transfers_unit_batch_alloc FOR TESTING.
     METHODS rejects_unit_mismatch FOR TESTING.
     METHODS transfers_fefo_unit_alloc FOR TESTING.
+    METHODS transfers_fefo_date_uom FOR TESTING.
+    METHODS transfers_fefo_date_2step FOR TESTING.
     METHODS rejects_fefo_units_mismatch FOR TESTING.
     METHODS posts_two_step_transfers FOR TESTING.
     METHODS rejects_incomplete_2step FOR TESTING.
@@ -1396,6 +1402,393 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD retries_pending_putaway.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20260923'
+      document_date = '20260923' ).
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Putaway rejected' ) ) ) ).
+
+    DATA(ls_pending) = mo_cut->transfer_plant_two_step(
+      is_header         = ls_header
+      is_allocation     = VALUE #(
+        allocations          = VALUE #(
+          ( request_id         = 'REQ-1'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            requested_quantity = '2.000'
+            available_quantity = '2.000'
+            allocated_quantity = '2.000'
+            shortfall_quantity = '0.000' ) )
+        location_allocations = VALUE #(
+          ( request_id         = 'REQ-1'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            source_plant       = '1000'
+            storage_location   = '0001'
+            available_quantity = '2.000'
+            allocated_quantity = '2.000' ) ) )
+      it_destinations   = VALUE #(
+        ( request_id = 'REQ-1' receiving_storage_location = '0009' ) )
+      it_material_units = VALUE #(
+        ( material = 'MAT-1' base_unit = 'EA' base_unit_iso = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_pending-putaway_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '305'
+      act = ls_pending-putaway_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0009'
+      act = ls_pending-putaway_items[ 1 ]-storage_location ).
+
+    DATA(ls_simulation) = mo_cut->retry_transfer_putaway(
+      is_header          = ls_header
+      is_transfer_result = ls_pending
+      iv_test_run        = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_simulation-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_simulation-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_simulation-putaway_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+
+    mo_api->set_create_result_for_call(
+      iv_call_number = 4
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Putaway still rejected' ) ) ) ).
+    DATA(ls_failed_retry) = mo_cut->retry_transfer_putaway(
+      is_header          = ls_header
+      is_transfer_result = ls_simulation ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_failed_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_failed_retry-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = ls_pending-removal_result-material_document
+      act = ls_failed_retry-removal_result-material_document ).
+
+    mo_api->set_create_result_for_call(
+      iv_call_number = 5
+      is_result      = VALUE #(
+        material_document = '4900000005'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    DATA(ls_recovered) = mo_cut->retry_transfer_putaway(
+      is_header          = ls_header
+      is_transfer_result = ls_failed_retry ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_recovered-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_recovered-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = ls_pending-removal_result-material_document
+      act = ls_recovered-removal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000005'
+      act = ls_recovered-putaway_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_rollback_count( ) ).
+
+    DATA(lt_retry_items) = mo_api->get_items_for_call(
+      iv_call_number = 5 ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_retry_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '305'
+      act = lt_retry_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = lt_retry_items[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_retry_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0009'
+      act = lt_retry_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = lt_retry_items[ 1 ]-quantity ).
+
+    DATA lv_exception_raised TYPE abap_bool.
+    TRY.
+        mo_cut->retry_transfer_putaway(
+          is_header          = ls_header
+          is_transfer_result = ls_recovered ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_non_putaway_retry.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20260923'
+      document_date = '20260923' ).
+    DATA(ls_transfer_result) = VALUE zcl_goods_movement_service=>ty_two_step_transfer_result(
+      removal_result = VALUE #( is_successful = abap_true )
+      is_in_transit  = abap_true
+      putaway_items  = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '2000'
+          storage_location = '0009'
+          movement_type    = '303'
+          quantity         = '2.000'
+          entry_unit       = 'EA'
+          entry_unit_iso   = 'EA' ) ) ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->retry_transfer_putaway(
+          is_header          = ls_header
+          is_transfer_result = ls_transfer_result ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_pending_transfer.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20260923'
+      document_date = '20260923' ).
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Putaway rejected' ) ) ) ).
+
+    DATA(ls_pending) = mo_cut->transfer_plant_two_step(
+      is_header         = ls_header
+      is_allocation     = VALUE #(
+        allocations          = VALUE #(
+          ( request_id         = 'REQ-1'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            requested_quantity = '2.000'
+            available_quantity = '2.000'
+            allocated_quantity = '2.000'
+            shortfall_quantity = '0.000' ) )
+        location_allocations = VALUE #(
+          ( request_id         = 'REQ-1'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            source_plant       = '1000'
+            storage_location   = '0001'
+            available_quantity = '2.000'
+            allocated_quantity = '2.000' ) ) )
+      it_destinations   = VALUE #(
+        ( request_id = 'REQ-1' receiving_storage_location = '0009' ) )
+      it_material_units = VALUE #(
+        ( material = 'MAT-1' base_unit = 'EA' base_unit_iso = 'EA' ) ) ).
+    mo_api->set_cancel_result(
+      is_result = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Movement cannot be cancelled yet' ) ) ) ).
+
+    DATA(ls_failed_cancel) = mo_cut->cancel_transfer_in_transit(
+      is_transfer_result = ls_pending
+      iv_posting_date    = '20260925' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_failed_cancel-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_failed_cancel-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_failed_cancel-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+
+    mo_api->set_cancel_result(
+      is_result = VALUE #(
+        material_document = '4900000008'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_commit_result(
+      is_result = VALUE #( is_successful = abap_false ) ).
+    DATA(ls_failed_commit) = mo_cut->cancel_transfer_in_transit(
+      is_transfer_result = ls_failed_cancel
+      iv_posting_date    = '20260925' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_failed_commit-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_failed_commit-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_failed_commit-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+
+    mo_api->set_commit_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    DATA(ls_cancelled) = mo_cut->cancel_transfer_in_transit(
+      is_transfer_result = ls_failed_commit
+      iv_posting_date    = '20260925' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_cancelled-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_cancelled-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_cancelled-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = ls_pending-removal_result-material_document
+      act = ls_cancelled-removal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000008'
+      act = ls_cancelled-reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20260925'
+      act = mo_api->get_last_cancel_posting_date( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+
+    DATA lv_exception_raised TYPE abap_bool.
+    TRY.
+        mo_cut->cancel_transfer_in_transit(
+          is_transfer_result = ls_cancelled ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD recovers_location_putaway.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20260923'
+      document_date = '20260923' ).
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Putaway rejected' ) ) ) ).
+
+    DATA(ls_pending) = mo_cut->transfer_location_two_step(
+      is_header         = ls_header
+      is_allocation     = VALUE #(
+        allocations         = VALUE #(
+          ( request_id         = 'REQ-LOC'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '2.000'
+            available_quantity = '2.000'
+            allocated_quantity = '2.000'
+            shortfall_quantity = '0.000' ) )
+        storage_allocations = VALUE #(
+          ( request_id         = 'REQ-LOC'
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            allocated_quantity = '2.000' ) ) )
+      it_destinations   = VALUE #(
+        ( request_id = 'REQ-LOC' receiving_storage_location = '0009' ) )
+      it_material_units = VALUE #(
+        ( material = 'MAT-1' base_unit = 'EA' base_unit_iso = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '315'
+      act = ls_pending-putaway_items[ 1 ]-movement_type ).
+    mo_api->set_create_result_for_call(
+      iv_call_number = 3
+      is_result      = VALUE #(
+        material_document = '4900000009'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    DATA(ls_recovered) = mo_cut->retry_transfer_putaway(
+      is_header          = ls_header
+      is_transfer_result = ls_pending ).
+    DATA(lt_retry_items) = mo_api->get_items_for_call(
+      iv_call_number = 3 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_recovered-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_recovered-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = ls_pending-removal_result-material_document
+      act = ls_recovered-removal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_retry_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '315'
+      act = lt_retry_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0009'
+      act = lt_retry_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 
   METHOD transfers_plant_2step_units.
@@ -3995,6 +4388,174 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD transfers_fefo_date_uom.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261002'
+      document_date = '20261002' ).
+
+    DATA(ls_result) = mo_cut->transfer_fefo_date_uom(
+      is_header                  = ls_header
+      is_allocation              = VALUE #(
+        allocations       = VALUE #(
+          ( allocation                = VALUE #(
+              request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              target_plant       = '2000'
+              required_date      = '20261010'
+              requested_quantity = '12.000'
+              available_quantity = '12.000'
+              allocated_quantity = '3.000'
+              shortfall_quantity = '9.000' )
+            source_quantity           = '1.000'
+            source_unit               = 'BOX'
+            base_quantity             = '12.000'
+            base_unit                 = 'EA'
+            available_source_quantity = '1.000'
+            allocated_source_quantity = '0.250'
+            shortfall_source_quantity = '0.750' ) )
+        batch_allocations = VALUE #(
+          ( allocation                = VALUE #(
+              required_date = '20261010'
+              allocation    = VALUE #(
+                request_id         = 'REQ-1'
+                material           = 'MAT-1'
+                target_plant       = '2000'
+                source_plant       = '1000'
+                storage_location   = '0001'
+                batch              = 'B-1'
+                expiration_date    = '20261020'
+                available_quantity = '12.000'
+                allocated_quantity = '3.000' ) )
+            source_unit               = 'BOX'
+            base_unit                 = 'EA'
+            available_source_quantity = '1.000'
+            allocated_source_quantity = '0.250' ) ) )
+      it_destinations            = VALUE #(
+        ( request_id = 'REQ-1' receiving_storage_location = '0009' ) )
+      it_material_units          = VALUE #(
+        ( material = 'MAT-1' base_unit = 'EA' base_unit_iso = 'EA' ) )
+      iv_require_full_allocation = abap_false ).
+    DATA(lt_items) = mo_api->get_last_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '04'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '301'
+      act = lt_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = lt_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_items[ 1 ]-receiving_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_items[ 1 ]-entry_unit ).
+  ENDMETHOD.
+
+  METHOD transfers_fefo_date_2step.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261002'
+      document_date = '20261002' ).
+
+    DATA(ls_result) = mo_cut->transfer_fefo_date_uom_2step(
+      is_header                  = ls_header
+      is_allocation              = VALUE #(
+        allocations       = VALUE #(
+          ( allocation                = VALUE #(
+              request_id         = 'REQ-1'
+              material           = 'MAT-1'
+              target_plant       = '2000'
+              required_date      = '20261010'
+              requested_quantity = '12.000'
+              available_quantity = '12.000'
+              allocated_quantity = '3.000'
+              shortfall_quantity = '9.000' )
+            source_quantity           = '1.000'
+            source_unit               = 'BOX'
+            base_quantity             = '12.000'
+            base_unit                 = 'EA'
+            available_source_quantity = '1.000'
+            allocated_source_quantity = '0.250'
+            shortfall_source_quantity = '0.750' ) )
+        batch_allocations = VALUE #(
+          ( allocation                = VALUE #(
+              required_date = '20261010'
+              allocation    = VALUE #(
+                request_id         = 'REQ-1'
+                material           = 'MAT-1'
+                target_plant       = '2000'
+                source_plant       = '1000'
+                storage_location   = '0001'
+                batch              = 'B-1'
+                expiration_date    = '20261020'
+                available_quantity = '12.000'
+                allocated_quantity = '3.000' ) )
+            source_unit               = 'BOX'
+            base_unit                 = 'EA'
+            available_source_quantity = '1.000'
+            allocated_source_quantity = '0.250' ) ) )
+      it_destinations            = VALUE #(
+        ( request_id = 'REQ-1' receiving_storage_location = '0009' ) )
+      it_material_units          = VALUE #(
+        ( material = 'MAT-1' base_unit = 'EA' base_unit_iso = 'EA' ) )
+      iv_require_full_allocation = abap_false ).
+    DATA(lt_removal_items) = mo_api->get_items_for_call(
+      iv_call_number = 1 ).
+    DATA(lt_putaway_items) = mo_api->get_items_for_call(
+      iv_call_number = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '303'
+      act = lt_removal_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = lt_removal_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_removal_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_removal_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '305'
+      act = lt_putaway_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_putaway_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0009'
+      act = lt_putaway_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_putaway_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_putaway_items[ 1 ]-quantity ).
   ENDMETHOD.
 
   METHOD rejects_fefo_units_mismatch.

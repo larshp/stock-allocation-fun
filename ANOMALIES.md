@@ -44,9 +44,11 @@ the target BAPI accepts the selected item-level batches and check its ATP
 result. `preview_for_cost_center` uses the local stock estimate by default. Its
 optional `iv_check_atp` setting adds a plant-level SAP ATP result separately;
 the ATP request does not retain a batch or storage-location restriction and
-does not change the local allocation or preview success flag. Preview does not
-persist a reservation. The ATP API is mocked locally, so confirm the target
-release's BAPI signature and check-rule behavior in SAP.
+does not change the local allocation or preview success flag. The preview's
+confirmed and unconfirmed base quantities total and cap the returned
+confirmation lines; SAP's raw result remains available. Preview does not persist
+a reservation. The ATP API is mocked locally, so confirm the target release's
+BAPI signature and check-rule behavior in SAP.
 
 Order allocation subtracts active movement type 231 reservations from
 `RESB-BDMNG - RESB-ENMNG`, grouped by material, plant, item, schedule line,
@@ -89,14 +91,13 @@ deleted, including reservations already partly or fully issued. Verify the
 BAPI signature and deletion behavior in the target release; local tests use
 an API double and do not exercise SAP reservation status rules.
 
-Sales-order-scoped release discovers open movement-231 reservation items in
-`RESB` and excludes documents that contain any non-deleted item outside the
-requested scope. The two reads
-are not an SAP reservation lock; concurrent changes can still occur before the
-BAPI delete. Verify the `RESB` filters and document behavior on the target
-release. Release also excludes documents with non-deleted items outside the
-requested scope; item-scoped release checks the order item too. The local
-transpiler does not execute these database queries.
+Sales-order-scoped release uses one `FOR ALL ENTRIES` read to discover open
+movement-231 items for all requested orders or item pairs, then a second guarded
+read to exclude documents with non-deleted items outside the requested scope.
+The two reads are not an SAP reservation lock; concurrent changes can still
+occur before the BAPI delete. Verify the `RESB` filters and document behavior on
+the target release. The local transpiler does not execute these queries or
+confirm the SQL plan.
 
 Reservation inquiry reads items through `BAPI_RESERVATION_GETDETAIL1`. Its
 adapter maps the partial local `BAPI2093_RES_ITEM_DETAIL` stub. Verify the
@@ -105,14 +106,15 @@ local tests use an API double and do not validate live reservation records.
 
 Production-order component inquiry reads open reservation items from `RESB`
 using `AUFNR`, `RSNUM`, `RSPOS`, `BDMNG`, and `ENMNG`, while returning the
-reservation unit, movement type, date, location, and batch. `ISSUE_COMPONENTS`
-validates selected keys and quantities against those open rows, then uses the
-reservation detail read and goods-movement APIs. Local service tests use
-repository and API doubles; they do not execute the query or validate the
-BAPI signatures and field behavior against the target release. Production
-orders normally generate their component reservations automatically, so this
-service exposes and issues those existing reservations instead of creating
-duplicates.
+reservation unit, movement type, date, location, and batch. Bulk inquiry uses a
+guarded `FOR ALL ENTRIES` read for a unique production-order list.
+`ISSUE_COMPONENTS` and `ISSUE_COMPONENTS_BULK` validate selected keys and
+quantities against those open rows, then use the reservation detail read and
+goods-movement APIs. Local service tests use repository and API doubles; they do
+not execute the query or validate BAPI signatures and field behavior against
+the target release. Production orders normally generate their component
+reservations automatically, so this service exposes and issues those existing
+reservations instead of creating duplicates.
 
 Reservation issue posting calls `BAPI_GOODSMVT_CREATE` with GM code 03 and
 reservation number, item, record type, blank movement indicator, quantity,
@@ -257,6 +259,24 @@ separately; a successful removal followed by failed putaway leaves stock in
 transit and is reported in the result. Local tests use a BAPI double; verify
 movement fields and transfer configuration in the target release.
 
+Pending two-step results include the exact putaway item table and can be passed
+to `RETRY_TRANSFER_PUTAWAY`, which validates that removal committed and posts
+only 305/315 items. Persist the pending result if recovery must survive a process
+restart. The method does not look up later postings, so callers must reconcile
+the transfer before retrying a stale result to avoid duplicating a putaway posted
+outside this service. Validate retry behavior against the target SAP release.
+
+`CANCEL_TRANSFER_IN_TRANSIT` uses `BAPI_GOODSMVT_CANCEL` for the complete
+removal material document and clears the pending state only after cancellation
+commits. SAP cancellation depends on the current stock situation still allowing
+the original document to be reversed; see the [BAPI goods movement guidance](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)
+and [cancellation rules](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/e72f747389b340229f7fa343975bfa57/7bdbc353b677b44ce10000000a174cb4.html).
+SAP guidance says the 303/313 document serves as input help for a 305/315
+putaway and the two documents need not be linked ([two-step transfer guidance](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167780.html)).
+Callers must reconcile any out-of-band putaway before cancelling a stale
+pending result. Verify reversal behavior and posting-period rules in the target
+system.
+
 `TRANSFER_PLANT_2STEP_UNITS` accepts unit-aware allocation results only when
 summary and split base units match the material unit mapping. It posts canonical
 base-unit quantities. Local tests use a BAPI double; verify quantities and
@@ -298,6 +318,45 @@ determination, check transfer configuration, or validate a subsequent goods
 movement. Local tests use repository doubles; verify batch determination,
 source-plant priority, conversion factors, and any transfer process in the
 target system.
+
+`ALLOCATE_PLANTS_FEFO_BY_DATE` gives earlier required dates first use of shared
+batch balances, applies the minimum remaining shelf life against each demand's
+required date, and then consumes source plants in caller order with FEFO within
+each plant. Static safety stock is withheld from latest-expiring stock eligible
+for the earliest compatible demand. Undated batches qualify only when the
+minimum is zero and sort after dated batches. It uses current `MCHB`/`RESB`
+estimates; it does not add dated PO/STO/production receipts or invoke SAP's
+configured batch strategy. SAP supports dynamic shelf-life criteria based on delivery dates
+([dynamic date determination](https://help.sap.com/docs/SAP_ERP/3db8848948314edeabbea684714e1055/f8fdb753128eb44ce10000000a174cb4.html));
+verify the local required-date policy against the target process before posting
+the returned splits.
+The optional `it_allowed_storage_locations` list filters local batch-stock rows
+consistently across all requests and source plants. `it_source_locations` applies
+request/source-plant-specific location rules and must cover every source pair;
+when both are supplied their filters intersect. These lists do not validate that
+a location is configured for each plant; a location without eligible local stock
+simply contributes no quantity.
+
+`ALLOCATE_PLANTS_FEFO_DATE_UOM` converts each demand to the material base unit
+before sharing dated FEFO balances. Demand priority, required-date shelf-life
+checks, source-plant order, and safety-stock handling follow the base-unit
+variant; rounded source-unit amounts are informational while base-unit split
+quantities remain canonical. `TRANSFER_FEFO_DATE_UOM` and
+`TRANSFER_FEFO_DATE_UOM_2STEP` map the dated result into the existing 301 and
+303/305 transfer paths and validate material base units. Local tests use a
+goods-movement double; verify UOM mappings, batch fields, movement configuration,
+and transfer behavior in the target SAP release.
+
+`ALLOCATE_PLANTS_FEFO_DATE_ATP` checks cumulative positive FEFO source-plant
+quantities by material, base unit, and required date through the material
+availability API. The ATP result is diagnostic and does not adjust the local
+batch selection, reserve inventory, or post a transfer. Local tests use an API
+double; verify check-rule configuration, planning scope, confirmations, and
+date behavior against live ATP in the target system. The direct confirmed and
+unconfirmed base quantities total all returned confirmation lines and cap the
+confirmed amount at the cumulative request; checks marked irrelevant return zero
+in these convenience fields. The raw API result remains available for callers
+that need the original SAP status and line details.
 
 Material-document cancellation uses `BAPI_GOODSMVT_CANCEL` for the full
 document or selected items, identified by material document number and fiscal
@@ -551,7 +610,11 @@ planning estimate without location splits.
 estimate. Its client-side cumulative quantity is grouped by source plant,
 base unit, and date from this request list; it does not check an unallocated
 shortfall, model concurrent requests, or replace SAP's checking-rule scope.
-The ATP result remains separate from local allocation and success.
+The ATP result remains separate from local allocation and success. Its direct
+confirmed and unconfirmed base quantities sum returned confirmation lines and
+cap confirmation at the cumulative request; these convenience quantities are
+zero when SAP marks a check as irrelevant. The raw SAP result retains original
+status and confirmation details.
 
 `ALLOCATE_DATE_DEMANDS_ATP` groups dated unit-aware demands by material, plant,
 base unit, and required date. It checks the cumulative base-unit quantity once
@@ -559,7 +622,10 @@ per date group and shares the result with requests due on that date. This
 client-side accumulation only includes the supplied request list and cannot
 replace SAP's checking-rule configuration or account for concurrent demand.
 The local estimate's receipt and safety-stock options do not modify the SAP ATP
-request; validate both results against the target system.
+request; validate both results against the target system. Each returned row
+includes convenience confirmed and unconfirmed base quantities summed from all
+confirmation lines and capped at the cumulative request; these fields are zero
+for checks SAP marks irrelevant, while `atp_result` retains the raw response.
 
 `ALLOCATE_REQUEST_DATE_ATP` combines that local estimate with
 `BAPI_MATERIAL_AVAILABILITY`, passing one required date and quantity in
@@ -579,7 +645,10 @@ release. The adapter uses `BAPICM61M-WZTER` for `ENDLEADTME`; verify this and
 the returned date against the target release. The local estimate converts the
 supplied quantity from `iv_unit` to the material base unit before reading stock;
 the SAP API still receives the original quantity and unit. This relies on the
-local `MARA`/`MARM` ratio and should be checked in the target release.
+local `MARA`/`MARM` ratio and should be checked in the target release. Direct
+confirmed and unconfirmed base quantities sum every returned confirmation line
+and convert alternative-unit confirmations with that same ratio; the raw SAP
+result remains available for release-specific interpretation.
 `preview_order` can request one such plant-level check per positive
 open schedule line; item-level fallback rows without a date are rejected.
 Before checking, it sorts those lines by required date and accumulates demand
@@ -594,6 +663,11 @@ recommends accumulation rule 3 in the relevant configuration
 ([ATP accumulation](https://help.sap.com/docs/SUPPORT_CONTENT/sapo/3354623235.html));
 SAP also documents limitations checking requirement quantities with this BAPI
 ([KBA 1751389](https://userapps.support.sap.com/sap/support/knowledge/en/1751389)).
+The service exposes a shared confirmation splitter that totals the returned
+confirmation lines, caps them at the cumulative base quantity, and leaves the
+raw SAP response on every check. Nonpositive quantities or conversion factors
+are rejected before conversion. Confirmed and unconfirmed values are diagnostic;
+they do not account for ATP scope outside the supplied order lines.
 The client-side total includes only open lines in this preview and does not
 reproduce all configured accumulation or concurrent demand, so validate the
 checking rule and results in the target system. Checks use base-unit quantities

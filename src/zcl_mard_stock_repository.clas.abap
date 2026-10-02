@@ -293,6 +293,25 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_so_reservation_finder~get_open_reservation_numbers.
+    DATA lt_sales_documents TYPE zif_so_reservation_finder=>ty_sales_documents.
+    DATA lt_reservations TYPE zif_so_reservation_finder=>ty_order_reservations.
+
+    IF iv_sales_document IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    APPEND iv_sales_document TO lt_sales_documents.
+    lt_reservations = zif_so_reservation_finder~get_open_reservations_bulk(
+      it_sales_documents = lt_sales_documents
+      iv_item_number     = iv_item_number ).
+    LOOP AT lt_reservations INTO DATA(ls_reservation)
+        WHERE sales_document = iv_sales_document.
+      APPEND ls_reservation-reservation_number TO rt_reservation_numbers.
+    ENDLOOP.
+    SORT rt_reservation_numbers.
+  ENDMETHOD.
+
+  METHOD zif_so_reservation_finder~get_open_reservations_bulk.
     TYPES:
       BEGIN OF ty_reservation_item_scope,
         reservation_number TYPE resb-rsnum,
@@ -303,14 +322,18 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         required_quantity  TYPE resb-bdmng,
         withdrawn_quantity TYPE resb-enmng,
       END OF ty_reservation_item_scope.
+    TYPES ty_candidates TYPE HASHED TABLE OF
+      zif_so_reservation_finder=>ty_order_reservation
+      WITH UNIQUE KEY sales_document reservation_number.
     DATA lt_candidate_numbers TYPE HASHED TABLE OF resb-rsnum
       WITH UNIQUE KEY table_line.
+    DATA lt_candidates TYPE ty_candidates.
+    DATA lt_target_items TYPE STANDARD TABLE OF ty_reservation_item_scope
+      WITH EMPTY KEY.
     DATA lt_reservation_items TYPE STANDARD TABLE OF ty_reservation_item_scope
       WITH EMPTY KEY.
-    DATA lt_safe_numbers TYPE HASHED TABLE OF resb-rsnum
-      WITH UNIQUE KEY table_line.
 
-    IF iv_sales_document IS INITIAL.
+    IF it_sales_documents IS INITIAL.
       RETURN.
     ENDIF.
 
@@ -322,14 +345,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
            bdmng AS required_quantity,
            enmng AS withdrawn_quantity
       FROM resb
-      WHERE kdauf = @iv_sales_document
+      FOR ALL ENTRIES IN @it_sales_documents
+      WHERE kdauf = @it_sales_documents-table_line
         AND bwart = '231'
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
-      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
+      INTO CORRESPONDING FIELDS OF TABLE @lt_target_items.
 
-    LOOP AT lt_reservation_items INTO DATA(ls_target_item).
+    LOOP AT lt_target_items INTO DATA(ls_target_item).
       IF ls_target_item-required_quantity <= ls_target_item-withdrawn_quantity.
         CONTINUE.
       ENDIF.
@@ -337,6 +361,10 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           AND ls_target_item-item_number <> iv_item_number.
         CONTINUE.
       ENDIF.
+      INSERT VALUE #(
+        sales_document     = ls_target_item-sales_document
+        reservation_number = ls_target_item-reservation_number )
+        INTO TABLE lt_candidates.
       INSERT ls_target_item-reservation_number INTO TABLE lt_candidate_numbers.
     ENDLOOP.
 
@@ -344,27 +372,24 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    CLEAR lt_reservation_items.
     SELECT rsnum AS reservation_number,
            kdauf AS sales_document,
            kdpos AS item_number,
            bwart AS movement_type,
-           sobkz AS special_stock,
-           bdmng AS required_quantity,
-           enmng AS withdrawn_quantity
+           sobkz AS special_stock
       FROM resb
       FOR ALL ENTRIES IN @lt_candidate_numbers
       WHERE rsnum = @lt_candidate_numbers-table_line
         AND xloek = @space
       INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
 
-    LOOP AT lt_candidate_numbers INTO DATA(lv_candidate_number).
+    LOOP AT lt_candidates INTO DATA(ls_candidate).
       DATA(lv_is_order_only) = abap_true.
       DATA(lv_has_document_item) = abap_false.
       LOOP AT lt_reservation_items INTO DATA(ls_reservation_item)
-          WHERE reservation_number = lv_candidate_number.
+          WHERE reservation_number = ls_candidate-reservation_number.
         lv_has_document_item = abap_true.
-        IF ls_reservation_item-sales_document <> iv_sales_document
+        IF ls_reservation_item-sales_document <> ls_candidate-sales_document
             OR ( iv_item_number IS NOT INITIAL
               AND ls_reservation_item-item_number <> iv_item_number )
             OR ls_reservation_item-movement_type <> '231'
@@ -374,14 +399,101 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
       IF lv_is_order_only = abap_true AND lv_has_document_item = abap_true.
-        INSERT lv_candidate_number INTO TABLE lt_safe_numbers.
+        APPEND ls_candidate TO rt_reservations.
       ENDIF.
     ENDLOOP.
+    SORT rt_reservations BY sales_document reservation_number.
+  ENDMETHOD.
 
-    LOOP AT lt_safe_numbers INTO DATA(lv_safe_number).
-      APPEND lv_safe_number TO rt_reservation_numbers.
+  METHOD zif_so_reservation_finder~get_open_item_reservations.
+    TYPES:
+      BEGIN OF ty_reservation_item_scope,
+        reservation_number TYPE resb-rsnum,
+        sales_document     TYPE resb-kdauf,
+        item_number        TYPE resb-kdpos,
+        movement_type      TYPE resb-bwart,
+        special_stock      TYPE resb-sobkz,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_item_scope.
+    TYPES ty_candidates TYPE HASHED TABLE OF
+      zif_so_reservation_finder=>ty_item_reservation
+      WITH UNIQUE KEY sales_document item_number reservation_number.
+    DATA lt_candidate_numbers TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+    DATA lt_candidates TYPE ty_candidates.
+    DATA lt_target_items TYPE STANDARD TABLE OF ty_reservation_item_scope
+      WITH EMPTY KEY.
+    DATA lt_reservation_items TYPE STANDARD TABLE OF ty_reservation_item_scope
+      WITH EMPTY KEY.
+
+    IF it_sales_order_items IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT rsnum AS reservation_number,
+           kdauf AS sales_document,
+           kdpos AS item_number,
+           bwart AS movement_type,
+           sobkz AS special_stock,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      FOR ALL ENTRIES IN @it_sales_order_items
+      WHERE kdauf = @it_sales_order_items-sales_document
+        AND kdpos = @it_sales_order_items-item_number
+        AND bwart = '231'
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_target_items.
+
+    LOOP AT lt_target_items INTO DATA(ls_target_item).
+      IF ls_target_item-required_quantity <= ls_target_item-withdrawn_quantity.
+        CONTINUE.
+      ENDIF.
+      INSERT VALUE #(
+        sales_document     = ls_target_item-sales_document
+        item_number        = ls_target_item-item_number
+        reservation_number = ls_target_item-reservation_number )
+        INTO TABLE lt_candidates.
+      INSERT ls_target_item-reservation_number INTO TABLE lt_candidate_numbers.
     ENDLOOP.
-    SORT rt_reservation_numbers.
+
+    IF lt_candidate_numbers IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT rsnum AS reservation_number,
+           kdauf AS sales_document,
+           kdpos AS item_number,
+           bwart AS movement_type,
+           sobkz AS special_stock
+      FROM resb
+      FOR ALL ENTRIES IN @lt_candidate_numbers
+      WHERE rsnum = @lt_candidate_numbers-table_line
+        AND xloek = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
+
+    LOOP AT lt_candidates INTO DATA(ls_candidate).
+      DATA(lv_is_item_only) = abap_true.
+      DATA(lv_has_document_item) = abap_false.
+      LOOP AT lt_reservation_items INTO DATA(ls_reservation_item)
+          WHERE reservation_number = ls_candidate-reservation_number.
+        lv_has_document_item = abap_true.
+        IF ls_reservation_item-sales_document <> ls_candidate-sales_document
+            OR ls_reservation_item-item_number <> ls_candidate-item_number
+            OR ls_reservation_item-movement_type <> '231'
+            OR ls_reservation_item-special_stock <> space.
+          lv_is_item_only = abap_false.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      IF lv_is_item_only = abap_true AND lv_has_document_item = abap_true.
+        APPEND ls_candidate TO rt_reservations.
+      ENDIF.
+    ENDLOOP.
+    SORT rt_reservations BY sales_document item_number reservation_number.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_order_reservations_bulk.

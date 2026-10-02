@@ -54,6 +54,8 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         schedule_line                 TYPE c LENGTH 4,
         line_requested_quantity       TYPE mard-labst,
         cumulative_requested_quantity TYPE mard-labst,
+        confirmed_base_quantity       TYPE mard-labst,
+        unconfirmed_base_quantity     TYPE mard-labst,
         result                        TYPE zif_material_availability_api=>ty_result,
       END OF ty_atp_check.
     TYPES ty_atp_checks TYPE STANDARD TABLE OF ty_atp_check
@@ -510,6 +512,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                    plant = ls_atp_demand-plant
                    unit = ls_atp_demand-unit
                    required_date = ls_atp_demand-required_date.
+        DATA(ls_confirmation_split) =
+          mo_stock_service->get_atp_confirmation_split(
+            iv_requested_base_quantity =
+              ls_atp_day_total-cumulative_quantity
+            is_atp_result              = ls_atp_day_total-result ).
         APPEND VALUE #(
           source_index = ls_atp_demand-source_index
           atp_check    = VALUE #(
@@ -520,6 +527,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
               ls_atp_demand-requested_quantity
             cumulative_requested_quantity =
               ls_atp_day_total-cumulative_quantity
+            confirmed_base_quantity       =
+              ls_confirmation_split-confirmed_base_quantity
+            unconfirmed_base_quantity     =
+              ls_confirmation_split-unconfirmed_base_quantity
             result                        = ls_atp_day_total-result ) )
           TO lt_indexed_atp_checks.
       ENDLOOP.
@@ -1016,6 +1027,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                    plant = ls_atp_demand-plant
                    unit = ls_atp_demand-unit
                    required_date = ls_atp_demand-required_date.
+        DATA(ls_confirmation_split) =
+          mo_stock_service->get_atp_confirmation_split(
+            iv_requested_base_quantity =
+              ls_atp_day_total-cumulative_quantity
+            is_atp_result              = ls_atp_day_total-result ).
         APPEND VALUE #(
           source_index = ls_atp_demand-source_index
           atp_check    = VALUE #(
@@ -1026,6 +1042,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
               ls_atp_demand-requested_quantity
             cumulative_requested_quantity =
               ls_atp_day_total-cumulative_quantity
+            confirmed_base_quantity       =
+              ls_confirmation_split-confirmed_base_quantity
+            unconfirmed_base_quantity     =
+              ls_confirmation_split-unconfirmed_base_quantity
             result                        = ls_atp_day_total-result ) )
           TO lt_indexed_atp_checks.
       ENDLOOP.

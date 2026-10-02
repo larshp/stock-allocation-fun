@@ -14,6 +14,14 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity          TYPE mard-labst,
       END OF ty_demand,
       ty_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY,
+      ty_storage_locations TYPE STANDARD TABLE OF mard-lgort WITH EMPTY KEY,
+      BEGIN OF ty_plant_source_location,
+        request_id       TYPE c LENGTH 30,
+        source_plant     TYPE mard-werks,
+        storage_location TYPE mard-lgort,
+      END OF ty_plant_source_location,
+      ty_plant_source_locations TYPE STANDARD TABLE OF
+        ty_plant_source_location WITH EMPTY KEY,
       BEGIN OF ty_allocation,
         request_id         TYPE c LENGTH 30,
         material           TYPE mard-matnr,
@@ -72,14 +80,23 @@ CLASS zcl_stock_service DEFINITION
       ty_date_unit_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_atp_allocation,
-        local_estimate TYPE ty_dated_allocation,
-        atp_result     TYPE zif_material_availability_api=>ty_result,
+        local_estimate            TYPE ty_dated_allocation,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+        atp_result                TYPE zif_material_availability_api=>ty_result,
       END OF ty_dated_atp_allocation.
     TYPES:
+      BEGIN OF ty_atp_confirmation_split,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+      END OF ty_atp_confirmation_split.
+    TYPES:
       BEGIN OF ty_date_unit_atp_allocation,
-        local_estimate           TYPE ty_date_unit_allocation,
-        cumulative_base_quantity TYPE mard-labst,
-        atp_result               TYPE zif_material_availability_api=>ty_result,
+        local_estimate            TYPE ty_date_unit_allocation,
+        cumulative_base_quantity  TYPE mard-labst,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+        atp_result                TYPE zif_material_availability_api=>ty_result,
       END OF ty_date_unit_atp_allocation.
     TYPES ty_date_unit_atp_allocations TYPE STANDARD TABLE OF
       ty_date_unit_atp_allocation WITH EMPTY KEY.
@@ -180,15 +197,17 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_unit_date_plant_result.
     TYPES:
       BEGIN OF ty_plant_date_atp_check,
-        request_id               TYPE c LENGTH 30,
-        material                 TYPE mard-matnr,
-        target_plant             TYPE mard-werks,
-        source_plant             TYPE mard-werks,
-        required_date            TYPE resb-bdter,
-        base_unit                TYPE mara-meins,
-        allocated_base_quantity  TYPE mard-labst,
-        cumulative_base_quantity TYPE mard-labst,
-        atp_result               TYPE zif_material_availability_api=>ty_result,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        target_plant              TYPE mard-werks,
+        source_plant              TYPE mard-werks,
+        required_date             TYPE resb-bdter,
+        base_unit                 TYPE mara-meins,
+        allocated_base_quantity   TYPE mard-labst,
+        cumulative_base_quantity  TYPE mard-labst,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+        atp_result                TYPE zif_material_availability_api=>ty_result,
       END OF ty_plant_date_atp_check.
     TYPES ty_plant_date_atp_checks TYPE STANDARD TABLE OF
       ty_plant_date_atp_check WITH EMPTY KEY.
@@ -308,6 +327,19 @@ CLASS zcl_stock_service DEFINITION
         batch_allocations TYPE ty_plant_batch_location_allocations,
       END OF ty_plant_fefo_allocation_result.
     TYPES:
+      BEGIN OF ty_date_plant_fefo_batch_allocation,
+        required_date TYPE resb-bdter,
+        allocation    TYPE ty_plant_batch_location_allocation,
+      END OF ty_date_plant_fefo_batch_allocation.
+    TYPES ty_date_plant_fefo_batch_allocations TYPE STANDARD TABLE OF
+      ty_date_plant_fefo_batch_allocation WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_date_plant_fefo_allocation_result,
+        allocations       TYPE ty_date_plant_demand_allocations,
+        plant_allocations TYPE ty_date_plant_source_allocations,
+        batch_allocations TYPE ty_date_plant_fefo_batch_allocations,
+      END OF ty_date_plant_fefo_allocation_result.
+    TYPES:
       BEGIN OF ty_unit_plant_batch_demand,
         request_id         TYPE c LENGTH 30,
         material           TYPE mard-matnr,
@@ -414,6 +446,27 @@ CLASS zcl_stock_service DEFINITION
         plant_allocations TYPE ty_unit_plant_source_allocations,
         batch_allocations TYPE ty_unit_plant_fefo_splits,
       END OF ty_unit_plant_fefo_result.
+    TYPES:
+      BEGIN OF ty_unit_date_plant_fefo_batch_split,
+        allocation                TYPE ty_date_plant_fefo_batch_allocation,
+        source_unit               TYPE mara-meins,
+        base_unit                 TYPE mara-meins,
+        available_source_quantity TYPE mard-labst,
+        allocated_source_quantity TYPE mard-labst,
+      END OF ty_unit_date_plant_fefo_batch_split.
+    TYPES ty_unit_date_plant_fefo_batch_splits TYPE STANDARD TABLE OF
+      ty_unit_date_plant_fefo_batch_split WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_unit_date_plant_fefo_result,
+        allocations       TYPE ty_unit_date_plant_demand_allocs,
+        plant_allocations TYPE ty_unit_date_plant_source_allocs,
+        batch_allocations TYPE ty_unit_date_plant_fefo_batch_splits,
+      END OF ty_unit_date_plant_fefo_result.
+    TYPES:
+      BEGIN OF ty_plant_fefo_date_atp_result,
+        local_estimate TYPE ty_unit_date_plant_fefo_result,
+        atp_checks     TYPE ty_plant_date_atp_checks,
+      END OF ty_plant_fefo_date_atp_result.
     TYPES:
       BEGIN OF ty_unit_allocation,
         allocation      TYPE ty_allocation,
@@ -808,6 +861,17 @@ CLASS zcl_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS get_atp_confirmation_split
+      IMPORTING
+        iv_requested_base_quantity TYPE mard-labst
+        iv_numerator               TYPE marm-umrez DEFAULT 1
+        iv_denominator             TYPE marm-umren DEFAULT 1
+        is_atp_result              TYPE zif_material_availability_api=>ty_result
+      RETURNING
+        VALUE(rs_quantities)       TYPE ty_atp_confirmation_split
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS allocate_request_in_unit
       IMPORTING
         iv_material             TYPE mard-matnr
@@ -903,6 +967,46 @@ CLASS zcl_stock_service DEFINITION
         iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)        TYPE ty_plant_fefo_allocation_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS allocate_plants_fefo_by_date
+      IMPORTING
+        it_demands                   TYPE ty_date_plant_demands
+        it_sources                   TYPE ty_plant_sources
+        iv_min_days                  TYPE i DEFAULT 0
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        it_allowed_storage_locations TYPE ty_storage_locations OPTIONAL
+        it_source_locations          TYPE ty_plant_source_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_date_plant_fefo_allocation_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS allocate_plants_fefo_date_uom
+      IMPORTING
+        it_demands                   TYPE ty_unit_date_plant_demands
+        it_sources                   TYPE ty_plant_sources
+        iv_min_days                  TYPE i DEFAULT 0
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        it_allowed_storage_locations TYPE ty_storage_locations OPTIONAL
+        it_source_locations          TYPE ty_plant_source_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_unit_date_plant_fefo_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS allocate_plants_fefo_date_atp
+      IMPORTING
+        it_demands                   TYPE ty_unit_date_plant_demands
+        it_sources                   TYPE ty_plant_sources
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_min_days                  TYPE i DEFAULT 0
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        it_allowed_storage_locations TYPE ty_storage_locations OPTIONAL
+        it_source_locations          TYPE ty_plant_source_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_plant_fefo_date_atp_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -1089,6 +1193,15 @@ CLASS zcl_stock_service DEFINITION
     TYPES ty_date_plant_source_idxs TYPE STANDARD TABLE OF
       ty_date_plant_source_idx WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_date_plant_fefo_batch_idx,
+        source_index TYPE i,
+        source_order TYPE i,
+        batch_order  TYPE i,
+        allocation   TYPE ty_date_plant_fefo_batch_allocation,
+      END OF ty_date_plant_fefo_batch_idx.
+    TYPES ty_date_plant_fefo_batch_idxs TYPE STANDARD TABLE OF
+      ty_date_plant_fefo_batch_idx WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_demand_source_balance,
         source_plant       TYPE mard-werks,
         source_order       TYPE i,
@@ -1207,6 +1320,7 @@ CLASS zcl_stock_service DEFINITION
         VALUE(rs_ratio) TYPE zif_material_uom_converter=>ty_unit_ratio
       RAISING
         zcx_invalid_stock_request.
+
 ENDCLASS.
 
 CLASS zcl_stock_service IMPLEMENTATION.
@@ -1415,6 +1529,71 @@ CLASS zcl_stock_service IMPLEMENTATION.
         OR rs_ratio-denominator <= 0.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD get_atp_confirmation_split.
+    DATA lv_requested_source_quantity TYPE decfloat34.
+    DATA lv_source_confirmed_quantity TYPE decfloat34.
+    DATA lv_confirmed_base_quantity TYPE decfloat34.
+
+    IF iv_requested_base_quantity < 0
+        OR iv_numerator <= 0
+        OR iv_denominator <= 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF iv_requested_base_quantity = 0
+        OR is_atp_result-is_check_relevant <> abap_true.
+      RETURN.
+    ENDIF.
+
+    IF is_atp_result-is_fully_available = abap_true.
+      rs_quantities-confirmed_base_quantity = iv_requested_base_quantity.
+    ELSEIF is_atp_result-confirmation_lines IS NOT INITIAL.
+      lv_requested_source_quantity =
+        CONV decfloat34( iv_requested_base_quantity )
+        * CONV decfloat34( iv_denominator )
+        / CONV decfloat34( iv_numerator ).
+      LOOP AT is_atp_result-confirmation_lines
+          ASSIGNING FIELD-SYMBOL(<ls_confirmation_line>).
+        IF <ls_confirmation_line>-confirmed_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+
+        lv_source_confirmed_quantity += CONV decfloat34(
+          <ls_confirmation_line>-confirmed_quantity ).
+        IF lv_source_confirmed_quantity >= lv_requested_source_quantity.
+          lv_source_confirmed_quantity = lv_requested_source_quantity.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lv_confirmed_base_quantity =
+        lv_source_confirmed_quantity
+        * CONV decfloat34( iv_numerator )
+        / CONV decfloat34( iv_denominator ).
+      IF lv_confirmed_base_quantity >
+          CONV decfloat34( iv_requested_base_quantity ).
+        lv_confirmed_base_quantity =
+          CONV decfloat34( iv_requested_base_quantity ).
+      ENDIF.
+      rs_quantities-confirmed_base_quantity = CONV mard-labst(
+        lv_confirmed_base_quantity ).
+    ELSEIF is_atp_result-confirmed_quantity > 0.
+      lv_confirmed_base_quantity =
+        CONV decfloat34( is_atp_result-confirmed_quantity )
+        * CONV decfloat34( iv_numerator )
+        / CONV decfloat34( iv_denominator ).
+      IF lv_confirmed_base_quantity >
+          CONV decfloat34( iv_requested_base_quantity ).
+        lv_confirmed_base_quantity =
+          CONV decfloat34( iv_requested_base_quantity ).
+      ENDIF.
+      rs_quantities-confirmed_base_quantity = CONV mard-labst(
+        lv_confirmed_base_quantity ).
+    ENDIF.
+
+    rs_quantities-unconfirmed_base_quantity =
+      iv_requested_base_quantity - rs_quantities-confirmed_base_quantity.
   ENDMETHOD.
 
   METHOD convert_stock_quantity.
@@ -1835,10 +2014,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
                  base_unit = ls_local_allocation-base_unit
                  required_date =
                    ls_local_allocation-allocation-required_date.
+      DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
+        iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        is_atp_result              = ls_atp_day-atp_result ).
       APPEND VALUE #(
-        local_estimate           = ls_local_allocation
-        cumulative_base_quantity = ls_atp_day-cumulative_quantity
-        atp_result               = ls_atp_day-atp_result ) TO rt_allocations.
+        local_estimate            = ls_local_allocation
+        cumulative_base_quantity  = ls_atp_day-cumulative_quantity
+        confirmed_base_quantity   =
+          ls_confirmation_quantities-confirmed_base_quantity
+        unconfirmed_base_quantity =
+          ls_confirmation_quantities-unconfirmed_base_quantity
+        atp_result                = ls_atp_day-atp_result ) TO rt_allocations.
     ENDLOOP.
   ENDMETHOD.
 
@@ -1880,6 +2066,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
         check_rule         = iv_check_rule
         required_date      = iv_required_date
         requested_quantity = iv_requested_quantity ) ).
+    DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
+      iv_requested_base_quantity = lv_base_quantity
+      iv_numerator               = ls_unit_ratio-numerator
+      iv_denominator             = ls_unit_ratio-denominator
+      is_atp_result              = rs_result-atp_result ).
+    rs_result-confirmed_base_quantity =
+      ls_confirmation_quantities-confirmed_base_quantity.
+    rs_result-unconfirmed_base_quantity =
+      ls_confirmation_quantities-unconfirmed_base_quantity.
   ENDMETHOD.
 
   METHOD check_atp_request.
@@ -2686,22 +2881,29 @@ CLASS zcl_stock_service IMPLEMENTATION.
           base_unit = ls_source_allocation-base_unit
           required_date =
             ls_source_allocation-allocation-required_date.
+      DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
+        iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        is_atp_result              = ls_atp_day-atp_result ).
       APPEND VALUE #(
-        request_id               =
+        request_id                =
           ls_source_allocation-allocation-request_id
-        material                 =
+        material                  =
           ls_source_allocation-allocation-material
-        target_plant             =
+        target_plant              =
           ls_source_allocation-allocation-target_plant
-        source_plant             =
+        source_plant              =
           ls_source_allocation-allocation-source_plant
-        required_date            =
+        required_date             =
           ls_source_allocation-allocation-required_date
-        base_unit                = ls_source_allocation-base_unit
-        allocated_base_quantity  =
+        base_unit                 = ls_source_allocation-base_unit
+        allocated_base_quantity   =
           ls_source_allocation-allocation-allocated_quantity
-        cumulative_base_quantity = ls_atp_day-cumulative_quantity
-        atp_result               = ls_atp_day-atp_result )
+        cumulative_base_quantity  = ls_atp_day-cumulative_quantity
+        confirmed_base_quantity   =
+          ls_confirmation_quantities-confirmed_base_quantity
+        unconfirmed_base_quantity =
+          ls_confirmation_quantities-unconfirmed_base_quantity
+        atp_result                = ls_atp_day-atp_result )
         TO rs_result-atp_checks.
     ENDLOOP.
   ENDMETHOD.
@@ -2960,6 +3162,665 @@ CLASS zcl_stock_service IMPLEMENTATION.
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
       APPEND ls_allocation TO rs_result-allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD allocate_plants_fefo_by_date.
+    DATA lt_request_ids TYPE ty_plant_request_ids.
+    DATA lt_source_keys TYPE ty_plant_source_keys.
+    DATA lt_demand_indexes TYPE ty_date_plant_demand_idxs.
+    DATA lt_fefo_balances TYPE ty_fefo_balances.
+    DATA lt_allowed_storage_locations TYPE SORTED TABLE OF mard-lgort
+      WITH UNIQUE KEY table_line.
+    DATA lt_source_locations TYPE SORTED TABLE OF ty_plant_source_location
+      WITH UNIQUE KEY request_id source_plant storage_location.
+    DATA lt_loaded_stock_keys TYPE ty_loaded_stock_keys.
+    DATA lt_indexed_allocations TYPE ty_date_plant_summary_idxs.
+    DATA lt_indexed_source_allocations TYPE ty_date_plant_source_idxs.
+    DATA lt_indexed_batch_allocations TYPE ty_date_plant_fefo_batch_idxs.
+    DATA lt_batch_stock TYPE zif_stock_repository=>ty_batch_stocks.
+    DATA ls_demand TYPE ty_date_plant_demand.
+    DATA ls_safety_demand TYPE ty_date_plant_demand.
+    DATA ls_source TYPE ty_plant_source.
+    DATA ls_fefo_balance TYPE ty_fefo_balance.
+    DATA ls_allocation TYPE ty_date_plant_demand_allocation.
+    DATA ls_source_allocation TYPE ty_date_plant_source_allocation.
+    DATA ls_batch_allocation TYPE ty_plant_batch_location_allocation.
+    DATA ls_date_batch_allocation TYPE ty_date_plant_fefo_batch_allocation.
+    DATA lv_available_quantity TYPE mard-labst.
+    DATA lv_source_available_quantity TYPE mard-labst.
+    DATA lv_remaining_quantity TYPE mard-labst.
+    DATA lv_allocated_quantity TYPE mard-labst.
+    DATA lv_safety_stock TYPE marc-eisbe.
+    DATA lv_earliest_required_date TYPE resb-bdter.
+    DATA lv_source_index TYPE i.
+    DATA lv_source_order TYPE i.
+    DATA lv_batch_order TYPE i.
+    DATA lo_eligibility TYPE REF TO zcl_stock_batch_eligibility.
+    FIELD-SYMBOLS <ls_fefo_balance> TYPE ty_fefo_balance.
+
+    IF it_demands IS INITIAL
+        OR it_sources IS INITIAL
+        OR iv_min_days < 0
+        OR ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_allowed_storage_locations
+      INTO DATA(lv_allowed_storage_location).
+      IF lv_allowed_storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT lv_allowed_storage_location
+        INTO TABLE lt_allowed_storage_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_demands INTO ls_demand.
+      lv_source_index = sy-tabix.
+      IF ls_demand-request_id IS INITIAL
+          OR ls_demand-material IS INITIAL
+          OR ls_demand-target_plant IS INITIAL
+          OR ls_demand-required_date IS INITIAL
+          OR ls_demand-requested_quantity < 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      INSERT VALUE #( request_id = ls_demand-request_id )
+        INTO TABLE lt_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        source_index       = lv_source_index
+        request_id         = ls_demand-request_id
+        material           = ls_demand-material
+        target_plant       = ls_demand-target_plant
+        required_date      = ls_demand-required_date
+        requested_quantity = ls_demand-requested_quantity )
+        TO lt_demand_indexes.
+    ENDLOOP.
+
+    LOOP AT it_sources INTO ls_source.
+      IF ls_source-request_id IS INITIAL
+          OR ls_source-source_plant IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_request_ids TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_source-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT VALUE #(
+        request_id   = ls_source-request_id
+        source_plant = ls_source-source_plant )
+        INTO TABLE lt_source_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE it_sources TRANSPORTING NO FIELDS
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_source_locations INTO DATA(ls_source_location).
+      IF ls_source_location-request_id IS INITIAL
+          OR ls_source_location-source_plant IS INITIAL
+          OR ls_source_location-storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_request_ids TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_source_location-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_source_keys TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_source_location-request_id
+                       source_plant = ls_source_location-source_plant.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_source_location INTO TABLE lt_source_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    IF it_source_locations IS NOT INITIAL.
+      LOOP AT it_sources INTO ls_source.
+        READ TABLE it_source_locations TRANSPORTING NO FIELDS
+          WITH KEY request_id = ls_source-request_id
+                   source_plant = ls_source-source_plant.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    SORT lt_demand_indexes BY material required_date source_index.
+    lo_eligibility = NEW zcl_stock_batch_eligibility( ).
+
+    LOOP AT it_sources INTO ls_source.
+      READ TABLE it_demands INTO ls_demand
+        WITH KEY request_id = ls_source-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_loaded_stock_keys TRANSPORTING NO FIELDS
+        WITH TABLE KEY material = ls_demand-material
+                       plant    = ls_source-source_plant.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+
+      lt_batch_stock = mo_stock_repository->get_stock_by_batch(
+        iv_material = ls_demand-material
+        iv_plant    = ls_source-source_plant ).
+      LOOP AT lt_batch_stock INTO DATA(ls_batch_stock).
+        IF it_allowed_storage_locations IS NOT INITIAL
+            AND NOT line_exists( lt_allowed_storage_locations[
+              table_line = ls_batch_stock-storage_location ] ).
+          CONTINUE.
+        ENDIF.
+        CLEAR ls_fefo_balance.
+        ls_fefo_balance-material = ls_demand-material.
+        ls_fefo_balance-plant = ls_source-source_plant.
+        ls_fefo_balance-storage_location =
+          ls_batch_stock-storage_location.
+        ls_fefo_balance-batch = ls_batch_stock-batch.
+        ls_fefo_balance-expiration_date = ls_batch_stock-expiration_date.
+        ls_fefo_balance-sort_expiration_date =
+          ls_batch_stock-expiration_date.
+        IF ls_fefo_balance-sort_expiration_date IS INITIAL.
+          ls_fefo_balance-sort_expiration_date = '99991231'.
+        ENDIF.
+        ls_fefo_balance-remaining_quantity =
+          ls_batch_stock-available_quantity.
+        IF ls_fefo_balance-remaining_quantity < 0.
+          CLEAR ls_fefo_balance-remaining_quantity.
+        ENDIF.
+        APPEND ls_fefo_balance TO lt_fefo_balances.
+      ENDLOOP.
+
+      INSERT VALUE #(
+        material = ls_demand-material
+        plant    = ls_source-source_plant )
+        INTO TABLE lt_loaded_stock_keys.
+
+      IF iv_protect_safety_stock = abap_true.
+        lv_safety_stock = mo_stock_repository->get_safety_stock(
+          iv_material = ls_demand-material
+          iv_plant    = ls_source-source_plant ).
+        CLEAR lv_earliest_required_date.
+        LOOP AT it_demands INTO ls_safety_demand
+          WHERE material = ls_demand-material.
+          READ TABLE it_sources TRANSPORTING NO FIELDS
+            WITH KEY request_id = ls_safety_demand-request_id
+                     source_plant = ls_source-source_plant.
+          IF sy-subrc = 0
+              AND ( lv_earliest_required_date IS INITIAL
+                OR ls_safety_demand-required_date
+                  < lv_earliest_required_date ).
+            lv_earliest_required_date = ls_safety_demand-required_date.
+          ENDIF.
+        ENDLOOP.
+
+        IF lv_safety_stock > 0
+            AND lv_earliest_required_date IS NOT INITIAL.
+          SORT lt_fefo_balances BY material plant
+            sort_expiration_date DESCENDING batch storage_location.
+          LOOP AT lt_fefo_balances ASSIGNING <ls_fefo_balance>
+            WHERE material = ls_demand-material
+              AND plant = ls_source-source_plant.
+            IF lv_safety_stock <= 0.
+              EXIT.
+            ENDIF.
+            IF lo_eligibility->is_eligible(
+                iv_expiration_date = <ls_fefo_balance>-expiration_date
+                iv_as_of_date      = lv_earliest_required_date
+                iv_min_days        = iv_min_days ) = abap_false
+                OR <ls_fefo_balance>-remaining_quantity <= 0.
+              CONTINUE.
+            ENDIF.
+            IF lv_safety_stock < <ls_fefo_balance>-remaining_quantity.
+              <ls_fefo_balance>-remaining_quantity =
+                <ls_fefo_balance>-remaining_quantity - lv_safety_stock.
+              CLEAR lv_safety_stock.
+            ELSE.
+              lv_safety_stock = lv_safety_stock
+                - <ls_fefo_balance>-remaining_quantity.
+              CLEAR <ls_fefo_balance>-remaining_quantity.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+      SORT lt_fefo_balances BY material plant sort_expiration_date
+        batch storage_location.
+    ENDLOOP.
+
+    LOOP AT lt_demand_indexes INTO DATA(ls_demand_index).
+      CLEAR lv_available_quantity.
+      LOOP AT it_sources INTO ls_source
+        WHERE request_id = ls_demand_index-request_id.
+        LOOP AT lt_fefo_balances INTO ls_fefo_balance
+          WHERE material = ls_demand_index-material
+            AND plant = ls_source-source_plant.
+          IF it_source_locations IS NOT INITIAL
+              AND NOT line_exists( lt_source_locations[
+                request_id = ls_demand_index-request_id
+                source_plant = ls_source-source_plant
+                storage_location = ls_fefo_balance-storage_location ] ).
+            CONTINUE.
+          ENDIF.
+          IF lo_eligibility->is_eligible(
+              iv_expiration_date = ls_fefo_balance-expiration_date
+              iv_as_of_date      = ls_demand_index-required_date
+              iv_min_days        = iv_min_days ) = abap_true.
+            lv_available_quantity = lv_available_quantity
+              + ls_fefo_balance-remaining_quantity.
+          ENDIF.
+        ENDLOOP.
+      ENDLOOP.
+
+      lv_remaining_quantity = ls_demand_index-requested_quantity.
+      LOOP AT it_sources INTO ls_source
+        WHERE request_id = ls_demand_index-request_id.
+        lv_source_order = sy-tabix.
+        CLEAR ls_source_allocation.
+        ls_source_allocation-request_id = ls_demand_index-request_id.
+        ls_source_allocation-material = ls_demand_index-material.
+        ls_source_allocation-target_plant = ls_demand_index-target_plant.
+        ls_source_allocation-source_plant = ls_source-source_plant.
+        ls_source_allocation-required_date = ls_demand_index-required_date.
+        CLEAR lv_source_available_quantity.
+        LOOP AT lt_fefo_balances INTO ls_fefo_balance
+          WHERE material = ls_demand_index-material
+            AND plant = ls_source-source_plant.
+          IF it_source_locations IS NOT INITIAL
+              AND NOT line_exists( lt_source_locations[
+                request_id = ls_demand_index-request_id
+                source_plant = ls_source-source_plant
+                storage_location = ls_fefo_balance-storage_location ] ).
+            CONTINUE.
+          ENDIF.
+          IF lo_eligibility->is_eligible(
+              iv_expiration_date = ls_fefo_balance-expiration_date
+              iv_as_of_date      = ls_demand_index-required_date
+              iv_min_days        = iv_min_days ) = abap_true.
+            lv_source_available_quantity = lv_source_available_quantity
+              + ls_fefo_balance-remaining_quantity.
+          ENDIF.
+        ENDLOOP.
+        ls_source_allocation-available_quantity =
+          lv_source_available_quantity.
+
+        CLEAR lv_batch_order.
+        LOOP AT lt_fefo_balances ASSIGNING <ls_fefo_balance>
+          WHERE material = ls_demand_index-material
+            AND plant = ls_source-source_plant.
+          IF it_source_locations IS NOT INITIAL
+              AND NOT line_exists( lt_source_locations[
+                request_id = ls_demand_index-request_id
+                source_plant = ls_source-source_plant
+                storage_location = <ls_fefo_balance>-storage_location ] ).
+            CONTINUE.
+          ENDIF.
+          IF lv_remaining_quantity <= 0.
+            EXIT.
+          ENDIF.
+          IF lo_eligibility->is_eligible(
+              iv_expiration_date = <ls_fefo_balance>-expiration_date
+              iv_as_of_date      = ls_demand_index-required_date
+              iv_min_days        = iv_min_days ) = abap_false
+              OR <ls_fefo_balance>-remaining_quantity <= 0.
+            CONTINUE.
+          ENDIF.
+
+          lv_allocated_quantity = COND #(
+            WHEN lv_remaining_quantity
+              < <ls_fefo_balance>-remaining_quantity
+            THEN lv_remaining_quantity
+            ELSE <ls_fefo_balance>-remaining_quantity ).
+          CLEAR ls_batch_allocation.
+          ls_batch_allocation-request_id = ls_demand_index-request_id.
+          ls_batch_allocation-material = ls_demand_index-material.
+          ls_batch_allocation-target_plant = ls_demand_index-target_plant.
+          ls_batch_allocation-source_plant = ls_source-source_plant.
+          ls_batch_allocation-storage_location =
+            <ls_fefo_balance>-storage_location.
+          ls_batch_allocation-batch = <ls_fefo_balance>-batch.
+          ls_batch_allocation-expiration_date =
+            <ls_fefo_balance>-expiration_date.
+          ls_batch_allocation-available_quantity =
+            <ls_fefo_balance>-remaining_quantity.
+          ls_batch_allocation-allocated_quantity = lv_allocated_quantity.
+          ls_date_batch_allocation-required_date =
+            ls_demand_index-required_date.
+          ls_date_batch_allocation-allocation = ls_batch_allocation.
+          lv_batch_order = lv_batch_order + 1.
+          APPEND VALUE #(
+            source_index = ls_demand_index-source_index
+            source_order = lv_source_order
+            batch_order  = lv_batch_order
+            allocation   = ls_date_batch_allocation )
+            TO lt_indexed_batch_allocations.
+
+          <ls_fefo_balance>-remaining_quantity =
+            <ls_fefo_balance>-remaining_quantity - lv_allocated_quantity.
+          lv_remaining_quantity = lv_remaining_quantity
+            - lv_allocated_quantity.
+          ls_source_allocation-allocated_quantity =
+            ls_source_allocation-allocated_quantity + lv_allocated_quantity.
+        ENDLOOP.
+
+        IF ls_source_allocation-allocated_quantity > 0.
+          APPEND VALUE #(
+            source_index = ls_demand_index-source_index
+            source_order = lv_source_order
+            allocation   = ls_source_allocation )
+            TO lt_indexed_source_allocations.
+        ENDIF.
+        IF lv_remaining_quantity <= 0.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+
+      CLEAR ls_allocation.
+      ls_allocation-request_id = ls_demand_index-request_id.
+      ls_allocation-material = ls_demand_index-material.
+      ls_allocation-target_plant = ls_demand_index-target_plant.
+      ls_allocation-required_date = ls_demand_index-required_date.
+      ls_allocation-requested_quantity =
+        ls_demand_index-requested_quantity.
+      ls_allocation-available_quantity = lv_available_quantity.
+      ls_allocation-allocated_quantity =
+        ls_demand_index-requested_quantity - lv_remaining_quantity.
+      ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      APPEND VALUE #(
+        source_index = ls_demand_index-source_index
+        allocation   = ls_allocation ) TO lt_indexed_allocations.
+    ENDLOOP.
+
+    SORT lt_indexed_allocations BY source_index.
+    LOOP AT lt_indexed_allocations INTO DATA(ls_indexed_allocation).
+      APPEND ls_indexed_allocation-allocation TO rs_result-allocations.
+    ENDLOOP.
+    SORT lt_indexed_source_allocations BY source_index source_order.
+    LOOP AT lt_indexed_source_allocations INTO DATA(ls_indexed_source).
+      APPEND ls_indexed_source-allocation TO rs_result-plant_allocations.
+    ENDLOOP.
+    SORT lt_indexed_batch_allocations BY source_index source_order batch_order.
+    LOOP AT lt_indexed_batch_allocations INTO DATA(ls_indexed_batch).
+      APPEND ls_indexed_batch-allocation TO rs_result-batch_allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD allocate_plants_fefo_date_uom.
+    DATA lt_base_demands TYPE ty_date_plant_demands.
+    DATA lt_contexts TYPE ty_plant_unit_contexts.
+    DATA lt_uom_cache TYPE ty_uom_cache_table.
+    DATA lt_request_ids TYPE ty_plant_request_ids.
+    DATA ls_unit_ratio TYPE zif_material_uom_converter=>ty_unit_ratio.
+    DATA ls_context TYPE ty_plant_unit_context.
+    DATA ls_unit_allocation TYPE ty_unit_date_plant_demand_allocation.
+    DATA ls_unit_source TYPE ty_unit_date_plant_source_allocation.
+    DATA ls_unit_batch TYPE ty_unit_date_plant_fefo_batch_split.
+
+    IF it_demands IS INITIAL
+        OR it_sources IS INITIAL
+        OR iv_min_days < 0
+        OR ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL
+          OR ls_demand-material IS INITIAL
+          OR ls_demand-target_plant IS INITIAL
+          OR ls_demand-required_date IS INITIAL
+          OR ls_demand-requested_unit IS INITIAL
+          OR ls_demand-requested_quantity < 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT VALUE #( request_id = ls_demand-request_id )
+        INTO TABLE lt_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_uom_cache INTO DATA(ls_cached_conversion)
+        WITH TABLE KEY material = ls_demand-material
+                       unit     = ls_demand-requested_unit.
+      IF sy-subrc = 0.
+        ls_unit_ratio = ls_cached_conversion-result.
+      ELSE.
+        ls_unit_ratio = get_stock_unit_ratio(
+          iv_material = ls_demand-material
+          iv_unit     = ls_demand-requested_unit ).
+        INSERT VALUE #(
+          material = ls_demand-material
+          unit     = ls_demand-requested_unit
+          result   = ls_unit_ratio ) INTO TABLE lt_uom_cache.
+      ENDIF.
+
+      DATA(lv_base_quantity) = CONV mard-labst(
+        CONV decfloat34( ls_demand-requested_quantity )
+        * CONV decfloat34( ls_unit_ratio-numerator )
+        / CONV decfloat34( ls_unit_ratio-denominator ) ).
+      APPEND VALUE #(
+        request_id         = ls_demand-request_id
+        material           = ls_demand-material
+        target_plant       = ls_demand-target_plant
+        required_date      = ls_demand-required_date
+        requested_quantity = lv_base_quantity ) TO lt_base_demands.
+
+      CLEAR ls_context.
+      ls_context-request_id = ls_demand-request_id.
+      ls_context-source_quantity = ls_demand-requested_quantity.
+      ls_context-source_unit = ls_demand-requested_unit.
+      ls_context-base_quantity = lv_base_quantity.
+      ls_context-ratio = ls_unit_ratio.
+      APPEND ls_context TO lt_contexts.
+    ENDLOOP.
+
+    DATA(ls_base_result) = allocate_plants_fefo_by_date(
+      it_demands                   = lt_base_demands
+      it_sources                   = it_sources
+      iv_min_days                  = iv_min_days
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      it_allowed_storage_locations = it_allowed_storage_locations
+      it_source_locations          = it_source_locations ).
+
+    LOOP AT ls_base_result-allocations INTO DATA(ls_base_allocation).
+      READ TABLE lt_contexts INTO ls_context
+        WITH KEY request_id = ls_base_allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      CLEAR ls_unit_allocation.
+      ls_unit_allocation-allocation = ls_base_allocation.
+      ls_unit_allocation-source_quantity = ls_context-source_quantity.
+      ls_unit_allocation-source_unit = ls_context-source_unit.
+      ls_unit_allocation-base_quantity = ls_context-base_quantity.
+      ls_unit_allocation-base_unit = ls_context-ratio-base_unit.
+      ls_unit_allocation-available_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_allocation-available_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      ls_unit_allocation-allocated_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_allocation-allocated_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      ls_unit_allocation-shortfall_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_allocation-shortfall_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      APPEND ls_unit_allocation TO rs_result-allocations.
+    ENDLOOP.
+
+    LOOP AT ls_base_result-plant_allocations
+      INTO DATA(ls_base_source_allocation).
+      READ TABLE lt_contexts INTO ls_context
+        WITH KEY request_id = ls_base_source_allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      CLEAR ls_unit_source.
+      ls_unit_source-allocation = ls_base_source_allocation.
+      ls_unit_source-source_unit = ls_context-source_unit.
+      ls_unit_source-base_unit = ls_context-ratio-base_unit.
+      ls_unit_source-available_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_source_allocation-available_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      ls_unit_source-allocated_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_source_allocation-allocated_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      APPEND ls_unit_source TO rs_result-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT ls_base_result-batch_allocations INTO DATA(ls_base_batch).
+      READ TABLE lt_contexts INTO ls_context
+        WITH KEY request_id = ls_base_batch-allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      CLEAR ls_unit_batch.
+      ls_unit_batch-allocation = ls_base_batch.
+      ls_unit_batch-source_unit = ls_context-source_unit.
+      ls_unit_batch-base_unit = ls_context-ratio-base_unit.
+      ls_unit_batch-available_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_batch-allocation-available_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      ls_unit_batch-allocated_source_quantity = convert_stock_quantity(
+        iv_base_quantity = ls_base_batch-allocation-allocated_quantity
+        iv_numerator     = ls_context-ratio-numerator
+        iv_denominator   = ls_context-ratio-denominator ).
+      APPEND ls_unit_batch TO rs_result-batch_allocations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD allocate_plants_fefo_date_atp.
+    DATA lt_atp_days TYPE ty_dated_atp_days.
+    DATA lv_cumulative_quantity TYPE mard-labst.
+    DATA lv_previous_material TYPE mard-matnr.
+    DATA lv_previous_plant TYPE mard-werks.
+    DATA lv_previous_unit TYPE mara-meins.
+    FIELD-SYMBOLS <ls_atp_day> TYPE ty_dated_atp_day.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = allocate_plants_fefo_date_uom(
+      it_demands                   = it_demands
+      it_sources                   = it_sources
+      iv_min_days                  = iv_min_days
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      it_allowed_storage_locations = it_allowed_storage_locations
+      it_source_locations          = it_source_locations ).
+
+    LOOP AT rs_result-local_estimate-plant_allocations
+      INTO DATA(ls_source_allocation).
+      IF ls_source_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE lt_atp_days ASSIGNING <ls_atp_day>
+        WITH TABLE KEY
+          material = ls_source_allocation-allocation-material
+          plant = ls_source_allocation-allocation-source_plant
+          base_unit = ls_source_allocation-base_unit
+          required_date =
+            ls_source_allocation-allocation-required_date.
+      IF sy-subrc = 0.
+        <ls_atp_day>-demand_quantity = <ls_atp_day>-demand_quantity
+          + ls_source_allocation-allocation-allocated_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material        = ls_source_allocation-allocation-material
+          plant           = ls_source_allocation-allocation-source_plant
+          base_unit       = ls_source_allocation-base_unit
+          required_date   =
+            ls_source_allocation-allocation-required_date
+          demand_quantity =
+            ls_source_allocation-allocation-allocated_quantity )
+          INTO TABLE lt_atp_days.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
+      IF sy-tabix = 1
+          OR <ls_atp_day>-material <> lv_previous_material
+          OR <ls_atp_day>-plant <> lv_previous_plant
+          OR <ls_atp_day>-base_unit <> lv_previous_unit.
+        CLEAR lv_cumulative_quantity.
+      ENDIF.
+      lv_cumulative_quantity = lv_cumulative_quantity
+        + <ls_atp_day>-demand_quantity.
+      <ls_atp_day>-cumulative_quantity = lv_cumulative_quantity.
+      <ls_atp_day>-atp_result = check_atp_request(
+        is_request = VALUE #(
+          material           = <ls_atp_day>-material
+          plant              = <ls_atp_day>-plant
+          unit               = <ls_atp_day>-base_unit
+          check_rule         = iv_check_rule
+          required_date      = <ls_atp_day>-required_date
+          requested_quantity = lv_cumulative_quantity ) ).
+      lv_previous_material = <ls_atp_day>-material.
+      lv_previous_plant = <ls_atp_day>-plant.
+      lv_previous_unit = <ls_atp_day>-base_unit.
+    ENDLOOP.
+
+    LOOP AT rs_result-local_estimate-plant_allocations
+      INTO ls_source_allocation.
+      IF ls_source_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      READ TABLE lt_atp_days INTO DATA(ls_atp_day)
+        WITH TABLE KEY
+          material = ls_source_allocation-allocation-material
+          plant = ls_source_allocation-allocation-source_plant
+          base_unit = ls_source_allocation-base_unit
+          required_date =
+            ls_source_allocation-allocation-required_date.
+      DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
+        iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        is_atp_result              = ls_atp_day-atp_result ).
+      APPEND VALUE #(
+        request_id                = ls_source_allocation-allocation-request_id
+        material                  = ls_source_allocation-allocation-material
+        target_plant              = ls_source_allocation-allocation-target_plant
+        source_plant              = ls_source_allocation-allocation-source_plant
+        required_date             =
+          ls_source_allocation-allocation-required_date
+        base_unit                 = ls_source_allocation-base_unit
+        allocated_base_quantity   =
+          ls_source_allocation-allocation-allocated_quantity
+        cumulative_base_quantity  = ls_atp_day-cumulative_quantity
+        confirmed_base_quantity   =
+          ls_confirmation_quantities-confirmed_base_quantity
+        unconfirmed_base_quantity =
+          ls_confirmation_quantities-unconfirmed_base_quantity
+        atp_result                = ls_atp_day-atp_result )
+        TO rs_result-atp_checks.
     ENDLOOP.
   ENDMETHOD.
 

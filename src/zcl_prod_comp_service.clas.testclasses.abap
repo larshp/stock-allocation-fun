@@ -22,8 +22,23 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_prod_comp_repo~get_components.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+
+    APPEND iv_production_order TO lt_production_orders.
+    rt_items = zif_prod_comp_repo~get_components_bulk(
+      it_production_orders = lt_production_orders ).
+  ENDMETHOD.
+
+  METHOD zif_prod_comp_repo~get_components_bulk.
     ADD 1 TO mv_read_count.
-    rt_items = mt_components.
+    LOOP AT mt_components INTO DATA(ls_component).
+      READ TABLE it_production_orders WITH KEY
+        table_line = ls_component-production_order
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        APPEND ls_component TO rt_items.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
@@ -52,7 +67,12 @@ CLASS lcl_prod_reservation_reader IMPLEMENTATION.
 
   METHOD zif_so_reservation_reader~read_reservation.
     ADD 1 TO mv_read_count.
-    rs_result = ms_result.
+    rs_result-is_successful = ms_result-is_successful.
+    rs_result-messages = ms_result-messages.
+    LOOP AT ms_result-items INTO DATA(ls_item)
+        WHERE reservation_number = iv_reservation_number.
+      APPEND ls_item TO rs_result-items.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
@@ -128,6 +148,9 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
     METHODS issues_selected_components FOR TESTING.
     METHODS rejects_unassigned_item FOR TESTING.
     METHODS rejects_component_over_issue FOR TESTING.
+    METHODS reads_bulk_components FOR TESTING.
+    METHODS issues_bulk_components FOR TESTING.
+    METHODS rejects_invalid_bulk_orders FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_prod_comp_service IMPLEMENTATION.
@@ -414,5 +437,183 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD reads_bulk_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-2'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+
+    DATA(lt_components) = lo_cut->get_open_components_bulk(
+      VALUE #( ( '0000004712' ) ( '0000004711' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_components ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = lt_components[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = lt_components[ 2 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '6.000' )
+      act = lt_components[ 2 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_bulk_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-2'
+          plant              = '1000'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            required_quantity  = '10.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '2.000' )
+          ( reservation_number = '0000005678'
+            item_number        = '0020'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-2'
+            plant              = '1000'
+            required_quantity  = '8.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '1.000' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->issue_components_bulk(
+      is_header   = VALUE #(
+        posting_date  = '20261001'
+        document_date = '20261001' )
+      it_requests = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          quantity           = '4.000' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          quantity           = '3.000' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001234'
+      act = lt_items[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = lt_items[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_bulk_orders.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_open_components_bulk( VALUE #( ) ).
+      CATCH zcx_invalid_production_order.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_open_components_bulk(
+          VALUE #( ( '0000004711' ) ( '0000004711' ) ) ).
+      CATCH zcx_invalid_production_order.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->issue_components_bulk(
+          is_header   = VALUE #(
+            posting_date  = '20261001'
+            document_date = '20261001' )
+          it_requests = VALUE #(
+            ( production_order   = space
+              reservation_number = '0000001234'
+              reservation_item   = '0010'
+              quantity           = '1.000' ) ) ).
+      CATCH zcx_invalid_production_order.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 ENDCLASS.

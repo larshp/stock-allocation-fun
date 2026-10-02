@@ -801,6 +801,12 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = abap_true
       act = ls_result-atp_result-is_fully_available ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '20.000' )
       act = ls_result-atp_result-available_at_plant_quantity ).
     cl_abap_unit_assert=>assert_equals(

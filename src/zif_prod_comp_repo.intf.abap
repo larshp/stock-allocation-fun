@@ -19,11 +19,18 @@ INTERFACE zif_prod_comp_repo PUBLIC.
     END OF ty_reservation_item.
   TYPES ty_reservation_items TYPE STANDARD TABLE OF ty_reservation_item
     WITH EMPTY KEY.
+  TYPES ty_production_orders TYPE STANDARD TABLE OF resb-aufnr WITH EMPTY KEY.
 
   METHODS get_components
     IMPORTING
       iv_production_order TYPE resb-aufnr
     RETURNING
       VALUE(rt_items)     TYPE ty_reservation_items.
+
+  METHODS get_components_bulk
+    IMPORTING
+      it_production_orders TYPE ty_production_orders
+    RETURNING
+      VALUE(rt_items)      TYPE ty_reservation_items.
 
 ENDINTERFACE.

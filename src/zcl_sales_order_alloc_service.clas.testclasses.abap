@@ -547,6 +547,18 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = CONV mard-labst( '12.000' )
       act = ls_result-atp_checks[ 1 ]-cumulative_requested_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-atp_checks[ 1 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_result-atp_checks[ 1 ]-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-atp_checks[ 2 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_result-atp_checks[ 2 ]-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
       act = ls_result-atp_checks[ 2 ]-result-requested_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -572,6 +584,11 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserves_multi_orders_by_date.
+    mo_availability_api->set_result(
+      is_result = VALUE #(
+        confirmed_quantity = '3.000'
+        is_fully_available = abap_false
+        is_check_relevant  = abap_true ) ).
     prepare_multi_res_fixture( ).
 
     DATA(ls_result) = mo_cut->reserve_orders_by_date(
@@ -615,6 +632,18 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
       act = ls_result-atp_checks[ 2 ]-cumulative_requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_result-atp_checks[ 1 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_result-atp_checks[ 1 ]-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_result-atp_checks[ 2 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_result-atp_checks[ 2 ]-unconfirmed_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_availability_api->get_check_count( ) ).
@@ -869,7 +898,10 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       is_result = VALUE #(
         available_at_plant_quantity = '2.000'
         confirmed_date              = '20261005'
-        confirmed_quantity          = '2.000'
+        confirmed_quantity          = '1.000'
+        confirmation_lines          = VALUE #(
+          ( confirmed_quantity = '1.000' )
+          ( confirmed_quantity = '1.000' ) )
         dialog_flag                 = 'X'
         is_fully_available          = abap_false
         is_check_relevant           = abap_true ) ).
@@ -935,10 +967,16 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = CONV mard-labst( '8.000' )
       act = ls_result-atp_checks[ 1 ]-cumulative_requested_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-atp_checks[ 1 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-atp_checks[ 1 ]-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '8.000' )
       act = ls_result-atp_checks[ 1 ]-result-requested_quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = CONV mard-labst( '2.000' )
+      exp = CONV mard-labst( '1.000' )
       act = ls_result-atp_checks[ 1 ]-result-confirmed_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
@@ -952,6 +990,12 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_result-atp_checks[ 2 ]-cumulative_requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-atp_checks[ 2 ]-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-atp_checks[ 2 ]-unconfirmed_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_result-atp_checks[ 2 ]-result-requested_quantity ).

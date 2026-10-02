@@ -100,6 +100,12 @@ CLASS lcl_reservation_finder DEFINITION FINAL.
     METHODS set_numbers
       IMPORTING
         it_numbers TYPE zif_so_reservation_finder=>ty_reservation_numbers.
+    METHODS set_order_reservations
+      IMPORTING
+        it_reservations TYPE zif_so_reservation_finder=>ty_order_reservations.
+    METHODS set_item_reservations
+      IMPORTING
+        it_reservations TYPE zif_so_reservation_finder=>ty_item_reservations.
     METHODS get_sales_document
       RETURNING
         VALUE(rv_sales_document) TYPE resb-kdauf.
@@ -109,16 +115,30 @@ CLASS lcl_reservation_finder DEFINITION FINAL.
     METHODS get_call_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
   PRIVATE SECTION.
     DATA mt_numbers TYPE zif_so_reservation_finder=>ty_reservation_numbers.
+    DATA mt_order_reservations TYPE zif_so_reservation_finder=>ty_order_reservations.
+    DATA mt_item_reservations TYPE zif_so_reservation_finder=>ty_item_reservations.
     DATA mv_sales_document TYPE resb-kdauf.
     DATA mv_item_number TYPE resb-kdpos.
     DATA mv_call_count TYPE i.
+    DATA mv_bulk_call_count TYPE i.
 ENDCLASS.
 
 CLASS lcl_reservation_finder IMPLEMENTATION.
   METHOD set_numbers.
     mt_numbers = it_numbers.
+  ENDMETHOD.
+
+  METHOD set_order_reservations.
+    mt_order_reservations = it_reservations.
+  ENDMETHOD.
+
+  METHOD set_item_reservations.
+    mt_item_reservations = it_reservations.
   ENDMETHOD.
 
   METHOD get_sales_document.
@@ -133,11 +153,42 @@ CLASS lcl_reservation_finder IMPLEMENTATION.
     rv_count = mv_call_count.
   ENDMETHOD.
 
+  METHOD get_bulk_call_count.
+    rv_count = mv_bulk_call_count.
+  ENDMETHOD.
+
   METHOD zif_so_reservation_finder~get_open_reservation_numbers.
     ADD 1 TO mv_call_count.
     mv_sales_document = iv_sales_document.
     mv_item_number = iv_item_number.
     rt_reservation_numbers = mt_numbers.
+  ENDMETHOD.
+
+  METHOD zif_so_reservation_finder~get_open_reservations_bulk.
+    ADD 1 TO mv_call_count.
+    ADD 1 TO mv_bulk_call_count.
+    LOOP AT mt_order_reservations INTO DATA(ls_reservation).
+      READ TABLE it_sales_documents WITH KEY
+        table_line = ls_reservation-sales_document
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        APPEND ls_reservation TO rt_reservations.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_so_reservation_finder~get_open_item_reservations.
+    ADD 1 TO mv_call_count.
+    ADD 1 TO mv_bulk_call_count.
+    LOOP AT mt_item_reservations INTO DATA(ls_reservation).
+      READ TABLE it_sales_order_items WITH KEY
+        sales_document = ls_reservation-sales_document
+        item_number    = ls_reservation-item_number
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        APPEND ls_reservation TO rt_reservations.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
@@ -162,6 +213,16 @@ CLASS ltcl_so_reservation_service DEFINITION FINAL
     METHODS simulates_order_release FOR TESTING.
     METHODS no_sales_order_reservations FOR TESTING.
     METHODS rejects_blank_sales_document FOR TESTING.
+    METHODS deletes_orders_once FOR TESTING.
+    METHODS previews_orders_without_bapi FOR TESTING.
+    METHODS empty_bulk_release_is_noop FOR TESTING.
+    METHODS rejects_invalid_bulk_orders FOR TESTING.
+    METHODS rejects_shared_reservation FOR TESTING.
+    METHODS deletes_item_scopes_once FOR TESTING.
+    METHODS previews_item_scopes FOR TESTING.
+    METHODS simulates_item_scope_release FOR TESTING.
+    METHODS rejects_invalid_item_scopes FOR TESTING.
+    METHODS rejects_shared_item_scope FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_so_reservation_service IMPLEMENTATION.
@@ -447,5 +508,338 @@ CLASS ltcl_so_reservation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_finder->get_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_orders_once.
+    mo_finder->set_order_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004712'
+          reservation_number = '9000000002' )
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_orders_reservations(
+      VALUE #( ( '0000004711' ) ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' )
+        ( '9000000002' ) )
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = ls_result-scopes[ 1 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' ) )
+      act = ls_result-scopes[ 1 ]-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = ls_result-scopes[ 2 ]-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000002' ) )
+      act = ls_result-scopes[ 2 ]-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = ls_result-reservation_numbers
+      act = mo_api->get_deleted_numbers( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_finder->get_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_orders_without_bapi.
+    mo_finder->set_order_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004712'
+          reservation_number = '9000000002' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_orders_release(
+      VALUE #( ( '0000004711' ) ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-scopes ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' )
+        ( '9000000002' ) )
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_finder->get_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD empty_bulk_release_is_noop.
+    DATA(ls_result) = mo_cut->delete_orders_reservations(
+      VALUE #( ( '0000004711' ) ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-scopes ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_finder->get_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_bulk_orders.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->delete_orders_reservations( VALUE #( ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->delete_orders_reservations(
+          VALUE #( ( '0000004711' ) ( space ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->delete_orders_reservations(
+          VALUE #( ( '0000004711' ) ( '0000004711' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_finder->get_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_shared_reservation.
+    DATA lv_exception_raised TYPE abap_bool.
+    mo_finder->set_order_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004712'
+          reservation_number = '9000000001' ) ) ).
+
+    TRY.
+        mo_cut->delete_orders_reservations(
+          VALUE #( ( '0000004711' ) ( '0000004712' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_item_scopes_once.
+    mo_finder->set_item_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          item_number        = '000020'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004711'
+          item_number        = '000030'
+          reservation_number = '9000000002' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_items_reservations(
+      VALUE #(
+        ( sales_document = '0000004711' item_number = '000020' )
+        ( sales_document = '0000004711' item_number = '000030' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' )
+        ( '9000000002' ) )
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = ls_result-scopes[ 1 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' ) )
+      act = ls_result-scopes[ 1 ]-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000030'
+      act = ls_result-scopes[ 2 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000002' ) )
+      act = ls_result-scopes[ 2 ]-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_finder->get_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_item_scopes.
+    mo_finder->set_item_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          item_number        = '000020'
+          reservation_number = '9000000001' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order_items_release(
+      VALUE #( ( sales_document = '0000004711' item_number = '000020' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-scopes ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = ls_result-scopes[ 1 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_item_scope_release.
+    mo_finder->set_item_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          item_number        = '000020'
+          reservation_number = '9000000001' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_items_reservations(
+      it_sales_order_items = VALUE #(
+        ( sales_document = '0000004711' item_number = '000020' ) )
+      iv_test_run          = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_invalid_item_scopes.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_order_items_release( VALUE #( ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->preview_order_items_release(
+          VALUE #( ( sales_document = '0000004711' item_number = space ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->preview_order_items_release(
+          VALUE #(
+            ( sales_document = '0000004711' item_number = '000020' )
+            ( sales_document = '0000004711' item_number = '000020' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_finder->get_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_shared_item_scope.
+    DATA lv_exception_raised TYPE abap_bool.
+    mo_finder->set_item_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          item_number        = '000020'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004711'
+          item_number        = '000030'
+          reservation_number = '9000000001' ) ) ).
+
+    TRY.
+        mo_cut->delete_items_reservations(
+          VALUE #(
+            ( sales_document = '0000004711' item_number = '000020' )
+            ( sales_document = '0000004711' item_number = '000030' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 ENDCLASS.

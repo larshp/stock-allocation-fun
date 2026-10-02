@@ -902,14 +902,15 @@
   passed; abaplint reported zero issues across 64 files and the transpiler ran
   all 348 ABAP Unit methods.
 - Added sales-order-scoped reservation release. The finder discovers open
-  movement-231 RESB documents, excluding reservation documents that have another
-  open item outside the requested order and stock scope. The service reuses the
+  movement-231 RESB documents, excluding documents with another non-deleted
+  item outside the requested order and stock scope. The service reuses the
   existing simulation, commit, and rollback path; no matching reservations is
   an idempotent success. It also previews eligible numbers without calling the
   BAPI and supports narrowing to one order item. Item-scoped releases skip a
-  reservation document containing an open item for another order line. Local
-  tests cover preview, item scope forwarding, deletion, simulation, no matches,
-  and blank order input. The database query still needs target-SAP validation.
+  reservation document containing a non-deleted item for another order line.
+  Local tests cover preview, item-scope forwarding, deletion, simulation, no
+  matches, and blank order input. The database query still needs target-SAP
+  validation.
 - Latest verification after reservation release preview: `npm.cmd test` passed;
   abaplint reported zero issues across 65 files and the transpiler ran all 353
   ABAP Unit methods.
@@ -920,3 +921,131 @@
 - Latest verification after item-scoped reservation release: `npm.cmd test`
   passed; abaplint reported zero issues across 65 files and the transpiler ran
   all 355 ABAP Unit methods.
+- Added bulk sales-order reservation release for a unique order list. The finder
+  uses one bulk candidate read and one scope-verification read, maps eligible
+  reservation numbers back to each order, and deletes the deduplicated list in
+  one transaction. `PREVIEW_ORDERS_RELEASE` returns those scopes without calling
+  the delete BAPI. Empty matches are an idempotent success; blank or duplicate
+  order numbers are rejected before database access. Tests cover grouped results,
+  duplicate candidate deduplication, ambiguous reservation ownership rejection,
+  read-only preview, one commit, empty matches, and invalid lists.
+- Latest verification after bulk release preview:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 360 ABAP Unit methods.
+- Added bulk reservation preview and release for explicit sales-order/item
+  pairs. One bulk `RESB` read finds open matching lines and a second read excludes
+  reservation documents containing a non-deleted row for another item. All
+  selected item scopes share one delete transaction. Tests cover grouped item
+  results, preview without BAPI calls, test-run without commit, invalid scopes,
+  and ambiguous reservation ownership.
+- Latest verification after item-scoped bulk release: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 365
+  ABAP Unit methods.
+- Added bulk production-order component inquiry and issue. The repository reads
+  component rows for a unique order list in one guarded query. The service
+  validates each selected reservation item against its originating order and
+  sends multi-order issue requests through one goods-movement transaction.
+  Existing single-order methods now use the shared bulk paths. Tests cover sorted
+  component results, one repository read, one combined multi-order posting, and
+  invalid order lists rejected before repository access.
+- Latest verification after bulk production component issue: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 368 ABAP Unit methods.
+- Two-step transfer results now retain their exact planned putaway items.
+  `RETRY_TRANSFER_PUTAWAY` validates a pending transfer and posts only its 305 or
+  315 items, preserving the committed removal. Simulations and failed retries
+  remain in transit; only a successful committed retry clears the state. Tests
+  cover simulation, repeated failure, recovery, completed-transfer rejection,
+  and rejection of a removal movement in the putaway payload.
+- Latest verification after putaway retry support: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 370
+  ABAP Unit methods.
+- Added `CANCEL_TRANSFER_IN_TRANSIT` as the compensating recovery path. It
+  cancels the original removal document through the existing cancellation API,
+  retains the pending state after a cancellation error, and exposes the reversal
+  result plus an `is_cancelled` flag after commit. Tests cover cancellation API
+  and commit failures followed by success, plus rejection of a second
+  cancellation after completion.
+- Latest verification after pending-transfer cancellation: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 372 ABAP Unit methods, including recovery of a same-plant 313/315 transfer.
+- Added `ALLOCATE_PLANTS_FEFO_BY_DATE` for cross-plant date-prioritized batch
+  allocation. Earlier requirements consume shared balances first, shelf life is
+  checked against each required date, and source-plant order remains caller
+  controlled. Static safety stock can be protected, and output order matches the
+  input. Tests cover date priority, per-demand expiry eligibility, safety-stock
+  protection, input ordering, and missing-date rejection.
+- Latest verification after dated cross-plant FEFO: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 370
+  ABAP Unit methods.
+- Added `ALLOCATE_PLANTS_FEFO_DATE_UOM`, which converts dated cross-plant FEFO
+  requests to base units while preserving date priority, per-demand shelf-life
+  filtering, and unit-aware demand/source/batch results. Added
+  `TRANSFER_FEFO_DATE_UOM` and `TRANSFER_FEFO_DATE_UOM_2STEP` adapters for 301
+  and 303/305 goods movements. Tests cover date-sorted shared allocation, unit
+  conversion, required-date validation, and both transfer flows.
+- Added `ALLOCATE_PLANTS_FEFO_DATE_ATP` to compare positive FEFO source-plant
+  allocations with cumulative SAP ATP by required date and base unit. The local
+  FEFO estimate and ATP confirmations remain separate in the result.
+- Latest verification after dated FEFO ATP and transfer adapters:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 376 ABAP Unit methods.
+- Added an optional `it_allowed_storage_locations` allowlist to base, unit-aware,
+  and ATP-enabled dated cross-plant FEFO allocation. The same validated list is
+  applied to every source plant; empty input retains unrestricted selection.
+  Tests verify excluded earlier-expiring stock, allowlist propagation through
+  unit and ATP paths, and rejection of blank or duplicate locations before stock
+  reads.
+- Latest verification after FEFO source-location filtering: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 378 ABAP Unit methods.
+- Added `it_source_locations` for request/source-plant-specific storage
+  restrictions across base, unit-aware, and ATP-enabled dated FEFO allocation.
+  The table must cover every source pair; when the shared allowlist is also set,
+  the filters intersect. Tests cover distinct location assignments per request,
+  propagation through unit conversion and ATP, and invalid/uncovered mappings.
+- Latest verification after scoped FEFO storage rules: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 380
+  ABAP Unit methods.
+- Added direct confirmed and unconfirmed base-unit quantities to dated
+  cross-plant ATP checks, including FEFO ATP.
+  The service totals multiple confirmation lines, caps the confirmation
+  at the cumulative quantity checked, and leaves the raw SAP result intact.
+  Tests cover partial multi-line confirmation and the fully available case.
+- Latest verification after ATP quantity splits: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 380
+  ABAP Unit methods.
+- Extended the direct quantity split to `ALLOCATE_DATE_DEMANDS_ATP`; repeated
+  dated rows now expose the same cumulative confirmed and unconfirmed base
+  quantities. Tests cover a multi-line partial confirmation shared by requests
+  due on the same date.
+- Latest verification after dated ATP response consistency: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 380 ABAP Unit methods.
+- Added the same base-unit confirmation split to `ALLOCATE_REQUEST_DATE_ATP`.
+  The helper converts all alternative-unit confirmation lines with the validated
+  material ratio before capping the total. Tests cover multiple confirmations
+  in base and alternative units.
+- Latest verification after single-request ATP quantity reporting:
+  `npm.cmd test` passed; abaplint reported zero issues across 65 files and the
+  transpiler ran all 380 ABAP Unit methods.
+- Promoted `GET_ATP_CONFIRMATION_SPLIT` as a shared stock-service API and added
+  base-unit confirmed/unconfirmed quantities to single-order and multi-order ATP
+  checks. Same-date sales-order rows reuse the same split; tests cover
+  multi-line confirmations and the multi-order reservation preview path.
+- Latest verification after sales-order ATP quantity reporting: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 380 ABAP Unit methods.
+- Hardened the shared ATP confirmation splitter to reject negative requested
+  base quantities and nonpositive conversion ratios before calculation. Added a
+  regression test for a zero denominator and negative request.
+- Latest verification after ATP split input validation: `npm.cmd test` passed;
+  abaplint reported zero issues across 65 files and the transpiler ran all 381
+  ABAP Unit methods.
+- Extended `preview_for_cost_center` with direct confirmed and unconfirmed
+  base-unit quantities from its optional ATP check. The preview shares the
+  cross-service splitter, and its alternative-unit request is already converted
+  before ATP, so returned split quantities remain in the stock base unit.
+- Latest verification after cost-center ATP quantity reporting: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 381 ABAP Unit methods.

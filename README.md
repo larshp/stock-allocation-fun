@@ -60,8 +60,11 @@ base-unit method.
 ATP checks for positive local source-plant allocations. It groups quantities by
 source plant and required date, checks the cumulative base-unit quantity through
 each date, and returns each source split's allocated quantity and cumulative
-ATP result separately from the local estimate. The checks do not change local
-allocations or resolve local shortfalls.
+ATP result separately from the local estimate. Each check also reports
+`confirmed_base_quantity` and `unconfirmed_base_quantity`, summed from the
+returned confirmation lines and capped at the cumulative quantity checked.
+These convenience values are zero for ATP checks marked not relevant. The checks
+do not change local allocations or resolve local shortfalls.
 `ALLOCATE_PLANTS_IN_UNITS` accepts material-specific demand units and returns
 the demand summary plus plant and location splits in both the source unit and
 base unit. It caches and validates material/unit ratios before reading stock.
@@ -84,6 +87,36 @@ life, returns source plant and batch/location splits, and can protect static
 safety stock at each source plant. Undated batches are excluded when the
 minimum shelf life is greater than zero. This is a preview based on local stock
 estimates and does not run SAP batch determination or create a transfer.
+`ALLOCATE_PLANTS_FEFO_BY_DATE` combines that cross-plant FEFO split with dated
+demand priority. Earlier required dates consume shared batches first, while
+same-date requests keep input order. Each batch must meet the requested minimum
+shelf life as of that demand's required date; the result returns in input order.
+Optional safety-stock protection withholds the buffer from latest-expiring
+batches eligible for the earliest compatible demand. Undated batches qualify
+only when `iv_min_days = 0` and sort after dated batches. The method considers
+current batch stock only; it does not add projected receipts or replace SAP's
+configured batch determination.
+All dated cross-plant FEFO variants accept an optional shared
+`it_allowed_storage_locations` allowlist. When supplied, stock from every other
+storage location is excluded for all requests and source plants; an empty list
+keeps the unrestricted location behavior.
+For request-specific routing, `it_source_locations` maps each request and source
+plant to its permitted storage locations. Every request/source-plant pair needs
+at least one mapping when this table is supplied. If both location filters are
+present, the selected stock must satisfy both.
+`ALLOCATE_PLANTS_FEFO_DATE_UOM` accepts these dated demands in a material unit
+such as BOX, converts once to the canonical base unit, and returns dated demand,
+source-plant, and batch splits in both units. Conversion ratios are validated
+before stock is read; converted quantities follow the same rounding rules as
+other unit-aware allocations.
+`ALLOCATE_PLANTS_FEFO_DATE_ATP` adds SAP ATP checks to that local estimate. It
+checks positive allocations cumulatively by material, source plant, base unit,
+and required date, and returns the ATP confirmations separately from the FEFO
+allocation. Each check also reports `confirmed_base_quantity` and
+`unconfirmed_base_quantity`, derived by totaling the returned confirmation
+lines and limiting the total to the cumulative quantity checked. These direct
+fields are zero when SAP marks a check as not relevant. ATP does not reserve
+stock or change the local batch selection.
 `ALLOCATE_PLANTS_FEFO_IN_UNITS` accepts the same cross-plant FEFO demand in a
 material-specific unit. It validates and caches conversion ratios before stock
 reads, and returns demand, plant, and batch/location splits in both requested
@@ -164,7 +197,10 @@ and production receipt projections as `ALLOCATE_DEMANDS_BY_DATE`.
 converts them to base units for local allocation and sends one cumulative ATP
 check per material/plant/base-unit/required-date group. Requests sharing a date
 share that result; returned rows stay in input order and include both the local
-estimate and cumulative base-unit quantity sent to SAP.
+estimate and cumulative base-unit quantity sent to SAP. They also include
+`confirmed_base_quantity` and `unconfirmed_base_quantity`, summed from the ATP
+confirmation lines and capped at the cumulative request; the convenience values
+are zero when SAP marks the check as not relevant.
 `ALLOCATE_REQUEST_DATE_ATP` returns that local estimate together with a
 `BAPI_MATERIAL_AVAILABILITY` result for the supplied material, plant, unit,
 checking rule, date, and quantity. The SAP result includes plant-level
@@ -174,7 +210,9 @@ configured ATP alongside the local allocation result. The legacy scalar
 confirmation date and quantity mirror the first line. SAP returns the lead-time
 end date only when replenishment lead time is active for the check. The local
 estimate accepts the optional PO, issued or unissued STO, and production receipt
-flags.
+flags. The result also includes confirmed and unconfirmed base-unit quantities
+summed from all confirmation lines; returned quantities in an alternative
+request unit are converted through the material's unit ratio.
 The SAP check retains the supplied unit and quantity; the local estimate
 converts the request to the material base unit before reading stock.
 For sales orders, `preview_order` can set `iv_check_atp = abap_true` and provide
@@ -183,9 +221,17 @@ positive open schedule line in `atp_checks`. The SAP request uses the cumulative
 open quantity for the same material, plant, and base unit through that line's
 required date. Lines sharing a date receive the same cumulative quantity.
 Each result also reports the line quantity and cumulative quantity separately.
+ATP checks include `confirmed_base_quantity` and
+`unconfirmed_base_quantity`, summed from confirmation lines and capped at the
+cumulative request. The raw result remains available for checking status and
+individual confirmation dates.
 These checks do not replace local allocation splits or change the local preview
 success flag, so callers should inspect the ATP statuses separately. Open
 item-level fallback rows without a requested date are rejected in this mode.
+`ZCL_STOCK_SERVICE->GET_ATP_CONFIRMATION_SPLIT` exposes the same bounded
+calculation to other services using raw ATP results; supply the cumulative base
+quantity and a positive numerator/denominator when the response uses an
+alternative unit. Invalid ratios raise `ZCX_INVALID_STOCK_REQUEST`.
 `GET_STOCK_STATUS_BY_LOCATION` returns the same stock-category breakdown for
 each storage location, along with available unrestricted quantity after active
 reservations. Plant-level reservations are distributed across locations in
@@ -265,6 +311,14 @@ location splits and posts 303 removals followed by one 305 putaway item per
 request. It returns both posting results and sets `is_in_transit` when removal
 commits but putaway fails. Supply a destination storage location per request;
 complete allocation is required by default, and test runs simulate both steps.
+The result includes the exact `putaway_items` payload. Pass a pending result to
+`RETRY_TRANSFER_PUTAWAY` to post only those 305 or 315 items after a failure;
+this avoids repeating the committed removal. A retry simulation or failed retry
+keeps the result in transit, and a successful committed retry clears that state.
+If the transfer should return to its source instead, pass the pending result to
+`CANCEL_TRANSFER_IN_TRANSIT` with an optional posting date. It cancels the
+removal document and marks the transfer cancelled only after the reversal
+commits.
 `TRANSFER_PLANT_2STEP_UNITS` accepts unit-aware cross-plant results and checks
 the summary and source split base units against each material mapping before
 posting the same 303/305 flow.
@@ -280,6 +334,11 @@ batch, combining same-batch source splits at the destination.
 `TRANSFER_PLANT_FEFO_2STEP_UOM` checks the unit-aware FEFO summary and each
 batch split against the material base-unit mapping, then posts canonical
 base-unit quantities through the same grouped 303/305 flow.
+`TRANSFER_FEFO_DATE_UOM` accepts a dated unit-aware FEFO result for a 301
+cross-plant transfer. `TRANSFER_FEFO_DATE_UOM_2STEP` posts the same selected
+batch splits through the 303/305 in-transit flow. Both validate the canonical
+base unit against the material mapping; partial allocation must be enabled
+explicitly when the dated result has a shortfall.
 Previews do not reserve stock, so availability can change before posting.
 `TRANSFER_LOCATION_ALLOCATION` accepts an `ALLOCATE_BY_STORAGE_LOCATION`
 result and posts each source-location split as a 311 goods movement within the
@@ -309,6 +368,12 @@ posts 313 removals followed by one 315 putaway item per request, with the
 request's split quantities combined. Its result carries both posting results
 and sets `is_in_transit` if removal committed but putaway failed. Test runs
 simulate both steps without committing.
+The result also includes the exact `putaway_items` payload. Use
+`RETRY_TRANSFER_PUTAWAY` with a pending result to post only those 315 items;
+the retry leaves the committed 313 removal untouched. Simulations and failed
+retries retain the in-transit state until a committed putaway succeeds.
+`CANCEL_TRANSFER_IN_TRANSIT` can reverse the removal document instead; it
+reports cancellation only after SAP accepts and commits the reversal.
 `TRANSFER_LOCATION_BATCH_2STEP` accepts exact-batch allocation results,
 preserves the selected batch on each 313 removal, and combines source-location
 splits into one 315 putaway item per request. It rejects a request whose splits
@@ -430,7 +495,11 @@ safety-stock protection. Pass `iv_check_atp = abap_true` with
 `iv_atp_check_rule` to include SAP ATP responses in `atp_checks`; requests are
 combined across the supplied orders by material, plant, and date, with demand
 accumulated through each date. ATP responses are reported separately and do
-not change the local allocation or its success flag.
+not change the local allocation or its success flag. Each row also reports
+confirmed and unconfirmed base quantities, shared by rows with the same date;
+the split sums confirmation lines and caps the confirmed amount at the
+cumulative quantity checked. `reserve_orders_by_date` carries these diagnostics
+through with its reservation result.
 
 `reserve_orders_by_date` creates reservations for the positive allocations from
 the same shared dated preview and accepts the same receipt, confirmed-demand,
@@ -481,12 +550,23 @@ number through `BAPI_RESERVATION_DELETE`. It rejects an empty list, blank
 numbers, and duplicate numbers, then deletes the list in one transaction. The
 service supports BAPI test runs and rolls back if a delete or commit fails.
 Its sales-order method discovers open movement-231 reservations from `RESB`.
-It only releases a document when every non-deleted item belongs to the requested
-sales order and uses the same movement and stock scope. An order can preview
-eligible reservation numbers without a BAPI call, optionally scoped to one
+It only releases a document when every non-deleted item belongs to the
+requested sales order and uses the same movement and stock scope. An order can
+preview eligible reservation numbers without a BAPI call, optionally scoped to one
 sales-order item. Item-scoped release requires every non-deleted document item
 to match that item. An order with no matching documents returns success without
 starting a BAPI transaction.
+`DELETE_ORDERS_RESERVATIONS` accepts a unique list of sales documents, returns
+eligible reservation numbers grouped by order, and deletes the combined list in
+one BAPI transaction. Empty matches are a successful no-op; blank or duplicate
+sales document numbers are rejected before the finder runs. A reservation number
+mapped to multiple orders is rejected before deletion.
+`PREVIEW_ORDERS_RELEASE` returns the same grouped candidates without calling the
+delete BAPI.
+`PREVIEW_ORDER_ITEMS_RELEASE` and `DELETE_ITEMS_RESERVATIONS` accept unique,
+nonblank sales-order/item pairs. They return candidates grouped by item; release
+deletes the combined list in one transaction. A document is eligible only when
+all non-deleted rows match that exact order item.
 
 `ZCL_SO_RESERVATION_READ_SERVICE` reads reservation items through
 `BAPI_RESERVATION_GETDETAIL1`, including their SAP item number, record type,
@@ -507,11 +587,14 @@ handling.
 `ZCL_PROD_COMP_SERVICE->GET_OPEN_COMPONENTS` reads open component reservation
 items for a production order from `RESB`. It returns the reservation number and
 item, material, plant, location, batch, movement type, required date, unit,
-required and withdrawn quantities, and the remaining open quantity. The
-`ISSUE_COMPONENTS` method accepts selected reservation keys and quantities,
-checks them against those open lines, and delegates posting to the existing
-reservation issue service. It supports test runs and SAP transaction handling.
-Quantities use the component reservation unit. SAP generates component
+required and withdrawn quantities, and the remaining open quantity.
+`GET_OPEN_COMPONENTS_BULK` reads a unique list of production orders together
+through one bulk repository call and returns components sorted by order and
+reservation key. `ISSUE_COMPONENTS` accepts selected reservation keys and
+quantities for one order; `ISSUE_COMPONENTS_BULK` accepts requests across
+orders, validates each key against its originating order, and posts the selected
+components together in one material document and transaction. Both methods
+support test runs. Quantities use the component reservation unit. SAP generates component
 reservations when production orders are created; movement type 261 is the
 standard goods issue for order components
 ([withdrawing material components](https://help.sap.com/docs/SAP_ERP/bfece09273bd474d82fdd97bae070c25/c803b753128eb44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest)).
@@ -539,9 +622,10 @@ and account assignment on the reservation header ([movement type](https://help.s
 does not call the reservation API. Set `iv_check_atp = abap_true` and supply
 `iv_atp_check_rule` to attach a SAP ATP result in `atp_result`. ATP checks the
 base-unit request at plant level and does not constrain the result to a selected
-batch or storage location. Its result is reported separately from local
-allocation and does not change the preview success flag or splits. Full-
-allocation requirements are reported in the preview result.
+batch or storage location. The preview also reports confirmed and unconfirmed
+base quantities derived from the ATP confirmation lines. The ATP data is
+separate from local allocation and does not change the preview success flag or
+splits. Full-allocation requirements are reported in the preview result.
 
 Set `iv_use_fefo_batches = abap_true` to reserve automatically selected
 batches by earliest expiration date. The as-of date defaults to today;

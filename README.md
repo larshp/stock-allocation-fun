@@ -481,12 +481,12 @@ number through `BAPI_RESERVATION_DELETE`. It rejects an empty list, blank
 numbers, and duplicate numbers, then deletes the list in one transaction. The
 service supports BAPI test runs and rolls back if a delete or commit fails.
 Its sales-order method discovers open movement-231 reservations from `RESB`.
-It only releases a document when every open item in that document belongs to
-the requested sales order and uses the same movement and stock scope. An order
-can preview the eligible reservation numbers without a BAPI call, optionally
-scoped to one sales-order item. Item-scoped release also requires every open
-item in the reservation document to match that item. An order with no matching
-documents returns success without starting a BAPI transaction.
+It only releases a document when every non-deleted item belongs to the requested
+sales order and uses the same movement and stock scope. An order can preview
+eligible reservation numbers without a BAPI call, optionally scoped to one
+sales-order item. Item-scoped release requires every non-deleted document item
+to match that item. An order with no matching documents returns success without
+starting a BAPI transaction.
 
 `ZCL_SO_RESERVATION_READ_SERVICE` reads reservation items through
 `BAPI_RESERVATION_GETDETAIL1`, including their SAP item number, record type,

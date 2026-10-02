@@ -913,3 +913,10 @@
 - Latest verification after reservation release preview: `npm.cmd test` passed;
   abaplint reported zero issues across 65 files and the transpiler ran all 353
   ABAP Unit methods.
+- Added optional sales-order item scoping to reservation preview and release.
+  The finder only returns complete documents whose non-deleted items match that
+  order item. The item filter is forwarded through the injectable finder and is
+  covered by preview and committing deletion tests.
+- Latest verification after item-scoped reservation release: `npm.cmd test`
+  passed; abaplint reported zero issues across 65 files and the transpiler ran
+  all 355 ABAP Unit methods.

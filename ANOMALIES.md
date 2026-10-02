@@ -90,10 +90,13 @@ BAPI signature and deletion behavior in the target release; local tests use
 an API double and do not exercise SAP reservation status rules.
 
 Sales-order-scoped release discovers open movement-231 reservation items in
-`RESB` and excludes documents that contain any other open item. The two reads
+`RESB` and excludes documents that contain any non-deleted item outside the
+requested scope. The two reads
 are not an SAP reservation lock; concurrent changes can still occur before the
 BAPI delete. Verify the `RESB` filters and document behavior on the target
-release. The local transpiler does not execute these database queries.
+release. Release also excludes documents with non-deleted items outside the
+requested scope; item-scoped release checks the order item too. The local
+transpiler does not execute these database queries.
 
 Reservation inquiry reads items through `BAPI_RESERVATION_GETDETAIL1`. Its
 adapter maps the partial local `BAPI2093_RES_ITEM_DETAIL` stub. Verify the

@@ -356,19 +356,14 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       FOR ALL ENTRIES IN @lt_candidate_numbers
       WHERE rsnum = @lt_candidate_numbers-table_line
         AND xloek = @space
-        AND kzear = @space
       INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_items.
 
     LOOP AT lt_candidate_numbers INTO DATA(lv_candidate_number).
       DATA(lv_is_order_only) = abap_true.
-      DATA(lv_has_open_item) = abap_false.
+      DATA(lv_has_document_item) = abap_false.
       LOOP AT lt_reservation_items INTO DATA(ls_reservation_item)
           WHERE reservation_number = lv_candidate_number.
-        IF ls_reservation_item-required_quantity
-            <= ls_reservation_item-withdrawn_quantity.
-          CONTINUE.
-        ENDIF.
-        lv_has_open_item = abap_true.
+        lv_has_document_item = abap_true.
         IF ls_reservation_item-sales_document <> iv_sales_document
             OR ( iv_item_number IS NOT INITIAL
               AND ls_reservation_item-item_number <> iv_item_number )
@@ -378,7 +373,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           EXIT.
         ENDIF.
       ENDLOOP.
-      IF lv_is_order_only = abap_true AND lv_has_open_item = abap_true.
+      IF lv_is_order_only = abap_true AND lv_has_document_item = abap_true.
         INSERT lv_candidate_number INTO TABLE lt_safe_numbers.
       ENDIF.
     ENDLOOP.

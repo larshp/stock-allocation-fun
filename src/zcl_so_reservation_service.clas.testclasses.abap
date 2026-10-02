@@ -158,6 +158,7 @@ CLASS ltcl_so_reservation_service DEFINITION FINAL
     METHODS deletes_order_reservations FOR TESTING.
     METHODS previews_order_release FOR TESTING.
     METHODS previews_order_item_release FOR TESTING.
+    METHODS deletes_item_reservations FOR TESTING.
     METHODS simulates_order_release FOR TESTING.
     METHODS no_sales_order_reservations FOR TESTING.
     METHODS rejects_blank_sales_document FOR TESTING.
@@ -363,6 +364,32 @@ CLASS ltcl_so_reservation_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_delete_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_item_reservations.
+    DATA(lt_numbers) = VALUE zif_so_reservation_finder=>ty_reservation_numbers(
+      ( '9000000001' ) ).
+    mo_finder->set_numbers( lt_numbers ).
+
+    DATA(ls_result) = mo_cut->delete_order_reservations(
+      iv_sales_document = '0000004711'
+      iv_item_number    = '000020' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = ls_result-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = mo_finder->get_item_number( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_numbers
+      act = mo_api->get_deleted_numbers( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 
   METHOD simulates_order_release.

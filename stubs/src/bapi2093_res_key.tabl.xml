@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+    <asx:values>
+      <DD02V>
+        <TABNAME>BAPI2093_RES_KEY</TABNAME>
+        <DDLANGUAGE>E</DDLANGUAGE>
+        <TABCLASS>INTTAB</TABCLASS>
+        <DDTEXT>BAPI Reservation Key</DDTEXT>
+      </DD02V>
+      <DD03P_TABLE>
+        <DD03P>
+          <FIELDNAME>RESERV_NO</FIELDNAME>
+          <POSITION>0001</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+      </DD03P_TABLE>
+    </asx:values>
+  </asx:abap>
+</abapGit>

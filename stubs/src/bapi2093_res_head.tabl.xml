@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+    <asx:values>
+      <DD02V>
+        <TABNAME>BAPI2093_RES_HEAD</TABNAME>
+        <DDLANGUAGE>E</DDLANGUAGE>
+        <TABCLASS>INTTAB</TABCLASS>
+        <DDTEXT>BAPI Reservation Header Fields</DDTEXT>
+      </DD02V>
+      <DD03P_TABLE>
+        <DD03P>
+          <FIELDNAME>RES_DATE</FIELDNAME>
+          <POSITION>0001</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MOVE_TYPE</FIELDNAME>
+          <POSITION>0002</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>SALES_ORD</FIELDNAME>
+          <POSITION>0003</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>S_ORD_ITEM</FIELDNAME>
+          <POSITION>0004</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000006</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000012</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>COSTCENTER</FIELDNAME>
+          <POSITION>0005</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+      </DD03P_TABLE>
+    </asx:values>
+  </asx:abap>
+</abapGit>

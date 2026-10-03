@@ -59,5 +59,36 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
       act = lt_item_flags[ 2 ]-fixed_vend ).
     cl_abap_unit_assert=>assert_initial(
       act = lt_item_flags[ 2 ]-info_rec ).
+    zcl_bapi_preq_item_mapper=>map_items(
+      EXPORTING
+        it_items      = VALUE #(
+          ( item_number           = '00030'
+            source_vendor         = '0000100003'
+            purchasing_org        = '3000'
+            source_agreement      = '4500000001'
+            source_agreement_item = '00010'
+            material              = 'MAT-CONTRACT'
+            plant                 = '1000'
+            quantity              = '3.000'
+            unit                  = 'EA'
+            delivery_date         = '20261117' ) )
+      IMPORTING
+        et_items      = DATA(lt_agreement_items)
+        et_item_flags = DATA(lt_agreement_flags) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000001'
+      act = lt_agreement_items[ 1 ]-agreement ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lt_agreement_items[ 1 ]-agmt_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_agreement_flags[ 1 ]-agreement ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_agreement_flags[ 1 ]-agmt_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_agreement_flags[ 1 ]-info_rec ).
   ENDMETHOD.
 ENDCLASS.

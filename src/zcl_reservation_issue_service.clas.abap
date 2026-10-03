@@ -30,12 +30,33 @@ CLASS zcl_reservation_issue_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS post_goods_issue_reversal
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_issue_requests
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
   PRIVATE SECTION.
     TYPES:
       BEGIN OF ty_item_key,
         reservation_number TYPE bapi2093_res_key-reserv_no,
         reservation_item   TYPE bapi2093_res_item_detail-res_item,
       END OF ty_item_key.
+
+    METHODS post_reservation_movement
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_issue_requests
+        iv_test_run      TYPE abap_bool
+        iv_is_reversal   TYPE abap_bool
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
 
     DATA mo_reservation_read_service TYPE REF TO zcl_so_res_read_service.
     DATA mo_goods_movement_service TYPE REF TO zcl_goods_movement_service.
@@ -58,6 +79,22 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_goods_issue.
+    rs_result = post_reservation_movement(
+      is_header      = is_header
+      it_requests    = it_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_false ).
+  ENDMETHOD.
+
+  METHOD post_goods_issue_reversal.
+    rs_result = post_reservation_movement(
+      is_header      = is_header
+      it_requests    = it_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_true ).
+  ENDMETHOD.
+
+  METHOD post_reservation_movement.
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
         OR it_requests IS INITIAL.
@@ -114,11 +151,18 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         WITH KEY reservation_number = ls_request-reservation_number
                  item_number        = ls_request-reservation_item.
       IF sy-subrc <> 0
-          OR ls_reservation_item-movement_allowed <> abap_true
           OR ls_reservation_item-is_deleted = abap_true
-          OR ls_reservation_item-is_final_issue = abap_true
           OR ls_reservation_item-base_unit IS INITIAL
           OR ls_reservation_item-base_unit_iso IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      IF iv_is_reversal = abap_true.
+        IF ls_reservation_item-withdrawn_quantity <= 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ELSEIF ls_reservation_item-movement_allowed <> abap_true
+          OR ls_reservation_item-is_final_issue = abap_true.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
@@ -135,9 +179,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA(lv_remaining_quantity) = ls_reservation_item-required_quantity
-        - ls_reservation_item-withdrawn_quantity.
-      IF ls_request-base_quantity > lv_remaining_quantity.
+      DATA(lv_available_quantity) = COND mard-labst(
+        WHEN iv_is_reversal = abap_true
+          THEN ls_reservation_item-withdrawn_quantity
+        ELSE ls_reservation_item-required_quantity
+          - ls_reservation_item-withdrawn_quantity ).
+      IF ls_request-base_quantity > lv_available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
@@ -158,6 +205,7 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         reservation_item        = ls_request-reservation_item
         reservation_record_type = ls_reservation_item-record_type
         movement_indicator      = space
+        is_reversal             = iv_is_reversal
         quantity                = ls_request-base_quantity
         entry_unit              = ls_reservation_item-base_unit
         entry_unit_iso          = ls_reservation_item-base_unit_iso
@@ -168,7 +216,9 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
 
     rs_result = mo_goods_movement_service->execute(
       is_header   = is_header
-      iv_gm_code  = '03'
+      iv_gm_code  = COND #(
+        WHEN iv_is_reversal = abap_true THEN '06'
+        ELSE '03' )
       it_items    = lt_movement_items
       iv_test_run = iv_test_run ).
     APPEND LINES OF lt_read_messages TO rs_result-messages.

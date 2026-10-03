@@ -38,23 +38,27 @@ CLASS zcl_cc_reservation_service DEFINITION
 
     METHODS reserve_for_cost_center
       IMPORTING
-        iv_material             TYPE mard-matnr
-        iv_plant                TYPE mard-werks
-        iv_storage_location     TYPE mard-lgort OPTIONAL
-        iv_allow_fallback       TYPE abap_bool DEFAULT abap_false
-        iv_cost_center          TYPE bapi2093_res_head-costcenter
-        iv_requested_quantity   TYPE mard-labst
-        iv_unit                 TYPE mara-meins
-        iv_batch                TYPE mchb-charg OPTIONAL
-        iv_required_date        TYPE d DEFAULT sy-datum
-        iv_use_fefo_batches     TYPE abap_bool DEFAULT abap_false
-        iv_fefo_as_of_date      TYPE d DEFAULT sy-datum
-        iv_fefo_min_days        TYPE i DEFAULT 0
-        iv_test_run             TYPE abap_bool DEFAULT abap_false
-        iv_require_full_alloc   TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
+        iv_material                 TYPE mard-matnr
+        iv_plant                    TYPE mard-werks
+        iv_storage_location         TYPE mard-lgort OPTIONAL
+        iv_allow_fallback           TYPE abap_bool DEFAULT abap_false
+        iv_cost_center              TYPE bapi2093_res_head-costcenter
+        iv_requested_quantity       TYPE mard-labst
+        iv_unit                     TYPE mara-meins
+        iv_batch                    TYPE mchb-charg OPTIONAL
+        iv_required_date            TYPE d DEFAULT sy-datum
+        iv_use_fefo_batches         TYPE abap_bool DEFAULT abap_false
+        iv_fefo_as_of_date          TYPE d DEFAULT sy-datum
+        iv_fefo_min_days            TYPE i DEFAULT 0
+        iv_test_run                 TYPE abap_bool DEFAULT abap_false
+        iv_require_full_alloc       TYPE abap_bool DEFAULT abap_false
+        iv_require_atp_confirmation TYPE abap_bool DEFAULT abap_false
+        iv_check_atp                TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule           TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
+        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)        TYPE ty_result
+        VALUE(rs_result)            TYPE ty_result
       RAISING
         zcx_invalid_reservation
         zcx_invalid_stock_request.
@@ -145,6 +149,24 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserve_for_cost_center.
+    IF iv_require_atp_confirmation <> abap_true
+        AND iv_require_atp_confirmation <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_check_atp = abap_true
+        AND ( iv_atp_check_rule IS NOT SUPPLIED
+          OR iv_atp_check_rule IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_require_atp_confirmation = abap_true
+        AND iv_check_atp <> abap_true.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Full ATP confirmation requirement needs ATP checking' )
+        TO rs_result-messages.
+      RETURN.
+    ENDIF.
+
     DATA(ls_prepared) = prepare_reservation(
       iv_material             = iv_material
       iv_plant                = iv_plant
@@ -167,6 +189,39 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
 
     IF rs_result-is_successful = abap_false
         OR rs_result-allocated_quantity <= 0.
+      RETURN.
+    ENDIF.
+
+    IF iv_check_atp = abap_true.
+      rs_result-atp_result = mo_stock_service->check_atp_request(
+        is_request = VALUE #(
+          material           = ls_prepared-result-material
+          plant              = ls_prepared-result-plant
+          unit               = ls_prepared-result-base_unit
+          check_rule         = iv_atp_check_rule
+          required_date      = iv_required_date
+          requested_quantity =
+            ls_prepared-result-base_requested_quantity ) ).
+      DATA(ls_confirmation_split) =
+        mo_stock_service->get_atp_confirmation_split(
+          iv_requested_base_quantity =
+            ls_prepared-result-base_requested_quantity
+          iv_required_date           = iv_required_date
+          is_atp_result              = rs_result-atp_result ).
+      rs_result-confirmed_base_quantity =
+        ls_confirmation_split-confirmed_base_quantity.
+      rs_result-unconfirmed_base_quantity =
+        ls_confirmation_split-unconfirmed_base_quantity.
+    ENDIF.
+
+    IF iv_require_atp_confirmation = abap_true
+        AND rs_result-confirmed_base_quantity <
+          rs_result-base_requested_quantity.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Full ATP confirmation required; no reservation was created' )
+        TO rs_result-messages.
+      rs_result-is_successful = abap_false.
       RETURN.
     ENDIF.
 
@@ -261,10 +316,11 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           requested_quantity =
             ls_prepared-result-base_requested_quantity ) ).
       DATA(ls_confirmation_split) =
-        mo_stock_service->get_atp_confirmation_split(
-          iv_requested_base_quantity =
-            ls_prepared-result-base_requested_quantity
-          is_atp_result              = rs_result-atp_result ).
+      mo_stock_service->get_atp_confirmation_split(
+        iv_requested_base_quantity =
+          ls_prepared-result-base_requested_quantity
+        iv_required_date           = iv_required_date
+        is_atp_result              = rs_result-atp_result ).
       rs_result-confirmed_base_quantity =
         ls_confirmation_split-confirmed_base_quantity.
       rs_result-unconfirmed_base_quantity =

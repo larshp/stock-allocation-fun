@@ -26,6 +26,7 @@ INTERFACE zif_goods_movement_api PUBLIC.
       reservation_item           TYPE bapi2093_res_item_detail-res_item,
       reservation_record_type    TYPE bapi2093_res_item_detail-res_type,
       movement_indicator         TYPE c LENGTH 1,
+      is_reversal                TYPE abap_bool,
       batch                      TYPE bapi2093_res_item_detail-batch,
       purchase_order             TYPE c LENGTH 10,
       purchase_order_item        TYPE c LENGTH 5,

@@ -43,6 +43,7 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-res_item = ls_movement_item-reservation_item.
       ls_item-res_type = ls_movement_item-reservation_record_type.
       ls_item-mvt_ind = ls_movement_item-movement_indicator.
+      ls_item-xstob = ls_movement_item-is_reversal.
       ls_item-batch = ls_movement_item-batch.
       ls_item-po_number = ls_movement_item-purchase_order.
       ls_item-po_item = ls_movement_item-purchase_order_item.

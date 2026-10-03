@@ -30,7 +30,9 @@ CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
         pur_group  = ls_request_item-purchasing_group
         purch_org  = ls_request_item-purchasing_org
         fixed_vend = ls_request_item-source_vendor
-        info_rec   = ls_request_item-source_info_record ).
+        info_rec   = ls_request_item-source_info_record
+        agreement  = ls_request_item-source_agreement
+        agmt_item  = ls_request_item-source_agreement_item ).
       APPEND ls_item TO et_items.
 
       DATA(ls_item_flags) = VALUE bapimereqitemx(
@@ -52,6 +54,12 @@ CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
       ENDIF.
       IF ls_request_item-source_info_record IS NOT INITIAL.
         ls_item_flags-info_rec = abap_true.
+      ENDIF.
+      IF ls_request_item-source_agreement IS NOT INITIAL.
+        ls_item_flags-agreement = abap_true.
+      ENDIF.
+      IF ls_request_item-source_agreement_item IS NOT INITIAL.
+        ls_item_flags-agmt_item = abap_true.
       ENDIF.
       APPEND ls_item_flags TO et_item_flags.
     ENDLOOP.

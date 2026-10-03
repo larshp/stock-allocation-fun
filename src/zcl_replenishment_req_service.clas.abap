@@ -37,6 +37,21 @@ CLASS zcl_replenishment_req_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS create_from_selected_sources
+      IMPORTING
+        it_suggestions             TYPE zcl_prod_comp_service=>ty_comp_replenishments
+        it_selected_source_options TYPE zcl_repl_source_service=>ty_suggestion_source_options
+        iv_requisition_type        TYPE ty_requisition_type DEFAULT 'NB'
+        iv_purchasing_group        TYPE ty_purchasing_group OPTIONAL
+        iv_purchasing_org          TYPE ty_purchasing_org OPTIONAL
+        it_purchasing_controls     TYPE ty_suggestion_purchasing_controls
+          OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)           TYPE zif_purchase_requisition_api=>ty_result
+      RAISING
+        zcx_invalid_stock_request.
+
   PRIVATE SECTION.
     METHODS complete_write
       IMPORTING
@@ -110,8 +125,20 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
       IF ls_suggestion-source_vendor IS NOT INITIAL
           OR ls_suggestion-source_purchasing_org IS NOT INITIAL
           OR ls_suggestion-source_info_record IS NOT INITIAL
-          OR ls_suggestion-source_category IS NOT INITIAL.
-        IF ls_suggestion-source_vendor IS INITIAL
+          OR ls_suggestion-source_category IS NOT INITIAL
+          OR ls_suggestion-source_agreement IS NOT INITIAL
+          OR ls_suggestion-source_agreement_item IS NOT INITIAL.
+        IF ls_suggestion-source_agreement IS NOT INITIAL
+            OR ls_suggestion-source_agreement_item IS NOT INITIAL.
+          IF ls_suggestion-source_agreement IS INITIAL
+              OR ls_suggestion-source_agreement_item IS INITIAL
+              OR ls_suggestion-source_vendor IS INITIAL
+              OR ls_suggestion-source_purchasing_org IS INITIAL
+              OR ls_suggestion-source_info_record IS NOT INITIAL
+              OR ls_suggestion-source_category IS NOT INITIAL.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+        ELSEIF ls_suggestion-source_vendor IS INITIAL
             OR ls_suggestion-source_purchasing_org IS INITIAL
             OR ls_suggestion-source_info_record IS INITIAL
             OR ls_suggestion-source_category IS INITIAL.
@@ -166,13 +193,20 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         lv_receipt_item_quantity =
           ls_suggestion-final_receipt_base_quantity.
       ELSEIF ls_suggestion-fixed_base_quantity > 0.
-        IF ls_suggestion-final_receipt_base_quantity
-              <> ls_suggestion-fixed_base_quantity
-            OR ls_suggestion-suggested_base_quantity
-              <> ls_suggestion-fixed_base_quantity * lv_receipt_count.
+        IF ls_suggestion-rounding_profile IS INITIAL.
+          IF ls_suggestion-final_receipt_base_quantity
+                <> ls_suggestion-fixed_base_quantity
+              OR ls_suggestion-suggested_base_quantity
+                <> ls_suggestion-fixed_base_quantity * lv_receipt_count.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+        ELSEIF ls_suggestion-suggested_base_quantity
+              <> ls_suggestion-final_receipt_base_quantity
+                * lv_receipt_count.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
-        lv_receipt_item_quantity = ls_suggestion-fixed_base_quantity.
+        lv_receipt_item_quantity =
+          ls_suggestion-final_receipt_base_quantity.
       ELSEIF ls_suggestion-maximum_base_quantity > 0.
         IF ls_suggestion-final_receipt_base_quantity
               > ls_suggestion-maximum_base_quantity
@@ -204,7 +238,9 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
           purchasing_group        = lv_item_purchasing_group
           purchasing_org          = lv_item_purchasing_org
           source_vendor           = ls_suggestion-source_vendor
-          source_info_record      = ls_suggestion-source_info_record )
+          source_info_record      = ls_suggestion-source_info_record
+          source_agreement        = ls_suggestion-source_agreement
+          source_agreement_item   = ls_suggestion-source_agreement_item )
           TO ls_request-items.
       ENDDO.
     ENDLOOP.
@@ -223,6 +259,21 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
       is_request = ls_request
       is_result  = mo_api->create_requisition( ls_request ) ).
     rs_result-submitted_items = ls_request-items.
+  ENDMETHOD.
+
+  METHOD create_from_selected_sources.
+    DATA(lt_selected_suggestions) =
+      zcl_repl_source_service=>apply_selected_source_options(
+        it_suggestions = it_suggestions
+        it_options     = it_selected_source_options ).
+
+    rs_result = create_from_suggestions(
+      it_suggestions         = lt_selected_suggestions
+      iv_requisition_type    = iv_requisition_type
+      iv_purchasing_group    = iv_purchasing_group
+      iv_purchasing_org      = iv_purchasing_org
+      it_purchasing_controls = it_purchasing_controls
+      iv_test_run            = iv_test_run ).
   ENDMETHOD.
 
   METHOD complete_write.

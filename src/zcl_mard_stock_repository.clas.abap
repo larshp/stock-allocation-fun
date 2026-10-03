@@ -51,6 +51,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     TYPES:
       BEGIN OF ty_planned_receipt,
         planned_order            TYPE plaf-plnum,
+        fixed_indicator          TYPE plaf-auffx,
         receipt_date             TYPE plaf-pedtr,
         planned_quantity         TYPE plaf-gsmng,
         order_unit               TYPE plaf-meins,
@@ -83,7 +84,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         OR ( iv_include_sto_pr_receipts <> abap_true
           AND iv_include_sto_pr_receipts <> abap_false )
         OR ( iv_include_planned_receipts <> abap_true
-          AND iv_include_planned_receipts <> abap_false ).
+          AND iv_include_planned_receipts <> abap_false )
+        OR ( iv_include_fixed_planned <> abap_true
+          AND iv_include_fixed_planned <> abap_false )
+        OR ( iv_include_sched_agmt_receipts <> abap_true
+          AND iv_include_sched_agmt_receipts <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -93,7 +98,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND iv_include_prod_receipts <> abap_true
         AND iv_include_pr_receipts <> abap_true
         AND iv_include_sto_pr_receipts <> abap_true
-        AND iv_include_planned_receipts <> abap_true.
+        AND iv_include_planned_receipts <> abap_true
+        AND iv_include_fixed_planned <> abap_true
+        AND iv_include_sched_agmt_receipts <> abap_true.
       RETURN.
     ENDIF.
 
@@ -120,8 +127,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         INNER JOIN ekpo
           ON ekpo~ebeln = eket~ebeln
          AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
         WHERE ekpo~matnr = @iv_material
           AND ekpo~werks = @iv_plant
+          AND ekko~bstyp = 'F'
           AND ekpo~pstyp = '0'
           AND ekpo~knttp = @space
           AND ekpo~loekz = @space
@@ -152,6 +162,72 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
             source_document      = ls_po_schedule-source_document
             source_item          = ls_po_schedule-source_item
             source_schedule_line = ls_po_schedule-source_schedule_line )
+            TO rt_receipts.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF iv_include_sched_agmt_receipts = abap_true.
+      CLEAR lt_schedules.
+      SELECT eket~ebeln AS source_document,
+             eket~ebelp AS source_item,
+             eket~etenr AS source_schedule_line,
+             eket~eindt AS receipt_date,
+             eket~menge AS scheduled_quantity,
+             eket~wamng AS issued_quantity,
+             eket~wemng AS received_quantity,
+             ekpo~elikz AS delivery_complete,
+             ekpo~umrez AS order_to_base_num,
+             ekpo~umren AS order_to_base_denom
+        FROM eket
+        INNER JOIN ekpo
+          ON ekpo~ebeln = eket~ebeln
+         AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
+        WHERE ekko~bstyp = 'L'
+          AND ekko~reswk = @space
+          AND ekpo~matnr = @iv_material
+          AND ekpo~werks = @iv_plant
+          AND ekpo~pstyp = '0'
+          AND ekpo~knttp = @space
+          AND ekpo~loekz = @space
+          AND ekpo~elikz = @space
+          AND ekpo~stapo = @space
+          AND ekpo~retpo = @space
+          AND ekpo~wepos = 'X'
+          AND ekpo~insmk = @space
+          AND eket~eindt > @lv_initial_date
+          AND eket~eindt <= @iv_through_date
+        INTO CORRESPONDING FIELDS OF TABLE @lt_schedules.
+
+      DATA(lo_sched_agreement_calculator) = NEW zcl_po_sched_qty_calc( ).
+      LOOP AT lt_schedules INTO DATA(ls_sched_agreement_schedule).
+        DATA(lv_sched_agreement_quantity) =
+          lo_sched_agreement_calculator->calculate_open_base_quantity(
+            iv_scheduled_quantity  =
+              ls_sched_agreement_schedule-scheduled_quantity
+            iv_received_quantity   =
+              ls_sched_agreement_schedule-received_quantity
+            iv_order_to_base_num   =
+              ls_sched_agreement_schedule-order_to_base_num
+            iv_order_to_base_denom =
+              ls_sched_agreement_schedule-order_to_base_denom ).
+        DATA(lv_sched_agmt_base_qty) =
+          CONV mard-labst( lv_sched_agreement_quantity ).
+        IF lv_sched_agmt_base_qty > 0.
+          APPEND VALUE #(
+            material             = iv_material
+            plant                = iv_plant
+            base_unit            = lv_base_unit
+            receipt_date         = ls_sched_agreement_schedule-receipt_date
+            quantity             = lv_sched_agmt_base_qty
+            source_type          = 'SCHED_AGREEMENT'
+            source_document      =
+              ls_sched_agreement_schedule-source_document
+            source_item          = ls_sched_agreement_schedule-source_item
+            source_schedule_line =
+              ls_sched_agreement_schedule-source_schedule_line )
             TO rt_receipts.
         ENDIF.
       ENDLOOP.
@@ -405,9 +481,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       ENDLOOP.
     ENDIF.
 
-    IF iv_include_planned_receipts = abap_true.
-      SELECT plaf~plnum AS planned_order,
-             plaf~pedtr AS receipt_date,
+    IF iv_include_planned_receipts = abap_true
+        OR iv_include_fixed_planned       = abap_true.
+       SELECT plaf~plnum AS planned_order,
+              plaf~auffx AS fixed_indicator,
+              plaf~pedtr AS receipt_date,
              plaf~gsmng AS planned_quantity,
              plaf~meins AS order_unit,
              mara~meins AS base_unit,
@@ -421,10 +499,13 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
          AND marm~meinh = plaf~meins
         WHERE plaf~matnr = @iv_material
           AND plaf~pwwrk = @iv_plant
-          AND plaf~auffx = @space
           AND plaf~plscn = @space
           AND plaf~sobkz = @space
           AND plaf~kdauf = @space
+          AND ( ( plaf~auffx = @space
+              AND @iv_include_planned_receipts = @abap_true )
+            OR ( plaf~auffx <> @space
+              AND @iv_include_fixed_planned       = @abap_true ) )
           AND plaf~gsmng > 0
           AND plaf~psttr >= @sy-datum
           AND plaf~psttr <= @iv_through_date
@@ -456,7 +537,10 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
             base_unit       = ls_planned_receipt-base_unit
             receipt_date    = ls_planned_receipt-receipt_date
             quantity        = lv_planned_base_quantity
-            source_type     = 'PLANNED_ORDER'
+            source_type     = COND #(
+              WHEN ls_planned_receipt-fixed_indicator IS INITIAL
+              THEN 'PLANNED_ORDER'
+              ELSE 'FIXED_PLAN_ORDER' )
             source_document = ls_planned_receipt-planned_order )
             TO rt_receipts.
         ENDIF.
@@ -539,6 +623,14 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND iv_include_planned_receipts <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    IF iv_include_fixed_planned <> abap_true
+        AND iv_include_fixed_planned <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_include_sched_agmt_receipts <> abap_true
+        AND iv_include_sched_agmt_receipts <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
 
     CLEAR lv_initial_date.
     CLEAR lv_initial_po_date.
@@ -568,8 +660,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         INNER JOIN ekpo
           ON ekpo~ebeln = eket~ebeln
          AND ekpo~ebelp = eket~ebelp
+        INNER JOIN ekko
+          ON ekko~ebeln = ekpo~ebeln
         WHERE ekpo~matnr = @iv_material
           AND ekpo~werks = @iv_plant
+          AND ekko~bstyp = 'F'
           AND ekpo~pstyp = '0'
           AND ekpo~knttp = @space
           AND ekpo~loekz = @space
@@ -742,16 +837,21 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
     IF iv_include_pr_receipts = abap_true
         OR iv_include_sto_pr_receipts = abap_true
-        OR iv_include_planned_receipts = abap_true.
+        OR iv_include_planned_receipts = abap_true
+        OR iv_include_fixed_planned       = abap_true
+        OR iv_include_sched_agmt_receipts = abap_true.
       CLEAR lv_projected_receipt_quantity.
       DATA(lt_projected_receipts) =
         zif_stock_repository~get_projected_receipts(
-        iv_material                 = iv_material
-        iv_plant                    = iv_plant
-        iv_through_date             = iv_required_date
-        iv_include_pr_receipts      = iv_include_pr_receipts
-        iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-        iv_include_planned_receipts = iv_include_planned_receipts ).
+        iv_material                    = iv_material
+        iv_plant                       = iv_plant
+        iv_through_date                = iv_required_date
+        iv_include_pr_receipts         = iv_include_pr_receipts
+        iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+        iv_include_planned_receipts    = iv_include_planned_receipts
+        iv_include_fixed_planned       =
+          iv_include_fixed_planned
+        iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
       LOOP AT lt_projected_receipts INTO DATA(ls_projected_receipt).
         lv_projected_receipt_quantity = lv_projected_receipt_quantity
           + ls_projected_receipt-quantity.

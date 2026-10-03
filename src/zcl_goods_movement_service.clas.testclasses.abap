@@ -14,6 +14,20 @@ CLASS lcl_goods_movement_api_double DEFINITION FINAL.
       END OF ty_create_result_override.
     TYPES ty_create_result_overrides TYPE STANDARD TABLE OF
       ty_create_result_override WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_cancel_result_override,
+        call_number   TYPE i,
+        cancel_result TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_cancel_result_override.
+    TYPES ty_cancel_result_overrides TYPE STANDARD TABLE OF
+      ty_cancel_result_override WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_cancel_call,
+        call_number       TYPE i,
+        material_document TYPE zif_goods_movement_api=>ty_material_document,
+        fiscal_year       TYPE zif_goods_movement_api=>ty_fiscal_year,
+      END OF ty_cancel_call.
+    TYPES ty_cancel_calls TYPE STANDARD TABLE OF ty_cancel_call WITH EMPTY KEY.
     METHODS set_create_result
       IMPORTING
         is_result TYPE zif_goods_movement_api=>ty_result.
@@ -27,6 +41,10 @@ CLASS lcl_goods_movement_api_double DEFINITION FINAL.
     METHODS set_cancel_result
       IMPORTING
         is_result TYPE zif_goods_movement_api=>ty_result.
+    METHODS set_cancel_result_for_call
+      IMPORTING
+        iv_call_number TYPE i
+        is_result      TYPE zif_goods_movement_api=>ty_result.
     METHODS get_create_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -36,6 +54,11 @@ CLASS lcl_goods_movement_api_double DEFINITION FINAL.
     METHODS get_cancel_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_cancel_document_for_call
+      IMPORTING
+        iv_call_number     TYPE i
+      RETURNING
+        VALUE(rv_document) TYPE zif_goods_movement_api=>ty_material_document.
     METHODS get_rollback_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -78,6 +101,8 @@ CLASS lcl_goods_movement_api_double DEFINITION FINAL.
     DATA mt_item_calls TYPE ty_item_calls.
     DATA mv_gm_code TYPE zif_goods_movement_api=>ty_gm_code.
     DATA ms_cancel_result TYPE zif_goods_movement_api=>ty_result.
+    DATA mt_cancel_result_overrides TYPE ty_cancel_result_overrides.
+    DATA mt_cancel_calls TYPE ty_cancel_calls.
     DATA mv_cancel_document TYPE zif_goods_movement_api=>ty_material_document.
     DATA mv_cancel_year TYPE zif_goods_movement_api=>ty_fiscal_year.
     DATA mv_cancel_posting_date TYPE d.
@@ -104,6 +129,12 @@ CLASS lcl_goods_movement_api_double IMPLEMENTATION.
     ms_cancel_result = is_result.
   ENDMETHOD.
 
+  METHOD set_cancel_result_for_call.
+    APPEND VALUE #(
+      call_number   = iv_call_number
+      cancel_result = is_result ) TO mt_cancel_result_overrides.
+  ENDMETHOD.
+
   METHOD get_create_count.
     rv_count = mv_create_count.
   ENDMETHOD.
@@ -114,6 +145,14 @@ CLASS lcl_goods_movement_api_double IMPLEMENTATION.
 
   METHOD get_cancel_count.
     rv_count = mv_cancel_count.
+  ENDMETHOD.
+
+  METHOD get_cancel_document_for_call.
+    READ TABLE mt_cancel_calls INTO DATA(ls_cancel_call)
+      WITH KEY call_number = iv_call_number.
+    IF sy-subrc = 0.
+      rv_document = ls_cancel_call-material_document.
+    ENDIF.
   ENDMETHOD.
 
   METHOD get_last_cancel_document.
@@ -179,7 +218,17 @@ CLASS lcl_goods_movement_api_double IMPLEMENTATION.
     mv_cancel_year = iv_fiscal_year.
     mv_cancel_posting_date = iv_posting_date.
     mt_cancel_item_numbers = it_item_numbers.
-    rs_result = ms_cancel_result.
+    APPEND VALUE #(
+      call_number       = mv_cancel_count
+      material_document = iv_material_document
+      fiscal_year       = iv_fiscal_year ) TO mt_cancel_calls.
+    READ TABLE mt_cancel_result_overrides INTO DATA(ls_override)
+      WITH KEY call_number = mv_cancel_count.
+    IF sy-subrc = 0.
+      rs_result = ls_override-cancel_result.
+    ELSE.
+      rs_result = ms_cancel_result.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_goods_movement_api~commit.
@@ -282,6 +331,48 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS rejects_unassigned_sales_issue FOR TESTING.
     METHODS posts_purchase_order_receipt FOR TESTING.
     METHODS posts_purchase_order_return FOR TESTING.
+    METHODS get_created_sto_result
+      RETURNING
+        VALUE(rs_result) TYPE zif_stock_transfer_order_api=>ty_result.
+    METHODS get_two_sto_orders
+      RETURNING
+        VALUE(rs_result) TYPE zcl_stock_xfer_order_svc=>ty_plant_pairs_result.
+    METHODS get_issued_sto_pairs
+      RETURNING
+        VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_sto_issue_pairs_result.
+    METHODS get_received_sto_pairs
+      RETURNING
+        VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_sto_receipt_pairs_result.
+    METHODS issues_created_sto FOR TESTING.
+    METHODS rejects_uncommitted_sto FOR TESTING.
+    METHODS rejects_missing_sto_unit_iso FOR TESTING.
+    METHODS issues_created_sto_pairs FOR TESTING.
+    METHODS continues_pair_issue_failure FOR TESTING.
+    METHODS simulates_created_sto_pairs FOR TESTING.
+    METHODS prevalidates_sto_pairs FOR TESTING.
+    METHODS receives_issued_sto_pairs FOR TESTING.
+    METHODS continues_pair_receipt_failure FOR TESTING.
+    METHODS simulates_issued_sto_pairs FOR TESTING.
+    METHODS prevalidates_issued_sto_pairs FOR TESTING.
+    METHODS receives_issued_sto FOR TESTING.
+    METHODS skips_pairs_not_in_transit FOR TESTING.
+    METHODS cancels_issued_sto FOR TESTING.
+    METHODS cancels_issued_sto_pairs FOR TESTING.
+    METHODS continues_pair_cancel_failure FOR TESTING.
+    METHODS prevalidates_sto_cancels FOR TESTING.
+    METHODS cancels_received_sto FOR TESTING.
+    METHODS cancels_received_sto_pairs FOR TESTING.
+    METHODS prevalidates_receipt_cancels FOR TESTING.
+    METHODS cancels_sto_receipt_chain FOR TESTING.
+    METHODS cancels_receipt_chain_pairs FOR TESTING.
+    METHODS continues_chain_issue_failure FOR TESTING.
+    METHODS prevalidates_sto_receipt_chain FOR TESTING.
+    METHODS issues_stock_transport_order FOR TESTING.
+    METHODS simulates_sto_issue FOR TESTING.
+    METHODS rejects_incomplete_sto_issue FOR TESTING.
+    METHODS receives_stock_transport_order FOR TESTING.
+    METHODS simulates_sto_receipt FOR TESTING.
+    METHODS rejects_incomplete_sto_receipt FOR TESTING.
     METHODS rejects_incomplete_po_receipt FOR TESTING.
     METHODS rejects_wrong_po_receipt_code FOR TESTING.
     METHODS rejects_wrong_po_return_code FOR TESTING.
@@ -311,6 +402,89 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     mo_api->set_commit_result(
       is_result = VALUE #( is_successful = abap_true ) ).
     mo_cut = NEW zcl_goods_movement_service( io_api = mo_api ).
+  ENDMETHOD.
+
+  METHOD get_created_sto_result.
+    rs_result = VALUE #(
+      purchase_order_number = '4500004321'
+      submitted_items       = VALUE #(
+        ( item_number = '00010' source_request_id = 'FEFO-1'
+          material = 'MAT-1' batch = 'BATCH-1'
+          supplying_plant = '1000' supplying_storage_loc = '0001'
+          receiving_plant = '2000' receiving_storage_loc = '0002'
+          quantity = '4.000' unit = 'BOX' delivery_date = '20261010' ) )
+      is_successful         = abap_true
+      is_test_run           = abap_false
+      is_committed          = abap_true ).
+  ENDMETHOD.
+
+  METHOD get_two_sto_orders.
+    DATA(ls_first_order) = get_created_sto_result( ).
+    DATA(ls_second_order) = ls_first_order.
+    ls_second_order-purchase_order_number = '4500004322'.
+
+    rs_result = VALUE #(
+      is_successful = abap_true
+      orders        = VALUE #(
+        ( supplying_plant = '1000' receiving_plant = '2000'
+          result = ls_first_order )
+        ( supplying_plant = '1100' receiving_plant = '3000'
+          result = ls_second_order ) ) ).
+  ENDMETHOD.
+
+  METHOD get_issued_sto_pairs.
+    DATA(ls_orders) = get_two_sto_orders( ).
+    rs_result = VALUE #(
+      is_successful = abap_true
+      orders        = VALUE #(
+        ( supplying_plant    = ls_orders-orders[ 1 ]-supplying_plant
+          receiving_plant    = ls_orders-orders[ 1 ]-receiving_plant
+          order_result       = ls_orders-orders[ 1 ]-result
+          goods_issue_result = VALUE #(
+            material_document = '4900000101'
+            fiscal_year       = '2026'
+            is_successful     = abap_true )
+          is_issue_attempted = abap_true
+          is_in_transit      = abap_true )
+        ( supplying_plant    = ls_orders-orders[ 2 ]-supplying_plant
+          receiving_plant    = ls_orders-orders[ 2 ]-receiving_plant
+          order_result       = ls_orders-orders[ 2 ]-result
+          goods_issue_result = VALUE #(
+            material_document = '4900000102'
+            fiscal_year       = '2026'
+            is_successful     = abap_true )
+          is_issue_attempted = abap_true
+          is_in_transit      = abap_true ) ) ).
+  ENDMETHOD.
+
+  METHOD get_received_sto_pairs.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    rs_result = VALUE #(
+      is_successful = abap_true
+      is_test_run   = abap_false
+      orders        = VALUE #(
+        ( supplying_plant      = ls_issues-orders[ 1 ]-supplying_plant
+          receiving_plant      = ls_issues-orders[ 1 ]-receiving_plant
+          order_result         = ls_issues-orders[ 1 ]-order_result
+          goods_issue_result   = ls_issues-orders[ 1 ]-goods_issue_result
+          goods_receipt_result = VALUE #(
+            material_document = '4900000301'
+            fiscal_year       = '2026'
+            is_successful     = abap_true )
+          is_receipt_attempted = abap_true
+          is_in_transit        = abap_false
+          is_received          = abap_true )
+        ( supplying_plant      = ls_issues-orders[ 2 ]-supplying_plant
+          receiving_plant      = ls_issues-orders[ 2 ]-receiving_plant
+          order_result         = ls_issues-orders[ 2 ]-order_result
+          goods_issue_result   = ls_issues-orders[ 2 ]-goods_issue_result
+          goods_receipt_result = VALUE #(
+            material_document = '4900000302'
+            fiscal_year       = '2026'
+            is_successful     = abap_true )
+          is_receipt_attempted = abap_true
+          is_in_transit        = abap_false
+          is_received          = abap_true ) ) ).
   ENDMETHOD.
 
   METHOD posts_and_commits.
@@ -4932,6 +5106,1029 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_created_sto.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_unit_iso_mappings) =
+      VALUE zcl_goods_movement_service=>ty_unit_iso_mappings(
+        ( unit = 'BOX' iso_code = 'BOX' ) ).
+    DATA(ls_order_result) = get_created_sto_result( ).
+
+    DATA(ls_result) = mo_cut->issue_created_sto(
+      is_order_result      = ls_order_result
+      is_header            = ls_header
+      it_unit_iso_mappings = lt_unit_iso_mappings ).
+    DATA(lt_posted_items) = mo_api->get_last_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '04'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004321'
+      act = lt_posted_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lt_posted_items[ 1 ]-purchase_order_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '351'
+      act = lt_posted_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_posted_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BATCH-1'
+      act = lt_posted_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BOX'
+      act = lt_posted_items[ 1 ]-entry_unit_iso ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_uncommitted_sto.
+    DATA(ls_order_result) = get_created_sto_result( ).
+    CLEAR ls_order_result-is_committed.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->issue_created_sto(
+          is_order_result      = ls_order_result
+          is_header            = VALUE #(
+            posting_date = '20261003' document_date = '20261003' )
+          it_unit_iso_mappings = VALUE #(
+            ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_sto_unit_iso.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->issue_created_sto(
+          is_order_result      = get_created_sto_result( )
+          is_header            = VALUE #(
+            posting_date = '20261003' document_date = '20261003' )
+          it_unit_iso_mappings = VALUE #(
+            ( unit = 'EA' iso_code = 'EA' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_created_sto_pairs.
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+    DATA(lt_first_issue_items) = mo_api->get_items_for_call(
+      iv_call_number = 1 ).
+    DATA(lt_second_issue_items) = mo_api->get_items_for_call(
+      iv_call_number = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004321'
+      act = lt_first_issue_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_issue_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004322'
+      act = lt_second_issue_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_pair_issue_failure.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Second STO issue failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_issue_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_issue_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_created_sto_pairs.
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_test_run          = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_issue_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_sto_pairs.
+    DATA(ls_orders) = get_two_sto_orders( ).
+    CLEAR ls_orders-orders[ 2 ]-result-submitted_items[ 1 ]-supplying_storage_loc.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->issue_created_sto_pairs(
+          is_orders            = ls_orders
+          is_header            = VALUE #(
+            posting_date = '20261003' document_date = '20261003' )
+          it_unit_iso_mappings = VALUE #(
+            ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD receives_issued_sto_pairs.
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+    DATA(lt_first_receipt_items) = mo_api->get_items_for_call(
+      iv_call_number = 1 ).
+    DATA(lt_second_receipt_items) = mo_api->get_items_for_call(
+      iv_call_number = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004321'
+      act = lt_first_receipt_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_first_receipt_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BATCH-1'
+      act = lt_first_receipt_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_first_receipt_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '01'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004322'
+      act = lt_second_receipt_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_pair_receipt_failure.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'First STO receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_receipt_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_issued_sto_pairs.
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_test_run          = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_receipt_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_issued_sto_pairs.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    CLEAR ls_issues-orders[ 2 ]-order_result-submitted_items[ 1 ]-receiving_plant.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->receive_issued_sto_pairs(
+          is_issues            = ls_issues
+          is_header            = VALUE #(
+            posting_date = '20261003' document_date = '20261003' )
+          it_unit_iso_mappings = VALUE #(
+            ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD receives_issued_sto.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    DATA(ls_result) = mo_cut->receive_issued_sto(
+      is_issue             = ls_issues-orders[ 1 ]
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+    DATA(lt_receipt_items) = mo_api->get_last_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500004321'
+      act = lt_receipt_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD skips_pairs_not_in_transit.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    ls_issues-is_successful = abap_false.
+    ls_issues-orders[ 2 ]-is_issue_attempted = abap_false.
+    ls_issues-orders[ 2 ]-is_in_transit = abap_false.
+
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = ls_issues
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_receipt_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_issued_sto.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto(
+      is_issue        = ls_issues-orders[ 1 ]
+      iv_posting_date = '20261004' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_last_cancel_document( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2026'
+      act = mo_api->get_last_cancel_year( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261004'
+      act = mo_api->get_last_cancel_posting_date( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+  ENDMETHOD.
+
+  METHOD cancels_issued_sto_pairs.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = get_issued_sto_pairs( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+  ENDMETHOD.
+
+  METHOD continues_pair_cancel_failure.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'First STO cancellation failed' ) ) ) ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = get_issued_sto_pairs( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancel_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_sto_cancels.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    CLEAR ls_issues-orders[ 2 ]-goods_issue_result-fiscal_year.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->cancel_issued_sto_pairs( is_issues = ls_issues ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_received_sto.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000401'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_received_pairs) = get_received_sto_pairs( ).
+    DATA(ls_receipt) = ls_received_pairs-orders[ 1 ].
+
+    DATA(ls_result) = mo_cut->cancel_received_sto(
+      is_receipt      = ls_receipt
+      iv_posting_date = '20261005' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000301'
+      act = mo_api->get_last_cancel_document( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2026'
+      act = mo_api->get_last_cancel_year( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = mo_api->get_last_cancel_posting_date( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+  ENDMETHOD.
+
+  METHOD cancels_received_sto_pairs.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000402'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'First STO receipt cancellation failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_received_sto_pairs(
+      is_receipts = get_received_sto_pairs( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000301'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000302'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_receipt_cancels.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    CLEAR ls_receipts-orders[ 2 ]-goods_receipt_result-fiscal_year.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->cancel_received_sto_pairs( is_receipts = ls_receipts ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_sto_receipt_chain.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000401'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+
+    DATA(ls_received_pairs) = get_received_sto_pairs( ).
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain(
+      is_receipt      = ls_received_pairs-orders[ 1 ]
+      iv_posting_date = '20261006' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000301'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_issue_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_receipt_chain_pairs.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000402'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'First STO receipt cancellation failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000301'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000302'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 3 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_issue_cancel_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD continues_chain_issue_failure.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000403'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'First STO issue cancellation failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000302'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 3 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 4 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD prevalidates_sto_receipt_chain.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    CLEAR ls_receipts-orders[ 2 ]-goods_issue_result-fiscal_year.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->cancel_sto_receipt_chain_pairs( is_receipts = ls_receipts ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_stock_transport_order.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_issue_items(
+      ( purchase_order_item        = '00010'
+        material                   = 'MAT-1'
+        supplying_plant            = '1000'
+        supplying_storage_location = '0001'
+        batch                      = 'BATCH-1'
+        quantity                   = '4.000'
+        entry_unit                 = 'EA'
+        entry_unit_iso             = 'EA' ) ).
+
+    DATA(ls_result) = mo_cut->issue_stock_transport_order(
+      is_header         = ls_header
+      iv_purchase_order = '4500000123'
+      it_items          = lt_items ).
+    DATA(lt_posted_items) = mo_api->get_last_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '04'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '351'
+      act = lt_posted_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000123'
+      act = lt_posted_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lt_posted_items[ 1 ]-purchase_order_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = lt_posted_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_posted_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BATCH-1'
+      act = lt_posted_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_posted_items[ 1 ]-movement_indicator ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_sto_issue.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_issue_items(
+      ( purchase_order_item        = '00010'
+        material                   = 'MAT-1'
+        supplying_plant            = '1000'
+        supplying_storage_location = '0001'
+        quantity                   = '4.000'
+        entry_unit                 = 'EA'
+        entry_unit_iso             = 'EA' ) ).
+
+    DATA(ls_result) = mo_cut->issue_stock_transport_order(
+      is_header         = ls_header
+      iv_purchase_order = '4500000123'
+      it_items          = lt_items
+      iv_test_run       = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_sto_issue.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_issue_items(
+      ( purchase_order_item = '00010'
+        material            = 'MAT-1'
+        supplying_plant     = '1000'
+        quantity            = '4.000'
+        entry_unit          = 'EA'
+        entry_unit_iso      = 'EA' ) ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->issue_stock_transport_order(
+          is_header         = ls_header
+          iv_purchase_order = '4500000123'
+          it_items          = lt_items ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD receives_stock_transport_order.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_receipt_items(
+      ( purchase_order_item        = '00010'
+        material                   = 'MAT-1'
+        receiving_plant            = '2000'
+        receiving_storage_location = '0002'
+        batch                      = 'BATCH-1'
+        quantity                   = '4.000'
+        entry_unit                 = 'EA'
+        entry_unit_iso             = 'EA' ) ).
+
+    DATA(ls_result) = mo_cut->receive_stock_transport_order(
+      is_header         = ls_header
+      iv_purchase_order = '4500000123'
+      it_items          = lt_items ).
+    DATA(lt_posted_items) = mo_api->get_last_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '01'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '101'
+      act = lt_posted_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_posted_items[ 1 ]-movement_indicator ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000123'
+      act = lt_posted_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lt_posted_items[ 1 ]-purchase_order_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lt_posted_items[ 1 ]-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_posted_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BATCH-1'
+      act = lt_posted_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_sto_receipt.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_receipt_items(
+      ( purchase_order_item = '00010'
+        quantity            = '4.000'
+        entry_unit          = 'EA'
+        entry_unit_iso      = 'EA' ) ).
+
+    DATA(ls_result) = mo_cut->receive_stock_transport_order(
+      is_header         = ls_header
+      iv_purchase_order = '4500000123'
+      it_items          = lt_items
+      iv_test_run       = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_incomplete_sto_receipt.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20261003'
+      document_date = '20261003' ).
+    DATA(lt_items) = VALUE zcl_goods_movement_service=>ty_sto_receipt_items(
+      ( quantity       = '4.000'
+        entry_unit     = 'EA'
+        entry_unit_iso = 'EA' ) ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->receive_stock_transport_order(
+          is_header         = ls_header
+          iv_purchase_order = '4500000123'
+          it_items          = lt_items ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_incomplete_po_receipt.

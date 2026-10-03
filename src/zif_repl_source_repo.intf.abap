@@ -9,6 +9,7 @@ INTERFACE zif_repl_source_repo PUBLIC.
       requested_quantity      TYPE decfloat34,
       requested_quantity_unit TYPE eina-lmein,
       preferred_vendor        TYPE eina-lifnr,
+      priority                TYPE i,
     END OF ty_request.
   TYPES ty_requests TYPE STANDARD TABLE OF ty_request WITH EMPTY KEY.
   TYPES:
@@ -33,6 +34,31 @@ INTERFACE zif_repl_source_repo PUBLIC.
       purchasing_deletion_indicator  TYPE eine-loekz,
     END OF ty_info_record.
   TYPES ty_info_records TYPE STANDARD TABLE OF ty_info_record
+    WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_outline_agreement,
+      material                   TYPE eord-matnr,
+      plant                      TYPE eord-werks,
+      source_list_purchasing_org TYPE eord-ekorg,
+      purchasing_document        TYPE eord-ebeln,
+      purchasing_item            TYPE eord-ebelp,
+      source_list_record         TYPE eord-zeord,
+      source_list_valid_from     TYPE eord-vdatu,
+      source_list_valid_to       TYPE eord-bdatu,
+      source_list_blocked        TYPE eord-notkz,
+      source_list_vendor         TYPE eord-lifnr,
+      source_list_fixed          TYPE eord-flifn,
+      source_list_mrp_usage      TYPE eord-autet,
+      purchasing_org             TYPE ekko-ekorg,
+      vendor                     TYPE ekko-lifnr,
+      document_category          TYPE ekko-bstyp,
+      agreement_valid_from       TYPE ekko-kdatb,
+      agreement_valid_to         TYPE ekko-kdate,
+      header_deletion_indicator  TYPE ekko-loekz,
+      item_deletion_indicator    TYPE ekpo-loekz,
+      item_delivery_complete     TYPE ekpo-elikz,
+    END OF ty_outline_agreement.
+  TYPES ty_outline_agreements TYPE STANDARD TABLE OF ty_outline_agreement
     WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_source_context,
@@ -60,16 +86,40 @@ INTERFACE zif_repl_source_repo PUBLIC.
       quota_valid_from         TYPE equk-vdatu,
       quota_valid_to           TYPE equk-bdatu,
       quota_number             TYPE equk-qunum,
+      minimum_split_quantity   TYPE equk-scmng,
       quota_item               TYPE equp-qupos,
+      quota_priority           TYPE equp-preih,
+      quota_minimum_lot_size   TYPE equp-minls,
+      quota_maximum_lot_size   TYPE equp-maxls,
+      quota_rounding_profile   TYPE equp-rdprf,
+      source_assigned_once     TYPE equp-kzein,
       procurement_type         TYPE equp-beskz,
       special_procurement_type TYPE equp-sobes,
       vendor                   TYPE equp-lifnr,
       quota                    TYPE equp-quote,
       quota_base_quantity      TYPE equp-qubmg,
       quota_allocated_quantity TYPE equp-qumng,
+      quota_maximum_quantity   TYPE equp-maxmg,
     END OF ty_quota_arrangement.
   TYPES ty_quota_arrangements TYPE STANDARD TABLE OF ty_quota_arrangement
     WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_quota_rounding_profile_key,
+      plant            TYPE t001w-werks,
+      rounding_profile TYPE equp-rdprf,
+    END OF ty_quota_rounding_profile_key.
+  TYPES ty_quota_rounding_profile_keys TYPE STANDARD TABLE OF
+    ty_quota_rounding_profile_key WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_quota_rounding_profile,
+      plant              TYPE rdpr-werks,
+      rounding_profile   TYPE rdpr-rdprf,
+      level_number       TYPE rdpr-rdzae,
+      threshold_quantity TYPE rdpr-bdmng,
+      rounding_quantity  TYPE rdpr-vormg,
+    END OF ty_quota_rounding_profile.
+  TYPES ty_quota_rounding_profiles TYPE STANDARD TABLE OF
+    ty_quota_rounding_profile WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_quota_usage_rule,
       quota_usage                    TYPE tmq2-usequ,
@@ -90,6 +140,12 @@ INTERFACE zif_repl_source_repo PUBLIC.
     RETURNING
       VALUE(rt_records) TYPE ty_info_records.
 
+  METHODS get_outline_agreements_bulk
+    IMPORTING
+      it_requests          TYPE ty_requests
+    RETURNING
+      VALUE(rt_agreements) TYPE ty_outline_agreements.
+
   METHODS get_source_contexts_bulk
     IMPORTING
       it_requests        TYPE ty_requests
@@ -101,6 +157,12 @@ INTERFACE zif_repl_source_repo PUBLIC.
       it_requests            TYPE ty_requests
     RETURNING
       VALUE(rt_arrangements) TYPE ty_quota_arrangements.
+
+  METHODS get_quota_roundings_bulk
+    IMPORTING
+      it_profile_keys    TYPE ty_quota_rounding_profile_keys
+    RETURNING
+      VALUE(rt_profiles) TYPE ty_quota_rounding_profiles.
 
   METHODS get_quota_usage_rules_bulk
     IMPORTING

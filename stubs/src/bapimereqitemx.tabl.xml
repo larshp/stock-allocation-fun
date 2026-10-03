@@ -97,6 +97,22 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>AGREEMENT</FIELDNAME>
+          <POSITION>0012</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>AGMT_ITEM</FIELDNAME>
+          <POSITION>0013</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

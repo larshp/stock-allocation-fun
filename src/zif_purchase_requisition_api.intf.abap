@@ -16,6 +16,8 @@ INTERFACE zif_purchase_requisition_api PUBLIC.
       purchasing_org          TYPE ty_purchasing_org,
       source_vendor           TYPE eina-lifnr,
       source_info_record      TYPE eina-infnr,
+      source_agreement        TYPE eord-ebeln,
+      source_agreement_item   TYPE eord-ebelp,
     END OF ty_item.
   TYPES ty_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
   TYPES:

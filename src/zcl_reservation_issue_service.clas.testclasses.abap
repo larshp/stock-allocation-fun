@@ -129,6 +129,8 @@ CLASS ltcl_reservation_issue DEFINITION FINAL
     DATA mo_cut TYPE REF TO zcl_reservation_issue_service.
     METHODS setup.
     METHODS posts_by_reservation FOR TESTING.
+    METHODS returns_partial_quantity FOR TESTING.
+    METHODS rejects_over_return FOR TESTING.
     METHODS simulates_without_commit FOR TESTING.
     METHODS read_error_stops_posting FOR TESTING.
     METHODS uses_unplanned_location_batch FOR TESTING.
@@ -211,6 +213,77 @@ CLASS ltcl_reservation_issue IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_goods_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD returns_partial_quantity.
+    mo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '9000000001'
+            item_number        = '0001'
+            is_final_issue     = abap_true
+            movement_allowed   = abap_false
+            required_quantity  = '5.000'
+            withdrawn_quantity = '2.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->post_goods_issue_reversal(
+      is_header   = VALUE #(
+        posting_date  = '20260923'
+        document_date = '20260923' )
+      it_requests = VALUE #(
+        ( reservation_number = '9000000001'
+          reservation_item   = '0001'
+          base_quantity      = '1.250'
+          storage_location   = '0002' ) ) ).
+    DATA(lt_items) = mo_goods_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '06'
+      act = mo_goods_api->get_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_items[ 1 ]-is_reversal ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.250' )
+      act = lt_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_goods_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_over_return.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->post_goods_issue_reversal(
+          is_header   = VALUE #(
+            posting_date  = '20260923'
+            document_date = '20260923' )
+          it_requests = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              base_quantity      = '2.001' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_goods_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD simulates_without_commit.

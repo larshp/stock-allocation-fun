@@ -68,6 +68,8 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS creates_from_suggestions FOR TESTING.
+    METHODS creates_from_selected_sources FOR TESTING.
+    METHODS creates_from_agreement_source FOR TESTING.
     METHODS simulates_replenishment_req FOR TESTING.
     METHODS rolls_back_replenishment_req FOR TESTING.
     METHODS handles_covered_suggestions FOR TESTING.
@@ -121,7 +123,17 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
           maximum_base_quantity       = '3.000'
           suggested_base_quantity     = '5.000'
           suggested_receipt_count     = 2
-          final_receipt_base_quantity = '2.000' ) )
+          final_receipt_base_quantity = '2.000' )
+        ( material                    = 'MAT-REQ-5'
+          plant                       = '2000'
+          base_unit                   = 'EA'
+          required_date               = '20261119'
+          procurement_type            = 'F'
+          fixed_base_quantity         = '3.000'
+          rounding_profile            = 'R001'
+          suggested_base_quantity     = '15.000'
+          suggested_receipt_count     = 3
+          final_receipt_base_quantity = '5.000' ) )
       iv_requisition_type    = 'ZNB'
       iv_purchasing_group    = '001'
       iv_purchasing_org      = '1000'
@@ -160,10 +172,10 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       exp = 'ZNB'
       act = lo_api->ms_request-requisition_type ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 7
       act = lines( lo_api->ms_request-items ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 7
       act = lines( ls_result-submitted_items ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '00010'
@@ -228,6 +240,137 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = ls_result-submitted_items[ 4 ]-source_suggestion_index ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00050'
+      act = lo_api->ms_request-items[ 5 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lo_api->ms_request-items[ 5 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lo_api->ms_request-items[ 6 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lo_api->ms_request-items[ 7 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lo_api->ms_request-items[ 7 ]-source_suggestion_index ).
+  ENDMETHOD.
+
+  METHOD creates_from_selected_sources.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      requisition_number = '0010004321'
+      is_successful      = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_selected_sources(
+      it_suggestions             = VALUE #(
+        ( material = 'MAT-SELECT-1' plant = '1000' base_unit = 'EA'
+          required_date = '20261115' procurement_type = 'F'
+          suggested_base_quantity = '2.000'
+          suggested_receipt_count = 1
+          final_receipt_base_quantity = '2.000' )
+        ( material = 'MAT-SELECT-2' plant = '1000' base_unit = 'EA'
+          required_date = '20261116' procurement_type = 'F'
+          suggested_base_quantity = '3.000'
+          suggested_receipt_count = 1
+          final_receipt_base_quantity = '3.000' ) )
+      it_selected_source_options = VALUE #(
+        ( suggestion_index = 1 source_kind =
+            zcl_repl_source_service=>c_suggestion_source_pir
+          candidate_rank = 1
+          pir_candidate = VALUE #(
+            request_index = 1 candidate_rank = 1
+            material = 'MAT-SELECT-1' plant = '1000'
+            purchasing_org = '1000' delivery_date = '20261115'
+            vendor = '0000100001' info_record = '0000001001'
+            source_category = '0' ) )
+        ( suggestion_index = 2 source_kind =
+            zcl_repl_source_service=>c_suggestion_source_outline
+          candidate_rank = 1
+          outline_candidate = VALUE #(
+            request_index = 2 candidate_rank = 1
+            material = 'MAT-SELECT-2' plant = '1000'
+            purchasing_org = '2000' delivery_date = '20261116'
+            vendor = '0000100002' purchasing_document = '4500000099'
+            purchasing_item = '00020' document_category = 'L' ) ) )
+      iv_purchasing_org          = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010004321'
+      act = ls_result-requisition_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lo_api->ms_request-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000100001'
+      act = lo_api->ms_request-items[ 1 ]-source_vendor ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001001'
+      act = lo_api->ms_request-items[ 1 ]-source_info_record ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000100002'
+      act = lo_api->ms_request-items[ 2 ]-source_vendor ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000099'
+      act = lo_api->ms_request-items[ 2 ]-source_agreement ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00020'
+      act = lo_api->ms_request-items[ 2 ]-source_agreement_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lo_api->ms_request-items[ 2 ]-source_info_record ).
+  ENDMETHOD.
+
+  METHOD creates_from_agreement_source.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      requisition_number = '0010001234'
+      is_successful      = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    lo_cut->create_from_suggestions(
+      it_suggestions = VALUE #(
+        ( material                    = 'MAT-CONTRACT'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20261115'
+          procurement_type            = 'F'
+          source_vendor               = '0000100001'
+          source_purchasing_org       = '2000'
+          source_agreement            = '4500000001'
+          source_agreement_item       = '00010'
+          suggested_base_quantity     = '2.000'
+          suggested_receipt_count     = 1
+          final_receipt_base_quantity = '2.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000001'
+      act = lo_api->ms_request-items[ 1 ]-source_agreement ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lo_api->ms_request-items[ 1 ]-source_agreement_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = lo_api->ms_request-items[ 1 ]-purchasing_org ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000100001'
+      act = lo_api->ms_request-items[ 1 ]-source_vendor ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lo_api->ms_request-items[ 1 ]-source_info_record ).
   ENDMETHOD.
 
   METHOD simulates_replenishment_req.
@@ -443,6 +586,8 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     DATA lv_covered_control_rejected TYPE abap_bool.
     DATA lv_empty_control_rejected TYPE abap_bool.
     DATA lv_partial_source_rejected TYPE abap_bool.
+    DATA lv_partial_agreement_rejected TYPE abap_bool.
+    DATA lv_mixed_source_rejected TYPE abap_bool.
     DATA(lt_control_test_suggestions) =
       VALUE zcl_prod_comp_service=>ty_comp_replenishments(
         ( material                    = 'MAT-REQ'
@@ -602,6 +747,45 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
         lv_partial_source_rejected = abap_true.
     ENDTRY.
 
+    TRY.
+        lo_cut->create_from_suggestions(
+          it_suggestions = VALUE #(
+            ( material                    = 'MAT-PARTIAL-AGREEMENT'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'F'
+              source_vendor               = '0000100001'
+              source_purchasing_org       = '1000'
+              source_agreement            = '4500000001'
+              suggested_base_quantity     = '1.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '1.000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_partial_agreement_rejected = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->create_from_suggestions(
+          it_suggestions = VALUE #(
+            ( material                    = 'MAT-MIXED-SOURCES'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'F'
+              source_vendor               = '0000100001'
+              source_purchasing_org       = '1000'
+              source_info_record          = '0000001234'
+              source_category             = '0'
+              source_agreement            = '4500000001'
+              source_agreement_item       = '00010'
+              suggested_base_quantity     = '1.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '1.000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_mixed_source_rejected = abap_true.
+    ENDTRY.
+
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_rejected ).
@@ -635,6 +819,12 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_partial_source_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_partial_agreement_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_mixed_source_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_create_count( ) ).

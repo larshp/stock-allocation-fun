@@ -37,6 +37,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         plant              TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
       END OF ty_dated_demand.
     TYPES ty_dated_demands TYPE STANDARD TABLE OF ty_dated_demand
@@ -47,6 +48,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         plant              TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
         available_quantity TYPE mard-labst,
         allocated_quantity TYPE mard-labst,
@@ -60,6 +62,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         plant              TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
         requested_unit     TYPE mara-meins,
       END OF ty_date_unit_demand.
@@ -122,6 +125,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         target_plant       TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
       END OF ty_date_plant_demand.
     TYPES ty_date_plant_demands TYPE STANDARD TABLE OF ty_date_plant_demand
@@ -132,6 +136,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         target_plant       TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
         available_quantity TYPE mard-labst,
         allocated_quantity TYPE mard-labst,
@@ -146,6 +151,7 @@ CLASS zcl_stock_service DEFINITION
         target_plant       TYPE mard-werks,
         source_plant       TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         available_quantity TYPE mard-labst,
         allocated_quantity TYPE mard-labst,
       END OF ty_date_plant_source_allocation.
@@ -162,6 +168,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         target_plant       TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
         requested_unit     TYPE mara-meins,
       END OF ty_unit_date_plant_demand.
@@ -329,6 +336,7 @@ CLASS zcl_stock_service DEFINITION
     TYPES:
       BEGIN OF ty_date_plant_fefo_batch_allocation,
         required_date TYPE resb-bdter,
+        priority      TYPE i,
         allocation    TYPE ty_plant_batch_location_allocation,
       END OF ty_date_plant_fefo_batch_allocation.
     TYPES ty_date_plant_fefo_batch_allocations TYPE STANDARD TABLE OF
@@ -671,18 +679,20 @@ CLASS zcl_stock_service DEFINITION
 
     METHODS get_projected_receipts
       IMPORTING
-        iv_material                 TYPE mard-matnr
-        iv_plant                    TYPE mard-werks
-        iv_through_date             TYPE d
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
+        iv_material                    TYPE mard-matnr
+        iv_plant                       TYPE mard-werks
+        iv_through_date                TYPE d
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rt_receipts)          TYPE zif_stock_repository=>ty_projected_receipts
+        VALUE(rt_receipts)             TYPE zif_stock_repository=>ty_projected_receipts
       RAISING
         zcx_invalid_stock_request.
 
@@ -793,95 +803,105 @@ CLASS zcl_stock_service DEFINITION
 
     METHODS allocate_request_by_date
       IMPORTING
-        iv_material                 TYPE mard-matnr
-        iv_plant                    TYPE mard-werks
-        iv_required_date            TYPE resb-bdter
-        iv_requested_quantity       TYPE mard-labst
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        iv_material                    TYPE mard-matnr
+        iv_plant                       TYPE mard-werks
+        iv_required_date               TYPE resb-bdter
+        iv_requested_quantity          TYPE mard-labst
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_allocation)        TYPE ty_dated_allocation
+        VALUE(rs_allocation)           TYPE ty_dated_allocation
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_demands_by_date
       IMPORTING
-        it_demands                  TYPE ty_dated_demands
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_dated_demands
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rt_allocations)       TYPE ty_dated_allocations
+        VALUE(rt_allocations)          TYPE ty_dated_allocations
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_date_demands_in_units
       IMPORTING
-        it_demands                  TYPE ty_date_unit_demands
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_date_unit_demands
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rt_allocations)       TYPE ty_date_unit_allocations
+        VALUE(rt_allocations)          TYPE ty_date_unit_allocations
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_date_demands_atp
       IMPORTING
-        it_demands                  TYPE ty_date_unit_demands
-        iv_check_rule               TYPE zif_material_availability_api=>ty_check_rule
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_date_unit_demands
+        iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rt_allocations)       TYPE ty_date_unit_atp_allocations
+        VALUE(rt_allocations)          TYPE ty_date_unit_atp_allocations
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_request_date_atp
       IMPORTING
-        iv_material                 TYPE mard-matnr
-        iv_plant                    TYPE mard-werks
-        iv_unit                     TYPE mara-meins
-        iv_check_rule               TYPE zif_material_availability_api=>ty_check_rule
-        iv_required_date            TYPE resb-bdter
-        iv_requested_quantity       TYPE mard-labst
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        iv_material                    TYPE mard-matnr
+        iv_plant                       TYPE mard-werks
+        iv_unit                        TYPE mara-meins
+        iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        iv_required_date               TYPE resb-bdter
+        iv_requested_quantity          TYPE mard-labst
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)            TYPE ty_dated_atp_allocation
+        VALUE(rs_result)               TYPE ty_dated_atp_allocation
       RAISING
         zcx_invalid_stock_request.
 
@@ -947,56 +967,62 @@ CLASS zcl_stock_service DEFINITION
 
     METHODS allocate_plants_by_date
       IMPORTING
-        it_demands                  TYPE ty_date_plant_demands
-        it_sources                  TYPE ty_plant_sources
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_date_plant_demands
+        it_sources                     TYPE ty_plant_sources
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)            TYPE ty_date_plant_allocation_result
+        VALUE(rs_result)               TYPE ty_date_plant_allocation_result
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_plants_date_units
       IMPORTING
-        it_demands                  TYPE ty_unit_date_plant_demands
-        it_sources                  TYPE ty_plant_sources
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_unit_date_plant_demands
+        it_sources                     TYPE ty_plant_sources
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)            TYPE ty_unit_date_plant_result
+        VALUE(rs_result)               TYPE ty_unit_date_plant_result
       RAISING
         zcx_invalid_stock_request.
 
     METHODS allocate_plants_date_atp
       IMPORTING
-        it_demands                  TYPE ty_unit_date_plant_demands
-        it_sources                  TYPE ty_plant_sources
-        iv_check_rule               TYPE zif_material_availability_api=>ty_check_rule
-        iv_include_po_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_in_transit   TYPE abap_bool DEFAULT abap_false
-        iv_include_unissued_sto     TYPE abap_bool DEFAULT abap_false
-        iv_subtract_unissued_sto    TYPE abap_bool DEFAULT abap_false
-        iv_include_prod_receipts    TYPE abap_bool DEFAULT abap_false
-        iv_include_pr_receipts      TYPE abap_bool DEFAULT abap_false
-        iv_include_sto_pr_receipts  TYPE abap_bool DEFAULT abap_false
-        iv_include_planned_receipts TYPE abap_bool DEFAULT abap_false
-        iv_protect_safety_stock     TYPE abap_bool DEFAULT abap_false
+        it_demands                     TYPE ty_unit_date_plant_demands
+        it_sources                     TYPE ty_plant_sources
+        iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)            TYPE ty_plant_date_atp_result
+        VALUE(rs_result)               TYPE ty_plant_date_atp_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -1168,6 +1194,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         plant              TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
       END OF ty_dated_demand_index.
     TYPES ty_dated_demand_indexes TYPE STANDARD TABLE OF
@@ -1215,6 +1242,7 @@ CLASS zcl_stock_service DEFINITION
         material           TYPE mard-matnr,
         target_plant       TYPE mard-werks,
         required_date      TYPE resb-bdter,
+        priority           TYPE i,
         requested_quantity TYPE mard-labst,
       END OF ty_date_plant_demand_idx.
     TYPES ty_date_plant_demand_idxs TYPE STANDARD TABLE OF
@@ -1400,21 +1428,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
         OR ( iv_include_sto_pr_receipts <> abap_true
           AND iv_include_sto_pr_receipts <> abap_false )
         OR ( iv_include_planned_receipts <> abap_true
-          AND iv_include_planned_receipts <> abap_false ).
+          AND iv_include_planned_receipts <> abap_false )
+        OR ( iv_include_fixed_planned <> abap_true
+          AND iv_include_fixed_planned <> abap_false )
+        OR ( iv_include_sched_agmt_receipts <> abap_true
+          AND iv_include_sched_agmt_receipts <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
     rt_receipts = mo_stock_repository->get_projected_receipts(
-      iv_material                 = iv_material
-      iv_plant                    = iv_plant
-      iv_through_date             = iv_through_date
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts ).
+      iv_material                    = iv_material
+      iv_plant                       = iv_plant
+      iv_through_date                = iv_through_date
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
   ENDMETHOD.
 
   METHOD get_unrestricted_stock.
@@ -1774,17 +1809,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
     rs_allocation-requested_quantity = iv_requested_quantity.
     rs_allocation-available_quantity =
       mo_stock_repository->get_available_stock_by_date(
-        iv_material                 = iv_material
-        iv_plant                    = iv_plant
-        iv_required_date            = iv_required_date
-        iv_include_po_receipts      = iv_include_po_receipts
-        iv_include_sto_in_transit   = iv_include_sto_in_transit
-        iv_include_unissued_sto     = iv_include_unissued_sto
-        iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-        iv_include_prod_receipts    = iv_include_prod_receipts
-        iv_include_pr_receipts      = iv_include_pr_receipts
-        iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-        iv_include_planned_receipts = iv_include_planned_receipts ).
+        iv_material                    = iv_material
+        iv_plant                       = iv_plant
+        iv_required_date               = iv_required_date
+        iv_include_po_receipts         = iv_include_po_receipts
+        iv_include_sto_in_transit      = iv_include_sto_in_transit
+        iv_include_unissued_sto        = iv_include_unissued_sto
+        iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+        iv_include_prod_receipts       = iv_include_prod_receipts
+        iv_include_pr_receipts         = iv_include_pr_receipts
+        iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+        iv_include_planned_receipts    = iv_include_planned_receipts
+        iv_include_fixed_planned       =
+          iv_include_fixed_planned
+        iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
 
     IF iv_protect_safety_stock = abap_true.
       DATA(lv_safety_stock) = mo_stock_repository->get_safety_stock(
@@ -1844,11 +1882,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_dated_input-material
         plant              = ls_dated_input-plant
         required_date      = ls_dated_input-required_date
+        priority           = ls_dated_input-priority
         requested_quantity = ls_dated_input-requested_quantity )
         TO lt_demand_indexes.
     ENDLOOP.
 
-    SORT lt_demand_indexes BY material plant required_date source_index.
+    SORT lt_demand_indexes BY material plant required_date
+      priority DESCENDING source_index ASCENDING.
     LOOP AT lt_demand_indexes INTO DATA(ls_dated_demand).
       READ TABLE lt_stock_cache INTO DATA(ls_cached_stock)
         WITH TABLE KEY material = ls_dated_demand-material
@@ -1859,17 +1899,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ELSE.
         lv_available_quantity =
           mo_stock_repository->get_available_stock_by_date(
-            iv_material                 = ls_dated_demand-material
-            iv_plant                    = ls_dated_demand-plant
-            iv_required_date            = ls_dated_demand-required_date
-            iv_include_po_receipts      = iv_include_po_receipts
-            iv_include_sto_in_transit   = iv_include_sto_in_transit
-            iv_include_unissued_sto     = iv_include_unissued_sto
-            iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-            iv_include_prod_receipts    = iv_include_prod_receipts
-            iv_include_pr_receipts      = iv_include_pr_receipts
-            iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-            iv_include_planned_receipts = iv_include_planned_receipts ).
+            iv_material                    = ls_dated_demand-material
+            iv_plant                       = ls_dated_demand-plant
+            iv_required_date               = ls_dated_demand-required_date
+            iv_include_po_receipts         = iv_include_po_receipts
+            iv_include_sto_in_transit      = iv_include_sto_in_transit
+            iv_include_unissued_sto        = iv_include_unissued_sto
+            iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+            iv_include_prod_receipts       = iv_include_prod_receipts
+            iv_include_pr_receipts         = iv_include_pr_receipts
+            iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+            iv_include_planned_receipts    = iv_include_planned_receipts
+            iv_include_fixed_planned       =
+              iv_include_fixed_planned
+            iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
 
         IF iv_protect_safety_stock = abap_true.
           IF lv_safety_loaded <> abap_true
@@ -1922,6 +1965,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           material           = ls_dated_demand-material
           plant              = ls_dated_demand-plant
           required_date      = ls_dated_demand-required_date
+          priority           = ls_dated_demand-priority
           requested_quantity = ls_dated_demand-requested_quantity
           available_quantity = lv_remaining_quantity
           allocated_quantity = lv_allocated_quantity
@@ -1989,21 +2033,25 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_input-material
         plant              = ls_input-plant
         required_date      = ls_input-required_date
+        priority           = ls_input-priority
         requested_quantity = lv_base_quantity )
         TO lt_base_demands.
     ENDLOOP.
 
     lt_base_allocations = allocate_demands_by_date(
-      it_demands                  = lt_base_demands
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts
-      iv_protect_safety_stock     = iv_protect_safety_stock ).
+      it_demands                     = lt_base_demands
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
 
     LOOP AT it_demands INTO ls_input.
       READ TABLE lt_base_allocations INTO DATA(ls_base_allocation)
@@ -2049,16 +2097,19 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDIF.
 
     lt_local_allocations = allocate_date_demands_in_units(
-      it_demands                  = it_demands
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts
-      iv_protect_safety_stock     = iv_protect_safety_stock ).
+      it_demands                     = it_demands
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
 
     LOOP AT lt_local_allocations INTO DATA(ls_local_allocation).
       READ TABLE lt_atp_days ASSIGNING <ls_atp_day>
@@ -2117,6 +2168,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                    ls_local_allocation-allocation-required_date.
       DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
         iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        iv_required_date           = ls_atp_day-required_date
         is_atp_result              = ls_atp_day-atp_result ).
       APPEND VALUE #(
         local_estimate            = ls_local_allocation
@@ -2148,19 +2200,22 @@ CLASS zcl_stock_service IMPLEMENTATION.
       / CONV decfloat34( ls_unit_ratio-denominator ) ).
 
     rs_result-local_estimate = allocate_request_by_date(
-      iv_material                 = iv_material
-      iv_plant                    = iv_plant
-      iv_required_date            = iv_required_date
-      iv_requested_quantity       = lv_base_quantity
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts
-      iv_protect_safety_stock     = iv_protect_safety_stock ).
+      iv_material                    = iv_material
+      iv_plant                       = iv_plant
+      iv_required_date               = iv_required_date
+      iv_requested_quantity          = lv_base_quantity
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
 
     rs_result-atp_result = check_atp_request(
       is_request = VALUE #(
@@ -2174,6 +2229,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_requested_base_quantity = lv_base_quantity
       iv_numerator               = ls_unit_ratio-numerator
       iv_denominator             = ls_unit_ratio-denominator
+      iv_required_date           = iv_required_date
       is_atp_result              = rs_result-atp_result ).
     rs_result-confirmed_base_quantity =
       ls_confirmation_quantities-confirmed_base_quantity.
@@ -2602,6 +2658,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_demand-material
         target_plant       = ls_demand-target_plant
         required_date      = ls_demand-required_date
+        priority           = ls_demand-priority
         requested_quantity = ls_demand-requested_quantity )
         TO lt_demand_indexes.
     ENDLOOP.
@@ -2637,7 +2694,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    SORT lt_demand_indexes BY required_date source_index.
+    SORT lt_demand_indexes BY required_date priority DESCENDING
+      source_index ASCENDING.
     LOOP AT lt_demand_indexes INTO DATA(ls_demand_index).
       CLEAR lt_demand_source_balances.
       CLEAR lv_available_quantity.
@@ -2654,17 +2712,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ELSE.
           lv_source_available =
             mo_stock_repository->get_available_stock_by_date(
-              iv_material                 = ls_demand_index-material
-              iv_plant                    = ls_demand_source-source_plant
-              iv_required_date            = ls_demand_index-required_date
-              iv_include_po_receipts      = iv_include_po_receipts
-              iv_include_sto_in_transit   = iv_include_sto_in_transit
-              iv_include_unissued_sto     = iv_include_unissued_sto
-              iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-              iv_include_prod_receipts    = iv_include_prod_receipts
-              iv_include_pr_receipts      = iv_include_pr_receipts
-              iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-              iv_include_planned_receipts = iv_include_planned_receipts ).
+              iv_material                    = ls_demand_index-material
+              iv_plant                       = ls_demand_source-source_plant
+              iv_required_date               = ls_demand_index-required_date
+              iv_include_po_receipts         = iv_include_po_receipts
+              iv_include_sto_in_transit      = iv_include_sto_in_transit
+              iv_include_unissued_sto        = iv_include_unissued_sto
+              iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+              iv_include_prod_receipts       = iv_include_prod_receipts
+              iv_include_pr_receipts         = iv_include_pr_receipts
+              iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+              iv_include_planned_receipts    = iv_include_planned_receipts
+              iv_include_fixed_planned       =
+                iv_include_fixed_planned
+              iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
 
           IF iv_protect_safety_stock = abap_true.
             READ TABLE lt_safety_cache INTO DATA(ls_safety_cache)
@@ -2748,6 +2809,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             target_plant       = ls_demand_index-target_plant
             source_plant       = ls_source_balance-source_plant
             required_date      = ls_demand_index-required_date
+            priority           = ls_demand_index-priority
             available_quantity = ls_source_balance-available_quantity
             allocated_quantity = lv_allocated_quantity ) )
           TO lt_indexed_source_allocations.
@@ -2762,6 +2824,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           material           = ls_demand_index-material
           target_plant       = ls_demand_index-target_plant
           required_date      = ls_demand_index-required_date
+          priority           = ls_demand_index-priority
           requested_quantity = ls_demand_index-requested_quantity
           available_quantity = lv_available_quantity
           allocated_quantity = ls_demand_index-requested_quantity
@@ -2835,6 +2898,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_demand-material
         target_plant       = ls_demand-target_plant
         required_date      = ls_demand-required_date
+        priority           = ls_demand-priority
         requested_quantity = lv_base_quantity ) TO lt_base_demands.
 
       CLEAR ls_context.
@@ -2847,17 +2911,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     DATA(ls_base_result) = allocate_plants_by_date(
-      it_demands                  = lt_base_demands
-      it_sources                  = it_sources
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts
-      iv_protect_safety_stock     = iv_protect_safety_stock ).
+      it_demands                     = lt_base_demands
+      it_sources                     = it_sources
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
 
     LOOP AT ls_base_result-allocations INTO DATA(ls_base_allocation).
       READ TABLE lt_contexts INTO ls_context
@@ -2917,17 +2984,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDIF.
 
     rs_result-local_estimate = allocate_plants_date_units(
-      it_demands                  = it_demands
-      it_sources                  = it_sources
-      iv_include_po_receipts      = iv_include_po_receipts
-      iv_include_sto_in_transit   = iv_include_sto_in_transit
-      iv_include_unissued_sto     = iv_include_unissued_sto
-      iv_subtract_unissued_sto    = iv_subtract_unissued_sto
-      iv_include_prod_receipts    = iv_include_prod_receipts
-      iv_include_pr_receipts      = iv_include_pr_receipts
-      iv_include_sto_pr_receipts  = iv_include_sto_pr_receipts
-      iv_include_planned_receipts = iv_include_planned_receipts
-      iv_protect_safety_stock     = iv_protect_safety_stock ).
+      it_demands                     = it_demands
+      it_sources                     = it_sources
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       =
+        iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
 
     LOOP AT rs_result-local_estimate-plant_allocations
       INTO DATA(ls_source_allocation).
@@ -2996,6 +3066,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_source_allocation-allocation-required_date.
       DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
         iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        iv_required_date           =
+          ls_source_allocation-allocation-required_date
         is_atp_result              = ls_atp_day-atp_result ).
       APPEND VALUE #(
         request_id                =
@@ -3353,6 +3425,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_demand-material
         target_plant       = ls_demand-target_plant
         required_date      = ls_demand-required_date
+        priority           = ls_demand-priority
         requested_quantity = ls_demand-requested_quantity )
         TO lt_demand_indexes.
     ENDLOOP.
@@ -3418,7 +3491,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
     ENDIF.
 
-    SORT lt_demand_indexes BY material required_date source_index.
+    SORT lt_demand_indexes BY material required_date
+      priority DESCENDING source_index ASCENDING.
     lo_eligibility = NEW zcl_stock_batch_eligibility( ).
 
     LOOP AT it_sources INTO ls_source.
@@ -3553,6 +3627,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_source_allocation-target_plant = ls_demand_index-target_plant.
         ls_source_allocation-source_plant = ls_source-source_plant.
         ls_source_allocation-required_date = ls_demand_index-required_date.
+        ls_source_allocation-priority = ls_demand_index-priority.
         CLEAR lv_source_available_quantity.
         LOOP AT lt_fefo_balances INTO ls_fefo_balance
           WHERE material = ls_demand_index-material
@@ -3617,6 +3692,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_batch_allocation-allocated_quantity = lv_allocated_quantity.
           ls_date_batch_allocation-required_date =
             ls_demand_index-required_date.
+          ls_date_batch_allocation-priority = ls_demand_index-priority.
           ls_date_batch_allocation-allocation = ls_batch_allocation.
           lv_batch_order = lv_batch_order + 1.
           APPEND VALUE #(
@@ -3651,6 +3727,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-material = ls_demand_index-material.
       ls_allocation-target_plant = ls_demand_index-target_plant.
       ls_allocation-required_date = ls_demand_index-required_date.
+      ls_allocation-priority = ls_demand_index-priority.
       ls_allocation-requested_quantity =
         ls_demand_index-requested_quantity.
       ls_allocation-available_quantity = lv_available_quantity.
@@ -3736,6 +3813,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material           = ls_demand-material
         target_plant       = ls_demand-target_plant
         required_date      = ls_demand-required_date
+        priority           = ls_demand-priority
         requested_quantity = lv_base_quantity ) TO lt_base_demands.
 
       CLEAR ls_context.
@@ -3916,6 +3994,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_source_allocation-allocation-required_date.
       DATA(ls_confirmation_quantities) = get_atp_confirmation_split(
         iv_requested_base_quantity = ls_atp_day-cumulative_quantity
+        iv_required_date           =
+          ls_source_allocation-allocation-required_date
         is_atp_result              = ls_atp_day-atp_result ).
       APPEND VALUE #(
         request_id                = ls_source_allocation-allocation-request_id

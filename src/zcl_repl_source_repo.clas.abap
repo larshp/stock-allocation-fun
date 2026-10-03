@@ -49,6 +49,47 @@ CLASS zcl_repl_source_repo IMPLEMENTATION.
       INTO CORRESPONDING FIELDS OF TABLE @rt_records.
   ENDMETHOD.
 
+  METHOD zif_repl_source_repo~get_outline_agreements_bulk.
+    IF it_requests IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT eord~matnr AS material,
+           eord~werks AS plant,
+           eord~ekorg AS source_list_purchasing_org,
+           eord~ebeln AS purchasing_document,
+           eord~ebelp AS purchasing_item,
+           eord~zeord AS source_list_record,
+           eord~vdatu AS source_list_valid_from,
+           eord~bdatu AS source_list_valid_to,
+           eord~notkz AS source_list_blocked,
+           eord~lifnr AS source_list_vendor,
+           eord~flifn AS source_list_fixed,
+           eord~autet AS source_list_mrp_usage,
+           ekko~ekorg AS purchasing_org,
+           ekko~lifnr AS vendor,
+           ekko~bstyp AS document_category,
+           ekko~kdatb AS agreement_valid_from,
+           ekko~kdate AS agreement_valid_to,
+           ekko~loekz AS header_deletion_indicator,
+           ekpo~loekz AS item_deletion_indicator,
+           ekpo~elikz AS item_delivery_complete
+      FROM eord
+      INNER JOIN ekko
+        ON ekko~ebeln = eord~ebeln
+      INNER JOIN ekpo
+        ON ekpo~ebeln = eord~ebeln
+        AND ekpo~ebelp = eord~ebelp
+      FOR ALL ENTRIES IN @it_requests
+      WHERE eord~matnr = @it_requests-material
+        AND eord~werks = @it_requests-plant
+        AND ekko~ekorg = @it_requests-purchasing_org
+        AND ( ekpo~werks = @it_requests-plant
+          OR ekpo~werks = @space )
+        AND ekpo~matnr = @it_requests-material
+      INTO CORRESPONDING FIELDS OF TABLE @rt_agreements.
+  ENDMETHOD.
+
   METHOD zif_repl_source_repo~get_source_contexts_bulk.
     TYPES:
       BEGIN OF ty_material_plant,
@@ -143,13 +184,20 @@ CLASS zcl_repl_source_repo IMPLEMENTATION.
            equk~vdatu AS quota_valid_from,
            equk~bdatu AS quota_valid_to,
            equk~qunum AS quota_number,
+           equk~scmng AS minimum_split_quantity,
            equp~qupos AS quota_item,
+           equp~preih AS quota_priority,
+           equp~minls AS quota_minimum_lot_size,
+           equp~maxls AS quota_maximum_lot_size,
+           equp~rdprf AS quota_rounding_profile,
+           equp~kzein AS source_assigned_once,
            equp~beskz AS procurement_type,
            equp~sobes AS special_procurement_type,
            equp~lifnr AS vendor,
            equp~quote AS quota,
            equp~qubmg AS quota_base_quantity,
-           equp~qumng AS quota_allocated_quantity
+           equp~qumng AS quota_allocated_quantity,
+           equp~maxmg AS quota_maximum_quantity
       FROM equk
       INNER JOIN equp
         ON equp~qunum = equk~qunum
@@ -157,6 +205,23 @@ CLASS zcl_repl_source_repo IMPLEMENTATION.
       WHERE equk~matnr = @lt_material_plants-material
         AND equk~werks = @lt_material_plants-plant
       INTO CORRESPONDING FIELDS OF TABLE @rt_arrangements.
+  ENDMETHOD.
+
+  METHOD zif_repl_source_repo~get_quota_roundings_bulk.
+    IF it_profile_keys IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT rdpr~werks AS plant,
+           rdpr~rdprf AS rounding_profile,
+           rdpr~rdzae AS level_number,
+           rdpr~bdmng AS threshold_quantity,
+           rdpr~vormg AS rounding_quantity
+      FROM rdpr
+      FOR ALL ENTRIES IN @it_profile_keys
+      WHERE rdpr~werks = @it_profile_keys-plant
+        AND rdpr~rdprf = @it_profile_keys-rounding_profile
+      INTO CORRESPONDING FIELDS OF TABLE @rt_profiles.
   ENDMETHOD.
 
   METHOD zif_repl_source_repo~get_quota_usage_rules_bulk.

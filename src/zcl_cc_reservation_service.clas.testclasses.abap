@@ -259,6 +259,10 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS falls_back_for_fefo FOR TESTING.
     METHODS previews_fefo_without_bapi FOR TESTING.
     METHODS previews_cost_center_atp FOR TESTING.
+    METHODS rejects_short_atp_reservation FOR TESTING.
+    METHODS rejects_late_atp_reservation FOR TESTING.
+    METHODS reserves_atp_confirmed FOR TESTING.
+    METHODS rejects_atp_gate_without_check FOR TESTING.
     METHODS rejects_atp_without_rule FOR TESTING.
     METHODS previews_short_full_req FOR TESTING.
     METHODS selects_exact_batch FOR TESTING.
@@ -767,6 +771,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_atp_api->get_check_count( ) ).
+
   ENDMETHOD.
 
   METHOD previews_cost_center_atp.
@@ -838,6 +843,167 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_short_atp_reservation.
+    mo_atp_api->set_result(
+      is_result = VALUE #(
+        confirmed_date     = '20261001'
+        confirmed_quantity = '2.000'
+        is_fully_available = abap_false
+        is_check_relevant  = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->reserve_for_cost_center(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_cost_center              = 'COST-100'
+      iv_requested_quantity       = '4.000'
+      iv_unit                     = 'EA'
+      iv_required_date            = '20261001'
+      iv_test_run                 = abap_true
+      iv_require_atp_confirmation = abap_true
+      iv_check_atp                = abap_true
+      iv_atp_check_rule           = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-messages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_atp_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_late_atp_reservation.
+    mo_atp_api->set_result(
+      is_result = VALUE #(
+        confirmed_date     = '20261002'
+        confirmed_quantity = '4.000'
+        is_fully_available = abap_false
+        is_check_relevant  = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->reserve_for_cost_center(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_cost_center              = 'COST-100'
+      iv_requested_quantity       = '4.000'
+      iv_unit                     = 'EA'
+      iv_required_date            = '20261001'
+      iv_test_run                 = abap_true
+      iv_require_atp_confirmation = abap_true
+      iv_check_atp                = abap_true
+      iv_atp_check_rule           = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_atp_confirmed.
+    mo_atp_api->set_result(
+      is_result = VALUE #(
+        confirmed_date     = '20261001'
+        confirmed_quantity = '4.000'
+        is_fully_available = abap_true
+        is_check_relevant  = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->reserve_for_cost_center(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_storage_location         = '0001'
+      iv_cost_center              = 'COST-100'
+      iv_requested_quantity       = '4.000'
+      iv_unit                     = 'EA'
+      iv_required_date            = '20261001'
+      iv_test_run                 = abap_true
+      iv_require_atp_confirmation = abap_true
+      iv_check_atp                = abap_true
+      iv_atp_check_rule           = 'A' ).
+    DATA(ls_request) = mo_res_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-confirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_request-items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_atp_gate_without_check.
+    DATA(ls_result) = mo_cut->reserve_for_cost_center(
+      iv_material                 = 'MAT-1'
+      iv_plant                    = '1000'
+      iv_cost_center              = 'COST-100'
+      iv_requested_quantity       = '2.000'
+      iv_unit                     = 'EA'
+      iv_require_atp_confirmation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-messages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    DATA lv_exception_raised TYPE abap_bool.
+    TRY.
+        mo_cut->reserve_for_cost_center(
+          iv_material                 = 'MAT-1'
+          iv_plant                    = '1000'
+          iv_cost_center              = 'COST-100'
+          iv_requested_quantity       = '2.000'
+          iv_unit                     = 'EA'
+          iv_require_atp_confirmation = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_atp_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD rejects_atp_without_rule.
     DATA lv_exception_raised TYPE abap_bool.
 
@@ -862,6 +1028,32 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_atp_api->get_check_count( ) ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->reserve_for_cost_center(
+          iv_material           = 'MAT-1'
+          iv_plant              = '1000'
+          iv_cost_center        = 'COST-100'
+          iv_requested_quantity = '2.000'
+          iv_unit               = 'EA'
+          iv_check_atp          = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_atp_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD previews_short_full_req.

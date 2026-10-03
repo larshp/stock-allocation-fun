@@ -3,14 +3,14 @@
   <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
     <asx:values>
       <DD02V>
-        <TABNAME>EQUK</TABNAME>
+        <TABNAME>RDPR</TABNAME>
         <DDLANGUAGE>E</DDLANGUAGE>
         <TABCLASS>TRANSP</TABCLASS>
-        <DDTEXT>Quota File: Header</DDTEXT>
+        <DDTEXT>Rounding Profile</DDTEXT>
         <CONTFLAG>A</CONTFLAG>
       </DD02V>
       <DD09L>
-        <TABNAME>EQUK</TABNAME>
+        <TABNAME>RDPR</TABNAME>
         <AS4LOCAL>A</AS4LOCAL>
         <TABKAT>0</TABKAT>
         <TABART>APPL0</TABART>
@@ -27,16 +27,16 @@
           <INTLEN>000006</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>MATNR</FIELDNAME>
+          <FIELDNAME>WERKS</FIELDNAME>
           <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
-          <LENG>000040</LENG>
+          <LENG>000004</LENG>
           <INTTYPE>C</INTTYPE>
-          <INTLEN>000080</INTLEN>
+          <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>WERKS</FIELDNAME>
+          <FIELDNAME>RDPRF</FIELDNAME>
           <POSITION>0003</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
@@ -45,35 +45,26 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BDATU</FIELDNAME>
+          <FIELDNAME>RDZAE</FIELDNAME>
           <POSITION>0004</POSITION>
           <KEYFLAG>X</KEYFLAG>
-          <DATATYPE>DATS</DATATYPE>
-          <LENG>000008</LENG>
-          <INTTYPE>D</INTTYPE>
-          <INTLEN>000016</INTLEN>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000006</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000006</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>VDATU</FIELDNAME>
+          <FIELDNAME>BDMNG</FIELDNAME>
           <POSITION>0005</POSITION>
-          <KEYFLAG>X</KEYFLAG>
-          <DATATYPE>DATS</DATATYPE>
-          <LENG>000008</LENG>
-          <INTTYPE>D</INTTYPE>
-          <INTLEN>000016</INTLEN>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>QUNUM</FIELDNAME>
+          <FIELDNAME>VORMG</FIELDNAME>
           <POSITION>0006</POSITION>
-          <KEYFLAG>X</KEYFLAG>
-          <DATATYPE>CHAR</DATATYPE>
-          <LENG>000010</LENG>
-          <INTTYPE>C</INTTYPE>
-          <INTLEN>000020</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>SCMNG</FIELDNAME>
-          <POSITION>0007</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
           <DECIMALS>000003</DECIMALS>

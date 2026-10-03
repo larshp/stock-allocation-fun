@@ -130,8 +130,40 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_purchasing_group      TYPE zif_stock_transfer_order_api=>ty_purchasing_group
         iv_allow_partial         TYPE abap_bool DEFAULT abap_false
         iv_test_run              TYPE abap_bool DEFAULT abap_false
+        iv_atomic                TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)         TYPE ty_multi_order_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_from_atp_source_plants
+      IMPORTING
+        is_allocation            TYPE zcl_stock_service=>ty_plant_date_atp_result
+        iv_receiving_plant       TYPE mard-werks
+        iv_receiving_storage_loc TYPE mard-lgort OPTIONAL
+        iv_company_code          TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org        TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group      TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial         TYPE abap_bool DEFAULT abap_false
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+        iv_atomic                TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)         TYPE ty_multi_order_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_atp_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_date_atp_result
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -144,6 +176,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -159,6 +192,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -173,6 +207,22 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_atp_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_fefo_date_atp_result
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -189,6 +239,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
     METHODS mark_sto_pairs_for_deletion
       IMPORTING
         is_orders        TYPE ty_plant_pairs_result
+        iv_atomic        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_deletion_pairs_result
       RAISING
@@ -205,6 +256,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
     METHODS mark_sto_pairs_deliv_complete
       IMPORTING
         is_orders        TYPE ty_plant_pairs_result
+        iv_atomic        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_delivery_completions_result
       RAISING
@@ -294,10 +346,26 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS execute_pair_orders
+      IMPORTING
+        it_prepared_orders TYPE ty_prepared_pair_orders
+        iv_test_run        TYPE abap_bool
+        iv_atomic          TYPE abap_bool
+      RETURNING
+        VALUE(rs_result)   TYPE ty_plant_pairs_result.
+
+    METHODS validate_atp_source_splits
+      IMPORTING
+        is_allocation      TYPE zcl_stock_service=>ty_plant_date_atp_result
+        iv_receiving_plant TYPE mard-werks OPTIONAL
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS complete_write
       IMPORTING
         is_request       TYPE zif_stock_transfer_order_api=>ty_request
         is_result        TYPE zif_stock_transfer_order_api=>ty_result
+        iv_defer_commit  TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE zif_stock_transfer_order_api=>ty_result.
 
@@ -305,6 +373,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       IMPORTING
         is_order         TYPE zif_stock_transfer_order_api=>ty_result
         it_item_numbers  TYPE zif_stock_transfer_order_api=>ty_item_numbers
+        iv_defer_commit  TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_deletion_result.
 
@@ -312,6 +381,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       IMPORTING
         is_order         TYPE zif_stock_transfer_order_api=>ty_result
         it_item_numbers  TYPE zif_stock_transfer_order_api=>ty_item_numbers
+        iv_defer_commit  TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_delivery_completion_result.
 
@@ -365,6 +435,10 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lt_source_plants TYPE ty_source_plants.
     DATA lt_prepared_orders TYPE ty_prepared_orders.
 
+    IF iv_atomic <> abap_true AND iv_atomic <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
     LOOP AT is_allocation-plant_allocations
         INTO DATA(ls_source_allocation).
       IF ls_source_allocation-allocation-target_plant
@@ -412,9 +486,10 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result-is_successful = abap_true.
     LOOP AT lt_prepared_orders INTO DATA(ls_prepared_order).
       DATA(ls_order_result) = complete_write(
-        is_request = ls_prepared_order-request
-        is_result  = mo_api->create_order(
-          ls_prepared_order-request ) ).
+        is_request      = ls_prepared_order-request
+        is_result       = mo_api->create_order(
+          ls_prepared_order-request )
+        iv_defer_commit = iv_atomic ).
       ls_order_result-submitted_items =
         ls_prepared_order-request-items.
       APPEND VALUE #(
@@ -422,8 +497,76 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         result          = ls_order_result ) TO rs_result-orders.
       IF ls_order_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_atomic = abap_true.
+          LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_order_result>).
+            <ls_order_result>-result-is_successful = abap_false.
+            <ls_order_result>-result-is_committed = abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true
+        AND iv_test_run = abap_false.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
+          <ls_order_result>-result-is_committed = abap_true.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
+          <ls_order_result>-result-is_successful = abap_false.
+          <ls_order_result>-result-is_committed = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_order_result>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0.
+          APPEND ls_commit_result-message
+            TO <ls_order_result>-result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD create_from_atp_source_plants.
+    IF iv_receiving_plant IS INITIAL
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    validate_atp_source_splits(
+      is_allocation      = is_allocation
+      iv_receiving_plant = iv_receiving_plant ).
+
+    rs_result = create_from_source_plants(
+      is_allocation            = is_allocation-local_estimate
+      iv_receiving_plant       = iv_receiving_plant
+      iv_receiving_storage_loc = iv_receiving_storage_loc
+      iv_company_code          = iv_company_code
+      iv_purchasing_org        = iv_purchasing_org
+      iv_purchasing_group      = iv_purchasing_group
+      iv_allow_partial         = iv_allow_partial
+      iv_test_run              = iv_test_run
+      iv_atomic                = iv_atomic ).
+  ENDMETHOD.
+
+  METHOD create_for_atp_plant_pairs.
+    validate_atp_source_splits( is_allocation = is_allocation ).
+
+    rs_result = create_for_all_plant_pairs(
+      is_allocation          = is_allocation-local_estimate
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic ).
   ENDMETHOD.
 
   METHOD create_for_all_plant_pairs.
@@ -438,7 +581,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_allow_partial <> abap_true
           AND iv_allow_partial <> abap_false )
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -531,23 +676,10 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         request         = ls_request ) TO lt_prepared_orders.
     ENDLOOP.
 
-    rs_result-is_successful = abap_true.
-    rs_result-is_test_run = iv_test_run.
-    LOOP AT lt_prepared_orders INTO DATA(ls_prepared_order).
-      DATA(ls_order_result) = complete_write(
-        is_request = ls_prepared_order-request
-        is_result  = mo_api->create_order(
-          ls_prepared_order-request ) ).
-      ls_order_result-submitted_items =
-        ls_prepared_order-request-items.
-      APPEND VALUE #(
-        supplying_plant = ls_prepared_order-supplying_plant
-        receiving_plant = ls_prepared_order-receiving_plant
-        result          = ls_order_result ) TO rs_result-orders.
-      IF ls_order_result-is_successful <> abap_true.
-        rs_result-is_successful = abap_false.
-      ENDIF.
-    ENDLOOP.
+    rs_result = execute_pair_orders(
+      it_prepared_orders = lt_prepared_orders
+      iv_test_run        = iv_test_run
+      iv_atomic          = iv_atomic ).
   ENDMETHOD.
 
   METHOD create_for_batch_pairs.
@@ -563,7 +695,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_allow_partial <> abap_true
           AND iv_allow_partial <> abap_false )
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -658,23 +792,10 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         request         = ls_request ) TO lt_prepared_orders.
     ENDLOOP.
 
-    rs_result-is_successful = abap_true.
-    rs_result-is_test_run = iv_test_run.
-    LOOP AT lt_prepared_orders INTO DATA(ls_prepared_order).
-      DATA(ls_order_result) = complete_write(
-        is_request = ls_prepared_order-request
-        is_result  = mo_api->create_order(
-          ls_prepared_order-request ) ).
-      ls_order_result-submitted_items =
-        ls_prepared_order-request-items.
-      APPEND VALUE #(
-        supplying_plant = ls_prepared_order-supplying_plant
-        receiving_plant = ls_prepared_order-receiving_plant
-        result          = ls_order_result ) TO rs_result-orders.
-      IF ls_order_result-is_successful <> abap_true.
-        rs_result-is_successful = abap_false.
-      ENDIF.
-    ENDLOOP.
+    rs_result = execute_pair_orders(
+      it_prepared_orders = lt_prepared_orders
+      iv_test_run        = iv_test_run
+      iv_atomic          = iv_atomic ).
   ENDMETHOD.
 
   METHOD create_for_fefo_pairs.
@@ -689,7 +810,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_allow_partial <> abap_true
           AND iv_allow_partial <> abap_false )
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -783,23 +906,10 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         request         = ls_request ) TO lt_prepared_orders.
     ENDLOOP.
 
-    rs_result-is_successful = abap_true.
-    rs_result-is_test_run = iv_test_run.
-    LOOP AT lt_prepared_orders INTO DATA(ls_prepared_order).
-      DATA(ls_order_result) = complete_write(
-        is_request = ls_prepared_order-request
-        is_result  = mo_api->create_order(
-          ls_prepared_order-request ) ).
-      ls_order_result-submitted_items =
-        ls_prepared_order-request-items.
-      APPEND VALUE #(
-        supplying_plant = ls_prepared_order-supplying_plant
-        receiving_plant = ls_prepared_order-receiving_plant
-        result          = ls_order_result ) TO rs_result-orders.
-      IF ls_order_result-is_successful <> abap_true.
-        rs_result-is_successful = abap_false.
-      ENDIF.
-    ENDLOOP.
+    rs_result = execute_pair_orders(
+      it_prepared_orders = lt_prepared_orders
+      iv_test_run        = iv_test_run
+      iv_atomic          = iv_atomic ).
   ENDMETHOD.
 
   METHOD mark_sto_for_deletion.
@@ -810,6 +920,141 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA(ls_pairs_result) = mark_sto_pairs_for_deletion(
       is_orders = ls_orders ).
     rs_result = ls_pairs_result-orders[ 1 ]-deletion.
+  ENDMETHOD.
+
+  METHOD create_for_atp_fefo_pairs.
+    DATA ls_plant_allocation TYPE
+      zcl_stock_service=>ty_plant_date_atp_result.
+
+    ls_plant_allocation-local_estimate-plant_allocations =
+      is_allocation-local_estimate-plant_allocations.
+    ls_plant_allocation-atp_checks = is_allocation-atp_checks.
+    validate_atp_source_splits( is_allocation = ls_plant_allocation ).
+
+    rs_result = create_for_fefo_pairs(
+      is_allocation          = is_allocation-local_estimate
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic ).
+  ENDMETHOD.
+
+  METHOD execute_pair_orders.
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+
+    LOOP AT it_prepared_orders INTO DATA(ls_prepared_order).
+      DATA(ls_order_result) = complete_write(
+        is_request      = ls_prepared_order-request
+        is_result       = mo_api->create_order(
+          ls_prepared_order-request )
+        iv_defer_commit = iv_atomic ).
+      ls_order_result-submitted_items =
+        ls_prepared_order-request-items.
+      APPEND VALUE #(
+        supplying_plant = ls_prepared_order-supplying_plant
+        receiving_plant = ls_prepared_order-receiving_plant
+        result          = ls_order_result ) TO rs_result-orders.
+      IF ls_order_result-is_successful <> abap_true.
+        rs_result-is_successful = abap_false.
+        IF iv_atomic = abap_true.
+          LOOP AT rs_result-orders
+              ASSIGNING FIELD-SYMBOL(<ls_pair_result>).
+            <ls_pair_result>-result-is_successful = abap_false.
+            <ls_pair_result>-result-is_committed = abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true
+        AND iv_test_run = abap_false.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+          <ls_pair_result>-result-is_committed = abap_true.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+          <ls_pair_result>-result-is_successful = abap_false.
+          <ls_pair_result>-result-is_committed = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_pair_result>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0.
+          APPEND ls_commit_result-message
+            TO <ls_pair_result>-result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_atp_source_splits.
+    DATA lv_atp_match_count TYPE i.
+    DATA ls_atp_check TYPE zcl_stock_service=>ty_plant_date_atp_check.
+
+    IF is_allocation-atp_checks IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_source_allocation).
+      IF ls_source_allocation-allocation-allocated_quantity <= 0
+          OR ( iv_receiving_plant IS NOT INITIAL
+            AND ls_source_allocation-allocation-target_plant <>
+              iv_receiving_plant ).
+        CONTINUE.
+      ENDIF.
+
+      CLEAR: lv_atp_match_count, ls_atp_check.
+      LOOP AT is_allocation-atp_checks INTO DATA(ls_candidate_check).
+        IF ls_candidate_check-request_id =
+              ls_source_allocation-allocation-request_id
+            AND ls_candidate_check-material =
+              ls_source_allocation-allocation-material
+            AND ls_candidate_check-target_plant =
+              ls_source_allocation-allocation-target_plant
+            AND ls_candidate_check-source_plant =
+              ls_source_allocation-allocation-source_plant
+            AND ls_candidate_check-required_date =
+              ls_source_allocation-allocation-required_date.
+          ADD 1 TO lv_atp_match_count.
+          ls_atp_check = ls_candidate_check.
+        ENDIF.
+      ENDLOOP.
+
+      IF lv_atp_match_count <> 1
+          OR ls_atp_check-base_unit <>
+            ls_source_allocation-base_unit
+          OR ls_atp_check-allocated_base_quantity <>
+            ls_source_allocation-allocation-allocated_quantity
+          OR ls_atp_check-cumulative_base_quantity <
+            ls_atp_check-allocated_base_quantity
+          OR ls_atp_check-atp_result-material <>
+            ls_atp_check-material
+          OR ls_atp_check-atp_result-plant <>
+            ls_atp_check-source_plant
+          OR ls_atp_check-atp_result-unit <>
+            ls_atp_check-base_unit
+          OR ls_atp_check-atp_result-required_date <>
+            ls_atp_check-required_date
+          OR ls_atp_check-atp_result-requested_quantity <>
+            ls_atp_check-cumulative_base_quantity
+          OR ls_atp_check-atp_result-check_rule IS INITIAL
+          OR ls_atp_check-atp_result-is_check_relevant <>
+            abap_true
+          OR ls_atp_check-confirmed_base_quantity <
+            ls_atp_check-cumulative_base_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD mark_sto_pairs_for_deletion.
@@ -825,7 +1070,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     IF is_orders-orders IS INITIAL
         OR is_orders-is_test_run <> abap_false
         OR ( is_orders-is_successful <> abap_true
-          AND is_orders-is_successful <> abap_false ).
+          AND is_orders-is_successful <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -883,10 +1130,16 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         item_numbers = lt_item_numbers ) TO lt_prepared_deletions.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_deletions INTO DATA(ls_prepared_deletion).
       DATA(ls_deletion_result) = complete_deletion(
         is_order        = ls_prepared_deletion-order_result
-        it_item_numbers = ls_prepared_deletion-item_numbers ).
+        it_item_numbers = ls_prepared_deletion-item_numbers
+        iv_defer_commit = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_deletion_pair>)
         INDEX ls_prepared_deletion-result_index.
       IF sy-subrc <> 0.
@@ -895,8 +1148,32 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       <ls_deletion_pair>-deletion = ls_deletion_result.
       IF ls_deletion_result-is_deleted <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_atomic = abap_true.
+          LOOP AT rs_result-orders ASSIGNING <ls_deletion_pair>.
+            <ls_deletion_pair>-deletion-is_deleted = abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful <> abap_true.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_deletion_pair>.
+          <ls_deletion_pair>-deletion-is_deleted = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_deletion_pair>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0.
+          APPEND ls_commit_result-message
+            TO <ls_deletion_pair>-deletion-deletion_messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD mark_sto_delivery_complete.
@@ -922,7 +1199,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     IF is_orders-orders IS INITIAL
         OR is_orders-is_test_run <> abap_false
         OR ( is_orders-is_successful <> abap_true
-          AND is_orders-is_successful <> abap_false ).
+          AND is_orders-is_successful <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -980,10 +1259,16 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         item_numbers = lt_item_numbers ) TO lt_prepared_completions.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_completions INTO DATA(ls_prepared_completion).
       DATA(ls_completion_result) = complete_delivery_mark(
         is_order        = ls_prepared_completion-order_result
-        it_item_numbers = ls_prepared_completion-item_numbers ).
+        it_item_numbers = ls_prepared_completion-item_numbers
+        iv_defer_commit = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING
         FIELD-SYMBOL(<ls_completion_pair>)
         INDEX ls_prepared_completion-result_index.
@@ -993,8 +1278,34 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       <ls_completion_pair>-delivery_completion = ls_completion_result.
       IF ls_completion_result-is_completed <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_atomic = abap_true.
+          LOOP AT rs_result-orders ASSIGNING <ls_completion_pair>.
+            <ls_completion_pair>-delivery_completion-is_completed =
+              abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful <> abap_true.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_completion_pair>.
+          <ls_completion_pair>-delivery_completion-is_completed =
+            abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_completion_pair>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0.
+          APPEND ls_commit_result-message TO
+            <ls_completion_pair>-delivery_completion-completion_messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD build_request.
@@ -1324,6 +1635,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     IF is_request-is_test_run = abap_true.
       RETURN.
     ENDIF.
+    IF iv_defer_commit = abap_true.
+      RETURN.
+    ENDIF.
 
     DATA(ls_commit_result) = mo_api->commit( ).
     IF ls_commit_result-is_successful <> abap_true.
@@ -1370,6 +1684,11 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF iv_defer_commit = abap_true.
+      rs_result-is_deleted = abap_true.
+      RETURN.
+    ENDIF.
+
     DATA(ls_commit_result) = mo_api->commit( ).
     IF ls_commit_result-is_successful <> abap_true.
       mo_api->rollback( ).
@@ -1411,6 +1730,11 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
 
     IF ls_change_result-is_successful <> abap_true.
       mo_api->rollback( ).
+      RETURN.
+    ENDIF.
+
+    IF iv_defer_commit = abap_true.
+      rs_result-is_completed = abap_true.
       RETURN.
     ENDIF.
 

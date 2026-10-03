@@ -2069,3 +2069,78 @@
 - Latest verification after date-scoped ATP confirmation splits:
   `npm.cmd test` passed; abaplint reported zero issues across 90 files, the
   transpiler wrote 718 objects, and all 547 ABAP Unit methods passed.
+- Added `CREATE_FROM_ATP_SOURCE_PLANTS`, which accepts dated plant-allocation
+  ATP results and prevalidates a matching full confirmation for every positive
+  source split before the first STO BAPI call. Tests cover successful multi-
+  supplier creation and short-confirmation rejection with zero writes.
+- Latest verification after ATP-gated STO creation: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 718
+  objects, and all 549 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` mode to multi-source STO creation, including the ATP-
+  gated entry point. It creates all prepared supplier orders before one shared
+  commit, rolls back and stops on create or commit failure, and marks all
+  returned order results uncommitted when the group fails. Added tests for the
+  single shared commit, create failure rollback, and commit failure rollback.
+- Latest verification after atomic multi-source STO creation: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  718 objects, and all 552 ABAP Unit methods passed.
+- Extended `iv_atomic` to all-pair, batch-pair, and FEFO-pair STO creation using
+  a shared executor. Pair test coverage now checks one commit on success and
+  group rollback on both create and commit failures.
+- Latest verification after atomic multi-pair STO creation: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  718 objects, and all 554 ABAP Unit methods passed.
+- Added `CREATE_FOR_ATP_PLANT_PAIRS` to prevalidate full, relevant date ATP
+  confirmations for every positive source/target split before creating orders
+  across receiving plants. Added successful atomic creation and short-check
+  rejection coverage.
+- Latest verification after ATP-gated multi-pair STO creation: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  718 objects, and all 556 ABAP Unit methods passed.
+- Added `CREATE_FOR_ATP_FEFO_PAIRS`, which accepts FEFO plant-allocation ATP
+  output, validates positive source/date totals before writes, and preserves
+  batch/location items through the FEFO pair creator. Added success and short-
+  confirmation tests using atomic commit mode.
+- Latest verification after ATP-gated FEFO STO creation: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 718
+  objects, and all 558 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `MARK_STO_PAIRS_FOR_DELETION`. Atomic mode refuses
+  mixed or ineligible input groups before writing, stages all item changes
+  before one commit, and clears every deletion result after a change or commit
+  failure. Added shared-commit and rollback coverage.
+- Latest verification after atomic STO pair deletion: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 718
+  objects, and all 562 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `MARK_STO_PAIRS_DELIV_COMPLETE`. Atomic mode
+  rejects mixed or ineligible groups before writes, stages each delivery
+  completion before one shared commit, and clears completion results after a
+  change or commit failure. Added success, rollback, commit-failure, and
+  ineligible-input coverage.
+- Latest verification after atomic STO pair delivery completion: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  718 objects, and all 566 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `ISSUE_CREATED_STO_PAIRS`. Atomic mode requires
+  eligible committed STOs before writes, stages every 351 movement before a
+  shared commit, and reports `is_in_transit` only after that commit. A movement
+  or commit failure clears the group's uncommitted material document IDs.
+- Added opt-in `iv_atomic` to `RECEIVE_ISSUED_STO_PAIRS`. Atomic mode requires
+  every pair to remain in transit, stages all 101 receipts in one LUW, and
+  clears transit only after the shared commit. Failures roll back the group
+  while preserving the in-transit state.
+- Latest verification after atomic pair issue and receipt: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  718 objects, and all 574 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `CANCEL_ISSUED_STO_PAIRS`. Atomic mode requires
+  every supplied issue to remain in transit, stages all 352 reversals in one
+  LUW, and clears transit only after a shared commit. A reversal or commit
+  failure rolls the group back and clears uncommitted reversal document IDs.
+- Latest verification after atomic issue cancellation: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 718
+  objects, and all 578 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `CANCEL_RECEIVED_STO_PAIRS`. Atomic mode requires
+  every supplied receipt to remain received, stages all 102 reversals in one
+  LUW, and restores transit only after the group commits. A reversal or commit
+  failure rolls back the group and preserves received status.
+- Latest verification after atomic receipt cancellation: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 718
+  objects, and all 582 ABAP Unit methods passed.

@@ -420,14 +420,35 @@ first BAPI call, and returns the result and submitted items for each order.
 Each order commits independently; the service continues with later suppliers
 after a BAPI failure, so inspect both the aggregate success flag and each
 source-plant result for partial completion. Test-run mode simulates every
-prepared order without committing.
+prepared order without committing. Set `iv_atomic = abap_true` to defer the
+commit until all supplier orders have been created successfully. A create or
+commit failure rolls back the pending group and stops further supplier calls;
+successful results are marked committed only after the shared commit succeeds.
+`CREATE_FROM_ATP_SOURCE_PLANTS` accepts the wrapper returned by
+`ALLOCATE_PLANTS_DATE_ATP` and creates orders only when each positive source
+split for the selected receiving plant has one matching, check-relevant ATP
+result whose full cumulative quantity is confirmed by that date. Missing,
+misaligned, or short checks fail before the first BAPI call. It then uses the
+same per-supplier order behavior and supports the same opt-in `iv_atomic`
+commit mode as `CREATE_FROM_SOURCE_PLANTS`.
+The ATP result is a precheck, not a stock reservation; availability may change
+before PO creation.
+`CREATE_FOR_ATP_PLANT_PAIRS` accepts the same ATP wrapper for allocations that
+span multiple receiving plants. It requires one matching, relevant, fully
+confirmed date check for every positive source/target split before calling the
+pair-order creator. Receiving locations are still supplied by target plant,
+and `iv_atomic = abap_true` defers the shared commit until every pair order is
+created.
 `CREATE_FOR_ALL_PLANT_PAIRS` extends this to allocation results spanning
 multiple receiving plants. It creates one order per positive source/target
 plant pair and accepts a receiving-storage-location map keyed by receiving
 plant; targets without a map entry leave the location blank for SAP defaulting.
 It validates the full result and every location entry before writing, and
-returns per-pair results. Orders still commit independently, so SAP errors can
-leave a partial set of committed STOs.
+returns per-pair results. Orders commit independently by default. Set
+`iv_atomic = abap_true` on this method, `CREATE_FOR_BATCH_PAIRS`, or
+`CREATE_FOR_FEFO_PAIRS` to defer one shared commit until all pair orders are
+created; a create or commit failure rolls back the pending group and stops
+further pair calls.
 Previews do not reserve stock, so availability can change before posting.
 `CREATE_FROM_BATCH_ALLOCATION` accepts a unit-aware exact-batch allocation for
 one supplying/receiving plant pair. It emits one PO item per request/material/
@@ -442,8 +463,8 @@ receipt remain separate operations.
 source/receiving plant pairs. It prepares one `UB` order per positive pair,
 accepts the same receiving-location map, and returns per-pair results. A shared
 delivery date is required because the batch allocation has no PO schedule
-date. Each order commits independently, so a SAP error can leave a partial set
-of committed orders. The S/4HANA Cloud STO OData V4 API does not support item
+date. Orders commit independently by default; `iv_atomic = abap_true` defers
+the commit across every pair as described above. The S/4HANA Cloud STO OData V4 API does not support item
 batch; that OData constraint does not define the separate `BAPI_PO_CREATE1`
 behavior ([OData V4 constraints](https://help.sap.com/docs/SAP_S4HANA_CLOUD/bb9f1469daf04bd894ab2167f8132a1a/807b2c79e22c4ef7a4c30c928bb3344e.html)).
 `CREATE_FOR_FEFO_PAIRS` accepts the dated, unit-aware cross-plant FEFO result
@@ -453,6 +474,13 @@ location, source-unit quantity, and FEFO required date. The caller can map a
 receiving storage location per target plant. FEFO is a preview and does not
 reserve stock; SAP also documents that STO availability checks do not check
 batch stock when a batch is entered ([STO availability check](https://help.sap.com/docs/SAP_ERP_SPV/96bf9ad642cf4b26a29595e3d573fb8c/b160bd534f22b44ce10000000a174cb4.html)).
+Orders commit independently by default; the opt-in `iv_atomic` mode defers the
+commit across all source/target pairs.
+`CREATE_FOR_ATP_FEFO_PAIRS` accepts `ALLOCATE_PLANTS_FEFO_DATE_ATP` output and
+checks each positive source/target/date total before creating any pair order.
+The ATP check remains plant-level; it does not confirm a specific batch, and it
+does not reserve stock. This entry point also supports the shared `iv_atomic`
+commit mode.
 `TRANSFER_LOCATION_ALLOCATION` accepts an `ALLOCATE_BY_STORAGE_LOCATION`
 result and posts each source-location split as a 311 goods movement within the
 same plant. Supply a receiving storage location by request ID and each material's
@@ -535,12 +563,20 @@ Failed or uncommitted PO results are skipped and marked unsuccessful; a failed
 goods-issue result, whether issue was attempted, and whether stock is now in
 transit. Test-run mode simulates the goods issues for already committed STOs
 and does not set `is_in_transit`.
+Orders commit independently by default. Set `iv_atomic = abap_true` to require
+all input orders to be eligible, commit the 351 movements together, and mark
+the pairs in transit only after the shared commit succeeds. A failed movement
+or commit rolls back the staged group.
 `RECEIVE_ISSUED_STO` handles one pair result; `RECEIVE_ISSUED_STO_PAIRS`
 consumes the complete issue result. Both only prepare receipts for pairs marked
 in transit after a successful committed 351 issue. They prevalidate all
 eligible PO items before the first receipt, then post one 101
 per PO. Failed receipts leave that pair in transit while later pairs continue;
 test-run receipts also leave the status in transit and do not set `is_received`.
+Receipts commit independently by default. Set `iv_atomic = abap_true` to
+require every pair to be in transit, post the 101 movements in one LUW, and
+clear transit only after a shared commit succeeds. A receipt or commit failure
+rolls back the group and leaves every pair in transit.
 `CANCEL_ISSUED_STO` and `CANCEL_ISSUED_STO_PAIRS` reverse the whole committed
 351 material document for an eligible in-transit pair through
 `BAPI_GOODSMVT_CANCEL`. They prevalidate all document/year keys, cancel each PO
@@ -548,6 +584,10 @@ in a separate transaction, and continue after a failed cancellation. A
 successful reversal clears that pair's in-transit status. SAP selects the
 reversal movement type and checks whether the document can be canceled; the
 cancellation API has no test-run option ([SAP goods-movement BAPIs](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html), [STO movement types](https://help.sap.com/docs/IRPA_S4HANA/18862e3cddb74ce7ac751f49e568c1e0/a99a1bcb969f4939957469ea7d251e78.html)).
+Pair cancellations commit independently by default. Set `iv_atomic =
+abap_true` on `CANCEL_ISSUED_STO_PAIRS` to require every pair to be in transit,
+stage all reversals in one LUW, and clear transit only after one shared commit.
+A reversal or commit failure rolls the group back.
 `CANCEL_RECEIVED_STO` handles one received pair, and
 `CANCEL_RECEIVED_STO_PAIRS` processes the full receipt result. They reverse each
 committed 101 document independently after validating every eligible
@@ -556,6 +596,10 @@ document/year key. A successful reversal clears `is_received` and restores
 Failures leave the receipt state unchanged while later documents continue.
 The cancellation BAPI has no test-run option; SAP checks whether document
 history, posting period, and current stock allow each reversal.
+Receipt cancellations commit independently by default. Set `iv_atomic =
+abap_true` on `CANCEL_RECEIVED_STO_PAIRS` to require every pair to be received,
+stage all 102 reversals together, and restore in-transit status only after the
+shared commit succeeds. A reversal or commit failure rolls the group back.
 `CANCEL_STO_RECEIPT_CHAIN` and `CANCEL_STO_RECEIPT_CHAIN_PAIRS` reverse both
 goods movements for received pairs. They validate every eligible 101 and 351
 document key before writing, then reverse the receipt first and the issue only
@@ -569,8 +613,12 @@ items from one successfully committed STO result, and
 `MARK_STO_PAIRS_FOR_DELETION` can process a multi-pair result. Both reject
 test-run or uncommitted orders, prevalidate eligible item identities before the
 first change, commit each PO independently, and continue after an individual
-failure. This is a logical item deletion indicator through `BAPI_PO_CHANGE`,
-not a physical purchase-order deletion. SAP still checks whether each item can
+failure by default. Set `iv_atomic = abap_true` on
+`MARK_STO_PAIRS_FOR_DELETION` to require every input order to be eligible,
+defer the commit across all pair changes, and roll back the group if a change
+or commit fails. This is a logical item deletion indicator through
+`BAPI_PO_CHANGE`, not a physical purchase-order deletion. SAP still checks
+whether each item can
 be marked for deletion based on its document history and system rules
 ([SAP BAPI_PO_CHANGE example](https://help.sap.com/docs/SUPPORT_CONTENT/home/3361892108.html?locale=ru-RU)).
 `MARK_STO_DELIVERY_COMPLETE` and `MARK_STO_PAIRS_DELIV_COMPLETE` separately
@@ -583,6 +631,10 @@ item selection structure must also flag it; target systems can reject or fail
 to apply the update under release-specific conditions, including split
 valuation ([delivery-completed indicator](https://help.sap.com/docs/SAP_ERP/39615c43587c4405aba2de8ebf33cd66/35cee35751bfd812e10000000a4450e5.html),
 [SAP BAPI_PO_CHANGE issue](https://userapps.support.sap.com/sap/support/knowledge/en/3731949)).
+The pair method commits each order independently by default. Set
+`iv_atomic = abap_true` to require every order to be eligible and defer the
+commit until all pair changes succeed; a change or shared-commit failure rolls
+back the group.
 `RECEIVE_STOCK_TRANSPORT_ORDER` posts the matching movement 101 receipt against
 the same STO and item, using movement indicator `B`. Material, receiving plant,
 storage location, and batch can be supplied when required; otherwise SAP can

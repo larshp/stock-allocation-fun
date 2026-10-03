@@ -347,10 +347,18 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS rejects_uncommitted_sto FOR TESTING.
     METHODS rejects_missing_sto_unit_iso FOR TESTING.
     METHODS issues_created_sto_pairs FOR TESTING.
+    METHODS commits_atomic_sto_issues FOR TESTING.
+    METHODS rolls_back_atomic_sto_issue FOR TESTING.
+    METHODS fails_atomic_sto_commit FOR TESTING.
+    METHODS rejects_atomic_sto_input FOR TESTING.
     METHODS continues_pair_issue_failure FOR TESTING.
     METHODS simulates_created_sto_pairs FOR TESTING.
     METHODS prevalidates_sto_pairs FOR TESTING.
     METHODS receives_issued_sto_pairs FOR TESTING.
+    METHODS commits_atomic_sto_receipt FOR TESTING.
+    METHODS rolls_back_atomic_receipt FOR TESTING.
+    METHODS fails_atomic_receipt_commit FOR TESTING.
+    METHODS rejects_atomic_receipt_input FOR TESTING.
     METHODS continues_pair_receipt_failure FOR TESTING.
     METHODS simulates_issued_sto_pairs FOR TESTING.
     METHODS prevalidates_issued_sto_pairs FOR TESTING.
@@ -358,10 +366,18 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS skips_pairs_not_in_transit FOR TESTING.
     METHODS cancels_issued_sto FOR TESTING.
     METHODS cancels_issued_sto_pairs FOR TESTING.
+    METHODS atomic_sto_cancels_commit FOR TESTING.
+    METHODS rolls_back_atomic_sto_cancel FOR TESTING.
+    METHODS fails_atomic_sto_cancel FOR TESTING.
+    METHODS rejects_atomic_cancel_input FOR TESTING.
     METHODS continues_pair_cancel_failure FOR TESTING.
     METHODS prevalidates_sto_cancels FOR TESTING.
     METHODS cancels_received_sto FOR TESTING.
     METHODS cancels_received_sto_pairs FOR TESTING.
+    METHODS atomic_sto_receipt_cancel FOR TESTING.
+    METHODS rolls_back_atomic_rcpt_cancel FOR TESTING.
+    METHODS fails_atomic_rcpt_cancel FOR TESTING.
+    METHODS rejects_atomic_rcpt_input FOR TESTING.
     METHODS prevalidates_receipt_cancels FOR TESTING.
     METHODS cancels_sto_receipt_chain FOR TESTING.
     METHODS cancels_receipt_chain_pairs FOR TESTING.
@@ -5236,6 +5252,125 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
       act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 
+  METHOD commits_atomic_sto_issues.
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_sto_issue.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second STO issue failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-goods_issue_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_sto_commit.
+    mo_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type = 'E' message = 'Atomic STO issue commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = get_two_sto_orders( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Atomic STO issue commit failed'
+      act = ls_result-orders[ 2 ]-goods_issue_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_sto_input.
+    DATA(ls_orders) = get_two_sto_orders( ).
+    CLEAR ls_orders-orders[ 2 ]-result-is_committed.
+
+    DATA(ls_result) = mo_cut->issue_created_sto_pairs(
+      is_orders            = ls_orders
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD continues_pair_issue_failure.
     mo_api->set_create_result_for_call(
       iv_call_number = 1
@@ -5371,6 +5506,119 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
       act = lt_second_receipt_items[ 1 ]-purchase_order ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD commits_atomic_sto_receipt.
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_receipt.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second STO receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_receipt_commit.
+    mo_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type = 'E' message = 'Atomic STO receipt commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = get_issued_sto_pairs( )
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Atomic STO receipt commit failed'
+      act = ls_result-orders[ 2 ]-goods_receipt_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_receipt_input.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    ls_issues-orders[ 2 ]-is_in_transit = abap_false.
+
+    DATA(ls_result) = mo_cut->receive_issued_sto_pairs(
+      is_issues            = ls_issues
+      is_header            = VALUE #(
+        posting_date = '20261003' document_date = '20261003' )
+      it_unit_iso_mappings = VALUE #(
+        ( unit = 'BOX' iso_code = 'BOX' ) )
+      iv_atomic            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
       act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 
@@ -5597,6 +5845,108 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
       act = ls_result-orders[ 2 ]-is_in_transit ).
   ENDMETHOD.
 
+  METHOD atomic_sto_cancels_commit.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = get_issued_sto_pairs( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_sto_cancel.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second STO cancellation failed' ) ) ) ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = get_issued_sto_pairs( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_sto_cancel.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000201'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Atomic STO cancellation commit failed' ) ) ).
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = get_issued_sto_pairs( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Atomic STO cancellation commit failed'
+      act = ls_result-orders[ 2 ]-reversal_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_cancel_input.
+    DATA(ls_issues) = get_issued_sto_pairs( ).
+    ls_issues-orders[ 2 ]-is_in_transit = abap_false.
+    DATA(ls_result) = mo_cut->cancel_issued_sto_pairs(
+      is_issues = ls_issues
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD continues_pair_cancel_failure.
     mo_api->set_cancel_result( is_result = VALUE #(
       material_document = '4900000201'
@@ -5738,6 +6088,114 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD atomic_sto_receipt_cancel.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000402'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_result) = mo_cut->cancel_received_sto_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_rcpt_cancel.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000402'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second receipt reversal failed' ) ) ) ).
+    DATA(ls_result) = mo_cut->cancel_received_sto_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_rcpt_cancel.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000402'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Receipt reversal commit failed' ) ) ).
+    DATA(ls_result) = mo_cut->cancel_received_sto_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Receipt reversal commit failed'
+      act = ls_result-orders[ 2 ]-reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_rcpt_input.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    ls_receipts-orders[ 2 ]-is_received = abap_false.
+    DATA(ls_result) = mo_cut->cancel_received_sto_pairs(
+      is_receipts = ls_receipts
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 
   METHOD prevalidates_receipt_cancels.

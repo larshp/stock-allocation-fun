@@ -1277,6 +1277,13 @@ in-transit status; earlier PO issues remain committed if a later one fails.
 Test-run mode validates and simulates each eligible PO issue without marking
 stock in transit. Tests use API doubles and cannot confirm a live multi-PO BAPI
 sequence or concurrent STO changes.
+By default, each issue commits separately. With `iv_atomic = abap_true`, the
+method requires every input STO to be eligible, stages all 351 movements in
+one LUW, and sets `is_in_transit` only after one shared commit. A movement or
+commit failure rolls back the group and clears the returned material document
+identifiers. This depends on the target SAP release honoring rollback for
+multiple `BAPI_GOODSMVT_CREATE` calls in one LUW; API doubles cannot verify
+that behavior. Validate with representative STOs in the target system.
 
 `ZCL_GOODS_MOVEMENT_SERVICE->RECEIVE_ISSUED_STO` and
 `RECEIVE_ISSUED_STO_PAIRS` accept a prior non-simulated issue result and prepare
@@ -1288,6 +1295,13 @@ test run does not clear in-transit status. The service trusts the supplied issue
 result, and SAP remains responsible for rechecking PO history, quantities,
 batches, receiving locations, and posting-period rules. API-double tests do not
 verify a live 351/101 sequence.
+By default, each receipt commits separately. With `iv_atomic = abap_true`, all
+input pairs must be eligible, 101 movements share one LUW, and in-transit state
+is cleared only after one shared commit. A receipt or commit failure rolls the
+group back and preserves in-transit status. The guarantee depends on the target
+SAP release honoring rollback for multiple `BAPI_GOODSMVT_CREATE` calls in one
+LUW; local doubles cannot verify this behavior. Validate with representative
+STOs in the target system.
 
 `ZCL_GOODS_MOVEMENT_SERVICE->CANCEL_ISSUED_STO` and
 `CANCEL_ISSUED_STO_PAIRS` call `BAPI_GOODSMVT_CANCEL` for the complete material
@@ -1299,6 +1313,12 @@ documents. This state comes from the caller's prior issue result and may be
 stale if another process has since posted a receipt or changed the document.
 SAP selects the reversal movement type and checks document history and current
 stock; local doubles cannot establish live cancellation eligibility.
+Pair cancellations commit independently by default. With `iv_atomic =
+abap_true`, the group must be fully eligible before writes and all reversal
+calls share one commit. A reversal or commit failure rolls back the group and
+preserves every pair's in-transit state. This depends on the target release
+honoring rollback for multiple `BAPI_GOODSMVT_CANCEL` calls in one LUW; local
+doubles cannot verify that behavior. Validate with representative STOs.
 
 `ZCL_GOODS_MOVEMENT_SERVICE->CANCEL_RECEIVED_STO` and
 `CANCEL_RECEIVED_STO_PAIRS` reverse committed 101 receipt documents from prior
@@ -1309,6 +1329,12 @@ original 351 issue separately. The result trusts its supplied receipt state;
 SAP validates the document history, posting period, and current stock. The
 cancellation API has no test-run mode, and local doubles do not verify live
 101/102 cancellation behavior.
+Receipt cancellations commit independently by default. With `iv_atomic =
+abap_true`, every input pair must be received before writes, all 102 reversals
+share one commit, and in-transit status is restored only after success. A
+reversal or commit failure rolls the group back and preserves received status.
+This depends on the target release honoring rollback for multiple
+`BAPI_GOODSMVT_CANCEL` calls in one LUW; local doubles cannot verify it.
 
 `CANCEL_STO_RECEIPT_CHAIN` and `CANCEL_STO_RECEIPT_CHAIN_PAIRS` coordinate the
 101 reversal and then the original 351 reversal for each received pair. Both
@@ -1329,6 +1355,11 @@ local stubs and API doubles do not validate the target release's exact
 `BAPIMEPOITEM`/`BAPIMEPOITEMX` signature or eligibility behavior. SAP's example
 uses `DELETE_IND` with the corresponding item-X data
 ([BAPI_PO_CHANGE example](https://help.sap.com/docs/SUPPORT_CONTENT/home/3361892108.html?locale=en-US)).
+`MARK_STO_PAIRS_FOR_DELETION` commits independently by default; `iv_atomic =
+abap_true` stages all eligible changes in one LUW and rolls the group back when
+an item update or shared commit fails. The group guarantee depends on the
+target release honoring rollback for multiple `BAPI_PO_CHANGE` calls in one
+LUW; local doubles cannot verify that behavior.
 Validate this on representative STOs in the target system. Reversing 101/351
 material documents by itself does not set the PO deletion indicator.
 
@@ -1344,14 +1375,42 @@ transaction flow. Validate the target release, item numbering, valuation, PO
 history, and any required fields against representative STOs before using this
 operation ([SAP delivery-completed indicator](https://help.sap.com/docs/SAP_ERP/39615c43587c4405aba2de8ebf33cd66/35cee35751bfd812e10000000a4450e5.html),
 [SAP KBA 3731949 preview](https://userapps.support.sap.com/sap/support/knowledge/en/3731949)).
+Pair orders commit independently by default. With `iv_atomic = abap_true`, all
+pair inputs must be eligible before writes, changes share one commit, and a
+change or commit failure rolls the group back. The group guarantee depends on
+the target release honoring rollback for multiple `BAPI_PO_CHANGE` calls in
+one LUW; local doubles cannot verify that behavior. Validate this on
+representative STOs in the target system.
 
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FROM_SOURCE_PLANTS` builds one STO per
 supplying plant for a selected receiving plant. It validates all payloads
-before calling the BAPI, but each resulting order is a separate transaction;
-one supplier can commit even if a later supplier's BAPI call fails. The result
+before calling the BAPI. By default, each order commits independently, so one
+supplier can commit even if a later supplier's BAPI call fails. The result
 retains each supplier's order status and submitted items, and the aggregate
-success flag is false if any order fails. The method does not reserve stock or
-provide all-or-nothing processing across the independent purchase orders.
+success flag is false if any order fails. The method does not reserve stock.
+With `iv_atomic =
+abap_true`, the service defers the commit until all supplier orders are created;
+a create or commit failure rolls back the pending group and stops processing.
+This depends on the target SAP release honoring the BAPI transaction rollback
+for multiple uncommitted PO creates in one LUW, which local doubles cannot
+verify.
+
+`CREATE_FROM_ATP_SOURCE_PLANTS` accepts `ALLOCATE_PLANTS_DATE_ATP` output and
+prevalidates matching, relevant, fully confirmed cumulative source/date checks
+for every positive split to the selected receiving plant before creating any
+PO. This reuses the supplied ATP snapshot; it does not lock stock or rerun ATP
+inside `BAPI_PO_CREATE1`, so availability may change before creation. Supplier
+orders commit independently by default; `iv_atomic = abap_true` uses the same
+single-commit group behavior described above. Tests use allocation and API
+doubles and cannot confirm that the target SAP release applies the same ATP
+scope to the resulting STO.
+
+`CREATE_FOR_ATP_PLANT_PAIRS` applies the same precheck to all positive
+source/target pairs in the supplied allocation, then delegates to the pair
+creator. Every split must have exactly one matching relevant check with a full
+cumulative confirmation. This prevents missing or short pair checks from
+reaching the first PO BAPI call; the snapshot still does not reserve stock or
+guarantee the target BAPI's live ATP scope.
 
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FOR_ALL_PLANT_PAIRS` extends STO creation
 across every positive source/target pair in a dated unit-aware allocation.
@@ -1359,9 +1418,13 @@ Receiving storage locations are supplied by target plant; a missing entry is
 sent blank so SAP can apply order/configuration defaults. Duplicate mappings
 and mappings for targets without allocations are rejected before BAPI calls.
 Pair requests are all prepared before the first write, but each purchase order
-commits independently and cannot be rolled back as one batch. Local tests use
-API doubles and do not verify the target release's allowed plant/company-code
-combinations or storage-location defaults.
+commits independently by default. With `iv_atomic = abap_true`, the service
+defers the commit across the prepared pairs and rolls back the pending group
+after a create or commit failure. The batch and FEFO pair methods use the same
+transaction behavior. This depends on the target SAP release honoring rollback
+for multiple uncommitted PO creates in one LUW. Local tests use API doubles and
+do not verify the target release's allowed plant/company-code combinations or
+storage-location defaults.
 
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FROM_BATCH_ALLOCATION` creates a single-pair
 STO from a unit-aware exact-batch allocation. Since this allocator has no
@@ -1378,8 +1441,9 @@ restriction is specific to OData and does not establish the behavior of
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FOR_BATCH_PAIRS` extends this mapping to all
 positive source/target pairs in one unit-aware batch allocation. Every pair
 request is built and validated before the first BAPI call, but each PO commits
-independently. A shared delivery date is required and target storage-location
-maps follow `CREATE_FOR_ALL_PLANT_PAIRS` behavior. API-double tests verify
+independently by default; `iv_atomic = abap_true` uses the shared pair-order
+transaction behavior above. A shared delivery date is required and target
+storage-location maps follow `CREATE_FOR_ALL_PLANT_PAIRS` behavior. API-double tests verify
 batch grouping and no writes when a later pair is invalid; they do not confirm
 the target system's BAPI or batch customizing behavior.
 
@@ -1391,6 +1455,10 @@ allocation only: it does not reserve stock, and SAP documents that STO
 availability checks do not check batch stock if a batch was entered. Recheck
 availability before goods issue; local tests use an API double and cannot
 confirm target-system BAPI handling of `SUPPL_STLOC` and batch.
+`CREATE_FOR_ATP_FEFO_PAIRS` prevalidates the matching full plant/source/date ATP
+checks before creating those orders. These checks cover the plant-level total,
+not each selected batch. The ATP result is a snapshot and neither reserves stock
+nor establishes that the target system will enforce the same batch ATP scope.
 
 ## Resolved
 

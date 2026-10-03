@@ -152,6 +152,7 @@ CLASS zcl_goods_movement_service DEFINITION
         iv_gm_code       TYPE zif_goods_movement_api=>ty_gm_code
         it_items         TYPE zif_goods_movement_api=>ty_items
         iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_defer_commit  TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
       RAISING
@@ -163,6 +164,7 @@ CLASS zcl_goods_movement_service DEFINITION
         iv_purchase_order TYPE eord-ebeln
         it_items          TYPE ty_sto_issue_items
         iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_defer_commit   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
       RAISING
@@ -185,6 +187,7 @@ CLASS zcl_goods_movement_service DEFINITION
         is_header            TYPE zif_goods_movement_api=>ty_header
         it_unit_iso_mappings TYPE ty_unit_iso_mappings
         iv_test_run          TYPE abap_bool DEFAULT abap_false
+        iv_atomic            TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_sto_issue_pairs_result
       RAISING
@@ -207,6 +210,7 @@ CLASS zcl_goods_movement_service DEFINITION
         is_header            TYPE zif_goods_movement_api=>ty_header
         it_unit_iso_mappings TYPE ty_unit_iso_mappings
         iv_test_run          TYPE abap_bool DEFAULT abap_false
+        iv_atomic            TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_sto_receipt_pairs_result
       RAISING
@@ -225,6 +229,7 @@ CLASS zcl_goods_movement_service DEFINITION
       IMPORTING
         is_issues        TYPE ty_sto_issue_pairs_result
         iv_posting_date  TYPE d OPTIONAL
+        iv_atomic        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_cancel_pairs_result
       RAISING
@@ -243,6 +248,7 @@ CLASS zcl_goods_movement_service DEFINITION
       IMPORTING
         is_receipts      TYPE ty_sto_receipt_pairs_result
         iv_posting_date  TYPE d OPTIONAL
+        iv_atomic        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
@@ -272,6 +278,7 @@ CLASS zcl_goods_movement_service DEFINITION
         iv_purchase_order TYPE eord-ebeln
         it_items          TYPE ty_sto_receipt_items
         iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_defer_commit   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
       RAISING
@@ -621,6 +628,7 @@ CLASS zcl_goods_movement_service DEFINITION
         iv_fiscal_year       TYPE zif_goods_movement_api=>ty_fiscal_year
         iv_posting_date      TYPE d OPTIONAL
         it_item_numbers      TYPE zif_goods_movement_api=>ty_material_document_items OPTIONAL
+        iv_defer_commit      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE zif_goods_movement_api=>ty_result
       RAISING
@@ -814,7 +822,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR iv_gm_code IS INITIAL
         OR it_items IS INITIAL
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_defer_commit <> abap_true
+          AND iv_defer_commit <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1050,6 +1060,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF iv_defer_commit = abap_true.
+      rs_result-is_successful = abap_true.
+      RETURN.
+    ENDIF.
+
     DATA(ls_commit_result) = mo_api->commit( ).
     IF ls_commit_result-is_successful = abap_false.
       mo_api->rollback( ).
@@ -1069,7 +1084,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_purchase_order IS INITIAL
         OR it_items IS INITIAL
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_defer_commit <> abap_true
+          AND iv_defer_commit <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1100,10 +1117,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = execute(
-      is_header   = is_header
-      iv_gm_code  = '04'
-      it_items    = lt_movement_items
-      iv_test_run = iv_test_run ).
+      is_header       = is_header
+      iv_gm_code      = '04'
+      it_items        = lt_movement_items
+      iv_test_run     = iv_test_run
+      iv_defer_commit = iv_defer_commit ).
   ENDMETHOD.
 
   METHOD issue_created_sto.
@@ -1123,6 +1141,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD issue_created_sto_pairs.
+    TYPES ty_seen_po TYPE eord-ebeln.
+    DATA lt_seen_pos TYPE SORTED TABLE OF ty_seen_po
+      WITH UNIQUE KEY table_line.
     DATA lt_prepared_issues TYPE ty_prepared_sto_issues.
 
     IF is_orders-orders IS INITIAL
@@ -1132,7 +1153,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1152,6 +1175,14 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      IF iv_atomic = abap_true.
+        INSERT ls_pair_order-result-purchase_order_number INTO TABLE
+          lt_seen_pos.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDIF.
+
       DATA(lt_issue_items) = build_sto_issue_items(
         is_order_result      = ls_pair_order-result
         it_unit_iso_mappings = it_unit_iso_mappings ).
@@ -1161,12 +1192,18 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         items          = lt_issue_items ) TO lt_prepared_issues.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_issues INTO DATA(ls_prepared_issue).
       DATA(ls_issue_result) = issue_stock_transport_order(
         is_header         = is_header
         iv_purchase_order = ls_prepared_issue-purchase_order
         it_items          = ls_prepared_issue-items
-        iv_test_run       = iv_test_run ).
+        iv_test_run       = iv_test_run
+        iv_defer_commit   = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_pair_result>)
         INDEX ls_prepared_issue-result_index.
       IF sy-subrc <> 0.
@@ -1176,11 +1213,48 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       <ls_pair_result>-is_issue_attempted = abap_true.
       <ls_pair_result>-is_in_transit = xsdbool(
         ls_issue_result-is_successful = abap_true
+        AND iv_atomic = abap_false
         AND iv_test_run = abap_false ).
       IF ls_issue_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_atomic = abap_true.
+          LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+            <ls_pair_result>-goods_issue_result-is_successful =
+              abap_false.
+            CLEAR: <ls_pair_result>-goods_issue_result-material_document,
+              <ls_pair_result>-goods_issue_result-fiscal_year.
+            <ls_pair_result>-is_in_transit = abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true
+        AND iv_test_run = abap_false.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+          <ls_pair_result>-is_in_transit = abap_true.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+          <ls_pair_result>-goods_issue_result-is_successful = abap_false.
+          CLEAR: <ls_pair_result>-goods_issue_result-material_document,
+            <ls_pair_result>-goods_issue_result-fiscal_year.
+          <ls_pair_result>-is_in_transit = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_pair_result>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0 AND ls_commit_result-message IS NOT INITIAL.
+          APPEND ls_commit_result-message
+            TO <ls_pair_result>-goods_issue_result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD receive_issued_sto.
@@ -1196,6 +1270,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD receive_issued_sto_pairs.
+    TYPES ty_seen_po TYPE eord-ebeln.
+    DATA lt_seen_pos TYPE SORTED TABLE OF ty_seen_po
+      WITH UNIQUE KEY table_line.
     DATA lt_prepared_receipts TYPE ty_prepared_sto_receipts.
 
     IF is_issues-orders IS INITIAL
@@ -1205,7 +1282,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1239,6 +1318,14 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
+      IF iv_atomic = abap_true.
+        INSERT ls_issue_pair-order_result-purchase_order_number INTO TABLE
+          lt_seen_pos.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDIF.
+
       DATA(lt_receipt_items) = build_sto_receipt_items(
         is_order_result      = ls_issue_pair-order_result
         it_unit_iso_mappings = it_unit_iso_mappings ).
@@ -1248,12 +1335,18 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         items          = lt_receipt_items ) TO lt_prepared_receipts.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_receipts INTO DATA(ls_prepared_receipt).
       DATA(ls_receipt_result) = receive_stock_transport_order(
         is_header         = is_header
         iv_purchase_order = ls_prepared_receipt-purchase_order
         it_items          = ls_prepared_receipt-items
-        iv_test_run       = iv_test_run ).
+        iv_test_run       = iv_test_run
+        iv_defer_commit   = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_receipt_pair>)
         INDEX ls_prepared_receipt-result_index.
       IF sy-subrc <> 0.
@@ -1263,13 +1356,53 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       <ls_receipt_pair>-is_receipt_attempted = abap_true.
       <ls_receipt_pair>-is_received = xsdbool(
         ls_receipt_result-is_successful = abap_true
+        AND iv_atomic = abap_false
         AND iv_test_run = abap_false ).
       IF <ls_receipt_pair>-is_received = abap_true.
         <ls_receipt_pair>-is_in_transit = abap_false.
       ELSEIF ls_receipt_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
       ENDIF.
+      IF iv_atomic = abap_true
+          AND ls_receipt_result-is_successful <> abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
+          <ls_receipt_pair>-goods_receipt_result-is_successful =
+            abap_false.
+          CLEAR: <ls_receipt_pair>-goods_receipt_result-material_document,
+            <ls_receipt_pair>-goods_receipt_result-fiscal_year.
+          <ls_receipt_pair>-is_received = abap_false.
+        ENDLOOP.
+        EXIT.
+      ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true
+        AND iv_test_run = abap_false.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
+          <ls_receipt_pair>-is_received = abap_true.
+          <ls_receipt_pair>-is_in_transit = abap_false.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
+          <ls_receipt_pair>-goods_receipt_result-is_successful =
+            abap_false.
+          CLEAR: <ls_receipt_pair>-goods_receipt_result-material_document,
+            <ls_receipt_pair>-goods_receipt_result-fiscal_year.
+          <ls_receipt_pair>-is_received = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_receipt_pair>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0 AND ls_commit_result-message IS NOT INITIAL.
+          APPEND ls_commit_result-message
+            TO <ls_receipt_pair>-goods_receipt_result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD cancel_issued_sto.
@@ -1295,7 +1428,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF is_issues-orders IS INITIAL
         OR is_issues-is_test_run <> abap_false
         OR ( is_issues-is_successful <> abap_true
-          AND is_issues-is_successful <> abap_false ).
+          AND is_issues-is_successful <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1346,11 +1481,17 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_prepared_cancels.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_cancels INTO DATA(ls_prepared_cancel).
       DATA(ls_reversal_result) = cancel(
         iv_material_document = ls_prepared_cancel-material_document
         iv_fiscal_year       = ls_prepared_cancel-fiscal_year
-        iv_posting_date      = iv_posting_date ).
+        iv_posting_date      = iv_posting_date
+        iv_defer_commit      = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_cancel_pair>)
         INDEX ls_prepared_cancel-result_index.
       IF sy-subrc <> 0.
@@ -1358,14 +1499,55 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
       <ls_cancel_pair>-reversal_result = ls_reversal_result.
       <ls_cancel_pair>-is_cancel_attempted = abap_true.
-      <ls_cancel_pair>-is_cancelled =
-        ls_reversal_result-is_successful.
+      <ls_cancel_pair>-is_cancelled = xsdbool(
+        ls_reversal_result-is_successful = abap_true
+        AND iv_atomic = abap_false ).
       IF <ls_cancel_pair>-is_cancelled = abap_true.
         <ls_cancel_pair>-is_in_transit = abap_false.
       ELSE.
-        rs_result-is_successful = abap_false.
+        IF ls_reversal_result-is_successful <> abap_true.
+          rs_result-is_successful = abap_false.
+        ENDIF.
+        IF iv_atomic = abap_true
+            AND ls_reversal_result-is_successful <> abap_true.
+          LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+            <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+            CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+              <ls_cancel_pair>-reversal_result-fiscal_year.
+            <ls_cancel_pair>-is_cancelled = abap_false.
+            <ls_cancel_pair>-is_in_transit = abap_true.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+          <ls_cancel_pair>-is_cancelled = abap_true.
+          <ls_cancel_pair>-is_in_transit = abap_false.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+          <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+          CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+            <ls_cancel_pair>-reversal_result-fiscal_year.
+          <ls_cancel_pair>-is_cancelled = abap_false.
+          <ls_cancel_pair>-is_in_transit = abap_true.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_cancel_pair>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0 AND ls_commit_result-message IS NOT INITIAL.
+          APPEND ls_commit_result-message
+            TO <ls_cancel_pair>-reversal_result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD cancel_received_sto.
@@ -1392,7 +1574,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF is_receipts-orders IS INITIAL
         OR is_receipts-is_test_run <> abap_false
         OR ( is_receipts-is_successful <> abap_true
-          AND is_receipts-is_successful <> abap_false ).
+          AND is_receipts-is_successful <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1453,11 +1637,17 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_prepared_cancels.
     ENDLOOP.
 
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
     LOOP AT lt_prepared_cancels INTO DATA(ls_prepared_cancel).
       DATA(ls_reversal_result) = cancel(
         iv_material_document = ls_prepared_cancel-material_document
         iv_fiscal_year       = ls_prepared_cancel-fiscal_year
-        iv_posting_date      = iv_posting_date ).
+        iv_posting_date      = iv_posting_date
+        iv_defer_commit      = iv_atomic ).
       READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_cancel_pair>)
         INDEX ls_prepared_cancel-result_index.
       IF sy-subrc <> 0.
@@ -1465,14 +1655,59 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
       <ls_cancel_pair>-reversal_result = ls_reversal_result.
       <ls_cancel_pair>-is_cancel_attempted = abap_true.
-      <ls_cancel_pair>-is_cancelled = ls_reversal_result-is_successful.
+      <ls_cancel_pair>-is_cancelled = xsdbool(
+        ls_reversal_result-is_successful = abap_true
+        AND iv_atomic = abap_false ).
       IF <ls_cancel_pair>-is_cancelled = abap_true.
         <ls_cancel_pair>-is_received = abap_false.
         <ls_cancel_pair>-is_in_transit = abap_true.
       ELSE.
-        rs_result-is_successful = abap_false.
+        IF ls_reversal_result-is_successful <> abap_true.
+          rs_result-is_successful = abap_false.
+        ENDIF.
+        IF iv_atomic = abap_true
+            AND ls_reversal_result-is_successful <> abap_true.
+          LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+            <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+            CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+              <ls_cancel_pair>-reversal_result-fiscal_year.
+            <ls_cancel_pair>-is_cancelled = abap_false.
+            <ls_cancel_pair>-is_received = abap_true.
+            <ls_cancel_pair>-is_in_transit = abap_false.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF iv_atomic = abap_true
+        AND rs_result-is_successful = abap_true.
+      DATA(ls_commit_result) = mo_api->commit( ).
+      IF ls_commit_result-is_successful = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+          <ls_cancel_pair>-is_cancelled = abap_true.
+          <ls_cancel_pair>-is_received = abap_false.
+          <ls_cancel_pair>-is_in_transit = abap_true.
+        ENDLOOP.
+      ELSE.
+        mo_api->rollback( ).
+        LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+          <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+          CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+            <ls_cancel_pair>-reversal_result-fiscal_year.
+          <ls_cancel_pair>-is_cancelled = abap_false.
+          <ls_cancel_pair>-is_received = abap_true.
+          <ls_cancel_pair>-is_in_transit = abap_false.
+        ENDLOOP.
+        READ TABLE rs_result-orders ASSIGNING <ls_cancel_pair>
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc = 0 AND ls_commit_result-message IS NOT INITIAL.
+          APPEND ls_commit_result-message
+            TO <ls_cancel_pair>-reversal_result-messages.
+        ENDIF.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD cancel_sto_receipt_chain.
@@ -1722,7 +1957,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_purchase_order IS INITIAL
         OR it_items IS INITIAL
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_defer_commit <> abap_true
+          AND iv_defer_commit <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1751,10 +1988,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = execute(
-      is_header   = is_header
-      iv_gm_code  = '01'
-      it_items    = lt_movement_items
-      iv_test_run = iv_test_run ).
+      is_header       = is_header
+      iv_gm_code      = '01'
+      it_items        = lt_movement_items
+      iv_test_run     = iv_test_run
+      iv_defer_commit = iv_defer_commit ).
   ENDMETHOD.
 
   METHOD transfer_plant_allocation.
@@ -3447,7 +3685,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       zif_goods_movement_api=>ty_material_document_items.
 
     IF iv_material_document IS INITIAL
-        OR iv_fiscal_year IS INITIAL.
+        OR iv_fiscal_year IS INITIAL
+        OR ( iv_defer_commit <> abap_true
+          AND iv_defer_commit <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -3489,6 +3729,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         message = 'Cancellation did not return a material document' )
         TO rs_result-messages.
       rs_result-is_successful = abap_false.
+      RETURN.
+    ENDIF.
+
+    IF iv_defer_commit = abap_true.
+      rs_result-is_successful = abap_true.
       RETURN.
     ENDIF.
 

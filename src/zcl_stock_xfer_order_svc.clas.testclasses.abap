@@ -200,6 +200,15 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS get_multi_source_allocation
       RETURNING
         VALUE(rs_allocation) TYPE zcl_stock_service=>ty_unit_date_plant_result.
+    METHODS get_atp_source_alloc
+      RETURNING
+        VALUE(rs_allocation) TYPE zcl_stock_service=>ty_plant_date_atp_result.
+    METHODS get_atp_pair_alloc
+      RETURNING
+        VALUE(rs_allocation) TYPE zcl_stock_service=>ty_plant_date_atp_result.
+    METHODS get_atp_fefo_alloc
+      RETURNING
+        VALUE(rs_allocation) TYPE zcl_stock_service=>ty_plant_fefo_date_atp_result.
     METHODS get_multi_plant_allocation
       RETURNING
         VALUE(rs_allocation) TYPE zcl_stock_service=>ty_unit_date_plant_result.
@@ -223,7 +232,18 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS validates_fefo_pairs_first FOR TESTING.
     METHODS rejects_batch_without_identity FOR TESTING.
     METHODS creates_multi_source_orders FOR TESTING.
+    METHODS commits_atomic_source_orders FOR TESTING.
+    METHODS rolls_back_atomic_sources FOR TESTING.
+    METHODS fails_atomic_source_commit FOR TESTING.
+    METHODS creates_atp_source_orders FOR TESTING.
+    METHODS rejects_short_atp_sources FOR TESTING.
+    METHODS creates_atp_plant_pairs FOR TESTING.
+    METHODS rejects_short_atp_pairs FOR TESTING.
+    METHODS creates_atp_fefo_pairs FOR TESTING.
+    METHODS rejects_short_atp_fefo FOR TESTING.
     METHODS creates_all_plant_pairs FOR TESTING.
+    METHODS fails_atomic_plant_pairs FOR TESTING.
+    METHODS fails_atomic_pair_commit FOR TESTING.
     METHODS validates_pairs_first FOR TESTING.
     METHODS rejects_bad_location_map FOR TESTING.
     METHODS validates_sources_first FOR TESTING.
@@ -234,11 +254,19 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS rolls_back_commit_error FOR TESTING.
     METHODS deletes_single_sto FOR TESTING.
     METHODS continues_sto_delete_failure FOR TESTING.
+    METHODS deletes_sto_pairs_atomically FOR TESTING.
+    METHODS rolls_back_atomic_sto_delete FOR TESTING.
+    METHODS fails_atomic_delete_commit FOR TESTING.
+    METHODS rejects_atomic_ineligible_sto FOR TESTING.
     METHODS prevalidates_sto_deletions FOR TESTING.
     METHODS skips_uncommitted_sto_deletion FOR TESTING.
     METHODS rolls_back_deletion_commit FOR TESTING.
     METHODS completes_single_sto_delivery FOR TESTING.
     METHODS continues_complete_failure FOR TESTING.
+    METHODS completes_pairs_atomically FOR TESTING.
+    METHODS rolls_back_atomic_complete FOR TESTING.
+    METHODS fails_atomic_complete_commit FOR TESTING.
+    METHODS rejects_atomic_complete_input FOR TESTING.
     METHODS prevalidates_sto_completion FOR TESTING.
     METHODS skips_uncommitted_completion FOR TESTING.
     METHODS rolls_back_completion_commit FOR TESTING.
@@ -274,6 +302,84 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
           source_unit = 'EA' base_unit = 'EA'
           available_source_quantity = '2.000'
           allocated_source_quantity = '2.000' ) ) ).
+  ENDMETHOD.
+
+  METHOD get_atp_source_alloc.
+    rs_allocation = VALUE #(
+      local_estimate = get_multi_source_allocation( )
+      atp_checks     = VALUE #(
+        ( request_id               = 'REQ-1'
+          material                 = 'MAT-1'
+          target_plant             = '2000'
+          source_plant             = '1000'
+          required_date            = '20261010'
+          base_unit                = 'EA'
+          allocated_base_quantity  = '3.000'
+          cumulative_base_quantity = '3.000'
+          confirmed_base_quantity  = '3.000'
+          atp_result               = VALUE #(
+            material           = 'MAT-1'
+            plant              = '1000'
+            unit               = 'EA'
+            check_rule         = 'A'
+            required_date      = '20261010'
+            requested_quantity = '3.000'
+            confirmed_date     = '20261010'
+            confirmed_quantity = '3.000'
+            is_fully_available = abap_true
+            is_check_relevant  = abap_true ) )
+        ( request_id               = 'REQ-1'
+          material                 = 'MAT-1'
+          target_plant             = '2000'
+          source_plant             = '1100'
+          required_date            = '20261010'
+          base_unit                = 'EA'
+          allocated_base_quantity  = '2.000'
+          cumulative_base_quantity = '2.000'
+          confirmed_base_quantity  = '2.000'
+          atp_result               = VALUE #(
+            material           = 'MAT-1'
+            plant              = '1100'
+            unit               = 'EA'
+            check_rule         = 'A'
+            required_date      = '20261010'
+            requested_quantity = '2.000'
+            confirmed_date     = '20261010'
+            confirmed_quantity = '2.000'
+            is_fully_available = abap_true
+            is_check_relevant  = abap_true ) ) ) ).
+  ENDMETHOD.
+
+  METHOD get_atp_pair_alloc.
+    rs_allocation-local_estimate = get_multi_plant_allocation( ).
+
+    LOOP AT rs_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_source_allocation).
+      DATA(lv_quantity) =
+        ls_source_allocation-allocation-allocated_quantity.
+      APPEND VALUE #(
+        request_id               = ls_source_allocation-allocation-request_id
+        material                 = ls_source_allocation-allocation-material
+        target_plant             = ls_source_allocation-allocation-target_plant
+        source_plant             = ls_source_allocation-allocation-source_plant
+        required_date            = ls_source_allocation-allocation-required_date
+        base_unit                = ls_source_allocation-base_unit
+        allocated_base_quantity  = lv_quantity
+        cumulative_base_quantity = lv_quantity
+        confirmed_base_quantity  = lv_quantity
+        atp_result               = VALUE #(
+          material           = ls_source_allocation-allocation-material
+          plant              = ls_source_allocation-allocation-source_plant
+          unit               = ls_source_allocation-base_unit
+          check_rule         = 'A'
+          required_date      = ls_source_allocation-allocation-required_date
+          requested_quantity = lv_quantity
+          confirmed_date     = ls_source_allocation-allocation-required_date
+          confirmed_quantity = lv_quantity
+          is_fully_available = abap_true
+          is_check_relevant  = abap_true ) )
+        TO rs_allocation-atp_checks.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD get_multi_plant_allocation.
@@ -330,6 +436,76 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
           source_unit = 'EA' base_unit = 'EA'
           available_source_quantity = '1.000'
           allocated_source_quantity = '1.000' ) ) ).
+  ENDMETHOD.
+
+  METHOD get_atp_fefo_alloc.
+    rs_allocation-local_estimate = get_fefo_allocation( ).
+    rs_allocation-local_estimate-plant_allocations = VALUE #(
+      ( allocation                = VALUE #(
+          request_id         = 'FEFO-REQ-1'
+          material           = 'MAT-1'
+          target_plant       = '2000'
+          source_plant       = '1000'
+          required_date      = '20261130'
+          available_quantity = '5.000'
+          allocated_quantity = '5.000' )
+        source_unit               = 'BOX'
+        base_unit                 = 'EA'
+        available_source_quantity = '5.000'
+        allocated_source_quantity = '5.000' )
+      ( allocation                = VALUE #(
+          request_id         = 'FEFO-REQ-2'
+          material           = 'MAT-2'
+          target_plant       = '3000'
+          source_plant       = '1200'
+          required_date      = '20261201'
+          available_quantity = '4.000'
+          allocated_quantity = '4.000' )
+        source_unit               = 'EA'
+        base_unit                 = 'EA'
+        available_source_quantity = '4.000'
+        allocated_source_quantity = '4.000' ) ).
+    rs_allocation-atp_checks = VALUE #(
+      ( request_id               = 'FEFO-REQ-1'
+        material                 = 'MAT-1'
+        target_plant             = '2000'
+        source_plant             = '1000'
+        required_date            = '20261130'
+        base_unit                = 'EA'
+        allocated_base_quantity  = '5.000'
+        cumulative_base_quantity = '5.000'
+        confirmed_base_quantity  = '5.000'
+        atp_result               = VALUE #(
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          check_rule         = 'A'
+          required_date      = '20261130'
+          requested_quantity = '5.000'
+          confirmed_date     = '20261130'
+          confirmed_quantity = '5.000'
+          is_fully_available = abap_true
+          is_check_relevant  = abap_true ) )
+      ( request_id               = 'FEFO-REQ-2'
+        material                 = 'MAT-2'
+        target_plant             = '3000'
+        source_plant             = '1200'
+        required_date            = '20261201'
+        base_unit                = 'EA'
+        allocated_base_quantity  = '4.000'
+        cumulative_base_quantity = '4.000'
+        confirmed_base_quantity  = '4.000'
+        atp_result               = VALUE #(
+          material           = 'MAT-2'
+          plant              = '1200'
+          unit               = 'EA'
+          check_rule         = 'A'
+          required_date      = '20261201'
+          requested_quantity = '4.000'
+          confirmed_date     = '20261201'
+          confirmed_quantity = '4.000'
+          is_fully_available = abap_true
+          is_check_relevant  = abap_true ) ) ).
   ENDMETHOD.
 
   METHOD get_multi_batch_allocation.
@@ -660,7 +836,8 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       it_receiving_locations = lt_locations
       iv_company_code        = '1000'
       iv_purchasing_org      = '1000'
-      iv_purchasing_group    = '001' ).
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -687,7 +864,7 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       exp = '0003'
       act = ls_result-orders[ 2 ]-result-submitted_items[ 1 ]-receiving_storage_loc ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_api->get_commit_count( ) ).
   ENDMETHOD.
 
@@ -736,7 +913,8 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       it_receiving_locations = lt_locations
       iv_company_code        = '1000'
       iv_purchasing_org      = '1000'
-      iv_purchasing_group    = '001' ).
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -775,7 +953,7 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       exp = CONV d( '20261201' )
       act = ls_result-orders[ 2 ]-result-submitted_items[ 1 ]-delivery_date ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_api->get_commit_count( ) ).
   ENDMETHOD.
 
@@ -889,6 +1067,7 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_commit_count( ) ).
+
   ENDMETHOD.
 
   METHOD creates_multi_source_orders.
@@ -944,6 +1123,366 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       act = lo_api->get_commit_count( ) ).
   ENDMETHOD.
 
+  METHOD commits_atomic_source_orders.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_source_plants(
+      is_allocation       = get_multi_source_allocation( )
+      iv_receiving_plant  = '2000'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_sources.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_write_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages      = VALUE #( ( type = 'E' message = 'Create failed' ) )
+        is_successful = abap_false ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_source_plants(
+      is_allocation       = get_multi_source_allocation( )
+      iv_receiving_plant  = '2000'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_source_commit.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #( type = 'E' message = 'Commit failed' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_source_plants(
+      is_allocation       = get_multi_source_allocation( )
+      iv_receiving_plant  = '2000'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Commit failed'
+      act = ls_result-orders[ 2 ]-result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD creates_atp_source_orders.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_atp_source_plants(
+      is_allocation       = get_atp_source_alloc( )
+      iv_receiving_plant  = '2000'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = ls_result-orders[ 1 ]-supplying_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1100'
+      act = ls_result-orders[ 2 ]-supplying_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-is_committed ).
+  ENDMETHOD.
+
+  METHOD rejects_short_atp_sources.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(ls_allocation) = get_atp_source_alloc( ).
+    ls_allocation-atp_checks[ 1 ]-confirmed_base_quantity = '2.000'.
+    ls_allocation-atp_checks[ 1 ]-atp_result-confirmed_quantity = '2.000'.
+    ls_allocation-atp_checks[ 1 ]-atp_result-is_fully_available =
+      abap_false.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->create_from_atp_source_plants(
+          is_allocation       = ls_allocation
+          iv_receiving_plant  = '2000'
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001'
+          iv_test_run         = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+
+    DELETE ls_allocation-atp_checks INDEX 2.
+    CLEAR lv_exception_raised.
+    TRY.
+        lo_cut->create_from_atp_source_plants(
+          is_allocation       = ls_allocation
+          iv_receiving_plant  = '2000'
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001'
+          iv_test_run         = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD creates_atp_plant_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(lt_locations) = VALUE zcl_stock_xfer_order_svc=>ty_receiving_locations(
+      ( receiving_plant = '2000' receiving_storage_loc = '0002' )
+      ( receiving_plant = '3000' receiving_storage_loc = '0003' ) ).
+
+    DATA(ls_result) = lo_cut->create_for_atp_plant_pairs(
+      is_allocation          = get_atp_pair_alloc( )
+      it_receiving_locations = lt_locations
+      iv_company_code        = '1000'
+      iv_purchasing_org      = '1000'
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = ls_result-orders[ 1 ]-supplying_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = ls_result-orders[ 1 ]-receiving_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 4 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_short_atp_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(ls_allocation) = get_atp_pair_alloc( ).
+    ls_allocation-atp_checks[ 4 ]-confirmed_base_quantity = '0.000'.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->create_for_atp_plant_pairs(
+          is_allocation       = ls_allocation
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD creates_atp_fefo_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500005233'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(lt_locations) = VALUE zcl_stock_xfer_order_svc=>ty_receiving_locations(
+      ( receiving_plant = '2000' receiving_storage_loc = '0002' )
+      ( receiving_plant = '3000' receiving_storage_loc = '0003' ) ).
+
+    DATA(ls_result) = lo_cut->create_for_atp_fefo_pairs(
+      is_allocation          = get_atp_fefo_alloc( )
+      it_receiving_locations = lt_locations
+      iv_company_code        = '1000'
+      iv_purchasing_org      = '1000'
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders[ 1 ]-result-submitted_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FEFO-A'
+      act = ls_result-orders[ 1 ]-result-submitted_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_short_atp_fefo.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(ls_allocation) = get_atp_fefo_alloc( ).
+    ls_allocation-atp_checks[ 1 ]-confirmed_base_quantity = '0.000'.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->create_for_atp_fefo_pairs(
+          is_allocation       = ls_allocation
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD creates_all_plant_pairs.
     DATA(lo_api) = NEW lcl_sto_api_double( ).
     lo_api->set_write_result( is_result = VALUE #(
@@ -962,7 +1501,8 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       it_receiving_locations = lt_locations
       iv_company_code        = '1000'
       iv_purchasing_org      = '1000'
-      iv_purchasing_group    = '001' ).
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -992,8 +1532,88 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       exp = 4
       act = lo_api->get_create_count( ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 1
       act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_plant_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_write_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Second STO failed' ) ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_for_all_plant_pairs(
+      is_allocation       = get_multi_plant_allocation( )
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_pair_commit.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #( type = 'E' message = 'Commit failed' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_for_batch_pairs(
+      is_allocation       = get_multi_batch_allocation( )
+      iv_delivery_date    = '20261125'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_atomic           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Commit failed'
+      act = ls_result-orders[ 2 ]-result-messages[ 1 ]-message ).
   ENDMETHOD.
 
   METHOD validates_pairs_first.
@@ -1329,6 +1949,130 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       act = lo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD deletes_sto_pairs_atomically.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_for_deletion(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-deletion-is_deleted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-deletion-is_deleted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_sto_delete.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_change_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Second deletion failed' ) ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_for_deletion(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-deletion-is_deleted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-deletion-is_deleted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_delete_commit.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Atomic deletion commit failed' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_for_deletion(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-deletion-is_deleted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Atomic deletion commit failed'
+      act = ls_result-orders[ 2 ]-deletion-deletion_messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_ineligible_sto.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+    DATA(ls_orders) = get_sto_orders_for_deletion( ).
+    CLEAR ls_orders-orders[ 2 ]-result-is_committed.
+    ls_orders-orders[ 2 ]-result-is_test_run = abap_true.
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_for_deletion(
+      is_orders = ls_orders
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-deletion-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD prevalidates_sto_deletions.
     DATA(lo_api) = NEW lcl_sto_api_double( ).
     DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
@@ -1470,6 +2214,130 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD completes_pairs_atomically.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_deliv_complete(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_delivery_complete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-delivery_completion-is_completed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-delivery_completion-is_completed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_complete.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_change_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Second completion failed' ) ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_deliv_complete(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_delivery_complete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-delivery_completion-is_completed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-delivery_completion-is_completed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_complete_commit.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_change_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Atomic completion commit failed' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_deliv_complete(
+      is_orders = get_sto_orders_for_deletion( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-delivery_completion-is_completed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Atomic completion commit failed'
+      act = ls_result-orders[ 2 ]-delivery_completion-completion_messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_complete_input.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+    DATA(ls_orders) = get_sto_orders_for_deletion( ).
+    CLEAR ls_orders-orders[ 2 ]-result-is_committed.
+    ls_orders-orders[ 2 ]-result-is_test_run = abap_true.
+
+    DATA(ls_result) = lo_cut->mark_sto_pairs_deliv_complete(
+      is_orders = ls_orders
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-delivery_completion-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_delivery_complete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
   ENDMETHOD.
 
   METHOD prevalidates_sto_completion.

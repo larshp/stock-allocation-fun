@@ -97,16 +97,21 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   METHOD post_reservation_movement.
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
-        OR it_requests IS INITIAL.
+        OR it_requests IS INITIAL
+        OR ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
     DATA lt_seen TYPE HASHED TABLE OF ty_item_key
       WITH UNIQUE KEY reservation_number reservation_item.
-    DATA lt_read_numbers TYPE HASHED TABLE OF
+    DATA lt_seen_reservation_numbers TYPE HASHED TABLE OF
       bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_read_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers.
+    DATA lt_reservation_reads TYPE zcl_so_res_read_service=>ty_reservation_reads.
     DATA lt_reservation_items TYPE zif_so_reservation_reader=>ty_items.
     DATA lt_read_messages TYPE zif_so_reservation_reader=>ty_result-messages.
+    DATA lv_read_failed TYPE abap_bool.
 
     LOOP AT it_requests INTO DATA(ls_request).
       IF ls_request-reservation_number IS INITIAL
@@ -123,27 +128,36 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      INSERT ls_request-reservation_number INTO TABLE lt_read_numbers.
-      IF sy-subrc <> 0.
-        CONTINUE.
+      INSERT ls_request-reservation_number
+        INTO TABLE lt_seen_reservation_numbers.
+      IF sy-subrc = 0.
+        APPEND ls_request-reservation_number TO lt_read_numbers.
       ENDIF.
-
-      DATA(ls_read_result) = mo_reservation_read_service->read_reservation(
-        ls_request-reservation_number ).
-      APPEND LINES OF ls_read_result-messages TO lt_read_messages.
-      IF ls_read_result-is_successful = abap_false.
-        rs_result-messages = lt_read_messages.
-        IF rs_result-messages IS INITIAL.
-          APPEND VALUE #(
-            type    = 'E'
-            message = 'Reservation details could not be read' )
-            TO rs_result-messages.
-        ENDIF.
-        RETURN.
-      ENDIF.
-
-      APPEND LINES OF ls_read_result-items TO lt_reservation_items.
     ENDLOOP.
+
+    lt_reservation_reads = mo_reservation_read_service->read_reservations(
+      it_reservation_numbers = lt_read_numbers ).
+    LOOP AT lt_reservation_reads INTO DATA(ls_reservation_read).
+      APPEND LINES OF ls_reservation_read-read_result-messages
+        TO lt_read_messages.
+      IF ls_reservation_read-read_result-is_successful = abap_false.
+        lv_read_failed = abap_true.
+      ELSE.
+        APPEND LINES OF ls_reservation_read-read_result-items
+          TO lt_reservation_items.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_read_failed = abap_true.
+      rs_result-messages = lt_read_messages.
+      IF rs_result-messages IS INITIAL.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Reservation details could not be read' )
+          TO rs_result-messages.
+      ENDIF.
+      RETURN.
+    ENDIF.
 
     DATA lt_movement_items TYPE zif_goods_movement_api=>ty_items.
     LOOP AT it_requests INTO ls_request.

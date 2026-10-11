@@ -1,29 +1,58 @@
 CLASS lcl_res_issue_reader DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_so_reservation_reader.
+    TYPES ty_results TYPE STANDARD TABLE OF
+      zif_so_reservation_reader=>ty_result WITH EMPTY KEY.
+    TYPES ty_reservation_numbers TYPE STANDARD TABLE OF
+      bapi2093_res_key-reserv_no WITH EMPTY KEY.
     METHODS set_result
       IMPORTING
         is_result TYPE zif_so_reservation_reader=>ty_result.
+    METHODS set_results
+      IMPORTING
+        it_results TYPE ty_results.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_read_numbers
+      RETURNING
+        VALUE(rt_numbers) TYPE ty_reservation_numbers.
   PRIVATE SECTION.
     DATA ms_result TYPE zif_so_reservation_reader=>ty_result.
+    DATA mt_results TYPE ty_results.
+    DATA mt_read_numbers TYPE ty_reservation_numbers.
     DATA mv_read_count TYPE i.
 ENDCLASS.
 
 CLASS lcl_res_issue_reader IMPLEMENTATION.
   METHOD set_result.
     ms_result = is_result.
+    CLEAR mt_results.
+  ENDMETHOD.
+
+  METHOD set_results.
+    mt_results = it_results.
   ENDMETHOD.
 
   METHOD get_read_count.
     rv_count = mv_read_count.
   ENDMETHOD.
 
+  METHOD get_read_numbers.
+    rt_numbers = mt_read_numbers.
+  ENDMETHOD.
+
   METHOD zif_so_reservation_reader~read_reservation.
     ADD 1 TO mv_read_count.
-    rs_result = ms_result.
+    APPEND iv_reservation_number TO mt_read_numbers.
+    IF mt_results IS INITIAL.
+      rs_result = ms_result.
+    ELSE.
+      READ TABLE mt_results INTO rs_result INDEX mv_read_count.
+      IF sy-subrc <> 0.
+        rs_result = ms_result.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 ENDCLASS.
 
@@ -137,6 +166,8 @@ CLASS ltcl_reservation_issue DEFINITION FINAL
     METHODS rejects_over_issue FOR TESTING.
     METHODS rejects_closed_item FOR TESTING.
     METHODS rejects_duplicate_item FOR TESTING.
+    METHODS prevalidates_all_requests FOR TESTING.
+    METHODS posts_multiple_reservations FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_reservation_issue IMPLEMENTATION.
@@ -451,6 +482,110 @@ CLASS ltcl_reservation_issue IMPLEMENTATION.
       act = lv_exception_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
+      act = mo_goods_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reader->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_all_requests.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->post_goods_issue(
+          is_header   = VALUE #(
+            posting_date  = '20260922'
+            document_date = '20260922' )
+          it_requests = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              base_quantity      = '1.000' )
+            ( reservation_number = '9000000001'
+              reservation_item   = '0002'
+              base_quantity      = '0.000' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reader->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_goods_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD posts_multiple_reservations.
+    mo_reader->set_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true
+          items         = VALUE #(
+            ( reservation_number = '9000000002'
+              item_number        = '0002'
+              movement_allowed   = abap_true
+              material           = 'MAT-2'
+              plant              = '2000'
+              storage_location   = '0002'
+              required_quantity  = '4.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) )
+        ( is_successful = abap_true
+          items         = VALUE #(
+            ( reservation_number = '9000000001'
+              item_number        = '0001'
+              movement_allowed   = abap_true
+              material           = 'MAT-1'
+              plant              = '1000'
+              storage_location   = '0001'
+              required_quantity  = '5.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->post_goods_issue(
+      is_header   = VALUE #(
+        posting_date  = '20260922'
+        document_date = '20260922' )
+      it_requests = VALUE #(
+        ( reservation_number = '9000000002'
+          reservation_item   = '0002'
+          base_quantity      = '1.000' )
+        ( reservation_number = '9000000001'
+          reservation_item   = '0001'
+          base_quantity      = '2.000' ) ) ).
+    DATA(lt_items) = mo_goods_api->get_items( ).
+    DATA(lt_read_numbers) = mo_reader->get_read_numbers( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000002'
+      act = lt_items[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_items[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000001'
+      act = lt_items[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_items[ 2 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE lcl_res_issue_reader=>ty_reservation_numbers(
+        ( '9000000002' )
+        ( '9000000001' ) )
+      act = lt_read_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_reader->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = mo_goods_api->get_create_count( ) ).
   ENDMETHOD.
 ENDCLASS.

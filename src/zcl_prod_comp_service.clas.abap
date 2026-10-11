@@ -144,6 +144,15 @@ CLASS zcl_prod_comp_service DEFINITION
     TYPES ty_planning_calendar_periods TYPE STANDARD TABLE OF
       ty_planning_calendar_period WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_resolved_lot_size_period,
+        plant              TYPE marc-werks,
+        lot_size_procedure TYPE marc-disls,
+        start_date         TYPE d,
+        end_date           TYPE d,
+      END OF ty_resolved_lot_size_period.
+    TYPES ty_resolved_lot_size_periods TYPE STANDARD TABLE OF
+      ty_resolved_lot_size_period WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_projected_receipt_use,
         receipt_date         TYPE d,
         quantity             TYPE mard-labst,
@@ -280,12 +289,42 @@ CLASS zcl_prod_comp_service DEFINITION
       END OF ty_bulk_issue_request.
     TYPES ty_bulk_issue_requests TYPE STANDARD TABLE OF ty_bulk_issue_request
       WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_issue_request_in_unit,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        quantity           TYPE resb-bdmng,
+        unit               TYPE mara-meins,
+        storage_location   TYPE resb-lgort,
+        batch              TYPE resb-charg,
+      END OF ty_issue_request_in_unit.
+    TYPES ty_issue_requests_in_unit TYPE STANDARD TABLE OF
+      ty_issue_request_in_unit WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_issue_request_in_unit,
+        production_order   TYPE resb-aufnr,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        quantity           TYPE resb-bdmng,
+        unit               TYPE mara-meins,
+        storage_location   TYPE resb-lgort,
+        batch              TYPE resb-charg,
+      END OF ty_bulk_issue_request_in_unit.
+    TYPES ty_bulk_issue_requests_in_unit TYPE STANDARD TABLE OF
+      ty_bulk_issue_request_in_unit WITH EMPTY KEY.
     TYPES ty_return_request TYPE ty_issue_request.
     TYPES ty_return_requests TYPE STANDARD TABLE OF ty_return_request
       WITH EMPTY KEY.
+    TYPES ty_return_request_in_unit TYPE ty_issue_request_in_unit.
+    TYPES ty_return_requests_in_unit TYPE STANDARD TABLE OF
+      ty_return_request_in_unit WITH EMPTY KEY.
     TYPES ty_bulk_return_request TYPE ty_bulk_issue_request.
     TYPES ty_bulk_return_requests TYPE STANDARD TABLE OF
       ty_bulk_return_request WITH EMPTY KEY.
+    TYPES ty_bulk_return_request_in_unit TYPE
+      ty_bulk_issue_request_in_unit.
+    TYPES ty_bulk_return_requests_in_unit TYPE STANDARD TABLE OF
+      ty_bulk_return_request_in_unit WITH EMPTY KEY.
 
     METHODS constructor
       IMPORTING
@@ -429,6 +468,7 @@ CLASS zcl_prod_comp_service DEFINITION
         it_policies                  TYPE ty_replenishment_policies
         it_projected_receipts        TYPE ty_projected_receipts OPTIONAL
         it_planning_calendar_periods TYPE ty_planning_calendar_periods OPTIONAL
+        it_resolved_lot_size_periods TYPE ty_resolved_lot_size_periods OPTIONAL
         iv_as_of_date                TYPE d DEFAULT sy-datum
         iv_net_prior_surplus         TYPE abap_bool DEFAULT abap_false
         iv_week_start_weekday        TYPE i DEFAULT 1
@@ -442,7 +482,9 @@ CLASS zcl_prod_comp_service DEFINITION
         it_shortages                   TYPE ty_component_shortages
         it_policies                    TYPE ty_replenishment_policies
         it_planning_calendar_periods   TYPE ty_planning_calendar_periods OPTIONAL
+        it_resolved_lot_size_periods   TYPE ty_resolved_lot_size_periods OPTIONAL
         iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
         iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
@@ -482,6 +524,29 @@ CLASS zcl_prod_comp_service DEFINITION
         zcx_invalid_production_order
         zcx_invalid_goods_movement.
 
+    METHODS issue_components_in_unit
+      IMPORTING
+        iv_production_order TYPE resb-aufnr
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        it_requests         TYPE ty_issue_requests_in_unit
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS issue_components_bulk_in_unit
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_bulk_issue_requests_in_unit
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
     METHODS return_components
       IMPORTING
         iv_production_order TYPE resb-aufnr
@@ -505,6 +570,29 @@ CLASS zcl_prod_comp_service DEFINITION
         zcx_invalid_production_order
         zcx_invalid_goods_movement.
 
+    METHODS return_components_in_unit
+      IMPORTING
+        iv_production_order TYPE resb-aufnr
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        it_requests         TYPE ty_return_requests_in_unit
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS return_components_bulk_in_unit
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_bulk_return_requests_in_unit
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
     METHODS cancel_component_issue
       IMPORTING
         iv_material_document TYPE zif_goods_movement_api=>ty_material_document
@@ -513,6 +601,15 @@ CLASS zcl_prod_comp_service DEFINITION
         it_item_numbers      TYPE zif_goods_movement_api=>ty_material_document_items OPTIONAL
       RETURNING
         VALUE(rs_result)     TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS cancel_component_issues_bulk
+      IMPORTING
+        it_requests      TYPE zcl_goods_movement_service=>ty_cancel_document_requests
+        iv_atomic        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_cancel_documents_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -632,6 +729,30 @@ CLASS zcl_prod_comp_service DEFINITION
       RAISING
         zcx_invalid_production_order
         zcx_invalid_stock_request.
+
+    METHODS post_component_issues_bulk
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_bulk_issue_requests
+        it_components    TYPE ty_components
+        iv_test_run      TYPE abap_bool
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS post_component_returns_bulk
+      IMPORTING
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_bulk_return_requests
+        it_components    TYPE zif_prod_comp_repo=>ty_reservation_items
+        iv_test_run      TYPE abap_bool
+      RETURNING
+        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
 
     TYPES:
       BEGIN OF ty_component_key,
@@ -816,6 +937,11 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   METHOD preview_components_internal.
     DATA lt_components TYPE ty_components.
     DATA lt_unit_ratios TYPE ty_component_unit_ratios.
+    DATA lt_excluded_reservations TYPE
+      zif_stock_repository=>ty_reservation_keys.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
     DATA lt_atp_days TYPE ty_component_atp_days.
     DATA lt_local_demands TYPE zcl_stock_service=>ty_dated_demands.
     DATA lt_local_estimates TYPE zcl_stock_service=>ty_dated_allocations.
@@ -852,9 +978,20 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       IF ls_component-material IS INITIAL
           OR ls_component-plant IS INITIAL
           OR ls_component-unit IS INITIAL
-          OR ls_component-required_date IS INITIAL.
+          OR ls_component-required_date IS INITIAL
+          OR ls_component-reservation_number IS INITIAL
+          OR ls_component-reservation_item IS INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_production_order.
       ENDIF.
+
+      DATA(ls_reservation_key) = VALUE zif_stock_repository=>ty_reservation_key(
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item ).
+      INSERT ls_reservation_key INTO TABLE lt_seen_reservations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      APPEND ls_reservation_key TO lt_excluded_reservations.
 
       READ TABLE lt_unit_ratios INTO DATA(ls_unit_ratio_cache)
         WITH TABLE KEY material = ls_component-material
@@ -964,6 +1101,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     IF lt_local_demands IS NOT INITIAL.
       lt_local_estimates = mo_stock_service->allocate_demands_by_date(
         it_demands                     = lt_local_demands
+        it_excluded_reservations       = lt_excluded_reservations
         iv_include_po_receipts         = iv_include_po_receipts
         iv_include_sto_in_transit      = iv_include_sto_in_transit
         iv_include_unissued_sto        = iv_include_unissued_sto
@@ -1669,6 +1807,9 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lt_planning_calendar_periods TYPE SORTED TABLE OF
       ty_planning_calendar_period
       WITH UNIQUE KEY plant planning_calendar_id start_date.
+    DATA lt_resolved_lot_size_periods TYPE SORTED TABLE OF
+      ty_resolved_lot_size_period
+      WITH UNIQUE KEY plant lot_size_procedure start_date.
     DATA lt_calendar_periods_input TYPE
       ty_planning_calendar_periods.
     DATA lt_calendar_requests TYPE HASHED TABLE OF
@@ -1681,6 +1822,9 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lv_previous_period_end TYPE d.
     DATA lv_previous_period_plant TYPE marc-werks.
     DATA lv_previous_calendar_id TYPE marc-mrppp.
+    DATA lv_previous_lot_period_plant TYPE marc-werks.
+    DATA lv_previous_lot_period_proc TYPE marc-disls.
+    DATA lv_previous_lot_period_end TYPE d.
     DATA ls_timing TYPE ty_replenishment_timing.
     DATA lv_receipt_sequence TYPE i.
     DATA lv_input_index TYPE i.
@@ -1963,6 +2107,45 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    LOOP AT it_resolved_lot_size_periods
+        INTO DATA(ls_resolved_lot_period).
+      IF ls_resolved_lot_period-plant IS INITIAL
+          OR ls_resolved_lot_period-lot_size_procedure IS INITIAL
+          OR ls_resolved_lot_period-lot_size_procedure = 'EX'
+          OR ls_resolved_lot_period-lot_size_procedure = 'FX'
+          OR ls_resolved_lot_period-lot_size_procedure = 'HB'
+          OR ls_resolved_lot_period-lot_size_procedure = 'MB'
+          OR ls_resolved_lot_period-lot_size_procedure = 'PK'
+          OR ls_resolved_lot_period-lot_size_procedure = 'TB'
+          OR ls_resolved_lot_period-lot_size_procedure = 'WB'
+          OR ls_resolved_lot_period-start_date IS INITIAL
+          OR ls_resolved_lot_period-end_date IS INITIAL
+          OR ls_resolved_lot_period-start_date
+            > ls_resolved_lot_period-end_date.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_resolved_lot_period INTO TABLE
+        lt_resolved_lot_size_periods.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_resolved_lot_size_periods
+        INTO DATA(ls_validated_lot_period).
+      IF lv_previous_lot_period_plant = ls_validated_lot_period-plant
+          AND lv_previous_lot_period_proc =
+            ls_validated_lot_period-lot_size_procedure
+          AND ls_validated_lot_period-start_date
+            <= lv_previous_lot_period_end.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      lv_previous_lot_period_plant = ls_validated_lot_period-plant.
+      lv_previous_lot_period_proc =
+        ls_validated_lot_period-lot_size_procedure.
+      lv_previous_lot_period_end = ls_validated_lot_period-end_date.
+    ENDLOOP.
+
     LOOP AT lt_planning_calendar_periods
         INTO DATA(ls_validated_calendar_period).
       IF lv_previous_period_plant = ls_validated_calendar_period-plant
@@ -2006,14 +2189,38 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
 
       CLEAR lv_period_grouping.
-      IF lv_group_lot_size_procedure = 'MB'
+      IF lv_group_lot_size_procedure = 'TB'
+          OR lv_group_lot_size_procedure = 'MB'
           OR lv_group_lot_size_procedure = 'WB'
           OR lv_group_lot_size_procedure = 'PK'.
         lv_period_grouping = abap_true.
       ENDIF.
+      IF lv_period_grouping <> abap_true.
+        LOOP AT lt_resolved_lot_size_periods
+            TRANSPORTING NO FIELDS
+            WHERE plant = ls_shortage-plant
+              AND lot_size_procedure = lv_group_lot_size_procedure
+              AND start_date <= ls_shortage-required_date
+              AND end_date >= ls_shortage-required_date.
+          lv_period_grouping = abap_true.
+          EXIT.
+        ENDLOOP.
+      ENDIF.
+      IF lv_period_grouping <> abap_true.
+        READ TABLE lt_resolved_lot_size_periods
+          TRANSPORTING NO FIELDS
+          WITH KEY plant = ls_shortage-plant
+            lot_size_procedure = lv_group_lot_size_procedure.
+        IF sy-subrc = 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDIF.
       IF lv_period_grouping = abap_true.
         DATA(ls_period_bounds) = VALUE ty_lot_size_period_bounds( ).
         CASE lv_group_lot_size_procedure.
+          WHEN 'TB'.
+            ls_period_bounds-start_date = ls_shortage-required_date.
+            ls_period_bounds-end_date = ls_shortage-required_date.
           WHEN 'MB'.
             ls_period_bounds = get_month_period_bounds(
               iv_date = ls_shortage-required_date ).
@@ -2040,6 +2247,29 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
               ENDLOOP.
               IF sy-subrc <> 0.
                 CLEAR lv_period_grouping.
+              ENDIF.
+            ENDIF.
+          WHEN OTHERS.
+            LOOP AT lt_resolved_lot_size_periods
+                INTO DATA(ls_matching_lot_period)
+                WHERE plant = ls_shortage-plant
+                  AND lot_size_procedure = lv_group_lot_size_procedure
+                  AND start_date <= ls_shortage-required_date
+                  AND end_date >= ls_shortage-required_date.
+              ls_period_bounds-start_date =
+                ls_matching_lot_period-start_date.
+              ls_period_bounds-end_date =
+                ls_matching_lot_period-end_date.
+              lv_period_grouping = abap_true.
+              EXIT.
+            ENDLOOP.
+            IF lv_period_grouping <> abap_true.
+              READ TABLE lt_resolved_lot_size_periods
+                TRANSPORTING NO FIELDS
+                WITH KEY plant = ls_shortage-plant
+                  lot_size_procedure = lv_group_lot_size_procedure.
+              IF sy-subrc = 0.
+                RAISE EXCEPTION TYPE zcx_invalid_stock_request.
               ENDIF.
             ENDIF.
         ENDCASE.
@@ -2314,7 +2544,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           lv_order_multiple = ls_policy-order_multiple_base_quantity.
         ELSE.
           CASE lv_lot_size_procedure.
-            WHEN 'EX' OR 'MB' OR 'WB' OR 'PK'.
+            WHEN 'EX' OR 'TB' OR 'MB' OR 'WB' OR 'PK'.
               lv_minimum_quantity = ls_policy-minimum_base_quantity.
               lv_maximum_quantity = ls_policy-maximum_base_quantity.
               lv_order_multiple =
@@ -2333,7 +2563,18 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
                 lv_policy_origin = 'UNSUPPORTED'.
               ENDIF.
             WHEN OTHERS.
-              lv_policy_origin = 'UNSUPPORTED'.
+              READ TABLE lt_resolved_lot_size_periods
+                TRANSPORTING NO FIELDS
+                WITH KEY plant = ls_policy-plant
+                  lot_size_procedure = ls_policy-lot_size_procedure.
+              IF sy-subrc = 0.
+                lv_minimum_quantity = ls_policy-minimum_base_quantity.
+                lv_maximum_quantity = ls_policy-maximum_base_quantity.
+                lv_order_multiple =
+                  ls_policy-order_multiple_base_quantity.
+              ELSE.
+                lv_policy_origin = 'UNSUPPORTED'.
+              ENDIF.
           ENDCASE.
         ENDIF.
       ELSE.
@@ -2360,7 +2601,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           lv_purchasing_processing_days =
             ls_master_policy-purchasing_processing_days.
           CASE lv_lot_size_procedure.
-            WHEN 'EX' OR 'MB' OR 'WB' OR 'PK'.
+            WHEN 'EX' OR 'TB' OR 'MB' OR 'WB' OR 'PK'.
               lv_policy_origin = 'MARC'.
               lv_minimum_quantity =
                 ls_master_policy-minimum_base_quantity.
@@ -2385,7 +2626,22 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
                 lv_policy_origin = 'UNSUPPORTED'.
               ENDIF.
             WHEN OTHERS.
-              lv_policy_origin = 'UNSUPPORTED'.
+              READ TABLE lt_resolved_lot_size_periods
+                TRANSPORTING NO FIELDS
+                WITH KEY plant = ls_master_policy-plant
+                  lot_size_procedure =
+                    ls_master_policy-lot_size_procedure.
+              IF sy-subrc = 0.
+                lv_policy_origin = 'MARC'.
+                lv_minimum_quantity =
+                  ls_master_policy-minimum_base_quantity.
+                lv_maximum_quantity =
+                  ls_master_policy-maximum_base_quantity.
+                lv_order_multiple =
+                  ls_master_policy-order_multiple_base_quantity.
+              ELSE.
+                lv_policy_origin = 'UNSUPPORTED'.
+              ENDIF.
           ENDCASE.
         ENDIF.
       ENDIF.
@@ -2777,16 +3033,24 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       END OF ty_replenishment_receipt_key.
     DATA lt_receipt_requests TYPE HASHED TABLE OF ty_receipt_request
       WITH UNIQUE KEY material plant.
+    DATA lt_po_conf_requests TYPE
+      zcl_stock_service=>ty_projected_receipt_requests.
     DATA lt_receipt_keys TYPE HASHED TABLE OF
       ty_replenishment_receipt_key
       WITH UNIQUE KEY material plant base_unit.
     DATA lt_seen_shortages TYPE HASHED TABLE OF ty_component_shortage
       WITH UNIQUE KEY material plant base_unit required_date.
     DATA lt_projected_receipts TYPE ty_projected_receipts.
+    DATA lv_request_index TYPE i.
+    DATA lv_request_id TYPE c LENGTH 30.
     FIELD-SYMBOLS <ls_receipt_request> TYPE ty_receipt_request.
 
     IF ( iv_include_po_receipts <> abap_true
           AND iv_include_po_receipts <> abap_false )
+        OR ( iv_include_po_confirmations <> abap_true
+          AND iv_include_po_confirmations <> abap_false )
+        OR ( iv_include_po_receipts = abap_true
+          AND iv_include_po_confirmations = abap_true )
         OR ( iv_include_sto_in_transit <> abap_true
           AND iv_include_sto_in_transit <> abap_false )
         OR ( iv_include_unissued_sto <> abap_true
@@ -2850,36 +3114,75 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    LOOP AT lt_receipt_requests INTO DATA(ls_receipt_request).
-      DATA(lt_material_receipts) = mo_stock_service->get_projected_receipts(
-        iv_material                    = ls_receipt_request-material
-        iv_plant                       = ls_receipt_request-plant
-        iv_through_date                = ls_receipt_request-through_date
-        iv_include_po_receipts         = iv_include_po_receipts
-        iv_include_sto_in_transit      = iv_include_sto_in_transit
-        iv_include_unissued_sto        = iv_include_unissued_sto
-        iv_include_prod_receipts       = iv_include_prod_receipts
-        iv_include_pr_receipts         = iv_include_pr_receipts
-        iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
-        iv_include_planned_receipts    = iv_include_planned_receipts
-        iv_include_fixed_planned       = iv_include_fixed_planned
-        iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
-      LOOP AT lt_material_receipts INTO DATA(ls_receipt).
-        READ TABLE lt_receipt_keys TRANSPORTING NO FIELDS
-          WITH TABLE KEY material = ls_receipt-material
-                         plant = ls_receipt-plant
-                         base_unit = ls_receipt-base_unit.
-        IF sy-subrc = 0.
-          APPEND CORRESPONDING #( ls_receipt ) TO lt_projected_receipts.
-        ENDIF.
+    IF iv_include_po_receipts = abap_true
+        OR iv_include_sto_in_transit = abap_true
+        OR iv_include_unissued_sto = abap_true
+        OR iv_include_prod_receipts = abap_true
+        OR iv_include_pr_receipts = abap_true
+        OR iv_include_sto_pr_receipts = abap_true
+        OR iv_include_planned_receipts = abap_true
+        OR iv_include_fixed_planned = abap_true
+        OR iv_include_sched_agmt_receipts = abap_true.
+      LOOP AT lt_receipt_requests INTO DATA(ls_receipt_request).
+        DATA(lt_material_receipts) = mo_stock_service->get_projected_receipts(
+          iv_material                    = ls_receipt_request-material
+          iv_plant                       = ls_receipt_request-plant
+          iv_through_date                = ls_receipt_request-through_date
+          iv_include_po_receipts         = iv_include_po_receipts
+          iv_include_sto_in_transit      = iv_include_sto_in_transit
+          iv_include_unissued_sto        = iv_include_unissued_sto
+          iv_include_prod_receipts       = iv_include_prod_receipts
+          iv_include_pr_receipts         = iv_include_pr_receipts
+          iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+          iv_include_planned_receipts    = iv_include_planned_receipts
+          iv_include_fixed_planned       = iv_include_fixed_planned
+          iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
+        LOOP AT lt_material_receipts INTO DATA(ls_receipt).
+          READ TABLE lt_receipt_keys TRANSPORTING NO FIELDS
+            WITH TABLE KEY material = ls_receipt-material
+                           plant = ls_receipt-plant
+                           base_unit = ls_receipt-base_unit.
+          IF sy-subrc = 0.
+            APPEND CORRESPONDING #( ls_receipt ) TO lt_projected_receipts.
+          ENDIF.
+        ENDLOOP.
       ENDLOOP.
-    ENDLOOP.
+    ENDIF.
+
+    IF iv_include_po_confirmations = abap_true.
+      LOOP AT lt_receipt_requests INTO DATA(ls_po_conf_request).
+        ADD 1 TO lv_request_index.
+        lv_request_id = lv_request_index.
+        APPEND VALUE #(
+          request_id   = lv_request_id
+          material     = ls_po_conf_request-material
+          plant        = ls_po_conf_request-plant
+          through_date = ls_po_conf_request-through_date )
+          TO lt_po_conf_requests.
+      ENDLOOP.
+
+      DATA(lt_po_conf_results) = mo_stock_service->get_po_conf_receipts_bulk(
+        it_requests = lt_po_conf_requests ).
+      LOOP AT lt_po_conf_results INTO DATA(ls_po_conf_result).
+        LOOP AT ls_po_conf_result-receipts INTO DATA(ls_po_conf_receipt).
+          READ TABLE lt_receipt_keys TRANSPORTING NO FIELDS
+            WITH TABLE KEY material = ls_po_conf_receipt-material
+                           plant = ls_po_conf_receipt-plant
+                           base_unit = ls_po_conf_receipt-base_unit.
+          IF sy-subrc = 0.
+            APPEND CORRESPONDING #( ls_po_conf_receipt )
+              TO lt_projected_receipts.
+          ENDIF.
+        ENDLOOP.
+      ENDLOOP.
+    ENDIF.
 
     rt_suggestions = suggest_comp_replenishment(
       it_shortages                 = it_shortages
       it_policies                  = it_policies
       it_projected_receipts        = lt_projected_receipts
       it_planning_calendar_periods = it_planning_calendar_periods
+      it_resolved_lot_size_periods = it_resolved_lot_size_periods
       iv_as_of_date                = iv_as_of_date
       iv_net_prior_surplus         = iv_net_prior_surplus
       iv_week_start_weekday        = iv_week_start_weekday ).
@@ -2899,6 +3202,26 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = issue_components_bulk(
+      is_header   = is_header
+      it_requests = lt_bulk_requests
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD issue_components_in_unit.
+    DATA lt_bulk_requests TYPE ty_bulk_issue_requests_in_unit.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        production_order   = iv_production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item
+        quantity           = ls_request-quantity
+        unit               = ls_request-unit
+        storage_location   = ls_request-storage_location
+        batch              = ls_request-batch ) TO lt_bulk_requests.
+    ENDLOOP.
+
+    rs_result = issue_components_bulk_in_unit(
       is_header   = is_header
       it_requests = lt_bulk_requests
       iv_test_run = iv_test_run ).
@@ -2926,11 +3249,107 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     DATA(lt_components) = get_open_components_bulk(
       it_production_orders = lt_production_orders ).
+
+    rs_result = post_component_issues_bulk(
+      is_header     = is_header
+      it_requests   = it_requests
+      it_components = lt_components
+      iv_test_run   = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD issue_components_bulk_in_unit.
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR it_requests IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
+      WITH UNIQUE KEY table_line.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      IF ls_request-reservation_number IS INITIAL
+          OR ls_request-reservation_item IS INITIAL
+          OR ls_request-quantity <= 0
+          OR ls_request-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-production_order INTO TABLE lt_seen_orders.
+      IF sy-subrc = 0.
+        APPEND ls_request-production_order TO lt_production_orders.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lt_components) = get_open_components_bulk(
+      it_production_orders = lt_production_orders ).
+    DATA lt_seen TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    DATA lt_base_requests TYPE ty_bulk_issue_requests.
+
+    LOOP AT it_requests INTO ls_request.
+      INSERT VALUE #(
+        production_order   = ls_request-production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item )
+        INTO TABLE lt_seen.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      READ TABLE lt_components INTO DATA(ls_component)
+        WITH KEY production_order   = ls_request-production_order
+                 reservation_number = ls_request-reservation_number
+                 reservation_item   = ls_request-reservation_item.
+      IF sy-subrc <> 0
+          OR ls_component-material IS INITIAL
+          OR ls_component-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_component-material
+        iv_quantity    = ls_request-quantity
+        iv_source_unit = ls_request-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> ls_component-unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        production_order   = ls_request-production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item
+        quantity           = ls_conversion-base_quantity
+        storage_location   = ls_request-storage_location
+        batch              = ls_request-batch ) TO lt_base_requests.
+    ENDLOOP.
+
+    rs_result = post_component_issues_bulk(
+      is_header     = is_header
+      it_requests   = lt_base_requests
+      it_components = lt_components
+      iv_test_run   = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_component_issues_bulk.
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR it_requests IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA lt_seen TYPE HASHED TABLE OF ty_component_key
       WITH UNIQUE KEY production_order reservation_number reservation_item.
     DATA lt_issue_requests TYPE zcl_reservation_issue_service=>ty_issue_requests.
 
     LOOP AT it_requests INTO DATA(ls_issue_request).
+      IF ls_issue_request-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
       IF ls_issue_request-reservation_number IS INITIAL
           OR ls_issue_request-reservation_item IS INITIAL
           OR ls_issue_request-quantity <= 0.
@@ -2946,7 +3365,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      READ TABLE lt_components INTO DATA(ls_component)
+      READ TABLE it_components INTO DATA(ls_component)
         WITH KEY production_order   = ls_issue_request-production_order
                  reservation_number = ls_issue_request-reservation_number
                  reservation_item   = ls_issue_request-reservation_item.
@@ -2988,6 +3407,26 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       iv_test_run = iv_test_run ).
   ENDMETHOD.
 
+  METHOD return_components_in_unit.
+    DATA lt_bulk_requests TYPE ty_bulk_return_requests_in_unit.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        production_order   = iv_production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item
+        quantity           = ls_request-quantity
+        unit               = ls_request-unit
+        storage_location   = ls_request-storage_location
+        batch              = ls_request-batch ) TO lt_bulk_requests.
+    ENDLOOP.
+
+    rs_result = return_components_bulk_in_unit(
+      is_header   = is_header
+      it_requests = lt_bulk_requests
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
   METHOD return_components_bulk.
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
@@ -3010,11 +3449,109 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     DATA(lt_components) = mo_repository->get_components_bulk(
       it_production_orders = lt_production_orders ).
+    rs_result = post_component_returns_bulk(
+      is_header     = is_header
+      it_requests   = it_requests
+      it_components = lt_components
+      iv_test_run   = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD return_components_bulk_in_unit.
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR it_requests IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
+      WITH UNIQUE KEY table_line.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      IF ls_request-reservation_number IS INITIAL
+          OR ls_request-reservation_item IS INITIAL
+          OR ls_request-quantity <= 0
+          OR ls_request-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-production_order INTO TABLE lt_seen_orders.
+      IF sy-subrc = 0.
+        APPEND ls_request-production_order TO lt_production_orders.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lt_components) = mo_repository->get_components_bulk(
+      it_production_orders = lt_production_orders ).
+    DATA lt_seen TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    DATA lt_base_requests TYPE ty_bulk_return_requests.
+
+    LOOP AT it_requests INTO ls_request.
+      INSERT VALUE #(
+        production_order   = ls_request-production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item )
+        INTO TABLE lt_seen.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      READ TABLE lt_components INTO DATA(ls_component)
+        WITH KEY production_order   = ls_request-production_order
+                 reservation_number = ls_request-reservation_number
+                 reservation_item   = ls_request-reservation_item.
+      IF sy-subrc <> 0
+          OR ls_component-is_deleted <> space
+          OR ls_component-movement_type <> '261'
+          OR ls_component-material IS INITIAL
+          OR ls_component-unit IS INITIAL
+          OR ls_component-withdrawn_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_component-material
+        iv_quantity    = ls_request-quantity
+        iv_source_unit = ls_request-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> ls_component-unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        production_order   = ls_request-production_order
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item
+        quantity           = ls_conversion-base_quantity
+        storage_location   = ls_request-storage_location
+        batch              = ls_request-batch ) TO lt_base_requests.
+    ENDLOOP.
+
+    rs_result = post_component_returns_bulk(
+      is_header     = is_header
+      it_requests   = lt_base_requests
+      it_components = lt_components
+      iv_test_run   = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_component_returns_bulk.
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR it_requests IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA lt_seen TYPE HASHED TABLE OF ty_component_key
       WITH UNIQUE KEY production_order reservation_number reservation_item.
     DATA lt_return_requests TYPE zcl_reservation_issue_service=>ty_issue_requests.
 
-    LOOP AT it_requests INTO ls_request.
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
       IF ls_request-reservation_number IS INITIAL
           OR ls_request-reservation_item IS INITIAL
           OR ls_request-quantity <= 0.
@@ -3030,7 +3567,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      READ TABLE lt_components INTO DATA(ls_component)
+      READ TABLE it_components INTO DATA(ls_component)
         WITH KEY production_order   = ls_request-production_order
                  reservation_number = ls_request-reservation_number
                  reservation_item   = ls_request-reservation_item.
@@ -3062,6 +3599,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       iv_fiscal_year       = iv_fiscal_year
       iv_posting_date      = iv_posting_date
       it_item_numbers      = it_item_numbers ).
+  ENDMETHOD.
+
+  METHOD cancel_component_issues_bulk.
+    rs_result = mo_goods_movement_service->cancel_material_documents_bulk(
+      it_requests = it_requests
+      iv_atomic   = iv_atomic ).
   ENDMETHOD.
 
 ENDCLASS.

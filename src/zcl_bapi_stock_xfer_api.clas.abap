@@ -132,6 +132,12 @@ CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
     DATA lt_itemsx TYPE STANDARD TABLE OF bapimepoitemx WITH DEFAULT KEY.
     DATA ls_return TYPE bapiret2.
     DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA lv_test_run TYPE c LENGTH 1.
+
+    rs_result-is_test_run = iv_test_run.
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
 
     LOOP AT it_item_numbers INTO DATA(lv_item_number).
       CLEAR: ls_item, ls_itemx.
@@ -147,6 +153,7 @@ CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
     CALL FUNCTION 'BAPI_PO_CHANGE'
       EXPORTING
         purchaseorder = iv_purchase_order
+        testrun       = lv_test_run
       TABLES
         return        = lt_return
         poitem        = lt_items
@@ -184,6 +191,12 @@ CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
     DATA lt_itemsx TYPE STANDARD TABLE OF bapimepoitemx WITH DEFAULT KEY.
     DATA ls_return TYPE bapiret2.
     DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA lv_test_run TYPE c LENGTH 1.
+
+    rs_result-is_test_run = iv_test_run.
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
 
     LOOP AT it_item_numbers INTO DATA(lv_item_number).
       CLEAR: ls_item, ls_itemx.
@@ -199,6 +212,7 @@ CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
     CALL FUNCTION 'BAPI_PO_CHANGE'
       EXPORTING
         purchaseorder = iv_purchase_order
+        testrun       = lv_test_run
       TABLES
         return        = lt_return
         poitem        = lt_items

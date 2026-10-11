@@ -26,6 +26,9 @@ CLASS lcl_order_api_double IMPLEMENTATION.
   METHOD zif_sales_order_api~change_order.
   ENDMETHOD.
 
+  METHOD zif_sales_order_api~reject_order_items.
+  ENDMETHOD.
+
   METHOD zif_sales_order_api~commit.
   ENDMETHOD.
 
@@ -153,6 +156,9 @@ CLASS lcl_alloc_stock_repo IMPLEMENTATION.
   METHOD zif_stock_repository~get_projected_receipts.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_po_confirmed_receipts.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     ADD 1 TO mv_read_count.
     rv_quantity = mv_safety_stock.
@@ -173,14 +179,47 @@ CLASS lcl_alloc_stock_repo IMPLEMENTATION.
     CLEAR rs_status.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_stock_status_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_stock_status_by_location.
     ADD 1 TO mv_read_count.
     CLEAR rt_status.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_location_stock_status_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_stock_status_by_batch.
     ADD 1 TO mv_read_count.
     CLEAR rt_status.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_batch_stock_status_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_by_location.
@@ -3394,6 +3433,8 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
         ( storage_location   = '0001'
           available_quantity = '3.000' )
         ( storage_location   = '0002'
+          available_quantity = '2.000' )
+        ( storage_location   = '0003'
           available_quantity = '2.000' ) ) ).
     mo_order_api->set_read_result(
       is_result = VALUE #(
@@ -3530,6 +3571,8 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
         ( storage_location   = '0001'
           available_quantity = '3.000' )
         ( storage_location   = '0002'
+          available_quantity = '2.000' )
+        ( storage_location   = '0003'
           available_quantity = '2.000' ) ) ).
     mo_order_api->set_read_result(
       is_result = VALUE #(
@@ -3542,19 +3585,42 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
               base_unit          = 'EA'
               open_base_quantity = '4.000' ) ) ) ) ).
 
-    DATA(ls_result) = mo_cut->reserve_order(
-      iv_sales_document      = '0000004711'
-      it_location_selections = VALUE #(
+    DATA(ls_preview) = mo_cut->preview_order(
+      iv_sales_document            = '0000004711'
+      it_location_selections       = VALUE #(
         ( item_number      = '000010'
           storage_location = '0002'
-          allow_fallback   = abap_true ) ) ).
+          allow_fallback   = abap_true ) )
+      it_location_priority         = VALUE #(
+        ( '0003' )
+        ( '0001' ) )
+      it_allowed_storage_locations = VALUE #(
+        ( '0002' )
+        ( '0003' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = ls_preview-storage_allocations[ 2 ]-storage_location ).
+
+    DATA(ls_result) = mo_cut->reserve_order(
+      iv_sales_document            = '0000004711'
+      it_location_selections       = VALUE #(
+        ( item_number      = '000010'
+          storage_location = '0002'
+          allow_fallback   = abap_true ) )
+      it_location_priority         = VALUE #(
+        ( '0003' )
+        ( '0001' ) )
+      it_allowed_storage_locations = VALUE #(
+        ( '0002' )
+        ( '0003' ) ) ).
     DATA(lt_requests) = mo_reservation_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
-      exp = CONV mard-labst( '5.000' )
+      exp = CONV mard-labst( '4.000' )
       act = ls_result-allocations[ 1 ]-available_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -3563,7 +3629,7 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = CONV mard-labst( '2.000' )
       act = lt_requests[ 1 ]-quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0003'
       act = lt_requests[ 2 ]-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )

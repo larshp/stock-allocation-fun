@@ -24,6 +24,28 @@ INTERFACE zif_sales_order_api PUBLIC.
     END OF ty_item.
   TYPES ty_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
   TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES:
+    BEGIN OF ty_item_rejection,
+      item_number      TYPE c LENGTH 6,
+      rejection_reason TYPE c LENGTH 2,
+    END OF ty_item_rejection.
+  TYPES ty_item_rejections TYPE STANDARD TABLE OF
+    ty_item_rejection WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_rejected_item,
+      item_number            TYPE c LENGTH 6,
+      material               TYPE mard-matnr,
+      plant                  TYPE mard-werks,
+      sales_quantity         TYPE bapisdit-req_qty,
+      sales_unit             TYPE bapisdit-sales_unit,
+      sales_unit_numerator   TYPE bapisdit-sales_qty1,
+      sales_unit_denominator TYPE bapisdit-sales_qty2,
+      base_quantity          TYPE mard-labst,
+      base_unit              TYPE mara-meins,
+      rejection_reason       TYPE bapisdit-reason_rej,
+    END OF ty_rejected_item.
+  TYPES ty_rejected_items TYPE STANDARD TABLE OF
+    ty_rejected_item WITH EMPTY KEY.
 
   TYPES:
     BEGIN OF ty_order,
@@ -36,6 +58,7 @@ INTERFACE zif_sales_order_api PUBLIC.
       customer_purchase_order TYPE c LENGTH 20,
       document_date           TYPE d,
       items                   TYPE ty_items,
+      rejected_items          TYPE ty_rejected_items,
     END OF ty_order.
 
   TYPES:
@@ -56,6 +79,8 @@ INTERFACE zif_sales_order_api PUBLIC.
       sales_document TYPE ty_sales_document,
       messages       TYPE ty_messages,
       is_successful  TYPE abap_bool,
+      is_test_run    TYPE abap_bool,
+      is_committed   TYPE abap_bool,
     END OF ty_write_result.
   TYPES:
     BEGIN OF ty_commit_result,
@@ -83,6 +108,14 @@ INTERFACE zif_sales_order_api PUBLIC.
       iv_test_run       TYPE abap_bool
     RETURNING
       VALUE(rs_result)  TYPE ty_write_result.
+
+  METHODS reject_order_items
+    IMPORTING
+      iv_sales_document  TYPE ty_sales_document
+      it_item_rejections TYPE ty_item_rejections
+      iv_test_run        TYPE abap_bool
+    RETURNING
+      VALUE(rs_result)   TYPE ty_write_result.
 
   METHODS commit
     RETURNING

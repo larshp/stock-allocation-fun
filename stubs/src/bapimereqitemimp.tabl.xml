@@ -106,6 +106,14 @@
           <INTTYPE>N</INTTYPE>
           <INTLEN>000010</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>DELETE_IND</FIELDNAME>
+          <POSITION>0013</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

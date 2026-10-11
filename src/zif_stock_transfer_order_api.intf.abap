@@ -70,6 +70,7 @@ INTERFACE zif_stock_transfer_order_api PUBLIC.
     BEGIN OF ty_change_result,
       messages      TYPE ty_messages,
       is_successful TYPE abap_bool,
+      is_test_run   TYPE abap_bool,
     END OF ty_change_result.
 
   METHODS create_order
@@ -82,6 +83,7 @@ INTERFACE zif_stock_transfer_order_api PUBLIC.
     IMPORTING
       iv_purchase_order TYPE eord-ebeln
       it_item_numbers   TYPE ty_item_numbers
+      iv_test_run       TYPE abap_bool DEFAULT abap_false
     RETURNING
       VALUE(rs_result)  TYPE ty_change_result.
 
@@ -89,6 +91,7 @@ INTERFACE zif_stock_transfer_order_api PUBLIC.
     IMPORTING
       iv_purchase_order TYPE eord-ebeln
       it_item_numbers   TYPE ty_item_numbers
+      iv_test_run       TYPE abap_bool DEFAULT abap_false
     RETURNING
       VALUE(rs_result)  TYPE ty_change_result.
 

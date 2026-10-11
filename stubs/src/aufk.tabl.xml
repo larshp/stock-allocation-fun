@@ -75,6 +75,22 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>OBJNR</FIELDNAME>
+          <POSITION>0008</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000022</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000044</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>STSMA</FIELDNAME>
+          <POSITION>0009</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

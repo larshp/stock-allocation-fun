@@ -909,6 +909,12 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'BOX'
       act = lt_candidates[ 2 ]-purchase_order_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV eina-umrez( 12 )
+      act = lt_candidates[ 2 ]-order_to_base_num ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV eina-umren( 1 )
+      act = lt_candidates[ 2 ]-order_to_base_den ).
 
     lt_candidates = lo_cut->get_valid_pir_candidates(
       it_requests             = VALUE #(

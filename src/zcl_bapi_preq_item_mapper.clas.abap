@@ -15,6 +15,18 @@ CLASS zcl_bapi_preq_item_mapper DEFINITION
       EXPORTING
         et_items      TYPE ty_bapi_items
         et_item_flags TYPE ty_bapi_item_flags.
+    CLASS-METHODS map_deleted_items
+      IMPORTING
+        it_item_numbers TYPE zif_purchase_requisition_api=>ty_requisition_item_numbers
+      EXPORTING
+        et_items        TYPE ty_bapi_items
+        et_item_flags   TYPE ty_bapi_item_flags.
+    CLASS-METHODS map_item_updates
+      IMPORTING
+        it_item_updates TYPE zif_purchase_requisition_api=>ty_item_updates
+      EXPORTING
+        et_items        TYPE ty_bapi_items
+        et_item_flags   TYPE ty_bapi_item_flags.
 ENDCLASS.
 
 CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
@@ -61,6 +73,64 @@ CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
       IF ls_request_item-source_agreement_item IS NOT INITIAL.
         ls_item_flags-agmt_item = abap_true.
       ENDIF.
+      APPEND ls_item_flags TO et_item_flags.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD map_deleted_items.
+    LOOP AT it_item_numbers INTO DATA(lv_item_number).
+      APPEND VALUE #(
+        preq_item  = lv_item_number
+        delete_ind = abap_true ) TO et_items.
+      APPEND VALUE #(
+        preq_item  = lv_item_number
+        preq_itemx = abap_true
+        delete_ind = abap_true ) TO et_item_flags.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD map_item_updates.
+    LOOP AT it_item_updates INTO DATA(ls_update).
+      DATA(ls_item) = VALUE bapimereqitemimp(
+        preq_item = ls_update-item_number ).
+      DATA(ls_item_flags) = VALUE bapimereqitemx(
+        preq_item  = ls_update-item_number
+        preq_itemx = abap_true ).
+
+      IF ls_update-change_quantity = abap_true.
+        ls_item-quantity = ls_update-quantity.
+        ls_item_flags-quantity = abap_true.
+      ENDIF.
+      IF ls_update-change_delivery_date = abap_true.
+        ls_item-deliv_date = ls_update-delivery_date.
+        ls_item_flags-deliv_date = abap_true.
+      ENDIF.
+      IF ls_update-change_purchasing_group = abap_true.
+        ls_item-pur_group = ls_update-purchasing_group.
+        ls_item_flags-pur_group = abap_true.
+      ENDIF.
+      IF ls_update-change_purchasing_org = abap_true.
+        ls_item-purch_org = ls_update-purchasing_org.
+        ls_item_flags-purch_org = abap_true.
+      ENDIF.
+      IF ls_update-change_source_vendor = abap_true.
+        ls_item-fixed_vend = ls_update-source_vendor.
+        ls_item_flags-fixed_vend = abap_true.
+      ENDIF.
+      IF ls_update-change_source_info_record = abap_true.
+        ls_item-info_rec = ls_update-source_info_record.
+        ls_item_flags-info_rec = abap_true.
+      ENDIF.
+      IF ls_update-change_source_agreement = abap_true.
+        ls_item-agreement = ls_update-source_agreement.
+        ls_item_flags-agreement = abap_true.
+      ENDIF.
+      IF ls_update-change_source_agreement_item = abap_true.
+        ls_item-agmt_item = ls_update-source_agreement_item.
+        ls_item_flags-agmt_item = abap_true.
+      ENDIF.
+
+      APPEND ls_item TO et_items.
       APPEND ls_item_flags TO et_item_flags.
     ENDLOOP.
   ENDMETHOD.

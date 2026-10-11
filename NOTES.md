@@ -1,5 +1,440 @@
 # Development notes
 
+## 2026-10-11
+
+- Added `PREPARE_FROM_SUGGESTIONS` to `ZCL_PURCHASE_ORDER_SERVICE`. It returns
+  the validated single-PO request with selected sources, schedule lines, and
+  converted quantities without calling the PO API; creation submits that same
+  request. Tests cover source and unit mapping plus no-write preparation.
+- Added `PREPARE_FROM_SUGGESTIONS_BULK` to expose the validated PO request
+  groups before writing. Bulk and atomic suggestion creation now share those
+  prepared groups. Tests cover vendor grouping, original suggestion indexes,
+  converted quantities, and no-write preparation. `npm.cmd test` passed with
+  zero abaplint issues across 116 files and 1,156 transpiler outputs; all unit
+  tests passed.
+- Added `PREPARE_FROM_REQUISITION_ITEMS` to the PO service. It validates
+  selected PR rows and returns the header plus remaining-quantity PO items and
+  PR references without calling the PO API. `CREATE_FROM_REQUISITION_ITEMS`
+  now submits this prepared request. Tests verify the request and the no-write
+  preparation path. `npm.cmd test` passed with zero abaplint issues across 116
+  files and 1,156 transpiler outputs; all unit tests passed.
+- Added `PREPARE_FROM_REQUISITIONS` for grouped PO conversion from selected PR
+  items. It validates all references and returns first-seen vendor/organization
+  groups with remaining quantities; bulk and atomic creation now consume this
+  same prepared list. Tests cover grouping, item mapping, and no-write preview.
+  `npm.cmd test` passed with zero abaplint issues across 116 files and 1,156
+  transpiler outputs; all unit tests passed.
+- Added `PREPARE_FROM_SUGGESTIONS`, `PREPARE_FROM_SELECTED_SOURCES`, and
+  `PREPARE_FROM_QUOTA_SPLITS` to the purchase-requisition service. They validate
+  and map direct replenishment rows, caller-selected sources, or reconciled
+  quota shares into the exact PR request without an API call. All matching
+  create methods now submit those prepared requests, preserving source indexes
+  and unit conversions. Tests cover split quantities, source/unit mapping,
+  quota reconciliation, and no-write preparation. `npm.cmd test` passed with
+  zero abaplint issues across 116 files and 1,156 transpiler outputs; all unit
+  tests passed.
+- Added `READ_CONFIRMATIONS_BULK` to retrieve production-operation time
+  confirmations by order from AFRU and join AFVC for operation/sequence data.
+  Results preserve confirmation number/counter, posting date, final flag, and
+  reversal status; empty results are reported per order. The repository and
+  service validate requested orders and returned confirmation keys.
+  `npm.cmd test` passed with zero abaplint issues across 116 files and 1,156
+  transpiler outputs; all unit tests passed.
+- Added `READ_OPERATIONS_BULK` for production and process orders. It reads the
+  AFKO routing key and joins AFVC to return ordered operations, including their
+  internal counter, sequence, operation/suboperation numbers, description, and
+  control key. Results preserve request order, report empty orders, and reject
+  foreign or duplicate repository rows before grouping. `npm.cmd test` passed
+  with zero abaplint issues across 116 files and 1,156 transpiler outputs; all
+  unit tests passed. Target table/query details remain in `ANOMALIES.md`.
+- Added per-operation production time-ticket confirmations through
+  `BAPI_PRODORDCONF_CREATE_TT`. Requests carry the order, operation and
+  sequence, posting date, yield/scrap/rework quantities, ISO unit, final flag,
+  and optional reservation clearing. The adapter closes each SAP LUW directly
+  after the BAPI call; the service maps detail-return keys and messages and
+  continues after failures. Local validation, mapper, bulk continuation, and
+  commit-failure tests were added; SAP's BAPI call and automatic inventory
+  effects still require target-system verification.
+- Added atomic and per-confirmation bulk cancellation through
+  `BAPI_PRODORDCONF_CANCEL`. Requests require unique confirmation/counter pairs
+  and a posting date; the service maps SAP messages, shares rollback for atomic
+  groups, and commits bulk cancellations independently while continuing after
+  errors. `npm.cmd test` passed: abaplint found zero issues across 116 files,
+  transpilation wrote 1,151 outputs, and all 1,024 ABAP Unit methods passed.
+- Added atomic and per-operation bulk release for production-order operations
+  through `BAPI_PRODORD_RELEASE_OPERATION`. Requests use unique order/operation
+  keys and four-character internal operation numbers; atomic release shares one
+  commit/rollback while bulk release commits each operation and continues after
+  errors. Adapter tests cover detail-message mapping; service tests cover
+  commits, rollback, continuation, and key validation. `npm.cmd test` passed:
+  abaplint found zero issues across 116 files, transpilation wrote 1,151
+  outputs, and all 1,019 ABAP Unit methods passed.
+- Added atomic and per-order bulk quantity/date changes for production orders
+  through `BAPI_PRODORD_CHANGE`. Requests explicitly select quantity with its
+  unit, basic start date, and/or basic finish date; the adapter sets matching
+  X-structure flags. The service prevalidates the full request, supports shared
+  rollback or independent commits, and continues bulk processing after
+  failures. `npm.cmd test` passed: abaplint found zero issues across 116 files,
+  transpilation wrote 1,150 outputs, and all 1,014 ABAP Unit methods passed.
+- Extended `ZCL_PROD_ORDER_READ_SERVICE->READ_ORDERS_BULK` with active system
+  and user statuses for production and process orders. The repository filters
+  inactive JEST rows and resolves language-specific text from TJ02T or TJ30T;
+  status codes remain available when a translation is missing. Added SAP table
+  stubs for JEST and status texts, and extended AUFK with its object number and
+  status profile. `npm.cmd test` passed: abaplint found zero issues across 116
+  files, transpilation wrote 1,148 outputs, and all 1,007 ABAP Unit methods
+  passed.
+- Added atomic and per-order bulk deletion-indicator operations for production
+  orders through `BAPI_PRODORD_SET_DEL_INDICATOR`. They apply DLT after SAP has
+  set DLFL; atomic mode shares one commit/rollback, while bulk mode continues
+  after per-order failures. Tests cover adapter mapping, rollback, commit
+  failures, continuation, and prevalidation. `npm.cmd test` passed: abaplint
+  found zero issues across 116 files, transpilation wrote 1,145 outputs, and
+  all 1,006 ABAP Unit methods passed.
+- Added `CLOSE_ORDERS_ATOMIC` and `CLOSE_ORDERS_BULK` to the production-order
+  service through `BAPI_PRODORD_CLOSE`. Atomic close shares one commit and
+  rolls back the group on a BAPI or commit error; bulk close commits each order
+  and continues after failures. Tests cover mapping, rollback, continuation,
+  commit errors, and request validation. `npm.cmd test` passed: abaplint found
+  zero issues across 116 files, transpilation wrote 1,145 outputs, and all
+  1,000 ABAP Unit methods passed.
+- Added `ZCL_PROD_ORDER_READ_SERVICE->READ_ORDERS_BULK` for production and
+  process orders. It groups all AFPO output items under each requested order
+  while preserving request order. It converts ordered, received, and open
+  quantities to the material base unit,
+  and exposes basic dates and raw order/item indicators. Missing orders and
+  unit conversion failures are counted separately; duplicate or blank keys
+  fail before the repository query. `npm.cmd test` passed: abaplint reported
+  zero issues across 116 files, transpilation wrote 1,145 outputs, and all 978
+  ABAP Unit methods passed.
+- Added `RELEASE_ORDERS_BULK_AFTER_ATP` to the production-order service. It
+  validates the complete ATP response before writing, skips orders with short
+  components, then releases each ready order with an independent commit while
+  continuing after release/commit failures. Results keep original request
+  indexes and per-order readiness, release, and commit status. Tests cover a
+  mixed ready/short request, continuation after a release error, incomplete
+  checker results, and missing checker configuration. `npm.cmd test` passed:
+  abaplint reported zero issues across 116 files, transpilation wrote 1,145
+  outputs, and all 982 ABAP Unit methods passed.
+- Added atomic and per-order bulk technical completion for production orders
+  through `BAPI_PRODORD_COMPLETE_TECH`. Atomic completion shares one commit and
+  rolls back on the first BAPI/commit failure; bulk completion commits each
+  order and continues after failures. Tests cover shared rollback, continuation
+  after a completion and commit error, and prevalidation. `npm.cmd test` passed:
+  abaplint reported zero issues across 116 files, transpilation wrote 1,145
+  outputs, and all 988 ABAP Unit methods passed.
+- Added atomic and per-order bulk production-order deletion-flag operations
+  through `BAPI_PRODORD_SET_DELETION_FLAG`. They validate the full key list
+  before writing; atomic mode shares one commit/rollback, while bulk mode
+  continues after per-order failures. Tests cover mapping, rollback, commit
+  failures, continuation, and prevalidation. `npm.cmd test` passed: abaplint
+  reported zero issues across 116 files, transpilation wrote 1,145 outputs,
+  and all 994 ABAP Unit methods passed.
+- Sales-order reads now expose rejected quantities in both the sales unit and
+  material base unit. The adapter converts each rejected item using its
+  sales-unit ratio, retains the rejection reason, and reports a failed read
+  when conversion is unavailable. Added mapper tests for alternative-unit
+  conversion and missing ratios. `npm.cmd test` passed: abaplint reported zero
+  issues across 95 files, transpilation wrote 1,101 outputs, and all 925 ABAP
+  Unit methods passed.
+- Added `ZCL_PLANNED_ORDER_SERVICE` and a `BAPI_PLANNEDORDER_CREATE` adapter.
+  `CREATE_FROM_SUGGESTIONS` maps in-house suggestions to one planned order per
+  receipt lot, preserving required dates and source suggestion/lot indexes;
+  `PREPARE_FROM_SUGGESTIONS` returns the exact validated per-lot requests and
+  source indexes without calling SAP, so callers can review the payload before
+  writing. `CREATE_ORDERS_ATOMIC` also accepts explicit requests. All orders
+  share one commit, and create or commit failure rolls back the group and
+  clears provisional order numbers. Tests cover BAPI field mapping, lot
+  splitting, no-write preparation, source types, prevalidation, create failure,
+  and commit failure.
+  `npm.cmd test` passed: abaplint reported zero issues across 100 files,
+  transpilation wrote 1,112 outputs, and all 933 ABAP Unit methods passed.
+- Added `DELETE_ORDERS_ATOMIC` through `BAPI_PLANNEDORDER_DELETE`. It rejects
+  blank or duplicate planned-order numbers before writes, stops on the first
+  delete error, and shares one commit or rollback across the group. Tests cover
+  successful batches, prevalidation, BAPI failure, and commit failure.
+  `npm.cmd test` passed: abaplint reported zero issues across 100 files,
+  transpilation wrote 1,112 outputs, and all 937 ABAP Unit methods passed.
+- Added `CREATE_ORDERS_BULK` and `DELETE_ORDERS_BULK` for planned orders. Both
+  prevalidate the complete list, commit each operation independently, continue
+  after BAPI or commit failures, and return per-row status plus success/failure
+  counts. Tests cover individual commits, failure continuation, and clearing
+  provisional create numbers and delete rollback after commit errors.
+  `npm.cmd test` passed:
+  abaplint reported zero issues across 100 files, transpilation wrote 1,112
+  outputs, and all 942 ABAP Unit methods passed.
+- Added `CREATE_FROM_SUGGESTIONS_BULK` for planned-order receipt lots. It uses
+  the validated suggestion-to-lot preparation path, commits each lot
+  independently, and retains the original suggestion and receipt indexes in
+  each row so partial completion can be reconciled. Its test covers multiple
+  lots, independent commits, a failed lot, continuation, and source index
+  mapping. `npm.cmd test` passed: abaplint reported zero issues across 100
+  files, transpilation wrote 1,112 outputs, and all 943 ABAP Unit methods
+  passed.
+- Added atomic and bulk planned-order changes through
+  `BAPI_PLANNEDORDER_CHANGE`. Requests explicitly select quantity, start and
+  finish dates, and firming state, reject blank, duplicate, ambiguous, or invalid updates
+  before writes, and expose per-order commit status in bulk mode. Adapter tests
+  cover field mapping and update flags; service tests cover group rollback,
+  per-order continuation, and commit failures. `npm.cmd test` passed: abaplint
+  reported zero issues across 100 files, transpilation wrote 1,114 outputs, and
+  all 950 ABAP Unit methods passed.
+- Added `READ_ORDERS_BULK` for planned orders. It reads requested headers in a
+  single `PLAF` query, returns rows in input order, exposes fixed/scenario/
+  special-stock/assignment state, and converts quantities to the material base
+  unit when `MARM` has a valid ratio. Missing numbers and failed conversions are
+  explicit per-row results; blank and duplicate inputs fail before the query.
+  Tests cover ordering, conversion, missing orders, missing ratios, duplicate
+  validation, and empty input. `npm.cmd test` passed: abaplint reported zero
+  issues across 104 files, transpilation wrote 1,121 outputs, and all 955 ABAP
+  Unit methods passed.
+- Extended planned-order changes to update the start date through
+  `BAPIPLAF_I2-ORDER_START_DATE` and its X flag. Selected dates must be supplied;
+  a start date supplied without its change flag is rejected. Mapper and service
+  tests cover start/end scheduling fields and prevalidation. `npm.cmd test`
+  passed: abaplint reported zero issues across 104 files, transpilation wrote
+  1,121 outputs, and all 955 ABAP Unit methods passed.
+- Added planned-order conversion through `BAPI_PRODORD_CREATE_FROM_PLORD`.
+  `CONVERT_PLANNED_ORDERS_ATOMIC` validates all order numbers before one shared
+  commit and clears provisional production-order numbers after rollback.
+  `CONVERT_PLANNED_ORDERS_BULK` commits each conversion independently, continues
+  after failures, and returns per-order commit results and counts. SAP-side BAPI
+  availability and LUW behavior remain target-release checks recorded in
+  `ANOMALIES.md`. `npm.cmd test` passed: abaplint reported zero issues across
+  104 files, transpilation wrote 1,121 outputs, and all 960 ABAP Unit methods
+  passed.
+- Added `ZCL_PROD_ORDER_SERVICE` release operations through
+  `BAPI_PRODORD_RELEASE`. Atomic release sends the full validated order list in
+  one BAPI call and commit; bulk release commits each order independently and
+  continues after failures. Both require a caller-supplied SAP release-control
+  value, map per-order BAPI messages, and reject blank or duplicate keys before
+  writing. Added local DDIC stubs for the BAPI order key, detail return, and
+  application log. `npm.cmd test` passed: abaplint reported zero issues across
+  109 files, transpilation wrote 1,133 outputs, and all 967 ABAP Unit methods
+  passed.
+- Added `RELEASE_ORDERS_AFTER_ATP`. A configured component ATP checker runs the
+  existing bulk ATP preview and produces per-order readiness totals. The
+  release service calls `BAPI_PRODORD_RELEASE` only when every open component
+  is fully confirmed; incomplete or malformed readiness data blocks the call.
+  Tests cover the fully confirmed path, a short component, missing rows,
+  summary mapping, and orders without open components. `npm.cmd test` passed:
+  abaplint reported zero issues across 112 files, transpilation wrote 1,138
+  outputs, and all 972 ABAP Unit methods passed.
+- Added demand-to-source reconciliation before ordinary STO writes. Single-pair,
+  one-target multi-source, and multi-target pair creation now reject source
+  plant rows that do not match each demand's allocated base quantity. A
+  tampered-total test confirms rejection before the first order call. `npm.cmd
+  test` passed: abaplint reported zero issues across 94 files, transpilation
+  wrote 1,099 outputs, and all 922 ABAP Unit methods passed.
+- Extended undated exact-batch STO creation to retain issuing-location splits as
+  separate PO items with `SUPPL_STLOC`. Before writing, demand quantities must
+  match source-plant totals, and source-plant totals must match location splits
+  when they are supplied. Legacy results without location detail keep their
+  plant-level item mapping. The same increment keeps dated FEFO total checks at
+  the shared STO boundary and corrects fixtures that mixed source-unit values
+  with base-unit totals. `npm.cmd test` passed: abaplint reported zero issues
+  across 94 files, transpilation wrote 1,099 outputs, and all 921 ABAP Unit
+  methods passed.
+- Hardened dated exact-batch STO input validation: demand base quantities must
+  reconcile to source-plant splits, then to location splits, before creating
+  orders. Added tampered-summary and tampered-location rejection cases.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 917 ABAP Unit methods passed.
+- Added `create_dated_batch_pairs` for date/priority exact-batch previews. It
+  maps each selected batch and issuing location to an STO item with the
+  request's required date, and preserves one shared atomic commit across all
+  source/target pairs. Tests cover multiple required dates in one pair order.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 916 ABAP Unit methods passed.
+- Added `create_dated_batch_atp_pairs` to prevalidate full cumulative ATP
+  confirmation for every material/source-plant/base-unit/date group before
+  creating any STO. It keeps each selected exact batch and issuing location,
+  puts the required date on its item, and uses one shared commit in atomic mode.
+  Tests cover a multi-date order and reject short confirmation before writes.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 915 ABAP Unit methods passed.
+- Added date- and priority-ordered exact-batch cross-plant allocation, including
+  the alternative-unit wrapper and `allocate_plants_date_batch_atp`. ATP checks
+  group positive local allocations by material, source plant, base unit, and
+  required date, accumulating quantities through each date; the local exact
+  batch splits remain unchanged. Tests cover date/priority allocation order,
+  mixed-unit cumulative checks, and invalid ATP rules before reads. `npm.cmd
+  test` passed: abaplint reported zero issues across 94 files, transpilation
+  wrote 1,099 outputs, and all 913 ABAP Unit methods passed.
+- Added `allocate_plants_fefo_atp` for undated unit-aware cross-plant FEFO
+  allocations. It retains local batch/location splits and groups positive source
+  allocations by material, source plant, and base unit for current-date SAP ATP
+  checks. ATP remains separate from batch selection and local quantities. Tests
+  cover invalid options before reads, full-quantity shortfall skipping ATP,
+  mixed-unit groups, and confirmation splitting. `npm.cmd test` passed:
+  abaplint reported zero issues across 94 files and transpilation wrote 1,099
+  outputs; all 901 ABAP Unit methods passed.
+- Added `create_for_fefo_atp_pairs` to turn undated FEFO ATP results into STOs.
+  It validates full ATP confirmation for each material/source-plant/base-unit
+  group before any BAPI write, assigns the caller's delivery date to every
+  selected batch item, and retains source-unit quantities and atomic commit
+  support. Tests cover batch and UOM item mapping, delivery date, shared commit,
+  and short ATP rejection before writes. `npm.cmd test` passed: abaplint reported
+  zero issues across 94 files, transpilation wrote 1,099 outputs, and all 903
+  ABAP Unit methods passed.
+- Added `allocate_plants_batch_atp` for unit-aware exact-batch cross-plant
+  allocation. It preserves batch/location splits and groups positive source
+  quantities by material, source plant, and base unit for current-date SAP ATP
+  checks. Tests cover mixed-unit batches, grouped requests, partial confirmation,
+  and check-rule rejection before reads. `npm.cmd test` passed: abaplint reported
+  zero issues across 94 files, transpilation wrote 1,099 outputs, and all 905
+  ABAP Unit methods passed.
+- Added `create_for_atp_batch_pairs` for exact-batch ATP results. It requires a
+  matching, fully confirmed ATP check for every positive material/source-plant/
+  base-unit group before creating orders, then carries the caller's delivery
+  date, exact batches, source units, receiving locations, and atomic commit
+  behavior into the STOs. Tests cover multi-pair batch item mapping and reject a
+  short confirmation before writes. `npm.cmd test` passed: abaplint reported
+  zero issues across 94 files, transpilation wrote 1,099 outputs, and all 907
+  ABAP Unit methods passed.
+- Added `iv_include_undated_batches` to single-plant and cross-plant FEFO
+  previews, including UOM, dated, and ATP wrappers. It defaults to true;
+  setting it false removes undated batches from eligible availability,
+  safety-stock handling, and allocation splits. Invalid values fail before UOM
+  or stock reads. `npm.cmd test` passed: abaplint reported zero issues across
+  94 files, transpilation wrote 1,099 outputs, and all 900 ABAP Unit methods
+  passed.
+- Extended `iv_require_full_quantity` across single-plant ordinary, dated,
+  storage-location, exact-batch, and FEFO allocation, including unit-aware and
+  ATP wrappers where available. A demand that exceeds remaining eligible stock
+  receives zero local allocation, so later rows can use the unchanged balance;
+  the default still permits partial allocation. Invalid values fail before UOM
+  or stock reads. Dated ATP still checks the requested quantity. `npm.cmd test`
+  passed: abaplint reported zero issues across 94 files, transpilation wrote
+  1,099 outputs, and all 898 ABAP Unit methods passed.
+- Added opt-in `iv_require_full_quantity` to undated and dated cross-plant
+  ordinary, exact-batch, and FEFO allocation, including unit and ATP variants.
+  The default keeps partial allocation; when enabled, insufficient requests
+  allocate zero and leave stock for later demands after all source, location,
+  safety-stock, batch, shelf-life, and date rules are applied. ATP wrappers
+  check only positive local splits. Tests cover no-consumption-on-shortfall,
+  later-demand reuse, unit forwarding, dated FEFO, ATP skipping, and invalid
+  flags before reads. `npm.cmd test` passed: abaplint reported zero issues
+  across 94 files, transpilation wrote 1,099 outputs, and all 895 ABAP Unit
+  methods passed.
+- Added `allocate_plants_atp` for undated unit-aware cross-plant allocation.
+  It groups positive local source splits by material, source plant, and base
+  unit, checks SAP ATP once per group for the current date, and returns capped
+  confirmed/unconfirmed base quantities alongside the unchanged local estimate.
+  Missing check rules fail before stock/UOM reads. Tests cover mixed input units,
+  grouped ATP requests, partial confirmations, and pre-read rejection.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 892 ABAP Unit methods passed.
+- Added per-request, per-source-plant `it_source_locations` scopes to ordinary,
+  exact-batch, and FEFO cross-plant allocation and their unit-aware variants.
+  The scopes intersect the existing shared allowlist and location priority;
+  when supplied, every source pair must have at least one mapped location.
+  Duplicate, blank, and unmapped entries fail before stock/UOM reads, while
+  safety stock remains based on each full source-plant balance. Tests cover all
+  six allocation paths and pre-read validation. `npm.cmd test` passed: abaplint
+  reported zero issues across 94 files, transpilation wrote 1,099 outputs, and
+  all 890 ABAP Unit methods passed.
+- Extended `it_allowed_storage_locations` to ordinary, exact-batch, and FEFO
+  cross-plant allocations and their unit-aware variants. The shared list filters
+  candidate locations in every source plant; empty or omitted lists leave all
+  locations eligible. Safety stock is still deducted from each full source-plant
+  balance before filtering. Tests cover ordinary, batch, FEFO, and UOM paths.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 886 ABAP Unit methods passed.
+- Added optional `it_storage_location_priority` to ordinary, exact-batch, and
+  FEFO cross-plant allocations and their unit-aware variants. Source-plant order
+  remains primary; ordinary and exact-batch paths prefer listed locations,
+  while FEFO uses location order only for the same batch and expiration date.
+  The existing allowlist still filters both availability and allocation, and
+  invalid priorities fail before stock/UOM reads. Tests cover priority order,
+  allowlist interaction, FEFO ties, unit-aware forwarding, and pre-read checks.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 886 ABAP Unit methods passed.
+- Extended caller location priority to dated cross-plant FEFO and its unit-aware
+  and ATP variants. Location order breaks ties only for the same batch and
+  expiration date; required-date, source-plant, expiry, and batch order stay
+  primary. Duplicate priorities fail before stock or UOM reads. Tests cover
+  base-unit selection, UOM and ATP forwarding, allowlist interaction, and
+  pre-read validation.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and all 888 ABAP Unit methods passed.
+- Added optional `it_allowed_storage_locations` filtering to single-plant
+  location, exact-batch, and FEFO allocation. Empty or omitted lists preserve
+  unrestricted behavior; blank and duplicate entries are rejected before
+  stock/UOM reads, and a preferred location outside a nonempty list is rejected.
+  Caller priority orders only allowed candidates. Safety stock remains deducted
+  from the full inventory balance before candidate filtering. Forwarded the
+  option through sales-order preview/reservation, cost-center previews, atomic
+  reservations, and single cost-center paths. Added unit tests for filtered
+  stock splits, exact batch/FEFO filtering, pre-read validation, and wrapper
+  propagation. `npm.cmd test` passed: abaplint reported zero issues across 94
+  files, transpilation wrote 1,099 outputs, and all 882 ABAP Unit methods
+  passed.
+- Added caller-defined storage-location priority to
+  `allocate_by_storage_location` and its unit-aware variant. Explicit per-demand
+  locations remain first; listed fallback locations follow caller order, then
+  unlisted locations follow ascending code order. Blank and duplicate priority
+  entries are rejected before repository reads. The option now passes through
+  sales-order preview/reservation, cost-center location, batch, and FEFO
+  previews, atomic reservations, and single cost-center preview/reservation.
+  Explicit preferred locations remain first. FEFO expiration and batch order
+  remain primary, with location priority resolving same-batch, same-expiration
+  ties. Tests cover wrapper forwarding, preferred-location precedence, custom
+  fallback order, UOM forwarding, and duplicate rejection.
+- Extended exact-batch stock allocation with the caller-defined storage-location
+  priority. Preferred locations remain first, listed fallback locations follow
+  caller order, and unlisted locations follow the existing ascending-code order.
+  The option is available in base and unit-aware stock allocation and passes
+  through sales-order and cost-center exact-batch flows. Tests cover split order,
+  selected-batch isolation, unit-aware preview forwarding, and reservation
+  forwarding.
+- Extended FEFO stock allocation with location-priority tie-breaking. Expiration
+  date and batch remain primary; the caller order resolves locations only for
+  matching batch/date rows, while a demand's preferred location remains first.
+  The option passes through the unit-aware, sales-order, and cost-center FEFO
+  paths. `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and ABAP Unit completed successfully.
+- Expanded dated open production receipts to include released process orders
+  (`AUFK-AUTYP = 40`) alongside PP production orders (`AUTYP = 10`). The
+  projection keeps its existing opt-in flag and quantity/date rules, and labels
+  rows as `PROCESS_ORDER` so callers can distinguish their source. SAP table
+  joins and release-phase behavior still need validation on the target release;
+  see `ANOMALIES.md`.
+- Added `iv_test_run` to STO item deletion and delivery completion, including
+  the single-pair and atomic pair methods. Both adapters pass `TESTRUN` to
+  `BAPI_PO_CHANGE`; successful simulations set `is_successful` and
+  `is_test_run`, leave `is_deleted`/`is_completed` false, and skip
+  commit/rollback. Atomic simulations validate all pairs independently and
+  preserve each pair's outcome, including after a failed pair. Tests cover
+  forwarding, success/error result flags, continued validation, transaction
+  suppression, and invalid flags. `npm.cmd test` passed: abaplint reported zero
+  issues across 94 files, transpilation wrote 1,099 outputs, and ABAP Unit
+  completed successfully. Target BAPI behavior and messages remain to be
+  confirmed; see `ANOMALIES.md`.
+- Added `iv_test_run` to PO item deletion, delivery completion, schedule changes,
+  item quantity changes, and their bulk, atomic, and base-unit variants. The BAPI
+  adapter forwards the flag to `BAPI_PO_CHANGE`; simulations return per-PO
+  messages and skip commit/rollback. Atomic simulations validate each PO call
+  independently and do not establish multi-PO commit behavior. Invalid flags are
+  rejected before reads or writes. Tests cover service flag forwarding, single
+  and atomic simulations, transaction suppression, and invalid-flag rejection.
+  `npm.cmd test` passed: abaplint reported zero issues across 94 files,
+  transpilation wrote 1,099 outputs, and ABAP Unit completed successfully.
+  `BAPI_PO_CHANGE` test-run behavior and returned messages still need validation
+  on the target SAP release; see `ANOMALIES.md`.
+- Added `iv_include_po_confirmations` to the standard projected-receipt APIs,
+  including base-unit, requested-unit, global bulk, and per-request option
+  variants. Bulk option requests can select different PO projections for the
+  same material/plant; each request rejects selecting both regular and
+  confirmation-aware PO receipts. Added the option to single, grouped,
+  unit-aware, ATP, and cross-plant dated allocation; grouped demands share one
+  confirmation projection per material/source plant through the latest demand
+  date. Tests cover source merging, UOM conversion, deadline filtering, grouped
+  queries, chronological netting, source-plant allocation, and conflicting-
+  source validation. `npm.cmd test` passed with zero abaplint issues across 94
+  files and 1,099 transpiler outputs. EKES/EKET confirmation semantics still
+  need target-SAP validation as recorded in `ANOMALIES.md`.
+
 ## 2026-10-03
 
 - Added `SIMULATE_SPLIT_QUOTA` for a bounded split preview over one request's
@@ -2144,3 +2579,689 @@
 - Latest verification after atomic receipt cancellation: `npm.cmd test` passed;
   abaplint reported zero issues across 90 files, the transpiler wrote 718
   objects, and all 582 ABAP Unit methods passed.
+- Added opt-in `iv_atomic` to `CANCEL_STO_RECEIPT_CHAIN` and
+  `CANCEL_STO_RECEIPT_CHAIN_PAIRS`. Atomic mode requires every pair to be
+  received, stages each 101 reversal before its matching 351 reversal, then
+  commits the full group once. A cancellation or commit failure rolls back the
+  group and restores received state. Tests cover the single-pair and multi-pair
+  entry points, one shared commit, failure at both reversal stages, commit
+  failure, and rejection before writes when a pair is not received.
+  Target-release rollback behavior is documented in `ANOMALIES.md`.
+- Latest verification after atomic receipt-chain cancellation: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, all 588 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Added `RETRY_STO_CHAIN_ISSUE` and `RETRY_STO_CHAIN_ISSUE_PAIRS` to retry a
+  pending 351 reversal from prior receipt-chain cancellation output. The retry
+  validates the prior receipt reversal, preserves already completed pairs,
+  leaves rows with a failed 101 reversal untouched, and can atomically commit
+  the outstanding issue reversals. Tests cover recovery after a failed 351,
+  grouped retry, preservation of completed rows, API failure rollback, commit
+  failure, and receipt-pending rejection in atomic mode. The retry scope and
+  SAP state caveat are recorded in `ANOMALIES.md`.
+- Latest verification after STO issue-reversal retry support: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, all 594 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Added `RETRY_STO_CHAIN_RECEIPT` and `RETRY_STO_CHAIN_RECEIPT_PAIRS` to retry
+  101 reversals for pairs still received after a failed cancellation or atomic
+  chain rollback. The methods preserve completed rows and 351-pending rows,
+  restore in-transit status after a successful 101 retry, and keep the
+  aggregate result incomplete until the issue reversal is also complete.
+  Atomic mode groups the pending 101 retries in one LUW. Tests cover recovery
+  through both retry stages, group-abort recovery, shared commit, rollback, and
+  commit failure; target SAP status and rollback limits are recorded in
+  `ANOMALIES.md`.
+- Latest verification after STO receipt-reversal retry support: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, all 599 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Added `RETRY_STO_CHAIN` and `RETRY_STO_CHAIN_PAIRS` to resume mixed
+  receipt-chain cancellation results. Non-atomic recovery commits each
+  outstanding stage independently; atomic recovery stages all remaining 101
+  and 351 reversals in one LUW while preserving the input states on failure.
+  Added tests for mixed pending stages, completed-row preservation, atomic
+  rollback, and the single-pair wrapper. SAP eligibility and rollback caveats
+  are recorded in `ANOMALIES.md`.
+- Latest verification after composite STO chain retry: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 604 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Hardened plant, storage-location, and batch stock-status reads against blank
+  material or plant keys. The service now raises `ZCX_INVALID_STOCK_REQUEST`
+  before repository access, avoiding broad database reads from incomplete
+  selection keys. Added no-read regression coverage and documented the boundary.
+- Latest verification after stock-status key validation: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 605 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Extended the stock-read key guard to `GET_UNRESTRICTED_STOCK`, and reject
+  invalid `iv_protect_safety_stock` values before the repository read. Added
+  regression coverage for blank material, blank plant, and invalid flags.
+- Latest verification after unrestricted-stock key validation: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, all 606 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Added key validation to the sales-order reservation read methods. Single
+  reads reject a blank sales document; bulk reads reject blank entries and
+  return immediately for an empty input list. Added no-read coverage for each
+  case and updated the stock-read assumptions.
+- Latest verification after sales-order reservation key validation:
+  `npm.cmd test` passed; abaplint reported zero issues across 90 files, the
+  transpiler wrote 1090 output files, all 607 ABAP Unit methods passed, and
+  `git diff --check` passed.
+- Added `GET_STOCK_STATUS_BULK` to read keyed material/plant status requests in
+  one repository call. The MARD, RESB, and MARC rows are selected in batches,
+  aggregated by material/plant, and returned in request order. The service
+  rejects blank fields, duplicate request IDs, and malformed repository result
+  sets; empty input returns without a read. Tests cover input validation,
+  output ordering, one repository call, and mismatched or missing repository
+  results. SQL execution in SAP remains to be checked as recorded in
+  `ANOMALIES.md`.
+- Latest verification after bulk stock-status reads: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 610 ABAP Unit methods passed, and `git diff --check` passed.
+- Added `GET_LOCATION_STOCK_STATUS_BULK` for keyed material/plant requests. It
+  batches MARD and RESB reads, aggregates by material, plant, and storage
+  location, then applies the existing location reservation calculator. Results
+  retain zero-available MARD locations and request order. Blank fields,
+  duplicate request IDs, malformed repository results, and empty input follow
+  the same validation contract as the plant-level bulk read. Both bulk RESB
+  selections include reservation number and item so identical quantity rows
+  stay distinct under `FOR ALL ENTRIES`; the target SQL behavior remains listed
+  in `ANOMALIES.md`.
+- Latest verification after bulk location stock status: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 612 ABAP Unit methods passed, and `git diff --check` passed.
+- Added `GET_BATCH_STOCK_STATUS_BULK` for multiple keyed material/plant
+  requests. It batches MCHB stock, MCHA/MCH1 expiration-date, and RESB
+  reservation reads, then reuses the batch reservation calculator. Results
+  preserve request and location/batch order, retain zero-available MCHB rows,
+  and resolve plant-specific expiration dates before global batch dates. The
+  service rejects blank keys, duplicate request IDs, and malformed repository
+  results; empty input returns without a read. Local SQL validation limits are
+  in `ANOMALIES.md`.
+- Latest verification after bulk batch stock status: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 614 ABAP Unit methods passed, and `git diff --check` passed.
+- Added `GET_FEFO_BATCH_STATUS_BULK` with a per-request as-of date and minimum
+  shelf-life window. It validates the full input set before reading, performs
+  one bulk batch-status read, and filters and sorts each response with the
+  existing FEFO eligibility helper. Tests cover request-specific windows,
+  dated-first ordering, undated batches at a zero-day minimum, zero-available
+  batches, invalid inputs, and one repository call. SAP batch determination
+  and ATP remain outside this local estimate, as recorded in `ANOMALIES.md`.
+- Latest verification after bulk FEFO batch status: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 616 ABAP Unit methods passed, and `git diff --check` passed.
+- Added `GET_FEFO_BATCH_STATUS_BULK_UOM`. Each request supplies its material
+  unit; the service returns eligible batch rows with quantities in that unit
+  and both base/request unit codes. It caches conversion ratios by
+  material/unit, validates all requests and ratios before the single batch
+  stock read, and retains the same per-request FEFO filtering and ordering.
+  Tests cover repeated ratio reuse, quantity conversion, different shelf-life
+  windows, unit errors, and one stock read. Target-system ratio/precision and
+  ATP limitations are recorded in `ANOMALIES.md`.
+- Latest verification after bulk FEFO unit conversion: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, all 618 ABAP Unit methods passed, and `git diff --check` passed.
+- Added `GET_STOCK_STATUS_BULK_IN_UNIT` for keyed material/plant/unit requests.
+  It validates the full request set, caches ratios by material/unit, reads
+  plant statuses in one bulk call, and converts all stock, reservation,
+  availability, safety-stock, quality, and blocked quantities to the requested
+  units. Tests cover all converted fields, ratio reuse, input ordering, invalid
+  and unknown units, empty input, and one stock read. SAP ratio and rounding
+  assumptions are documented in `ANOMALIES.md`.
+- Latest verification after bulk stock status unit conversion: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, all 620 ABAP Unit methods passed, and `git diff --check`
+  passed.
+- Added `GET_LOCATION_STOCK_BULK_UOM` for keyed material/plant/unit requests.
+  It validates inputs and conversion ratios before reading, caches ratios by
+  material/unit, performs one bulk location-status read, and converts
+  unrestricted, available, quality-inspection, and blocked quantities while
+  preserving zero-available locations. Tests cover request order, all converted
+  fields, zero availability, repeated ratio reuse, invalid and unknown units,
+  empty input, and one stock read. Target-system ratio and rounding assumptions
+  are documented in `ANOMALIES.md`.
+- Added `GET_BATCH_STOCK_BULK_UOM` for keyed batch-status requests with a
+  requested material unit. It validates all keys and ratios before one bulk
+  batch read, then converts unrestricted and available quantities while
+  preserving batch, location, and expiration details, including zero-available
+  batches. Tests cover request order, quantity conversion, ratio reuse, invalid
+  and unknown units, empty input, and one stock read. Target-system ratio and
+  rounding assumptions are documented in `ANOMALIES.md`.
+- Added `GET_ORDER_RES_BULK_UOM` for keyed sales-document/material/plant/unit
+  requests. It validates all keys and conversion ratios before reading,
+  deduplicates sales documents for one bulk reservation read, and converts
+  matching open reservation quantities while preserving request order and line
+  details. Tests cover conversion, ratio reuse, ordering, invalid and unknown
+  units, empty input, and one read. The assumption that repository reservation
+  quantities are in the material base unit is recorded in `ANOMALIES.md` for
+  target-system confirmation.
+- Added `GET_PROJECTED_RECEIPTS_IN_UNIT` to return PO, STO, production,
+  requisition, planned-order, and scheduling-agreement receipt rows in a
+  requested material unit. It preserves source identity, dates, and both unit
+  codes, validates all source flags and the conversion ratio before reading,
+  and reuses the existing projection query. Tests cover converted quantities,
+  source metadata, invalid flags, unknown units, and one repository read.
+  Target-system conversion and rounding assumptions are in `ANOMALIES.md`.
+- Added `GET_PROJECTED_RECEIPTS_BULK` for keyed material/plant/deadline
+  requests with shared receipt-source flags. It preserves request order and
+  returns each deadline's matching receipt rows. Repeated material/plant pairs
+  share one projection through their latest deadline; empty requests and
+  requests with no enabled source types perform no repository read. Tests cover
+  per-deadline filtering, repeated-pair grouping, distinct-pair reads, invalid
+  keys and flags, empty input, and no-source behavior. Existing SQL limitations
+  are documented in `ANOMALIES.md`.
+- Added `GET_PROJ_RECEIPTS_BULK_UOM` with per-request material units. It
+  validates request keys and all conversion ratios before calling the bulk
+  projection service, then converts quantities while preserving deadline
+  filtering, source identity, request order, and base/request unit codes. Ratio
+  caching is by material/unit and projection grouping remains by material/plant.
+  Tests cover quantity conversion, per-deadline filtering, ratio reuse, invalid
+  flags and units, duplicate IDs, and no-read cases. Target-system conversion
+  assumptions are in `ANOMALIES.md`.
+- Added `GET_PROJ_RECEIPTS_OPTS_BULK` with receipt-source flags on each
+  material/plant/deadline request. It unions source types per material/plant,
+  queries through the latest deadline, and filters each result by that row's
+  own date and source options. Requests with no enabled sources skip repository
+  reads, including when other request groups do have sources. Tests cover
+  different source types, per-request deadline filtering, grouped reads,
+  disabled source groups, duplicate IDs, invalid dates/options, and empty input.
+  Existing projection SQL limitations remain documented in `ANOMALIES.md`.
+- Added `GET_PROJ_RECEIPTS_OPTS_UOM` to combine per-request receipt-source
+  choices and requested units. It validates all request keys, source flags,
+  and unit ratios before calling the grouped projection service; results retain
+  per-request filtering, source details, order, and both unit codes. Tests cover
+  different source types, unit conversion, ratio reuse, malformed options,
+  duplicate IDs, missing and unknown units, and empty input. Target-system UOM
+  assumptions are recorded in `ANOMALIES.md`.
+- Latest verification after per-request source selection with UOM:
+  `npm.cmd test` passed; abaplint reported zero issues across 90 files, the
+  transpiler wrote 1090 output files, all 636 ABAP Unit methods passed, and
+  `git diff --check` passed.
+## Latest progress
+
+- Added `GET_STOCK_IN_TRANSFER_BULK` with request IDs and optional storage
+  locations. It validates required keys and duplicate IDs before repository
+  access, returns rows in request order, and lets each request aggregate either
+  one location or the full plant. The repository reads MARC and MARD rows in
+  bulk and applies each request's location filter. Tests cover mixed location
+  aggregation, result ordering, blank keys, duplicate IDs, mismatched or
+  incomplete repository output, and empty input. SAP SQL checks are documented
+  in `ANOMALIES.md`.
+- Added `GET_STOCK_IN_TRANSFER_BULK_UOM` for requests with material-specific
+  units. It validates request IDs and conversion ratios before stock access,
+  caches repeated material/unit ratios, and returns both base and converted
+  quantities in request order. Tests cover conversion, ratio reuse, invalid
+  units, duplicate IDs, and empty input. Target-system UOM assumptions are in
+  `ANOMALIES.md`.
+- Verification after the aggregate transfer bulk additions: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, ABAP Unit passed, and `git diff --check` passed.
+- Added `GET_TRANSFER_BATCHES_BULK` with keyed material/plant
+  requests and nested batch results. The repository reads matching `MCHB`
+  rows once, and the service preserves request order while sorting each result
+  by storage location and batch. Tests cover grouping, ordering, duplicate IDs,
+  mismatched repository rows, and empty input; SAP query validation is noted in
+  `ANOMALIES.md`.
+- Added `GET_TRANSFER_BATCHES_BULK_UOM` for per-request units. It validates the
+  full request set before UOM reads, caches repeated material/unit ratios, and
+  returns base and converted batch quantities with the sorted batch details.
+  Tests cover conversion, cache reuse, invalid units, duplicate IDs, and empty
+  input; target-system conversion assumptions are in `ANOMALIES.md`.
+- Verification after the bulk batch transfer additions: `npm.cmd test`
+  passed; abaplint reported zero issues across 90 files, the transpiler wrote
+  1090 output files, ABAP Unit passed, and `git diff --check` passed.
+- Added purchasing-unit support to replenishment requisition items. A selected
+  PIR source carries its EINA order-unit ratio into every split lot; callers can
+  also provide a per-suggestion purchasing unit and ratio directly. The service
+  validates ratios before BAPI access and returns converted item quantities
+  with the submitted unit. Tests cover selected-source ratio propagation,
+  split-lot conversion, direct unit controls, and invalid ratios; SAP mapping
+  assumptions are in `ANOMALIES.md`.
+- Verification after purchasing-unit support: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, ABAP Unit passed, and `git diff --check` passed.
+- Added `read_orders` to the sales order service. It validates all document
+  numbers and duplicates before reading, preserves caller order, and returns
+  each API result independently. Tests cover ordering, invalid lists, and empty
+  input; each document still uses the standard detail BAPI, as recorded in
+  `ANOMALIES.md`.
+- Latest verification after the sales order multi read: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1090
+  output files, ABAP Unit passed, and `git diff --check` passed.
+- Added `change_orders_atomic` for multiple sales orders. It validates all
+  documents and item lists before BAPI access, preserves one write result per
+  order, and performs a single commit or group rollback; test runs skip the
+  commit. Tests cover success, simulated execution, change and commit failures,
+  and duplicate-key rejection. Validate the SAP LUW boundary in the target
+  release as recorded in `ANOMALIES.md`.
+- Added `create_orders_atomic` with full header and item prevalidation, one
+  result per created order, and a single commit or group rollback. Non-test
+  creates without a returned document number fail the group. Tests cover
+  success, test runs, BAPI errors, missing document numbers, and rejection
+  before any create call; target SAP LUW assumptions are in `ANOMALIES.md`.
+- Shared atomic commit handling between multi-create and multi-change calls.
+  Single writes now reject invalid test-run flags, detect error-severity commit
+  messages, and return a clear error when a write fails without a message.
+  Latest validation: `npm.cmd test` passed with zero abaplint issues, 1,090
+  transpiler outputs, ABAP Unit success, and `git diff --check` passed.
+- Added `preview_cost_center_demands` for multi-line cost-center planning. It
+  validates all request IDs and fields before conversion or stock reads,
+  converts per-material units, shares each material/plant balance in caller
+  order, and returns per-request allocations and shortfalls without creating
+  reservations. Tests cover conversion, shared stock, order preservation,
+  duplicate IDs, and empty input. See `ANOMALIES.md` for plant-level scope.
+- Wired the cost center service's configured UOM converter into its stock
+  allocator, keeping conversions on the injected repository in tests and
+  integrations. Verification after the bulk preview: `npm.cmd test` passed;
+  abaplint reported zero issues across 90 files, the transpiler wrote 1,090
+  outputs, ABAP Unit completed successfully, and `git diff --check` passed.
+- Added `preview_cost_center_by_date` with shared stock across dated demands,
+  material-specific units, same-date priority, optional projected receipt
+  sources, and safety-stock protection. It returns results in input order and
+  performs no reservation writes. Tests cover date before priority, priority
+  ties, unit conversion, duplicate IDs, invalid dates and flags, and empty
+  input. SAP query and unit assumptions are in `ANOMALIES.md`.
+- Added `preview_cost_center_locations` with per-demand hard locations or
+  preferred-location fallback. It shares location balances across requests,
+  returns converted location splits, validates the full request list before
+  reads, and does not create reservations. Tests cover preferred-first splits,
+  alternative-unit quantities, duplicate IDs, invalid flags, and empty input.
+  `npm.cmd test` passed with zero abaplint issues, 1,090 transpiler outputs,
+  ABAP Unit success, and `git diff --check` passed; SAP query limits are in
+  `ANOMALIES.md`.
+- Added `preview_cost_center_batches` for explicit batch demand lines. It
+  shares the selected batch/location balances in caller order, supports
+  preferred-location fallback without batch substitution, returns expiration
+  and unit-converted splits, and validates all rows before stock reads. Tests
+  cover split conversion, duplicate IDs, missing batches, invalid flags, and
+  empty input. A stocked alternate batch does not satisfy a selected-batch
+  shortfall. Verification: `npm.cmd test` passed with zero abaplint issues,
+  1,090 transpiler outputs, ABAP Unit success, and `git diff --check` passed;
+  target-system batch query assumptions are in `ANOMALIES.md`.
+- Added `preview_cost_center_fefo` for multiple cost center demands. It shares
+  batch balances in caller order, applies one as-of date and minimum shelf life,
+  preserves preferred-location fallback, and returns converted per-batch
+  splits. Tests cover date eligibility, shared stock shortfalls, preferred
+  locations, unit conversion, invalid input, and empty input. Target-system
+  query and batch-determination limits are recorded in `ANOMALIES.md`.
+- Extended `preview_cost_center_by_date` with optional cumulative ATP
+  diagnostics. Requests are checked by material, plant, base unit, and required
+  date; local dated allocations remain separate and results stay in caller
+  order. Tests cover grouped cumulative quantities, unit conversion, invalid
+  ATP options, and zero reservation writes. Target ATP behavior is recorded in
+  `ANOMALIES.md`. Latest combined validation: `npm.cmd test` passed; abaplint
+  reported zero issues across 90 files, the transpiler wrote 1,090 outputs,
+  ABAP Unit completed successfully, and `git diff --check` passed.
+- Added `reserve_cost_centers_atomic` for all-or-nothing multi-demand writes. It
+  validates the full list, preallocates shared location stock, requires full
+  quantity coverage, creates one reservation per demand, and commits once or
+  rolls back on an API or commit failure. Tests cover shared location splits,
+  stock shortfall before writes, create and commit rollback, simulation, invalid
+  input, and empty input. Confirm SAP LUW behavior as recorded in
+  `ANOMALIES.md`. Validation passed: abaplint reported zero issues across 90
+  files, the transpiler wrote 1,090 outputs, and ABAP Unit completed
+  successfully. Extended the same method to support groups using either an
+  explicit batch on every demand or automatic FEFO selection. Tests cover
+  shared batch balances, alternate-batch exclusion, expiry filtering, and batch
+  fields in reservation items; mixed batch strategies are rejected before
+  stock reads. The full suite passed again after this extension.
+- Added optional cumulative ATP diagnostics and an all-or-nothing confirmation
+  gate to `reserve_cost_centers_atomic`. Demand is grouped by material, plant,
+  base unit, and required date; each check receives the cumulative quantity
+  through that date. The gate returns before any reservation API call if any
+  group is short. Tests cover same-date aggregation, later-date cumulative
+  demand, gate rejection, and invalid ATP options. `npm.cmd test` passed with
+  zero abaplint issues across 90 files, 1,090 transpiler outputs, and ABAP Unit
+  success. Target availability rule and confirmation behavior are recorded in
+  `ANOMALIES.md`.
+- Atomic reservation creates now reject duplicate reservation numbers returned
+  for distinct demands and roll the group back. Reservation numbers are cleared
+  from every item after create or commit rollback. Tests cover duplicate API
+  results and cleared numbers after commit failure. Final `npm.cmd test` passed:
+  abaplint reported zero issues across 90 files, the transpiler wrote 1,090
+  outputs, and ABAP Unit completed successfully; `git diff --check` passed.
+- Added `read_reservations` to the reservation inquiry service. It validates all
+  reservation numbers before any reads, rejects blanks and duplicates, preserves
+  caller order, and returns each document's existing validation result. Tests
+  cover ordered reads, mixed success/failure, invalid lists, and empty input; SAP
+  detail-field limits remain documented in `ANOMALIES.md`. `npm.cmd test` passed
+  with zero abaplint issues across 90 files, 1,090 transpiler outputs, and ABAP
+  Unit success; `git diff --check` passed.
+- Refactored reservation goods issue to validate every selected item and the
+  test-run flag before inquiry, then read distinct reservation documents through
+  `read_reservations` in first-seen order. A read failure prevents the single
+  goods movement call. Tests cover invalid late input with zero reads and issue
+  items from multiple reservation documents in caller order. `npm.cmd test`
+  passed with zero abaplint issues across 90 files, 1,090 transpiler outputs,
+  and ABAP Unit success.
+- Reservation detail reads now reject repeated item numbers within one document
+  and clear all items on a malformed response. Added a regression test for a
+  duplicate item number; `npm.cmd test` passed with zero abaplint issues across
+  90 files, 1,090 transpiler outputs, and ABAP Unit success.
+- Component stock and ATP previews now exclude the selected components' own
+  reservation keys from dated `RESB` deductions before allocating their open
+  quantities. Other active reservations remain netted, preventing the selected
+  components from being counted twice. Added a fake-repository regression case
+  for restoring the component's reservation quantity and allocating it once.
+  `npm.cmd test` passed: abaplint reported zero issues across 90 files, the
+  transpiler wrote 1,090 outputs, and ABAP Unit completed successfully.
+- Added `cancel_material_documents_bulk` for validated multi-document reversals.
+  It returns per-document attempt and cancellation state, supports item-specific
+  cancellation and posting dates, and offers independent commits or one atomic
+  LUW. Tests cover atomic success, rollback after an API and commit failure,
+  continued processing in independent mode, and prevalidation before any BAPI
+  call. Verify the target SAP release's multi-call LUW behavior as recorded in
+  `ANOMALIES.md`. `npm.cmd test` passed: abaplint reported zero issues across 90
+  files, the transpiler wrote 1,090 outputs, and ABAP Unit completed
+  successfully.
+- Exposed the bulk material-document reversal through
+  `cancel_component_issues_bulk`, preserving the production-component service
+  entry point while carrying item selections, posting dates, per-document
+  results, and atomic mode through to the shared cancellation implementation.
+  `npm.cmd test` passed with zero abaplint issues across 90 files, 1,090
+  transpiler outputs, and ABAP Unit success.
+- Added `mark_pr_items_deleted` to flag selected replenishment requisition items
+  through `BAPI_PR_CHANGE`, including test-run support and shared commit/rollback
+  handling. The service validates the complete item list before the BAPI call;
+  local DDIC stubs now include the deletion value and update flag. SAP item
+  eligibility and exact target-release mapping remain recorded in
+  `ANOMALIES.md`.
+- Added two multi-requisition deletion modes. `delete_pr_items_atomic` validates
+  the full group, commits once on success, and rolls back the group after the
+  first BAPI error; `delete_pr_items_bulk` commits or rolls back each request
+  and continues through later requisitions. Both preserve per-document
+  messages, item-level message mapping, and test-run behavior. Requisition
+  validation is shared across both modes. PR writes now also treat error-level
+  commit messages as failure, even when the adapter success flag is true.
+  `npm.cmd test` passed with zero abaplint issues across 90 files, 1,090
+  transpiler outputs, and ABAP Unit success; target SAP LUW behavior is
+  documented in `ANOMALIES.md`.
+- Added prepared-item multi-create methods. `create_requisitions_atomic`
+  validates every document before calling `BAPI_PR_CREATE`, commits once, and
+  rolls back and clears returned document numbers after any create or commit
+  failure. `create_requisitions_bulk` commits or rolls back each requisition
+  independently and keeps processing after errors. Test runs skip commits, and
+  result rows preserve SAP messages and item mappings. Shared PR write handling
+  now reports an error-level fallback when an adapter indicates a failed write
+  or commit without an error message. Tests cover prevalidation, required live
+  document numbers, item-level message mapping, group rollback, independent
+  continuation, simulation, and commit-message inconsistencies. `npm.cmd test`
+  passed with zero abaplint issues across 90 files, 1,090 transpiler outputs,
+  and ABAP Unit success; `git diff --check` passed. Target SAP transaction
+  behavior is documented in `ANOMALIES.md`.
+- Expanded `update_pr_items` and `update_pr_items_bulk` to change purchasing
+  group, purchasing organization, fixed vendor, info record, and outline
+  agreement references alongside quantity and delivery date. Each selected
+  field receives its `PRITEMX` update flag; a selected blank source reference
+  can clear that value, while unselected values must remain initial. Mapper and
+  service tests cover all fields, invalid flags, payload propagation, bulk
+  modes, and transaction failures. `npm.cmd test` passed: abaplint reported
+  zero issues across 90 files, the transpiler wrote 1,090 outputs, and ABAP Unit
+  completed successfully. Live SAP field eligibility and clearing behavior
+  remain release-dependent as documented in `ANOMALIES.md`.
+- Added `read_pr_items` through `BAPI_PR_GETDETAIL` and the validated
+  `read_pr_items_bulk` wrapper. Item results include material, stock location,
+  quantity/unit, delivery date, buyer and source assignments, release and
+  processing state, ordered quantity, follow-on PO keys, and fixed/closed
+  indicators. Bulk reads preserve order, prevalidate all keys, return one row
+  per requisition, and continue after failures; empty input makes no call. The
+  `BAPIMEREQITEM` local stub models only the fields used here. `npm.cmd test`
+  passed: abaplint reported zero issues across 90 files, the transpiler wrote
+  1,091 outputs, and ABAP Unit completed successfully. Target-system BAPI fields,
+  permissions, and result behavior remain documented in `ANOMALIES.md`.
+- Added `delete_all_pr_items`, which reads a requisition and submits every item
+  without a deletion indicator through the existing test-run and commit path.
+  Read failures prevent writes; already-deleted requisitions return success
+  without a change call. Tests cover active/deleted item selection, no-op
+  behavior, read failure, and the successful commit path. `npm.cmd test` passed:
+  abaplint reported zero issues across 90 files, the transpiler wrote 1,091
+  outputs, and ABAP Unit completed successfully. The read/change race and target
+  deletion rules are recorded in `ANOMALIES.md`.
+- Added `delete_all_pr_items_bulk` for validated multi-requisition deletion by
+  document number. Each requisition is read and processed independently; later
+  requests continue after a read, change, or commit failure, with per-row
+  messages and commit state. Tests cover continuation after read failure and
+  validation before any read. `npm.cmd test` passed: abaplint reported zero
+  issues across 90 files, the transpiler wrote 1,091 outputs, and ABAP Unit
+  completed successfully. SAP read/change race and per-document transaction
+  limits are recorded in `ANOMALIES.md`.
+- Added `create_orders_bulk` and `change_orders_bulk` for independent sales-order
+  writes. Both validate every request before writing, commit/rollback per order,
+  and continue after a failed row. `ty_write_result` now reports test-run and
+  commit state for single, bulk, and atomic operations; atomic rollback marks
+  every row unsuccessful and clears document numbers from rolled-back creates.
+  Tests cover mixed successes, validation before any write, simulations, and
+  atomic rollback status. `npm.cmd test` passed: abaplint reported zero issues
+  across 90 files, the transpiler wrote 1,091 outputs, and ABAP Unit completed
+  successfully. SAP transaction limits are documented in `ANOMALIES.md`.
+- Added sales-order item rejection updates using `BAPISDITM-REASON_REJ` and its
+  `BAPISDITMX` update flag. `reject_order_items` validates unique item numbers
+  and nonblank reason codes; `reject_orders_bulk` commits each order
+  independently, and `reject_orders_atomic` uses one shared commit or rollback.
+  All modes preserve SAP messages and support test runs. Tests cover single
+  commits, simulations, bulk continuation, atomic success, and atomic rollback.
+  `npm.cmd test` passed with zero abaplint issues across 90 files, 1,091
+  transpiler outputs, and ABAP Unit success. Target-system rejection reasons,
+  BAPI field behavior, and transaction handling are recorded in `ANOMALIES.md`.
+- Order reads now return rejected items separately from active allocation items,
+  including item number, material, plant, sales quantity/unit, and rejection
+  reason. A fully rejected order remains a successful read with a warning; its
+  items cannot flow into the active-demand collection. Tests cover mixed and
+  rejected-only read results. `npm.cmd test` passed with zero abaplint issues,
+  1,091 transpiler outputs, and ABAP Unit success. Verify the target release's
+  `BAPISDIT` output fields and rejected-item quantity semantics as documented in
+  `ANOMALIES.md`.
+- Added rejection clearing for single orders and for multi-order bulk or atomic
+  groups. Each selected item is sent with a blank rejection reason and the BAPI
+  update flag set; clear requests validate distinct item numbers and distinct
+  document keys before writing. Tests verify the blank payload, independent
+  bulk continuation, shared atomic commit, and rollback on an atomic failure.
+  `npm.cmd test` passed with zero abaplint issues across 90 files, 1,091
+  transpiler outputs, and ABAP Unit success. SAP documents blank-reason clearing
+  for sales-order processing, but the `BAPI_SALESORDER_CHANGE` behavior must be
+  confirmed on the target release as recorded in `ANOMALIES.md`.
+- Added `ZCL_PURCHASE_ORDER_SERVICE` for standard external POs from explicitly
+  selected PIR or outline-agreement sources, plus bulk independent and atomic
+  creation. Bulk input is fully validated before any BAPI call; individual
+  failures do not prevent later requests from running. Atomic creation shares
+  one commit and rolls back the group on a create or commit failure. Added
+  `DELETE_ORDER_ITEMS` and `DELETE_ORDERS_ITEMS_BULK` to set SAP's PO item
+  deletion indicator, and added `MARK_DELIVERY_COMPLETE` with a validated bulk
+  counterpart to close remaining open-order quantity when no further supply is
+  expected. Added `READ_ORDER` and `READ_ORDERS` for saved header, item-status,
+  quantity, and schedule-line details via `BAPI_PO_GETDETAIL1`. Added
+  `CREATE_FROM_SUGGESTIONS` to turn source-selected external replenishment rows
+  into PO items with optional base-to-purchasing-unit conversion.
+  Tests cover mixed outcomes, continuation, atomic rollback, prevalidation,
+  selected item payloads, multi-PO reads, suggestion source/quantity mapping,
+  and simulations for creation.
+  `npm.cmd test` passed:
+  abaplint reported zero issues across 94 files, the transpiler wrote 1,098
+  outputs, and all 805 ABAP Unit methods completed. The local API double cannot
+  verify target BAPI fields, source pricing, item eligibility, or multi-PO LUW
+  behavior, or BAPI output population; delivery-completion and read limits are
+  recorded in `ANOMALIES.md`.
+- Added `CREATE_FROM_SUGGESTIONS_BULK`, which groups positive replenishment rows
+  by vendor and purchasing organization, validates all mapped groups before
+  writing, and then creates one independently committed PO per group while
+  continuing after failures. Each item retains its original suggestion index in
+  `source_request_id`; an all-zero batch returns a successful no-op result.
+  Tests cover vendor grouping, quantity conversion, batch continuation,
+  prevalidation, and the no-op path. `npm.cmd test` passed with zero abaplint
+  issues across 94 files, 1,098 transpiler outputs, and all 809 ABAP Unit methods.
+  Target BAPI source, pricing, UOM, locking, and per-PO transaction behavior are
+  documented in `ANOMALIES.md`.
+- Added `CREATE_FROM_REQUISITION_ITEMS` to create one PO from selected rows of a
+  purchase requisition read. It carries `PREQ_NO`/`PREQ_ITEM` to each PO item,
+  uses the unconverted quantity remaining after prior orders, and rejects
+  deleted, closed, exhausted, duplicate, vendor-mismatched, or organization-
+  mismatched rows before writing. Tests cover reference and quantity mapping,
+  commit behavior, and prevalidation. `npm.cmd test` passed with zero abaplint
+  issues across 94 files, 1,098 transpiler outputs, and all 811 ABAP Unit
+  methods. Validate target BAPI fields, release/source checks, PR quantity
+  semantics, and reference updates as recorded in `ANOMALIES.md`.
+- Added `CREATE_FROM_REQUISITIONS_BULK` to combine selected PR items into one PO
+  per first-seen vendor and purchasing-organization group. It preserves each
+  PR item reference, uses remaining quantity, and validates all groups before
+  writing; individual PO failures do not stop later groups. Tests cover
+  grouping, mapping, continuation, and no writes after a later validation
+  error. `npm.cmd test` passed with zero abaplint issues across 94 files, 1,098
+  transpiler outputs, and all 817 ABAP Unit methods. Target BAPI and PR status
+  behavior are recorded in `ANOMALIES.md`.
+- Added `CHANGE_ORDER_SCHEDULES` and its bulk counterpart for explicit
+  schedule-line quantity and delivery-date changes through `BAPI_PO_CHANGE`.
+  The bulk method validates every PO group first, then commits each PO
+  independently and continues after a failed change. Tests cover field mapping,
+  per-order continuation, rollback after failure, and batch prevalidation.
+  `npm.cmd test` passed with zero abaplint issues across 94 files, 1,098
+  transpiler outputs, and all 814 ABAP Unit methods. Target schedule eligibility,
+  PO item quantity consistency, and BAPI update behavior are recorded in
+  `ANOMALIES.md`.
+- Added `CREATE_REQUISITIONS_ATOMIC` for selected PR rows grouped by the chosen
+  vendor and purchasing organization. It validates all groups before writing,
+  commits all created POs together, and rolls the batch back on create or commit
+  failure. Tests cover successful grouped creation and rollback cleanup.
+  `npm.cmd test` passed with zero abaplint issues across 94 files, 1,098
+  transpiler outputs, and all 819 ABAP Unit methods. Target SAP LUW behavior is
+  recorded in `ANOMALIES.md`.
+- Added `CREATE_FROM_SUGGESTIONS_ATOMIC`, using the same grouped request builder
+  and optional purchasing-unit conversion as the independent batch path. All
+  supplier POs commit together; a create failure rolls back the batch, and an
+  all-zero selection returns a no-op result. Tests cover mapping, one shared
+  commit, failure cleanup, and the no-op case. `npm.cmd test` passed with zero
+  abaplint issues across 94 files, 1,098 transpiler outputs, and all 822 ABAP
+  Unit methods. Target SAP LUW behavior is recorded in `ANOMALIES.md`.
+- Added `CHANGE_ORDER_SCHEDULES_ATOMIC` for multi-PO schedule-line changes. It
+  validates every PO first, applies all schedule updates, and commits once;
+  failed updates or commits roll back the batch. Tests cover prevalidation,
+  update mapping, one shared commit, and both rollback paths. `npm.cmd test`
+  passed with zero abaplint issues across 94 files, 1,098 transpiler outputs,
+  and all 826 ABAP Unit methods. Target SAP LUW behavior is documented in
+  `ANOMALIES.md`.
+- Added atomic multi-PO item deletion and delivery-completion methods. They
+  validate the full selection before writing, commit all changes together, and
+  roll back the batch after any failed update or commit. Tests cover both
+  actions, result mapping, prevalidation, and update failure rollback.
+  `npm.cmd test` passed with zero abaplint issues across 94 files, 1,098
+  transpiler outputs, and all 830 ABAP Unit methods. Target SAP LUW and item
+  eligibility checks are documented in `ANOMALIES.md`.
+- Added support for the standard `TB` daily lot-size procedure in replenishment
+  suggestions. Each daily period uses the shortage date as both boundaries and
+  keeps the procedure's configured lot constraints. Tests verify daily period
+  output. `npm.cmd test` passed with zero abaplint issues across 94 files, 1,098
+  transpiler outputs, and all 831 ABAP Unit methods. Remaining configured
+  custom period intervals are still noted in `ANOMALIES.md`.
+- Added caller-resolved replenishment periods for period-based or custom lot-size
+  procedure keys, including separate ranges by plant and procedure. The service
+  validates dates, duplicate/overlapping ranges, and coverage for shortage dates;
+  custom procedures apply their configured minimum, maximum, and order multiple
+  to netted period requirements. Tests cover `W2` and `PB` groupings, overlap,
+  uncovered-date rejection, and PO receipt netting through the stock-backed
+  convenience method. `npm.cmd test` passed with zero abaplint issues across 94
+  files and 1,098 transpiler outputs.
+- Added PO item quantity changes through `BAPI_PO_CHANGE`, including single-PO,
+  per-PO bulk, and shared-commit atomic methods. Requests require unique item
+  numbers and positive quantities in the existing purchase-order unit. Tests
+  cover request mapping, prevalidation, batch continuation, atomic commit, and
+  rollback after an update or commit failure. `npm.cmd test` passed with zero
+  abaplint issues across 94 files and 1,098 transpiler outputs; SAP field
+  controls and multi-PO LUW behavior remain documented in `ANOMALIES.md`.
+- Added `CHANGE_QTY_FROM_BASE` plus bulk and atomic forms. They read each PO,
+  validate selected items, and convert material base-unit quantities to the PO
+  item's unit before any writes. Missing conversion data rejects the full
+  request. Tests cover conversion, validation before writes, atomic commit, and
+  conversion failure. `npm.cmd test` passed with zero abaplint issues across 94
+  files and 1,098 transpiler outputs. Target UOM ratios, PO item eligibility,
+  and multi-document LUW behavior remain documented in `ANOMALIES.md`.
+- Added `CHANGE_BASE_SCHEDULES` plus bulk and atomic forms. Quantity-bearing
+  schedule rows convert material base units to the PO item unit after reading
+  and validating the item; date-only rows keep the existing no-read path. Bulk
+  and atomic forms finish all reads/conversions before writes. Tests cover
+  conversion, date-only preservation, batch prevalidation, atomic commit, and
+  conversion rejection. `npm.cmd test` passed with zero abaplint issues across
+  94 files and 1,098 transpiler outputs. Target UOM and schedule eligibility
+  behavior remains in `ANOMALIES.md`.
+- Added `CREATE_FROM_QUOTA_SPLITS` to bridge quota split previews to PR creation.
+  It validates that allocated shares reconcile to each selected suggestion,
+  then creates one vendor-specific PR item per split at the proposal quantity,
+  including purchasing-unit conversion and original suggestion-index mapping.
+  Tests cover two-source item mapping, conversion, commit, and incomplete-split
+  rejection. `npm.cmd test` passed with zero abaplint issues across 94 files
+  and 1,098 transpiler outputs. Quota snapshot staleness and SAP source
+  acceptance remain documented in `ANOMALIES.md`.
+- Added `GET_PO_CONFIRMED_RECEIPTS` to return standard PO schedule remainder
+  rows alongside open MRP-relevant EKES supplier confirmations. It uses the
+  stored EKET/EKES MRP-reduced quantities and converts each row to the material
+  base unit; `GET_PO_CONF_RECEIPTS_IN_UNIT` also converts the result to a
+  requested material unit. `GET_PO_CONF_RECEIPTS_BULK` and its `_UOM` variant
+  group repeated material/plant requests, filter by each deadline, and cache
+  unit ratios. `SUGGEST_COMP_REPL_FROM_STOCK` can net these confirmations into
+  component shortage suggestions through `iv_include_po_confirmations`, which
+  is mutually exclusive with regular PO receipt projection. Tests cover service
+  contracts, invalid horizons, query grouping, deadline filtering, ratio reuse,
+  conversion, reduction arithmetic, shortage netting, and source exclusivity.
+  `npm.cmd test` passed with zero abaplint issues across 94 files and 1,099
+  transpiler outputs. Confirmation-category configuration and DABMG/WEMNG
+  behavior still require target-SAP validation, documented in `ANOMALIES.md`.
+- Added `ISSUE_COMPONENTS_IN_UNIT` and `ISSUE_COMPONENTS_BULK_IN_UNIT` for
+  production component issues requested in a material's alternative unit. The
+  service reads each reservation component once, converts all requested lines
+  to the component's base unit, validates the complete batch, and posts one
+  reservation goods movement. Tests cover box-to-base conversion, base-unit
+  BAPI mapping, a single component read, and rejection of an unknown unit in a
+  mixed batch before any goods movement. `npm.cmd test` passed with zero
+  abaplint issues across 116 files and 1,156 transpiler outputs. Live
+  `MARA`/`MARM` ratio, rounding, and reservation behavior remain documented in
+  `ANOMALIES.md`.
+- Added `RETURN_COMPONENTS_IN_UNIT` and `RETURN_COMPONENTS_BULK_IN_UNIT` for
+  partial component returns requested in an alternative material unit. The
+  service reads the selected component rows once, converts every quantity to
+  its reservation unit, validates all lines against withdrawn quantities, and
+  posts one reservation reversal. Tests cover box-to-base reversal mapping,
+  single-read behavior, and unknown-unit rejection before posting. The latest
+  `npm.cmd test` run passed with zero abaplint issues across 116 files and
+  1,156 transpiler outputs; live UOM and reversal behavior is recorded in
+  `ANOMALIES.md`.
+- Added direct `CREATE_ORDER` support to `ZCL_PROD_ORDER_SERVICE` through
+  `BAPI_PRODORD_CREATE`, for callers that need a production order without a
+  planned-order conversion. The service validates material, plants, order type,
+  quantity/unit, and basic dates, defaults planning plant to production plant,
+  and owns the commit/rollback boundary. Added the SAP `BAPI_PP_ORDER_CREATE`
+  stub with only mapped fields. Tests cover BAPI input/result mapping, valid
+  creation, input rejection before the API, and rollback after create or commit
+  failure. `npm.cmd test` passed: zero abaplint issues across 116 files,
+  1,157 transpiler outputs, and a successful ABAP Unit run. Target BAPI and
+  order-master behavior remain documented in `ANOMALIES.md`.
+- Added `CREATE_ORDERS_BULK` and `CREATE_ORDERS_ATOMIC` for multi-order direct
+  production-order creation. Both validate the complete request before calling
+  SAP. Bulk mode commits each order independently and continues after an item
+  failure; atomic mode shares one commit and rolls back the group on a create
+  or commit failure. Tests cover partial bulk failure, continued processing,
+  shared commit, prevalidation, duplicate returned order numbers, and atomic
+  rollback. `npm.cmd test` passed with zero abaplint issues across 116 files,
+  1,157 transpiler outputs, and a successful ABAP Unit run. Repeated-call LUW
+  behavior still requires target-SAP validation, as recorded in
+  `ANOMALIES.md`.
+- Added typed `RECEIVE_PURCHASE_ORDER`, `RECEIVE_PURCHASE_ORDERS_BULK`, and
+  `RECEIVE_PURCHASE_ORDERS_ATOMIC` methods for PO goods receipts. They map PO
+  references and item quantities to movement 101/code 01 with indicator `B`,
+  prevalidate the full request, and provide either per-PO commits or one shared
+  commit with rollback. Tests cover field mapping, partial bulk failure,
+  continued processing, invalid duplicate-PO input, rollback on receipt
+  failure, and rollback on commit failure. Target-SAP repeated-call LUW
+  behavior is recorded in `ANOMALIES.md`. The complete `npm.cmd test` run
+  passed with zero abaplint issues across 116 files, 1,157 transpiler outputs,
+  and a successful ABAP Unit run.
+- Added typed `RECEIVE_PROD_ORDER`, `RECEIVE_PROD_ORDERS_BULK`, and
+  `RECEIVE_PROD_ORDERS_ATOMIC` methods for production-order goods receipts.
+  They map finished output to movement 101/code 02 with indicator `F`,
+  prevalidate each order and quantity/unit, and support independent commits or
+  a shared rollback boundary. Tests cover mapping, bulk continuation, atomic
+  create and commit failures, duplicate-order rejection, and test-run behavior.
+  The complete `npm.cmd test` run passed with zero abaplint issues across 116
+  files, 1,157 transpiler outputs, and a successful ABAP Unit run. SAP receipt
+  eligibility and repeated-call LUW behavior are recorded in `ANOMALIES.md`.

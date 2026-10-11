@@ -65,6 +65,14 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>REASON_REJ</FIELDNAME>
+          <POSITION>0008</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

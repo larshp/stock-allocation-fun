@@ -44,6 +44,8 @@ CLASS zcl_repl_source_service DEFINITION
         planned_delivery_days       TYPE eine-aplfz,
         is_auto_source_relevant     TYPE abap_bool,
         purchase_order_unit         TYPE eina-meins,
+        order_to_base_num           TYPE eina-umrez,
+        order_to_base_den           TYPE eina-umren,
         base_unit                   TYPE eina-lmein,
         minimum_order_quantity      TYPE eine-minbm,
         maximum_order_quantity      TYPE eine-bstma,
@@ -662,6 +664,10 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
             THEN abap_true
             ELSE abap_false )
           purchase_order_unit         = ls_record-purchase_order_unit
+          order_to_base_num           =
+            ls_record-order_unit_to_base_numerator
+          order_to_base_den           =
+            ls_record-order_unit_to_base_denominator
           base_unit                   = ls_record-base_unit
           minimum_order_quantity      = ls_record-minimum_order_quantity
           maximum_order_quantity      = ls_record-maximum_order_quantity

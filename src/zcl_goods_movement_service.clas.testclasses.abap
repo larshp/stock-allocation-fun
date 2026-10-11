@@ -343,6 +343,12 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS get_received_sto_pairs
       RETURNING
         VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_sto_receipt_pairs_result.
+    METHODS get_pending_chain_cancels
+      RETURNING
+        VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_sto_receipt_cancel_pairs_result.
+    METHODS get_failed_receipt_chain
+      RETURNING
+        VALUE(rs_result) TYPE zcl_goods_movement_service=>ty_sto_receipt_cancel_pairs_result.
     METHODS issues_created_sto FOR TESTING.
     METHODS rejects_uncommitted_sto FOR TESTING.
     METHODS rejects_missing_sto_unit_iso FOR TESTING.
@@ -381,6 +387,28 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS prevalidates_receipt_cancels FOR TESTING.
     METHODS cancels_sto_receipt_chain FOR TESTING.
     METHODS cancels_receipt_chain_pairs FOR TESTING.
+    METHODS atomic_chain_commit FOR TESTING.
+    METHODS atomic_single_chain FOR TESTING.
+    METHODS fails_atomic_receipt_stage FOR TESTING.
+    METHODS rollback_atomic_chain FOR TESTING.
+    METHODS fail_atomic_chain_commit FOR TESTING.
+    METHODS reject_atomic_chain_input FOR TESTING.
+    METHODS retries_chain_issue FOR TESTING.
+    METHODS retries_atomic_chain_issues FOR TESTING.
+    METHODS preserves_chain_done_rows FOR TESTING.
+    METHODS rolls_back_atomic_issue_retry FOR TESTING.
+    METHODS fails_atomic_retry_commit FOR TESTING.
+    METHODS rejects_atomic_receipt_pending FOR TESTING.
+    METHODS retries_chain_receipt FOR TESTING.
+    METHODS retries_atomic_chain_receipts FOR TESTING.
+    METHODS recovers_atomic_chain_abort FOR TESTING.
+    METHODS rolls_back_receipt_retry FOR TESTING.
+    METHODS fails_receipt_retry_commit FOR TESTING.
+    METHODS retry_chain_mixed_stages FOR TESTING.
+    METHODS retry_chain_atomic_mixed FOR TESTING.
+    METHODS rollback_mixed_chain_retry FOR TESTING.
+    METHODS fail_atomic_mixed_commit FOR TESTING.
+    METHODS retry_chain_single_wrapper FOR TESTING.
     METHODS continues_chain_issue_failure FOR TESTING.
     METHODS prevalidates_sto_receipt_chain FOR TESTING.
     METHODS issues_stock_transport_order FOR TESTING.
@@ -405,6 +433,22 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS cancels_selected_items FOR TESTING.
     METHODS rejects_duplicate_cancel_items FOR TESTING.
     METHODS rejects_blank_cancel_item FOR TESTING.
+    METHODS cancels_docs_bulk_atomic FOR TESTING.
+    METHODS rolls_back_docs_bulk FOR TESTING.
+    METHODS continues_docs_bulk_failure FOR TESTING.
+    METHODS rejects_bad_docs_bulk FOR TESTING.
+    METHODS fails_commit_docs_bulk FOR TESTING.
+    METHODS receives_po_receipts_atomic FOR TESTING.
+    METHODS continues_po_receipt_failure FOR TESTING.
+    METHODS rolls_back_po_receipts FOR TESTING.
+    METHODS fails_commit_po_receipts FOR TESTING.
+    METHODS prevalidates_po_receipts FOR TESTING.
+    METHODS receives_prod_receipts_atomic FOR TESTING.
+    METHODS continues_prod_receipt_failure FOR TESTING.
+    METHODS rolls_back_prod_receipts FOR TESTING.
+    METHODS fails_commit_prod_receipts FOR TESTING.
+    METHODS simulates_prod_receipts FOR TESTING.
+    METHODS prevalidates_prod_receipts FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_goods_movement_service IMPLEMENTATION.
@@ -501,6 +545,53 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
           is_receipt_attempted = abap_true
           is_in_transit        = abap_false
           is_received          = abap_true ) ) ).
+  ENDMETHOD.
+
+  METHOD get_pending_chain_cancels.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    rs_result-is_successful = abap_false.
+
+    LOOP AT ls_receipts-orders INTO DATA(ls_receipt_pair).
+      APPEND VALUE #(
+        supplying_plant             = ls_receipt_pair-supplying_plant
+        receiving_plant             = ls_receipt_pair-receiving_plant
+        order_result                = ls_receipt_pair-order_result
+        goods_issue_result          = ls_receipt_pair-goods_issue_result
+        goods_issue_reversal_result = VALUE #( is_successful = abap_false )
+        goods_receipt_result        = ls_receipt_pair-goods_receipt_result
+        reversal_result             = VALUE #(
+          material_document = '4900000601'
+          fiscal_year       = '2026'
+          is_successful     = abap_true )
+        is_cancel_attempted         = abap_true
+        is_issue_cancel_attempted   = abap_true
+        is_issue_cancelled          = abap_false
+        is_in_transit               = abap_true
+        is_received                 = abap_false
+        is_cancelled                = abap_true
+        is_fully_cancelled          = abap_false )
+        TO rs_result-orders.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD get_failed_receipt_chain.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000605'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'First receipt reversal failed' ) ) ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second receipt reversal failed' ) ) ) ).
+
+    rs_result = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( ) ).
   ENDMETHOD.
 
   METHOD posts_and_commits.
@@ -6306,6 +6397,841 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
       act = ls_result-orders[ 2 ]-is_fully_cancelled ).
   ENDMETHOD.
 
+  METHOD atomic_chain_commit.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        material_document = '4900000501'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        material_document = '4900000502'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 3
+      is_result      = VALUE #(
+        material_document = '4900000503'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 4
+      is_result      = VALUE #(
+        material_document = '4900000504'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts     = get_received_sto_pairs( )
+      iv_posting_date = '20261006'
+      iv_atomic       = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000301'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000302'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 3 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 4 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD atomic_single_chain.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000501'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_received_pairs) = get_received_sto_pairs( ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain(
+      is_receipt = ls_received_pairs-orders[ 1 ]
+      iv_atomic  = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_receipt_stage.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Receipt reversal failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_issue_cancel_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Receipt reversal failed'
+      act = ls_result-orders[ 1 ]-reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rollback_atomic_chain.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        material_document = '4900000501'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Issue reversal failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_issue_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = space
+      act = ls_result-orders[ 1 ]-reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Issue reversal failed'
+      act = ls_result-orders[ 1 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders ) ).
+  ENDMETHOD.
+
+  METHOD fail_atomic_chain_commit.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000501'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Chain commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = space
+      act = ls_result-orders[ 2 ]-goods_issue_reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Chain commit failed'
+      act = ls_result-orders[ 2 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD reject_atomic_chain_input.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    ls_receipts-orders[ 2 ]-is_received = abap_false.
+
+    DATA(ls_result) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = ls_receipts
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD retries_chain_issue.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000602'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Issue cancellation is temporarily blocked' ) ) ) ).
+    DATA(ls_received_pairs) = get_received_sto_pairs( ).
+    DATA(ls_partial_result) = mo_cut->cancel_sto_receipt_chain(
+      is_receipt = ls_received_pairs-orders[ 1 ] ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_partial_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_partial_result-orders[ 1 ]-is_in_transit ).
+
+    DATA(ls_retried) = mo_cut->retry_sto_chain_issue(
+      is_pair         = ls_partial_result-orders[ 1 ]
+      iv_posting_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_retried-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 3 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_retried-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD retries_atomic_chain_issues.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000602'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_result) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = get_pending_chain_cancels( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000101'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 2 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD preserves_chain_done_rows.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000603'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    DATA(ls_previous) = get_pending_chain_cancels( ).
+    ls_previous-orders[ 1 ]-goods_issue_reversal_result = VALUE #(
+      material_document = '4900000604'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ).
+    ls_previous-orders[ 1 ]-is_issue_cancelled = abap_true.
+    ls_previous-orders[ 1 ]-is_in_transit = abap_false.
+    ls_previous-orders[ 1 ]-is_fully_cancelled = abap_true.
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = ls_previous ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000102'
+      act = mo_api->get_cancel_document_for_call(
+        iv_call_number = 1 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000604'
+      act = ls_result-orders[ 1 ]-goods_issue_reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD rolls_back_atomic_issue_retry.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000602'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second issue reversal failed' ) ) ) ).
+    DATA(ls_result) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = get_pending_chain_cancels( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = space
+      act = ls_result-orders[ 1 ]-goods_issue_reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Second issue reversal failed'
+      act = ls_result-orders[ 2 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD fails_atomic_retry_commit.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000602'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Issue retry commit failed' ) ) ).
+    DATA(ls_result) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = get_pending_chain_cancels( )
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Issue retry commit failed'
+      act = ls_result-orders[ 2 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_atomic_receipt_pending.
+    DATA(ls_receipts) = get_received_sto_pairs( ).
+    DATA(ls_result) = VALUE zcl_goods_movement_service=>ty_sto_receipt_cancel_pairs_result(
+      is_successful = abap_false
+      orders        = CORRESPONDING #( ls_receipts-orders ) ).
+
+    DATA(ls_retry) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = ls_result
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD retries_chain_receipt.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000606'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Receipt reversal failed once' ) ) ) ).
+    DATA(ls_received_pairs) = get_received_sto_pairs( ).
+    DATA(ls_partial_result) = mo_cut->cancel_sto_receipt_chain(
+      is_receipt = ls_received_pairs-orders[ 1 ] ).
+
+    DATA(ls_receipt_retry) = mo_cut->retry_sto_chain_receipt(
+      is_pair = ls_partial_result-orders[ 1 ] ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_receipt_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_receipt_retry-orders[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_receipt_retry-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_receipt_retry-orders[ 1 ]-is_in_transit ).
+
+    DATA(ls_issue_retry) = mo_cut->retry_sto_chain_issue(
+      is_pair = ls_receipt_retry-orders[ 1 ] ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD retries_atomic_chain_receipts.
+    DATA(ls_previous) = get_failed_receipt_chain( ).
+    DATA(ls_receipt_retry) = mo_cut->retry_sto_chain_receipt_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_receipt_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_receipt_retry-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_receipt_retry-orders[ 2 ]-is_in_transit ).
+
+    DATA(ls_issue_retry) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = ls_receipt_retry
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD recovers_atomic_chain_abort.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000607'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Issue reversal aborted chain' ) ) ) ).
+    DATA(ls_previous) = mo_cut->cancel_sto_receipt_chain_pairs(
+      is_receipts = get_received_sto_pairs( )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_previous-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_previous-orders[ 2 ]-is_cancel_attempted ).
+
+    DATA(ls_receipt_retry) = mo_cut->retry_sto_chain_receipt_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+    DATA(ls_issue_retry) = mo_cut->retry_sto_chain_issue_pairs(
+      is_result = ls_receipt_retry
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_issue_retry-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD rolls_back_receipt_retry.
+    DATA(ls_previous) = get_failed_receipt_chain( ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 4
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Retry receipt reversal failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_receipt_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+  ENDMETHOD.
+
+  METHOD fails_receipt_retry_commit.
+    DATA(ls_previous) = get_failed_receipt_chain( ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Receipt retry commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_receipt_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Receipt retry commit failed'
+      act = ls_result-orders[ 2 ]-reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD retry_chain_mixed_stages.
+    DATA(ls_previous) = get_failed_receipt_chain( ).
+    ls_previous-orders[ 2 ]-is_cancelled = abap_true.
+    ls_previous-orders[ 2 ]-is_received = abap_false.
+    ls_previous-orders[ 2 ]-is_in_transit = abap_true.
+    ls_previous-orders[ 2 ]-reversal_result = VALUE #(
+      material_document = '4900000702'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ).
+    DATA(ls_completed) = get_pending_chain_cancels( ).
+    ls_completed-orders[ 1 ]-is_issue_cancelled = abap_true.
+    ls_completed-orders[ 1 ]-is_fully_cancelled = abap_true.
+    ls_completed-orders[ 1 ]-is_in_transit = abap_false.
+    ls_completed-orders[ 1 ]-is_issue_cancel_attempted = abap_true.
+    ls_completed-orders[ 1 ]-goods_issue_reversal_result = VALUE #(
+      material_document = '4900000703'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ).
+    APPEND ls_completed-orders[ 1 ] TO ls_previous-orders.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000704'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_pairs(
+      is_result = ls_previous ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) - 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 3 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD retry_chain_atomic_mixed.
+    DATA(ls_previous) = get_pending_chain_cancels( ).
+    ls_previous-orders[ 1 ]-is_cancelled = abap_false.
+    ls_previous-orders[ 1 ]-is_received = abap_true.
+    ls_previous-orders[ 1 ]-is_in_transit = abap_false.
+    CLEAR ls_previous-orders[ 1 ]-reversal_result.
+    ls_previous-orders[ 1 ]-is_cancel_attempted = abap_false.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000710'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_fully_cancelled ).
+  ENDMETHOD.
+
+  METHOD rollback_mixed_chain_retry.
+    DATA(ls_previous) = get_pending_chain_cancels( ).
+    ls_previous-orders[ 1 ]-is_cancelled = abap_false.
+    ls_previous-orders[ 1 ]-is_received = abap_true.
+    ls_previous-orders[ 1 ]-is_in_transit = abap_false.
+    CLEAR ls_previous-orders[ 1 ]-reversal_result.
+    ls_previous-orders[ 1 ]-is_cancel_attempted = abap_false.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000711'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Mixed stage retry failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-reversal_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Mixed stage retry failed'
+      act = ls_result-orders[ 1 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD fail_atomic_mixed_commit.
+    DATA(ls_previous) = get_pending_chain_cancels( ).
+    ls_previous-orders[ 1 ]-is_cancelled = abap_false.
+    ls_previous-orders[ 1 ]-is_received = abap_true.
+    ls_previous-orders[ 1 ]-is_in_transit = abap_false.
+    CLEAR ls_previous-orders[ 1 ]-reversal_result.
+    ls_previous-orders[ 1 ]-is_cancel_attempted = abap_false.
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000713'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+    mo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_false
+      message       = VALUE #(
+        type = 'E' message = 'Mixed retry commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain_pairs(
+      is_result = ls_previous
+      iv_atomic = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_received ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 1 ]-reversal_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-is_in_transit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Mixed retry commit failed'
+      act = ls_result-orders[ 2 ]-goods_issue_reversal_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD retry_chain_single_wrapper.
+    DATA(ls_previous) = get_failed_receipt_chain( ).
+    mo_api->set_cancel_result( is_result = VALUE #(
+      material_document = '4900000712'
+      fiscal_year       = '2026'
+      is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->retry_sto_chain(
+      is_pair = ls_previous-orders[ 1 ] ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-is_fully_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD continues_chain_issue_failure.
     mo_api->set_cancel_result( is_result = VALUE #(
       material_document = '4900000403'
@@ -7095,5 +8021,715 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD cancels_docs_bulk_atomic.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        material_document = '4900000011'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        material_document = '4900000012'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->cancel_material_documents_bulk(
+      it_requests = VALUE #(
+        ( request_id        = 'CANCEL-1'
+          material_document = '4900000001'
+          fiscal_year       = '2025'
+          posting_date      = '20261010'
+          item_numbers      = VALUE #( ( '0001' ) ) )
+        ( request_id        = 'CANCEL-2'
+          material_document = '4900000002'
+          fiscal_year       = '2026' ) )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_atomic ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-documents ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CANCEL-1'
+      act = ls_result-documents[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-documents[ 1 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-documents[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4900000012'
+      act = ls_result-documents[ 2 ]-reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_docs_bulk.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        material_document = '4900000011'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second cancellation failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_material_documents_bulk(
+      it_requests = VALUE #(
+        ( request_id        = 'CANCEL-1'
+          material_document = '4900000001'
+          fiscal_year       = '2026' )
+        ( request_id        = 'CANCEL-2'
+          material_document = '4900000002'
+          fiscal_year       = '2026' ) )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-documents[ 1 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-documents[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-documents[ 1 ]-reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Second cancellation failed'
+      act = ls_result-documents[ 2 ]-reversal_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_docs_bulk_failure.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'First cancellation failed' ) ) ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        material_document = '4900000012'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->cancel_material_documents_bulk(
+      it_requests = VALUE #(
+        ( request_id        = 'CANCEL-1'
+          material_document = '4900000001'
+          fiscal_year       = '2026' )
+        ( request_id        = 'CANCEL-2'
+          material_document = '4900000002'
+          fiscal_year       = '2026' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_atomic ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-documents[ 2 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_docs_bulk.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->cancel_material_documents_bulk(
+          it_requests = VALUE #(
+            ( request_id        = 'CANCEL-1'
+              material_document = '4900000001'
+              fiscal_year       = '2026' )
+            ( request_id        = 'CANCEL-2'
+              material_document = '4900000001'
+              fiscal_year       = '2026' ) )
+          iv_atomic   = abap_false ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->cancel_material_documents_bulk(
+          it_requests = VALUE zcl_goods_movement_service=>ty_cancel_document_requests( )
+          iv_atomic   = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_cancel_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_commit_docs_bulk.
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        material_document = '4900000011'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_cancel_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        material_document = '4900000012'
+        fiscal_year       = '2026'
+        is_successful     = abap_true ) ).
+    mo_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Bulk commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->cancel_material_documents_bulk(
+      it_requests = VALUE #(
+        ( request_id        = 'CANCEL-1'
+          material_document = '4900000001'
+          fiscal_year       = '2026' )
+        ( request_id        = 'CANCEL-2'
+          material_document = '4900000002'
+          fiscal_year       = '2026' ) )
+      iv_atomic   = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-documents[ 1 ]-is_cancelled ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-documents[ 2 ]-reversal_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Bulk commit failed'
+      act = ls_result-documents[ 2 ]-reversal_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD receives_po_receipts_atomic.
+    DATA(ls_result) = mo_cut->receive_purchase_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( purchase_order_number = '4500000101'
+          items                 = VALUE #(
+            ( purchase_order_item = '00010'
+              quantity            = '4.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) )
+        ( purchase_order_number = '4500000102'
+          items                 = VALUE #(
+            ( purchase_order_item = '00020'
+              material            = 'MAT-2'
+              plant               = '1000'
+              storage_location    = '0001'
+              batch               = 'B-2'
+              quantity            = '2.000'
+              entry_unit          = 'KG'
+              entry_unit_iso      = 'KGM' ) ) ) ) ).
+    DATA(lt_first_items) = mo_api->get_items_for_call( 1 ).
+    DATA(lt_second_items) = mo_api->get_items_for_call( 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4500000101'
+      act = lt_first_items[ 1 ]-purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '101'
+      act = lt_first_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_first_items[ 1 ]-movement_indicator ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-2'
+      act = lt_second_items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_po_receipt_failure.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'First PO receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_purchase_orders_bulk(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( purchase_order_number = '4500000101'
+          items                 = VALUE #(
+            ( purchase_order_item = '00010'
+              quantity            = '1.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) )
+        ( purchase_order_number = '4500000102'
+          items                 = VALUE #(
+            ( purchase_order_item = '00020'
+              quantity            = '2.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-receipts[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_po_receipts.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second PO receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_purchase_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( purchase_order_number = '4500000101'
+          items                 = VALUE #(
+            ( purchase_order_item = '00010'
+              quantity            = '1.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) )
+        ( purchase_order_number = '4500000102'
+          items                 = VALUE #(
+            ( purchase_order_item = '00020'
+              quantity            = '2.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) )
+        ( purchase_order_number = '4500000103'
+          items                 = VALUE #(
+            ( purchase_order_item = '00030'
+              quantity            = '3.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-receipts[ 1 ]-receipt_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-receipts[ 1 ]-receipt_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-receipts[ 3 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_commit_po_receipts.
+    mo_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Receipt group commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_purchase_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( purchase_order_number = '4500000101'
+          items                 = VALUE #(
+            ( purchase_order_item = '00010'
+              quantity            = '1.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) )
+        ( purchase_order_number = '4500000102'
+          items                 = VALUE #(
+            ( purchase_order_item = '00020'
+              quantity            = '2.000'
+              entry_unit          = 'EA'
+              entry_unit_iso      = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-receipts[ 1 ]-receipt_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Receipt group commit failed'
+      act = ls_result-receipts[ 2 ]-receipt_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_po_receipts.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->receive_purchase_orders_bulk(
+          is_header   = VALUE #(
+            posting_date  = '20261010'
+            document_date = '20261010' )
+          it_requests = VALUE #(
+            ( purchase_order_number = '4500000101'
+              items                 = VALUE #(
+                ( purchase_order_item = '00010'
+                  quantity            = '1.000'
+                  entry_unit          = 'EA'
+                  entry_unit_iso      = 'EA' ) ) )
+            ( purchase_order_number = '4500000101'
+              items                 = VALUE #(
+                ( purchase_order_item = '00020'
+                  quantity            = '2.000'
+                  entry_unit          = 'EA'
+                  entry_unit_iso      = 'EA' ) ) ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD receives_prod_receipts_atomic.
+    DATA(ls_result) = mo_cut->receive_prod_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( production_order = '000000012345'
+          items            = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-1'
+              quantity         = '4.000'
+              entry_unit       = 'EA'
+              entry_unit_iso   = 'EA' ) ) )
+        ( production_order = '000000012346'
+          items            = VALUE #(
+            ( quantity       = '2.000'
+              entry_unit     = 'KG'
+              entry_unit_iso = 'KGM' ) ) ) ) ).
+    DATA(lt_first_items) = mo_api->get_items_for_call( 1 ).
+    DATA(lt_second_items) = mo_api->get_items_for_call( 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '02'
+      act = mo_api->get_last_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000000012345'
+      act = lt_first_items[ 1 ]-order_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '101'
+      act = lt_first_items[ 1 ]-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_first_items[ 1 ]-movement_indicator ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000000012346'
+      act = lt_second_items[ 1 ]-order_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_prod_receipt_failure.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 1
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'First production receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_prod_orders_bulk(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( production_order = '000000012345'
+          items            = VALUE #(
+            ( quantity       = '1.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) )
+        ( production_order = '000000012346'
+          items            = VALUE #(
+            ( quantity       = '2.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-receipts[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_prod_receipts.
+    mo_api->set_create_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        messages = VALUE #(
+          ( type = 'E' message = 'Second production receipt failed' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_prod_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( production_order = '000000012345'
+          items            = VALUE #(
+            ( quantity       = '1.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) )
+        ( production_order = '000000012346'
+          items            = VALUE #(
+            ( quantity       = '2.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) )
+        ( production_order = '000000012347'
+          items            = VALUE #(
+            ( quantity       = '3.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-receipts[ 1 ]-receipt_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-receipts[ 3 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD fails_commit_prod_receipts.
+    mo_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Production receipt commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->receive_prod_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( production_order = '000000012345'
+          items            = VALUE #(
+            ( quantity       = '1.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-receipts[ 1 ]-receipt_result-material_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Production receipt commit failed'
+      act = ls_result-receipts[ 1 ]-receipt_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_prod_receipts.
+    DATA(ls_result) = mo_cut->receive_prod_orders_atomic(
+      is_header   = VALUE #(
+        posting_date  = '20261010'
+        document_date = '20261010' )
+      it_requests = VALUE #(
+        ( production_order = '000000012345'
+          items            = VALUE #(
+            ( quantity       = '1.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) )
+        ( production_order = '000000012346'
+          items            = VALUE #(
+            ( quantity       = '2.000'
+              entry_unit     = 'EA'
+              entry_unit_iso = 'EA' ) ) ) )
+      iv_test_run = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_prod_receipts.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->receive_prod_orders_bulk(
+          is_header   = VALUE #(
+            posting_date  = '20261010'
+            document_date = '20261010' )
+          it_requests = VALUE #(
+            ( production_order = '000000012345'
+              items            = VALUE #(
+                ( quantity       = '1.000'
+                  entry_unit     = 'EA'
+                  entry_unit_iso = 'EA' ) ) )
+            ( production_order = '000000012345'
+              items            = VALUE #(
+                ( quantity       = '2.000'
+                  entry_unit     = 'EA'
+                  entry_unit_iso = 'EA' ) ) ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 ENDCLASS.

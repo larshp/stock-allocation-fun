@@ -4,6 +4,12 @@ CLASS zcl_bapi_sales_order_api DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_rejected_item_mapping,
+        item                     TYPE zif_sales_order_api=>ty_rejected_item,
+        is_conversion_successful TYPE abap_bool,
+      END OF ty_rejected_item_mapping.
+
     METHODS constructor
       IMPORTING
         io_unit_converter      TYPE REF TO zif_material_uom_converter OPTIONAL
@@ -12,12 +18,49 @@ CLASS zcl_bapi_sales_order_api DEFINITION
 
     INTERFACES zif_sales_order_api.
 
+    CLASS-METHODS map_rejected_item
+      IMPORTING
+        is_bapi_item      TYPE bapisdit
+        io_unit_converter TYPE REF TO zif_material_uom_converter
+      RETURNING
+        VALUE(rs_mapping) TYPE ty_rejected_item_mapping.
+
   PRIVATE SECTION.
     DATA mo_unit_converter TYPE REF TO zif_material_uom_converter.
     DATA mo_delivery_repository TYPE REF TO zif_sales_order_delivery_repo.
 ENDCLASS.
 
 CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
+
+  METHOD map_rejected_item.
+    rs_mapping-item = VALUE #(
+      item_number            = is_bapi_item-itm_number
+      material               = is_bapi_item-material
+      plant                  = is_bapi_item-plant
+      sales_quantity         = is_bapi_item-req_qty
+      sales_unit             = is_bapi_item-sales_unit
+      sales_unit_numerator   = is_bapi_item-sales_qty1
+      sales_unit_denominator = is_bapi_item-sales_qty2
+      rejection_reason       = is_bapi_item-reason_rej ).
+
+    IF io_unit_converter IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_conversion) = io_unit_converter->convert_to_base(
+      iv_material    = is_bapi_item-material
+      iv_quantity    = is_bapi_item-req_qty
+      iv_source_unit = is_bapi_item-sales_unit
+      iv_numerator   = is_bapi_item-sales_qty1
+      iv_denominator = is_bapi_item-sales_qty2 ).
+    rs_mapping-item-base_unit = ls_conversion-base_unit.
+    IF ls_conversion-is_successful <> abap_true.
+      RETURN.
+    ENDIF.
+
+    rs_mapping-item-base_quantity = ls_conversion-base_quantity.
+    rs_mapping-is_conversion_successful = abap_true.
+  ENDMETHOD.
 
   METHOD constructor.
     IF io_unit_converter IS BOUND.
@@ -63,8 +106,23 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
     rs_result-order-sales_document = iv_sales_document.
     rs_result-is_successful = abap_true.
     LOOP AT lt_bapi_items INTO ls_bapi_item.
-      IF ls_bapi_item-doc_number <> iv_sales_document
-          OR ls_bapi_item-reason_rej IS NOT INITIAL.
+      IF ls_bapi_item-doc_number <> iv_sales_document.
+        CONTINUE.
+      ENDIF.
+
+      IF ls_bapi_item-reason_rej IS NOT INITIAL.
+        DATA(ls_rejected_mapping) = map_rejected_item(
+          is_bapi_item      = ls_bapi_item
+          io_unit_converter = mo_unit_converter ).
+        APPEND ls_rejected_mapping-item
+          TO rs_result-order-rejected_items.
+        IF ls_rejected_mapping-is_conversion_successful <> abap_true.
+          rs_result-is_successful = abap_false.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Cannot convert rejected sales quantity to base unit' )
+            TO rs_result-messages.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -224,11 +282,17 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    IF rs_result-order-items IS INITIAL.
+    IF rs_result-order-items IS INITIAL
+        AND rs_result-order-rejected_items IS INITIAL.
       rs_result-is_successful = abap_false.
       APPEND VALUE #(
         type    = 'W'
         message = 'Sales order returned no active item details' )
+        TO rs_result-messages.
+    ELSEIF rs_result-order-items IS INITIAL.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Sales order contains only rejected item details' )
         TO rs_result-messages.
     ENDIF.
   ENDMETHOD.
@@ -392,6 +456,54 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         order_item_inx  = lt_itemsx
         schedule_lines  = lt_schedules
         schedule_linesx = lt_schedulesx.
+
+    rs_result-is_successful = abap_true.
+    LOOP AT lt_return INTO ls_return.
+      APPEND VALUE #(
+        type    = ls_return-type
+        message = ls_return-message ) TO rs_result-messages.
+      IF ls_return-type = 'A'
+          OR ls_return-type = 'E'
+          OR ls_return-type = 'X'.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_sales_order_api~reject_order_items.
+    DATA ls_item TYPE bapisditm.
+    DATA ls_itemx TYPE bapisditmx.
+    DATA lt_items TYPE STANDARD TABLE OF bapisditm WITH DEFAULT KEY.
+    DATA lt_itemsx TYPE STANDARD TABLE OF bapisditmx WITH DEFAULT KEY.
+    DATA ls_return TYPE bapiret2.
+    DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA lv_test_run TYPE c LENGTH 1.
+
+    rs_result-sales_document = iv_sales_document.
+    LOOP AT it_item_rejections INTO DATA(ls_rejection).
+      CLEAR: ls_item, ls_itemx.
+      ls_item-itm_number = ls_rejection-item_number.
+      ls_item-reason_rej = ls_rejection-rejection_reason.
+      APPEND ls_item TO lt_items.
+
+      ls_itemx-itm_number = ls_rejection-item_number.
+      ls_itemx-updateflag = 'U'.
+      ls_itemx-reason_rej = abap_true.
+      APPEND ls_itemx TO lt_itemsx.
+    ENDLOOP.
+
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
+
+    CALL FUNCTION 'BAPI_SALESORDER_CHANGE'
+      EXPORTING
+        salesdocument  = iv_sales_document
+        simulation     = lv_test_run
+      TABLES
+        return         = lt_return
+        order_item_in  = lt_items
+        order_item_inx = lt_itemsx.
 
     rs_result-is_successful = abap_true.
     LOOP AT lt_return INTO ls_return.

@@ -36,8 +36,24 @@
           <INTLEN>000024</INTLEN>
         </DD03P>
         <DD03P>
+          <FIELDNAME>AUFPL</FIELDNAME>
+          <POSITION>0005</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
           <FIELDNAME>GLTRP</FIELDNAME>
           <POSITION>0003</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>GSTRP</FIELDNAME>
+          <POSITION>0004</POSITION>
           <DATATYPE>DATS</DATATYPE>
           <LENG>000008</LENG>
           <INTTYPE>D</INTTYPE>

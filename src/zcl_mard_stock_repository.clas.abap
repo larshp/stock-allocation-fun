@@ -28,6 +28,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       BEGIN OF ty_production_receipt,
         production_order    TYPE afpo-aufnr,
         production_item     TYPE afpo-posnr,
+        order_category      TYPE aufk-autyp,
         receipt_date        TYPE afko-gltrp,
         order_quantity      TYPE afpo-psmng,
         received_quantity   TYPE afpo-wemng,
@@ -325,6 +326,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     IF iv_include_prod_receipts = abap_true.
       SELECT afpo~aufnr AS production_order,
              afpo~posnr AS production_item,
+             aufk~autyp AS order_category,
              afko~gltrp AS receipt_date,
              afpo~psmng AS order_quantity,
              afpo~wemng AS received_quantity,
@@ -342,7 +344,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           AND afpo~elikz = @space
           AND afpo~kdauf = @space
           AND afpo~knttp = @space
-          AND aufk~autyp = '10'
+          AND ( aufk~autyp = '10'
+             OR aufk~autyp = '40' )
           AND aufk~phas1 = 'X'
           AND aufk~phas2 = @space
           AND aufk~phas3 = @space
@@ -368,7 +371,10 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
             base_unit       = lv_base_unit
             receipt_date    = ls_production_receipt-receipt_date
             quantity        = lv_production_base_quantity
-            source_type     = 'PRODUCTION'
+            source_type     = COND #(
+              WHEN ls_production_receipt-order_category = '40'
+              THEN 'PROCESS_ORDER'
+              ELSE 'PRODUCTION' )
             source_document = ls_production_receipt-production_order
             source_item     = ls_production_receipt-production_item )
             TO rt_receipts.
@@ -580,6 +586,13 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
   METHOD zif_stock_repository~get_available_stock_by_date.
     TYPES:
+      BEGIN OF ty_reservation_balance,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        reserved_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_balance.
+    TYPES:
       BEGIN OF ty_po_schedule,
         scheduled_quantity  TYPE eket-menge,
         issued_quantity     TYPE eket-wamng,
@@ -590,6 +603,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       END OF ty_po_schedule.
     DATA lt_po_schedules TYPE STANDARD TABLE OF ty_po_schedule
       WITH EMPTY KEY.
+    DATA lt_reservation_balances TYPE STANDARD TABLE OF
+      ty_reservation_balance WITH EMPTY KEY.
+    DATA lt_excluded_reservations TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
     DATA lv_unrestricted_quantity TYPE mard-labst.
     DATA lv_reserved_quantity TYPE resb-bdmng.
     DATA lv_withdrawn_quantity TYPE resb-enmng.
@@ -640,15 +658,44 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND werks = @iv_plant
       INTO @lv_unrestricted_quantity.
 
-    SELECT SUM( bdmng ), SUM( enmng )
-      FROM resb
-      WHERE matnr = @iv_material
-        AND werks = @iv_plant
-        AND sobkz = @space
-        AND xloek = @space
-        AND kzear = @space
-        AND ( bdter <= @iv_required_date OR bdter = @lv_initial_date )
-      INTO ( @lv_reserved_quantity, @lv_withdrawn_quantity ).
+    IF it_excluded_reservations IS INITIAL.
+      SELECT SUM( bdmng ), SUM( enmng )
+        FROM resb
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND sobkz = @space
+          AND xloek = @space
+          AND kzear = @space
+          AND ( bdter <= @iv_required_date OR bdter = @lv_initial_date )
+        INTO ( @lv_reserved_quantity, @lv_withdrawn_quantity ).
+    ELSE.
+      lt_excluded_reservations = CORRESPONDING #(
+        it_excluded_reservations ).
+      SELECT rsnum AS reservation_number,
+             rspos AS reservation_item,
+             bdmng AS reserved_quantity,
+             enmng AS withdrawn_quantity
+        FROM resb
+        WHERE matnr = @iv_material
+          AND werks = @iv_plant
+          AND sobkz = @space
+          AND xloek = @space
+          AND kzear = @space
+          AND ( bdter <= @iv_required_date OR bdter = @lv_initial_date )
+        INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_balances.
+
+      LOOP AT lt_reservation_balances INTO DATA(ls_reservation_balance).
+        IF line_exists( lt_excluded_reservations[
+            reservation_number = ls_reservation_balance-reservation_number
+            reservation_item = ls_reservation_balance-reservation_item ] ).
+          CONTINUE.
+        ENDIF.
+        lv_reserved_quantity = lv_reserved_quantity
+          + ls_reservation_balance-reserved_quantity.
+        lv_withdrawn_quantity = lv_withdrawn_quantity
+          + ls_reservation_balance-withdrawn_quantity.
+      ENDLOOP.
+    ENDIF.
 
     IF iv_include_po_receipts = abap_true.
       DATA(lo_po_quantity_calc) = NEW zcl_po_sched_qty_calc( ).
@@ -873,6 +920,161 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       WHERE matnr = @iv_material
         AND werks = @iv_plant
       INTO @rv_quantity.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_po_confirmed_receipts.
+    TYPES:
+      BEGIN OF ty_po_schedule,
+        source_document      TYPE eket-ebeln,
+        source_item          TYPE eket-ebelp,
+        source_schedule_line TYPE eket-etenr,
+        receipt_date         TYPE eket-eindt,
+        scheduled_quantity   TYPE eket-menge,
+        received_quantity    TYPE eket-wemng,
+        mrp_reduced_quantity TYPE eket-dabmg,
+        order_to_base_num    TYPE ekpo-umrez,
+        order_to_base_denom  TYPE ekpo-umren,
+      END OF ty_po_schedule.
+    TYPES ty_po_schedules TYPE STANDARD TABLE OF ty_po_schedule
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_po_confirmation,
+        source_document     TYPE ekes-ebeln,
+        source_item         TYPE ekes-ebelp,
+        receipt_date        TYPE ekes-eindt,
+        confirmed_quantity  TYPE ekes-menge,
+        reduced_quantity    TYPE ekes-dabmg,
+        order_to_base_num   TYPE ekpo-umrez,
+        order_to_base_denom TYPE ekpo-umren,
+      END OF ty_po_confirmation.
+    TYPES ty_po_confirmations TYPE STANDARD TABLE OF ty_po_confirmation
+      WITH EMPTY KEY.
+    DATA lt_schedules TYPE ty_po_schedules.
+    DATA lt_confirmations TYPE ty_po_confirmations.
+    DATA lv_base_unit TYPE mara-meins.
+    DATA lv_initial_date TYPE d.
+    DATA(lo_calculator) = NEW zcl_po_sched_qty_calc( ).
+
+    IF iv_material IS INITIAL
+        OR iv_plant IS INITIAL
+        OR iv_through_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    SELECT SINGLE meins
+      FROM mara
+      WHERE matnr = @iv_material
+      INTO @lv_base_unit.
+    IF lv_base_unit IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT eket~ebeln AS source_document,
+           eket~ebelp AS source_item,
+           eket~etenr AS source_schedule_line,
+           eket~eindt AS receipt_date,
+           eket~menge AS scheduled_quantity,
+           eket~wemng AS received_quantity,
+           eket~dabmg AS mrp_reduced_quantity,
+           ekpo~umrez AS order_to_base_num,
+           ekpo~umren AS order_to_base_denom
+      FROM eket
+      INNER JOIN ekpo
+        ON ekpo~ebeln = eket~ebeln
+       AND ekpo~ebelp = eket~ebelp
+      INNER JOIN ekko
+        ON ekko~ebeln = ekpo~ebeln
+      WHERE ekpo~matnr = @iv_material
+        AND ekpo~werks = @iv_plant
+        AND ekko~bstyp = 'F'
+        AND ekpo~pstyp = '0'
+        AND ekpo~knttp = @space
+        AND ekpo~loekz = @space
+        AND ekpo~elikz = @space
+        AND ekpo~retpo = @space
+        AND ekpo~wepos = 'X'
+        AND ekpo~insmk = @space
+        AND eket~eindt > @lv_initial_date
+        AND eket~eindt <= @iv_through_date
+      INTO CORRESPONDING FIELDS OF TABLE @lt_schedules.
+
+    LOOP AT lt_schedules INTO DATA(ls_schedule).
+      DATA(lv_schedule_quantity) =
+        lo_calculator->calc_open_sched_mrp_qty(
+          iv_scheduled_quantity   = ls_schedule-scheduled_quantity
+          iv_received_quantity    = ls_schedule-received_quantity
+          iv_mrp_reduced_quantity = ls_schedule-mrp_reduced_quantity
+          iv_order_to_base_num    = ls_schedule-order_to_base_num
+          iv_order_to_base_denom  = ls_schedule-order_to_base_denom ).
+      DATA(lv_schedule_base_quantity) =
+        CONV mard-labst( lv_schedule_quantity ).
+      IF lv_schedule_base_quantity > 0.
+        APPEND VALUE #(
+          material             = iv_material
+          plant                = iv_plant
+          base_unit            = lv_base_unit
+          receipt_date         = ls_schedule-receipt_date
+          quantity             = lv_schedule_base_quantity
+          source_type          = 'PO'
+          source_document      = ls_schedule-source_document
+          source_item          = ls_schedule-source_item
+          source_schedule_line = ls_schedule-source_schedule_line )
+          TO rt_receipts.
+      ENDIF.
+    ENDLOOP.
+
+    SELECT ekes~ebeln AS source_document,
+           ekes~ebelp AS source_item,
+           ekes~eindt AS receipt_date,
+           ekes~menge AS confirmed_quantity,
+           ekes~dabmg AS reduced_quantity,
+           ekpo~umrez AS order_to_base_num,
+           ekpo~umren AS order_to_base_denom
+      FROM ekes
+      INNER JOIN ekpo
+        ON ekpo~ebeln = ekes~ebeln
+       AND ekpo~ebelp = ekes~ebelp
+      INNER JOIN ekko
+        ON ekko~ebeln = ekpo~ebeln
+      WHERE ekpo~matnr = @iv_material
+        AND ekpo~werks = @iv_plant
+        AND ekko~bstyp = 'F'
+        AND ekpo~pstyp = '0'
+        AND ekpo~knttp = @space
+        AND ekpo~loekz = @space
+        AND ekpo~elikz = @space
+        AND ekpo~retpo = @space
+        AND ekpo~wepos = 'X'
+        AND ekpo~insmk = @space
+        AND ekes~kzdis = 'X'
+        AND ekes~loekz = @space
+        AND ekes~eindt > @lv_initial_date
+        AND ekes~eindt <= @iv_through_date
+      INTO CORRESPONDING FIELDS OF TABLE @lt_confirmations.
+
+    LOOP AT lt_confirmations INTO DATA(ls_confirmation).
+      DATA(lv_confirmation_quantity) =
+        lo_calculator->calc_open_conf_base_qty(
+          iv_confirmed_quantity  =
+            ls_confirmation-confirmed_quantity
+          iv_reduced_quantity    = ls_confirmation-reduced_quantity
+          iv_order_to_base_num   = ls_confirmation-order_to_base_num
+          iv_order_to_base_denom = ls_confirmation-order_to_base_denom ).
+      DATA(lv_confirmation_base_qty) =
+        CONV mard-labst( lv_confirmation_quantity ).
+      IF lv_confirmation_base_qty > 0.
+        APPEND VALUE #(
+          material        = iv_material
+          plant           = iv_plant
+          base_unit       = lv_base_unit
+          receipt_date    = ls_confirmation-receipt_date
+          quantity        = lv_confirmation_base_qty
+          source_type     = 'PO_CONFIRMATION'
+          source_document = ls_confirmation-source_document
+          source_item     = ls_confirmation-source_item )
+          TO rt_receipts.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
@@ -1186,6 +1388,369 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         iv_safety_stock_quantity = rs_status-safety_stock_quantity ).
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_stock_status_bulk.
+    TYPES:
+      BEGIN OF ty_mard_row,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        unrestricted_quantity       TYPE mard-labst,
+        quality_inspection_quantity TYPE mard-insme,
+        blocked_quantity            TYPE mard-speme,
+      END OF ty_mard_row,
+      ty_mard_rows TYPE STANDARD TABLE OF ty_mard_row WITH EMPTY KEY,
+      BEGIN OF ty_stock_total,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        unrestricted_quantity       TYPE mard-labst,
+        quality_inspection_quantity TYPE mard-insme,
+        blocked_quantity            TYPE mard-speme,
+      END OF ty_stock_total,
+      ty_stock_totals TYPE HASHED TABLE OF ty_stock_total
+        WITH UNIQUE KEY material plant,
+      BEGIN OF ty_reservation_row,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_row,
+      ty_reservation_rows TYPE STANDARD TABLE OF ty_reservation_row
+        WITH EMPTY KEY,
+      BEGIN OF ty_reservation_total,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_total,
+      ty_reservation_totals TYPE HASHED TABLE OF ty_reservation_total
+        WITH UNIQUE KEY material plant,
+      BEGIN OF ty_safety_stock,
+        material              TYPE marc-matnr,
+        plant                 TYPE marc-werks,
+        safety_stock_quantity TYPE marc-eisbe,
+      END OF ty_safety_stock,
+      ty_safety_stocks TYPE HASHED TABLE OF ty_safety_stock
+        WITH UNIQUE KEY material plant.
+    DATA lt_mard_rows TYPE ty_mard_rows.
+    DATA lt_stock_totals TYPE ty_stock_totals.
+    DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lt_reservation_totals TYPE ty_reservation_totals.
+    DATA lt_safety_stocks TYPE ty_safety_stocks.
+
+    IF it_requests IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           labst AS unrestricted_quantity,
+           insme AS quality_inspection_quantity,
+           speme AS blocked_quantity
+      FROM mard
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+      INTO CORRESPONDING FIELDS OF TABLE @lt_mard_rows.
+
+    LOOP AT lt_mard_rows INTO DATA(ls_mard_row).
+      READ TABLE lt_stock_totals ASSIGNING FIELD-SYMBOL(<ls_stock_total>)
+        WITH TABLE KEY material = ls_mard_row-material
+                       plant = ls_mard_row-plant.
+      IF sy-subrc = 0.
+        <ls_stock_total>-unrestricted_quantity +=
+          ls_mard_row-unrestricted_quantity.
+        <ls_stock_total>-quality_inspection_quantity +=
+          ls_mard_row-quality_inspection_quantity.
+        <ls_stock_total>-blocked_quantity += ls_mard_row-blocked_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material                    = ls_mard_row-material
+          plant                       = ls_mard_row-plant
+          unrestricted_quantity       = ls_mard_row-unrestricted_quantity
+          quality_inspection_quantity =
+            ls_mard_row-quality_inspection_quantity
+          blocked_quantity            = ls_mard_row-blocked_quantity )
+          INTO TABLE lt_stock_totals.
+      ENDIF.
+    ENDLOOP.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           rsnum AS reservation_number,
+           rspos AS reservation_item,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_rows.
+
+    LOOP AT lt_reservation_rows INTO DATA(ls_reservation_row).
+      READ TABLE lt_reservation_totals
+        ASSIGNING FIELD-SYMBOL(<ls_reservation_total>)
+        WITH TABLE KEY material = ls_reservation_row-material
+                       plant = ls_reservation_row-plant.
+      IF sy-subrc = 0.
+        <ls_reservation_total>-required_quantity +=
+          ls_reservation_row-required_quantity.
+        <ls_reservation_total>-withdrawn_quantity +=
+          ls_reservation_row-withdrawn_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material           = ls_reservation_row-material
+          plant              = ls_reservation_row-plant
+          required_quantity  = ls_reservation_row-required_quantity
+          withdrawn_quantity = ls_reservation_row-withdrawn_quantity )
+          INTO TABLE lt_reservation_totals.
+      ENDIF.
+    ENDLOOP.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           eisbe AS safety_stock_quantity
+      FROM marc
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+      INTO CORRESPONDING FIELDS OF TABLE @lt_safety_stocks.
+
+    DATA(lo_stock_quantity_calculator) = NEW zcl_stock_avail_qty_calc( ).
+    LOOP AT it_requests INTO DATA(ls_request).
+      DATA(ls_status) = VALUE zif_stock_repository=>ty_stock_status( ).
+      READ TABLE lt_stock_totals INTO DATA(ls_stock_total)
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc = 0.
+        ls_status-unrestricted_quantity =
+          ls_stock_total-unrestricted_quantity.
+        ls_status-quality_inspection_quantity =
+          ls_stock_total-quality_inspection_quantity.
+        ls_status-blocked_quantity = ls_stock_total-blocked_quantity.
+      ENDIF.
+
+      READ TABLE lt_reservation_totals INTO DATA(ls_reservation_total)
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc = 0.
+        ls_status-reserved_quantity = ls_reservation_total-required_quantity
+          - ls_reservation_total-withdrawn_quantity.
+        IF ls_status-reserved_quantity < 0.
+          CLEAR ls_status-reserved_quantity.
+        ENDIF.
+      ENDIF.
+
+      READ TABLE lt_safety_stocks INTO DATA(ls_safety_stock)
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc = 0.
+        ls_status-safety_stock_quantity =
+          ls_safety_stock-safety_stock_quantity.
+      ENDIF.
+
+      ls_status-available_unrestricted_qty =
+        lo_stock_quantity_calculator->calculate(
+          iv_unrestricted_quantity = ls_status-unrestricted_quantity
+          iv_reserved_quantity     = ls_status-reserved_quantity ).
+      ls_status-available_after_safety_qty =
+        lo_stock_quantity_calculator->calculate_with_safety_stock(
+          iv_available_quantity    =
+            ls_status-available_unrestricted_qty
+          iv_safety_stock_quantity = ls_status-safety_stock_quantity ).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        stock_status = ls_status )
+        TO rt_status.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_location_stock_status_bulk.
+    TYPES:
+      BEGIN OF ty_mard_row,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        storage_location            TYPE mard-lgort,
+        unrestricted_quantity       TYPE mard-labst,
+        quality_inspection_quantity TYPE mard-insme,
+        blocked_quantity            TYPE mard-speme,
+      END OF ty_mard_row,
+      ty_mard_rows TYPE STANDARD TABLE OF ty_mard_row WITH EMPTY KEY,
+      BEGIN OF ty_stock_total,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        storage_location            TYPE mard-lgort,
+        unrestricted_quantity       TYPE mard-labst,
+        quality_inspection_quantity TYPE mard-insme,
+        blocked_quantity            TYPE mard-speme,
+      END OF ty_stock_total,
+      ty_stock_totals TYPE SORTED TABLE OF ty_stock_total
+        WITH UNIQUE KEY material plant storage_location,
+      BEGIN OF ty_reservation_row,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        storage_location   TYPE resb-lgort,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_row,
+      ty_reservation_rows TYPE STANDARD TABLE OF ty_reservation_row
+        WITH EMPTY KEY,
+      BEGIN OF ty_reservation_total,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        storage_location   TYPE resb-lgort,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_total,
+      ty_reservation_totals TYPE SORTED TABLE OF ty_reservation_total
+        WITH UNIQUE KEY material plant storage_location.
+    DATA lt_mard_rows TYPE ty_mard_rows.
+    DATA lt_stock_totals TYPE ty_stock_totals.
+    DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lt_reservation_totals TYPE ty_reservation_totals.
+    DATA lt_stock TYPE zcl_stock_location_qty_calc=>ty_stocks.
+    DATA lt_reservations TYPE zcl_stock_location_qty_calc=>ty_reservations.
+    DATA lt_available_stock TYPE zif_stock_repository=>ty_location_stocks.
+    DATA ls_result TYPE zif_stock_repository=>ty_stock_location_bulk_result.
+    DATA lv_available_quantity TYPE mard-labst.
+
+    IF it_requests IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           lgort AS storage_location,
+           labst AS unrestricted_quantity,
+           insme AS quality_inspection_quantity,
+           speme AS blocked_quantity
+      FROM mard
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+      INTO CORRESPONDING FIELDS OF TABLE @lt_mard_rows.
+
+    LOOP AT lt_mard_rows INTO DATA(ls_mard_row).
+      READ TABLE lt_stock_totals ASSIGNING FIELD-SYMBOL(<ls_stock_total>)
+        WITH TABLE KEY material = ls_mard_row-material
+                       plant = ls_mard_row-plant
+                       storage_location = ls_mard_row-storage_location.
+      IF sy-subrc = 0.
+        <ls_stock_total>-unrestricted_quantity +=
+          ls_mard_row-unrestricted_quantity.
+        <ls_stock_total>-quality_inspection_quantity +=
+          ls_mard_row-quality_inspection_quantity.
+        <ls_stock_total>-blocked_quantity += ls_mard_row-blocked_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material                    = ls_mard_row-material
+          plant                       = ls_mard_row-plant
+          storage_location            = ls_mard_row-storage_location
+          unrestricted_quantity       = ls_mard_row-unrestricted_quantity
+          quality_inspection_quantity =
+            ls_mard_row-quality_inspection_quantity
+          blocked_quantity            = ls_mard_row-blocked_quantity )
+          INTO TABLE lt_stock_totals.
+      ENDIF.
+    ENDLOOP.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           rsnum AS reservation_number,
+           rspos AS reservation_item,
+           lgort AS storage_location,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_rows.
+
+    LOOP AT lt_reservation_rows INTO DATA(ls_reservation_row).
+      READ TABLE lt_reservation_totals
+        ASSIGNING FIELD-SYMBOL(<ls_reservation_total>)
+        WITH TABLE KEY material = ls_reservation_row-material
+                       plant = ls_reservation_row-plant
+                       storage_location =
+                         ls_reservation_row-storage_location.
+      IF sy-subrc = 0.
+        <ls_reservation_total>-required_quantity +=
+          ls_reservation_row-required_quantity.
+        <ls_reservation_total>-withdrawn_quantity +=
+          ls_reservation_row-withdrawn_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material           = ls_reservation_row-material
+          plant              = ls_reservation_row-plant
+          storage_location   = ls_reservation_row-storage_location
+          required_quantity  = ls_reservation_row-required_quantity
+          withdrawn_quantity = ls_reservation_row-withdrawn_quantity )
+          INTO TABLE lt_reservation_totals.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lo_location_qty_calc) =
+      NEW zcl_stock_location_qty_calc( ).
+    LOOP AT it_requests INTO DATA(ls_request).
+      CLEAR: lt_stock, lt_reservations, lt_available_stock.
+      LOOP AT lt_stock_totals INTO DATA(ls_stock_total)
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        APPEND VALUE #(
+          storage_location = ls_stock_total-storage_location
+          quantity         = ls_stock_total-unrestricted_quantity )
+          TO lt_stock.
+      ENDLOOP.
+      LOOP AT lt_reservation_totals INTO DATA(ls_reservation_total)
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        APPEND VALUE #(
+          storage_location   = ls_reservation_total-storage_location
+          required_quantity  = ls_reservation_total-required_quantity
+          withdrawn_quantity = ls_reservation_total-withdrawn_quantity )
+          TO lt_reservations.
+      ENDLOOP.
+      lt_available_stock = lo_location_qty_calc->calculate(
+        it_stock        = lt_stock
+        it_reservations = lt_reservations ).
+
+      CLEAR ls_result.
+      ls_result-request_id = ls_request-request_id.
+      ls_result-material = ls_request-material.
+      ls_result-plant = ls_request-plant.
+      LOOP AT lt_stock_totals INTO ls_stock_total
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        CLEAR lv_available_quantity.
+        READ TABLE lt_available_stock INTO DATA(ls_available_stock)
+          WITH KEY storage_location = ls_stock_total-storage_location.
+        IF sy-subrc = 0.
+          lv_available_quantity = ls_available_stock-available_quantity.
+        ENDIF.
+        APPEND VALUE #(
+          storage_location           = ls_stock_total-storage_location
+          unrestricted_quantity      = ls_stock_total-unrestricted_quantity
+          available_unrestricted_qty = lv_available_quantity
+          quality_inspection_qty     =
+            ls_stock_total-quality_inspection_quantity
+          blocked_quantity           = ls_stock_total-blocked_quantity )
+          TO ls_result-locations.
+      ENDLOOP.
+      APPEND ls_result TO rt_status.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_stock_status_by_location.
     DATA lt_stock TYPE zcl_stock_location_qty_calc=>ty_stocks.
     DATA lt_reservations TYPE zcl_stock_location_qty_calc=>ty_reservations.
@@ -1275,6 +1840,243 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         batch              = ls_batch_status-batch
         expiration_date    = ls_batch_status-expiration_date
         available_quantity = ls_batch_status-available_quantity ) TO rt_stock.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_batch_stock_status_bulk.
+    TYPES:
+      BEGIN OF ty_mchb_row,
+        material         TYPE mchb-matnr,
+        plant            TYPE mchb-werks,
+        storage_location TYPE mchb-lgort,
+        batch            TYPE mchb-charg,
+        unrestricted_qty TYPE mchb-clabs,
+      END OF ty_mchb_row,
+      ty_mchb_rows TYPE STANDARD TABLE OF ty_mchb_row WITH EMPTY KEY,
+      BEGIN OF ty_stock_total,
+        material         TYPE mchb-matnr,
+        plant            TYPE mchb-werks,
+        storage_location TYPE mchb-lgort,
+        batch            TYPE mchb-charg,
+        expiration_date  TYPE mcha-vfdat,
+        unrestricted_qty TYPE mchb-clabs,
+      END OF ty_stock_total,
+      ty_stock_totals TYPE SORTED TABLE OF ty_stock_total
+        WITH UNIQUE KEY material plant storage_location batch,
+      BEGIN OF ty_reservation_row,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        storage_location   TYPE resb-lgort,
+        batch              TYPE resb-charg,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_row,
+      ty_reservation_rows TYPE STANDARD TABLE OF ty_reservation_row
+        WITH EMPTY KEY,
+      BEGIN OF ty_reservation_total,
+        material           TYPE resb-matnr,
+        plant              TYPE resb-werks,
+        storage_location   TYPE resb-lgort,
+        batch              TYPE resb-charg,
+        required_quantity  TYPE resb-bdmng,
+        withdrawn_quantity TYPE resb-enmng,
+      END OF ty_reservation_total,
+      ty_reservation_totals TYPE SORTED TABLE OF ty_reservation_total
+        WITH UNIQUE KEY material plant storage_location batch,
+      BEGIN OF ty_plant_batch,
+        material        TYPE mcha-matnr,
+        plant           TYPE mcha-werks,
+        batch           TYPE mcha-charg,
+        expiration_date TYPE mcha-vfdat,
+      END OF ty_plant_batch,
+      ty_plant_batches TYPE HASHED TABLE OF ty_plant_batch
+        WITH UNIQUE KEY material plant batch,
+      BEGIN OF ty_global_batch,
+        material        TYPE mch1-matnr,
+        batch           TYPE mch1-charg,
+        expiration_date TYPE mch1-vfdat,
+      END OF ty_global_batch,
+      ty_global_batches TYPE HASHED TABLE OF ty_global_batch
+        WITH UNIQUE KEY material batch.
+    DATA lt_mchb_rows TYPE ty_mchb_rows.
+    DATA lt_stock_totals TYPE ty_stock_totals.
+    DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lt_reservation_totals TYPE ty_reservation_totals.
+    DATA lt_plant_batches TYPE ty_plant_batches.
+    DATA lt_global_batches TYPE ty_global_batches.
+    DATA lt_stock TYPE zcl_stock_batch_qty_calc=>ty_stocks.
+    DATA lt_reservations TYPE zcl_stock_batch_qty_calc=>ty_reservations.
+    DATA lt_available_stock TYPE zif_stock_repository=>ty_batch_stocks.
+    DATA ls_result TYPE zif_stock_repository=>ty_batch_status_bulk_result.
+    DATA lv_available_quantity TYPE mchb-clabs.
+
+    IF it_requests IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT matnr AS material,
+           werks AS plant,
+           lgort AS storage_location,
+           charg AS batch,
+           clabs AS unrestricted_qty
+      FROM mchb
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+      INTO CORRESPONDING FIELDS OF TABLE @lt_mchb_rows.
+
+    LOOP AT lt_mchb_rows INTO DATA(ls_mchb_row).
+      READ TABLE lt_stock_totals ASSIGNING FIELD-SYMBOL(<ls_stock_total>)
+        WITH TABLE KEY material = ls_mchb_row-material
+                       plant = ls_mchb_row-plant
+                       storage_location = ls_mchb_row-storage_location
+                       batch = ls_mchb_row-batch.
+      IF sy-subrc = 0.
+        <ls_stock_total>-unrestricted_qty += ls_mchb_row-unrestricted_qty.
+      ELSE.
+        INSERT VALUE #(
+          material         = ls_mchb_row-material
+          plant            = ls_mchb_row-plant
+          storage_location = ls_mchb_row-storage_location
+          batch            = ls_mchb_row-batch
+          unrestricted_qty = ls_mchb_row-unrestricted_qty )
+          INTO TABLE lt_stock_totals.
+      ENDIF.
+    ENDLOOP.
+
+    IF lt_stock_totals IS NOT INITIAL.
+      SELECT matnr AS material,
+             werks AS plant,
+             charg AS batch,
+             vfdat AS expiration_date
+        FROM mcha
+        FOR ALL ENTRIES IN @lt_stock_totals
+        WHERE matnr = @lt_stock_totals-material
+          AND werks = @lt_stock_totals-plant
+          AND charg = @lt_stock_totals-batch
+        INTO CORRESPONDING FIELDS OF TABLE @lt_plant_batches.
+
+      SELECT matnr AS material,
+             charg AS batch,
+             vfdat AS expiration_date
+        FROM mch1
+        FOR ALL ENTRIES IN @lt_stock_totals
+        WHERE matnr = @lt_stock_totals-material
+          AND charg = @lt_stock_totals-batch
+        INTO CORRESPONDING FIELDS OF TABLE @lt_global_batches.
+    ENDIF.
+
+    LOOP AT lt_stock_totals ASSIGNING <ls_stock_total>.
+      READ TABLE lt_plant_batches INTO DATA(ls_plant_batch)
+        WITH TABLE KEY material = <ls_stock_total>-material
+                       plant = <ls_stock_total>-plant
+                       batch = <ls_stock_total>-batch.
+      IF sy-subrc = 0 AND ls_plant_batch-expiration_date IS NOT INITIAL.
+        <ls_stock_total>-expiration_date = ls_plant_batch-expiration_date.
+      ELSE.
+        READ TABLE lt_global_batches INTO DATA(ls_global_batch)
+          WITH TABLE KEY material = <ls_stock_total>-material
+                         batch = <ls_stock_total>-batch.
+        IF sy-subrc = 0.
+          <ls_stock_total>-expiration_date =
+            ls_global_batch-expiration_date.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    SELECT rsnum AS reservation_number,
+           rspos AS reservation_item,
+           matnr AS material,
+           werks AS plant,
+           lgort AS storage_location,
+           charg AS batch,
+           bdmng AS required_quantity,
+           enmng AS withdrawn_quantity
+      FROM resb
+      FOR ALL ENTRIES IN @it_requests
+      WHERE matnr = @it_requests-material
+        AND werks = @it_requests-plant
+        AND sobkz = @space
+        AND xloek = @space
+        AND kzear = @space
+      INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_rows.
+
+    LOOP AT lt_reservation_rows INTO DATA(ls_reservation_row).
+      READ TABLE lt_reservation_totals
+        ASSIGNING FIELD-SYMBOL(<ls_reservation_total>)
+        WITH TABLE KEY material = ls_reservation_row-material
+                       plant = ls_reservation_row-plant
+                       storage_location =
+                         ls_reservation_row-storage_location
+                       batch = ls_reservation_row-batch.
+      IF sy-subrc = 0.
+        <ls_reservation_total>-required_quantity +=
+          ls_reservation_row-required_quantity.
+        <ls_reservation_total>-withdrawn_quantity +=
+          ls_reservation_row-withdrawn_quantity.
+      ELSE.
+        INSERT VALUE #(
+          material           = ls_reservation_row-material
+          plant              = ls_reservation_row-plant
+          storage_location   = ls_reservation_row-storage_location
+          batch              = ls_reservation_row-batch
+          required_quantity  = ls_reservation_row-required_quantity
+          withdrawn_quantity = ls_reservation_row-withdrawn_quantity )
+          INTO TABLE lt_reservation_totals.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lo_batch_qty_calc) = NEW zcl_stock_batch_qty_calc( ).
+    LOOP AT it_requests INTO DATA(ls_request).
+      CLEAR: lt_stock, lt_reservations, lt_available_stock, ls_result.
+      LOOP AT lt_stock_totals INTO DATA(ls_stock_total)
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        APPEND VALUE #(
+          storage_location = ls_stock_total-storage_location
+          batch            = ls_stock_total-batch
+          expiration_date  = ls_stock_total-expiration_date
+          quantity         = ls_stock_total-unrestricted_qty )
+          TO lt_stock.
+      ENDLOOP.
+      LOOP AT lt_reservation_totals INTO DATA(ls_reservation_total)
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        APPEND VALUE #(
+          storage_location   = ls_reservation_total-storage_location
+          batch              = ls_reservation_total-batch
+          required_quantity  = ls_reservation_total-required_quantity
+          withdrawn_quantity = ls_reservation_total-withdrawn_quantity )
+          TO lt_reservations.
+      ENDLOOP.
+      lt_available_stock = lo_batch_qty_calc->calculate(
+        it_stock        = lt_stock
+        it_reservations = lt_reservations ).
+
+      ls_result-request_id = ls_request-request_id.
+      ls_result-material = ls_request-material.
+      ls_result-plant = ls_request-plant.
+      LOOP AT lt_stock_totals INTO ls_stock_total
+        WHERE material = ls_request-material
+          AND plant = ls_request-plant.
+        CLEAR lv_available_quantity.
+        READ TABLE lt_available_stock INTO DATA(ls_available_stock)
+          WITH KEY storage_location = ls_stock_total-storage_location
+                   batch = ls_stock_total-batch.
+        IF sy-subrc = 0.
+          lv_available_quantity = ls_available_stock-available_quantity.
+        ENDIF.
+        APPEND VALUE #(
+          storage_location      = ls_stock_total-storage_location
+          batch                 = ls_stock_total-batch
+          expiration_date       = ls_stock_total-expiration_date
+          unrestricted_quantity = ls_stock_total-unrestricted_qty
+          available_quantity    = lv_available_quantity )
+          TO ls_result-batches.
+      ENDLOOP.
+      APPEND ls_result TO rt_status.
     ENDLOOP.
   ENDMETHOD.
 

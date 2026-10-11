@@ -6,11 +6,12 @@ CLASS zcl_stock_batch_eligibility DEFINITION
   PUBLIC SECTION.
     METHODS is_eligible
       IMPORTING
-        iv_expiration_date    TYPE d
-        iv_as_of_date         TYPE d
-        iv_min_days           TYPE i
+        iv_expiration_date         TYPE d
+        iv_as_of_date              TYPE d
+        iv_min_days                TYPE i
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
       RETURNING
-        VALUE(rv_is_eligible) TYPE abap_bool
+        VALUE(rv_is_eligible)      TYPE abap_bool
       RAISING
         zcx_invalid_stock_request.
 ENDCLASS.
@@ -18,12 +19,15 @@ ENDCLASS.
 CLASS zcl_stock_batch_eligibility IMPLEMENTATION.
 
   METHOD is_eligible.
-    IF iv_as_of_date IS INITIAL OR iv_min_days < 0.
+    IF iv_as_of_date IS INITIAL OR iv_min_days < 0
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
     IF iv_expiration_date IS INITIAL.
-      rv_is_eligible = xsdbool( iv_min_days = 0 ).
+      rv_is_eligible = xsdbool(
+        iv_min_days = 0 AND iv_include_undated_batches = abap_true ).
       RETURN.
     ENDIF.
 

@@ -12,6 +12,23 @@ CLASS zcl_po_sched_qty_calc DEFINITION
         iv_order_to_base_denom TYPE ekpo-umren
       RETURNING
         VALUE(rv_quantity)     TYPE decfloat34.
+    METHODS calc_open_sched_mrp_qty
+      IMPORTING
+        iv_scheduled_quantity   TYPE eket-menge
+        iv_received_quantity    TYPE eket-wemng
+        iv_mrp_reduced_quantity TYPE eket-dabmg
+        iv_order_to_base_num    TYPE ekpo-umrez
+        iv_order_to_base_denom  TYPE ekpo-umren
+      RETURNING
+        VALUE(rv_quantity)      TYPE decfloat34.
+    METHODS calc_open_conf_base_qty
+      IMPORTING
+        iv_confirmed_quantity  TYPE ekes-menge
+        iv_reduced_quantity    TYPE ekes-dabmg
+        iv_order_to_base_num   TYPE ekpo-umrez
+        iv_order_to_base_denom TYPE ekpo-umren
+      RETURNING
+        VALUE(rv_quantity)     TYPE decfloat34.
     METHODS calculate_open_issued_qty
       IMPORTING
         iv_issued_quantity     TYPE eket-wamng
@@ -42,6 +59,45 @@ CLASS zcl_po_sched_qty_calc IMPLEMENTATION.
 
     rv_quantity = CONV decfloat34(
       iv_scheduled_quantity - iv_received_quantity )
+      * CONV decfloat34( iv_order_to_base_num )
+      / CONV decfloat34( iv_order_to_base_denom ).
+  ENDMETHOD.
+
+  METHOD calc_open_sched_mrp_qty.
+    DATA(lv_scheduled_quantity) =
+      CONV decfloat34( iv_scheduled_quantity ).
+    DATA(lv_received_quantity) =
+      CONV decfloat34( iv_received_quantity ).
+    DATA(lv_reduced_quantity) =
+      CONV decfloat34( iv_mrp_reduced_quantity ).
+    IF lv_received_quantity > lv_reduced_quantity.
+      lv_reduced_quantity = lv_received_quantity.
+    ENDIF.
+
+    IF lv_scheduled_quantity <= lv_reduced_quantity
+        OR iv_order_to_base_num <= 0
+        OR iv_order_to_base_denom <= 0.
+      RETURN.
+    ENDIF.
+
+    rv_quantity = CONV decfloat34(
+      lv_scheduled_quantity - lv_reduced_quantity )
+      * CONV decfloat34( iv_order_to_base_num )
+      / CONV decfloat34( iv_order_to_base_denom ).
+  ENDMETHOD.
+
+  METHOD calc_open_conf_base_qty.
+    DATA(lv_open_quantity) = CONV decfloat34( iv_confirmed_quantity )
+      - CONV decfloat34( iv_reduced_quantity ).
+
+    IF lv_open_quantity <= 0
+        OR iv_order_to_base_num <= 0
+        OR iv_order_to_base_denom <= 0.
+      RETURN.
+    ENDIF.
+
+    rv_quantity = CONV decfloat34(
+      lv_open_quantity )
       * CONV decfloat34( iv_order_to_base_num )
       / CONV decfloat34( iv_order_to_base_denom ).
   ENDMETHOD.

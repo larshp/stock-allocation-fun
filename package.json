@@ -5,14 +5,13 @@
   "description": "An ABAP stock allocation solution for SAP systems",
   "scripts": {
     "lint": "abaplint",
-    "transpile": "rimraf output && abap_transpile abap_transpile.json",
+    "transpile": "abap_transpile abap_transpile.json",
     "unit": "npm run transpile && node output/index.mjs",
     "test": "npm run lint && npm run unit"
   },
   "devDependencies": {
-    "@abaplint/cli": "^2.120.77",
-    "@abaplint/runtime": "^2.14.5",
-    "@abaplint/transpiler-cli": "^2.14.5",
-    "rimraf": "^6.1.3"
+    "@abaplint/cli": "^2.120.78",
+    "@abaplint/runtime": "^2.14.6",
+    "@abaplint/transpiler-cli": "^2.14.6"
   }
 }

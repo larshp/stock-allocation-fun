@@ -341,6 +341,7 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS creates_selected_source_order FOR TESTING.
     METHODS simulates_without_commit FOR TESTING.
     METHODS rejects_invalid_source_order FOR TESTING.
+    METHODS rejects_bad_po_dates FOR TESTING.
     METHODS rolls_back_api_error FOR TESTING.
     METHODS rejects_missing_order_number FOR TESTING.
     METHODS rolls_back_commit_error FOR TESTING.
@@ -381,6 +382,7 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS creates_pr_pos_atomic FOR TESTING.
     METHODS rolls_back_pr_po_batch FOR TESTING.
     METHODS changes_order_schedules FOR TESTING.
+    METHODS rejects_bad_schedule_dates FOR TESTING.
     METHODS continues_schedule_batch FOR TESTING.
     METHODS validates_schedule_batch_first FOR TESTING.
     METHODS changes_schedules_atomic FOR TESTING.
@@ -675,6 +677,119 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
         lv_exception_raised = abap_true.
     ENDTRY.
 
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_po_dates.
+    DATA(ls_request) = build_request( ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    ls_request-document_date = '20260230'.
+    TRY.
+        mo_cut->create_order( is_request = ls_request ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+
+    ls_request = build_request( ).
+    ls_request-items[ 1 ]-delivery_date = '20261131'.
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->create_order( is_request = ls_request ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+
+    DATA(ls_valid_bulk_request) = build_request( ).
+    DATA(ls_invalid_bulk_request) = build_request( ).
+    ls_invalid_bulk_request-items[ 2 ]-delivery_date = '20260229'.
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->create_orders_bulk(
+          it_requests = VALUE #(
+            ( ls_valid_bulk_request )
+            ( ls_invalid_bulk_request ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->create_orders_atomic(
+          it_requests = VALUE #(
+            ( ls_valid_bulk_request )
+            ( ls_invalid_bulk_request ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+
+    DATA(ls_header) = build_request( ).
+    CLEAR ls_header-items.
+    DATA(lt_suggestions) = VALUE
+      zcl_prod_comp_service=>ty_comp_replenishments( (
+        material                = 'MAT-1'
+        plant                   = '1000'
+        base_unit               = 'EA'
+        required_date           = '20260230'
+        procurement_type        = 'F'
+        source_vendor           = '0000100001'
+        source_purchasing_org   = '1000'
+        source_info_record      = '0000001234'
+        suggested_base_quantity = '5.000' ) ).
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->prepare_from_suggestions(
+          is_header      = ls_header
+          it_suggestions = lt_suggestions ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+
+    ls_header-document_date = '20260230'.
+    lt_suggestions[ 1 ]-required_date = '20261101'.
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->prepare_from_suggestions(
+          is_header      = ls_header
+          it_suggestions = lt_suggestions ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_exception_raised ).
@@ -2309,6 +2424,65 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_schedule_dates.
+    DATA(lt_invalid_schedule) = VALUE zif_purchase_order_api=>ty_schedule_changes(
+      ( item_number          = '00010'
+        schedule_line        = '0001'
+        change_delivery_date = abap_true
+        delivery_date        = '20260230' ) ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->change_order_schedules(
+          iv_purchase_order_number = '4500000100'
+          it_schedule_changes      = lt_invalid_schedule ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_item_change_count( ) ).
+
+    DATA(lt_bulk_changes) = VALUE zcl_purchase_order_service=>ty_order_schedule_changes(
+      ( purchase_order_number = '4500000101'
+        schedule_changes      = VALUE #( (
+          item_number          = '00010'
+          schedule_line        = '0001'
+          change_delivery_date = abap_true
+          delivery_date        = '20261201' ) ) )
+      ( purchase_order_number = '4500000102'
+        schedule_changes      = lt_invalid_schedule ) ).
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->change_order_schedules_bulk( it_changes = lt_bulk_changes ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_item_change_count( ) ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->change_order_schedules_atomic(
+          it_changes = lt_bulk_changes ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_item_change_count( ) ).
   ENDMETHOD.
 
   METHOD continues_schedule_batch.

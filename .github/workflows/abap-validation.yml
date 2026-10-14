@@ -1,0 +1,35 @@
+name: ABAP validation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check out open-abap-core
+        uses: actions/checkout@v4
+        with:
+          repository: open-abap/open-abap-core
+          ref: c4a715e946eaf1be0cf7d1576272ae8df18fdb05
+          path: deps/open-abap-core
+
+      - name: Install tooling
+        run: npm ci
+
+      - name: Lint, transpile, and run ABAP Unit
+        run: npm test

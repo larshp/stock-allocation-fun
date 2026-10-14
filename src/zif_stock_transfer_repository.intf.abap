@@ -34,6 +34,24 @@ INTERFACE zif_stock_transfer_repository PUBLIC.
   TYPES ty_transfer_results TYPE STANDARD TABLE OF ty_transfer_result
     WITH EMPTY KEY.
   TYPES:
+    BEGIN OF ty_location_transfer_request,
+      request_id TYPE c LENGTH 30,
+      material   TYPE mard-matnr,
+      plant      TYPE mard-werks,
+    END OF ty_location_transfer_request.
+  TYPES ty_location_transfer_requests TYPE STANDARD TABLE OF
+    ty_location_transfer_request WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_location_transfer_result,
+      request_id        TYPE c LENGTH 30,
+      material          TYPE mard-matnr,
+      plant             TYPE mard-werks,
+      storage_location  TYPE mard-lgort,
+      transfer_quantity TYPE mard-umlme,
+    END OF ty_location_transfer_result.
+  TYPES ty_location_transfer_results TYPE STANDARD TABLE OF
+    ty_location_transfer_result WITH EMPTY KEY.
+  TYPES:
     BEGIN OF ty_batch_transfer_request,
       request_id TYPE c LENGTH 30,
       material   TYPE mchb-matnr,
@@ -66,6 +84,12 @@ INTERFACE zif_stock_transfer_repository PUBLIC.
       it_requests       TYPE ty_transfer_requests
     RETURNING
       VALUE(rt_results) TYPE ty_transfer_results.
+
+  METHODS get_transfer_locations_bulk
+    IMPORTING
+      it_requests       TYPE ty_location_transfer_requests
+    RETURNING
+      VALUE(rt_results) TYPE ty_location_transfer_results.
 
   METHODS get_transfer_batches_bulk
     IMPORTING

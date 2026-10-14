@@ -4,6 +4,10 @@ CLASS lcl_res_delete_api DEFINITION FINAL.
     METHODS set_delete_result
       IMPORTING
         is_result TYPE zif_so_reservation_api=>ty_delete_result.
+    METHODS set_delete_failure_call
+      IMPORTING
+        iv_call   TYPE i
+        is_result TYPE zif_so_reservation_api=>ty_delete_result.
     METHODS set_commit_result
       IMPORTING
         is_result TYPE zif_so_reservation_api=>ty_commit_result.
@@ -27,6 +31,8 @@ CLASS lcl_res_delete_api DEFINITION FINAL.
     DATA ms_commit_result TYPE zif_so_reservation_api=>ty_commit_result.
     DATA mt_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers.
     DATA mv_delete_count TYPE i.
+    DATA mv_fail_delete_call TYPE i.
+    DATA ms_delete_failure_result TYPE zif_so_reservation_api=>ty_delete_result.
     DATA mv_commit_count TYPE i.
     DATA mv_rollback_count TYPE i.
     DATA mv_test_run TYPE abap_bool.
@@ -38,6 +44,11 @@ CLASS lcl_res_delete_api IMPLEMENTATION.
   METHOD set_delete_result.
     ms_delete_result = is_result.
     mv_use_delete_result = abap_true.
+  ENDMETHOD.
+
+  METHOD set_delete_failure_call.
+    mv_fail_delete_call = iv_call.
+    ms_delete_failure_result = is_result.
   ENDMETHOD.
 
   METHOD set_commit_result.
@@ -73,6 +84,10 @@ CLASS lcl_res_delete_api IMPLEMENTATION.
     ADD 1 TO mv_delete_count.
     mt_numbers = it_reservation_numbers.
     mv_test_run = iv_test_run.
+    IF mv_delete_count = mv_fail_delete_call.
+      rs_result = ms_delete_failure_result.
+      RETURN.
+    ENDIF.
     IF mv_use_delete_result = abap_true.
       rs_result = ms_delete_result.
     ELSE.
@@ -214,6 +229,8 @@ CLASS ltcl_so_reservation_service DEFINITION FINAL
     METHODS no_sales_order_reservations FOR TESTING.
     METHODS rejects_blank_sales_document FOR TESTING.
     METHODS deletes_orders_once FOR TESTING.
+    METHODS continues_bulk_delete_error FOR TESTING.
+    METHODS simulates_bulk_delete FOR TESTING.
     METHODS previews_orders_without_bapi FOR TESTING.
     METHODS empty_bulk_release_is_noop FOR TESTING.
     METHODS rejects_invalid_bulk_orders FOR TESTING.
@@ -553,6 +570,102 @@ CLASS ltcl_so_reservation_service IMPLEMENTATION.
       act = mo_finder->get_bulk_call_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_bulk_delete_error.
+    mo_finder->set_order_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' )
+        ( sales_document     = '0000004712'
+          reservation_number = '9000000002' ) ) ).
+    mo_api->set_delete_failure_call(
+      iv_call   = 1
+      is_result = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Reservation cannot be deleted' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_orders_release_bulk(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-order_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000002' ) )
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_finder->get_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_bulk_delete.
+    mo_finder->set_order_reservations(
+      VALUE #(
+        ( sales_document     = '0000004711'
+          reservation_number = '9000000001' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_orders_release_bulk(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_test_run        = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 1 ]-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-order_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-order_results[ 2 ]-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zif_so_reservation_api=>ty_reservation_numbers(
+        ( '9000000001' ) )
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_api->was_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
       act = mo_api->get_commit_count( ) ).
   ENDMETHOD.
 

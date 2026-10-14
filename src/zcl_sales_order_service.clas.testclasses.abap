@@ -30,6 +30,9 @@ CLASS lcl_sales_order_api_double DEFINITION FINAL.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_bulk_read_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
     METHODS get_change_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -55,6 +58,7 @@ CLASS lcl_sales_order_api_double DEFINITION FINAL.
     DATA mt_last_rejections TYPE zif_sales_order_api=>ty_item_rejections.
     DATA mv_create_count TYPE i.
     DATA mv_read_count TYPE i.
+    DATA mv_bulk_read_count TYPE i.
     DATA mv_change_count TYPE i.
     DATA mv_reject_count TYPE i.
     DATA mv_commit_count TYPE i.
@@ -99,6 +103,10 @@ CLASS lcl_sales_order_api_double IMPLEMENTATION.
     rv_count = mv_read_count.
   ENDMETHOD.
 
+  METHOD get_bulk_read_count.
+    rv_count = mv_bulk_read_count.
+  ENDMETHOD.
+
   METHOD get_commit_count.
     rv_count = mv_commit_count.
   ENDMETHOD.
@@ -125,6 +133,21 @@ CLASS lcl_sales_order_api_double IMPLEMENTATION.
     IF rs_result-order-sales_document IS INITIAL.
       rs_result-order-sales_document = iv_sales_document.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_sales_order_api~read_orders.
+    ADD 1 TO mv_bulk_read_count.
+    LOOP AT it_sales_documents INTO DATA(lv_sales_document).
+      ADD 1 TO mv_read_count.
+      DATA(ls_read_result) = ms_read_result.
+      IF ls_read_result-order-sales_document IS INITIAL.
+        ls_read_result-order-sales_document = lv_sales_document.
+      ENDIF.
+      APPEND VALUE #(
+        sales_document = lv_sales_document
+        read_result    = ls_read_result )
+        TO rt_results.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_sales_order_api~create_order.
@@ -387,6 +410,9 @@ CLASS ltcl_sales_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = mo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_bulk_read_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_bad_order_read_keys.
@@ -417,6 +443,9 @@ CLASS ltcl_sales_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_bulk_read_count( ) ).
   ENDMETHOD.
 
   METHOD empty_order_read_skips_api.
@@ -429,6 +458,9 @@ CLASS ltcl_sales_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_bulk_read_count( ) ).
   ENDMETHOD.
 
   METHOD creates_and_commits.

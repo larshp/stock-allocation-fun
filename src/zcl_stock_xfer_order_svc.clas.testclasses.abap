@@ -223,6 +223,12 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS get_dated_batch_atp_alloc
       RETURNING
         VALUE(rs_allocation) TYPE zcl_stock_service=>ty_plant_date_batch_atp_result.
+    METHODS get_date_loc_allocation
+      RETURNING
+        VALUE(rs_allocation) TYPE zcl_stock_service=>ty_unit_date_plant_location_result.
+    METHODS get_date_loc_atp_allocation
+      RETURNING
+        VALUE(rs_allocation) TYPE zcl_stock_service=>ty_plant_date_loc_atp_result.
     METHODS get_multi_plant_allocation
       RETURNING
         VALUE(rs_allocation) TYPE zcl_stock_service=>ty_unit_date_plant_result.
@@ -240,6 +246,7 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
         VALUE(rs_orders) TYPE zcl_stock_xfer_order_svc=>ty_plant_pairs_result.
     METHODS creates_order_from_allocation FOR TESTING.
     METHODS creates_batch_order FOR TESTING.
+    METHODS rejects_bad_delivery_dates FOR TESTING.
     METHODS creates_all_batch_plant_pairs FOR TESTING.
     METHODS creates_batch_location_items FOR TESTING.
     METHODS rejects_batch_loc_mismatch FOR TESTING.
@@ -268,6 +275,10 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS rejects_batch_demand_mismatch FOR TESTING.
     METHODS creates_dated_batch_atp_pairs FOR TESTING.
     METHODS rejects_short_dated_batch_atp FOR TESTING.
+    METHODS creates_date_loc_pairs FOR TESTING.
+    METHODS creates_date_loc_atp_pairs FOR TESTING.
+    METHODS rejects_loc_pair_mismatch FOR TESTING.
+    METHODS rejects_short_date_loc_atp FOR TESTING.
     METHODS creates_all_plant_pairs FOR TESTING.
     METHODS fails_atomic_plant_pairs FOR TESTING.
     METHODS fails_atomic_pair_commit FOR TESTING.
@@ -891,6 +902,99 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
           is_check_relevant  = abap_true ) ) ).
   ENDMETHOD.
 
+  METHOD get_date_loc_allocation.
+    rs_allocation = VALUE #(
+      allocations          = VALUE #(
+        ( allocation                = VALUE #(
+            request_id         = 'REQ-LOC'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            required_date      = '20261210'
+            priority           = 5
+            requested_quantity = '24.000'
+            available_quantity = '24.000'
+            allocated_quantity = '24.000'
+            shortfall_quantity = '0.000' )
+          source_quantity           = '2.000'
+          source_unit               = 'BOX'
+          base_quantity             = '24.000'
+          base_unit                 = 'EA'
+          available_source_quantity = '2.000'
+          allocated_source_quantity = '2.000'
+          shortfall_source_quantity = '0.000' ) )
+      plant_allocations    = VALUE #(
+        ( allocation                = VALUE #(
+            request_id         = 'REQ-LOC'
+            material           = 'MAT-1'
+            target_plant       = '2000'
+            source_plant       = '1000'
+            required_date      = '20261210'
+            priority           = 5
+            available_quantity = '24.000'
+            allocated_quantity = '24.000' )
+          source_unit               = 'BOX'
+          base_unit                 = 'EA'
+          available_source_quantity = '2.000'
+          allocated_source_quantity = '2.000' ) )
+      location_allocations = VALUE #(
+        ( allocation                = VALUE #(
+            required_date = '20261210'
+            priority      = 5
+            allocation    = VALUE #(
+              request_id         = 'REQ-LOC'
+              material           = 'MAT-1'
+              target_plant       = '2000'
+              source_plant       = '1000'
+              storage_location   = '0001'
+              available_quantity = '12.000'
+              allocated_quantity = '12.000' ) )
+          source_unit               = 'BOX'
+          base_unit                 = 'EA'
+          available_source_quantity = '1.000'
+          allocated_source_quantity = '1.000' )
+        ( allocation                = VALUE #(
+            required_date = '20261210'
+            priority      = 5
+            allocation    = VALUE #(
+              request_id         = 'REQ-LOC'
+              material           = 'MAT-1'
+              target_plant       = '2000'
+              source_plant       = '1000'
+              storage_location   = '0002'
+              available_quantity = '12.000'
+              allocated_quantity = '12.000' ) )
+          source_unit               = 'BOX'
+          base_unit                 = 'EA'
+          available_source_quantity = '1.000'
+          allocated_source_quantity = '1.000' ) ) ).
+  ENDMETHOD.
+
+  METHOD get_date_loc_atp_allocation.
+    rs_allocation-local_estimate = get_date_loc_allocation( ).
+    rs_allocation-atp_checks = VALUE #(
+      ( request_id                = 'REQ-LOC'
+        material                  = 'MAT-1'
+        target_plant              = '2000'
+        source_plant              = '1000'
+        required_date             = '20261210'
+        base_unit                 = 'EA'
+        allocated_base_quantity   = '24.000'
+        cumulative_base_quantity  = '24.000'
+        confirmed_base_quantity   = '24.000'
+        unconfirmed_base_quantity = '0.000'
+        atp_result                = VALUE #(
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          check_rule         = 'A'
+          required_date      = '20261210'
+          requested_quantity = '24.000'
+          confirmed_date     = '20261210'
+          confirmed_quantity = '24.000'
+          is_fully_available = abap_true
+          is_check_relevant  = abap_true ) ) ).
+  ENDMETHOD.
+
   METHOD get_fefo_allocation.
     rs_allocation = VALUE #(
       allocations       = VALUE #(
@@ -1200,6 +1304,62 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV d( '20261120' )
       act = lo_api->ms_request-items[ 1 ]-delivery_date ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_delivery_dates.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(ls_allocation) = get_multi_source_allocation( ).
+    DATA lv_date_rejected TYPE abap_bool.
+
+    LOOP AT ls_allocation-allocations ASSIGNING FIELD-SYMBOL(<ls_demand>).
+      <ls_demand>-allocation-required_date = '20260230'.
+    ENDLOOP.
+    LOOP AT ls_allocation-plant_allocations
+        ASSIGNING FIELD-SYMBOL(<ls_source>).
+      <ls_source>-allocation-required_date = '20260230'.
+    ENDLOOP.
+
+    TRY.
+        lo_cut->create_from_allocation(
+          is_allocation       = ls_allocation
+          iv_supplying_plant  = '1000'
+          iv_receiving_plant  = '2000'
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_date_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+
+    CLEAR lv_date_rejected.
+    TRY.
+        lo_cut->create_from_batch_allocation(
+          is_allocation       = get_multi_batch_allocation( )
+          iv_supplying_plant  = '1000'
+          iv_receiving_plant  = '2000'
+          iv_delivery_date    = '20260230'
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_date_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD creates_all_batch_plant_pairs.
@@ -2197,6 +2357,163 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
 
     TRY.
         lo_cut->create_dated_batch_atp_pairs(
+          is_allocation       = ls_allocation
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD creates_date_loc_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500006201'
+      is_successful         = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_date_loc_pairs(
+      is_allocation          = get_date_loc_allocation( )
+      it_receiving_locations = VALUE #(
+        ( receiving_plant = '2000' receiving_storage_loc = '0007' ) )
+      iv_company_code        = '1000'
+      iv_purchasing_org      = '1000'
+      iv_purchasing_group    = '001'
+      iv_atomic              = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = ls_result-orders[ 1 ]-supplying_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2000'
+      act = ls_result-orders[ 1 ]-receiving_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders[ 1 ]-result-submitted_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-orders[
+        1 ]-result-submitted_items[ 1 ]-supplying_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-orders[
+        1 ]-result-submitted_items[ 2 ]-supplying_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-orders[ 1 ]-result-submitted_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_result-orders[ 1 ]-result-submitted_items[ 1 ]-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV d( '20261210' )
+      act = ls_result-orders[ 1 ]-result-submitted_items[ 2 ]-delivery_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0007'
+      act = ls_result-orders[ 1 ]-result-submitted_items[
+        1 ]-receiving_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD creates_date_loc_atp_pairs.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500006202'
+      is_successful         = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_date_loc_atp_pairs(
+      is_allocation       = get_date_loc_atp_allocation( )
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_test_run         = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-orders[ 1 ]-result-submitted_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lo_api->ms_request-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_loc_pair_mismatch.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+    DATA(ls_allocation) = get_date_loc_allocation( ).
+    ls_allocation-location_allocations[ 2 ]-allocation-allocation-allocated_quantity =
+      '11.000'.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->create_date_loc_pairs(
+          is_allocation       = ls_allocation
+          iv_company_code     = '1000'
+          iv_purchasing_org   = '1000'
+          iv_purchasing_group = '001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_short_date_loc_atp.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc( io_api = lo_api ).
+    DATA(ls_allocation) = get_date_loc_atp_allocation( ).
+    ls_allocation-atp_checks[ 1 ]-confirmed_base_quantity = '23.000'.
+    ls_allocation-atp_checks[ 1 ]-unconfirmed_base_quantity = '1.000'.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->create_date_loc_atp_pairs(
           is_allocation       = ls_allocation
           iv_company_code     = '1000'
           iv_purchasing_org   = '1000'

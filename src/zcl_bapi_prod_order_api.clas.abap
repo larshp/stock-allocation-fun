@@ -268,20 +268,22 @@ CLASS zcl_bapi_prod_order_api IMPLEMENTATION.
         timetickets   = lt_timetickets
         detail_return = lt_detail_returns.
 
-    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
-      EXPORTING
-        wait   = abap_true
-      IMPORTING
-        return = ls_commit_return.
+    IF iv_commit = abap_true.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait   = abap_true
+        IMPORTING
+          return = ls_commit_return.
 
-    rs_result-commit_result-message-type = ls_commit_return-type.
-    rs_result-commit_result-message-message = ls_commit_return-message.
-    rs_result-commit_result-is_successful = abap_true.
-    IF ls_commit_return-type = 'A'
-        OR ls_commit_return-type = 'E'
-        OR ls_commit_return-type = 'X'.
-      rs_result-commit_result-is_successful = abap_false.
-      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      rs_result-commit_result-message-type = ls_commit_return-type.
+      rs_result-commit_result-message-message = ls_commit_return-message.
+      rs_result-commit_result-is_successful = abap_true.
+      IF ls_commit_return-type = 'A'
+          OR ls_commit_return-type = 'E'
+          OR ls_commit_return-type = 'X'.
+        rs_result-commit_result-is_successful = abap_false.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      ENDIF.
     ENDIF.
 
     DATA(ls_create_result) = map_confirmation_create_result(

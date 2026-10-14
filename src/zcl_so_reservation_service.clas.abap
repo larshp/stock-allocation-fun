@@ -27,6 +27,25 @@ CLASS zcl_so_reservation_service DEFINITION
         messages            TYPE zif_so_reservation_api=>ty_messages,
         is_successful       TYPE abap_bool,
       END OF ty_bulk_order_delete_result.
+    TYPES:
+      BEGIN OF ty_order_delete_bulk_row,
+        sales_document      TYPE resb-kdauf,
+        reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
+        messages            TYPE zif_so_reservation_api=>ty_messages,
+        is_successful       TYPE abap_bool,
+        is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
+      END OF ty_order_delete_bulk_row.
+    TYPES ty_order_delete_bulk_rows TYPE STANDARD TABLE OF
+      ty_order_delete_bulk_row WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_orders_delete_bulk_result,
+        order_results       TYPE ty_order_delete_bulk_rows,
+        reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
+        messages            TYPE zif_so_reservation_api=>ty_messages,
+        is_successful       TYPE abap_bool,
+        is_test_run         TYPE abap_bool,
+      END OF ty_orders_delete_bulk_result.
 
     METHODS constructor
       IMPORTING
@@ -58,6 +77,15 @@ CLASS zcl_so_reservation_service DEFINITION
         iv_test_run        TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)   TYPE ty_bulk_order_delete_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS delete_orders_release_bulk
+      IMPORTING
+        it_sales_documents TYPE zif_so_reservation_finder=>ty_sales_documents
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)   TYPE ty_orders_delete_bulk_result
       RAISING
         zcx_invalid_reservation.
 
@@ -145,6 +173,88 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
       iv_test_run            = iv_test_run ).
     rs_result-messages = ls_delete_result-messages.
     rs_result-is_successful = ls_delete_result-is_successful.
+  ENDMETHOD.
+
+  METHOD delete_orders_release_bulk.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    DATA(ls_preview) = preview_orders_release(
+      it_sales_documents = it_sales_documents ).
+    rs_result-is_test_run = iv_test_run.
+    rs_result-is_successful = abap_true.
+
+    LOOP AT ls_preview-scopes INTO DATA(ls_scope).
+      DATA(ls_order_result) = VALUE ty_order_delete_bulk_row(
+        sales_document = ls_scope-sales_document
+        is_test_run    = iv_test_run ).
+      IF ls_scope-reservation_numbers IS INITIAL.
+        ls_order_result-is_successful = abap_true.
+        APPEND ls_order_result TO rs_result-order_results.
+        CONTINUE.
+      ENDIF.
+
+      DATA(ls_delete_result) = mo_api->delete_reservations(
+        it_reservation_numbers = ls_scope-reservation_numbers
+        iv_test_run            = iv_test_run ).
+      ls_order_result-messages = ls_delete_result-messages.
+      APPEND LINES OF ls_delete_result-messages TO rs_result-messages.
+      DATA(lv_delete_failed) = xsdbool(
+        ls_delete_result-is_successful <> abap_true ).
+      LOOP AT ls_delete_result-messages INTO DATA(ls_delete_message).
+        IF ls_delete_message-type = 'A'
+            OR ls_delete_message-type = 'E'
+            OR ls_delete_message-type = 'X'.
+          lv_delete_failed = abap_true.
+        ENDIF.
+      ENDLOOP.
+      IF lv_delete_failed = abap_true.
+        mo_api->rollback( ).
+        IF ls_order_result-messages IS INITIAL.
+          DATA(ls_delete_error) = VALUE zif_so_reservation_api=>ty_message(
+            type    = 'E'
+            message = 'Reservation release failed for sales order' ).
+          APPEND ls_delete_error TO ls_order_result-messages.
+          APPEND ls_delete_error TO rs_result-messages.
+        ENDIF.
+        ls_order_result-is_successful = abap_false.
+        rs_result-is_successful = abap_false.
+        APPEND ls_order_result TO rs_result-order_results.
+        CONTINUE.
+      ENDIF.
+
+      IF iv_test_run = abap_true.
+        ls_order_result-is_successful = abap_true.
+      ELSE.
+        DATA(ls_commit_result) = mo_api->commit( ).
+        IF ls_commit_result-is_successful <> abap_true.
+          mo_api->rollback( ).
+          IF ls_commit_result-message-message IS NOT INITIAL.
+            APPEND ls_commit_result-message TO ls_order_result-messages.
+            APPEND ls_commit_result-message TO rs_result-messages.
+          ELSE.
+            DATA(ls_commit_error) =
+              VALUE zif_so_reservation_api=>ty_message(
+                type    = 'E'
+                message = 'Reservation release commit failed' ).
+            APPEND ls_commit_error TO ls_order_result-messages.
+            APPEND ls_commit_error TO rs_result-messages.
+          ENDIF.
+          ls_order_result-is_successful = abap_false.
+          rs_result-is_successful = abap_false.
+          APPEND ls_order_result TO rs_result-order_results.
+          CONTINUE.
+        ENDIF.
+        ls_order_result-is_successful = abap_true.
+        ls_order_result-is_committed = abap_true.
+      ENDIF.
+
+      ls_order_result-reservation_numbers = ls_scope-reservation_numbers.
+      APPEND LINES OF ls_order_result-reservation_numbers
+        TO rs_result-reservation_numbers.
+      APPEND ls_order_result TO rs_result-order_results.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD preview_orders_release.

@@ -11,6 +11,18 @@ CLASS zcl_replenishment_req_service DEFINITION
     TYPES ty_purchasing_org TYPE
       zif_purchase_requisition_api=>ty_purchasing_org.
     TYPES:
+      BEGIN OF ty_project_stock_shortfall,
+        request_id    TYPE c LENGTH 30,
+        wbs_element   TYPE c LENGTH 24,
+        material      TYPE mard-matnr,
+        plant         TYPE mard-werks,
+        quantity      TYPE mard-labst,
+        unit          TYPE mara-meins,
+        delivery_date TYPE d,
+      END OF ty_project_stock_shortfall.
+    TYPES ty_project_stock_shortfalls TYPE STANDARD TABLE OF
+      ty_project_stock_shortfall WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_suggestion_purchasing_control,
         source_suggestion_index TYPE i,
         purchasing_group        TYPE ty_purchasing_group,
@@ -217,6 +229,18 @@ CLASS zcl_replenishment_req_service DEFINITION
         iv_test_run            TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE zif_purchase_requisition_api=>ty_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_from_proj_shortfalls
+      IMPORTING
+        it_shortfalls       TYPE ty_project_stock_shortfalls
+        iv_requisition_type TYPE ty_requisition_type DEFAULT 'NB'
+        iv_purchasing_group TYPE ty_purchasing_group OPTIONAL
+        iv_purchasing_org   TYPE ty_purchasing_org OPTIONAL
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_purchase_requisition_api=>ty_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -1228,6 +1252,61 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
       iv_test_run = iv_test_run ).
   ENDMETHOD.
 
+  METHOD create_from_proj_shortfalls.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    DATA lt_seen_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA ls_request TYPE zif_purchase_requisition_api=>ty_request.
+    DATA lv_item_number TYPE n LENGTH 5.
+
+    IF iv_requisition_type IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    ls_request-requisition_type = iv_requisition_type.
+
+    LOOP AT it_shortfalls INTO DATA(ls_shortfall).
+      INSERT ls_shortfall-request_id INTO TABLE lt_seen_request_ids.
+      IF ls_shortfall-request_id IS INITIAL
+          OR sy-subrc <> 0
+          OR ls_shortfall-wbs_element IS INITIAL
+          OR ls_shortfall-material IS INITIAL
+          OR ls_shortfall-plant IS INITIAL
+          OR ls_shortfall-quantity <= 0
+          OR ls_shortfall-unit IS INITIAL
+          OR ls_shortfall-delivery_date IS INITIAL
+          OR lv_item_number >= 99990.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      ADD 10 TO lv_item_number.
+      APPEND VALUE #(
+        item_number                 = lv_item_number
+        material                    = ls_shortfall-material
+        plant                       = ls_shortfall-plant
+        quantity                    = ls_shortfall-quantity
+        unit                        = ls_shortfall-unit
+        delivery_date               = ls_shortfall-delivery_date
+        purchasing_group            = iv_purchasing_group
+        purchasing_org              = iv_purchasing_org
+        account_assignment_category = 'Q'
+        wbs_element                 = ls_shortfall-wbs_element )
+        TO ls_request-items.
+    ENDLOOP.
+
+    IF ls_request-items IS NOT INITIAL.
+      validate_create_requests(
+        it_requests = VALUE #(
+          ( requisition_type = iv_requisition_type
+            items            = ls_request-items ) )
+        iv_test_run = iv_test_run ).
+    ENDIF.
+
+    rs_result = submit_prepared_request(
+      is_request  = ls_request
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
   METHOD prepare_from_selected_sources.
     DATA lt_purchasing_controls TYPE ty_suggestion_purchasing_controls.
     lt_purchasing_controls = it_purchasing_controls.
@@ -1588,6 +1667,14 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
             OR ls_item-unit IS INITIAL
             OR ls_item-delivery_date IS INITIAL
             OR ls_item-source_suggestion_index < 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF ( ls_item-account_assignment_category IS INITIAL
+              AND ls_item-wbs_element IS NOT INITIAL )
+            OR ( ls_item-account_assignment_category = 'Q'
+              AND ls_item-wbs_element IS INITIAL )
+            OR ( ls_item-account_assignment_category IS NOT INITIAL
+              AND ls_item-account_assignment_category <> 'Q' ).
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
         INSERT ls_item-item_number INTO TABLE lt_seen_item_numbers.

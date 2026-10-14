@@ -1,3 +1,47 @@
+CLASS lcl_cc_reservation_read_repo DEFINITION FINAL.
+  PUBLIC SECTION.
+    INTERFACES zif_cc_reservation_read_repo.
+    METHODS set_reservations
+      IMPORTING
+        it_reservations TYPE zif_cc_reservation_read_repo=>ty_reservations.
+    METHODS get_bulk_read_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+  PRIVATE SECTION.
+    DATA mt_reservations TYPE zif_cc_reservation_read_repo=>ty_reservations.
+    DATA mv_single_read_count TYPE i.
+    DATA mv_bulk_read_count TYPE i.
+ENDCLASS.
+
+CLASS lcl_cc_reservation_read_repo IMPLEMENTATION.
+  METHOD set_reservations.
+    mt_reservations = it_reservations.
+  ENDMETHOD.
+
+  METHOD get_bulk_read_count.
+    rv_count = mv_bulk_read_count.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_read_repo~get_open_reservations.
+    ADD 1 TO mv_single_read_count.
+    rt_reservations = mt_reservations.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_read_repo~get_open_reservations_bulk.
+    ADD 1 TO mv_bulk_read_count.
+    LOOP AT mt_reservations INTO DATA(ls_reservation).
+      IF line_exists( it_cost_centers[
+          table_line = ls_reservation-cost_center ] ).
+        APPEND ls_reservation TO rt_reservations.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_read_repo~get_reservation_item_scopes.
+    RETURN.
+  ENDMETHOD.
+ENDCLASS.
+
 CLASS lcl_cost_center_stock_repo DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_repository.
@@ -173,6 +217,10 @@ CLASS lcl_cost_center_res_api DEFINITION FINAL.
     INTERFACES zif_cc_reservation_api.
     TYPES ty_create_results TYPE STANDARD TABLE OF
       zif_cc_reservation_api=>ty_result WITH EMPTY KEY.
+    TYPES ty_delete_results TYPE STANDARD TABLE OF
+      zif_cc_reservation_api=>ty_delete_result WITH EMPTY KEY.
+    TYPES ty_commit_results TYPE STANDARD TABLE OF
+      zif_cc_reservation_api=>ty_commit_result WITH EMPTY KEY.
     METHODS set_create_result
       IMPORTING
         is_result TYPE zif_cc_reservation_api=>ty_result.
@@ -182,6 +230,15 @@ CLASS lcl_cost_center_res_api DEFINITION FINAL.
     METHODS set_commit_result
       IMPORTING
         is_result TYPE zif_cc_reservation_api=>ty_commit_result.
+    METHODS set_commit_results
+      IMPORTING
+        it_results TYPE ty_commit_results.
+    METHODS set_delete_result
+      IMPORTING
+        is_result TYPE zif_cc_reservation_api=>ty_delete_result.
+    METHODS set_delete_results
+      IMPORTING
+        it_results TYPE ty_delete_results.
     METHODS get_request
       RETURNING
         VALUE(rs_request) TYPE zif_cc_reservation_api=>ty_request.
@@ -194,18 +251,51 @@ CLASS lcl_cost_center_res_api DEFINITION FINAL.
     METHODS get_rollback_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_delete_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_deleted_numbers
+      RETURNING
+        VALUE(rt_numbers) TYPE
+          zif_cc_reservation_api=>ty_reservation_numbers.
+    METHODS get_item_delete_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_deleted_item_numbers
+      RETURNING
+        VALUE(rt_item_numbers) TYPE
+          zif_cc_reservation_api=>ty_reservation_item_numbers.
+    METHODS get_item_delete_reservation
+      RETURNING
+        VALUE(rv_reservation) TYPE
+          zif_cc_reservation_api=>ty_reservation_number.
     METHODS was_test_run
+      RETURNING
+        VALUE(rv_test_run) TYPE abap_bool.
+    METHODS was_delete_test_run
       RETURNING
         VALUE(rv_test_run) TYPE abap_bool.
   PRIVATE SECTION.
     DATA ms_create_result TYPE zif_cc_reservation_api=>ty_result.
     DATA mt_create_results TYPE ty_create_results.
     DATA ms_commit_result TYPE zif_cc_reservation_api=>ty_commit_result.
+    DATA mt_commit_results TYPE ty_commit_results.
+    DATA ms_delete_result TYPE zif_cc_reservation_api=>ty_delete_result.
+    DATA mt_delete_results TYPE ty_delete_results.
+    DATA mt_deleted_numbers TYPE
+      zif_cc_reservation_api=>ty_reservation_numbers.
+    DATA mt_deleted_item_numbers TYPE
+      zif_cc_reservation_api=>ty_reservation_item_numbers.
     DATA ms_request TYPE zif_cc_reservation_api=>ty_request.
     DATA mv_create_count TYPE i.
     DATA mv_commit_count TYPE i.
     DATA mv_rollback_count TYPE i.
     DATA mv_test_run TYPE abap_bool.
+    DATA mv_delete_count TYPE i.
+    DATA mv_item_delete_count TYPE i.
+    DATA mv_item_delete_reservation TYPE
+      zif_cc_reservation_api=>ty_reservation_number.
+    DATA mv_delete_test_run TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_cost_center_res_api IMPLEMENTATION.
@@ -220,6 +310,20 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
 
   METHOD set_commit_result.
     ms_commit_result = is_result.
+    CLEAR mt_commit_results.
+  ENDMETHOD.
+
+  METHOD set_commit_results.
+    mt_commit_results = it_results.
+  ENDMETHOD.
+
+  METHOD set_delete_result.
+    ms_delete_result = is_result.
+    CLEAR mt_delete_results.
+  ENDMETHOD.
+
+  METHOD set_delete_results.
+    mt_delete_results = it_results.
   ENDMETHOD.
 
   METHOD get_request.
@@ -238,8 +342,32 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
     rv_count = mv_rollback_count.
   ENDMETHOD.
 
+  METHOD get_delete_count.
+    rv_count = mv_delete_count.
+  ENDMETHOD.
+
+  METHOD get_deleted_numbers.
+    rt_numbers = mt_deleted_numbers.
+  ENDMETHOD.
+
+  METHOD get_item_delete_count.
+    rv_count = mv_item_delete_count.
+  ENDMETHOD.
+
+  METHOD get_deleted_item_numbers.
+    rt_item_numbers = mt_deleted_item_numbers.
+  ENDMETHOD.
+
+  METHOD get_item_delete_reservation.
+    rv_reservation = mv_item_delete_reservation.
+  ENDMETHOD.
+
   METHOD was_test_run.
     rv_test_run = mv_test_run.
+  ENDMETHOD.
+
+  METHOD was_delete_test_run.
+    rv_test_run = mv_delete_test_run.
   ENDMETHOD.
 
   METHOD zif_cc_reservation_api~create_reservation.
@@ -256,9 +384,44 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_cc_reservation_api~delete_reservations.
+    ADD 1 TO mv_delete_count.
+    APPEND LINES OF it_reservation_numbers TO mt_deleted_numbers.
+    mv_delete_test_run = iv_test_run.
+    IF mt_delete_results IS INITIAL.
+      rs_result = ms_delete_result.
+    ELSE.
+      READ TABLE mt_delete_results INTO rs_result INDEX mv_delete_count.
+      IF sy-subrc <> 0.
+        rs_result = ms_delete_result.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_api~delete_reservation_items.
+    ADD 1 TO mv_item_delete_count.
+    mv_item_delete_reservation = iv_reservation_number.
+    mt_deleted_item_numbers = it_item_numbers.
+    IF mt_delete_results IS INITIAL.
+      rs_result = ms_delete_result.
+    ELSE.
+      READ TABLE mt_delete_results INTO rs_result INDEX mv_item_delete_count.
+      IF sy-subrc <> 0.
+        rs_result = ms_delete_result.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD zif_cc_reservation_api~commit.
     ADD 1 TO mv_commit_count.
-    rs_result = ms_commit_result.
+    IF mt_commit_results IS INITIAL.
+      rs_result = ms_commit_result.
+    ELSE.
+      READ TABLE mt_commit_results INTO rs_result INDEX mv_commit_count.
+      IF sy-subrc <> 0.
+        rs_result = ms_commit_result.
+      ENDIF.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_cc_reservation_api~rollback.
@@ -319,8 +482,18 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     DATA mo_uom_repo TYPE REF TO lcl_cost_center_uom_repo.
     DATA mo_res_api TYPE REF TO lcl_cost_center_res_api.
     DATA mo_atp_api TYPE REF TO lcl_cc_atp_api_double.
+    DATA mo_reservation_reader TYPE REF TO lcl_cc_reservation_read_repo.
     DATA mo_cut TYPE REF TO zcl_cc_reservation_service.
     METHODS setup.
+    METHODS prepare_cc_item_delete.
+    METHODS reads_open_cc_reservations FOR TESTING.
+    METHODS reads_cc_reservations_bulk FOR TESTING.
+    METHODS rejects_bad_cc_bulk_input FOR TESTING.
+    METHODS rejects_bad_cc_bulk_rows FOR TESTING.
+    METHODS empty_cc_reservations_bulk FOR TESTING.
+    METHODS rejects_bad_cc_read_row FOR TESTING.
+    METHODS rejects_duplicate_cc_items FOR TESTING.
+    METHODS rejects_blank_cc_read FOR TESTING.
     METHODS previews_cost_center_demands FOR TESTING.
     METHODS rejects_bad_cc_demands FOR TESTING.
     METHODS empty_cc_demands_skip_read FOR TESTING.
@@ -333,14 +506,25 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_bad_cc_locs FOR TESTING.
     METHODS empty_cc_locs_skip_read FOR TESTING.
     METHODS previews_cc_batches FOR TESTING.
+    METHODS previews_cc_batch_expiry FOR TESTING.
     METHODS rejects_bad_cc_batches FOR TESTING.
     METHODS empty_cc_batches_skip FOR TESTING.
     METHODS previews_cc_fefo_demands FOR TESTING.
+    METHODS previews_cc_fefo_dates FOR TESTING.
     METHODS rejects_bad_cc_fefo FOR TESTING.
     METHODS empty_cc_fefo_skip FOR TESTING.
     METHODS reserves_cost_centers_atomic FOR TESTING.
+    METHODS reserves_cost_centers_bulk FOR TESTING.
+    METHODS continues_cc_bulk_reserve_fail FOR TESTING.
+    METHODS continues_cc_bulk_commit_fail FOR TESTING.
+    METHODS simulates_cost_center_bulk FOR TESTING.
+    METHODS validates_cost_center_bulk FOR TESTING.
+    METHODS empty_cost_center_bulk FOR TESTING.
     METHODS reserves_atomic_cc_batches FOR TESTING.
+    METHODS rejects_expired_atomic_batch FOR TESTING.
     METHODS reserves_atomic_cc_fefo FOR TESTING.
+    METHODS reserves_cc_fefo_date FOR TESTING.
+    METHODS reserves_cc_bulk_fefo_date FOR TESTING.
     METHODS rejects_short_atomic_batch FOR TESTING.
     METHODS rejects_short_atomic_cc FOR TESTING.
     METHODS rolls_back_atomic_cc_create FOR TESTING.
@@ -352,6 +536,27 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_atomic_cc_atp_opts FOR TESTING.
     METHODS rejects_bad_atomic_cc FOR TESTING.
     METHODS empty_atomic_cc_demands FOR TESTING.
+    METHODS deletes_cc_reservations FOR TESTING.
+    METHODS simulates_cc_delete FOR TESTING.
+    METHODS rolls_back_cc_delete FOR TESTING.
+    METHODS rolls_back_cc_delete_commit FOR TESTING.
+    METHODS validates_cc_delete FOR TESTING.
+    METHODS deletes_cc_bulk FOR TESTING.
+    METHODS deletes_selected_cc_items FOR TESTING.
+    METHODS rejects_bad_cc_item_delete FOR TESTING.
+    METHODS deletes_cc_items_bulk FOR TESTING.
+    METHODS continues_cc_items_failure FOR TESTING.
+    METHODS prevalidates_cc_items_bulk FOR TESTING.
+    METHODS simulates_cc_items_bulk FOR TESTING.
+    METHODS empty_cc_items_bulk FOR TESTING.
+    METHODS rejects_unscoped_cc_item FOR TESTING.
+    METHODS simulates_cc_item_delete FOR TESTING.
+    METHODS rolls_back_cc_item_delete FOR TESTING.
+    METHODS rolls_back_cc_item_commit FOR TESTING.
+    METHODS continues_cc_bulk_failure FOR TESTING.
+    METHODS continues_cc_bulk_commit FOR TESTING.
+    METHODS simulates_cc_bulk FOR TESTING.
+    METHODS validates_cc_bulk FOR TESTING.
     METHODS commits_partial_res FOR TESTING.
     METHODS converts_alt_unit_res FOR TESTING.
     METHODS allocates_across_locations FOR TESTING.
@@ -394,6 +599,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     mo_uom_repo->set_base_unit( iv_base_unit = 'EA' ).
     mo_res_api = NEW lcl_cost_center_res_api( ).
     mo_atp_api = NEW lcl_cc_atp_api_double( ).
+    mo_reservation_reader = NEW lcl_cc_reservation_read_repo( ).
     mo_res_api->set_create_result(
       is_result = VALUE #(
         reservation_number = '9000000001'
@@ -411,7 +617,282 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       io_stock_repository          = mo_stock_repo
       io_reservation_api           = mo_res_api
       io_uom_repository            = mo_uom_repo
-      io_material_availability_api = mo_atp_api ).
+      io_material_availability_api = mo_atp_api
+      io_reservation_reader        = mo_reservation_reader ).
+  ENDMETHOD.
+
+  METHOD prepare_cc_item_delete.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261020'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '0.000'
+          open_quantity      = '5.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          reservation_item   = '0002'
+          material           = 'MAT-2'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261021'
+          unit               = 'EA'
+          required_quantity  = '3.000'
+          withdrawn_quantity = '0.000'
+          open_quantity      = '3.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          reservation_item   = '0001'
+          material           = 'MAT-3'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261022'
+          unit               = 'EA'
+          required_quantity  = '2.000'
+          withdrawn_quantity = '0.000'
+          open_quantity      = '2.000' ) ) ).
+  ENDMETHOD.
+
+  METHOD reads_open_cc_reservations.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cost_center_reservations(
+      iv_cost_center = 'COST-100' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-100'
+      act = ls_result-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = ls_result-reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '4.000' )
+      act = ls_result-reservations[ 1 ]-open_quantity ).
+  ENDMETHOD.
+
+  METHOD reads_cc_reservations_bulk.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-200'
+          reservation_number = '0000004722'
+          reservation_item   = '0001'
+          material           = 'MAT-2'
+          plant              = '2000'
+          unit               = 'EA'
+          required_quantity  = '6.000'
+          withdrawn_quantity = '2.000'
+          open_quantity      = '4.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cc_reservations_bulk(
+      it_cost_centers = VALUE #( ( 'COST-100' ) ( 'COST-200' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-100'
+      act = ls_result-items[ 1 ]-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = ls_result-items[ 1 ]-reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-200'
+      act = ls_result-items[ 2 ]-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004722'
+      act = ls_result-items[ 2 ]-reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_reader->get_bulk_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_cc_bulk_input.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->read_cc_reservations_bulk(
+          it_cost_centers = VALUE #( ( 'COST-100' ) ( 'COST-100' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->read_cc_reservations_bulk(
+          it_cost_centers = VALUE #( ( 'COST-100' ) ( space ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_reader->get_bulk_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_cc_bulk_rows.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cc_reservations_bulk(
+      it_cost_centers = VALUE #( ( 'COST-100' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-items[ 1 ]-reservations ).
+  ENDMETHOD.
+
+  METHOD empty_cc_reservations_bulk.
+    DATA(ls_result) = mo_cut->read_cc_reservations_bulk(
+      it_cost_centers = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-items ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_reader->get_bulk_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_cc_read_row.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-200'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cost_center_reservations(
+      iv_cost_center = 'COST-100' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-reservations ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Cost-center reservation reader returned invalid item data'
+      act = ls_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_blank_cc_read.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->read_cost_center_reservations( iv_cost_center = space ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_cc_items.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '4.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cost_center_reservations(
+      iv_cost_center = 'COST-100' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-reservations ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Cost-center reservation reader returned duplicate items'
+      act = ls_result-messages[ 1 ]-message ).
   ENDMETHOD.
 
   METHOD previews_cost_center_demands.
@@ -1046,10 +1527,76 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD previews_cc_batch_expiry.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-BEFORE'
+          expiration_date    = '20261004'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-ON-DATE'
+          expiration_date    = '20261005'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-SHORT'
+          expiration_date    = '20261007'
+          available_quantity = '1.000' ) ) ).
+
+    DATA(ls_expired) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-100'
+      iv_batch              = 'B-BEFORE'
+      iv_required_date      = '20261005'
+      iv_requested_quantity = '1.000'
+      iv_unit               = 'EA' ).
+    DATA(ls_on_date) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-100'
+      iv_batch              = 'B-ON-DATE'
+      iv_required_date      = '20261005'
+      iv_requested_quantity = '1.000'
+      iv_unit               = 'EA' ).
+    DATA(ls_short_shelf_life) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-100'
+      iv_batch              = 'B-SHORT'
+      iv_required_date      = '20261005'
+      iv_requested_quantity = '1.000'
+      iv_unit               = 'EA'
+      iv_batch_min_days     = 3 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_expired-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_expired-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_on_date-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_on_date-batch_allocations[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_short_shelf_life-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_short_shelf_life-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD rejects_bad_cc_batches.
     DATA lv_duplicate_raised TYPE abap_bool.
     DATA lv_batch_raised TYPE abap_bool.
     DATA lv_flag_raised TYPE abap_bool.
+    DATA lv_date_raised TYPE abap_bool.
 
     TRY.
         mo_cut->preview_cost_center_batches(
@@ -1100,6 +1647,21 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         lv_flag_raised = abap_true.
     ENDTRY.
 
+    TRY.
+        mo_cut->preview_cost_center_batches(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              batch              = 'BATCH-1'
+              required_date      = '20261032'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_date_raised = abap_true.
+    ENDTRY.
+
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_duplicate_raised ).
@@ -1109,6 +1671,9 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_flag_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_date_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_stock_repo->get_read_count( ) ).
@@ -1235,18 +1800,94 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.500' )
       act = lt_previews[ 3 ]-batch_allocations[ 2 ]-allocated_source_quantity ).
+    DATA(lt_strict_previews) = mo_cut->preview_cost_center_fefo(
+      it_demands    = VALUE #(
+        ( request_id              = 'FEFO-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          cost_center             = 'COST-400'
+          requested_quantity      = '2.000'
+          unit                    = 'EA'
+          minimum_shelf_life_days = 500 ) )
+      iv_as_of_date = '20261011'
+      iv_min_days   = 80 ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 1
+      exp = 500
+      act = lt_strict_previews[ 1 ]-minimum_shelf_life_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_strict_previews[ 1 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LAST'
+      act = lt_strict_previews[ 1 ]-batch_allocations[ 1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
       act = mo_stock_repo->get_read_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD previews_cc_fefo_dates.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-BEFORE'
+          expiration_date    = '20261004'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-AFTER'
+          expiration_date    = '20261006'
+          available_quantity = '1.000' ) ) ).
+
+    DATA(lt_previews) = mo_cut->preview_cost_center_fefo(
+      it_demands    = VALUE #(
+        ( request_id         = 'CC-FEFO-DATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          fefo_as_of_date    = '20261005' ) )
+      iv_as_of_date = '20260923' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_previews[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = lt_previews[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_previews[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-as_of_date ).
+
+    DATA(ls_single_preview) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-100'
+      iv_requested_quantity = '1.000'
+      iv_unit               = 'EA'
+      iv_required_date      = '20261005'
+      iv_use_fefo_batches   = abap_true
+      iv_fefo_as_of_date    = '20260923' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_single_preview-fefo_as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = ls_single_preview-batch_allocations[ 1 ]-batch ).
+  ENDMETHOD.
+
   METHOD rejects_bad_cc_fefo.
     DATA lv_duplicate_raised TYPE abap_bool.
     DATA lv_flag_raised TYPE abap_bool.
     DATA lv_days_raised TYPE abap_bool.
+    DATA lv_demand_days_raised TYPE abap_bool.
+    DATA lv_demand_date_raised TYPE abap_bool.
+    DATA lv_non_fefo_days_raised TYPE abap_bool.
 
     TRY.
         mo_cut->preview_cost_center_fefo(
@@ -1289,6 +1930,49 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         lv_days_raised = abap_true.
     ENDTRY.
 
+    TRY.
+        mo_cut->preview_cost_center_fefo(
+          it_demands = VALUE #(
+            ( request_id              = 'BAD-FEFO-DAYS'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              cost_center             = 'COST-100'
+              requested_quantity      = '1.000'
+              unit                    = 'EA'
+              minimum_shelf_life_days = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_demand_days_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->preview_cost_center_fefo(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-FEFO-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA'
+              fefo_as_of_date    = '20261032' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_demand_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->reserve_cost_centers_atomic(
+          it_demands = VALUE #(
+            ( request_id              = 'NON-FEFO-DAYS'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              cost_center             = 'COST-100'
+              required_date           = '20261020'
+              requested_quantity      = '1.000'
+              unit                    = 'EA'
+              minimum_shelf_life_days = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_non_fefo_days_raised = abap_true.
+    ENDTRY.
+
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_duplicate_raised ).
@@ -1298,6 +1982,15 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_days_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_demand_days_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_demand_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_non_fefo_days_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_stock_repo->get_read_count( ) ).
@@ -1468,6 +2161,64 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_res_api->get_commit_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_expired_atomic_batch.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EXPIRED'
+          expiration_date    = '20261004'
+          available_quantity = '10.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-SHORT'
+          expiration_date    = '20261007'
+          available_quantity = '10.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_atomic(
+      it_demands = VALUE #(
+        ( request_id         = 'EXPIRED-BATCH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          batch              = 'B-EXPIRED'
+          required_date      = '20261005'
+          requested_quantity = '1.000'
+          unit               = 'EA' )
+        ( request_id              = 'SHORT-LIFE-BATCH'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          cost_center             = 'COST-200'
+          batch                   = 'B-SHORT'
+          required_date           = '20261005'
+          requested_quantity      = '1.000'
+          unit                    = 'EA'
+          minimum_shelf_life_days = 3 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-items[ 1 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_result-items[ 1 ]-allocation-allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-items[ 2 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_result-items[ 2 ]-allocation-allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 2 ]-minimum_shelf_life_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD reserves_atomic_cc_fefo.
     mo_stock_repo->set_batch_stocks(
       it_stock = VALUE #(
@@ -1486,13 +2237,14 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
 
     DATA(ls_result) = mo_cut->reserve_cost_centers_atomic(
       it_demands          = VALUE #(
-        ( request_id         = 'FEFO-ATOMIC-1'
-          material           = 'MAT-1'
-          plant              = '1000'
-          cost_center        = 'COST-100'
-          required_date      = '20261020'
-          requested_quantity = '2.000'
-          unit               = 'EA' )
+        ( request_id              = 'FEFO-ATOMIC-1'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          cost_center             = 'COST-100'
+          required_date           = '20261020'
+          requested_quantity      = '2.000'
+          unit                    = 'EA'
+          minimum_shelf_life_days = 100 )
         ( request_id         = 'FEFO-ATOMIC-2'
           material           = 'MAT-1'
           plant              = '1000'
@@ -1513,26 +2265,118 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = abap_true
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '20261011'
+      exp = '20261020'
       act = ls_result-items[ 1 ]-fefo_as_of_date ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 80
+      exp = 100
       act = ls_result-items[ 1 ]-minimum_shelf_life_days ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-OLD'
+      exp = 'B-LATE'
       act = ls_first_fefo_split-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATE'
       act = ls_second_fefo_split-batch ).
     cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = ls_result-items[ 2 ]-fefo_as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATE'
       act = ls_request-items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_request-items ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
       act = ls_request-items[ 1 ]-quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_cc_fefo_date.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-BEFORE'
+          expiration_date    = '20261004'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-AFTER'
+          expiration_date    = '20261006'
+          available_quantity = '1.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_atomic(
+      it_demands          = VALUE #(
+        ( request_id         = 'CC-FEFO-DATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261005'
+          fefo_as_of_date    = '20261003'
+          requested_quantity = '1.000'
+          unit               = 'EA' ) )
+      iv_use_fefo_batches = abap_true
+      iv_fefo_as_of_date  = '20260923' ).
+    DATA(ls_request) = mo_res_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-items[ 1 ]-fefo_as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = ls_request-items[ 1 ]-batch ).
+  ENDMETHOD.
+
+  METHOD reserves_cc_bulk_fefo_date.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-BEFORE'
+          expiration_date    = '20261004'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-AFTER'
+          expiration_date    = '20261006'
+          available_quantity = '1.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands          = VALUE #(
+        ( request_id         = 'CC-FEFO-BULK-DATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261005'
+          fefo_as_of_date    = '20261003'
+          requested_quantity = '1.000'
+          unit               = 'EA' ) )
+      iv_use_fefo_batches = abap_true
+      iv_fefo_as_of_date  = '20260923' ).
+    DATA(ls_request) = mo_res_api->get_request( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-items[ 1 ]-fefo_as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-AFTER'
+      act = ls_request-items[ 1 ]-batch ).
   ENDMETHOD.
 
   METHOD rejects_short_atomic_batch.
@@ -1989,6 +2833,8 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     DATA lv_fefo_batch_raised TYPE abap_bool.
     DATA lv_fefo_flag_raised TYPE abap_bool.
     DATA lv_min_days_raised TYPE abap_bool.
+    DATA lv_bad_date_raised TYPE abap_bool.
+    DATA lv_bad_bulk_date_raised TYPE abap_bool.
     DATA lt_valid_demands TYPE zcl_cc_reservation_service=>ty_atomic_reservation_demands.
 
     lt_valid_demands = VALUE #(
@@ -2098,6 +2944,34 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         lv_flag_raised = abap_true.
     ENDTRY.
 
+    TRY.
+        mo_cut->reserve_cost_centers_atomic(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-REQUIRED-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              required_date      = '20260230'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->reserve_cost_centers_bulk(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-BULK-REQUIRED-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              required_date      = '20260230'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_bulk_date_raised = abap_true.
+    ENDTRY.
+
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_duplicate_raised ).
@@ -2119,6 +2993,12 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_min_days_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_bulk_date_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_stock_repo->get_read_count( ) ).
@@ -2509,6 +3389,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       iv_material           = 'MAT-1'
       iv_plant              = '1000'
       iv_cost_center        = 'COST-100'
+      iv_required_date      = '20260923'
       iv_requested_quantity = '4.000'
       iv_unit               = 'EA'
       iv_use_fefo_batches   = abap_true
@@ -2574,6 +3455,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       iv_storage_location   = '0002'
       iv_allow_fallback     = abap_true
       iv_cost_center        = 'COST-100'
+      iv_required_date      = '20261001'
       iv_requested_quantity = '3.000'
       iv_unit               = 'EA'
       iv_use_fefo_batches   = abap_true
@@ -2626,6 +3508,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       iv_material           = 'MAT-1'
       iv_plant              = '1000'
       iv_cost_center        = 'COST-100'
+      iv_required_date      = '20260923'
       iv_requested_quantity = '4.000'
       iv_unit               = 'EA'
       iv_use_fefo_batches   = abap_true
@@ -3239,5 +4122,957 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_stock_repo->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_cost_centers_bulk.
+    mo_stock_repo->set_location_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          available_quantity = '6.000' ) ) ).
+    mo_res_api->set_create_results(
+      it_results = VALUE #(
+        ( reservation_number = '9000000011' is_successful = abap_true )
+        ( reservation_number = '9000000012' is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands = VALUE #(
+        ( request_id         = 'BULK-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261020'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id         = 'BULK-2'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          required_date      = '20261021'
+          requested_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-1'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000011'
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-2'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000012'
+      act = ls_result-items[ 2 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_cc_bulk_reserve_fail.
+    mo_stock_repo->set_location_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          available_quantity = '6.000' ) ) ).
+    mo_res_api->set_create_results(
+      it_results = VALUE #(
+        ( is_successful = abap_false
+          messages      = VALUE #(
+            ( type = 'E' message = 'Reservation rejected' ) ) )
+        ( reservation_number = '9000000012' is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands = VALUE #(
+        ( request_id         = 'BULK-FAIL'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261020'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id         = 'BULK-OK'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          required_date      = '20261021'
+          requested_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Reservation rejected'
+      act = ls_result-items[ 1 ]-reservation_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_cc_bulk_commit_fail.
+    mo_stock_repo->set_location_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          available_quantity = '6.000' ) ) ).
+    mo_res_api->set_create_results(
+      it_results = VALUE #(
+        ( reservation_number = '9000000021' is_successful = abap_true )
+        ( reservation_number = '9000000022' is_successful = abap_true ) ) ).
+    mo_res_api->set_commit_results(
+      it_results = VALUE #(
+        ( is_successful = abap_false
+          message       = VALUE #(
+            type    = 'E'
+            message = 'Commit failed' ) )
+        ( is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands = VALUE #(
+        ( request_id         = 'COMMIT-FAIL'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261020'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id         = 'COMMIT-OK'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          required_date      = '20261021'
+          requested_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-was_rolled_back ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Commit failed'
+      act = ls_result-items[ 1 ]-reservation_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_cost_center_bulk.
+    mo_stock_repo->set_location_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          available_quantity = '6.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands  = VALUE #(
+        ( request_id         = 'BULK-TEST-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = '20261020'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id         = 'BULK-TEST-2'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          required_date      = '20261021'
+          requested_quantity = '2.000'
+          unit               = 'EA' ) )
+      iv_test_run = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD validates_cost_center_bulk.
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->reserve_cost_centers_bulk(
+          it_demands = VALUE #(
+            ( request_id         = 'DUP-BULK'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              required_date      = '20261020'
+              requested_quantity = '1.000'
+              unit               = 'EA' )
+            ( request_id         = 'DUP-BULK'
+              material           = 'MAT-2'
+              plant              = '1000'
+              cost_center        = 'COST-200'
+              required_date      = '20261021'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD empty_cost_center_bulk.
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-items ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_cc_reservations.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    DATA(lt_numbers) = VALUE zif_cc_reservation_api=>ty_reservation_numbers(
+      ( '9000000001' )
+      ( '9000000002' ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservations(
+      it_reservation_numbers = lt_numbers ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_numbers
+      act = ls_result-reservation_numbers ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_numbers
+      act = mo_res_api->get_deleted_numbers( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_cc_delete.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservations(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) )
+      iv_test_run            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_res_api->was_delete_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_cc_delete.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Reservation is already issued' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservations(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_cc_delete_commit.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    mo_res_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservations(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD validates_cc_delete.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->delete_reservations( VALUE #( ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_reservations(
+          VALUE #( ( '9000000001' ) ( '9000000001' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_reservations(
+          VALUE #( ( '' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_reservations(
+          it_reservation_numbers = VALUE #( ( '9000000001' ) )
+          iv_test_run            = 'Y' ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_delete_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_cc_bulk.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    DATA(ls_result) = mo_cut->delete_reservations_bulk(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ( '9000000002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_selected_cc_items.
+    prepare_cc_item_delete( ).
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->delete_cc_reservation_items(
+      iv_cost_center        = 'COST-100'
+      iv_reservation_number = '9000000001'
+      it_item_numbers       = VALUE #( ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000001'
+      act = mo_res_api->get_item_delete_reservation( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_item_delete_count( ) ).
+    DATA(lt_deleted_items) = mo_res_api->get_deleted_item_numbers( ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_deleted_items[ 1 ] ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_unscoped_cc_item.
+    prepare_cc_item_delete( ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->delete_cc_reservation_items(
+          iv_cost_center        = 'COST-100'
+          iv_reservation_number = '9000000001'
+          it_item_numbers       = VALUE #( ( '0003' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_cc_item_delete.
+    prepare_cc_item_delete( ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->delete_cc_reservation_items(
+          iv_cost_center        = 'COST-100'
+          iv_reservation_number = '9000000001'
+          it_item_numbers       = VALUE #( ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_cc_reservation_items(
+          iv_cost_center        = 'COST-100'
+          iv_reservation_number = '9000000001'
+          it_item_numbers       = VALUE #( ( '0001' ) ( '0001' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_cc_reservation_items(
+          iv_cost_center        = 'COST-100'
+          iv_reservation_number = '9000000001'
+          it_item_numbers       = VALUE #( ( space ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_cc_reservation_items(
+          iv_cost_center        = 'COST-100'
+          iv_reservation_number = '9000000001'
+          it_item_numbers       = VALUE #( ( '0001' ) )
+          iv_test_run           = 'Y' ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_cc_item_delete.
+    prepare_cc_item_delete( ).
+
+    DATA(ls_result) = mo_cut->delete_cc_reservation_items(
+      iv_cost_center        = 'COST-100'
+      iv_reservation_number = '9000000001'
+      it_item_numbers       = VALUE #( ( '0001' ) )
+      iv_test_run           = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_cc_item_delete.
+    prepare_cc_item_delete( ).
+    mo_res_api->set_delete_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #(
+          ( type = 'E' message = 'Reservation item cannot be deleted' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_cc_reservation_items(
+      iv_cost_center        = 'COST-100'
+      iv_reservation_number = '9000000001'
+      it_item_numbers       = VALUE #( ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD rolls_back_cc_item_commit.
+    prepare_cc_item_delete( ).
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    mo_res_api->set_commit_result(
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Commit failed' ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_cc_reservation_items(
+      iv_cost_center        = 'COST-100'
+      iv_reservation_number = '9000000001'
+      it_item_numbers       = VALUE #( ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD deletes_cc_items_bulk.
+    prepare_cc_item_delete( ).
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservation_items_bulk(
+      it_requests = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          item_numbers       = VALUE #( ( '0001' ) ) )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          item_numbers       = VALUE #( ( '0001' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_item_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_cc_items_failure.
+    prepare_cc_item_delete( ).
+    mo_res_api->set_delete_results(
+      it_results = VALUE #(
+        ( is_successful = abap_false
+          messages      = VALUE #(
+            ( type = 'E' message = 'Reservation item cannot be deleted' ) ) )
+        ( is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_reservation_items_bulk(
+      it_requests = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          item_numbers       = VALUE #( ( '0001' ) ) )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          item_numbers       = VALUE #( ( '0001' ) ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD prevalidates_cc_items_bulk.
+    prepare_cc_item_delete( ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->delete_reservation_items_bulk(
+          it_requests = VALUE #(
+            ( cost_center        = 'COST-100'
+              reservation_number = '9000000001'
+              item_numbers       = VALUE #( ( '0001' ) ) )
+            ( cost_center        = 'COST-100'
+              reservation_number = '9000000001'
+              item_numbers       = VALUE #( ( '0002' ) ) ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_cc_items_bulk.
+    prepare_cc_item_delete( ).
+
+    DATA(ls_result) = mo_cut->delete_reservation_items_bulk(
+      it_requests = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          item_numbers       = VALUE #( ( '0001' ) ) )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          item_numbers       = VALUE #( ( '0001' ) ) ) )
+      iv_test_run = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD empty_cc_items_bulk.
+    DATA(ls_result) = mo_cut->delete_reservation_items_bulk(
+      it_requests = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-items ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_item_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_cc_bulk_failure.
+    mo_res_api->set_delete_results(
+      it_results = VALUE #(
+        ( is_successful = abap_false
+          messages      = VALUE #(
+            ( type = 'E' message = 'Reservation is already issued' ) ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(ls_result) = mo_cut->delete_reservations_bulk(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ( '9000000002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Reservation is already issued'
+      act = ls_result-items[ 1 ]-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_cc_bulk_commit.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    mo_res_api->set_commit_results(
+      it_results = VALUE #(
+        ( is_successful = abap_false
+          message       = VALUE #(
+            type    = 'E'
+            message = 'Commit failed' ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(ls_result) = mo_cut->delete_reservations_bulk(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ( '9000000002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Commit failed'
+      act = ls_result-items[ 1 ]-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-was_rolled_back ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD simulates_cc_bulk.
+    mo_res_api->set_delete_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    DATA(ls_result) = mo_cut->delete_reservations_bulk(
+      it_reservation_numbers = VALUE #( ( '9000000001' ) ( '9000000002' ) )
+      iv_test_run            = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_res_api->was_delete_test_run( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD validates_cc_bulk.
+    DATA(ls_empty_result) = mo_cut->delete_reservations_bulk(
+      it_reservation_numbers = VALUE #( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_empty_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_empty_result-items ) ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->delete_reservations_bulk(
+          it_reservation_numbers = VALUE #(
+            ( '9000000001' ) ( '9000000001' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_reservations_bulk(
+          it_reservation_numbers = VALUE #( ( '' ) ) ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->delete_reservations_bulk(
+          it_reservation_numbers = VALUE #( ( '9000000001' ) )
+          iv_test_run            = 'Y' ).
+      CATCH zcx_invalid_reservation.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_delete_count( ) ).
   ENDMETHOD.
 ENDCLASS.

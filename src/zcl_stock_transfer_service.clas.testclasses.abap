@@ -41,6 +41,9 @@ CLASS lcl_stock_transfer_repo_double DEFINITION FINAL.
     METHODS set_bulk_batch_results
       IMPORTING
         it_results TYPE zif_stock_transfer_repository=>ty_batch_transfer_results.
+    METHODS set_location_results
+      IMPORTING
+        it_results TYPE zif_stock_transfer_repository=>ty_location_transfer_results.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -58,6 +61,8 @@ CLASS lcl_stock_transfer_repo_double DEFINITION FINAL.
     DATA mt_batch_balances TYPE zif_stock_transfer_repository=>ty_batch_balances.
     DATA mt_bulk_results TYPE zif_stock_transfer_repository=>ty_transfer_results.
     DATA mt_bulk_batch_results TYPE zif_stock_transfer_repository=>ty_batch_transfer_results.
+    DATA mt_location_results TYPE
+      zif_stock_transfer_repository=>ty_location_transfer_results.
     DATA mv_read_count TYPE i.
     DATA mv_material TYPE marc-matnr.
     DATA mv_plant TYPE marc-werks.
@@ -79,6 +84,10 @@ CLASS lcl_stock_transfer_repo_double IMPLEMENTATION.
 
   METHOD set_bulk_batch_results.
     mt_bulk_batch_results = it_results.
+  ENDMETHOD.
+
+  METHOD set_location_results.
+    mt_location_results = it_results.
   ENDMETHOD.
 
   METHOD get_read_count.
@@ -113,6 +122,11 @@ CLASS lcl_stock_transfer_repo_double IMPLEMENTATION.
   METHOD zif_stock_transfer_repository~get_transfer_batches_bulk.
     ADD 1 TO mv_read_count.
     rt_results = mt_bulk_batch_results.
+  ENDMETHOD.
+
+  METHOD zif_stock_transfer_repository~get_transfer_locations_bulk.
+    ADD 1 TO mv_read_count.
+    rt_results = mt_location_results.
   ENDMETHOD.
 
   METHOD zif_stock_transfer_repository~get_stock_in_transfer_by_batch.
@@ -159,6 +173,11 @@ CLASS ltcl_stock_transfer_service DEFINITION FINAL
     METHODS rejects_batch_bulk_input FOR TESTING.
     METHODS rejects_batch_bulk_row FOR TESTING.
     METHODS empty_batch_bulk_skips_read FOR TESTING.
+    METHODS returns_transfer_locations FOR TESTING.
+    METHODS converts_location_bulk_uom FOR TESTING.
+    METHODS converts_transfer_location_uom FOR TESTING.
+    METHODS rejects_location_transfer_row FOR TESTING.
+    METHODS empty_location_bulk_skips_read FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_transfer_service IMPLEMENTATION.
@@ -997,6 +1016,190 @@ CLASS ltcl_stock_transfer_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD returns_transfer_locations.
+    mo_repository->set_location_results(
+      it_results = VALUE #(
+        ( request_id        = 'SINGLE'
+          material          = 'MAT-1'
+          plant             = '1000'
+          storage_location  = '0002'
+          transfer_quantity = '3.500' )
+        ( request_id        = 'SINGLE'
+          material          = 'MAT-1'
+          plant             = '1000'
+          storage_location  = '0001'
+          transfer_quantity = '12.000' ) ) ).
+
+    DATA(lt_results) = mo_cut->get_transfer_locations(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-umlme( '12.000' )
+      act = lt_results[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_results[ 2 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD converts_location_bulk_uom.
+    mo_repository->set_location_results(
+      it_results = VALUE #(
+        ( request_id        = 'R-1'
+          material          = 'MAT-1'
+          plant             = '1000'
+          storage_location  = '0002'
+          transfer_quantity = '12.000' )
+        ( request_id        = 'R-2'
+          material          = 'MAT-1'
+          plant             = '2000'
+          storage_location  = '0001'
+          transfer_quantity = '6.000' )
+        ( request_id        = 'R-1'
+          material          = 'MAT-1'
+          plant             = '1000'
+          storage_location  = '0001'
+          transfer_quantity = '24.000' ) ) ).
+
+    DATA(lt_results) = mo_cut->get_transfer_location_bulk_uom(
+      it_requests = VALUE #(
+        ( request_id = 'R-2'
+          material   = 'MAT-1'
+          plant      = '2000'
+          unit       = 'BOX' )
+        ( request_id = 'R-1'
+          material   = 'MAT-1'
+          plant      = '1000'
+          unit       = 'BOX' )
+        ( request_id = 'R-3'
+          material   = 'MAT-1'
+          plant      = '3000'
+          unit       = 'BOX' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'R-2'
+      act = lt_results[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_results[ 1 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-umlme( '6.000' )
+      act = lt_results[ 1 ]-transfers[ 1 ]-base_transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-transfers[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 2 ]-transfers[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_results[ 2 ]-transfers[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'R-3'
+      act = lt_results[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 3 ]-transfers ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_uom_repository->get_ratio_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD converts_transfer_location_uom.
+    mo_repository->set_location_results(
+      it_results = VALUE #(
+        ( request_id        = 'SINGLE'
+          material          = 'MAT-1'
+          plant             = '1000'
+          storage_location  = '0001'
+          transfer_quantity = '12.000' ) ) ).
+
+    DATA(lt_results) = mo_cut->get_transfer_locations_in_unit(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      iv_unit     = 'BOX' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_results[ 1 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BOX'
+      act = lt_results[ 1 ]-unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-umlme( '12.000' )
+      act = lt_results[ 1 ]-base_transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_results[ 1 ]-transfer_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_uom_repository->get_ratio_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_location_transfer_row.
+    DATA lv_exception_raised TYPE abap_bool.
+    mo_repository->set_location_results(
+      it_results = VALUE #(
+        ( request_id        = 'R-1'
+          material          = 'MAT-2'
+          plant             = '1000'
+          storage_location  = '0001'
+          transfer_quantity = '2.000' ) ) ).
+
+    TRY.
+        mo_cut->get_transfer_locations_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'R-1'
+              material   = 'MAT-1'
+              plant      = '1000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD empty_location_bulk_skips_read.
+    DATA(lt_results) = mo_cut->get_transfer_location_bulk_uom(
+      it_requests = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_uom_repository->get_ratio_read_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_repository->get_read_count( ) ).

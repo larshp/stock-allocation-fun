@@ -20,6 +20,16 @@ CLASS lcl_order_api_double IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_sales_order_api~read_orders.
+    LOOP AT it_sales_documents INTO DATA(lv_sales_document).
+      APPEND VALUE #(
+        sales_document = lv_sales_document
+        read_result    = zif_sales_order_api~read_order(
+          lv_sales_document ) )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_sales_order_api~create_order.
   ENDMETHOD.
 
@@ -239,8 +249,16 @@ CLASS lcl_reservation_api_double DEFINITION FINAL.
     METHODS set_create_result
       IMPORTING
         is_result TYPE zif_so_reservation_api=>ty_result.
+    METHODS set_create_failure_call
+      IMPORTING
+        iv_call    TYPE i
+        is_message TYPE zif_so_reservation_api=>ty_message.
     METHODS set_commit_result
       IMPORTING
+        is_result TYPE zif_so_reservation_api=>ty_commit_result.
+    METHODS set_commit_failure_call
+      IMPORTING
+        iv_call   TYPE i
         is_result TYPE zif_so_reservation_api=>ty_commit_result.
     METHODS get_create_count
       RETURNING
@@ -265,6 +283,10 @@ CLASS lcl_reservation_api_double DEFINITION FINAL.
     DATA mv_commit_count TYPE i.
     DATA mv_rollback_count TYPE i.
     DATA mv_test_run TYPE abap_bool.
+    DATA mv_fail_create_call TYPE i.
+    DATA ms_create_failure_message TYPE zif_so_reservation_api=>ty_message.
+    DATA mv_fail_commit_call TYPE i.
+    DATA ms_commit_failure_result TYPE zif_so_reservation_api=>ty_commit_result.
     DATA mv_use_create_result TYPE abap_bool.
     DATA mv_use_commit_result TYPE abap_bool.
 ENDCLASS.
@@ -275,9 +297,19 @@ CLASS lcl_reservation_api_double IMPLEMENTATION.
     mv_use_create_result = abap_true.
   ENDMETHOD.
 
+  METHOD set_create_failure_call.
+    mv_fail_create_call = iv_call.
+    ms_create_failure_message = is_message.
+  ENDMETHOD.
+
   METHOD set_commit_result.
     ms_commit_result = is_result.
     mv_use_commit_result = abap_true.
+  ENDMETHOD.
+
+  METHOD set_commit_failure_call.
+    mv_fail_commit_call = iv_call.
+    ms_commit_failure_result = is_result.
   ENDMETHOD.
 
   METHOD get_create_count.
@@ -304,6 +336,11 @@ CLASS lcl_reservation_api_double IMPLEMENTATION.
     ADD 1 TO mv_create_count.
     mt_requests = it_requests.
     mv_test_run = iv_test_run.
+    IF mv_create_count = mv_fail_create_call.
+      rs_result-is_successful = abap_false.
+      APPEND ms_create_failure_message TO rs_result-messages.
+      RETURN.
+    ENDIF.
     IF mv_use_create_result = abap_true.
       rs_result = ms_create_result.
       RETURN.
@@ -324,6 +361,10 @@ CLASS lcl_reservation_api_double IMPLEMENTATION.
 
   METHOD zif_so_reservation_api~commit.
     ADD 1 TO mv_commit_count.
+    IF mv_commit_count = mv_fail_commit_call.
+      rs_result = ms_commit_failure_result.
+      RETURN.
+    ENDIF.
     IF mv_use_commit_result = abap_true.
       rs_result = ms_commit_result.
     ELSE.
@@ -387,6 +428,14 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     DATA mo_cut TYPE REF TO zcl_sales_order_alloc_service.
     METHODS setup.
     METHODS previews_multi_orders_date FOR TESTING.
+    METHODS previews_mbd_dates FOR TESTING.
+    METHODS rejects_missing_mbd_date FOR TESTING.
+    METHODS rejects_bad_mbd_flag FOR TESTING.
+    METHODS previews_single_mbd FOR TESTING.
+    METHODS previews_mbd_without_edatu FOR TESTING.
+    METHODS reserves_single_mbd FOR TESTING.
+    METHODS rejects_missing_single_mbd FOR TESTING.
+    METHODS rejects_bad_single_mbd FOR TESTING.
     METHODS prioritizes_multi_order FOR TESTING.
     METHODS rejects_bad_demand_priority FOR TESTING.
     METHODS previews_multi_order_pr_supply FOR TESTING.
@@ -396,6 +445,10 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     METHODS previews_multi_existing_res FOR TESTING.
     METHODS previews_multi_confirmed_qty FOR TESTING.
     METHODS reserves_multi_orders_by_date FOR TESTING.
+    METHODS reserves_multi_orders_bulk FOR TESTING.
+    METHODS rolls_back_bulk_commit FOR TESTING.
+    METHODS simulates_multi_res_bulk FOR TESTING.
+    METHODS reserves_mbd_dates FOR TESTING.
     METHODS reserves_by_order_priority FOR TESTING.
     METHODS orders_priority_reservations FOR TESTING.
     METHODS reserves_sched_agmt_supply FOR TESTING.
@@ -426,6 +479,7 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     METHODS rejects_failed_order_read FOR TESTING.
     METHODS rejects_incomplete_open_item FOR TESTING.
     METHODS rejects_missing_sales_ratio FOR TESTING.
+    METHODS rejects_bad_schedule_date FOR TESTING.
     METHODS reserves_allocated_quantities FOR TESTING.
     METHODS reserves_due_items_first FOR TESTING.
     METHODS rejects_short_full_reservation FOR TESTING.
@@ -434,10 +488,20 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     METHODS reserves_schedule_dates FOR TESTING.
     METHODS rejects_missing_schedule_date FOR TESTING.
     METHODS reserves_selected_batch FOR TESTING.
+    METHODS rejects_expired_selected_batch FOR TESTING.
+    METHODS allows_batch_expiring_on_date FOR TESTING.
+    METHODS applies_batch_minimum FOR TESTING.
+    METHODS rejects_bad_batch_minimum FOR TESTING.
+    METHODS rejects_bad_selection_flags FOR TESTING.
     METHODS reserves_preferred_batch_loc FOR TESTING.
     METHODS previews_order_fefo_batches FOR TESTING.
     METHODS previews_order_min_shelf_life FOR TESTING.
+    METHODS applies_fefo_demand_minimums FOR TESTING.
+    METHODS uses_required_date_for_fefo FOR TESTING.
+    METHODS rejects_bad_fefo_date_flag FOR TESTING.
     METHODS rejects_min_days_without_fefo FOR TESTING.
+    METHODS rejects_bad_fefo_minimums FOR TESTING.
+    METHODS rejects_unknown_fefo_min_key FOR TESTING.
     METHODS reserves_order_fefo_batches FOR TESTING.
     METHODS reserves_order_min_shelf_life FOR TESTING.
     METHODS rejects_fefo_batch_choice FOR TESTING.
@@ -446,6 +510,7 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     METHODS rejects_future_order_atp FOR TESTING.
     METHODS rejects_order_priorities FOR TESTING.
     METHODS rejects_priority_without_date FOR TESTING.
+    METHODS prepare_mbd_schedule_fixture.
     METHODS rejects_partial_batch_choice FOR TESTING.
     METHODS reserves_schedule_line_batches FOR TESTING.
     METHODS applies_item_batch_by_line FOR TESTING.
@@ -541,6 +606,269 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD prepare_mbd_schedule_fixture.
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number                = '000010'
+              schedule_line              = '0001'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              entry_unit                 = 'EA'
+              base_unit                  = 'EA'
+              requested_date             = '20261015'
+              material_availability_date = '20261001'
+              open_base_quantity         = '3.000' )
+            ( item_number                = '000010'
+              schedule_line              = '0002'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              entry_unit                 = 'EA'
+              base_unit                  = 'EA'
+              requested_date             = '20261005'
+              material_availability_date = '20261015'
+              open_base_quantity         = '3.000' ) ) ) ) ).
+  ENDMETHOD.
+
+  METHOD previews_mbd_dates.
+    prepare_mbd_schedule_fixture( ).
+
+    DATA(ls_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents         = VALUE #( ( '0000004711' ) )
+      iv_use_material_avail_date = abap_true
+      iv_check_atp               = abap_true
+      iv_atp_check_rule          = 'A' ).
+    READ TABLE ls_result-sales_unit_allocations
+      INTO DATA(ls_first_allocation)
+      WITH KEY schedule_line = '0001'.
+    READ TABLE ls_result-sales_unit_allocations
+      INTO DATA(ls_second_allocation)
+      WITH KEY schedule_line = '0002'.
+    READ TABLE ls_result-atp_checks
+      INTO DATA(ls_first_atp)
+      WITH KEY schedule_line = '0001'.
+    READ TABLE ls_result-atp_checks
+      INTO DATA(ls_second_atp)
+      WITH KEY schedule_line = '0002'.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_first_allocation-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_first_allocation-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_second_allocation-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_second_allocation-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_first_atp-result-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_second_atp-result-required_date ).
+  ENDMETHOD.
+
+  METHOD previews_single_mbd.
+    prepare_mbd_schedule_fixture( ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      iv_prioritize_by_date      = abap_true
+      iv_use_material_avail_date = abap_true
+      iv_check_atp               = abap_true
+      iv_atp_check_rule          = 'A' ).
+    READ TABLE ls_result-sales_unit_allocations
+      INTO DATA(ls_first_allocation)
+      WITH KEY schedule_line = '0001'.
+    READ TABLE ls_result-sales_unit_allocations
+      INTO DATA(ls_second_allocation)
+      WITH KEY schedule_line = '0002'.
+    READ TABLE ls_result-atp_checks
+      INTO DATA(ls_first_atp)
+      WITH KEY schedule_line = '0001'.
+    READ TABLE ls_result-atp_checks
+      INTO DATA(ls_second_atp)
+      WITH KEY schedule_line = '0002'.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_first_allocation-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_first_allocation-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_second_allocation-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = ls_second_allocation-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_first_atp-result-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_second_atp-result-required_date ).
+  ENDMETHOD.
+
+  METHOD previews_mbd_without_edatu.
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number                = '000010'
+              schedule_line              = '0001'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              entry_unit                 = 'EA'
+              base_unit                  = 'EA'
+              material_availability_date = '20261001'
+              open_base_quantity         = '3.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      iv_use_material_avail_date = abap_true
+      iv_check_atp               = abap_true
+      iv_atp_check_rule          = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_result-sales_unit_allocations[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_result-atp_checks[ 1 ]-result-required_date ).
+  ENDMETHOD.
+
+  METHOD reserves_single_mbd.
+    prepare_mbd_schedule_fixture( ).
+
+    DATA(ls_result) = mo_cut->reserve_order(
+      iv_sales_document          = '0000004711'
+      iv_prioritize_by_date      = abap_true
+      iv_use_material_avail_date = abap_true ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711/000010/0001'
+      act = lt_requests[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_requests[ 1 ]-required_date ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_single_mbd.
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '3.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      iv_use_material_avail_date = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Material availability date mode requires a dated schedule line for every open item'
+      act = ls_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_single_mbd.
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document          = '0000004711'
+          iv_use_material_avail_date = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_missing_mbd_date.
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '3.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents         = VALUE #( ( '0000004711' ) )
+      iv_use_material_avail_date = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-sales_unit_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Material availability date mode requires a dated schedule line for every open item'
+      act = ls_result-messages[ 1 ]-message ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_mbd_flag.
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->preview_orders_by_date(
+          it_sales_documents         = VALUE #( ( '0000004711' ) )
+          iv_use_material_avail_date = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
   ENDMETHOD.
 
   METHOD prioritizes_multi_order.
@@ -1001,6 +1329,200 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_multi_orders_bulk.
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '1.000' ) ) ) ) ).
+    mo_reservation_api->set_create_failure_call(
+      iv_call    = 2
+      is_message = VALUE #(
+        type    = 'E'
+        message = 'Simulated reservation failure' ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date_bulk(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' )
+        ( '0000004713' ) ) ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-order_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Simulated reservation failure'
+      act = ls_result-order_results[ 2 ]-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_reservation_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004713'
+      act = lt_requests[ 1 ]-sales_document ).
+  ENDMETHOD.
+
+  METHOD rolls_back_bulk_commit.
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '1.000' ) ) ) ) ).
+    mo_reservation_api->set_commit_failure_call(
+      iv_call   = 2
+      is_result = VALUE #(
+        is_successful = abap_false
+        message       = VALUE #(
+          type    = 'E'
+          message = 'Simulated commit failure' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date_bulk(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' )
+        ( '0000004713' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Simulated commit failure'
+      act = ls_result-order_results[ 2 ]-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_reservation_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_reservation_api->get_rollback_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-reservations ) ).
+  ENDMETHOD.
+
+  METHOD simulates_multi_res_bulk.
+    mo_stock_repository->set_stock( iv_quantity = '2.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '1.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date_bulk(
+      it_sales_documents = VALUE #(
+        ( '0000004711' )
+        ( '0000004712' ) )
+      iv_test_run        = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 1 ]-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = mo_reservation_api->was_test_run( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_mbd_dates.
+    prepare_mbd_schedule_fixture( ).
+
+    DATA(ls_result) = mo_cut->reserve_orders_by_date(
+      it_sales_documents         = VALUE #( ( '0000004711' ) )
+      iv_use_material_avail_date = abap_true ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711/000010/0001'
+      act = lt_requests[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_requests[ 1 ]-required_date ).
   ENDMETHOD.
 
   METHOD reserves_by_order_priority.
@@ -2813,6 +3335,104 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       act = mo_stock_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_bad_schedule_date.
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #( (
+            item_number        = '000010'
+            schedule_line      = '0001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            entry_unit         = 'EA'
+            base_unit          = 'EA'
+            requested_date     = '20260230'
+            open_base_quantity = '1.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order( '0000004711' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Sales-order schedule date is not a valid Gregorian date'
+      act = ls_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_availability_api->get_check_count( ) ).
+    DATA(ls_reserve_result) = mo_cut->reserve_order( '0000004711' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_reserve_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reservation_api->get_create_count( ) ).
+
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #( (
+            item_number                = '000010'
+            schedule_line              = '0001'
+            material                   = 'MAT-1'
+            plant                      = '1000'
+            entry_unit                 = 'EA'
+            base_unit                  = 'EA'
+            requested_date             = '20261101'
+            material_availability_date = '20260230'
+            open_base_quantity         = '1.000' ) ) ) ) ).
+    CLEAR ls_result.
+    ls_result = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      iv_use_material_avail_date = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Sales-order schedule date is not a valid Gregorian date'
+      act = ls_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #( (
+            item_number        = '000010'
+            schedule_line      = '0001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            entry_unit         = 'EA'
+            base_unit          = 'EA'
+            requested_date     = '20260230'
+            open_base_quantity = '1.000' ) ) ) ) ).
+    DATA(ls_multi_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #( ( '0000004711' ) )
+      iv_check_atp       = abap_true
+      iv_atp_check_rule  = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_multi_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Sales-order schedule date is not a valid Gregorian date'
+      act = ls_multi_result-messages[ 1 ]-message ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_stock_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
   METHOD reserves_selected_batch.
     mo_stock_repository->set_batch_stocks(
       it_stock = VALUE #(
@@ -2863,6 +3483,213 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-1'
       act = ls_result-reservations[ 2 ]-batch ).
+  ENDMETHOD.
+
+  METHOD rejects_expired_selected_batch.
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          expiration_date    = '20261014'
+          available_quantity = '2.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              requested_date     = '20261015'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              open_base_quantity = '2.000' ) ) ) ) ).
+
+    DATA(ls_preview) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_batch_selections = VALUE #(
+        ( item_number   = '000010'
+          schedule_line = '0001'
+          batch         = 'B-1' ) ) ).
+    DATA(ls_result) = mo_cut->reserve_order(
+      iv_sales_document          = '0000004711'
+      it_batch_selections        = VALUE #(
+        ( item_number   = '000010'
+          schedule_line = '0001'
+          batch         = 'B-1' ) )
+      iv_require_full_allocation = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_preview-allocations[ 1 ]-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_preview-allocations[ 1 ]-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( mo_reservation_api->get_requests( ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-reservations ) ).
+  ENDMETHOD.
+
+  METHOD allows_batch_expiring_on_date.
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          expiration_date    = '20261015'
+          available_quantity = '2.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              requested_date     = '20261015'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              open_base_quantity = '2.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_batch_selections = VALUE #(
+        ( item_number   = '000010'
+          schedule_line = '0001'
+          batch         = 'B-1' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocations[ 1 ]-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_result-batch_allocations[ 1 ]-as_of_date ).
+  ENDMETHOD.
+
+  METHOD applies_batch_minimum.
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          expiration_date    = '20261022'
+          available_quantity = '2.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              requested_date     = '20261015'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              open_base_quantity = '2.000' ) ) ) ) ).
+
+    DATA(ls_boundary) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_batch_selections = VALUE #(
+        ( item_number             = '000010'
+          schedule_line           = '0001'
+          batch                   = 'B-1'
+          minimum_shelf_life_days = 7 ) ) ).
+    DATA(ls_short) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_batch_selections = VALUE #(
+        ( item_number             = '000010'
+          schedule_line           = '0001'
+          batch                   = 'B-1'
+          minimum_shelf_life_days = 8 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_boundary-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_short-allocations[ 1 ]-shortfall_quantity ).
+
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          available_quantity = '2.000' ) ) ).
+    DATA(ls_unknown) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_batch_selections = VALUE #(
+        ( item_number             = '000010'
+          schedule_line           = '0001'
+          batch                   = 'B-1'
+          minimum_shelf_life_days = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_unknown-allocations[ 1 ]-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_batch_minimum.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document   = '0000004711'
+          it_batch_selections = VALUE #(
+            ( item_number             = '000010'
+              batch                   = 'B-1'
+              minimum_shelf_life_days = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_selection_flags.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document   = '0000004711'
+          it_batch_selections = VALUE #(
+            ( item_number    = '000010'
+              batch          = 'B-1'
+              allow_fallback = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document      = '0000004711'
+          it_location_selections = VALUE #(
+            ( item_number      = '000010'
+              storage_location = '0001'
+              allow_fallback   = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
   ENDMETHOD.
 
   METHOD reserves_preferred_batch_loc.
@@ -3029,6 +3856,186 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       act = ls_result-batch_allocations[ 2 ]-batch ).
   ENDMETHOD.
 
+  METHOD applies_fefo_demand_minimums.
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-7-DAYS'
+          expiration_date    = '20260930'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-12-DAYS'
+          expiration_date    = '20261005'
+          available_quantity = '1.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '1.000' )
+            ( item_number        = '000010'
+              schedule_line      = '0002'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              requested_date     = '20261008'
+              open_base_quantity = '1.000' ) ) ) ) ).
+
+    DATA lt_fefo_minimums TYPE
+      zcl_sales_order_alloc_service=>ty_fefo_minimums.
+    lt_fefo_minimums = VALUE #(
+        ( item_number             = '000010'
+          minimum_shelf_life_days = 3 )
+        ( item_number             = '000010'
+          schedule_line           = '0001'
+          minimum_shelf_life_days = 10 ) ).
+    DATA(ls_preview) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      it_fefo_minimums    = lt_fefo_minimums
+      iv_use_fefo_batches = abap_true
+      iv_fefo_as_of_date  = '20260923'
+      iv_fefo_min_days    = 5 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_preview-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-12-DAYS'
+      act = ls_preview-batch_allocations[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_preview-batch_allocations[ 1 ]-minimum_shelf_life_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-7-DAYS'
+      act = ls_preview-batch_allocations[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = ls_preview-batch_allocations[ 2 ]-minimum_shelf_life_days ).
+
+    DATA(ls_reserve) = mo_cut->reserve_order(
+      iv_sales_document   = '0000004711'
+      it_fefo_minimums    = lt_fefo_minimums
+      iv_use_fefo_batches = abap_true
+      iv_fefo_as_of_date  = '20260923'
+      iv_fefo_min_days    = 5 ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_reserve-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-12-DAYS'
+      act = lt_requests[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711/000010/0001'
+      act = lt_requests[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-7-DAYS'
+      act = lt_requests[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711/000010/0002'
+      act = lt_requests[ 2 ]-request_id ).
+  ENDMETHOD.
+
+  METHOD uses_required_date_for_fefo.
+    mo_stock_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-BEFORE'
+          expiration_date    = '20261004'
+          available_quantity = '2.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-VALID'
+          expiration_date    = '20261006'
+          available_quantity = '1.000' ) ) ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              requested_date     = '20261005'
+              open_base_quantity = '1.000' ) ) ) ) ).
+
+    DATA(ls_current_date_preview) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      iv_use_fefo_batches = abap_true
+      iv_fefo_as_of_date  = '20260923' ).
+    DATA(ls_required_date_preview) = mo_cut->preview_order(
+      iv_sales_document             = '0000004711'
+      iv_use_fefo_batches           = abap_true
+      iv_fefo_as_of_date            = '20260923'
+      iv_use_required_date_for_fefo = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-BEFORE'
+      act = ls_current_date_preview-batch_allocations[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-VALID'
+      act = ls_required_date_preview-batch_allocations[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_required_date_preview-batch_allocations[ 1 ]-as_of_date ).
+
+    DATA(ls_reserve) = mo_cut->reserve_order(
+      iv_sales_document             = '0000004711'
+      iv_use_fefo_batches           = abap_true
+      iv_fefo_as_of_date            = '20260923'
+      iv_use_required_date_for_fefo = abap_true ).
+    DATA(lt_requests) = mo_reservation_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_reserve-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-VALID'
+      act = lt_requests[ 1 ]-batch ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_fefo_date_flag.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document             = '0000004711'
+          iv_use_required_date_for_fefo = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document             = '0000004711'
+          iv_use_fefo_batches           = abap_true
+          iv_use_required_date_for_fefo = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
   METHOD rejects_min_days_without_fefo.
     DATA lv_exception_raised TYPE abap_bool.
 
@@ -3046,6 +4053,89 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_fefo_minimums.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document   = '0000004711'
+          iv_use_fefo_batches = abap_true
+          it_fefo_minimums    = VALUE #(
+            ( item_number             = '000010'
+              minimum_shelf_life_days = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        mo_cut->preview_order(
+          iv_sales_document = '0000004711'
+          it_fefo_minimums  = VALUE #(
+            ( item_number             = '000010'
+              minimum_shelf_life_days = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    DATA(ls_duplicate) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      iv_use_fefo_batches = abap_true
+      it_fefo_minimums    = VALUE #(
+        ( item_number             = '000010'
+          minimum_shelf_life_days = 1 )
+        ( item_number             = '000010'
+          minimum_shelf_life_days = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_duplicate-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_duplicate-messages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_fefo_min_key.
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          items = VALUE #(
+            ( item_number        = '000010'
+              schedule_line      = '0001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '1.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document   = '0000004711'
+      iv_use_fefo_batches = abap_true
+      it_fefo_minimums    = VALUE #(
+        ( item_number             = '000010'
+          schedule_line           = '0002'
+          minimum_shelf_life_days = 5 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-messages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_result-batch_allocations ) ).
   ENDMETHOD.
 
   METHOD reserves_order_fefo_batches.

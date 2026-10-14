@@ -62,16 +62,15 @@
           <INTLEN>000016</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>WMENG</FIELDNAME>
+          <FIELDNAME>MBDAT</FIELDNAME>
           <POSITION>0006</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>BMENG</FIELDNAME>
+          <FIELDNAME>WMENG</FIELDNAME>
           <POSITION>0007</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
@@ -80,8 +79,17 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>VSMNG</FIELDNAME>
+          <FIELDNAME>BMENG</FIELDNAME>
           <POSITION>0008</POSITION>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>VSMNG</FIELDNAME>
+          <POSITION>0009</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
           <DECIMALS>000003</DECIMALS>

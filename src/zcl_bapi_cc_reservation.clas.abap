@@ -18,7 +18,6 @@ CLASS zcl_bapi_cc_reservation IMPLEMENTATION.
     DATA ls_return TYPE bapiret2.
     DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
     DATA lv_test_run TYPE c LENGTH 1.
-
     rs_result-is_successful = abap_true.
     IF is_request-items IS INITIAL.
       APPEND VALUE #(
@@ -60,6 +59,89 @@ CLASS zcl_bapi_cc_reservation IMPLEMENTATION.
       TABLES
         reservationitems  = lt_items
         return            = lt_return.
+
+    LOOP AT lt_return INTO ls_return.
+      APPEND VALUE #(
+        type    = ls_return-type
+        message = ls_return-message ) TO rs_result-messages.
+      IF ls_return-type = 'A'
+          OR ls_return-type = 'E'
+          OR ls_return-type = 'X'.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_api~delete_reservations.
+    DATA ls_return TYPE bapiret2.
+    DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA lv_test_run TYPE c LENGTH 1.
+
+    rs_result-is_successful = abap_true.
+    IF it_reservation_numbers IS INITIAL.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'At least one reservation number is required' )
+        TO rs_result-messages.
+      rs_result-is_successful = abap_false.
+      RETURN.
+    ENDIF.
+
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
+
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      CLEAR lt_return.
+      CALL FUNCTION 'BAPI_RESERVATION_DELETE'
+        EXPORTING
+          reservation = lv_reservation_number
+          testrun     = lv_test_run
+        TABLES
+          return      = lt_return.
+
+      LOOP AT lt_return INTO ls_return.
+        APPEND VALUE #(
+          type    = ls_return-type
+          message = ls_return-message ) TO rs_result-messages.
+        IF ls_return-type = 'A'
+            OR ls_return-type = 'E'
+            OR ls_return-type = 'X'.
+          rs_result-is_successful = abap_false.
+        ENDIF.
+      ENDLOOP.
+
+      IF rs_result-is_successful = abap_false.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_cc_reservation_api~delete_reservation_items.
+    DATA lt_changed_items TYPE STANDARD TABLE OF
+      bapi2093_res_item_change WITH DEFAULT KEY.
+    DATA lt_changed_itemsx TYPE STANDARD TABLE OF
+      bapi2093_res_item_changex WITH DEFAULT KEY.
+    DATA ls_return TYPE bapiret2.
+    DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+
+    rs_result-is_successful = abap_true.
+    LOOP AT it_item_numbers INTO DATA(lv_item_number).
+      APPEND VALUE #(
+        res_item   = lv_item_number
+        delete_ind = abap_true ) TO lt_changed_items.
+      APPEND VALUE #(
+        res_item   = lv_item_number
+        delete_ind = abap_true ) TO lt_changed_itemsx.
+    ENDLOOP.
+
+    CALL FUNCTION 'BAPI_RESERVATION_CHANGE'
+      EXPORTING
+        reservation               = iv_reservation_number
+      TABLES
+        reservationitems_changed  = lt_changed_items
+        reservationitems_changedx = lt_changed_itemsx
+        return                    = lt_return.
 
     LOOP AT lt_return INTO ls_return.
       APPEND VALUE #(

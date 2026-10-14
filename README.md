@@ -129,6 +129,19 @@ splits. It supports the dated PO, issued or unissued STO, and production receipt
 projections plus source safety-stock protection. This is a planning estimate
 and does not return storage-location splits or create a transfer because
 projected receipts have no storage-location assignment.
+`ALLOCATE_PLANTS_BY_DATE_LOC` applies the same date and priority ordering to
+current stock and returns the actual source-plant and storage-location splits
+in caller order. It supports source-plant order, source-location scopes,
+location priority, allowlists, safety-stock protection, and full-quantity
+allocation. It does not include projected receipts, since those sources have
+no location assignment.
+`ALLOCATE_PLANTS_DATE_LOC_UOM` accepts the same dated location-aware
+cross-plant demands in material-specific units. It preserves date and priority
+ordering, caller-order summaries and splits, and returns demand, source-plant,
+and location quantities in both source and base units. Repeated material/unit
+ratios are read once per call; base-unit quantities remain canonical when a
+converted split rounds to the quantity field's precision. It uses current
+location stock only and does not project receipts.
 `ALLOCATE_PLANTS_DATE_UNITS` accepts the same dated cross-plant requests in
 material-specific units. It converts demand to base units before stock reads,
 preserves date and same-date caller priority plus each request's source-plant
@@ -147,6 +160,11 @@ capped at the cumulative quantity checked. Later or undated lines remain in the
 raw result but do not count as confirmed for that date. These convenience values
 are zero for ATP checks marked not relevant. The checks do not change local
 allocations or resolve local shortfalls.
+`ALLOCATE_PLANTS_DATE_LOC_ATP` adds these cumulative checks to dated,
+unit-aware cross-plant allocations with storage-location splits. It checks only
+positive source-plant allocations, groups them by source plant and required
+date, and retains the caller-order local demand, plant, and location results.
+ATP remains diagnostic and does not change the local location allocation.
 The dated ordinary cross-plant methods and their unit/ATP variants also accept
 `iv_require_full_quantity`. It defaults to `abap_false`; when enabled, each
 date/priority-ordered request consumes stock only when its full quantity is
@@ -217,6 +235,11 @@ configured batch determination.
 meet its shelf-life requirement at its required date after source-location and
 allowlist filters; a rejected short request leaves those batches available to
 later dated demands.
+Each cross-plant FEFO demand can set `minimum_shelf_life_days`; the greater of
+that value and the shared `iv_min_days` is applied to that demand and returned
+on its batch split. The base-unit, dated, unit-aware, and ATP variants forward
+the per-demand value. Ordinary cross-plant allocators that share these demand
+types reject a nonzero value because they do not evaluate batch expiry.
 All dated cross-plant FEFO variants accept an optional shared
 `it_allowed_storage_locations` allowlist. When supplied, stock from every other
 storage location is excluded for all requests and source plants; an empty list
@@ -253,6 +276,28 @@ shares storage-location balances across input rows. It preserves the existing
 preferred-location and fallback behavior, returns base-unit summaries, and
 includes each location split in both base and source units. It accepts the same
 optional `it_storage_location_priority` list as the base-unit method.
+`ALLOCATE_LOCATION_BY_DATE` accepts base-unit location demands with required
+dates and priorities. Earlier dates consume shared locations first; higher
+priority wins within a date and input order breaks ties. It returns allocation
+summaries and location splits in caller order, and supports the same location
+priority, allowlist, safety-stock, and full-quantity options.
+`ALLOCATE_LOCATION_BY_DATE_UOM` adds required dates and integer priority to
+these location demands. Earlier dates consume shared location balances first;
+higher priorities win within the same date, with input order breaking ties.
+Results include dates and priorities and return in caller order. The preview
+uses current stock only because projected receipts do not identify a storage
+location.
+`ALLOCATE_LOCATION_DATE_UOM_ATP` adds cumulative ATP checks for positive local
+allocations, grouped by material, plant, base unit, and required date. The ATP
+quantity for a later date includes earlier local allocations in that group;
+zero local allocations do not trigger a check. The result remains a comparison
+preview and does not reserve stock.
+`ALLOCATE_BY_LOCATION_ATP` returns that local estimate with ATP checks for
+positive allocations, grouped by material, plant, and base unit using the
+optional `iv_atp_check_date`, which defaults to the current date. The local
+estimate still uses current stock. A full-quantity shortfall produces no ATP
+check when the local estimate allocates zero. ATP results are diagnostic and
+do not reserve stock.
 
 `ZCL_STOCK_SERVICE->GET_STOCK_STATUS` reports plant totals for unrestricted
 (`MARD-LABST`), quality-inspection (`MARD-INSME`), and blocked (`MARD-SPEME`)
@@ -590,13 +635,445 @@ allocates shared batch stock in demand order. Results include base-unit
 allocation summaries and batch splits alongside converted source-unit
 quantities. Base-unit split quantities remain the canonical values when
 conversion to a source unit rounds to `MARD-LABST` precision.
+Each base-unit or unit-aware FEFO demand can set `minimum_shelf_life_days`.
+The greater of this value and the shared `iv_min_days` applies to that demand;
+a positive effective minimum excludes undated batches. Batch splits report the
+effective minimum, and the unit-aware method carries each demand's value through
+base-unit conversion.
+Base-unit and unit-aware FEFO demands can also set `fefo_as_of_date`; the later
+of that date and the shared `iv_as_of_date` controls expiry checks, and batch
+splits report the effective date.
+`ALLOCATE_BY_EXPIRY_ATP` accepts unit-aware FEFO demands and a checking rule.
+It returns the local FEFO estimate plus ATP checks grouped by material, plant,
+base unit, and effective FEFO date. Each check covers the cumulative local
+allocation through that date; rows with no local allocation do not trigger an
+ATP call. This remains a preview and does not reserve stock.
+`ALLOCATE_BY_BATCH_ATP` provides the same comparison for unit-aware demands
+that name an exact batch. A row's `as_of_date` overrides the shared
+`iv_as_of_date` default, and the selected batch is retained through local
+expiry filtering and allocation. ATP checks group the positive batch splits
+by material, plant, base unit, and date, with cumulative quantities through
+each date. It does not substitute a different batch or reserve stock.
 
 Confirmed stock changes go through `ZCL_GOODS_MOVEMENT_SERVICE`, which calls
 `BAPI_GOODSMVT_CREATE` through an injectable adapter. It validates common item
 fields and cost center or order assignments for movement types 201/202 and
-261/262; sales-order issues (231/232) require the sales order and item. One-step
-plant transfers (301/302) require a receiving plant and storage location;
+261/262; sales-order issues (231/232) require the sales order and item, and
+project-WBS movements (221/222) require a WBS element. One-step plant transfers
+(301/302) require a receiving plant and storage location;
 two-step plant transfers use separate 303 removal and 305 putaway postings.
+`ISSUE_TO_COST_CENTER` posts caller-selected material lines directly to one
+cost center with movement type 201 and GM code 03. Each line includes plant,
+storage location, optional batch, quantity, and entry unit/ISO code; the unit
+is passed through without local conversion. All lines share one material
+document and the standard simulation and commit handling. The method does not
+run an allocation preview, so callers supply the quantities to issue.
+`ISSUE_TO_COST_CENTER_IN_UNIT` accepts per-line source units and converts each
+quantity to the material base unit. Pass one base-unit/ISO mapping per material;
+the service checks that the conversion agrees with that mapping before posting.
+`REVERSE_TO_COST_CENTER` posts movement type 202 for caller-selected return
+quantities without a material-document reference. Its UOM-aware form,
+`REVERSE_TO_COST_CENTER_UOM`, converts quantities to the mapped base unit first.
+Both retain the cost center and optional batch and use the standard simulation
+and commit handling; a partial quantity can be returned.
+`ISSUE_COST_CENTER_ALLOCATION` accepts a successful
+`ZCL_CC_RESERVATION_SERVICE=>PREVIEW_FOR_COST_CENTER` result and the matching
+material base-unit/ISO mapping. It posts the preview's location or batch splits
+as movement 201 items. It rejects results that already carry a reservation
+number, so the same reserved allocation cannot be posted through this direct
+path. Full allocation is required by default; set
+`iv_require_full_allocation = abap_false` to post only allocated quantities.
+The preview is a stock snapshot and is not re-read before posting.
+`ISSUE_COST_CENTER_LOCATIONS` accepts the multi-demand result from
+`PREVIEW_COST_CENTER_LOCATIONS` and posts all selected location splits in one
+movement-201 document. Each demand keeps its own cost center. It validates
+unique request IDs, unit mappings, preview totals, and each location-split sum;
+full allocation is required by default, with partial posting available as an
+explicit option. The preview is not re-read before posting.
+`ISSUE_COST_CENTER_BATCHES` consumes `PREVIEW_COST_CENTER_BATCHES`, preserving
+the selected batch and its storage-location splits for each demand.
+`ISSUE_COST_CENTER_FEFO` consumes `PREVIEW_COST_CENTER_FEFO` and preserves each
+selected batch split. Both methods validate the per-demand summary and split
+totals, retain each cost center, and post one movement-201 document; full
+allocation is the default and partial posting is opt-in.
+`ISSUE_TO_SALES_ORDER` supports direct movement type 231 issues with a sales
+document and item on each line. `ISSUE_TO_SALES_ORDER_IN_UNIT` converts each
+line to the material base unit and checks the supplied base-unit/ISO mapping.
+Both methods post all selected items in one material document; they do not read
+the sales order or estimate available stock.
+`RETURN_FROM_SALES_ORDER` posts movement type 232 against the supplied sales
+order and item keys. `RETURN_FROM_SALES_ORDER_UOM` converts source quantities
+to the mapped base unit first; both retain batch assignments and use the
+standard simulation and commit flow. Returns are entered without a reference to
+the original material document.
+`ISSUE_TO_PROJECT_WBS` posts movement 221 to the supplied WBS element, and
+`RETURN_FROM_PROJECT_WBS` posts movement 222 back to that WBS element. Their
+unit-aware forms convert each source quantity to the supplied material
+base-unit/ISO mapping. Both preserve optional batch assignments and use the
+standard simulation and commit flow. `iv_special_stock` defaults to blank for
+unrestricted stock; pass `Q` to use project stock. These direct methods do not
+validate WBS status or stock availability, and returns do not reference an
+original material document.
+`ISSUE_PROJECT_WBS_BULK` accepts a list of WBS assignments with base-unit issue
+items. It validates the full request before the first posting call, then posts
+and commits one material document per WBS, retaining each result in input order
+and continuing after a posting failure. Review every row for partial success.
+Its test-run mode simulates each WBS without committing.
+`ISSUE_PROJECT_WBS_BULK_UOM` accepts source units with a material base-unit/ISO
+mapping, converts and validates the complete request first, then uses the same
+per-WBS posting and result behavior.
+`RETURN_PROJECT_WBS_BULK` accepts base-unit return items and posts one movement
+222 document per WBS. It validates the full request before posting and returns
+per-WBS outcomes in input order, continuing after a failed posting. These
+returns do not reference an original material document.
+`RETURN_PROJECT_WBS_BULK_UOM` accepts source units and a base-unit/ISO mapping,
+converts every row before the first return posting, and preserves the same
+per-WBS transaction and result behavior.
+`ISSUE_PROJECT_WBS_BULK_ATOMIC` and `RETURN_PROJECT_WBS_BULK_ATOMIC` stage one
+goods-movement call per WBS and commit the group once. A failed movement stops
+the group and rolls back earlier staged documents; a failed group commit also
+rolls the group back. Their result includes per-WBS messages and attempt state,
+plus group commit/rollback status. Use the non-atomic bulk forms when each WBS
+should commit independently and later rows should continue after a failure.
+`ISSUE_PROJECT_WBS_ATOMIC_UOM` and `RETURN_PROJECT_WBS_ATOMIC_UOM` accept
+source-unit requests with material base-unit/ISO mappings. They convert and
+validate the complete request before staging any WBS call, then use the same
+group commit/rollback behavior.
+`ZCL_PROJECT_RESV_SERVICE=>RESERVE_FOR_WBS` creates one reservation for a WBS
+element with multiple material, plant, location, and batch items. It converts
+requested units to each material's base unit and assigns the required date to
+the reservation items. It rejects dates that are not valid Gregorian calendar
+dates before calling SAP. Use it to persist selected project-stock demand
+before issue; the reservation will then be included in later project-stock
+previews.
+`iv_test_run = abap_true` simulates creation without commit or rollback. Live
+creation commits the reservation and returns its number. The local availability
+preview is not re-read or locked before the BAPI call, so SAP performs the final
+availability, business-date, and project-configuration checks.
+`RESERVE_WBS_BULK` accepts one direct reservation request per unique WBS
+element. It validates every date and stock item and converts all quantities to
+material base units before the first BAPI call. By default, each WBS commits
+independently and later requests continue after a failure; inspect each result
+row for partial success. Set `iv_atomic = abap_true` to stage the group under
+one commit or rollback boundary. Test-run calls simulate each row without
+commit or rollback.
+`ISSUE_RESERVED_WBS_ITEMS` issues selected items from an existing reservation
+after confirming that each item belongs to the supplied WBS and reservation,
+is not finally issued, and has remaining quantity. It accepts a quantity and
+unit per item, then uses the reservation-backed goods-issue flow to convert the
+quantity, re-read SAP reservation details, and post one material document.
+Test-run validates and simulates the movement without commit. SAP remains the
+final authority for current reservation state and goods-movement eligibility.
+`ISSUE_RESERVED_WBS_ITEMS_BULK` accepts one unique request per reservation,
+validates all WBS/item scopes before posting, and issues one material document
+per reservation. It preserves request order, commits each reservation
+independently, and returns each reservation's result; later reservations are
+still attempted after a failure, so review for partial success. Test-run
+simulates every reservation without commit.
+`RETURN_RESERVED_WBS_ITEMS` reverses a selected quantity already withdrawn
+from a WBS reservation. It checks that the item is scoped to the WBS and has a
+withdrawn balance, then posts a reservation-referenced reversal; finalized
+items remain eligible when they have a withdrawn quantity. Its bulk form
+accepts unique reservations, checks every WBS/item before posting, and commits
+one return document per reservation while continuing after failures. The
+requested return quantity is checked against the current SAP withdrawn amount.
+`ISSUE_RESERVED_WBS_ATOMIC` and `RETURN_RESERVED_WBS_ATOMIC` accept one unique
+request per reservation, validate the complete WBS/item scope, stage one
+reservation-referenced movement per reservation, and commit the group once.
+A failed movement or group commit rolls back the staged group. Their results
+include per-reservation attempt and commit state; test-run simulates the group
+without transaction calls.
+`RESERVE_BATCH_ALLOCATION` and `RESERVE_LOCATION_ALLOCATION` accept the
+corresponding project-stock preview result and its WBS assignments. They
+validate summary and split quantities, combine repeated stock-key splits, and
+create one reservation per WBS. Each WBS reservation commits independently by
+default, so review every returned row for partial success. Set
+`iv_atomic = abap_true` to stage all WBS reservations under one commit or
+rollback boundary. Its test-run mode simulates each WBS reservation without a
+transaction call. Full allocation is required by default; set
+`iv_require_full_allocation = abap_false` to reserve available splits only.
+Pass `iv_required_date` to apply one date to all WBS reservations, or supply
+`it_wbs_required_dates` with one unique valid date per assigned WBS. The two
+date inputs are mutually exclusive, and result rows include the applied date.
+Batch reservations also reject a known batch expiry before its WBS required
+date. Set `iv_minimum_shelf_life_days` to require additional remaining shelf
+life; undated batches are rejected when this minimum is positive.
+`RESERVE_WBS_FEFO` combines `PREVIEW_FEFO` with batch reservation and returns
+both the preview and reservation outcome. It accepts the same location,
+reservation-cutoff, and shelf-life options plus a shared required date or a
+date per WBS. Full demand coverage is required by default; if the preview has a
+shortfall, the method returns that preview and creates nothing. Set
+`iv_require_full_quantity = abap_false` to reserve available splits. Test-run
+and atomic commit behavior are forwarded to the reservation step.
+`RESERVE_WBS_FEFO_BY_DATE` uses required date and integer priority on each
+demand. Earlier dates consume shared stock first, and higher priorities lead
+within a date; equal priorities keep input order. The preview and batch splits
+return in caller order. Reservations are grouped by WBS and required date, so a
+WBS with multiple requirement dates receives a separate reservation per date.
+Each group commits independently by default; `iv_atomic = abap_true` stages all
+groups for one commit or rollback. The method reruns the dated preview and
+compares all batch splits before creating reservations.
+`RESERVE_WBS_BY_LOCATION_DATE` applies the same date and priority ordering to
+batchless project stock. It reruns the preview and compares location splits
+before writing, grouping reservations by WBS and required date. Different dates
+for one WBS can share an atomic commit with `iv_atomic = abap_true`.
+`RESERVE_WBS_BY_LOCATION` provides the same one-call flow for batchless stock,
+using `PREVIEW_BY_LOCATION` and returning both preview and reservation result.
+It accepts storage-location priority/allow lists and a reservation cutoff. Full
+coverage is required by default; a shortfall returns the preview without
+creating reservations, while `iv_require_full_quantity = abap_false` reserves
+available splits.
+`DELETE_RESERVATION` cancels one reservation by number. Its test-run mode
+reports the BAPI result without commit, and a live delete is reported as
+deleted only after commit succeeds. `DELETE_RESERVATIONS_BULK` validates the
+full list first, then processes each reservation in its own transaction and
+returns a result per number; an individual failure is rolled back while later
+numbers continue. SAP determines whether a reservation can be deleted based
+on its current use and status. `DELETE_RESERVATIONS_ATOMIC` prevalidates the
+full unique list, then requests one shared commit or rollback. Test-run calls
+the delete BAPI in simulation mode and skips transaction calls.
+`DELETE_RESERVATION_ITEMS` deletes selected open item numbers after confirming
+they belong to the supplied WBS and reservation. Its test-run mode performs the
+scope check without calling the change BAPI. Live requests mark the selected
+items for deletion and commit; `DELETE_RESERVATION_ITEMS_BULK` processes one
+reservation per request, reports each outcome, and continues after a failure.
+`DELETE_RESV_ITEMS_ATOMIC` validates all open item scopes first, then stages
+one change per reservation and commits the group once or rolls it back.
+`MARK_RESERVATION_ITEMS_FINAL` marks selected open items complete with SAP's
+final-issue indicator, including items with quantity still open after a partial
+withdrawal. Test-run checks WBS and item scope; live changes commit per
+reservation. The bulk form reports each outcome and continues after failures.
+`RESET_RESERVATION_ITEMS_FINAL` clears the indicator for selected finalized
+items scoped to the WBS and reservation, so they can be proposed for later goods
+issues again. It has the same test-run and per-reservation bulk behavior.
+`SET_RESV_FINAL_ATOMIC` sets or clears the indicator across several
+reservations. Pass `iv_final_issue = abap_true` to mark open items or
+`abap_false` to reset finalized items. It validates the requested current state
+for the whole group before writes and commits once or rolls the group back.
+`RESCHEDULE_RESERVATION_ITEMS` changes the required date for selected open
+items after the same WBS and reservation scope check. All reschedule forms
+reject impossible calendar dates before reading or updating reservations.
+Test-run validates the scope without a BAPI write; live changes commit per
+reservation. The bulk form returns an outcome for each reservation and
+continues after individual failures. `RESCHEDULE_ITEMS_ATOMIC` accepts several
+reservation date changes, validates every WBS/item scope before writes, and
+uses one group commit or rollback. Test-run validates the entire group without
+calling the update BAPI.
+`CHANGE_RESERVATION_ITEM_QTY` updates selected open items' total required
+quantity in each item's existing reservation unit. Supply that unit with each
+quantity; the service rejects unit mismatches and quantities at or below the
+already withdrawn amount. Test-run validates scope and quantities without a
+BAPI write. Live updates commit per reservation, and the bulk form reports and
+continues per reservation. Delete an item when no remaining quantity is
+needed.
+`CHANGE_RESV_QTY_ATOMIC` accepts multiple reservation quantity updates, checks
+all WBS/item scopes, entry units, unit conversions, and withdrawn-quantity
+limits before writing, then commits once for the group. A failed BAPI call or
+commit rolls back all staged updates. Test-run performs the full validation
+without BAPI writes or transaction calls.
+`CHANGE_RESERVATION_ITEM_STOCK` changes a selected open item's storage
+location, batch, or both after checking its WBS and reservation scope. Set the
+per-field change flags to update or clear that field; SAP remains responsible
+for validating the destination batch, location, and availability. Test-run
+checks scope and input flags without a BAPI write. Live changes commit per
+reservation, and the bulk form reports and continues after failures.
+`CHANGE_RESV_STOCK_ATOMIC` accepts multiple reservation requests,
+validates every WBS/item scope before writing, then commits the group once.
+Any BAPI or commit error rolls back the whole group. Its test-run mode performs
+the complete input and scope checks without BAPI writes or transaction calls.
+`TRANSFER_PROJECT_WBS_STOCK` posts movement 415/Q between a source and
+destination WBS element in one plant and storage location. It accepts source
+quantities in material units, converts to the mapped base unit, preserves the
+batch, and sets the BAPI's receiving material, plant, storage location, and
+batch to those same stock keys. It maps the destination WBS to `WBS_ELEMENT`
+and the source WBS to `VAL_WBS_ELEM`. SAP describes movement 415 as a
+project-stock transfer and 416 as its cancellation. The method does not
+validate grouping-WBS eligibility or stock availability; use material-document
+cancellation to reverse a posted transfer.
+`ZCL_PROJECT_STOCK_SERVICE=>PREVIEW_TRANSFER_FEFO` previews eligible
+source-WBS batches and returns source/destination assignments with the batch
+allocation. `TRANSFER_WBS_BATCH_ALLOC` validates allocation totals and
+assignments, then posts the batch splits as 415/Q. Full allocation is required
+by default; the preview is a snapshot and is not reserved before posting.
+`PREVIEW_TRANSFER_FEFO_BY_DATE` adds each transfer's required date and integer
+priority. Earlier dates consume shared source-WBS stock first; higher priority
+runs first on the same date, and input order breaks ties. The dated allocation
+and batch splits return in caller order with date and priority attached.
+`TRANSFER_WBS_FEFO_BY_DATE` reruns that same dated preview and compares the
+batch, source and destination WBS, expiry, quantity, and unit before posting.
+It posts the validated splits as 415/Q through the existing movement path.
+Batch expiry is checked through each transfer's required date, but the dated
+preview remains a current stock snapshot and does not reserve stock until the
+movement is posted.
+`ISSUE_PROJECT_WBS_ALLOCATION` accepts the location allocation result from
+`ZCL_STOCK_SERVICE=>ALLOCATE_BY_LOCATION_IN_UNITS` and a request-ID-to-WBS
+mapping. It posts the positive location splits as movement 221 items, keeps
+each demand assigned to its WBS element, and checks split totals and unit maps.
+Full allocation is required by default; partial issue is opt-in. The allocation
+is a stock snapshot and is not re-read before posting.
+`ISSUE_PROJECT_WBS_BATCH_ALLOC` consumes the corresponding unit-aware
+batch allocation result, so explicit-batch and FEFO allocations retain each
+selected batch and storage location on the 221 item. It applies the same WBS
+mapping, unit checks, and full-allocation default. Pass
+`iv_special_stock = 'Q'` when the preview represents project special stock.
+`ZCL_STOCK_SERVICE` allocation results represent unrestricted plant stock;
+use `ZCL_PROJECT_STOCK_SERVICE=>PREVIEW_FEFO` for a project-stock preview.
+`ZCL_PROJECT_STOCK_SERVICE=>READ_AVAILABLE_STOCK` returns net available stock
+for unique material/plant/WBS keys as one row per located batch or batchless
+balance. Each row includes its storage location, expiration date, base-unit
+quantity, and material base unit. It applies the same Q-reservation matching
+rules as the previews. An optional `iv_reservation_through_date` excludes later
+dated reservations while still deducting undated reservations. This is a
+current snapshot and does not reserve stock.
+`READ_AVAILABLE_STOCK_BULK` accepts unique request IDs with a material,
+plant, WBS element, and optional reservation cutoff for each request. It groups
+requests by cutoff and reads each distinct stock key once per date group,
+returns detailed batch/location rows in request order, and copies the result to
+requests sharing the same key and cutoff. Invalid keys, dates, or duplicate IDs
+are rejected before reads; empty input performs no reads.
+`READ_AVAILABLE_STOCK_IN_UNIT` returns the same project-stock detail in a
+requested material unit while preserving its base-unit quantity. The bulk
+`READ_AVAILABLE_STOCK_BULK_UOM` accepts a unit per request, caches conversion
+ratios by material and unit, and validates every ratio before stock reads.
+Repeated WBS stock keys still share the existing cutoff-grouped read.
+`READ_OPEN_RESERVATIONS` returns open Q reservation items for unique WBS
+elements, including reservation and item numbers, material/plant, storage
+location, batch, requirement date, base and entry units, required and withdrawn
+quantities, and remaining open quantity. It omits deleted and final-issued
+rows. Results are ordered by requirement date, reservation number, and item; an empty key
+list returns no rows without a repository read. An optional
+`iv_required_through_date` excludes later dated items and keeps undated open
+reservations.
+`READ_OPEN_RESERVATIONS_BULK` accepts unique request IDs with one WBS element
+and required-through date per row. It groups shared dates and WBS reads, then
+returns each request's sorted reservation details in input order. All keys and
+dates are validated before reads; empty input performs no reads.
+`READ_RESERVATION_ITEMS` returns active Q reservation items for unique WBS
+elements, including final-issue state, base and entry units, required and
+withdrawn quantities, and the remaining quantity. It includes finalized and
+fully withdrawn items that `READ_OPEN_RESERVATIONS` omits.
+`READ_RESERVATION_ITEMS_BULK` accepts unique request IDs and WBS elements,
+reads the full item view once for distinct WBS values, and returns each WBS's
+items in request order. Repeating a WBS under another request ID reuses the
+read; final and fully withdrawn items remain included.
+`READ_RESERVATION_COVERAGE` summarizes by WBS/material/plant, returning
+eligible project stock, open reserved quantity, free quantity after
+reservations, and any reservation shortfall. It includes batch and batchless
+stock with a storage location, converts reservation quantities to the
+material base unit, and accepts the same optional required-through date. This
+is a snapshot; it does not lock stock or assign each reservation to a batch.
+`READ_RESERVATION_COVERAGE_BULK` accepts request IDs with individual WBS
+elements and required-through dates. It groups requests by date for shared
+stock and reservation reads, returns coverage in request order, and performs no
+reads for an empty request list. Request IDs must be nonblank and unique.
+`READ_RESERVATION_COVERAGE_UOM` returns the same coverage for one
+material/plant/WBS key in a requested material unit, along with the canonical
+base-unit quantities. It validates the material's UOM ratio before stock and
+reservation reads. A key with no stock or reservations returns zero quantities
+and the requested/base units.
+`READ_RESV_COVERAGE_BULK_UOM` accepts a requested unit and reservation cutoff
+per unique request. It caches material/unit ratios before the grouped coverage
+reads and returns converted and base-unit quantities in request order.
+Project-stock previews read positive `PRLAB` quantities from `MSPR` for the
+requested WBS elements and return FEFO batch splits with the matching WBS
+assignments.
+It also reads open project reservations from `RESB`, maps `RESB-PSPEL` through
+`PRPS`, and deducts `BDMNG - ENMNG` for the same WBS, material, and plant.
+Reservations with a storage location or batch are matched to those stock keys
+first; blank keys apply more broadly within that WBS. Deleted and final-issued
+reservation rows are ignored. SAP's project reservation view defines open
+quantity from required and withdrawn quantities ([open reservations for
+projects](https://help.sap.com/saphelp_ssb/helpdata/en/d9/663952f8b2a91ae10000000a445394/content.htm?no_cache=true)).
+Reservation deductions are applied only to rows eligible for the selected
+preview: FEFO requires a batch, while location allocation requires batchless
+stock; both require a storage location. Batch-specific reservations do not
+reduce the batchless location preview.
+For FEFO, batch expiry comes from plant-level `MCHA-VFDAT` when maintained,
+then falls back to material-level `MCH1-VFDAT`, so materials using either SAP
+batch level keep their expiry ordering ([SAP batch expiry fields](https://help.sap.com/doc/6afeeafa6a424b9b8060d91da975c497/2025.1/en-US/CPP-EN.pdf)).
+Its result can be passed to `ISSUE_PROJECT_WBS_BATCH_ALLOC` with special stock
+Q. The preview covers batch-managed stock with a storage location, and is a
+snapshot that is not re-read or reserved before posting. It does not include
+quality-inspection, blocked, or other project-stock categories.
+For batchless project stock, `ZCL_PROJECT_STOCK_SERVICE=>PREVIEW_BY_LOCATION`
+returns unit-aware storage-location splits and WBS assignments; pass those to
+`ISSUE_PROJECT_WBS_ALLOCATION` with `iv_special_stock = 'Q'`. That preview
+ignores batch-managed rows so the posted item never loses a selected batch.
+Both project-stock previews subtract open Q reservations before allocation;
+their results remain snapshots and do not lock project stock.
+All four project-stock previews also accept optional
+`iv_reservation_through_date`. When supplied, reservations with `RESB-BDTER`
+after that date are left out of the deduction; undated open reservations remain
+deducted. Omit the option to retain the default behavior, which deducts all
+open project reservations. This date filter does not project receipts or
+change the current `MSPR` stock snapshot.
+FEFO as-of dates and all explicitly supplied reservation cutoffs must be
+valid Gregorian calendar dates. Invalid values are rejected before project
+stock reads; omitting an optional cutoff keeps the existing default behavior.
+Each FEFO demand can set `fefo_as_of_date`; the later of it and the shared
+`iv_as_of_date` controls that demand's expiry and minimum-shelf-life filter.
+The effective date is echoed in each returned batch split. `RESERVE_WBS_FEFO`
+uses the assigned WBS required date for this filter, so it can skip an earlier
+batch that will expire before the reservation date and select a later eligible
+batch instead. Demands can also set `minimum_shelf_life_days`; the greater of
+that value and the shared `iv_minimum_shelf_life_days` applies to the demand.
+Returned splits echo the effective minimum, which the reservation flow checks
+again before creating reservations. Nonblank expiry dates must be valid
+Gregorian dates, and duplicate batch/location rows must agree on expiry.
+`PREVIEW_FEFO_BY_DATE` adds a required date and integer priority to each
+project-stock FEFO demand. Earlier dates consume shared WBS/material/plant
+balances first; higher priorities run first within the same date, and input
+order breaks ties. Allocations and batch splits return in caller order and echo
+the required date and priority. Expiry eligibility uses the latest of the
+shared as-of date, the demand's `fefo_as_of_date`, and its required date. This
+is still a current project-stock snapshot and does not add future receipts or
+reserve the selected batches.
+`PREVIEW_BY_LOCATION_DATE` applies the same required-date and same-date
+priority ordering to batchless project stock. It returns allocation and
+storage-location splits in caller order and echoes date and priority. The
+preview uses current batchless location balances and does not assign future
+receipts to locations.
+Shelf-life filters apply only to batch FEFO; location-only previews reject a
+nonzero demand-level minimum because those balances have no batch expiry to
+check.
+For a batchless transfer, `PREVIEW_TRANSFER_BY_LOCATION` scopes the preview to
+each source WBS and returns source/destination assignments with its location
+splits. `TRANSFER_WBS_LOCATION_ALLOC` validates those totals and posts the
+positive splits as movement 415/Q; full allocation is required by default.
+Set `iv_require_full_allocation = abap_false` to post only available splits.
+The preview is a stock snapshot and is not reserved before posting.
+`PREVIEW_TRANSFER_LOCATION_DATE` adds required dates and integer priorities to
+batchless WBS transfers. Earlier dates consume source WBS location balances
+first; priority breaks ties, then input order. It returns location splits and
+source/destination assignments in caller order. `TRANSFER_WBS_BY_LOCATION_DATE`
+repeats the dated preview and checks the location, source and destination WBS,
+quantity, and unit before posting 415/Q. It uses current batchless stock and
+does not assign future receipts to locations.
+`ISSUE_SALES_ORDER_ALLOCATION` accepts a successful single-order preview from
+`ZCL_SALES_ORDER_ALLOC_SERVICE=>PREVIEW_ORDER` and the material base-unit/ISO
+mappings. It posts the preview's positive location or batch splits as 231 items,
+preserving selected storage locations and batches. Full allocation is required
+by default; set `iv_require_full_allocation = abap_false` to post only allocated
+quantities. The service verifies the preview summaries and split totals before
+posting. This path covers unrestricted stock represented by the preview, not
+special sales-order stock. A preview is a stock snapshot; SAP remains the final
+authority when stock or order state changes before posting.
+`ISSUE_UNPLANNED_PROD_ORDER` posts direct movement 261 withdrawals to a
+production order, including materials not listed as order components. Its
+unit-aware variant converts quantities to the material base unit using the
+supplied base-unit/ISO mapping. Use reservation-backed component issue methods
+when the reservation withdrawal quantity must be updated; direct unplanned
+issues do not read components or estimate available stock.
+`RETURN_TO_PRODUCTION_ORDER` posts movement type 262 against a production order
+for caller-selected returned components. `RETURN_TO_PRODUCTION_ORDER_UOM`
+converts source quantities to mapped base units first; both retain batch and
+order assignments and support partial returns through the standard simulation
+and commit flow.
+`ISSUE_UNPLANNED_PROD_BULK` accepts distinct production orders and
+posts one independent material document per order. It validates every order
+and line before posting, then continues after an individual posting failure;
+review each row result because the batch can partially succeed. Test runs
+simulate each order without committing.
 `TRANSFER_PLANT_ALLOCATION` converts the base-unit location splits from
 `ALLOCATE_ACROSS_PLANTS` into a single 301 goods movement. Supply a receiving
 storage location by request ID and each material's base unit and ISO unit code.
@@ -642,7 +1119,31 @@ base-unit quantities through the same grouped 303/305 flow.
 cross-plant transfer. `TRANSFER_FEFO_DATE_UOM_2STEP` posts the same selected
 batch splits through the 303/305 in-transit flow. Both validate the canonical
 base unit against the material mapping; partial allocation must be enabled
-explicitly when the dated result has a shortfall.
+explicitly when the dated result has a shortfall. Positive source and batch
+splits must retain their demand's required date and priority before those date
+fields are mapped out of the movement request.
+`TRANSFER_FEFO_DATE_ATP` and `TRANSFER_FEFO_DATE_ATP_2STEP` accept
+`ALLOCATE_PLANTS_FEFO_DATE_ATP` results. Each requires exactly one matching,
+relevant, fully confirmed cumulative ATP check per positive source/date
+allocation, and verifies that the selected batch/location splits sum to the
+confirmed source quantities before posting. The ATP check's derived
+confirmation totals must also agree with its raw ATP result. Source splits
+must retain the demand date and priority, and source totals must match the
+demand allocation. ATP remains plant-level and does not reserve the selected
+batches or locations.
+`TRANSFER_PLANT_DATE_LOC_UOM` and `TRANSFER_DATE_LOC_UOM_2STEP` accept
+`ALLOCATE_PLANTS_DATE_LOC_UOM` results. They preserve each source-location
+split and post its canonical base-unit quantity through either 301 or 303/305.
+Both verify that each location split matches its demand's required date and
+priority, and check base units against the supplied material mappings. Required
+dates determine the preview allocation; goods movements use the posting date
+from the shared header.
+`TRANSFER_DATE_LOC_ATP` and `TRANSFER_DATE_LOC_ATP_2STEP` accept
+`ALLOCATE_PLANTS_DATE_LOC_ATP` results and apply the same movement paths only
+when each positive source/date allocation has exactly one matching, relevant,
+fully confirmed cumulative ATP check. They also reconcile the confirmed plant
+quantities to the location splits before posting. ATP checks remain plant-level
+diagnostics and do not reserve stock or identify a specific location.
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FROM_ALLOCATION` creates an intra-company
 stock transport order from a dated, unit-aware cross-plant allocation result.
 Each call creates one `UB` purchase order for one supplying/receiving plant
@@ -657,6 +1158,10 @@ committing. This creates the order proposal only; it does not post goods issue
 or receipt. SAP documents `UB` and item category `U` for a stock transport
 order without delivery, with subsequent 351/101 goods movements
 ([STO without delivery](https://help.sap.com/docs/SAP_ERP/96bf9ad642cf4b26a29595e3d573fb8c/5213b953495bb44ce10000000a174cb4.html)).
+Schedule dates taken from dated allocations and caller-supplied batch delivery
+dates must be valid Gregorian calendar dates before `BAPI_PO_CREATE1` is called.
+SAP still determines whether a valid date satisfies purchasing and planning
+rules for the target system.
 The adapter maps the request through `BAPI_PO_CREATE1`; its `TESTRUN` flag
 suppresses database updates and successful writes use the BAPI transaction
 commit ([BAPI_PO_CREATE1](https://help.sap.com/docs/SUPPORT_CONTENT/spmm/3362167600.html),
@@ -667,6 +1172,9 @@ info-record or outline-agreement source. It submits the selected source through
 `BAPI_PO_CREATE1`; it does not run source determination. Header vendor,
 document type, company code, purchasing organization/group, document date, and
 each item's delivery date must be supplied. Test runs skip the commit.
+Document and item delivery dates are checked as Gregorian calendar dates before
+the BAPI call. Bulk and atomic creation validate every request date before the
+first write; SAP still decides purchasing-date eligibility.
 `CREATE_ORDERS_BULK` validates every request before writing, then creates each
 PO and commits it independently. It continues after an order fails and returns
 one result per request. Every request in one bulk call must use the same test-run
@@ -690,7 +1198,8 @@ split a single call across vendors. Verify selected-source, quantity precision,
 and UOM behavior in the target SAP release.
 `PREPARE_FROM_SUGGESTIONS` returns this validated PO request, including item
 numbers, selected source references, schedule lines, and converted quantities,
-without calling SAP. `CREATE_FROM_SUGGESTIONS` submits that same request.
+without calling SAP; it rejects malformed header and suggestion dates during
+preparation. `CREATE_FROM_SUGGESTIONS` submits that same request.
 `CREATE_FROM_SUGGESTIONS_BULK` accepts the same header template and groups the
 positive rows by vendor and purchasing organization in first-seen order. It
 validates and maps every group before creating any PO, then commits each PO
@@ -747,7 +1256,9 @@ without committing. The bulk form simulates each PO independently. The atomic
 form also simulates each PO, but does not create a shared transaction or prove
 that the complete group can commit together. SAP validates whether the
 schedule line and item are still changeable and how the new schedule quantity
-relates to the PO item total. The request uses SAP's `POSCHEDULE`/`POSCHEDULEX` structures
+relates to the PO item total. Changed delivery dates must be valid Gregorian
+calendar dates; bulk and atomic forms check the complete list before any BAPI
+update. The request uses SAP's `POSCHEDULE`/`POSCHEDULEX` structures
 ([SAP BAPI_PO_CHANGE example](https://help.sap.com/docs/SUPPORT_CONTENT/home/3361892108.html),
 [SAP schedule-line field mapping](https://help.sap.com/http.svc/rc/c89a68e4c09c490d9ba03d6f2a3dca88/7.0/en-US/CGIntegrationW7op12.pdf)).
 `CHANGE_ORDER_SCHEDULES_ATOMIC` validates all selected PO groups first, applies
@@ -865,6 +1376,19 @@ default. Set
 created; a create or commit failure rolls back the pending group and stops
 further pair calls.
 Previews do not reserve stock, so availability can change before posting.
+`CREATE_DATE_LOC_PAIRS` accepts `ALLOCATE_PLANTS_DATE_LOC_UOM` output and
+creates one `UB` order per positive source/receiving plant pair. Each selected
+source-location split becomes an item with its supplying storage location and
+required date. Items use canonical base-unit quantities so rounded
+alternative-unit splits do not change the allocated stock total. Demand-to-
+plant and plant-to-location totals are validated before any BAPI call; full
+allocation is required unless `iv_allow_partial` is enabled. Receiving
+locations are mapped by target plant, and `iv_atomic` enables the shared
+commit behavior.
+`CREATE_DATE_LOC_ATP_PAIRS` accepts `ALLOCATE_PLANTS_DATE_LOC_ATP` output and
+requires a matching, relevant, fully confirmed cumulative ATP check for every
+positive source/date split before creating orders. ATP remains a precheck and
+does not reserve the source stock.
 `CREATE_FROM_BATCH_ALLOCATION` accepts a unit-aware exact-batch allocation for
 one supplying/receiving plant pair. It emits one PO item per request/material/
 batch with the allocated source-unit quantity, selected batch, caller-supplied
@@ -1067,6 +1591,10 @@ before calling SAP and returns one attempted/cancelled status with reversal
 details per request. Calls commit independently by default; set `iv_atomic =
 abap_true` to stage all reversals in one LUW and commit once. A reversal or
 commit failure rolls the staged group back.
+Goods movement posting and document dates must be valid Gregorian calendar
+dates; an omitted cancellation posting date keeps SAP's default. Malformed
+dates are rejected before a goods movement BAPI call, while SAP still decides
+whether a valid date falls in an open posting period.
 Receipt cancellations commit independently by default. Set `iv_atomic =
 abap_true` on `CANCEL_RECEIVED_STO_PAIRS` to require every pair to be received,
 stage all 102 reversals together, and restore in-transit status only after the
@@ -1168,6 +1696,14 @@ material's `MARA`/`MARM` conversion ratio and rejects an unknown unit before
 reading transfer balances.
 `GET_STOCK_IN_TRANSFER_BY_BATCH` reports nonzero storage-location transfer
 quantities by batch and storage location from `MCHB-CUMLM`.
+`GET_TRANSFER_LOCATIONS` enumerates nonzero `MARD-UMLME` quantities by storage
+location without a batch breakdown. `GET_TRANSFER_LOCATIONS_BULK` returns the
+same sorted location rows under uniquely keyed material/plant requests, with an
+empty nested list when no transfer quantity is reported.
+`GET_TRANSFER_LOCATIONS_IN_UNIT` and `GET_TRANSFER_LOCATION_BULK_UOM` add the
+requested unit and retain each canonical base quantity. Bulk conversion caches
+repeated material/unit ratios and validates all request keys and ratios before
+the repository read.
 `GET_TRANSFER_BATCHES_BULK` accepts uniquely keyed material/plant
 requests and returns each request's batch rows in storage-location and batch
 order. It performs one bulk MCHB read; invalid keys and duplicate request IDs
@@ -1191,6 +1727,8 @@ services depend on interfaces so their behavior can be tested without posting
 to SAP. Order reads retain requested and delivered quantities in the sales
 unit, calculate the undelivered open quantity, and provide requested and open
 quantities in the material base unit using the sales item's conversion ratio.
+The read also maps order type, sales area, sold-to party, customer PO number,
+and document date from the BAPI header output.
 An alternative-unit item with no valid ratio or material base unit makes the
 read unsuccessful. Rejected items are returned in `order-rejected_items` with
 their material, plant, sales quantity/unit, sales-unit ratio, converted base
@@ -1200,6 +1738,10 @@ also marks the read unsuccessful. An order containing only rejected items is
 a successful read with a warning. Schedule-
 line reads also retain `VBEP-BMENG` confirmed
 quantities and the undelivered confirmed amount in both sales and base units.
+Before single- or multi-order allocation, selected requested or material-
+availability dates must be valid Gregorian calendar dates. Invalid dates from
+the SAP order read return an error before stock allocation, ATP checks, or
+reservation creation.
 Pass `iv_use_confirmed_qty = abap_true` to `preview_order`, `reserve_order`, or
 `preview_orders_by_date` to size demand from each schedule line's confirmed
 quantity minus deliveries, capped at its ordered open quantity. The default
@@ -1208,7 +1750,10 @@ schedule-line confirmation data and returns an error before stock reads for an
 open item without it.
 `read_orders` accepts multiple distinct sales document numbers, validates all
 keys before any BAPI call, and returns one result per request in caller order.
-The adapter calls `BAPISDORDER_GETDETAILEDLIST` once per document.
+The adapter sends the complete document list in one
+`BAPISDORDER_GETDETAILEDLIST` call and reads `VBAP`, `VBUP`, and `VBEP` for the
+requested documents with one grouped query per table. Header output is
+requested through the BAPI's header view and mapped into the order result.
 `change_orders_atomic` accepts item changes for multiple distinct orders,
 validates the full request before any BAPI call, and commits once after all
 changes succeed. Any failed change or commit triggers a rollback. Test runs
@@ -1280,6 +1825,17 @@ Preview and reservation use only the selected batch and pass it through to the
 reservation BAPI. In FEFO mode, location priority breaks same-batch,
 same-expiration ties without changing expiration order. Item-wide and
 schedule-line choices cannot be mixed on one item.
+In FEFO mode, `it_fefo_minimums` can set `minimum_shelf_life_days` for an item
+or a specific schedule line. A schedule-line entry overrides an item-wide
+entry; the greater of that value and `iv_fefo_min_days` applies. Batch splits
+report the effective minimum. Positive per-demand values require
+`iv_use_fefo_batches = abap_true`, and duplicate or unknown item keys are
+rejected before stock allocation.
+Set `iv_use_required_date_for_fefo = abap_true` to evaluate each dated demand
+as of the later of its requested date and `iv_fefo_as_of_date`. The effective
+date appears on each batch split; undated item-level demand keeps the shared
+as-of date. The option requires FEFO and defaults to false. This keeps a batch
+that expires before a future schedule line out of that line's allocation.
 
 For either reservation method, set `iv_require_atp_confirmation = abap_true`
 with `iv_check_atp = abap_true` and `iv_atp_check_rule` to require full
@@ -1326,7 +1882,7 @@ result. `reserve_orders_by_date` carries these diagnostics through with its
 reservation result.
 
 To control same-date allocation across different documents, pass
-`it_demand_priorities` to either multi-order method. Each entry keys a caller
+`it_demand_priorities` to the multi-order preview or reservation methods. Each entry keys a caller
 priority by sales document, item, and schedule line; use a blank schedule line
 for an item-level demand. Higher integer values receive stock first among
 demands for the same material, plant, and date. Earlier dates still take
@@ -1334,7 +1890,7 @@ precedence; omitted priorities default to zero, and equal priorities preserve
 input order. Results echo each applied priority in `sales_unit_allocations` and
 `atp_checks`. Duplicate keys, entries for unselected orders, and keys that do
 not match an order item/schedule line are rejected before allocation.
-`reserve_orders_by_date` carries the same
+Both `reserve_orders_by_date` and `reserve_orders_by_date_bulk` carry the same
 ordering into the quantities sent for reservation. This caller priority only
 controls the local allocation sequence; it is not written to the sales order,
 and same-date ATP diagnostics remain cumulative across all orders.
@@ -1360,6 +1916,18 @@ back the transaction. Set `iv_check_atp = abap_true` and provide
   the reservation API still runs its own ATP check for each reservation request.
   Set `iv_require_atp_confirmation = abap_true` with those options to stop before
   the reservation API if any cumulative date quantity lacks full confirmation.
+
+`reserve_orders_by_date_bulk` uses the same shared preview and pre-write
+allocation/ATP gates, then creates and commits each sales order separately in
+input order. A failed create, response check, or commit rolls back that order
+and processing continues with the next order; earlier committed orders remain
+committed. `order_results` reports each order's messages, reservations,
+`is_successful`, `is_test_run`, and `is_committed`. The top-level result is
+unsuccessful if any order fails, while its reservations contain only successful
+commits (or successful simulations). An order with no allocated quantity is a
+successful no-op. Test runs simulate each nonempty order and never commit.
+Use `reserve_orders_by_date` when all orders must share one commit or rollback
+boundary.
 
 Call `preview_order` or `reserve_order` with `iv_use_fefo_batches = abap_true`
 to choose batches automatically by earliest expiration date. The as-of date
@@ -1402,6 +1970,13 @@ eligible reservation numbers grouped by order, and deletes the combined list in
 one BAPI transaction. Empty matches are a successful no-op; blank or duplicate
 sales document numbers are rejected before the finder runs. A reservation number
 mapped to multiple orders is rejected before deletion.
+`DELETE_ORDERS_RELEASE_BULK` uses the same single bulk lookup, then deletes and
+commits each sales order independently. It keeps processing after a failed
+delete or commit, reports per-order messages and commit status, and returns only
+reservation numbers successfully deleted (or simulated). Earlier orders remain
+released after a later failure; use `DELETE_ORDERS_RESERVATIONS` when the entire
+set must share one rollback boundary. Test runs simulate each nonempty order
+without committing, and orders with no candidates succeed as no-ops.
 `PREVIEW_ORDERS_RELEASE` returns the same grouped candidates without calling the
 delete BAPI.
 `PREVIEW_ORDER_ITEMS_RELEASE` and `DELETE_ITEMS_RESERVATIONS` accept unique,
@@ -1428,6 +2003,34 @@ type and material from the reservation. An unplanned storage location or
 batch can be supplied by the caller. All issue items post as one material
 document and share the goods movement service's simulation and transaction
 handling.
+`POST_GOODS_ISSUE_BULK` groups requests by reservation number in first-seen
+order and creates one independent material document per reservation. A read,
+validation, creation, or commit failure is reported for that reservation while
+later groups continue. Multiple selected items from one reservation stay in a
+single document. `POST_GOODS_ISSUE_REVERSAL_BULK` applies the same grouping to
+withdrawal reversals. Both methods support test runs and report each group's
+success and commit status. Empty input succeeds without a reservation read or
+goods movement call.
+`POST_GOODS_ISSUE_IN_UNIT` and `POST_GOODS_ISSUE_REV_IN_UNIT` accept a quantity
+and unit per selected item. `POST_GOODS_ISSUE_BULK_UNIT` and
+`POST_GOODS_ISSUE_REV_BULK_UNIT` preserve per-reservation documents while
+accepting the same unit-aware lines. The service converts each line using the
+material's unit ratio, checks the converted base quantity
+against the item's open or withdrawn quantity, and passes the reservation's
+base unit and ISO code to SAP. An unknown conversion or a base-unit mismatch
+stops that reservation group's movement.
+`POST_CC_GOODS_ISSUE` and `POST_CC_GOODS_ISSUE_IN_UNIT` also require every
+selected reservation item to be an open item for the supplied cost center.
+Their `_BULK` forms make one independently committed goods issue per
+reservation, with the `_BULK_UNIT` form accepting alternative units. The
+cost-center check reads the current open-reservation snapshot before reading
+reservation detail or posting; concurrent changes after that check are still
+subject to SAP's reservation and goods-movement validation.
+`POST_CC_ISSUE_REV` and its `_BULK`, `_UNIT`, and `_BULK_UNIT` variants scope
+withdrawal reversals to the reservation header's cost center. They look up the
+requested reservation keys directly, so fully issued items remain eligible
+even though they no longer appear in the open-reservation list. The common
+movement pipeline still limits each reversal to the quantity already withdrawn.
 
 `ZCL_PROD_COMP_SERVICE->GET_OPEN_COMPONENTS` reads open component reservation
 items for a production order from `RESB`. It returns the reservation number and
@@ -1503,13 +2106,14 @@ after failures. The response preserves each SAP message and commit result
 [SAP BAPI catalog](https://help.sap.com/docs/SAP_S4HANA_BEST_PRACTICES/7c85a9907ecf4b039f4cf574cc299d93/5d55fc2d126844039fc4084ef3e945c9.html?locale=en-US)).
 `READ_CONFIRMATIONS_BULK` retrieves operation confirmations for requested
 production orders from `AFRU`, joined to `AFVC` for the operation and sequence.
-The result includes confirmation number/counter, posting date, final status,
-and reversal status, preserving reversed rows so callers can distinguish old
-confirmations from active ones before cancellation. Empty confirmation lists
-are reported per order. SAP's production confirmation output includes the
-confirmation keys, posting date, final flag, and reversal indicator
+The result includes confirmation number/counter, posting date, actual
+yield/rework/scrap quantities and their entry unit, final status, and reversal
+status. Quantity values remain in SAP's confirmation unit and are not converted
+or netted; reversed rows remain visible so callers can distinguish them before
+cancellation. Empty confirmation lists are reported per order. SAP documents
+the AFRU yield, rework, scrap, and quantity-unit fields
 ([SAP confirmation API guide](https://help.sap.com/doc/9840fb99f9a74026ab7f1929fde9c454/3.0.3/en-US/SAPEdgeServicesOnPremEssentialBusinessFunctionsAPIGuide30FP03.pdf),
-[SAP PCo operation mapping](https://help.sap.com/doc/302a83e81be74549bbc31509bb1b4246/15.5.5/en-US/Application_HELP_EN.pdf)).
+[confirmation fields](https://help.sap.com/docs/SAP_ERP/bfece09273bd474d82fdd97bae070c25/327cb6535fe6b74ce10000000a174cb4.html)).
 `READ_OPERATIONS_BULK` returns routing operations for requested production and
 process orders, including internal operation counter, sequence, operation and
 suboperation numbers, description, and control key. Results are grouped per
@@ -1517,13 +2121,19 @@ order in request order; orders with no operation rows are reported as empty.
 The repository follows SAP's routing linkage and operation identifiers
 ([SAP operation data view](https://help.sap.com/docs/SAP_S4HANA_CLOUD/c0c54048d35849128be8e872df5bea6d/afa5a1dc1d81424784b89e079cec0b48.html),
 [SAP routing field mapping](https://help.sap.com/docs/sap-digital-manufacturing/integration-guide/mapping-routing)).
-`CREATE_CONFIRMATIONS_BULK` posts production-operation time tickets through
-`BAPI_PRODORDCONF_CREATE_TT`. Requests provide the order, four-character
-operation, six-character sequence, posting date, yield, scrap, rework, ISO
-quantity unit, and optional final-confirmation and open-reservation settings.
-The adapter closes each ticket's SAP LUW immediately after the BAPI call; the
-service maps detail-return messages and confirmation keys and continues after
-failed tickets. Blank final
+`CREATE_CONFIRMATIONS_ATOMIC` and `CREATE_CONFIRMATIONS_BULK` post
+production-operation time tickets through `BAPI_PRODORDCONF_CREATE_TT`.
+Requests provide the order, four-character operation, six-character sequence,
+posting date, yield, scrap, rework, ISO quantity unit, and optional
+final-confirmation and open-reservation settings. Atomic mode stages each
+ticket in one SAP LUW, commits once when every ticket succeeds, and rolls back
+the group after a BAPI or commit error. Bulk mode commits each ticket
+independently and continues after failures. The service maps detail-return
+messages and confirmation keys. Atomic mode also accepts `iv_test_run`; it
+stages the complete group and rolls it back on success, reporting
+`is_test_run = abap_true` and `is_committed = abap_false`. Returned confirmation
+keys from a test run are provisional and must not be treated as persisted
+records. Blank final
 confirmation means partial; `1` requests automatic final confirmation; `X`
 marks final confirmation. The API may also trigger configured automatic goods
 receipts or component backflush, so the target order and work-center settings
@@ -1868,6 +2478,15 @@ table of reviewed options and applies them to a copied suggestion table in one
 call. Unselected suggestions stay unchanged, and the method rejects multiple
 source choices for the same suggestion index. Each option is checked with the
 same consistency rules as the single-option method.
+`ZCL_REPLENISHMENT_REQ_SERVICE=>CREATE_FROM_PROJ_SHORTFALLS` turns
+positive project-stock shortfalls into one purchase requisition. Each input row
+becomes a material item assigned to account category `Q` and its stock-bearing
+WBS element; quantity is expected in the supplied material unit, with a
+required delivery date. Build these rows from the positive shortfalls and WBS
+assignments returned by `ZCL_PROJECT_STOCK_SERVICE`. The adapter sends the item
+and account assignment rows through `BAPI_PR_CREATE` and supports test runs.
+SAP and purchasing configuration remain authoritative for whether the WBS is
+stock-bearing and the requisition is valid.
 `ZCL_REPL_SOURCE_SERVICE->SIMULATE_SPLIT_QUOTA` separately previews a split for
 one request index from this candidate set. It uses only quota-assigned standard
 vendor candidates from one material, plant, purchasing organization, delivery
@@ -2311,6 +2930,63 @@ with an ATP check and supports simulation and transaction rollback. SAP defines
 movement type 201 as goods issue to cost center and stores the movement type
 and account assignment on the reservation header ([movement type](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest), [reservation structure](https://help.sap.com/docs/SAP_ERP/c8f06b9bc95747ca832ad21e94f577fb/ade0ba538c95b54ce10000000a174cb4.html)).
 
+`read_cost_center_reservations` lists active, open reservation items for a cost
+center, including reservation/item keys, material, plant, storage location,
+batch, requirement date, entry unit, required quantity, withdrawn quantity, and
+remaining open quantity. It reads movement-type 201 items from `RESB` and joins
+`RKPF` by reservation number because SAP stores the cost-center assignment on
+the reservation header ([reservation header](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/03a55f57017647368bfb386e41573ff7.html),
+[cost center at header level](https://userapps.support.sap.com/sap/support/knowledge/en/3736490)).
+Deleted, finally issued, special-stock, fully withdrawn, and non-201 items are
+excluded. The read is a snapshot; it does not lock the reservation before later
+deletion or goods issue. The result marks malformed or duplicate repository
+rows unsuccessful and clears the returned item list; an empty list is a valid
+successful read.
+
+`read_cc_reservations_bulk` reads open reservation items for several unique
+cost centers with one repository call. It returns one result per requested
+center in input order; centers with no open items receive a successful empty
+result. Blank or duplicate center keys are rejected before the read, and rows
+for unrequested centers or malformed/duplicate rows make the overall and
+affected center results unsuccessful. The repository uses one `RESB`/`RKPF`
+query for the requested centers; verify its SQL and authorization behavior in
+the target SAP release as noted in [ANOMALIES.md](ANOMALIES.md).
+
+`delete_reservations` accepts reservation numbers returned by creation and
+deletes each complete reservation document through `BAPI_RESERVATION_DELETE`.
+It validates the full list before calling SAP, supports `iv_test_run`, and
+commits the list once or requests rollback after a deletion or commit error.
+SAP controls whether a document is eligible for deletion, including documents
+with issued quantities; see the target-system caveat in
+[ANOMALIES.md](ANOMALIES.md).
+
+`delete_cc_reservation_items` marks selected item numbers for deletion while
+leaving other items in the reservation document untouched. It checks that every
+selected item is still open under the supplied cost center and reservation
+number before calling SAP. Live calls use `BAPI_RESERVATION_CHANGE`, then commit
+once or roll back on an API or commit error. `iv_test_run = abap_true` validates
+the local snapshot and skips SAP calls and commit; it does not simulate SAP's
+eligibility checks. A reservation can change between the read and update, so
+SAP's BAPI response remains authoritative. SAP documents item-level deletion
+when changing a reservation ([changing a reservation](https://help.sap.com/doc/a6a8c7536e8e2a4be10000000a174cb4/700_SFIN3E%20006/en-US/3b64bd534f22b44ce10000000a174cb4.html),
+[reservation update BAPI](https://help.sap.com/docs/SAP_S4HANA_BEST_PRACTICES/7c85a9907ecf4b039f4cf574cc299d93/5d55fc2d126844039fc4084ef3e945c9.html?locale=en-US)).
+
+`delete_reservation_items_bulk` accepts one cost center, reservation number,
+and item list per row. It validates the full request shape, rejects repeated
+reservation numbers, then processes each document independently and continues
+after an item deletion or commit failure. Results stay in request order and
+include each document's selected items, messages, commit state, and rollback
+state. Empty input succeeds without a write. `iv_test_run` validates each
+document against the local reservation snapshot and skips SAP calls and
+commits.
+
+`delete_reservations_bulk` also prevalidates the full list, then deletes each
+document with its own commit and continues after failures. Its result reports
+success, messages, commit, and rollback status for each reservation number, so
+earlier successful deletions remain deleted if a later document fails. Empty
+input is a successful no-op; `iv_test_run` validates each document without
+committing.
+
 `reserve_for_cost_center` can also return its own ATP precheck when
 `iv_check_atp = abap_true` and `iv_atp_check_rule` are supplied. Set
 `iv_require_atp_confirmation = abap_true` to stop before the reservation API
@@ -2356,8 +3032,12 @@ batch selection and reservation creation are not part of this preview.
 `preview_cost_center_batches` adds an explicit batch per demand and returns
 batch, expiration, storage-location, and converted quantity splits. Requests
 share balances for the selected material, plant, and batch in caller order.
-An optional storage location is hard by default; fallback mode tries it first
-and may use other locations while staying within the selected batch. Its
+An optional `required_date` filters the selected batch through that date; a
+positive `minimum_shelf_life_days` extends the required life and excludes
+unknown expirations. Expiration on the threshold date is eligible; an unknown
+expiration remains eligible when no positive minimum is requested. An optional
+storage location is hard by default; fallback mode tries it first and may use
+other locations while staying within the selected batch. Its
 `it_location_priority` option orders those fallback locations. The method does
 not substitute a different batch or create reservations.
 `preview_cost_center_fefo` selects eligible batches by earliest expiration for
@@ -2365,22 +3045,38 @@ multiple cost center demands. Requests share batch balances in caller order;
 optional location fallback checks the preferred location first. Pass
 `it_location_priority` to order locations when the same batch and expiration
 date exist in multiple locations; expiration and batch order remain primary.
-The as-of date and minimum remaining shelf life apply to every demand, and
-results include the selected batch splits with source-unit quantities. This
-preview does not create reservations or run SAP batch determination.
+The as-of date and shared minimum remaining shelf life apply to every demand.
+Each demand can also specify `minimum_shelf_life_days`; the greater of the two
+values applies to that row and appears in its preview. A demand may also set
+`fefo_as_of_date`; the later of it and the shared `iv_as_of_date` controls the
+expiry filter and appears on its result and batch splits. Results include the
+selected batch splits with source-unit quantities. This preview does not create
+reservations or run SAP batch determination.
 `reserve_cost_centers_atomic` preallocates the full demand group before writing.
 Use shared location balances, caller-selected batches on every demand, or set
 `iv_use_fefo_batches = abap_true` to choose eligible batches by expiration;
 these strategies cannot be mixed in one group. Every requested quantity must be
-available before it writes. It creates one reservation per demand, commits the
-group once, and rolls the group back if a creation or commit fails. Location
+available before it writes. Each row's `required_date` must be a Gregorian
+date in every allocation mode; malformed dates are rejected before stock
+reads. It creates one reservation per demand, commits the group once, and rolls
+the group back if a creation or commit fails. Location
 fallback and safety-stock protection are supported; `it_location_priority`
 orders fallback locations while preserving a demand's preferred location as
 first. In FEFO mode, expiration and batch order remain primary and location
 priority only resolves same-batch, same-expiration ties. FEFO uses
-`iv_fefo_as_of_date` and `iv_fefo_min_days`. `iv_test_run = abap_true` runs each
-reservation in test mode and skips the commit; the result reports allocations,
-per-demand API responses, commit status, and rollback status.
+`iv_fefo_as_of_date` and `iv_fefo_min_days`, with the greater of the shared
+minimum and a demand's `minimum_shelf_life_days` applying to that demand. The
+effective minimum is returned on each result row. Exact-batch demands also use
+their `required_date` to filter expired stock; a positive per-demand minimum
+extends the required life. Single preview/reservation calls accept
+`iv_batch_min_days` for the same check, and the selected batch must be supplied.
+FEFO also uses the later of the shared as-of date, a demand's
+`fefo_as_of_date`, and its reservation `required_date`; the effective date is
+returned with each result. A demand date override is rejected when FEFO is
+disabled, and a nonzero demand minimum requires either FEFO or an exact batch.
+`iv_test_run = abap_true` runs each reservation
+in test mode and skips the commit; the result reports allocations, per-demand
+API responses, commit status, and rollback status.
 Non-test creates require a distinct reservation number for each demand. A
 duplicate number fails the group and triggers rollback; reservation numbers are
 cleared from the result after any group rollback.
@@ -2391,6 +3087,15 @@ matching demand; this diagnostic does not change the local allocation. Set
 `iv_require_atp_confirmation = abap_true` to stop the entire group before any
 reservation API call when a date group's confirmed quantity is short.
 
+`reserve_cost_centers_bulk` accepts the same demand rows and allocation
+options, but processes each demand independently in caller order. It validates
+all request keys and shared options before the first write, then creates and
+commits one reservation per successful demand. A failed demand is rolled back
+and later demands still run; earlier successful reservations remain committed.
+Results report each allocation, API messages, and commit/rollback state.
+Empty input succeeds without a stock read or write. Set `iv_test_run` to
+validate each demand in SAP test mode without committing.
+
 Set `iv_use_fefo_batches = abap_true` to reserve automatically selected
 batches by earliest expiration date. The as-of date defaults to today;
 `iv_fefo_min_days` can require a minimum remaining shelf life. Expired batches
@@ -2399,6 +3104,20 @@ FEFO cannot be combined with an explicit `iv_batch`; a supplied storage
 location remains a hard restriction unless `iv_allow_fallback = abap_true` is
 passed, in which case it is tried first and other locations are considered
 afterward.
+
+## Production construction
+
+`ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_STOCK_SERVICE()` wires the stock service
+to the MARD repository, material UOM converter, and SAP availability adapter.
+`CREATE_GOODS_MOVEMENT_SERVICE()` wires the goods-movement service to its BAPI
+adapter and material UOM repository. `CREATE_STO_ORDER_SERVICE()` wires the
+stock-transfer order service to its purchase-order BAPI adapter. The service
+constructors remain public for applications that supply their own adapters.
+
+```abap
+DATA(lo_stock_service) =
+  zcl_stock_allocation_factory=>create_stock_service( ).
+```
 
 ## Integration limits
 
@@ -2416,8 +3135,15 @@ delivery status in `VBUP`; the requested schedule date comes from `VBEP-EDATU`
 corresponding `_base_quantity` fields are converted using the sales item's
 ratio. When `iv_use_confirmed_qty` is true, allocation demand uses
 `BMENG - VSMNG`, clamped to the open ordered quantity.
-Confirmed delivery dates are not read; requested dates still come from
-`VBEP-EDATU` ([schedule-line field definitions](https://help.sap.com/saphelp_snc70/helpdata/en/dd/db9e759d4f453a8e081ad7df5f7770/content.htm?no_cache=true)).
+Schedule lines also expose `material_availability_date` from `VBEP-MBDAT`.
+`preview_order`, `reserve_order`, and the multi-order date methods use
+`VBEP-EDATU` by default; set `iv_use_material_avail_date` to use MBDAT for
+demand, ATP, and reservation requirement dates. In single-order methods,
+`iv_prioritize_by_date = abap_true` then orders allocation by MBDAT. This option
+requires every open demand to have a schedule line with a material availability
+date. A blank EDATU is accepted when MBDAT is present; EDATU remains required
+when the option is off. SAP identifies EDATU as the schedule-line date and MBDAT as the material availability date
+([schedule-line field definitions](https://help.sap.com/saphelp_snc70/helpdata/en/dd/db9e759d4f453a8e081ad7df5f7770/content.htm?no_cache=true)).
 If an item has no schedule lines, the read falls back to its `VBAP` item
 quantities and has no requested date. Confirmed-quantity mode rejects open
 items without schedule-line confirmation data before reading stock.
@@ -2448,6 +3174,10 @@ unfixed planned-order receipts. These are local schedule estimates from
 `EKET`, `EKPO`, `EKKO`, `AFPO`, `AFKO`, `AUFK`, and `PLAF`; repository doubles do not
 execute those database queries or validate live schedule filters and units.
 They do not replace SAP ATP.
+Caller-supplied cutoff dates, dated allocation requirements, and FEFO as-of
+dates are checked as Gregorian calendar dates before UOM conversion, stock
+reads, or ATP calls. This rejects malformed dates; SAP still determines whether
+a valid date is usable for the material, plant, and planning horizon.
 `GET_STOCK_STATUS_BY_LOCATION` aggregates the same category quantities by
 `LGORT`; its available-unrestricted values use the location reservation
 calculator, including the deterministic distribution of plant-level
@@ -2493,6 +3223,14 @@ does not run SAP's configured batch determination. Batch-managed split valuation
 uses the selected batch; valuation-type selection for non-batch-managed split
 valuation is not modeled. Verify later reservations or goods issues against the
 target system's batch strategy.
+Explicit sales-order batch selections are checked through the effective
+reservation date: the schedule line's requested date, or the current date when
+the item has no schedule date. A batch expiring on that date remains eligible;
+an earlier expiry produces a preview shortfall and blocks reservations when
+full allocation is required. A selection can set
+`minimum_shelf_life_days` to require additional days beyond that date. A batch
+on the minimum boundary remains eligible, while unknown expiry dates are
+excluded when the minimum is positive.
 Reservations created for schedule lines use their requested dates. Reservations
 for items without schedule lines use the current date. Verify
 `BAPI_RESERVATION_CREATE1`, movement type 231, `ATPCHECK`, and reservation
@@ -2522,7 +3260,8 @@ npm test
 `npm test` runs abaplint, transpiles the ABAP sources with open-abap-core, and
 runs ABAP Unit tests through the transpiler runtime. The `MARD` definition in
 `stubs/src/` is only a local tooling stub; the target SAP system supplies the
-real standard table.
+real standard table. GitHub Actions runs this same validation on pushes and
+pull requests with Node.js 22 and a pinned open-abap-core revision.
 
 See [PLAN.md](PLAN.md) for implementation requirements and [NOTES.md](NOTES.md)
 for progress.

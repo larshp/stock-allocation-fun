@@ -11,6 +11,8 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
 
   METHOD zif_purchase_requisition_api~read_items.
     DATA lt_items TYPE STANDARD TABLE OF bapimereqitem WITH DEFAULT KEY.
+    DATA lt_accounts TYPE STANDARD TABLE OF bapimereqaccount
+      WITH DEFAULT KEY.
     DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
 
     rs_result-requisition_number = iv_requisition_number.
@@ -18,37 +20,45 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
 
     CALL FUNCTION 'BAPI_PR_GETDETAIL'
       EXPORTING
-        number = iv_requisition_number
+        number    = iv_requisition_number
       TABLES
-        return = lt_return
-        pritem = lt_items.
+        return    = lt_return
+        pritem    = lt_items
+        praccount = lt_accounts.
 
     rs_result-is_successful = abap_true.
     LOOP AT lt_items INTO DATA(ls_item).
+      READ TABLE lt_accounts INTO DATA(ls_account)
+        WITH KEY preq_item = ls_item-preq_item.
+      IF sy-subrc <> 0.
+        CLEAR ls_account.
+      ENDIF.
       APPEND VALUE #(
-        item_number           = ls_item-preq_item
-        short_text            = ls_item-short_text
-        material              = ls_item-material
-        plant                 = ls_item-plant
-        storage_location      = ls_item-store_loc
-        quantity              = ls_item-quantity
-        unit                  = ls_item-unit
-        delivery_date         = ls_item-deliv_date
-        purchasing_group      = ls_item-pur_group
-        purchasing_org        = ls_item-purch_org
-        source_vendor         = ls_item-fixed_vend
-        source_info_record    = ls_item-info_rec
-        source_agreement      = ls_item-agreement
-        source_agreement_item = ls_item-agmt_item
-        deletion_indicator    = ls_item-delete_ind
-        processing_status     = ls_item-proc_stat
-        release_indicator     = ls_item-rel_ind
-        release_status        = ls_item-rel_status
-        ordered_quantity      = ls_item-ordered
-        po_number             = ls_item-po_number
-        po_item               = ls_item-po_item
-        is_fixed              = xsdbool( ls_item-fixed = abap_true )
-        is_closed             = xsdbool( ls_item-closed = abap_true ) )
+        item_number                 = ls_item-preq_item
+        short_text                  = ls_item-short_text
+        material                    = ls_item-material
+        plant                       = ls_item-plant
+        storage_location            = ls_item-store_loc
+        quantity                    = ls_item-quantity
+        unit                        = ls_item-unit
+        delivery_date               = ls_item-deliv_date
+        purchasing_group            = ls_item-pur_group
+        purchasing_org              = ls_item-purch_org
+        source_vendor               = ls_item-fixed_vend
+        source_info_record          = ls_item-info_rec
+        source_agreement            = ls_item-agreement
+        source_agreement_item       = ls_item-agmt_item
+        account_assignment_category = ls_item-acctasscat
+        deletion_indicator          = ls_item-delete_ind
+        processing_status           = ls_item-proc_stat
+        release_indicator           = ls_item-rel_ind
+        release_status              = ls_item-rel_status
+        ordered_quantity            = ls_item-ordered
+        po_number                   = ls_item-po_number
+        po_item                     = ls_item-po_item
+        is_fixed                    = xsdbool( ls_item-fixed = abap_true )
+        is_closed                   = xsdbool( ls_item-closed = abap_true )
+        wbs_element                 = ls_account-wbs_element )
         TO rs_result-requisition_items.
     ENDLOOP.
 
@@ -81,6 +91,8 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
     DATA ls_headerx TYPE bapimereqheaderx.
     DATA lt_items TYPE zcl_bapi_preq_item_mapper=>ty_bapi_items.
     DATA lt_itemsx TYPE zcl_bapi_preq_item_mapper=>ty_bapi_item_flags.
+    DATA lt_accounts TYPE zcl_bapi_preq_item_mapper=>ty_bapi_accounts.
+    DATA lt_accountsx TYPE zcl_bapi_preq_item_mapper=>ty_bapi_account_flags.
     DATA ls_return TYPE bapiret2.
     DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
     DATA lv_test_run TYPE c LENGTH 1.
@@ -90,10 +102,12 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
 
     zcl_bapi_preq_item_mapper=>map_items(
       EXPORTING
-        it_items      = is_request-items
+        it_items         = is_request-items
       IMPORTING
-        et_items      = lt_items
-        et_item_flags = lt_itemsx ).
+        et_items         = lt_items
+        et_item_flags    = lt_itemsx
+        et_accounts      = lt_accounts
+        et_account_flags = lt_accountsx ).
 
     IF is_request-is_test_run = abap_true.
       lv_test_run = abap_true.
@@ -102,15 +116,17 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
 
     CALL FUNCTION 'BAPI_PR_CREATE'
       EXPORTING
-        prheader  = ls_header
-        prheaderx = ls_headerx
-        testrun   = lv_test_run
+        prheader   = ls_header
+        prheaderx  = ls_headerx
+        testrun    = lv_test_run
       IMPORTING
-        number    = rs_result-requisition_number
+        number     = rs_result-requisition_number
       TABLES
-        return    = lt_return
-        pritem    = lt_items
-        pritemx   = lt_itemsx.
+        return     = lt_return
+        pritem     = lt_items
+        pritemx    = lt_itemsx
+        praccount  = lt_accounts
+        praccountx = lt_accountsx.
 
     rs_result-is_successful = abap_true.
     LOOP AT lt_return INTO ls_return.

@@ -10,8 +10,16 @@
       </DD02V>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>ITEM</FIELDNAME>
+          <FIELDNAME>HEADER</FIELDNAME>
           <POSITION>0001</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>ITEM</FIELDNAME>
+          <POSITION>0002</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
           <INTTYPE>C</INTTYPE>

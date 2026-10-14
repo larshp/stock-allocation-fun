@@ -188,6 +188,36 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS create_date_loc_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_unit_date_plant_location_result
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_date_loc_atp_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_date_loc_atp_result
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS create_for_batch_pairs
       IMPORTING
         is_allocation          TYPE zcl_stock_service=>ty_unit_plant_batch_result
@@ -385,6 +415,28 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS build_date_loc_request
+      IMPORTING
+        is_allocation            TYPE zcl_stock_service=>ty_unit_date_plant_location_result
+        iv_supplying_plant       TYPE mard-werks
+        iv_receiving_plant       TYPE mard-werks
+        iv_receiving_storage_loc TYPE mard-lgort
+        iv_company_code          TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org        TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group      TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial         TYPE abap_bool
+        iv_test_run              TYPE abap_bool
+      RETURNING
+        VALUE(rs_request)        TYPE zif_stock_transfer_order_api=>ty_request
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS validate_delivery_date
+      IMPORTING
+        iv_date TYPE d
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS build_batch_request
       IMPORTING
         is_allocation            TYPE zcl_stock_service=>ty_unit_plant_batch_result
@@ -448,6 +500,12 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
     METHODS validate_plant_pair_totals
       IMPORTING
         is_allocation TYPE zcl_stock_service=>ty_unit_date_plant_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS validate_date_loc_pair_totals
+      IMPORTING
+        is_allocation TYPE zcl_stock_service=>ty_unit_date_plant_location_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -798,6 +856,133 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       it_prepared_orders = lt_prepared_orders
       iv_test_run        = iv_test_run
       iv_atomic          = iv_atomic ).
+  ENDMETHOD.
+
+  METHOD create_date_loc_pairs.
+    DATA lt_plant_pairs TYPE ty_plant_pairs.
+    DATA lt_prepared_orders TYPE ty_prepared_pair_orders.
+    DATA lt_location_targets TYPE ty_source_plants.
+    DATA lv_receiving_storage_loc TYPE mard-lgort.
+
+    IF iv_company_code IS INITIAL
+        OR iv_purchasing_org IS INITIAL
+        OR iv_purchasing_group IS INITIAL
+        OR ( iv_allow_partial <> abap_true
+          AND iv_allow_partial <> abap_false )
+        OR ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    validate_date_loc_pair_totals( is_allocation = is_allocation ).
+    IF iv_allow_partial = abap_false.
+      LOOP AT is_allocation-allocations
+          INTO DATA(ls_demand_allocation).
+        IF ls_demand_allocation-allocation-shortfall_quantity > 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    LOOP AT is_allocation-plant_allocations
+        INTO DATA(ls_source_allocation).
+      READ TABLE lt_plant_pairs
+        WITH KEY supplying_plant =
+            ls_source_allocation-allocation-source_plant
+          receiving_plant =
+            ls_source_allocation-allocation-target_plant
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        APPEND VALUE #(
+          supplying_plant =
+            ls_source_allocation-allocation-source_plant
+          receiving_plant =
+            ls_source_allocation-allocation-target_plant )
+          TO lt_plant_pairs.
+      ENDIF.
+    ENDLOOP.
+    IF lt_plant_pairs IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_receiving_locations
+        INTO DATA(ls_receiving_location).
+      IF ls_receiving_location-receiving_plant IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_plant_pairs
+        WITH KEY receiving_plant =
+          ls_receiving_location-receiving_plant
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_location_targets
+        WITH KEY table_line =
+          ls_receiving_location-receiving_plant
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND ls_receiving_location-receiving_plant
+        TO lt_location_targets.
+    ENDLOOP.
+
+    LOOP AT lt_plant_pairs INTO DATA(ls_plant_pair).
+      CLEAR lv_receiving_storage_loc.
+      READ TABLE it_receiving_locations
+        INTO ls_receiving_location
+        WITH KEY receiving_plant = ls_plant_pair-receiving_plant.
+      IF sy-subrc = 0.
+        lv_receiving_storage_loc =
+          ls_receiving_location-receiving_storage_loc.
+      ENDIF.
+
+      DATA(ls_request) = build_date_loc_request(
+        is_allocation            = is_allocation
+        iv_supplying_plant       = ls_plant_pair-supplying_plant
+        iv_receiving_plant       = ls_plant_pair-receiving_plant
+        iv_receiving_storage_loc = lv_receiving_storage_loc
+        iv_company_code          = iv_company_code
+        iv_purchasing_org        = iv_purchasing_org
+        iv_purchasing_group      = iv_purchasing_group
+        iv_allow_partial         = iv_allow_partial
+        iv_test_run              = iv_test_run ).
+      APPEND VALUE #(
+        supplying_plant = ls_plant_pair-supplying_plant
+        receiving_plant = ls_plant_pair-receiving_plant
+        request         = ls_request ) TO lt_prepared_orders.
+    ENDLOOP.
+
+    rs_result = execute_pair_orders(
+      it_prepared_orders = lt_prepared_orders
+      iv_test_run        = iv_test_run
+      iv_atomic          = iv_atomic ).
+  ENDMETHOD.
+
+  METHOD create_date_loc_atp_pairs.
+    DATA ls_plant_atp_allocation TYPE
+      zcl_stock_service=>ty_plant_date_atp_result.
+
+    ls_plant_atp_allocation-atp_checks = is_allocation-atp_checks.
+    ls_plant_atp_allocation-local_estimate-allocations =
+      CORRESPONDING #( is_allocation-local_estimate-allocations ).
+    ls_plant_atp_allocation-local_estimate-plant_allocations =
+      CORRESPONDING #( is_allocation-local_estimate-plant_allocations ).
+    validate_atp_source_splits(
+      is_allocation = ls_plant_atp_allocation ).
+
+    rs_result = create_date_loc_pairs(
+      is_allocation          = is_allocation-local_estimate
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic ).
   ENDMETHOD.
 
   METHOD create_for_batch_pairs.
@@ -2673,6 +2858,13 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD validate_delivery_date.
+    IF zcl_date_validation=>is_valid_gregorian_date(
+        iv_date = iv_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD build_request.
     TYPES ty_request_id TYPE c LENGTH 30.
     DATA lv_item_number TYPE n LENGTH 5.
@@ -2727,6 +2919,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             < ls_source_allocation-allocated_source_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      validate_delivery_date(
+        iv_date = ls_source_allocation-allocation-required_date ).
       INSERT ls_source_allocation-allocation-request_id
         INTO TABLE lt_request_ids.
       IF sy-subrc <> 0.
@@ -2756,6 +2950,231 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR lines( rs_request-items ) > 9999.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD build_date_loc_request.
+    DATA lv_item_number TYPE n LENGTH 5.
+
+    IF iv_supplying_plant IS INITIAL
+        OR iv_receiving_plant IS INITIAL
+        OR iv_supplying_plant = iv_receiving_plant
+        OR iv_company_code IS INITIAL
+        OR iv_purchasing_org IS INITIAL
+        OR iv_purchasing_group IS INITIAL
+        OR ( iv_allow_partial <> abap_true
+          AND iv_allow_partial <> abap_false )
+        OR ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF iv_allow_partial = abap_false.
+      LOOP AT is_allocation-allocations
+          INTO DATA(ls_demand_allocation).
+        IF ls_demand_allocation-allocation-target_plant
+              = iv_receiving_plant
+            AND ls_demand_allocation-allocation-shortfall_quantity > 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    rs_request-document_type = c_document_type.
+    rs_request-company_code = iv_company_code.
+    rs_request-purchasing_org = iv_purchasing_org.
+    rs_request-purchasing_group = iv_purchasing_group.
+    rs_request-is_test_run = iv_test_run.
+
+    LOOP AT is_allocation-location_allocations
+        INTO DATA(ls_location_split).
+      IF ls_location_split-allocation-allocation-source_plant
+            <> iv_supplying_plant
+          OR ls_location_split-allocation-allocation-target_plant
+            <> iv_receiving_plant.
+        CONTINUE.
+      ENDIF.
+      IF ls_location_split-allocation-allocation-allocated_quantity <= 0
+          OR ls_location_split-allocated_source_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      validate_delivery_date(
+        iv_date = ls_location_split-allocation-required_date ).
+
+      ADD 10 TO lv_item_number.
+      APPEND VALUE #(
+        item_number           = lv_item_number
+        source_request_id     =
+          ls_location_split-allocation-allocation-request_id
+        material              =
+          ls_location_split-allocation-allocation-material
+        supplying_plant       =
+          ls_location_split-allocation-allocation-source_plant
+        supplying_storage_loc =
+          ls_location_split-allocation-allocation-storage_location
+        receiving_plant       =
+          ls_location_split-allocation-allocation-target_plant
+        receiving_storage_loc = iv_receiving_storage_loc
+        quantity              =
+          ls_location_split-allocation-allocation-allocated_quantity
+        unit                  = ls_location_split-base_unit
+        delivery_date         =
+          ls_location_split-allocation-required_date )
+        TO rs_request-items.
+    ENDLOOP.
+
+    IF rs_request-items IS INITIAL
+        OR lines( rs_request-items ) > 9999.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_date_loc_pair_totals.
+    TYPES:
+      BEGIN OF ty_source_location_group,
+        request_id             TYPE c LENGTH 30,
+        material               TYPE mard-matnr,
+        target_plant           TYPE mard-werks,
+        source_plant           TYPE mard-werks,
+        required_date          TYPE resb-bdter,
+        priority               TYPE i,
+        source_unit            TYPE mara-meins,
+        base_unit              TYPE mara-meins,
+        plant_base_quantity    TYPE mard-labst,
+        location_base_quantity TYPE mard-labst,
+      END OF ty_source_location_group.
+    TYPES ty_source_location_groups TYPE SORTED TABLE OF
+      ty_source_location_group WITH UNIQUE KEY request_id source_plant.
+    TYPES:
+      BEGIN OF ty_location_split_key,
+        request_id       TYPE c LENGTH 30,
+        source_plant     TYPE mard-werks,
+        storage_location TYPE mard-lgort,
+      END OF ty_location_split_key.
+    TYPES ty_location_split_keys TYPE SORTED TABLE OF ty_location_split_key
+      WITH UNIQUE KEY request_id source_plant storage_location.
+    DATA ls_plant_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_result.
+    DATA lt_source_groups TYPE ty_source_location_groups.
+    DATA lt_location_keys TYPE ty_location_split_keys.
+    FIELD-SYMBOLS <ls_source_group> TYPE ty_source_location_group.
+
+    ls_plant_allocation-allocations =
+      CORRESPONDING #( is_allocation-allocations ).
+    ls_plant_allocation-plant_allocations =
+      CORRESPONDING #( is_allocation-plant_allocations ).
+    validate_plant_pair_totals( is_allocation = ls_plant_allocation ).
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_demand_allocation).
+      validate_delivery_date(
+        iv_date = ls_demand_allocation-allocation-required_date ).
+      IF ls_demand_allocation-base_quantity < 0
+          OR ls_demand_allocation-allocation-requested_quantity < 0
+          OR ls_demand_allocation-allocation-allocated_quantity < 0
+          OR ls_demand_allocation-allocation-shortfall_quantity < 0
+          OR ls_demand_allocation-base_quantity <>
+            ls_demand_allocation-allocation-requested_quantity
+          OR ls_demand_allocation-allocation-requested_quantity <>
+            ls_demand_allocation-allocation-allocated_quantity
+              + ls_demand_allocation-allocation-shortfall_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations
+        INTO DATA(ls_plant_split).
+      IF ls_plant_split-allocation-allocated_quantity <= 0
+          OR ls_plant_split-allocated_source_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      validate_delivery_date(
+        iv_date = ls_plant_split-allocation-required_date ).
+      INSERT VALUE #(
+        request_id          = ls_plant_split-allocation-request_id
+        material            = ls_plant_split-allocation-material
+        target_plant        = ls_plant_split-allocation-target_plant
+        source_plant        = ls_plant_split-allocation-source_plant
+        required_date       = ls_plant_split-allocation-required_date
+        priority            = ls_plant_split-allocation-priority
+        source_unit         = ls_plant_split-source_unit
+        base_unit           = ls_plant_split-base_unit
+        plant_base_quantity =
+          ls_plant_split-allocation-allocated_quantity )
+        INTO TABLE lt_source_groups.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations
+        INTO DATA(ls_location_split).
+      IF ls_location_split-allocation-allocation-request_id IS INITIAL
+          OR ls_location_split-allocation-allocation-material IS INITIAL
+          OR ls_location_split-allocation-allocation-target_plant IS INITIAL
+          OR ls_location_split-allocation-allocation-source_plant IS INITIAL
+          OR ls_location_split-allocation-allocation-source_plant =
+            ls_location_split-allocation-allocation-target_plant
+          OR ls_location_split-allocation-required_date IS INITIAL
+          OR ls_location_split-allocation-allocation-storage_location
+            IS INITIAL
+          OR ls_location_split-source_unit IS INITIAL
+          OR ls_location_split-base_unit IS INITIAL
+          OR ls_location_split-allocation-allocation-allocated_quantity <= 0
+          OR ls_location_split-allocated_source_quantity <= 0
+          OR ls_location_split-allocation-allocation-available_quantity <
+            ls_location_split-allocation-allocation-allocated_quantity
+          OR ls_location_split-available_source_quantity <
+            ls_location_split-allocated_source_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      validate_delivery_date(
+        iv_date = ls_location_split-allocation-required_date ).
+
+      INSERT VALUE #(
+        request_id       =
+          ls_location_split-allocation-allocation-request_id
+        source_plant     =
+          ls_location_split-allocation-allocation-source_plant
+        storage_location =
+          ls_location_split-allocation-allocation-storage_location )
+        INTO TABLE lt_location_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      READ TABLE lt_source_groups ASSIGNING <ls_source_group>
+        WITH TABLE KEY
+          request_id =
+            ls_location_split-allocation-allocation-request_id
+          source_plant =
+            ls_location_split-allocation-allocation-source_plant.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF <ls_source_group>-material <>
+            ls_location_split-allocation-allocation-material
+          OR <ls_source_group>-target_plant <>
+            ls_location_split-allocation-allocation-target_plant
+          OR <ls_source_group>-required_date <>
+            ls_location_split-allocation-required_date
+          OR <ls_source_group>-priority <>
+            ls_location_split-allocation-priority
+          OR <ls_source_group>-source_unit <>
+            ls_location_split-source_unit
+          OR <ls_source_group>-base_unit <>
+            ls_location_split-base_unit.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_source_group>-location_base_quantity =
+        <ls_source_group>-location_base_quantity
+        + ls_location_split-allocation-allocation-allocated_quantity.
+    ENDLOOP.
+
+    LOOP AT lt_source_groups INTO DATA(ls_source_group).
+      IF ls_source_group-plant_base_quantity <>
+          ls_source_group-location_base_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD build_batch_request.
@@ -2796,6 +3215,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    validate_delivery_date( iv_date = iv_delivery_date ).
 
     IF iv_allow_partial = abap_false.
       LOOP AT is_allocation-allocations
@@ -2983,6 +3403,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             < ls_fefo_split-allocated_source_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      validate_delivery_date(
+        iv_date = ls_fefo_split-allocation-required_date ).
 
       INSERT VALUE #(
         request_id    = ls_fefo_split-allocation-allocation-request_id

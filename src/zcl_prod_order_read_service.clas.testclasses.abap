@@ -326,6 +326,10 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
         confirmation         = '0000000003'
         confirmation_counter = '00000001'
         posting_date         = '20261011'
+        yield_quantity       = '2.000'
+        rework_quantity      = '0.100'
+        scrap_quantity       = '0.300'
+        quantity_unit        = 'EA'
         is_reversed          = 'X' )
       ( production_order     = '0000000001'
         operation_number     = '0010'
@@ -374,6 +378,18 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
       exp = '0000000003' ).
     cl_abap_unit_assert=>assert_true(
       ls_result-orders[ 2 ]-confirmations[ 1 ]-is_reversed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-confirmations[ 1 ]-yield_quantity
+      exp = '2.000' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-confirmations[ 1 ]-rework_quantity
+      exp = '0.100' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-confirmations[ 1 ]-scrap_quantity
+      exp = '0.300' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-confirmations[ 1 ]-quantity_unit
+      exp = 'EA' ).
     cl_abap_unit_assert=>assert_true(
       ls_result-orders[ 2 ]-confirmations[ 2 ]-is_final ).
   ENDMETHOD.

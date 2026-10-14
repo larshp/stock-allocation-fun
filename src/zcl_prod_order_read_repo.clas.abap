@@ -147,6 +147,10 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
            afru~rueck AS confirmation,
            afru~rmzhl AS confirmation_counter,
            afru~budat AS posting_date,
+           afru~lmnga AS yield_quantity,
+           afru~rmnga AS rework_quantity,
+           afru~xmnga AS scrap_quantity,
+           afru~meinh AS quantity_unit,
            afru~aueru AS is_final,
            afru~stokz AS is_reversed
       FROM afru

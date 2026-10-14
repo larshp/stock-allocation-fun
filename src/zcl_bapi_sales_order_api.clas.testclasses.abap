@@ -30,6 +30,7 @@ CLASS ltcl_bapi_sales_order_api DEFINITION FINAL
     METHODS setup.
     METHODS maps_rejected_alt_unit FOR TESTING.
     METHODS rejects_missing_ratio FOR TESTING.
+    METHODS maps_sales_order_header FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_bapi_sales_order_api IMPLEMENTATION.
@@ -103,5 +104,43 @@ CLASS ltcl_bapi_sales_order_api IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'EA'
       act = ls_mapping-item-base_unit ).
+  ENDMETHOD.
+
+  METHOD maps_sales_order_header.
+    DATA(ls_order) = zcl_bapi_sales_order_api=>map_order_header(
+      VALUE bapisdhd(
+        doc_number = '0000004711'
+        doc_type   = 'OR'
+        sales_org  = '1000'
+        distr_chan = '10'
+        division   = '00'
+        sold_to    = '0000123456'
+        purch_no   = 'CUST-PO-1'
+        doc_date   = '20261014' ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004711'
+      act = ls_order-sales_document ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OR'
+      act = ls_order-order_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = ls_order-sales_organization ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '10'
+      act = ls_order-distribution_channel ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00'
+      act = ls_order-division ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000123456'
+      act = ls_order-sold_to_party ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CUST-PO-1'
+      act = ls_order-customer_purchase_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261014'
+      act = ls_order-document_date ).
   ENDMETHOD.
 ENDCLASS.

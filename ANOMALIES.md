@@ -1,9 +1,26 @@
 # Anomalies
 
+`CREATE_CONFIRMATIONS_ATOMIC` calls `BAPI_PRODORDCONF_CREATE_TT` once per
+ticket and defers the shared `BAPI_TRANSACTION_COMMIT` until every ticket has
+succeeded. Local tests verify that the service makes one commit and requests a
+rollback on a ticket or commit error, but the SAP BAPI and automatic goods
+movement update tasks are not exercised locally. Verify in the target release
+that repeated time-ticket calls share one rollback-capable SAP LUW and that
+automatic goods receipts or backflushes follow the same transaction boundary.
+Its `iv_test_run` option issues those BAPI calls and then rolls back the LUW;
+this is not a BAPI simulation flag, so verify that the target system's exits
+and enhancements do not produce external effects before relying on it as a
+no-write simulation.
+
 `iv_require_full_quantity` on stock allocation previews is a local policy based
 on selected stock, location scopes, safety-stock rules, date horizon, batch,
 and FEFO filters. It does not reserve stock or make a later SAP reservation or
-transfer atomic; another process may consume stock after the preview.
+transfer atomic; another process may consume stock after the preview. The
+one-call WBS FEFO and location reservation methods rerun the same allocation
+preview before creating reservations and reject the write if the full batch or
+location split changes, including FEFO expiry order and location priority. SAP
+does not lock these rows during that check, so another process can still
+consume stock between the second preview and the write.
 
 Planned-order receipts are an optional local estimate from `PLAF`, not a firm
 commitment. `iv_include_planned_receipts` selects unfixed orders (`AUFFX` blank);
@@ -39,7 +56,8 @@ schedule-line open quantity calculation reads `VBEP-WMENG`, `VBEP-VSMNG`, and
 `VBUP-LFSTA`; fallback item quantities read `VBAP-KWMENG` and `VBAP-VSMNG`.
 Verify these fields and delivery status behavior in the target SAP release.
 
-`ZCL_PLANNED_ORDER_SERVICE` sends planned-order material, planning plant,quantity, and end date to `BAPI_PLANNEDORDER_CREATE`. Local tests validate the
+`ZCL_PLANNED_ORDER_SERVICE` sends planned-order material, planning plant,
+quantity, and end date to `BAPI_PLANNEDORDER_CREATE`. Local tests validate the
 adapter mapping and the service's shared-commit rollback behavior, but do not
 run the SAP BAPI. The stub models only the header fields used here. Verify the
 function signature, base-unit quantity semantics, end-date scheduling, and
@@ -125,13 +143,16 @@ SAP release before using these methods operationally.
 
 `READ_CONFIRMATIONS_BULK` selects AFRU confirmation rows for requested
 production/process orders and joins AFVC by routing number and operation
-counter to return the operation and sequence. The local AFRU and AFVC stubs
-contain only fields used by this query. Local service tests use a repository
-double and cannot verify target table fields, join cardinality, authorizations,
-or whether archived confirmations are available. Confirm the selection and
-reversal-flag semantics against the target release and representative orders
+counter to return the operation and sequence. It also returns AFRU yield
+(`LMNGA`), rework (`RMNGA`), scrap (`XMNGA`), and entry-unit (`MEINH`) values
+without converting or netting them. The local AFRU and AFVC stubs contain only
+fields used by this query. Local service tests use a repository double and
+cannot verify target table fields, quantity semantics for reversals, join
+cardinality, authorizations, or whether archived confirmations are available.
+Confirm the selection and reversal semantics against the target release and
+representative orders
 ([SAP operation-confirmation fields](https://help.sap.com/doc/9840fb99f9a74026ab7f1929fde9c454/3.0.3/en-US/SAPEdgeServicesOnPremEssentialBusinessFunctionsAPIGuide30FP03.pdf),
-[SAP operation/sequence source fields](https://help.sap.com/doc/302a83e81be74549bbc31509bb1b4246/15.5.5/en-US/Application_HELP_EN.pdf)).
+[SAP quantity confirmation fields](https://help.sap.com/docs/SAP_ERP/bfece09273bd474d82fdd97bae070c25/327cb6535fe6b74ce10000000a174cb4.html)).
 
 `READ_OPERATIONS_BULK` reads AFKO routing numbers and joins AFVC by AUFPL to
 return operation counters, sequences, operation/suboperation numbers,
@@ -311,6 +332,38 @@ the requested base quantity is not fully confirmed. The flag requires ATP
 checking and accepts only `abap_true` or `abap_false`. The ATP API is mocked
 locally, so confirm the target release's BAPI signature and check-rule behavior
 in SAP.
+
+`read_cost_center_reservations` joins `RESB` reservation items to `RKPF` by
+reservation number and filters the header-level cost center. It returns open
+movement-type 201 standard-stock items and excludes deleted or finally issued
+rows. SAP documents the cost-center assignment on the reservation header and
+movement type 201 as a cost-center goods issue ([reservation header](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/03a55f57017647368bfb386e41573ff7.html),
+[header-level cost center](https://userapps.support.sap.com/sap/support/knowledge/en/3736490),
+[movement type 201](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest)).
+Local service tests use a repository double and do not execute the SQL. Verify
+the target release's `RESB`/`RKPF` fields, join, open-item filters, and
+authorization behavior. `read_cc_reservations_bulk` uses a single
+`FOR ALL ENTRIES` query for the requested centers; verify its target-release
+SQL behavior and expected row cardinality as well. The inquiry is not a lock;
+an item can change after the read and before a subsequent delete or goods
+movement.
+
+`delete_cc_reservation_items` reads the selected cost-center reservation items,
+then calls `BAPI_RESERVATION_CHANGE` to mark them for deletion. SAP documents
+item deletion as a reservation change and lists the BAPI as a material
+reservation update ([changing a reservation](https://help.sap.com/doc/a6a8c7536e8e2a4be10000000a174cb4/700_SFIN3E%20006/en-US/3b64bd534f22b44ce10000000a174cb4.html),
+[BAPI catalog](https://help.sap.com/docs/SAP_S4HANA_BEST_PRACTICES/7c85a9907ecf4b039f4cf574cc299d93/5d55fc2d126844039fc4084ef3e945c9.html?locale=en-US)).
+The local stubs model only the changed item number and deletion flag; fake API
+tests do not validate the target release's function-module parameter names,
+change-indicator structure, item eligibility, or multi-call LUW behavior.
+Verify these in BAPI Explorer and on representative reservations. The local
+`iv_test_run` path performs prevalidation only and does not call the BAPI.
+`delete_reservation_items_bulk` commits each reservation separately, so a
+later failure does not undo earlier successful item releases. Local tests use
+an API double and verify continuation, but do not exercise repeated
+`BAPI_RESERVATION_CHANGE` calls or the target LUW behavior; verify on
+representative reservations.
+
 `preview_cost_center_demands` converts every request unit before stock access,
 then allocates shared material/plant balances in caller order. Local tests use
 stock and UOM doubles; they verify quantity sharing and request validation but
@@ -356,6 +409,10 @@ expiration dates, unit conversion, and safety-stock deductions in SAP. FEFO
 ordering is local and does not invoke SAP batch determination or create
 reservations. Its optional location priority only breaks ties between locations
 for the same batch and expiration date.
+Each preview demand accepts `minimum_shelf_life_days`; the greater of that value
+and shared `iv_min_days` controls its eligibility, and the effective value is
+reported in the preview. Atomic and bulk cost-center reservations forward this
+per-demand rule and reject a nonzero value when FEFO is disabled.
 `reserve_cost_centers_atomic` prechecks full demand using the local location,
 explicit batch, or FEFO allocator, then makes one `BAPI_RESERVATION_CREATE1`
 call per demand and one commit or rollback for the group. In the location path,
@@ -374,6 +431,13 @@ semantics, and returned quantities with representative SAP material data. The
 optional full-confirmation gate blocks every reservation create when any group
 is short; it does not change the local stock precheck or SAP's own reservation
 validation.
+
+`reserve_cost_centers_bulk` invokes the atomic reservation flow once per demand,
+so each successful demand has its own `BAPI_RESERVATION_CREATE1` and commit and
+later demands continue after an earlier failure. Tests use stock and BAPI
+doubles. Verify that each call has the intended SAP LUW boundary, that test-run
+creates leave no staged changes, and that failed calls do not affect a later
+demand in the target release.
 
 Order allocation subtracts active movement type 231 reservations from
 `RESB-BDMNG - RESB-ENMNG`, grouped by material, plant, item, schedule line,
@@ -396,6 +460,11 @@ on it for operational decisions. Optional ATP responses are a separate BAPI
 check and do not alter the local estimate or success flag; the fake ATP API in
 local tests cannot verify live check-rule behavior. The method itself does not
 post reservations.
+Single and multi-order allocation now reject malformed Gregorian requested or
+selected material-availability dates returned by the sales-order read before
+allocating stock or calling ATP/reservation APIs. The multi-order path reads
+active reservations before reading orders, so this input guard does not avoid
+that initial bulk reservation query.
 
 The multi-order preview now loads active sales-order reservation totals with a
 bulk `RESB` selection keyed by the supplied documents, then applies each row to
@@ -420,11 +489,42 @@ documents, so ATP checks do not reproduce the local priority sequence. Local
 tests verify allocation and call ordering with fakes, not SAP order priority or
 live ATP behavior.
 
+`reserve_orders_by_date_bulk` creates reservation requests from one shared
+dated allocation snapshot but commits each sales order in its own BAPI LUW.
+The local tests verify continuation after a failed order, per-order rollback,
+and the preservation of prior successes; they cannot verify live
+`BAPI_RESERVATION_CREATE1` commit or rollback behavior. Confirm in the target
+release that each create call is isolated by the subsequent
+`BAPI_TRANSACTION_COMMIT` or `BAPI_TRANSACTION_ROLLBACK`. A later order can
+fail after earlier reservations have committed, and stock can change between
+the shared preview and later per-order commits.
+
 Reservation release calls `BAPI_RESERVATION_DELETE` once per reservation
 number inside one BAPI transaction. SAP controls whether a reservation can be
 deleted, including reservations already partly or fully issued. Verify the
 BAPI signature and deletion behavior in the target release; local tests use
 an API double and do not exercise SAP reservation status rules.
+
+`DELETE_ORDERS_RELEASE_BULK` performs one grouped reservation lookup, then
+starts and commits or rolls back a separate `BAPI_RESERVATION_DELETE` LUW for
+each sales order. Its local tests verify continuation after an order-level
+delete failure and preservation of later successes. Confirm that the target
+release isolates each delete call with its transaction API; a later failure
+does not restore reservations already released for earlier orders. Reservation
+status and concurrent issue behavior remain SAP-controlled.
+
+`ZCL_CC_RESERVATION_SERVICE=>DELETE_RESERVATIONS` applies that release path to
+cost-center reservations. It deletes complete reservation documents by number;
+it does not select individual items. SAP's reservation API documents deletion
+at the reservation-document header level ([Delete Reservation Document](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/569b8cdbac5c4d2db987d34e0e99a5b2.html)).
+Verify the target release's BAPI signature, document eligibility, and shared
+LUW rollback behavior with representative reservations.
+
+`DELETE_RESERVATIONS_BULK` commits each reservation deletion separately and
+continues after API or commit failures. Earlier successful deletions remain
+committed when a later number fails. The local tests validate per-number
+result mapping and continuation through API and commit failures; verify the
+target release's BAPI test-run response and one-reservation LUW behavior there.
 
 Sales-order-scoped release uses one `FOR ALL ENTRIES` read to discover open
 movement-231 items for all requested orders or item pairs, then a second guarded
@@ -479,7 +579,500 @@ function module. Verify the BAPI signature, unit handling, reservation status
 checks, and optional storage-location/batch behavior in the target release.
 All goods movement requests now require both the SAP entry unit and its ISO
 code. The local tests use `EA` for both fields; verify configured unit mappings
-and required fields in the target release.
+and required fields in the target release. The bulk issue methods make one BAPI
+call and commit per reservation, grouping selected lines for that reservation
+into one material document. Verify this document grouping, per-document commit
+behavior, and failure continuation in the target release.
+Unit-aware issue methods convert each request through the material's `MARA`
+base unit and `MARM` alternative-unit ratio, then confirm that the converted
+base unit matches the reservation item. Local tests use a unit repository
+double. Verify the target system's material unit ratios, rounding precision,
+and unit configuration for materials with alternative units. SAP documents
+`MARM.UMREZ`/`UMREN` as the numerator and denominator of the alternative-to-base
+unit ratio ([SAP product unit-of-measure fields](https://help.sap.com/docs/sap-responsible-design-and-production/user-guide-sap-rdp/overview-d805fb0d75aa430f8dd30dfb8c803986)).
+SAP also documents that each `BAPI_GOODSMVT_CREATE` call creates one material
+document ([SAP goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)); verify that grouping against the target release.
+
+`ISSUE_TO_COST_CENTER` sends movement type 201 and cost center with each
+material/plant/storage-location line through `BAPI_GOODSMVT_CREATE`. The caller
+supplies quantity, entry unit, and ISO code; this variant does not convert units
+or estimate available stock. `ISSUE_TO_COST_CENTER_IN_UNIT` converts each line
+through the material's `MARA`/`MARM` ratio and checks the result against a
+caller-supplied base-unit/ISO mapping. SAP documents movement type 201 as goods
+issue for a cost center and describes the BAPI's simulation and material-document
+behavior ([movement types](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest),
+[goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Neither variant estimates available stock. Local tests use API and UOM doubles; verify unit codes, conversion ratios and rounding, batch rules,
+authorization, stock eligibility, and posting-period behavior in the target
+system.
+
+`REVERSE_TO_COST_CENTER` and `REVERSE_TO_COST_CENTER_UOM` post unreferenced
+movement-202 returns to a cost center. SAP documents that a reversal movement
+can be entered without a reference to the original material document and can
+reverse a partial quantity ([SAP reversal movement procedure](https://help.sap.com/docs/SAP_ERP/96bf9ad642cf4b26a29595e3d573fb8c/4f63bd534f22b44ce10000000a174cb4.html)). The UOM form converts through `MARA`/`MARM` and validates the caller's base-unit/ISO mapping. Local tests verify request mapping and transaction handling with API/UOM doubles; verify movement configuration, required BAPI fields, cost-center eligibility, batch behavior, and stock updates in the target release. Since this path does not reference the original material document, callers must supply the correct return quantity and source assignment.
+
+`ISSUE_COST_CENTER_ALLOCATION` consumes a successful
+`ZCL_CC_RESERVATION_SERVICE=>PREVIEW_FOR_COST_CENTER` result, validates its
+base-unit totals and storage or batch split sum, and posts movement type 201
+with the preview's cost center. A result containing a reservation number is
+rejected to prevent treating an existing reservation as unreserved demand. The
+caller supplies the base-unit/ISO mapping; optional partial posting uses only
+the preview's allocated portion. SAP documents movement type 201 as goods
+issue for a cost center ([movement types](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest),
+[goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Preview data is a snapshot and does not confirm stock or cost-center state at posting time. Local tests use API doubles and do not exercise target authorizations, batch eligibility, or live BAPI behavior.
+
+`ISSUE_COST_CENTER_LOCATIONS` consumes multi-demand location previews and
+posts their positive storage-location splits together in one GM-code-03
+document, retaining each demand's cost-center account assignment. The service
+checks unique demand IDs, material/base-unit mappings, preview allocation
+totals, and each split sum before the BAPI call; partial posting is opt-in.
+SAP documents movement type 201 for cost-center goods issue and the BAPI's
+material-document behavior ([movement types](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest),
+[goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Local tests validate adapter requests only. Confirm that the target release accepts multiple cost-center assignments in one call and verify stock eligibility, authorization, unit codes, batch handling, and posting periods. Preview data remains a snapshot and can be stale before posting.
+
+`ISSUE_COST_CENTER_BATCHES` consumes explicit-batch multi-demand previews;
+`ISSUE_COST_CENTER_FEFO` consumes FEFO previews. Both preserve the selected
+batch and storage-location splits, validate their totals against each demand,
+and post the lines for their respective cost centers together in one 201
+document. The same live BAPI, account-assignment, authorization, stock, and
+snapshot limits above apply. Local tests confirm item mapping with API doubles;
+they do not confirm target-system batch eligibility or multi-account posting.
+
+`ISSUE_TO_SALES_ORDER` sends movement type 231, sales document, and item with
+each selected material line using GM code 03. Its unit-aware form converts
+through the material's `MARA`/`MARM` ratio and uses a caller-supplied base-unit
+ISO mapping. This service does not read sales-order status or estimate stock.
+SAP documents movement type 231 as consumption by sales order, and requires the
+sales-order key fields for valuated sales-order stock ([goods movement
+operation](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/1dad2180e6f34b75ac77afce5cb5eda1/24fafa70cd8311dc2b8d000f20fcb6a9.html),
+[goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Local tests use API and UOM doubles; verify account assignment, special-stock configuration, order status, stock eligibility, unit ratios, and posting-period rules in the target release.
+
+`RETURN_FROM_SALES_ORDER` and `RETURN_FROM_SALES_ORDER_UOM` post unreferenced
+movement-232 returns while preserving the sales-order/item assignment. SAP
+identifies 232 as the reversal movement for 231 and requires the sales-order
+keys for both movements ([movement-type reference](https://help.sap.com/docs/SAP_ERP_SPV/cfff13ea14f3430488af41bbc02dbb69/e2f4c353b677b44ce10000000a174cb4.html),
+[sales-order key requirements](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/03a55f57017647368bfb386e41573ff7.html)). The UOM form converts through `MARA`/`MARM` and verifies a caller-provided base-unit/ISO map. Local tests verify mapping and conversion only; confirm target movement configuration, return eligibility, stock category, batch behavior, and posting-period rules in the target release.
+
+`ISSUE_TO_PROJECT_WBS` and `RETURN_FROM_PROJECT_WBS` post movement types 221
+and 222 with the supplied WBS element in each BAPI item. The UOM forms convert
+through the material `MARA`/`MARM` ratio and check the caller-provided
+base-unit/ISO mapping. SAP identifies 221 as project consumption and 222 as
+its reversal, and marks the WBS element mandatory for both in its goods-movement
+input guidance ([movement reference](https://help.sap.com/docs/sap_erp/a682fa6741124711924f679d6159ed85/e2f4c353b677b44ce10000000a174cb4.html?locale=en-US),
+[input-template WBS requirement](https://help.sap.com/docs/IRPA_S4HANA/18862e3cddb74ce7ac751f49e568c1e0/6c2deb7184a8463693944a74acda8cbe.html)). These methods do not verify WBS status, stock eligibility, or remaining returnable quantity, and a return has no reference to its original material document. Confirm the target release's BAPI field behavior, project stock/account assignment, movement configuration, batch rules, and posting periods. Local tests use API and UOM doubles only.
+
+`ISSUE_PROJECT_WBS_BULK` validates all request rows before posting, then invokes
+the issue flow and commit separately for each WBS. A failed row does not undo
+earlier committed issues, and later rows are still attempted. Local tests cover
+ordering, continued processing, validation-before-write, and test-run behavior;
+verify repeated `BAPI_GOODSMVT_CREATE` calls and per-row commit handling in the
+target SAP release. WBS status and project-stock availability remain SAP-side
+checks. `ISSUE_PROJECT_WBS_BULK_UOM` converts every source-unit row before the
+first goods-movement call; local tests cover conversion, mapping, and rejection
+of a later unsupported conversion before posting. Verify `MARA`/`MARM` ratios
+and base-unit ISO codes against the target system. `RETURN_PROJECT_WBS_BULK`
+uses the same per-WBS commit and continuation behavior for movement 222; local
+tests cover key mapping, prevalidation, partial failure, and simulation. It
+retains the direct return method's lack of an original-document reference.
+`RETURN_PROJECT_WBS_BULK_UOM` converts all quantities before posting; verify
+its `MARA`/`MARM` ratios and supplied base-unit ISO codes in the target system.
+
+`ISSUE_PROJECT_WBS_BULK_ATOMIC` and `RETURN_PROJECT_WBS_BULK_ATOMIC` defer
+commit across one `BAPI_GOODSMVT_CREATE` call per WBS and then commit or roll
+back the group. SAP's BAPI guidance assigns transaction control to the caller
+and says each call creates one material document
+([Goods Movements with BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)).
+Local tests verify staged-call ordering, one group commit, rollback after a
+failed create or commit, and test-run behavior. Verify repeated-call LUW and
+rollback behavior on the target SAP release before production use. The
+unit-aware atomic variants convert all requests before BAPI calls; verify their
+`MARA`/`MARM` ratios and base-unit ISO codes in the target system as well.
+
+`TRANSFER_PROJECT_WBS_STOCK` posts same-plant, same-storage-location movement
+415/Q items between different WBS elements. It sets `WBS_ELEMENT` to the
+destination and `VAL_WBS_ELEM` to the source, based on BAPI examples for 415/Q
+([SAP Knowledge Base preview](https://userapps.support.sap.com/sap/support/knowledge/en/3140891),
+[BAPI field example](https://community.sap.com/t5/application-development-and-automation-discussions/bapi-goodsmvt-create-415-q/m-p/9803978)). It also sets `MOVE_MAT`, `MOVE_PLANT`, `MOVE_STLOC`, and `MOVE_BATCH` to the unchanged receiving stock keys. SAP describes 415/416 as
+project-stock group-to-group transfer and cancellation movements
+([SAP Group-to-Group Transfers](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/4dd8cb7b1c484b4b93af84d00f60fdb8/66f5c353b677b44ce10000000a174cb4.html)). The service does not validate that WBS elements are valid grouping elements or that stock is available; target-system BAPI behavior and configuration need verification. Reverse posted transfers through material-document cancellation. Local tests use a goods-movement API and UOM repository double.
+
+`TRANSFER_WBS_FEFO` and `TRANSFER_WBS_BY_LOCATION` combine project-stock
+preview with the matching 415/Q poster. Each reruns the preview and rejects a
+changed batch or location split before posting. Neither preview locks stock;
+stock may still change between the second read and `BAPI_GOODSMVT_CREATE`.
+Verify grouping-WBS eligibility, movement fields, and posting behavior in the
+target SAP release.
+
+Direct WBS issue and return methods accept `iv_special_stock = 'Q'` to pass
+the project special-stock indicator through `BAPI2017_GM_ITEM_CREATE-SPEC_STOCK`;
+blank remains the default for unrestricted stock assigned to the WBS. SAP's
+goods-movement documentation distinguishes unrestricted stock from project
+stock Q, and describes WBS as the key for project stock ([goods movement types](https://help.sap.com/docs/SAP_ERP/1a781c11dd4f41829c798db4d8ff3a41/87dfcfe2d9b911da2b24000f20dac9ef.html?version=6.06.latest),
+[goods issue from project stock](https://help.sap.com/docs/s4hana-cloud-best-practices/project-control-resourcing-and-procurement-4rf-co/goods-issue-from-project-stock)). `ZCL_STOCK_SERVICE` allocations use unrestricted stock; the `ZCL_PROJECT_STOCK_SERVICE` previews below read project stock Q. Direct Q requests rely on SAP for project-stock validation; the local service does not read the project's stock balance or verify that the supplied WBS is the stock-bearing WBS. Confirm BAPI field semantics and target configuration.
+
+`ISSUE_PROJECT_WBS_ALLOCATION` consumes a `ZCL_STOCK_SERVICE` location
+allocation result plus a request-ID-to-WBS mapping. It checks that assignment
+and allocation demand IDs match, verifies each unit summary and location split,
+and posts the positive base-unit splits as movement 221 items with the mapped
+WBS element. Full allocation is the default; partial posting is opt-in. The
+stock preview is not re-read before posting, so a changed stock balance can
+still make the BAPI fail. Local tests use synthetic allocation data and an API
+double; they do not confirm live stock, WBS status, or project account
+assignment behavior.
+
+`ISSUE_PROJECT_WBS_BATCH_ALLOC` accepts a unit-aware batch allocation
+result and posts positive batch/location splits with the request's WBS element.
+The same method can consume explicit-batch or FEFO results. It checks split
+totals, batch and location keys, and the material base-unit mapping; full
+allocation is the default. The result remains a stock snapshot, and the method
+does not verify batch eligibility or WBS status in SAP. Local tests use
+synthetic batch splits and a goods-movement API double.
+
+`ZCL_PROJECT_STOCK_REPOSITORY` reads Q project stock from `MSPR`, joins
+`MSPR-PSPNR` to `PRPS-PSPNR`, maps the external WBS ID from `PRPS-POSID`, and
+selects positive valued unrestricted quantities from `MSPR-PRLAB`. SAP
+describes MSPR as project stock grouped by WBS, plant, and material, and lists
+`PRLAB` as valued unrestricted-use stock ([SAP project-stock reporting](https://help.sap.com/docs/PRODUCT_ID/4dd8cb7b1c484b4b93af84d00f60fdb8/e5f4c353b677b44ce10000000a174cb4.html), [MSPR table fields](https://www.sapdatasheet.org/abap/tabl/mspr.html)). `PREVIEW_FEFO` uses plant-level `MCHA-VFDAT` when present and falls back to material-level `MCH1-VFDAT`; SAP's FEFO guidance references both batch-master fields ([SAP batch expiration fields](https://help.sap.com/doc/6afeeafa6a424b9b8060d91da975c497/2025.1/en-US/CPP-EN.pdf)). Each FEFO demand can set its own `fefo_as_of_date`; the later of that date and the shared as-of date drives expiry eligibility, and selected batch splits echo the effective date. Each demand can also set a minimum shelf life; allocation applies the greater of that value and the shared minimum, and a positive effective minimum excludes batches without an expiry date. Selected splits echo the effective minimum so `RESERVE_WBS_FEFO` can repeat its expiry validation before writing. Duplicate repository rows for one batch/location key are merged only when their expiry dates agree; conflicting expiry dates reject the preview as ambiguous. Nonblank expiry values are validated as Gregorian dates before FEFO selection. The method converts demand units and shares balances across demands for the same WBS/material/plant. It skips rows without a batch or storage location because its output is consumed by the batch posting method. It does not allocate quality-inspection, blocked, restricted, or non-valuated project stock, and it does not lock or reserve the selected stock. Local tests use repository and UOM doubles; they do not execute MSPR/PRPS/MCHA/MCH1 SQL or validate target-system DDIC and WBS formatting. Confirm these mappings and query behavior in the target SAP release.
+
+`READ_AVAILABLE_STOCK` exposes the same reservation-netted project balances
+without requiring a demand quantity. It returns located batch and batchless
+rows in material base units and applies a reservation date cutoff when given.
+The result remains a read snapshot; it is not locked and is not an ATP result.
+The local test uses repository and UOM doubles, so confirm `MSPR`/`PRPS` and
+`MARA` field availability and query behavior in the target SAP release.
+`PREVIEW_FEFO_BY_DATE` orders shared project batch stock by required date and
+same-date priority while keeping results in caller order. It evaluates batch
+expiry through each demand's required date, but remains a local snapshot: future
+receipts, concurrent issues, SAP batch determination, and target-system batch
+checks are not modeled. Validate the selected batch and reservation date in the
+target release before posting.
+`PREVIEW_BY_LOCATION_DATE` orders batchless project stock by required date and
+same-date priority, then restores caller-order results. Its location quantities
+come from the current snapshot; future receipts have no assigned location, and
+concurrent changes are not locked. Validate location-level eligibility in the
+target system before reservation or issue.
+`READ_AVAILABLE_STOCK_BULK` groups requests by reservation cutoff and dedupes
+stock keys within each group before calling the same reader. Local tests verify
+cutoff-specific results, request ordering, and one stock/reservation read per
+date group with repository doubles. They do not measure grouped MSPR/RESB query
+behavior or authorization in the target release.
+
+`READ_OPEN_RESERVATIONS` exposes open Q reservation items, including
+`RESB-RSNUM`, `RSPOS`, `BDTER`, `MEINS`, `BDMNG`, and `ENMNG`, scoped through
+`RESB-PSPEL` to the requested WBS elements in `PRPS`. It omits deleted and
+final-issued rows and derives open quantity as required minus withdrawn. Local
+tests exercise filtering, item identity, duplicate detection, and quantity
+calculation with a repository double; they do not execute the RESB/PRPS query
+or verify these fields against the target release. Confirm the DDIC fields and
+WBS conversion in SAP. The optional required-through date is applied after the
+query, retains undated rows, and does not make the result a time-phased stock
+balance.
+`READ_OPEN_RESERVATIONS_BULK` groups requests by required-through date and
+deduplicates WBS elements within each group before reading reservation rows.
+Local tests verify date filtering, request ordering, and one repository read per
+date group; they do not execute the grouped RESB/PRPS query in the target SAP
+release.
+`READ_RESERVATION_ITEMS_BULK` deduplicates WBS values, reads reservation items
+once, then returns all matching items in each request row. It includes final
+and fully withdrawn items by design. Local tests verify request ordering and
+shared reads with a repository double; they do not execute the RESB/PRPS query
+in SAP.
+
+`READ_RESERVATION_COVERAGE` aggregates project stock and open reservations by
+WBS/material/plant. It counts only positive stock with a storage location,
+matching the allocation previews' eligible stock scope, converts reservation
+quantities to the material base unit, and reports reserved quantity beyond
+eligible stock as shortfall. Local tests use repository and UOM doubles; they
+do not execute the MSPR/PRPS/RESB queries or validate live stock aggregation.
+The summary is a snapshot and does not reserve or lock stock.
+`READ_RESERVATION_COVERAGE_BULK` groups WBS requests by cutoff date before
+calling the same summary logic. Tests verify one stock and reservation read
+per date group with doubles; they do not measure or validate database query
+behavior in SAP.
+`READ_RESERVATION_COVERAGE_UOM` validates the requested material-unit ratio
+before reading project stock, then converts each base-unit coverage total using
+that ratio. Local tests verify conversion and early rejection of unknown units;
+confirm the target `MARA`/`MARM` ratios and project-stock unit semantics in SAP.
+`READ_RESV_COVERAGE_BULK_UOM` prevalidates and caches the requested ratios,
+then uses the cutoff-grouped coverage reader. Local tests verify request order,
+shared reads, conversion, and rejection of unknown units before stock reads;
+they do not measure the grouped MSPR/RESB query in SAP.
+
+Project-stock FEFO and reservation cutoff inputs are checked as Gregorian
+calendar dates before repository reads. This rejects malformed dates but does
+not validate planning horizons or business-date eligibility in the target SAP
+system.
+
+`ZCL_PROJECT_RESV_SERVICE=>RESERVE_FOR_WBS` creates a movement-221 reservation
+with the WBS element in `BAPI2093_RES_HEAD-WBS_ELEMENT`; it converts item
+quantities to base units and commits only outside test-run mode. SAP documents
+project-stock reservation as a 221 demand and says WBS reservations depend on
+the project's stock settings ([project stock reservation](https://help.sap.com/docs/SAP_S4HANA_CLOUD/f369b2eff700401494ba6e7c9a573288/302bbfc4cc0a498aae4cef4256046cf6.html), [Project System procurement settings](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/4dd8cb7b1c484b4b93af84d00f60fdb8/79ceb65334e6b54ce10000000a174cb4.html)). The local adapter and stubs do not prove that every target release exposes this header field or accepts the same POSID representation, movement settings, and ATP behavior. Validate the BAPI signature, reservation's `SOBKZ`/`PSPEL` result, project-profile configuration, and test-run messages in a controlled target system. This direct-request method does not read or lock project stock before creation.
+
+`RESERVE_WBS_BULK` prevalidates and converts each direct request before the
+first reservation create. Its default mode commits each WBS independently;
+the atomic mode issues repeated reservation-create BAPI calls and then requests
+one shared commit or rollback. Local tests use an API double and cannot verify
+the target BAPI signature, whether repeated creates share a rollback-capable
+SAP LUW, or test-run behavior with configured exits and enhancements. Verify
+these behaviors and project stock/ATP eligibility in the target release. This
+direct-request method does not preview or lock stock before reservation.
+
+`RESERVE_BATCH_ALLOCATION` and `RESERVE_LOCATION_ALLOCATION` can assign a
+separate required date to each WBS reservation. The local service checks that
+the date map contains exactly one valid date for every assigned WBS and passes
+that date on each reservation-create call. Local API doubles do not verify the
+target BAPI's required-date handling or multi-create LUW behavior; validate
+date eligibility and atomic rollback in the target release. These lower-level
+methods trust the supplied allocation snapshot; the one-call FEFO and location
+methods rerun their previews but cannot lock stock before the write.
+
+`ISSUE_RESERVED_WBS_ITEMS` checks selected reservation items against active WBS
+reservation rows read from `RESB`/`PRPS`, then delegates to the reservation
+goods-issue service. That service reads reservation details again and validates
+movement permission, final-issue status, quantity, and unit conversion before
+posting. SAP documents reservation-backed goods issue from project stock and
+requires the reservation item reference for the movement
+([goods issue from project stock](https://help.sap.com/docs/s4hana-cloud-best-practices/project-control-resourcing-and-procurement-4rf-be/goods-issue-from-project-stock-e0e1a23885fe4e158f7bfba707d88166),
+[goods movements with BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). The adapter supplies reservation number, item, record type, entry quantity, and unit while SAP derives reservation account assignment. Verify the target release's `RES_TYPE` mapping, movement 221/Q behavior, current-state checks, and commit behavior; local data reads and API mapping do not prove target SAP results.
+
+`ISSUE_RESERVED_WBS_ITEMS_BULK` validates every WBS/item scope before it calls
+the existing reservation bulk issue service, which groups requests by
+reservation and commits each material document independently. Local doubles
+verify ordering, prevalidation, and per-reservation outcomes but cannot prove
+repeated `BAPI_GOODSMVT_CREATE` calls and commits behave independently in the
+target SAP release. Verify success, a later reservation failure, and test-run
+behavior against the target system; earlier committed reservations remain
+posted if a later group fails.
+
+`RETURN_RESERVED_WBS_ITEMS` and its bulk form use GM code 06 with a reservation
+reference and the reversal flag, allowing SAP to derive the movement type from
+the reservation item. SAP documents reversing or returning a reservation
+withdrawal by referencing the reservation, and notes that the posting updates
+the quantities and values changed by the original issue
+([Reversing a Planned Goods Issue](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/91b21005dded4984bcccf4a69ae1300c/9564bd534f22b44ce10000000a174cb4.html),
+[goods movements with BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Local tests verify request mapping, final-item eligibility, and per-reservation commits. Confirm the target release's `XSTOB` behavior, reversal movement mapping, available withdrawn quantity, and transaction behavior before live use.
+
+`ISSUE_RESERVED_WBS_ATOMIC` and `RETURN_RESERVED_WBS_ATOMIC` issue one BAPI
+goods-movement call per reservation and request one shared commit or rollback.
+SAP assigns transaction handling to the BAPI caller
+([goods movements with BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Local tests cover group success, a later create failure, commit failure, reversal of a finalized item, and test-run behavior. Confirm repeated reservation-referenced calls share a LUW and that rollback restores every staged movement in the target release.
+
+The reservation service rejects non-digit and impossible Gregorian required
+dates before calling the BAPI, including invalid month lengths and non-leap
+February 29 values. SAP still decides whether a valid date is permitted for the
+plant, project, and planning period in the target system.
+
+`RESERVE_WBS_FEFO` and `RESERVE_WBS_BY_LOCATION` run their project-stock
+preview twice and compare the complete batch/location split before reservation
+creation. A changed allocation stops before the first write. The lower-level
+`RESERVE_BATCH_ALLOCATION` and `RESERVE_LOCATION_ALLOCATION` methods accept a
+preview result and assignments directly and trust that snapshot. Reservations
+are grouped by WBS; each WBS reservation commits independently by default, or
+`iv_atomic = abap_true` stages the group for one commit or rollback. Local tests
+use API and UOM doubles and do not verify repeated `BAPI_RESERVATION_CREATE`
+calls in one LUW, rollback after later BAPI or commit failure, or whether the
+target configuration accepts each selected batch/location/date combination.
+SAP does not lock stock during the latest preview, so it can still change
+before the write.
+`RESERVE_WBS_FEFO_BY_DATE` groups by WBS and required date, creating separate
+reservation requests when one WBS has multiple dates. It applies earlier-date
+and same-date priority ordering to its local preview and repeats the selection
+before writing. Local tests verify grouping and split preservation; confirm
+multi-call transaction behavior and date acceptance in the target system.
+`RESERVE_WBS_BY_LOCATION_DATE` uses the same WBS/date grouping for batchless
+stock and compares location splits before writing. Its preview remains a current
+stock snapshot; verify movement and reservation behavior for each date in the
+target system.
+
+`RESERVE_WBS_BY_LOCATION` composes the batchless project-stock location preview
+with reservation creation. It uses the same required-date and transaction
+handling, and full demand coverage is required by default. The result retains
+the preview when a shortfall or changed split prevents writes. Local tests
+verify the service flow only; SAP controls the accepted project-stock
+reservation items and stock can change after the second preview.
+
+`RESERVE_BATCH_ALLOCATION` carries each previewed batch expiry and effective
+minimum shelf life into local prevalidation and rejects
+batches that expire before their assigned WBS required date or do not meet the
+effective minimum. `iv_minimum_shelf_life_days` remains a shared floor, and
+undated batches cannot satisfy a positive effective minimum. The lower-level
+allocation method uses expiry data in the supplied preview. `RESERVE_WBS_FEFO`
+reruns its preview before writing, but neither path locks the batch before SAP
+processes the reservation. The local API double does not verify target SAP
+batch validity checks or date-dependent reservation rules.
+
+`DELETE_RESERVATION` and `DELETE_RESERVATIONS_BULK` call
+`BAPI_RESERVATION_DELETE`. Bulk deletion validates all supplied numbers before
+calling SAP, then performs and commits each deletion independently; failures
+are rolled back per number and do not stop later attempts. Test-run mode skips
+commit and rollback, and only a committed live deletion is marked deleted.
+Local tests use an API double and do not confirm the target release's BAPI
+signature, deletion eligibility for reservations with withdrawals or dependent
+documents, or whether a successful test-run message guarantees a later live
+deletion will succeed. Verify these cases in the target SAP system.
+
+`DELETE_RESERVATIONS_ATOMIC` stages one delete BAPI call per reservation and
+requests a shared commit or rollback. Test-run forwards SAP's simulation flag
+per reservation and does not commit or roll back. Local doubles verify the
+service flow only; confirm that repeated delete calls share a LUW and that
+later BAPI and commit failures revert all earlier staged deletions in the
+target release. Initial local lint found duplicate test names with the
+reservation-item atomic delete cases; the whole-reservation test names were
+made distinct and the final lint run reports zero issues.
+
+`DELETE_RESERVATION_ITEMS` scopes selected item numbers to the supplied WBS by
+reading open Q reservation items, then uses `BAPI_RESERVATION_CHANGE` with the
+item deletion indicator. Bulk item deletion commits each reservation
+independently. Test-run only verifies that the items are currently open under
+the requested WBS and skips the BAPI because this change call has no test-run
+parameter in the adapter. Local tests use API and repository doubles; confirm
+the change structure fields, item-level deletion rules, and behavior for
+partially withdrawn items in the target release.
+
+`DELETE_RESV_ITEMS_ATOMIC` validates all open WBS/item scopes before calling
+the item deletion API once per reservation, then requests one shared commit or
+rollback. Local doubles verify prevalidation and group orchestration only.
+Confirm that repeated `BAPI_RESERVATION_CHANGE` calls share a LUW and that all
+staged item deletions are reverted after a later BAPI or commit failure in the
+target release.
+
+`RESCHEDULE_RESERVATION_ITEMS` scopes selected open Q items to the supplied
+WBS, then maps the new required date through `BAPI_RESERVATION_CHANGE` item
+change and change-indicator tables. SAP's reservation-document update service
+supports changing an item's quantity in entry units and its required date
+([Update Reservation Document](https://help.sap.com/docs/SAP_S4HANA_CLOUD/3f57e7df4a114edabffe8b2d581a59ed/18dea68a1d25444f85d2bc6e634b65d5.html?locale=en-US)); this does not verify the classic BAPI parameter names or DDIC field types used by this adapter. The local structures are partial stubs. Confirm `BAPI2093_RES_ITEM_CHANGE-REQ_DATE`, its X-field, item eligibility for partially withdrawn reservations, and commit/rollback behavior in the target release. Local tests use API and repository doubles.
+
+Single, bulk, and atomic reschedule requests now reject invalid Gregorian dates
+before the scope read or BAPI call. SAP still determines whether a valid date
+is permitted by the reservation, plant, and planning period.
+
+`RESCHEDULE_ITEMS_ATOMIC` validates every requested item scope before calling
+the update BAPI once per reservation, then requests one shared commit or
+rollback. Local doubles verify group orchestration, but cannot prove that
+repeated `BAPI_RESERVATION_CHANGE` calls share a LUW in the target release or
+that a later failure reverses every staged date change. Verify multi-reservation
+success, a later BAPI error, and commit failure in a controlled SAP system.
+
+`CHANGE_RESERVATION_ITEM_QTY` sends the new total required quantity through
+`BAPI2093_RES_ITEM_CHANGE-ENTRY_QNT` and its X-field. SAP's reservation update
+service defines this quantity in the item's entry unit and supports updating it
+([Update Reservation Document](https://help.sap.com/docs/SAP_S4HANA_CLOUD/3f57e7df4a114edabffe8b2d581a59ed/18dea68a1d25444f85d2bc6e634b65d5.html?locale=en-US)). The caller supplies the existing unit, and the service checks it against `RESB-ERFME`, converts the proposed total to base units, and compares it with withdrawn quantity in `RESB-ENMNG`. SAP documents `RESB-MEINS` as the base unit and `RESB-ERFME` as the entry unit ([RESB fields](https://help.sap.com/docs/SAP_ERP/45eb5df17d514d5b8d0517193a0f921b/2b75bb53707db44ce10000000a174cb4.html)). The classic BAPI mapping remains unverified against target DDIC structures, and the local stubs are partial. Test quantity increases and reductions above withdrawn quantity, availability-check responses, and behavior for partially withdrawn items in the target system. Local tests use repository and API doubles.
+
+`CHANGE_RESV_QTY_ATOMIC` validates every reservation item, entry unit, unit
+conversion, and withdrawn-quantity limit before making repeated
+`BAPI_RESERVATION_CHANGE` calls and requesting one shared commit or rollback.
+Local doubles verify prevalidation and orchestration, but cannot confirm that
+the target release keeps those calls in one LUW or reverts every staged update
+after a later BAPI or commit failure. Verify successful multi-reservation
+updates and both rollback paths in a controlled target system.
+Initial local lint found a misaligned parameter in the generated API payload
+expression; it was replaced with an explicit mapping loop and the final lint
+run reports zero issues.
+
+`MARK_RESERVATION_ITEMS_FINAL` sets the final-issue indicator on selected open
+WBS reservation items, and `RESET_RESERVATION_ITEMS_FINAL` clears it on selected
+finalized items. SAP documents that the indicator completes an item and keeps
+it from being proposed for later goods issues, and that users can set or reset
+it ([final-issue indicator](https://help.sap.com/docs/SAP_ERP/75c4b203fca64320b998cc04e2eb1468/4a64bd534f22b44ce10000000a174cb4.html?version=6.06.latest)). The reset path reads active Q reservation items including `RESB-KZEAR`; test-run checks that the item currently has the requested state. The local adapter assumes the classic change field is `FINAL_ISSUE` in both `BAPI2093_RES_ITEM_CHANGE` structures; verify the field names, partial-withdrawal behavior, availability checks, and commit/rollback semantics in the target release. Local tests use API and repository doubles.
+
+`SET_RESV_FINAL_ATOMIC` supports both setting and resetting the indicator
+across multiple reservations after validating every item's current state. It
+calls the change API per reservation and requests one shared commit or rollback.
+Local doubles verify group orchestration only. Confirm that repeated final-issue
+updates share a LUW and roll back together after a later BAPI or commit failure
+in the target release. Initial local lint found misaligned `it_requests`
+parameters in the new tests; the calls were aligned and final lint reports zero
+issues.
+
+`CHANGE_RESERVATION_ITEM_STOCK` updates `STGE_LOC` and/or `BATCH` through
+`BAPI_RESERVATION_CHANGE`, setting the matching X flags for each selected
+field. SAP documents storage location and batch as reservation item fields that
+can be changed ([Update Reservation Document](https://help.sap.com/docs/SAP_S4HANA_CLOUD/3f57e7df4a114edabffe8b2d581a59ed/18dea68a1d25444f85d2bc6e634b65d5.html?locale=en-US)). The classic adapter assumes `BAPI2093_RES_ITEM_CHANGE` and `BAPI2093_RES_ITEM_CHANGEX` expose `STGE_LOC` and `BATCH`; verify those DDIC fields, clearing behavior, destination stock checks, and commit semantics in the target release. Local tests use API and repository doubles, so they do not validate target batch eligibility or availability checking.
+
+`CHANGE_RESV_STOCK_ATOMIC` validates the full WBS/item scope, calls the
+reservation change API once per reservation, and requests one shared commit or
+rollback. Local API doubles verify call ordering and result handling, but they
+cannot confirm that the target release keeps repeated `BAPI_RESERVATION_CHANGE`
+calls in one LUW or reverts all staged changes after a later BAPI or commit
+failure. Confirm group success and both rollback paths in a controlled SAP
+system before relying on the all-or-nothing behavior. The per-reservation bulk
+method remains independently committed and can report partial success. Initial
+local lint also rejected overlength ABAP method identifiers; the API and test
+names were shortened to fit the language limit.
+
+The repository also reads open Q reservations from `RESB`, joins `RESB-PSPEL`
+to `PRPS-PSPNR`, and subtracts each outstanding `BDMNG - ENMNG` quantity from
+the matching WBS/material/plant stock before either preview allocates it.
+Deleted (`XLOEK`) and final-issued (`KZEAR`) rows are excluded. More specific
+location/batch reservations are applied first; blank keys match broader stock,
+and any over-reservation is deducted from remaining balances only within the
+same WBS in stable storage-location/batch order. SAP describes project open
+reservations using the required and withdrawn quantities ([Open Reservations
+for Project](https://help.sap.com/saphelp_ssb/helpdata/en/d9/663952f8b2a91ae10000000a445394/content.htm?no_cache=true), [RESB quantity fields](https://help.sap.com/docs/SAP_ERP/45eb5df17d514d5b8d0517193a0f921b/2b75bb53707db44ce10000000a174cb4.html)). The deduction is a local snapshot and does not lock stock. Local tests exercise the quantity calculation with repository doubles, not the RESB/PRPS SQL; confirm field availability and reservation semantics on the target SAP release.
+
+Reservation netting now narrows stock to the rows each preview can allocate
+before applying deductions: FEFO requires a batch and storage location, while
+location previews require a storage location and no batch. This prevents
+unlocated or wrong-stock-type rows from absorbing a reservation deduction and
+inflating the preview's eligible quantity. Batch-specific reservations are
+skipped by the batchless location path. Local regression tests cover both
+preview scopes; the repository SQL remains subject to target-release checks.
+The FEFO, location, and transfer previews accept optional
+`iv_reservation_through_date`, which excludes open reservation rows whose
+`RESB-BDTER` is later than the supplied date. Undated rows are still deducted,
+and omitting the option deducts all open reservations. SAP describes `BDTER`
+as the requirement date on each reservation item
+([reservation requirement dates](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167776.html)).
+This only changes which reservations are netted against the current `MSPR`
+snapshot; it does not add future receipts or create a time-phased stock balance.
+Local tests use a repository double and cannot validate the target release's
+`RESB-BDTER` field or live reservation data.
+
+`PREVIEW_TRANSFER_FEFO` scopes each demand to its source WBS and returns a
+source/destination assignment alongside the ordinary unit-aware batch
+allocation. It rejects a transfer to the same WBS but does not validate that
+either WBS is eligible for group-to-group transfer. `TRANSFER_WBS_BATCH_ALLOC`
+checks assignment, summary, and split totals before passing base-unit batch
+lines to `TRANSFER_PROJECT_WBS_STOCK`; full allocation is required by default.
+The posting method does not re-read stock, and target WBS grouping eligibility
+remains an SAP check. Local tests use synthetic stock and goods-movement API
+doubles.
+
+`PREVIEW_BY_LOCATION` handles batchless rows from the same project-stock query,
+aggregates quantities by WBS/material/plant/storage location, and returns the
+unit-aware location result for `ISSUE_PROJECT_WBS_ALLOCATION`. It intentionally
+skips stock rows with a batch and rejects demands with an explicit batch, so
+the location-only movement cannot discard a batch assignment. Both project
+stock previews remain snapshots and do not re-read or reserve stock.
+
+`PREVIEW_TRANSFER_BY_LOCATION` scopes batchless transfer demands to their
+source WBS and returns location splits with source/destination assignments.
+`TRANSFER_WBS_LOCATION_ALLOC` validates the summaries, assignments, and split
+totals before posting the positive splits as 415/Q; full allocation is required
+by default, with partial posting available by setting
+`iv_require_full_allocation = abap_false`. It does not re-read stock or validate
+grouping-WBS eligibility, so SAP remains the authority at posting time. Local
+tests use synthetic project stock and goods-movement API doubles.
+
+`ISSUE_PROJECT_WBS_BATCH_ALLOC` accepts `iv_special_stock = 'Q'` for project
+stock splits produced by `PREVIEW_FEFO`. The adapter passes this indicator to
+`BAPI2017_GM_ITEM_CREATE-SPEC_STOCK`; SAP remains responsible for revalidating
+the WBS assignment and stock at posting time. `ISSUE_PROJECT_WBS_ALLOCATION`
+also accepts Q for batchless project-stock results. Both methods accept the
+same generic allocation result types as unrestricted-stock posting, so callers
+must match the special-stock flag to the stock source; the posting service
+does not prove that the preview came from the project-stock repository.
+
+`ISSUE_SALES_ORDER_ALLOCATION` accepts the single-order allocation preview,
+cross-checks its base-unit summaries against the raw allocation rows, validates
+that every location or batch split totals to its demand allocation, and posts
+the positive splits as movement 231 with the sales-document/item keys. The
+caller supplies the base-unit/ISO mapping. The preview reads unrestricted stock
+and does not represent special sales-order stock; this posting path therefore
+does not set special-stock indicator `E`. SAP documents movement 231 for
+unrestricted stock and requires the sales-order keys; separate sales-order
+stock movements require special-stock handling ([goods movement operation](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/1dad2180e6f34b75ac77afce5cb5eda1/87dfcfe2d9b911da2b24000f20dac9ef.html),
+[sales-order stock](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/91b21005dded4984bcccf4a69ae1300c/6362bd534f22b44ce10000000a174cb4.html)). These checks validate the supplied preview structure only; stock and order state may change before the BAPI call. Local tests use a goods-movement API double and do not establish live stock eligibility or account-assignment behavior.
 
 Purchase-order goods receipts and returns use `BAPI_GOODSMVT_CREATE` with GM
 code 01, movement types 101 and 122 respectively, movement indicator `B`,
@@ -490,6 +1083,26 @@ the target SAP release. The test suite uses a fake API and does not exercise a
 live PO or the BAPI signature ([SAP BAPI movement field
 requirements](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html),
 [goods movement types](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/ee6ff9b281d8448f96b4fe6c89f2bdc8/8b7b5fe73ef54063a2bfcfbe83cebd38.html)).
+
+`ISSUE_UNPLANNED_PROD_ORDER` posts direct production-order withdrawals with GM
+code 03 and movement type 261, including materials that are not order
+components. `ISSUE_UNPLANNED_PROD_ORDER_UOM` converts entry quantities through
+the material `MARA`/`MARM` ratio and checks a caller-supplied base-unit/ISO
+mapping. These entry points do not inspect components or reservations and do
+not estimate stock. SAP documents 261 as goods issue for an order; an unplanned
+withdrawal does not update a reservation ([goods issue for order](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/21aead0c98bd4755abdacd91c99e3393/8487bf53f106b44ce10000000a174cb4.html),
+[unplanned goods issue behavior](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/ee6ff9b281d8448f96b4fe6c89f2bdc8/8b7b5fe73ef54063a2bfcfbe83cebd38.html),
+[goods movement BAPI](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362167803.html)). Verify order/account assignment, stock eligibility, unit ratios, authorization, and posting-period behavior in the target system.
+`RETURN_TO_PRODUCTION_ORDER` and `RETURN_TO_PRODUCTION_ORDER_UOM` post direct
+movement-262 component returns against the supplied order, preserving batch
+and base-unit assignments. SAP documents movement 262 when reversing component
+goods issues ([production-order split and reversal](https://help.sap.com/docs/SAP_S4HANA_CLOUD/2bba750d1e124e1ea2a039bb1cd9b6c5/91ae3df61c814b739b328b0fb2486d2b.html)). These methods do not reference the original material document or reservation item; local tests verify request mapping and UOM conversion only. Confirm target movement configuration, allowable return quantities, stock eligibility, and account assignment before live use.
+`ISSUE_UNPLANNED_PROD_BULK` prevalidates distinct orders and every
+movement line, then posts one independent 261 document per order and continues
+after an individual BAPI failure. Earlier orders may already be committed when
+a later order fails; inspect every row result. Local tests verify validation,
+field mapping, continuation, and commit behavior with an API double, not SAP
+locking or cross-document posting behavior.
 
 Production-order goods receipts use `BAPI_GOODSMVT_CREATE` with GM code 02,
 movement type 101, movement indicator `F`, production order, quantity, and
@@ -864,8 +1477,8 @@ service passes material, plant, base unit, required date, and optional
 purchasing group/organization. It only accepts explicit external procurement
 (`MARC-BESKZ = F`) with no special procurement key; in-house, ambiguous,
 special-source, and missing procurement routes are rejected before the BAPI
-call. It does not select a vendor or source of supply, create account
-assignments, or create services/non-stock items. When the caller has resolved a
+call. This suggestion path does not select a vendor or source, attach account
+assignments, or create service items. When the caller has resolved a
 complete info-record source, the service forwards its vendor as `FIXED_VEND`
 and its purchasing organization to the item. A per-suggestion purchasing
 control can explicitly override that organization; the info-record category
@@ -884,6 +1497,20 @@ its 1-based source suggestion index, including the same source index for all
 lots split from one suggestion. It reports submitted proposal rows for both
 normal creation and test runs; it does not claim item acceptance independently
 of the overall BAPI result.
+
+`CREATE_FROM_PROJ_SHORTFALLS` accepts validated positive shortfall
+rows and creates one requisition item for each row with account assignment
+category `Q`, one account row, and the supplied WBS element and quantity. The
+caller maps quantities, delivery dates, and WBS assignments from the project
+stock preview. SAP documents that project-stock procurement uses the
+stock-bearing WBS element and account assignment category `Q`
+([project stock procurement](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/cc8f759e1b0e4f3b8048c3cf808d4068/baceb6535fe6b54ce10000000a174cb4.html)).
+The local mapper and `BAPIMEREQACCOUNT`/`BAPIMEREQACCOUNTX` stubs model the
+single-WBS payload only. Confirm the target `BAPI_PR_CREATE` signature, account
+assignment serial/quantity fields, WBS representation, category `Q` settings,
+and purchasing validation in the target release. Tests use API doubles and do
+not create a live requisition or confirm the selected WBS holds the project
+stock.
 `prepare_from_suggestions` performs the same validation, receipt-lot expansion,
 and purchasing-unit conversion without an API call; `create_from_suggestions`
 uses the returned request directly. The prepared rows therefore show the
@@ -1068,6 +1695,13 @@ in transfer between storage locations ([SAP stock types](https://help.sap.com/do
 The local MCHB stub and tests cover only the required field and service mapping;
 verify the query and unit semantics against the deployed release.
 
+`GET_TRANSFER_LOCATIONS` and its bulk form enumerate nonzero storage-location
+quantities from `MARD-UMLME`; these are aggregate rows without batch detail and
+must not be combined with the batch-level `MCHB-CUMLM` inquiry as though they
+were disjoint. Local tests cover service grouping, ordering, and unit conversion
+with repository doubles, not the SQL or target-release stock semantics. Verify
+the MARD row scope and quantities against the deployed SAP release.
+
 Cross-plant allocation preview consumes unrestricted stock estimates from the
 source plants in the caller-supplied order and location balances in ascending
 `LGORT` order. Plant-level reservations follow the stock repository's
@@ -1181,6 +1815,22 @@ summary and split base units match the material unit mapping. It posts canonical
 base-unit quantities. Local tests use a BAPI double; verify quantities and
 movement fields in the target release.
 
+`TRANSFER_PLANT_DATE_LOC_UOM` and `TRANSFER_DATE_LOC_UOM_2STEP` preserve dated
+allocation location splits and canonical base quantities, and reject a split
+whose required date or priority differs from its demand. The required date
+remains planning metadata; the movement uses the caller's shared posting date.
+Local tests exercise the mapping through a BAPI double, not SAP's stock checks
+or movement customizing.
+The allocation is a local snapshot and does not lock stock before posting.
+
+`TRANSFER_DATE_LOC_ATP` and `TRANSFER_DATE_LOC_ATP_2STEP` require exactly one
+relevant, matching, cumulative confirmation for each positive source/date
+allocation before posting, and reconcile the source-plant totals with the
+location rows that will post. The ATP result is plant-level and does not
+confirm the selected storage location or lock stock for the later movement.
+BAPI tests use doubles; verify ATP checking-rule scope and movement behavior in
+the target SAP release.
+
 `TRANSFER_PLANT_BATCH_TWO_STEP` preserves the selected exact batch on both
 303/305 legs and rejects a source split whose batch differs from the demand.
 Local tests use a BAPI double; verify batch handling for these movements in the
@@ -1249,7 +1899,10 @@ between locations containing the same batch with the same expiration date.
 Expiration and batch order remain primary, and an explicit preferred location
 remains first during fallback. Local tests use repository doubles; confirm the
 target release's batch expiration mapping and compare the resulting split with
-its configured batch strategy.
+its configured batch strategy. Each demand can request a minimum shelf life;
+the greater of this value and the shared `iv_min_days` applies, and the split
+reports the effective minimum. The unit-aware wrapper forwards this rule while
+converting demand quantities.
 
 Cross-plant FEFO allocation applies the caller's source-plant order first, then
 orders eligible batches by expiration date within each plant. It uses the same
@@ -1265,6 +1918,13 @@ SAP batch determination, check transfer configuration, or validate a subsequent
 goods movement. Local tests use repository doubles; verify batch determination,
 source-plant priority, conversion factors, and any transfer process in the
 target system.
+
+Each cross-plant FEFO demand also supports `minimum_shelf_life_days`; the larger
+of the demand value and shared `iv_min_days` controls its batch eligibility,
+and every FEFO split reports that effective value. The rule passes through
+dated, unit-aware, and ATP wrappers. Shared demand structures are also accepted
+by ordinary allocators, which reject a nonzero shelf-life value before reading
+stock because those paths do not evaluate expiry.
 
 `ALLOCATE_PLANTS_FEFO_BY_DATE` gives earlier required dates first use of shared
 batch balances, applies the minimum remaining shelf life against each demand's
@@ -1293,9 +1953,11 @@ checks, source-plant order, and safety-stock handling follow the base-unit
 variant; rounded source-unit amounts are informational while base-unit split
 quantities remain canonical. `TRANSFER_FEFO_DATE_UOM` and
 `TRANSFER_FEFO_DATE_UOM_2STEP` map the dated result into the existing 301 and
-303/305 transfer paths and validate material base units. Local tests use a
-goods-movement double; verify UOM mappings, batch fields, movement configuration,
-and transfer behavior in the target SAP release.
+303/305 transfer paths, validate material base units, and require positive
+source and batch rows to match demand dates and priorities before those fields
+are mapped out. Local tests use a goods-movement double; verify UOM mappings,
+batch fields, movement configuration, and transfer behavior in the target SAP
+release.
 
 `ALLOCATE_PLANTS_FEFO_DATE_ATP` checks cumulative positive FEFO source-plant
 quantities by material, base unit, and required date through the material
@@ -1308,6 +1970,16 @@ date and cap the confirmed amount at the cumulative request; later or undated
 lines remain in the raw API result. Checks marked irrelevant return zero in
 these convenience fields.
 
+`TRANSFER_FEFO_DATE_ATP` and `TRANSFER_FEFO_DATE_ATP_2STEP` validate the
+matching dated ATP rows and reconcile the confirmed source-plant totals against
+the selected batch/location splits before posting. Source rows must match their
+demand's date, priority, unit, and allocated quantity. The adapter recomputes
+date-eligible confirmation from the raw result and rejects inconsistent derived
+totals. ATP confirms at plant level; it does not identify or reserve a selected
+batch or storage location. Tests use an API double and do not verify the target
+system's ATP rule, batch handling, movement configuration, or stock changes
+between preview and posting.
+
 Material-document cancellation uses `BAPI_GOODSMVT_CANCEL` for the full
 document or selected items, identified by material document number and fiscal
 year. An optional posting date is supplied for the reversal; when blank, SAP
@@ -1317,6 +1989,10 @@ the function signature, `BAPI2017_GM_ITEM_04` item-field mapping, posting-date
 default, cancellation eligibility, and returned reversal document in the target
 release. SAP documents item-level cancellation in its [Material Document
 API](https://help.sap.com/docs/SAP_S4HANA_CLOUD/3f57e7df4a114edabffe8b2d581a59ed/1aef4e402acd4c8b8ec2ea2bfda7715b.html).
+The service now rejects malformed Gregorian posting/document dates before
+`BAPI_GOODSMVT_CREATE`, and rejects a malformed optional cancellation date
+before `BAPI_GOODSMVT_CANCEL`. Blank optional reversal dates remain supported;
+SAP still controls posting-period eligibility for valid dates.
 `CANCEL_MATERIAL_DOCUMENTS_BULK` issues one BAPI call per distinct document;
 its atomic option stages those calls in one LUW and rolls them back together on
 an API or commit failure. Verify multi-call commit/rollback behavior with the
@@ -1355,11 +2031,17 @@ from `VBUP-LFSTA`, with requested dates from `VBEP-EDATU`. Order items without
 schedule lines fall back to `VBAP` quantities and use the current date when
 reserved. The opt-in `iv_use_confirmed_qty` mode uses `VBEP-BMENG - VBEP-VSMNG`
 clamped to the ordered open quantity, and rejects open item-level fallback rows
-without schedule-line confirmation data. Confirmed delivery dates are not read.
-Local tests verify calculations and service behavior with doubles; they do not
-execute the database queries or prove that the target system's BAPI updates the
-fields in the assumed way. Verify `VBEP-BMENG` availability and conversion on
-the target release. The sales-order adapter also retains the BAPI's
+without schedule-line confirmation data. Schedule-line `VBEP-MBDAT` is also
+read as `material_availability_date`. Single-order preview and reservation
+methods and the multi-order date methods can opt to use it for local allocation,
+ATP checks, and reservation requirement dates; an open demand without a
+schedule line and MBDAT is rejected. The adapter accepts MBDAT when EDATU is
+blank so this opt-in mode can proceed; default allocation still requires
+EDATU. Local tests use order API doubles and do
+not execute the `VBEP` query. Verify MBDAT population and the intended
+reservation requirement date in the target release. Also verify `VBEP-BMENG`
+availability and conversion there.
+The sales-order adapter retains the BAPI's
 `BAPISDIT-SALES_QTY1/SALES_QTY2` conversion ratio so allocation results can show
 quantities in both the sales unit and material base unit. Local tests verify
 the ratio mapping with doubles; confirm these fields, conversion direction, and
@@ -1602,6 +2284,10 @@ by material/source plant. Receipts are added to each date balance before
 safety-stock protection and allocation. Local tests cover arithmetic, grouping,
 and source-plant allocation with repository doubles; they do not validate the
 live available-stock SQL together with EKES/EKET data in a target system.
+Caller-supplied projected-receipt cutoffs, dated allocation requirements, and
+FEFO as-of dates are checked as Gregorian calendar dates before UOM conversion,
+stock reads, and ATP calls. This catches malformed month/day and leap-day
+values; SAP still controls planning-horizon and business-date eligibility.
 `SUGGEST_COMP_REPL_FROM_STOCK` can use this bulk projection through
 `iv_include_po_confirmations`; it rejects simultaneous use of the ordinary PO
 receipt flag. Local tests verify confirmation receipts net component shortages
@@ -1677,6 +2363,16 @@ Priority is local planning behavior and does not change SAP ATP's date grouping.
 It returns plant-level splits only; projected receipts cannot be assigned to a
 storage location, so this result is for planning and cannot be posted directly
 as the location-level transfer allocation.
+`ALLOCATE_PLANTS_BY_DATE_LOC` returns location splits for current stock using
+that same date/priority order. It deliberately does not add projected receipts,
+which still have no storage-location assignment. The result is a local stock
+snapshot and does not lock source locations before a later transfer.
+`ALLOCATE_PLANTS_DATE_LOC_UOM` converts each demand using the material's
+`MARA`/`MARM` ratio before reading current source-location stock. Base-unit
+quantities remain canonical; converted source-unit quantities are rounded to
+the quantity field's precision. Tests use UOM and stock repository doubles and
+do not execute the live unit-ratio or location-stock queries. This is still a
+planning snapshot, without projected receipts or source-location locking.
 `ALLOCATE_PLANTS_DATE_UNITS` converts each dated demand using `MARA`/`MARM`
 before invoking that same priority-aware plant-level projection. Returned base-unit values are
 canonical; source-unit demand and split quantities are rounded to the quantity
@@ -1692,6 +2388,11 @@ confirmed and unconfirmed base quantities include confirmation lines dated on
 or before the required date and cap confirmation at the cumulative request;
 later or undated lines stay in the raw SAP result. These convenience quantities
 are zero when SAP marks a check as irrelevant.
+`ALLOCATE_PLANTS_DATE_LOC_ATP` applies the same client-side cumulative ATP
+comparison to positive plant splits from the unit-aware, location-aware dated
+preview. The grouping uses this request list and does not account for
+concurrent demand or replace the configured SAP checking rule. ATP remains a
+diagnostic; it does not confirm a storage location or change the local split.
 
 `ALLOCATE_DATE_DEMANDS_ATP` groups dated unit-aware demands by material, plant,
 base unit, and required date. It checks the cumulative base-unit quantity once
@@ -1768,6 +2469,9 @@ field semantics. SAP's documented no-delivery STO flow uses `UB`/`U` and later
 351/101 goods movements
 ([STO without delivery](https://help.sap.com/docs/SAP_ERP/96bf9ad642cf4b26a29595e3d573fb8c/5213b953495bb44ce10000000a174cb4.html),
 [BAPI_PO_CREATE1](https://help.sap.com/docs/SUPPORT_CONTENT/spmm/3362167600.html)).
+The service rejects malformed Gregorian schedule/delivery dates before the
+create BAPI; valid-date purchasing and planning eligibility still depend on
+the target SAP system.
 The local BAPI DDIC stubs intentionally cover only the fields mapped here.
 Verify document-type/item-category customizing, supplying-plant assignment,
 plant/material extensions, required header data, unit conversion, delivery
@@ -2006,6 +2710,17 @@ for multiple uncommitted PO creates in one LUW. Local tests use API doubles and
 do not verify the target release's allowed plant/company-code combinations or
 storage-location defaults.
 
+`CREATE_DATE_LOC_PAIRS` consumes dated, unit-aware location allocations and
+maps each source location to a separate STO item. It sends canonical base-unit
+quantities, preserving the allocator's base-unit totals when alternative-unit
+splits round. Local API-double tests verify mapped dates, locations, units,
+totals, and prevalidation. They do not verify target-release `BAPI_PO_CREATE1`
+handling of supplying storage locations or schedule dates; run a test order in
+the target SAP configuration before relying on those fields. ATP-gated creation
+through `CREATE_DATE_LOC_ATP_PAIRS` requires the supplied cumulative checks to
+be relevant and fully confirmed. It does not rerun or lock ATP before PO
+creation, so availability may change between preview and the BAPI call.
+
 `ZCL_STOCK_XFER_ORDER_SVC->CREATE_FROM_BATCH_ALLOCATION` creates a single-pair
 STO from a unit-aware exact-batch allocation. Since this allocator has no
 delivery-date field, the caller supplies the PO schedule date explicitly. The
@@ -2141,7 +2856,9 @@ and transaction behavior. Bulk simulation validates each PO independently;
 atomic simulation does not establish that a shared multi-PO commit would
 succeed. Live bulk changes commit each PO independently and may return partial
 completion. Verify these cases with representative PO items and multiple
-schedule lines in the target release.
+schedule lines in the target release. The service rejects malformed Gregorian
+delivery dates before the API update; SAP still determines whether a valid
+date can be applied to the selected item's purchasing state.
 
 `CHANGE_ORDER_SCHEDULES_ATOMIC` validates every PO group before calling
 `BAPI_PO_CHANGE`, then commits once or rolls the entire set back on a change or
@@ -2212,6 +2929,12 @@ confirm target-system BAPI handling of `SUPPL_STLOC` and batch.
 checks before creating those orders. These checks cover the plant-level total,
 not each selected batch. The ATP result is a snapshot and neither reserves stock
 nor establishes that the target system will enforce the same batch ATP scope.
+
+`ZCL_STOCK_ALLOCATION_FACTORY` composes the production stock, goods-movement,
+and STO service adapters. Local tests verify that these services construct;
+they do not call the target system's database or BAPIs. Confirm adapter class
+availability and standard API signatures in the SAP release where this code is
+installed.
 
 ## Resolved
 
@@ -2426,9 +3149,13 @@ candidate's `EINA-UMREZ`/`EINA-UMREN` ratio and submit the purchasing unit in
 doubles; confirm the target release's info-record ratio, BAPI `UNIT` semantics,
 and quantity precision with representative purchasing records.
 `ZCL_SALES_ORDER_SERVICE->READ_ORDERS` validates the complete document list,
-then makes one `BAPISDORDER_GETDETAILEDLIST` API call per document. Local tests
-use an API double; confirm response timing and error behavior with multiple
-documents in the target SAP release.
+then makes one `BAPISDORDER_GETDETAILEDLIST` API call for the complete list and
+requests headers and items from the BAPI. It groups the `VBAP`, `VBUP`, and
+`VBEP` delivery reads by requested document. Local tests verify service
+batching and header field mapping, but do not execute the SAP BAPI or database
+queries. Confirm multi-document BAPI input, returned header/item grouping,
+authorization behavior, and target-release query behavior with representative
+orders.
 `ZCL_SALES_ORDER_SERVICE->CHANGE_ORDERS_ATOMIC` validates every order and item
 before calling `BAPI_SALESORDER_CHANGE` for each order, then commits once or
 rolls back the group on any change or commit error. Local tests use an API
@@ -2535,3 +3262,112 @@ automatic goods receipt/backflush configuration, batch and storage-location
 rules, and rollback after a later receipt or commit failure in the target
 release. The bulk method commits each order separately and can therefore leave
 earlier orders received when a later call fails.
+
+`ZCL_PURCHASE_ORDER_SERVICE->CREATE_ORDER`, `CREATE_ORDERS_BULK`, and
+`CREATE_ORDERS_ATOMIC` reject malformed Gregorian header document dates and
+item delivery dates before calling `BAPI_PO_CREATE1`. Bulk and atomic methods
+validate every request before the first write. Suggestion preparation also
+rejects malformed header and required dates before returning a request. Local
+tests use an API double and cannot verify purchasing-date eligibility or
+target-release field behavior; SAP remains authoritative for those checks.
+
+`POST_CC_GOODS_ISSUE` validates selected reservation keys against the current
+open cost-center reservation read before fetching reservation detail or calling
+`BAPI_GOODSMVT_CREATE`. Unit-aware and per-reservation bulk forms use the same
+scope check. Reversal variants use a separate key-based `RESB`/`RKPF` read so
+fully issued rows can still be scoped; the normal movement pipeline checks the
+withdrawn quantity before posting. Both checks are read snapshots: cost-center
+assignment, quantities, or reservation status can change before the movement,
+so SAP remains the final authority. Local tests use repository and BAPI doubles;
+verify the new key query, authorization, and concurrent update behavior in the
+target release.
+
+Resolved local validation gap: `reserve_cost_centers_atomic` and
+`reserve_cost_centers_bulk` previously validated `required_date` as a Gregorian
+date only when FEFO was enabled, even though both pass that date to SAP in all
+allocation modes. They now reject malformed dates before stock reads or writes.
+Regression tests cover both entry points; SAP still applies its own posting and
+reservation date rules.
+
+Cost-center exact-batch allocation now filters against the reservation required
+date and optional minimum remaining shelf life using the repository's batch
+expiration data. This is a local stock snapshot; verify `MCHB`/batch expiry
+behavior and the target reservation BAPI's batch checks in SAP. A concurrent
+stock or batch-master change after preview can still invalidate the result.
+
+Sales-order explicit batch allocation now filters the caller-selected batch
+through the schedule requested date, or the current date when no schedule date
+is supplied, using the batch expiration date in the local stock snapshot. This
+does not run SAP batch determination or protect against a stock or batch-master
+change after preview. Verify `MCHB`/batch expiry data and the target
+`BAPI_RESERVATION_CREATE1` checks in SAP.
+
+The sales-order batch selection's `minimum_shelf_life_days` is evaluated from
+the same effective reservation date and the local batch-expiration snapshot.
+It does not replace SAP's batch checks or guarantee that the batch remains
+available through posting; validate shelf-life and expiration handling in the
+target release.
+
+Test-runner environment note: native Linux Node is available at
+`/home/lars/.nvm/versions/node/v22.22.2/bin`. Run
+`PATH=/home/lars/.nvm/versions/node/v22.22.2/bin:$PATH npm test` to execute
+abaplint, transpilation, and ABAP Unit. Invoking the Windows Node launcher from
+WSL fails before the suite starts; use the native Linux runtime instead.
+
+`ZCL_STOCK_SERVICE->ALLOCATE_BY_EXPIRY_ATP` and
+`ALLOCATE_BY_BATCH_ATP` apply local unit-aware batch allocation before checking
+ATP for positive allocated quantities. They group checks by material, plant,
+base unit, and effective date, and report cumulative confirmations through
+each date. The local tests verify this orchestration with doubles; they do not
+verify that target SAP ATP sees the same batch, stock, or checking-rule scope.
+The exact-batch path preserves the caller's selected batch, while FEFO follows
+local expiration-date order. Treat both results as comparison previews and
+validate them with representative target-system materials.
+
+`ZCL_STOCK_SERVICE->ALLOCATE_BY_LOCATION_ATP` aggregates positive unit-aware
+location allocations by material, plant, and base unit and checks them using
+the caller's date or `sy-datum`. The local allocation always uses current stock,
+even when ATP is checked for a future date. Local doubles verify grouping,
+conversion, date validation, and partial-confirmation reporting. They do not
+establish whether SAP ATP's stock and checking-rule scope matches the
+location-level estimate; the method remains a diagnostic preview, not a
+reservation.
+
+`ZCL_STOCK_SERVICE->ALLOCATE_LOCATION_DATE_UOM_ATP` adds dated ATP diagnostics
+to the local location estimate. Its checks are plant-level and do not confirm
+that a specific storage location or batch will be available. Verify the
+checking-rule scope and confirmation lines in the target SAP system.
+
+`ZCL_STOCK_SERVICE->ALLOCATE_LOCATION_BY_DATE_UOM` orders current location
+balances by required date and same-date priority. It does not project future
+receipts because the receipt readers do not assign supply to a storage
+location. The result remains a local stock snapshot; validate location-level
+availability and concurrent stock changes in the target SAP system.
+
+`ZCL_STOCK_SERVICE->ALLOCATE_LOCATION_BY_DATE` applies the same date ordering
+to base-unit demands without material UOM conversion. It uses current location
+balances and does not project receipts, since receipt sources have no assigned
+storage location; verify location availability and concurrent changes in the
+target SAP system.
+
+`ZCL_PROJECT_STOCK_SERVICE->READ_AVAILABLE_STOCK_IN_UNIT` and
+`READ_AVAILABLE_STOCK_BULK_UOM` convert the project-stock repository's base-unit
+quantities using material UOM ratios. Local tests cover conversion and early
+rejection of unknown units; validate the target `MARA`/`MARM` ratios and
+`MSPR-PRLAB` unit semantics in the target SAP release.
+
+`PREVIEW_TRANSFER_FEFO_BY_DATE` prioritizes current project WBS batches by
+required date and same-date priority, then checks expiry through each required
+date. `TRANSFER_WBS_FEFO_BY_DATE` repeats the preview and compares the complete
+batch split before posting movement 415/Q. These are local snapshots: the
+second read does not lock project stock, so stock or batch data can still
+change before SAP posts the movement. SAP remains authoritative for special
+stock transfer and batch checks; verify movement 415/Q and the WBS fields in
+the target release.
+
+`PREVIEW_TRANSFER_LOCATION_DATE` orders batchless source-WBS location balances
+by required date and same-date priority. `TRANSFER_WBS_BY_LOCATION_DATE`
+rechecks the location splits before posting movement 415/Q, but that second
+read does not lock stock and future receipts are not assigned to locations.
+Verify the destination/source WBS fields and movement behavior in the target
+SAP release.

@@ -21,9 +21,12 @@ INTERFACE zif_sales_order_api PUBLIC.
       open_confirmed_base_quantity TYPE mard-labst,
       base_unit                    TYPE mara-meins,
       requested_date               TYPE d,
+      material_availability_date   TYPE vbep-mbdat,
     END OF ty_item.
   TYPES ty_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
   TYPES ty_sales_document TYPE c LENGTH 10.
+  TYPES ty_sales_documents TYPE STANDARD TABLE OF
+    ty_sales_document WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_item_rejection,
       item_number      TYPE c LENGTH 6,
@@ -75,6 +78,12 @@ INTERFACE zif_sales_order_api PUBLIC.
       is_successful TYPE abap_bool,
     END OF ty_read_result.
   TYPES:
+    BEGIN OF ty_order_read,
+      sales_document TYPE ty_sales_document,
+      read_result    TYPE ty_read_result,
+    END OF ty_order_read.
+  TYPES ty_order_reads TYPE STANDARD TABLE OF ty_order_read WITH EMPTY KEY.
+  TYPES:
     BEGIN OF ty_write_result,
       sales_document TYPE ty_sales_document,
       messages       TYPE ty_messages,
@@ -93,6 +102,12 @@ INTERFACE zif_sales_order_api PUBLIC.
       iv_sales_document TYPE ty_sales_document
     RETURNING
       VALUE(rs_result)  TYPE ty_read_result.
+
+  METHODS read_orders
+    IMPORTING
+      it_sales_documents TYPE ty_sales_documents
+    RETURNING
+      VALUE(rt_results)  TYPE ty_order_reads.
 
   METHODS create_order
     IMPORTING

@@ -23,6 +23,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         atp_result                TYPE zif_material_availability_api=>ty_result,
         storage_allocations       TYPE zcl_stock_service=>ty_storage_allocations,
         batch_allocations         TYPE zcl_stock_service=>ty_batch_allocations,
+        fefo_as_of_date           TYPE d,
         reservation_number        TYPE bapi2093_res_key-reserv_no,
         messages                  TYPE zif_cc_reservation_api=>ty_messages,
         is_successful             TYPE abap_bool,
@@ -102,8 +103,10 @@ CLASS zcl_cc_reservation_service DEFINITION
         batch                       TYPE mchb-charg,
         storage_location            TYPE mard-lgort,
         fallback_to_other_locations TYPE abap_bool,
+        required_date               TYPE d,
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
+        minimum_shelf_life_days     TYPE i,
       END OF ty_batch_preview_demand.
     TYPES ty_batch_preview_demands TYPE STANDARD TABLE OF
       ty_batch_preview_demand WITH EMPTY KEY.
@@ -127,6 +130,8 @@ CLASS zcl_cc_reservation_service DEFINITION
         fallback_to_other_locations TYPE abap_bool,
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
+        fefo_as_of_date             TYPE d,
+        minimum_shelf_life_days     TYPE i,
       END OF ty_fefo_preview_demand.
     TYPES ty_fefo_preview_demands TYPE STANDARD TABLE OF
       ty_fefo_preview_demand WITH EMPTY KEY.
@@ -149,10 +154,12 @@ CLASS zcl_cc_reservation_service DEFINITION
         cost_center                 TYPE bapi2093_res_head-costcenter,
         batch                       TYPE mchb-charg,
         required_date               TYPE d,
+        fefo_as_of_date             TYPE d,
         storage_location            TYPE mard-lgort,
         fallback_to_other_locations TYPE abap_bool,
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
+        minimum_shelf_life_days     TYPE i,
       END OF ty_atomic_reservation_demand.
     TYPES ty_atomic_reservation_demands TYPE STANDARD TABLE OF
       ty_atomic_reservation_demand WITH EMPTY KEY.
@@ -174,6 +181,32 @@ CLASS zcl_cc_reservation_service DEFINITION
     TYPES ty_atomic_reservation_lines TYPE STANDARD TABLE OF
       ty_atomic_reservation_line WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_bulk_reservation_item,
+        request_id                TYPE c LENGTH 30,
+        allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        storage_allocations       TYPE zcl_stock_service=>ty_unit_storage_splits,
+        batch_allocations         TYPE zcl_stock_service=>ty_unit_batch_splits,
+        fefo_as_of_date           TYPE d,
+        minimum_shelf_life_days   TYPE i,
+        cumulative_base_quantity  TYPE mard-labst,
+        confirmed_base_quantity   TYPE mard-labst,
+        unconfirmed_base_quantity TYPE mard-labst,
+        atp_result                TYPE zif_material_availability_api=>ty_result,
+        reservation_result        TYPE zif_cc_reservation_api=>ty_result,
+        is_successful             TYPE abap_bool,
+        is_committed              TYPE abap_bool,
+        was_rolled_back           TYPE abap_bool,
+      END OF ty_bulk_reservation_item.
+    TYPES ty_bulk_reservation_items TYPE STANDARD TABLE OF
+      ty_bulk_reservation_item WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_reservation_result,
+        items         TYPE ty_bulk_reservation_items,
+        messages      TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful TYPE abap_bool,
+        is_test_run   TYPE abap_bool,
+      END OF ty_bulk_reservation_result.
+    TYPES:
       BEGIN OF ty_atomic_reservation_result,
         items           TYPE ty_atomic_reservation_lines,
         messages        TYPE zif_cc_reservation_api=>ty_messages,
@@ -181,6 +214,77 @@ CLASS zcl_cc_reservation_service DEFINITION
         is_test_run     TYPE abap_bool,
         was_rolled_back TYPE abap_bool,
       END OF ty_atomic_reservation_result.
+    TYPES:
+      BEGIN OF ty_delete_reservations_result,
+        reservation_numbers TYPE
+          zif_cc_reservation_api=>ty_reservation_numbers,
+        messages            TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful       TYPE abap_bool,
+        is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
+        was_rolled_back     TYPE abap_bool,
+      END OF ty_delete_reservations_result.
+    TYPES:
+      BEGIN OF ty_bulk_delete_item,
+        reservation_number TYPE
+          zif_cc_reservation_api=>ty_reservation_number,
+        messages           TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        was_rolled_back    TYPE abap_bool,
+      END OF ty_bulk_delete_item.
+    TYPES ty_bulk_delete_items TYPE STANDARD TABLE OF ty_bulk_delete_item
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_reservation_read_result,
+        cost_center   TYPE rkpf-kostl,
+        reservations  TYPE zif_cc_reservation_read_repo=>ty_reservations,
+        messages      TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful TYPE abap_bool,
+      END OF ty_reservation_read_result.
+    TYPES ty_reservation_read_results TYPE STANDARD TABLE OF
+      ty_reservation_read_result WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_reservation_read_result,
+        items         TYPE ty_reservation_read_results,
+        messages      TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful TYPE abap_bool,
+      END OF ty_bulk_reservation_read_result.
+    TYPES:
+      BEGIN OF ty_item_delete_result,
+        cost_center        TYPE rkpf-kostl,
+        reservation_number TYPE resb-rsnum,
+        item_numbers       TYPE
+          zif_cc_reservation_api=>ty_reservation_item_numbers,
+        messages           TYPE zif_cc_reservation_api=>ty_messages,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        was_rolled_back    TYPE abap_bool,
+      END OF ty_item_delete_result.
+    TYPES:
+      BEGIN OF ty_item_delete_request,
+        cost_center        TYPE rkpf-kostl,
+        reservation_number TYPE resb-rsnum,
+        item_numbers       TYPE
+          zif_cc_reservation_api=>ty_reservation_item_numbers,
+      END OF ty_item_delete_request.
+    TYPES ty_item_delete_requests TYPE STANDARD TABLE OF
+      ty_item_delete_request WITH EMPTY KEY.
+    TYPES ty_item_delete_results TYPE STANDARD TABLE OF
+      ty_item_delete_result WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_item_delete_result,
+        items         TYPE ty_item_delete_results,
+        is_successful TYPE abap_bool,
+        is_test_run   TYPE abap_bool,
+      END OF ty_bulk_item_delete_result.
+    TYPES:
+      BEGIN OF ty_bulk_delete_result,
+        items         TYPE ty_bulk_delete_items,
+        is_successful TYPE abap_bool,
+        is_test_run   TYPE abap_bool,
+      END OF ty_bulk_delete_result.
 
     METHODS constructor
       IMPORTING
@@ -188,7 +292,46 @@ CLASS zcl_cc_reservation_service DEFINITION
         io_reservation_api           TYPE REF TO zif_cc_reservation_api OPTIONAL
         io_uom_repository            TYPE REF TO zif_material_uom_repository OPTIONAL
         io_material_availability_api TYPE REF TO
-          zif_material_availability_api OPTIONAL.
+          zif_material_availability_api OPTIONAL
+        io_reservation_reader        TYPE REF TO zif_cc_reservation_read_repo
+          OPTIONAL.
+
+    METHODS read_cost_center_reservations
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+      RETURNING
+        VALUE(rs_result) TYPE ty_reservation_read_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS read_cc_reservations_bulk
+      IMPORTING
+        it_cost_centers  TYPE zif_cc_reservation_read_repo=>ty_cost_centers
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_reservation_read_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS delete_cc_reservation_items
+      IMPORTING
+        iv_cost_center        TYPE rkpf-kostl
+        iv_reservation_number TYPE resb-rsnum
+        it_item_numbers       TYPE
+          zif_cc_reservation_api=>ty_reservation_item_numbers
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE ty_item_delete_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS delete_reservation_items_bulk
+      IMPORTING
+        it_requests      TYPE ty_item_delete_requests
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_item_delete_result
+      RAISING
+        zcx_invalid_reservation.
 
     METHODS preview_cost_center_demands
       IMPORTING
@@ -283,6 +426,47 @@ CLASS zcl_cc_reservation_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS reserve_cost_centers_bulk
+      IMPORTING
+        it_demands                   TYPE ty_atomic_reservation_demands
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
+        iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
+        iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_check_atp                 TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule            TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
+        iv_require_atp_confirmation  TYPE abap_bool DEFAULT abap_false
+        it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_bulk_reservation_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS delete_reservations
+      IMPORTING
+        it_reservation_numbers TYPE
+          zif_cc_reservation_api=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_delete_reservations_result
+      RAISING
+        zcx_invalid_reservation.
+
+    METHODS delete_reservations_bulk
+      IMPORTING
+        it_reservation_numbers TYPE
+          zif_cc_reservation_api=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_bulk_delete_result
+      RAISING
+        zcx_invalid_reservation.
+
     METHODS reserve_for_cost_center
       IMPORTING
         iv_material                  TYPE mard-matnr
@@ -297,6 +481,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_batch_min_days            TYPE i DEFAULT 0
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
         iv_require_atp_confirmation  TYPE abap_bool DEFAULT abap_false
@@ -328,6 +513,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_batch_min_days            TYPE i DEFAULT 0
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
         iv_check_atp                 TYPE abap_bool DEFAULT abap_false
@@ -350,10 +536,18 @@ CLASS zcl_cc_reservation_service DEFINITION
         request TYPE zif_cc_reservation_api=>ty_request,
       END OF ty_prepared_reservation.
 
+    METHODS validate_reservation_read
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        it_reservations  TYPE zif_cc_reservation_read_repo=>ty_reservations
+      RETURNING
+        VALUE(rs_result) TYPE ty_reservation_read_result.
+
     DATA mo_stock_service TYPE REF TO zcl_stock_service.
     DATA mo_reservation_api TYPE REF TO zif_cc_reservation_api.
     DATA mo_uom_repository TYPE REF TO zif_material_uom_repository.
     DATA mo_uom_converter TYPE REF TO zif_material_uom_converter.
+    DATA mo_reservation_reader TYPE REF TO zif_cc_reservation_read_repo.
 
     METHODS prepare_reservation
       IMPORTING
@@ -371,6 +565,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool
         iv_fefo_as_of_date           TYPE d
         iv_fefo_min_days             TYPE i
+        iv_batch_min_days            TYPE i
         iv_require_full_alloc        TYPE abap_bool
         iv_protect_safety_stock      TYPE abap_bool
         it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
@@ -386,6 +581,12 @@ ENDCLASS.
 CLASS zcl_cc_reservation_service IMPLEMENTATION.
 
   METHOD constructor.
+    IF io_reservation_reader IS BOUND.
+      mo_reservation_reader = io_reservation_reader.
+    ELSE.
+      mo_reservation_reader = NEW zcl_cc_reservation_read_repo( ).
+    ENDIF.
+
     IF io_reservation_api IS BOUND.
       mo_reservation_api = io_reservation_api.
     ELSE.
@@ -405,6 +606,267 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       io_stock_repository          = io_stock_repository
       io_uom_converter             = mo_uom_converter
       io_material_availability_api = io_material_availability_api ).
+  ENDMETHOD.
+
+  METHOD read_cost_center_reservations.
+    IF iv_cost_center IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    rs_result = validate_reservation_read(
+      iv_cost_center  = iv_cost_center
+      it_reservations = mo_reservation_reader->get_open_reservations(
+        iv_cost_center = iv_cost_center ) ).
+  ENDMETHOD.
+
+  METHOD read_cc_reservations_bulk.
+    TYPES ty_seen_cost_center TYPE rkpf-kostl.
+    DATA lt_seen_cost_centers TYPE HASHED TABLE OF ty_seen_cost_center
+      WITH UNIQUE KEY table_line.
+    DATA lt_requested_cost_centers TYPE HASHED TABLE OF
+      ty_seen_cost_center WITH UNIQUE KEY table_line.
+    DATA lt_reservations TYPE zif_cc_reservation_read_repo=>ty_reservations.
+    DATA lt_center_reservations TYPE
+      zif_cc_reservation_read_repo=>ty_reservations.
+
+    rs_result-is_successful = abap_true.
+    IF it_cost_centers IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_cost_centers INTO DATA(lv_cost_center).
+      INSERT lv_cost_center INTO TABLE lt_seen_cost_centers.
+      IF lv_cost_center IS INITIAL OR sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      INSERT lv_cost_center INTO TABLE lt_requested_cost_centers.
+    ENDLOOP.
+
+    lt_reservations = mo_reservation_reader->get_open_reservations_bulk(
+      it_cost_centers = it_cost_centers ).
+
+    LOOP AT lt_reservations INTO DATA(ls_returned_reservation).
+      READ TABLE lt_requested_cost_centers TRANSPORTING NO FIELDS
+        WITH TABLE KEY table_line = ls_returned_reservation-cost_center.
+      IF sy-subrc <> 0.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Cost-center reservation reader returned an unrequested cost center' )
+          TO rs_result-messages.
+        rs_result-is_successful = abap_false.
+        CLEAR rs_result-items.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_cost_centers INTO lv_cost_center.
+      CLEAR lt_center_reservations.
+      LOOP AT lt_reservations INTO DATA(ls_center_reservation)
+          WHERE cost_center = lv_cost_center.
+        APPEND ls_center_reservation TO lt_center_reservations.
+      ENDLOOP.
+
+      DATA(ls_center_result) = validate_reservation_read(
+        iv_cost_center  = lv_cost_center
+        it_reservations = lt_center_reservations ).
+      APPEND ls_center_result TO rs_result-items.
+      IF ls_center_result-is_successful <> abap_true.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_reservation_read.
+    DATA lt_seen_items TYPE HASHED TABLE OF
+      zif_cc_reservation_read_repo=>ty_reservation
+      WITH UNIQUE KEY reservation_number reservation_item.
+
+    rs_result-cost_center = iv_cost_center.
+    rs_result-reservations = it_reservations.
+    rs_result-is_successful = abap_true.
+
+    LOOP AT rs_result-reservations INTO DATA(ls_reservation).
+      IF ls_reservation-cost_center <> iv_cost_center
+          OR ls_reservation-reservation_number IS INITIAL
+          OR ls_reservation-reservation_item IS INITIAL
+          OR ls_reservation-material IS INITIAL
+          OR ls_reservation-plant IS INITIAL
+          OR ls_reservation-unit IS INITIAL
+          OR ls_reservation-required_quantity <= 0
+          OR ls_reservation-withdrawn_quantity < 0
+          OR ls_reservation-open_quantity <= 0
+          OR ls_reservation-open_quantity +
+            ls_reservation-withdrawn_quantity <>
+              ls_reservation-required_quantity.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Cost-center reservation reader returned invalid item data' )
+          TO rs_result-messages.
+        CLEAR rs_result-reservations.
+        rs_result-is_successful = abap_false.
+        RETURN.
+      ENDIF.
+
+      INSERT ls_reservation INTO TABLE lt_seen_items.
+      IF sy-subrc <> 0.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Cost-center reservation reader returned duplicate items' )
+          TO rs_result-messages.
+        CLEAR rs_result-reservations.
+        rs_result-is_successful = abap_false.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD delete_cc_reservation_items.
+    TYPES ty_seen_item TYPE resb-rspos.
+    DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
+      WITH UNIQUE KEY table_line.
+    DATA ls_read_result TYPE ty_reservation_read_result.
+
+    IF iv_cost_center IS INITIAL
+        OR iv_reservation_number IS INITIAL
+        OR it_item_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    rs_result-cost_center = iv_cost_center.
+    rs_result-reservation_number = iv_reservation_number.
+    rs_result-item_numbers = it_item_numbers.
+    rs_result-is_test_run = iv_test_run.
+
+    LOOP AT it_item_numbers INTO DATA(lv_item_number).
+      INSERT lv_item_number INTO TABLE lt_seen_items.
+      IF lv_item_number IS INITIAL OR sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
+    ls_read_result = read_cost_center_reservations(
+      iv_cost_center = iv_cost_center ).
+    IF ls_read_result-is_successful <> abap_true.
+      rs_result-messages = ls_read_result-messages.
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_item_numbers INTO lv_item_number.
+      READ TABLE ls_read_result-reservations TRANSPORTING NO FIELDS
+        WITH KEY reservation_number = iv_reservation_number
+                 reservation_item   = lv_item_number.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result-is_successful = abap_true.
+    IF iv_test_run = abap_true.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_api_result) = mo_reservation_api->delete_reservation_items(
+      iv_reservation_number = iv_reservation_number
+      it_item_numbers       = it_item_numbers ).
+    rs_result-messages = ls_api_result-messages.
+    rs_result-is_successful = ls_api_result-is_successful.
+
+    LOOP AT rs_result-messages INTO DATA(ls_message).
+      IF ls_message-type = 'A'
+          OR ls_message-type = 'E'
+          OR ls_message-type = 'X'.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+
+    IF rs_result-is_successful <> abap_true.
+      mo_reservation_api->rollback( ).
+      rs_result-was_rolled_back = abap_true.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_commit_result) = mo_reservation_api->commit( ).
+    IF ls_commit_result-is_successful <> abap_true
+        OR ls_commit_result-message-type = 'A'
+        OR ls_commit_result-message-type = 'E'
+        OR ls_commit_result-message-type = 'X'.
+      mo_reservation_api->rollback( ).
+      rs_result-is_successful = abap_false.
+      rs_result-was_rolled_back = abap_true.
+      IF ls_commit_result-message-message IS NOT INITIAL.
+        APPEND ls_commit_result-message TO rs_result-messages.
+      ELSE.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Selected reservation item deletion commit failed' )
+          TO rs_result-messages.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_committed = abap_true.
+  ENDMETHOD.
+
+  METHOD delete_reservation_items_bulk.
+    TYPES ty_seen_reservation TYPE resb-rsnum.
+    TYPES ty_seen_item TYPE resb-rspos.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF ty_seen_reservation
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
+      WITH UNIQUE KEY table_line.
+    FIELD-SYMBOLS <ls_result> TYPE ty_item_delete_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-cost_center IS INITIAL
+          OR ls_request-reservation_number IS INITIAL
+          OR ls_request-item_numbers IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+
+      INSERT ls_request-reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+
+      CLEAR lt_seen_items.
+      LOOP AT ls_request-item_numbers INTO DATA(lv_item_number).
+        INSERT lv_item_number INTO TABLE lt_seen_items.
+        IF lv_item_number IS INITIAL OR sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_reservation.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      TRY.
+          <ls_result> = delete_cc_reservation_items(
+            iv_cost_center        = ls_request-cost_center
+            iv_reservation_number = ls_request-reservation_number
+            it_item_numbers       = ls_request-item_numbers
+            iv_test_run           = iv_test_run ).
+        CATCH zcx_invalid_reservation.
+          <ls_result>-cost_center = ls_request-cost_center.
+          <ls_result>-reservation_number = ls_request-reservation_number.
+          <ls_result>-item_numbers = ls_request-item_numbers.
+          <ls_result>-is_test_run = iv_test_run.
+          <ls_result>-messages = VALUE #(
+            ( type    = 'E'
+              message = 'Reservation items are not open under this cost center and reservation' ) ).
+      ENDTRY.
+
+      IF <ls_result>-is_successful <> abap_true.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD preview_cost_center_demands.
@@ -699,7 +1161,13 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-batch IS INITIAL
+          OR ( ls_demand-required_date IS NOT INITIAL
+            AND zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_demand-required_date ) <> abap_true )
           OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_shelf_life_days < 0
+          OR ( ls_demand-minimum_shelf_life_days > 0
+            AND ls_demand-required_date IS INITIAL )
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false ).
@@ -718,7 +1186,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
-        requested_unit              = ls_demand-unit )
+        requested_unit              = ls_demand-unit
+        as_of_date                  = ls_demand-required_date
+        minimum_shelf_life_days     =
+          ls_demand-minimum_shelf_life_days )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -766,6 +1237,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           AND iv_protect_safety_stock <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    IF zcl_date_validation=>is_valid_gregorian_date(
+        iv_date = iv_as_of_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
     IF it_demands IS INITIAL.
       RETURN.
     ENDIF.
@@ -776,9 +1251,15 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_shelf_life_days < 0
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_demand-fefo_as_of_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-fefo_as_of_date ) <> abap_true.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       INSERT ls_demand INTO TABLE lt_unique_demands.
@@ -793,7 +1274,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
-        requested_unit              = ls_demand-unit )
+        requested_unit              = ls_demand-unit
+        fefo_as_of_date             = ls_demand-fefo_as_of_date
+        minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -821,7 +1304,15 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       <ls_preview>-request_id = ls_demand-request_id.
       <ls_preview>-cost_center = ls_demand-cost_center.
       <ls_preview>-as_of_date = iv_as_of_date.
+      IF ls_demand-fefo_as_of_date > <ls_preview>-as_of_date.
+        <ls_preview>-as_of_date = ls_demand-fefo_as_of_date.
+      ENDIF.
       <ls_preview>-minimum_shelf_life_days = iv_min_days.
+      IF ls_demand-minimum_shelf_life_days >
+          <ls_preview>-minimum_shelf_life_days.
+        <ls_preview>-minimum_shelf_life_days =
+          ls_demand-minimum_shelf_life_days.
+      ENDIF.
       <ls_preview>-allocation = ls_allocation.
       LOOP AT ls_fefo_result-batch_allocations
         INTO DATA(ls_batch_allocation).
@@ -878,6 +1369,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     DATA lv_previous_plant TYPE mard-werks.
     DATA lv_previous_unit TYPE mara-meins.
     DATA lv_atp_failure TYPE abap_bool.
+    DATA lv_demand_fefo_as_of_date TYPE d.
     FIELD-SYMBOLS:
       <ls_atp_day>        TYPE ty_atomic_atp_day,
       <ls_atp_line>       TYPE ty_atomic_reservation_line,
@@ -915,6 +1407,11 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR iv_atp_check_rule IS INITIAL ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    IF iv_use_fefo_batches = abap_true
+        AND zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_fefo_as_of_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       IF ls_demand-request_id IS INITIAL
@@ -922,7 +1419,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-required_date ) <> abap_true
+          OR ( ls_demand-fefo_as_of_date IS NOT INITIAL
+            AND ( iv_use_fefo_batches <> abap_true
+              OR zcl_date_validation=>is_valid_gregorian_date(
+                iv_date = ls_demand-fefo_as_of_date ) <> abap_true ) )
           OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_shelf_life_days < 0
+          OR ( ls_demand-minimum_shelf_life_days > 0
+            AND iv_use_fefo_batches <> abap_true
+            AND ls_demand-batch IS INITIAL )
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
@@ -938,6 +1445,12 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         lv_unbatched_mode = abap_true.
       ELSE.
         lv_batch_mode = abap_true.
+      ENDIF.
+      CLEAR lv_demand_fefo_as_of_date.
+      IF ls_demand-fefo_as_of_date > ls_demand-required_date.
+        lv_demand_fefo_as_of_date = ls_demand-fefo_as_of_date.
+      ELSE.
+        lv_demand_fefo_as_of_date = ls_demand-required_date.
       ENDIF.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
@@ -960,7 +1473,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
-        unit                        = ls_demand-unit )
+        unit                        = ls_demand-unit
+        required_date               = ls_demand-required_date
+        minimum_shelf_life_days     =
+          ls_demand-minimum_shelf_life_days )
         TO lt_batch_demands.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
@@ -971,7 +1487,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
-        unit                        = ls_demand-unit )
+        unit                        = ls_demand-unit
+        fefo_as_of_date             = lv_demand_fefo_as_of_date
+        minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
         TO lt_fefo_demands.
     ENDLOOP.
 
@@ -1032,8 +1550,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         <ls_new_line>-allocation = ls_fefo_preview-allocation.
         <ls_new_line>-batch_allocations =
           ls_fefo_preview-batch_allocations.
-        <ls_new_line>-fefo_as_of_date = iv_fefo_as_of_date.
-        <ls_new_line>-minimum_shelf_life_days = iv_fefo_min_days.
+        <ls_new_line>-fefo_as_of_date = ls_fefo_preview-as_of_date.
+        <ls_new_line>-minimum_shelf_life_days =
+          ls_fefo_preview-minimum_shelf_life_days.
       ELSEIF lv_batch_mode = abap_true.
         READ TABLE lt_batch_previews INTO DATA(ls_batch_preview)
           INDEX lv_request_index.
@@ -1046,6 +1565,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         <ls_new_line>-allocation = ls_batch_preview-allocation.
         <ls_new_line>-batch_allocations =
           ls_batch_preview-batch_allocations.
+        <ls_new_line>-minimum_shelf_life_days =
+          ls_demand-minimum_shelf_life_days.
       ELSE.
         READ TABLE lt_location_previews INTO DATA(ls_location_preview)
           INDEX lv_request_index.
@@ -1375,6 +1896,289 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     rs_result-is_successful = abap_true.
   ENDMETHOD.
 
+  METHOD reserve_cost_centers_bulk.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    DATA lt_seen_requests TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_locations TYPE HASHED TABLE OF mard-lgort
+      WITH UNIQUE KEY table_line.
+    FIELD-SYMBOLS <ls_item> TYPE ty_bulk_reservation_item.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_use_fefo_batches <> abap_true
+          AND iv_use_fefo_batches <> abap_false )
+        OR ( iv_check_atp <> abap_true
+          AND iv_check_atp <> abap_false )
+        OR ( iv_require_atp_confirmation <> abap_true
+          AND iv_require_atp_confirmation <> abap_false )
+        OR iv_fefo_min_days < 0
+        OR ( iv_fefo_min_days > 0
+          AND iv_use_fefo_batches <> abap_true )
+        OR ( iv_use_fefo_batches = abap_true
+          AND iv_fefo_as_of_date IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_check_atp = abap_true
+        AND ( iv_atp_check_rule IS NOT SUPPLIED
+          OR iv_atp_check_rule IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_use_fefo_batches = abap_true
+        AND zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_fefo_as_of_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_location_priority INTO DATA(lv_priority_location).
+      IF lv_priority_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT lv_priority_location INTO TABLE lt_seen_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+    CLEAR lt_seen_locations.
+    LOOP AT it_allowed_storage_locations INTO DATA(lv_allowed_location).
+      IF lv_allowed_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT lv_allowed_location INTO TABLE lt_seen_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL
+          OR ls_demand-material IS INITIAL
+          OR ls_demand-plant IS INITIAL
+          OR ls_demand-cost_center IS INITIAL
+          OR ls_demand-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-required_date ) <> abap_true
+          OR ( ls_demand-fefo_as_of_date IS NOT INITIAL
+            AND ( iv_use_fefo_batches <> abap_true
+              OR zcl_date_validation=>is_valid_gregorian_date(
+                iv_date = ls_demand-fefo_as_of_date ) <> abap_true ) )
+          OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_shelf_life_days < 0
+          OR ( ls_demand-minimum_shelf_life_days > 0
+            AND iv_use_fefo_batches <> abap_true
+            AND ls_demand-batch IS INITIAL )
+          OR ls_demand-unit IS INITIAL
+          OR ( ls_demand-fallback_to_other_locations <> abap_true
+            AND ls_demand-fallback_to_other_locations <> abap_false )
+          OR ( ls_demand-fallback_to_other_locations = abap_true
+            AND ls_demand-storage_location IS INITIAL )
+          OR ( ls_demand-storage_location IS NOT INITIAL
+            AND it_allowed_storage_locations IS NOT INITIAL
+            AND NOT line_exists( lt_seen_locations[
+              table_line = ls_demand-storage_location ] ) )
+          OR ( iv_use_fefo_batches = abap_true
+            AND ls_demand-batch IS NOT INITIAL ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_demand-request_id INTO TABLE lt_seen_requests.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT it_demands INTO ls_demand.
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_item>.
+      <ls_item>-request_id = ls_demand-request_id.
+      TRY.
+          DATA(ls_single_result) = reserve_cost_centers_atomic(
+            it_demands                   = VALUE #( ( ls_demand ) )
+            iv_test_run                  = iv_test_run
+            iv_protect_safety_stock      = iv_protect_safety_stock
+            iv_use_fefo_batches          = iv_use_fefo_batches
+            iv_fefo_as_of_date           = iv_fefo_as_of_date
+            iv_fefo_min_days             = iv_fefo_min_days
+            iv_check_atp                 = iv_check_atp
+            iv_atp_check_rule            = iv_atp_check_rule
+            iv_require_atp_confirmation  = iv_require_atp_confirmation
+            it_location_priority         = it_location_priority
+            it_allowed_storage_locations = it_allowed_storage_locations ).
+          IF lines( ls_single_result-items ) <> 1
+              OR ls_single_result-items[ 1 ]-request_id
+                <> ls_demand-request_id.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          MOVE-CORRESPONDING ls_single_result-items[ 1 ] TO <ls_item>.
+          <ls_item>-is_successful = ls_single_result-is_successful.
+          <ls_item>-was_rolled_back =
+            ls_single_result-was_rolled_back.
+          APPEND LINES OF ls_single_result-messages
+            TO rs_result-messages.
+          IF <ls_item>-is_successful <> abap_true.
+            IF <ls_item>-reservation_result-messages IS INITIAL.
+              APPEND LINES OF ls_single_result-messages
+                TO <ls_item>-reservation_result-messages.
+            ENDIF.
+            rs_result-is_successful = abap_false.
+          ENDIF.
+        CATCH zcx_invalid_stock_request.
+          <ls_item>-is_successful = abap_false.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Reservation demand could not be processed' )
+            TO <ls_item>-reservation_result-messages.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Reservation demand could not be processed' )
+            TO rs_result-messages.
+          rs_result-is_successful = abap_false.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD delete_reservations.
+    TYPES ty_seen_reservation TYPE
+      zif_cc_reservation_api=>ty_reservation_number.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF ty_seen_reservation
+      WITH UNIQUE KEY table_line.
+
+    IF it_reservation_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      INSERT lv_reservation_number INTO TABLE lt_seen_reservations.
+      IF lv_reservation_number IS INITIAL OR sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result-reservation_numbers = it_reservation_numbers.
+    rs_result-is_test_run = iv_test_run.
+
+    DATA(ls_api_result) = mo_reservation_api->delete_reservations(
+      it_reservation_numbers = it_reservation_numbers
+      iv_test_run            = iv_test_run ).
+    rs_result-messages = ls_api_result-messages.
+    rs_result-is_successful = ls_api_result-is_successful.
+
+    LOOP AT rs_result-messages INTO DATA(ls_message).
+      IF ls_message-type = 'A'
+          OR ls_message-type = 'E'
+          OR ls_message-type = 'X'.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+
+    IF rs_result-is_successful <> abap_true.
+      mo_reservation_api->rollback( ).
+      rs_result-was_rolled_back = abap_true.
+      RETURN.
+    ENDIF.
+
+    IF iv_test_run = abap_true.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_commit_result) = mo_reservation_api->commit( ).
+    IF ls_commit_result-is_successful <> abap_true
+        OR ls_commit_result-message-type = 'A'
+        OR ls_commit_result-message-type = 'E'
+        OR ls_commit_result-message-type = 'X'.
+      mo_reservation_api->rollback( ).
+      rs_result-is_successful = abap_false.
+      rs_result-was_rolled_back = abap_true.
+      IF ls_commit_result-message-message IS NOT INITIAL.
+        APPEND ls_commit_result-message TO rs_result-messages.
+      ELSE.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Reservation deletion commit failed; deletions were rolled back' )
+          TO rs_result-messages.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_committed = abap_true.
+  ENDMETHOD.
+
+  METHOD delete_reservations_bulk.
+    TYPES ty_seen_reservation TYPE
+      zif_cc_reservation_api=>ty_reservation_number.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF ty_seen_reservation
+      WITH UNIQUE KEY table_line.
+    FIELD-SYMBOLS <ls_item> TYPE ty_bulk_delete_item.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      INSERT lv_reservation_number INTO TABLE lt_seen_reservations.
+      IF lv_reservation_number IS INITIAL OR sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_reservation_numbers INTO lv_reservation_number.
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_item>.
+      <ls_item>-reservation_number = lv_reservation_number.
+
+      DATA(ls_api_result) = mo_reservation_api->delete_reservations(
+        it_reservation_numbers = VALUE #( ( lv_reservation_number ) )
+        iv_test_run            = iv_test_run ).
+      <ls_item>-messages = ls_api_result-messages.
+      <ls_item>-is_successful = ls_api_result-is_successful.
+      LOOP AT <ls_item>-messages INTO DATA(ls_message).
+        IF ls_message-type = 'A'
+            OR ls_message-type = 'E'
+            OR ls_message-type = 'X'.
+          <ls_item>-is_successful = abap_false.
+        ENDIF.
+      ENDLOOP.
+
+      IF <ls_item>-is_successful <> abap_true.
+        mo_reservation_api->rollback( ).
+        <ls_item>-was_rolled_back = abap_true.
+        rs_result-is_successful = abap_false.
+        CONTINUE.
+      ENDIF.
+
+      IF iv_test_run = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      DATA(ls_commit_result) = mo_reservation_api->commit( ).
+      IF ls_commit_result-is_successful <> abap_true
+          OR ls_commit_result-message-type = 'A'
+          OR ls_commit_result-message-type = 'E'
+          OR ls_commit_result-message-type = 'X'.
+        mo_reservation_api->rollback( ).
+        <ls_item>-is_successful = abap_false.
+        <ls_item>-was_rolled_back = abap_true.
+        rs_result-is_successful = abap_false.
+        IF ls_commit_result-message-message IS NOT INITIAL.
+          APPEND ls_commit_result-message TO <ls_item>-messages.
+        ELSE.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Reservation deletion commit failed; this deletion was rolled back' )
+            TO <ls_item>-messages.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
+      <ls_item>-is_committed = abap_true.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD reserve_for_cost_center.
     IF iv_require_atp_confirmation <> abap_true
         AND iv_require_atp_confirmation <> abap_false.
@@ -1410,6 +2214,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_use_fefo_batches          = iv_use_fefo_batches
       iv_fefo_as_of_date           = iv_fefo_as_of_date
       iv_fefo_min_days             = iv_fefo_min_days
+      iv_batch_min_days            = iv_batch_min_days
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
       it_location_priority         = it_location_priority
@@ -1530,6 +2335,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_use_fefo_batches          = iv_use_fefo_batches
       iv_fefo_as_of_date           = iv_fefo_as_of_date
       iv_fefo_min_days             = iv_fefo_min_days
+      iv_batch_min_days            = iv_batch_min_days
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
       it_location_priority         = it_location_priority
@@ -1562,6 +2368,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   METHOD prepare_reservation.
     DATA lt_allowed_locations TYPE HASHED TABLE OF mard-lgort
       WITH UNIQUE KEY table_line.
+    DATA lv_effective_fefo_as_of_date TYPE d.
 
     LOOP AT it_allowed_storage_locations INTO DATA(lv_allowed_location).
       IF lv_allowed_location IS INITIAL.
@@ -1590,6 +2397,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         OR iv_requested_quantity <= 0
         OR iv_unit IS INITIAL
         OR iv_required_date IS INITIAL
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_required_date ) <> abap_true
         OR ( iv_batch_supplied = abap_true AND iv_batch IS INITIAL ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
@@ -1602,9 +2411,23 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     IF iv_fefo_min_days < 0
         OR ( iv_fefo_min_days > 0
           AND iv_use_fefo_batches <> abap_true )
+        OR iv_batch_min_days < 0
+        OR ( iv_batch_min_days > 0
+          AND ( iv_batch_supplied <> abap_true
+            OR iv_use_fefo_batches = abap_true ) )
         OR ( iv_use_fefo_batches = abap_true
           AND iv_fefo_as_of_date IS INITIAL ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF iv_use_fefo_batches = abap_true.
+      IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_fefo_as_of_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      lv_effective_fefo_as_of_date = iv_fefo_as_of_date.
+      IF iv_required_date > lv_effective_fefo_as_of_date.
+        lv_effective_fefo_as_of_date = iv_required_date.
+      ENDIF.
     ENDIF.
 
     DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
@@ -1622,6 +2445,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     rs_prepared-result-storage_location = iv_storage_location.
     rs_prepared-result-batch = iv_batch.
     rs_prepared-result-cost_center = iv_cost_center.
+    rs_prepared-result-fefo_as_of_date =
+      lv_effective_fefo_as_of_date.
     rs_prepared-result-requested_quantity = iv_requested_quantity.
     rs_prepared-result-source_unit = iv_unit.
     rs_prepared-result-base_requested_quantity =
@@ -1640,7 +2465,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             plant                       = iv_plant
             storage_location            = iv_storage_location
             fallback_to_other_locations = iv_allow_fallback
-            requested_quantity          = ls_conversion-base_quantity ) )
+            requested_quantity          = ls_conversion-base_quantity
+            fefo_as_of_date             =
+              lv_effective_fefo_as_of_date ) )
         iv_as_of_date                = iv_fefo_as_of_date
         iv_min_days                  = iv_fefo_min_days
         it_storage_location_priority = it_location_priority
@@ -1655,7 +2482,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             storage_location            = iv_storage_location
             fallback_to_other_locations = iv_allow_fallback
             batch                       = iv_batch
-            requested_quantity          = ls_conversion-base_quantity ) )
+            requested_quantity          = ls_conversion-base_quantity
+            as_of_date                  = iv_required_date
+            minimum_shelf_life_days     =
+              iv_batch_min_days ) )
         it_storage_location_priority = it_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
         iv_protect_safety_stock      = iv_protect_safety_stock ).

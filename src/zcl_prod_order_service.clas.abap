@@ -126,6 +126,15 @@ CLASS zcl_prod_order_service DEFINITION
     TYPES ty_confirmation_create_items TYPE STANDARD TABLE OF
       ty_confirmation_create_item WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_confirmation_create_atomic_result,
+        confirmations  TYPE ty_confirmation_create_items,
+        commit_result  TYPE zif_prod_order_api=>ty_commit_result,
+        is_successful  TYPE abap_bool,
+        is_committed   TYPE abap_bool,
+        is_rolled_back TYPE abap_bool,
+        is_test_run    TYPE abap_bool,
+      END OF ty_confirmation_create_atomic_result.
+    TYPES:
       BEGIN OF ty_bulk_confirmation_create_result,
         confirmations    TYPE ty_confirmation_create_items,
         successful_count TYPE i,
@@ -391,6 +400,16 @@ CLASS zcl_prod_order_service DEFINITION
           zif_prod_order_api=>ty_confirmation_create_requests
       RETURNING
         VALUE(rs_result) TYPE ty_bulk_confirmation_create_result
+      RAISING
+        zcx_invalid_production_order.
+
+    METHODS create_confirmations_atomic
+      IMPORTING
+        it_requests      TYPE
+          zif_prod_order_api=>ty_confirmation_create_requests
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_confirmation_create_atomic_result
       RAISING
         zcx_invalid_production_order.
 
@@ -1419,6 +1438,99 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
 
       <ls_bulk_cancel_item>-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD create_confirmations_atomic.
+    validate_confirmation_creates( it_requests = it_requests ).
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-confirmations.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      DATA(lv_request_index) = sy-tabix.
+      ASSIGN rs_result-confirmations[ lv_request_index ]
+        TO FIELD-SYMBOL(<ls_create_item>).
+      <ls_create_item>-is_attempted = abap_true.
+      <ls_create_item>-create_result = mo_api->create_confirmation(
+        is_request = ls_request
+        iv_commit  = abap_false ).
+
+      IF <ls_create_item>-create_result-production_order <>
+            ls_request-production_order
+          OR <ls_create_item>-create_result-operation_number <>
+            ls_request-operation_number
+          OR <ls_create_item>-create_result-operation_sequence <>
+            ls_request-operation_sequence.
+        <ls_create_item>-create_result-production_order =
+          ls_request-production_order.
+        <ls_create_item>-create_result-operation_number =
+          ls_request-operation_number.
+        <ls_create_item>-create_result-operation_sequence =
+          ls_request-operation_sequence.
+        <ls_create_item>-create_result-is_successful = abap_false.
+        <ls_create_item>-create_result-message-type = 'E'.
+        <ls_create_item>-create_result-message-message =
+          'Confirmation result did not match the request'.
+      ENDIF.
+
+      IF <ls_create_item>-create_result-is_successful <> abap_true.
+        rs_result-is_successful = abap_false.
+        mo_api->rollback( ).
+        rs_result-is_rolled_back = abap_true.
+        LOOP AT rs_result-confirmations
+            ASSIGNING FIELD-SYMBOL(<ls_rolled_back_item>).
+          <ls_rolled_back_item>-is_committed = abap_false.
+          <ls_rolled_back_item>-create_result-is_successful = abap_false.
+          IF <ls_rolled_back_item>-create_result-message-type IS INITIAL.
+            <ls_rolled_back_item>-create_result-message-type = 'E'.
+            <ls_rolled_back_item>-create_result-message-message =
+              'Confirmation group rolled back after a failed request'.
+          ENDIF.
+        ENDLOOP.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    IF iv_test_run = abap_true.
+      mo_api->rollback( ).
+      rs_result-is_rolled_back = abap_true.
+      RETURN.
+    ENDIF.
+
+    rs_result-commit_result = mo_api->commit( ).
+    IF rs_result-commit_result-message-type = 'A'
+        OR rs_result-commit_result-message-type = 'E'
+        OR rs_result-commit_result-message-type = 'X'.
+      rs_result-commit_result-is_successful = abap_false.
+    ENDIF.
+    IF rs_result-commit_result-is_successful = abap_false.
+      mo_api->rollback( ).
+      rs_result-is_successful = abap_false.
+      rs_result-is_rolled_back = abap_true.
+      LOOP AT rs_result-confirmations
+          ASSIGNING FIELD-SYMBOL(<ls_commit_failed_item>).
+        <ls_commit_failed_item>-create_result-is_successful = abap_false.
+        <ls_commit_failed_item>-commit_result = rs_result-commit_result.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_committed = abap_true.
+    LOOP AT rs_result-confirmations
+        ASSIGNING FIELD-SYMBOL(<ls_committed_item>).
+      <ls_committed_item>-commit_result = rs_result-commit_result.
+      <ls_committed_item>-create_result-commit_result =
+        rs_result-commit_result.
+      <ls_committed_item>-is_committed = abap_true.
     ENDLOOP.
   ENDMETHOD.
 

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+    <asx:values>
+      <DD02V>
+        <TABNAME>PRPS</TABNAME>
+        <DDLANGUAGE>E</DDLANGUAGE>
+        <TABCLASS>TRANSP</TABCLASS>
+        <DDTEXT>WBS Element Master Data</DDTEXT>
+      </DD02V>
+      <DD03P_TABLE>
+        <DD03P>
+          <FIELDNAME>MANDT</FIELDNAME>
+          <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>PSPNR</FIELDNAME>
+          <POSITION>0002</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>POSID</FIELDNAME>
+          <POSITION>0003</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000024</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000048</INTLEN>
+        </DD03P>
+      </DD03P_TABLE>
+    </asx:values>
+  </asx:abap>
+</abapGit>

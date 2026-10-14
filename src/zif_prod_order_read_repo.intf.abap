@@ -46,6 +46,10 @@ INTERFACE zif_prod_order_read_repo PUBLIC.
       confirmation         TYPE afru-rueck,
       confirmation_counter TYPE afru-rmzhl,
       posting_date         TYPE afru-budat,
+      yield_quantity       TYPE afru-lmnga,
+      rework_quantity      TYPE afru-rmnga,
+      scrap_quantity       TYPE afru-xmnga,
+      quantity_unit        TYPE afru-meinh,
       is_final             TYPE afru-aueru,
       is_reversed          TYPE afru-stokz,
     END OF ty_order_confirmation.

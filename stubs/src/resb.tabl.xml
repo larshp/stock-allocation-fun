@@ -174,6 +174,22 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000006</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>PSPEL</FIELDNAME>
+          <POSITION>0020</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>ERFME</FIELDNAME>
+          <POSITION>0021</POSITION>
+          <DATATYPE>UNIT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

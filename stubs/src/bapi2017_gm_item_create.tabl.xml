@@ -178,6 +178,46 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>WBS_ELEMENT</FIELDNAME>
+          <POSITION>0022</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000024</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000048</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>SPEC_STOCK</FIELDNAME>
+          <POSITION>0023</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>VAL_WBS_ELEM</FIELDNAME>
+          <POSITION>0024</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000024</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000048</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MOVE_MAT</FIELDNAME>
+          <POSITION>0025</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000040</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000080</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MOVE_BATCH</FIELDNAME>
+          <POSITION>0026</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

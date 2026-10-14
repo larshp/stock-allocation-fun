@@ -950,6 +950,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
           OR ls_suggestion-plant IS INITIAL
           OR ls_suggestion-base_unit IS INITIAL
           OR ls_suggestion-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_suggestion-required_date ) <> abap_true
           OR ls_suggestion-suggested_base_quantity < 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1036,6 +1038,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         OR is_header-purchasing_group IS INITIAL
         OR is_header-vendor IS INITIAL
         OR is_header-document_date IS INITIAL
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_header-document_date ) <> abap_true
         OR is_header-items IS NOT INITIAL
         OR it_suggestions IS INITIAL
         OR lines( it_suggestions ) <> lines( it_suggestion_indexes )
@@ -1093,6 +1097,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
           OR ls_suggestion-plant IS INITIAL
           OR ls_suggestion-base_unit IS INITIAL
           OR ls_suggestion-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_suggestion-required_date ) <> abap_true
           OR ls_suggestion-suggested_base_quantity < 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -2052,6 +2058,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         OR is_request-purchasing_group IS INITIAL
         OR is_request-vendor IS INITIAL
         OR is_request-document_date IS INITIAL
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_request-document_date ) <> abap_true
         OR is_request-items IS INITIAL
         OR ( is_request-is_test_run <> abap_true
           AND is_request-is_test_run <> abap_false ).
@@ -2066,7 +2074,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
           OR ls_item-plant IS INITIAL
           OR ls_item-quantity <= 0
           OR ls_item-unit IS INITIAL
-          OR ls_item-delivery_date IS INITIAL.
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_item-delivery_date ) <> abap_true.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
@@ -2153,7 +2162,9 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
           OR ( ls_schedule_change-change_quantity = abap_false
             AND ls_schedule_change-quantity IS NOT INITIAL )
           OR ( ls_schedule_change-change_delivery_date = abap_true
-            AND ls_schedule_change-delivery_date IS INITIAL )
+            AND ( ls_schedule_change-delivery_date IS INITIAL
+              OR zcl_date_validation=>is_valid_gregorian_date(
+                iv_date = ls_schedule_change-delivery_date ) <> abap_true ) )
           OR ( ls_schedule_change-change_delivery_date = abap_false
             AND ls_schedule_change-delivery_date IS NOT INITIAL ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.

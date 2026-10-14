@@ -936,7 +936,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = CONV mard-labst( '4.000' )
       act = lt_items[ 1 ]-quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = space
+      exp = '0001'
       act = lt_items[ 1 ]-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1

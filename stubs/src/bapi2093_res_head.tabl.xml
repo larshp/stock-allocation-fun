@@ -49,6 +49,14 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000020</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>WBS_ELEMENT</FIELDNAME>
+          <POSITION>0006</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000024</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000048</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

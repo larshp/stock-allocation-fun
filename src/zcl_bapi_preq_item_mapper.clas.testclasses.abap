@@ -12,7 +12,7 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
   METHOD maps_selected_vendor.
     zcl_bapi_preq_item_mapper=>map_items(
       EXPORTING
-        it_items      = VALUE #(
+        it_items         = VALUE #(
           ( item_number        = '00010'
             source_vendor      = '0000100001'
             source_info_record = '0000001234'
@@ -29,8 +29,10 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
             unit          = 'EA'
             delivery_date = '20261116' ) )
       IMPORTING
-        et_items      = DATA(lt_bapi_items)
-        et_item_flags = DATA(lt_item_flags) ).
+        et_items         = DATA(lt_bapi_items)
+        et_item_flags    = DATA(lt_item_flags)
+        et_accounts      = DATA(lt_accounts)
+        et_account_flags = DATA(lt_account_flags) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 2
@@ -63,7 +65,7 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
       act = lt_item_flags[ 2 ]-info_rec ).
     zcl_bapi_preq_item_mapper=>map_items(
       EXPORTING
-        it_items      = VALUE #(
+        it_items         = VALUE #(
           ( item_number           = '00030'
             source_vendor         = '0000100003'
             purchasing_org        = '3000'
@@ -75,8 +77,10 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
             unit                  = 'EA'
             delivery_date         = '20261117' ) )
       IMPORTING
-        et_items      = DATA(lt_agreement_items)
-        et_item_flags = DATA(lt_agreement_flags) ).
+        et_items         = DATA(lt_agreement_items)
+        et_item_flags    = DATA(lt_agreement_flags)
+        et_accounts      = DATA(lt_agreement_accounts)
+        et_account_flags = DATA(lt_agreement_account_flags) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '4500000001'
@@ -92,6 +96,44 @@ CLASS ltcl_bapi_preq_item_mapper IMPLEMENTATION.
       act = lt_agreement_flags[ 1 ]-agmt_item ).
     cl_abap_unit_assert=>assert_initial(
       act = lt_agreement_flags[ 1 ]-info_rec ).
+    zcl_bapi_preq_item_mapper=>map_items(
+      EXPORTING
+        it_items         = VALUE #(
+          ( item_number                 = '00040'
+            material                    = 'MAT-PROJECT'
+            plant                       = '1000'
+            quantity                    = '5.000'
+            unit                        = 'EA'
+            delivery_date               = '20261120'
+            account_assignment_category = 'Q'
+            wbs_element                 = 'PRJ-100-001' ) )
+      IMPORTING
+        et_items         = DATA(lt_project_items)
+        et_item_flags    = DATA(lt_project_item_flags)
+        et_accounts      = DATA(lt_project_accounts)
+        et_account_flags = DATA(lt_project_account_flags) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Q'
+      act = lt_project_items[ 1 ]-acctasscat ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_project_item_flags[ 1 ]-acctasscat ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00040'
+      act = lt_project_accounts[ 1 ]-preq_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '01'
+      act = lt_project_accounts[ 1 ]-serial_no ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = lt_project_accounts[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-100-001'
+      act = lt_project_accounts[ 1 ]-wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_project_account_flags[ 1 ]-wbs_element ).
   ENDMETHOD.
 
   METHOD maps_item_deletion.

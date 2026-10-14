@@ -8,13 +8,19 @@ CLASS zcl_bapi_preq_item_mapper DEFINITION
       bapimereqitemimp WITH DEFAULT KEY.
     TYPES ty_bapi_item_flags TYPE STANDARD TABLE OF
       bapimereqitemx WITH DEFAULT KEY.
+    TYPES ty_bapi_accounts TYPE STANDARD TABLE OF
+      bapimereqaccount WITH DEFAULT KEY.
+    TYPES ty_bapi_account_flags TYPE STANDARD TABLE OF
+      bapimereqaccountx WITH DEFAULT KEY.
 
     CLASS-METHODS map_items
       IMPORTING
-        it_items      TYPE zif_purchase_requisition_api=>ty_items
+        it_items         TYPE zif_purchase_requisition_api=>ty_items
       EXPORTING
-        et_items      TYPE ty_bapi_items
-        et_item_flags TYPE ty_bapi_item_flags.
+        et_items         TYPE ty_bapi_items
+        et_item_flags    TYPE ty_bapi_item_flags
+        et_accounts      TYPE ty_bapi_accounts
+        et_account_flags TYPE ty_bapi_account_flags.
     CLASS-METHODS map_deleted_items
       IMPORTING
         it_item_numbers TYPE zif_purchase_requisition_api=>ty_requisition_item_numbers
@@ -44,7 +50,8 @@ CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
         fixed_vend = ls_request_item-source_vendor
         info_rec   = ls_request_item-source_info_record
         agreement  = ls_request_item-source_agreement
-        agmt_item  = ls_request_item-source_agreement_item ).
+        agmt_item  = ls_request_item-source_agreement_item
+        acctasscat = ls_request_item-account_assignment_category ).
       APPEND ls_item TO et_items.
 
       DATA(ls_item_flags) = VALUE bapimereqitemx(
@@ -73,7 +80,22 @@ CLASS zcl_bapi_preq_item_mapper IMPLEMENTATION.
       IF ls_request_item-source_agreement_item IS NOT INITIAL.
         ls_item_flags-agmt_item = abap_true.
       ENDIF.
+      IF ls_request_item-account_assignment_category IS NOT INITIAL.
+        ls_item_flags-acctasscat = abap_true.
+      ENDIF.
       APPEND ls_item_flags TO et_item_flags.
+
+      IF ls_request_item-account_assignment_category = 'Q'.
+        APPEND VALUE #(
+          preq_item   = ls_request_item-item_number
+          serial_no   = '01'
+          quantity    = ls_request_item-quantity
+          wbs_element = ls_request_item-wbs_element ) TO et_accounts.
+        APPEND VALUE #(
+          preq_item   = ls_request_item-item_number
+          serial_no   = '01'
+          wbs_element = abap_true ) TO et_account_flags.
+      ENDIF.
     ENDLOOP.
   ENDMETHOD.
 

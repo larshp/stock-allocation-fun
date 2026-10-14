@@ -25,7 +25,24 @@ CLASS zcl_bapi_sales_order_api DEFINITION
       RETURNING
         VALUE(rs_mapping) TYPE ty_rejected_item_mapping.
 
+    CLASS-METHODS map_order_header
+      IMPORTING
+        is_header       TYPE bapisdhd
+      RETURNING
+        VALUE(rs_order) TYPE zif_sales_order_api=>ty_order.
+
   PRIVATE SECTION.
+    TYPES ty_bapi_items TYPE STANDARD TABLE OF bapisdit WITH DEFAULT KEY.
+
+    METHODS map_order_read
+      IMPORTING
+        iv_sales_document TYPE zif_sales_order_api=>ty_sales_document
+        is_header         TYPE bapisdhd
+        it_bapi_items     TYPE ty_bapi_items
+        it_delivery_items TYPE zif_sales_order_delivery_repo=>ty_order_items
+      RETURNING
+        VALUE(rs_result)  TYPE zif_sales_order_api=>ty_read_result.
+
     DATA mo_unit_converter TYPE REF TO zif_material_uom_converter.
     DATA mo_delivery_repository TYPE REF TO zif_sales_order_delivery_repo.
 ENDCLASS.
@@ -62,6 +79,17 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
     rs_mapping-is_conversion_successful = abap_true.
   ENDMETHOD.
 
+  METHOD map_order_header.
+    rs_order-sales_document = is_header-doc_number.
+    rs_order-order_type = is_header-doc_type.
+    rs_order-sales_organization = is_header-sales_org.
+    rs_order-distribution_channel = is_header-distr_chan.
+    rs_order-division = is_header-division.
+    rs_order-sold_to_party = is_header-sold_to.
+    rs_order-customer_purchase_order = is_header-purch_no.
+    rs_order-document_date = is_header-doc_date.
+  ENDMETHOD.
+
   METHOD constructor.
     IF io_unit_converter IS BOUND.
       mo_unit_converter = io_unit_converter.
@@ -75,37 +103,82 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
     ELSE.
       mo_delivery_repository = NEW zcl_sales_order_delivery_repo( ).
     ENDIF.
+
   ENDMETHOD.
 
   METHOD zif_sales_order_api~read_order.
+    DATA(lt_results) = zif_sales_order_api~read_orders(
+      VALUE zif_sales_order_api=>ty_sales_documents(
+        ( iv_sales_document ) ) ).
+    READ TABLE lt_results INTO DATA(ls_order_read)
+      WITH KEY sales_document = iv_sales_document.
+    IF sy-subrc = 0.
+      rs_result = ls_order_read-read_result.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_sales_order_api~read_orders.
     DATA ls_view TYPE bapisdview.
     DATA ls_sales_document TYPE bapivbeln.
     DATA lt_sales_documents TYPE STANDARD TABLE OF bapivbeln
       WITH DEFAULT KEY.
-    DATA ls_bapi_item TYPE bapisdit.
-    DATA lt_bapi_items TYPE STANDARD TABLE OF bapisdit
+    DATA lt_bapi_items TYPE ty_bapi_items.
+    DATA lt_delivery_items TYPE zif_sales_order_delivery_repo=>ty_order_items.
+    DATA lt_order_headers TYPE STANDARD TABLE OF bapisdhd
       WITH DEFAULT KEY.
-    DATA lt_delivery_items TYPE zif_sales_order_delivery_repo=>ty_items.
-    DATA lo_quantity_calculator TYPE REF TO zcl_sales_order_qty_calc.
+
+    IF it_sales_documents IS INITIAL.
+      RETURN.
+    ENDIF.
 
     ls_view-item = abap_true.
-    ls_sales_document-vbeln = iv_sales_document.
-    APPEND ls_sales_document TO lt_sales_documents.
-
-    lt_delivery_items = mo_delivery_repository->get_order_items(
-      iv_sales_document = iv_sales_document ).
-    lo_quantity_calculator = NEW zcl_sales_order_qty_calc( ).
+    ls_view-header = abap_true.
+    LOOP AT it_sales_documents INTO DATA(lv_sales_document).
+      ls_sales_document-vbeln = lv_sales_document.
+      APPEND ls_sales_document TO lt_sales_documents.
+    ENDLOOP.
 
     CALL FUNCTION 'BAPISDORDER_GETDETAILEDLIST'
       EXPORTING
-        i_bapi_view     = ls_view
+        i_bapi_view       = ls_view
       TABLES
-        sales_documents = lt_sales_documents
-        order_items_out = lt_bapi_items.
+        sales_documents   = lt_sales_documents
+        order_headers_out = lt_order_headers
+        order_items_out   = lt_bapi_items.
 
+    lt_delivery_items = mo_delivery_repository->get_orders_items(
+      it_sales_documents = it_sales_documents ).
+
+    LOOP AT it_sales_documents INTO DATA(lv_requested_document).
+      READ TABLE lt_order_headers INTO DATA(ls_order_header)
+        WITH KEY doc_number = lv_requested_document.
+      APPEND VALUE #(
+        sales_document = lv_requested_document
+        read_result    = map_order_read(
+          iv_sales_document = lv_requested_document
+          is_header         = ls_order_header
+          it_bapi_items     = lt_bapi_items
+          it_delivery_items = lt_delivery_items ) )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD map_order_read.
+    DATA ls_bapi_item TYPE bapisdit.
+    DATA lo_quantity_calculator TYPE REF TO zcl_sales_order_qty_calc.
+
+    lo_quantity_calculator = NEW zcl_sales_order_qty_calc( ).
+    rs_result-order = map_order_header( is_header ).
     rs_result-order-sales_document = iv_sales_document.
     rs_result-is_successful = abap_true.
-    LOOP AT lt_bapi_items INTO ls_bapi_item.
+    IF is_header-doc_number IS INITIAL.
+      rs_result-is_successful = abap_false.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Cannot read sales order header' )
+        TO rs_result-messages.
+    ENDIF.
+    LOOP AT it_bapi_items INTO ls_bapi_item.
       IF ls_bapi_item-doc_number <> iv_sales_document.
         CONTINUE.
       ENDIF.
@@ -127,8 +200,9 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
       ENDIF.
 
       DATA(lv_delivery_item_count) = 0.
-      LOOP AT lt_delivery_items INTO DATA(ls_delivery_item)
-        WHERE item_number = ls_bapi_item-itm_number.
+      LOOP AT it_delivery_items INTO DATA(ls_delivery_item)
+        WHERE sales_document = iv_sales_document
+          AND item_number = ls_bapi_item-itm_number.
         ADD 1 TO lv_delivery_item_count.
         IF ls_delivery_item-has_status = abap_false.
           rs_result-is_successful = abap_false.
@@ -139,22 +213,25 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         ENDIF.
 
         DATA(ls_item) = VALUE zif_sales_order_api=>ty_item(
-          item_number            = ls_bapi_item-itm_number
-          schedule_line          = ls_delivery_item-schedule_line
-          has_confirmed_quantity = ls_delivery_item-has_schedule_line
-          requested_date         = ls_delivery_item-requested_date
-          material               = ls_bapi_item-material
-          plant                  = ls_bapi_item-plant
-          entry_unit             = ls_bapi_item-sales_unit
-          sales_unit_numerator   = ls_bapi_item-sales_qty1
-          sales_unit_denominator = ls_bapi_item-sales_qty2 ).
+          item_number                = ls_bapi_item-itm_number
+          schedule_line              = ls_delivery_item-schedule_line
+          has_confirmed_quantity     = ls_delivery_item-has_schedule_line
+          requested_date             = ls_delivery_item-requested_date
+          material_availability_date =
+            ls_delivery_item-material_availability_date
+          material                   = ls_bapi_item-material
+          plant                      = ls_bapi_item-plant
+          entry_unit                 = ls_bapi_item-sales_unit
+          sales_unit_numerator       = ls_bapi_item-sales_qty1
+          sales_unit_denominator     = ls_bapi_item-sales_qty2 ).
 
         IF ls_delivery_item-has_schedule_line = abap_true
-            AND ls_delivery_item-requested_date IS INITIAL.
+            AND ls_delivery_item-requested_date IS INITIAL
+            AND ls_delivery_item-material_availability_date IS INITIAL.
           rs_result-is_successful = abap_false.
           APPEND VALUE #(
             type    = 'E'
-            message = 'Sales order schedule line has no requested date' )
+            message = 'Sales order schedule line has no usable date' )
             TO rs_result-messages.
         ENDIF.
 

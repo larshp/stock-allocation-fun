@@ -8,12 +8,8 @@ CLASS zcl_sales_order_service DEFINITION
       zif_sales_order_api=>ty_sales_document WITH EMPTY KEY.
     TYPES ty_orders TYPE STANDARD TABLE OF
       zif_sales_order_api=>ty_order WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_order_read,
-        sales_document TYPE zif_sales_order_api=>ty_sales_document,
-        read_result    TYPE zif_sales_order_api=>ty_read_result,
-      END OF ty_order_read.
-    TYPES ty_order_reads TYPE STANDARD TABLE OF ty_order_read WITH EMPTY KEY.
+    TYPES ty_order_read TYPE zif_sales_order_api=>ty_order_read.
+    TYPES ty_order_reads TYPE zif_sales_order_api=>ty_order_reads.
     TYPES:
       BEGIN OF ty_order_change,
         sales_document TYPE zif_sales_order_api=>ty_sales_document,
@@ -262,12 +258,7 @@ CLASS zcl_sales_order_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    LOOP AT it_sales_documents INTO lv_sales_document.
-      APPEND VALUE #(
-        sales_document = lv_sales_document
-        read_result    = mo_api->read_order( lv_sales_document ) )
-        TO rt_results.
-    ENDLOOP.
+    rt_results = mo_api->read_orders( it_sales_documents ).
   ENDMETHOD.
 
   METHOD create_order.

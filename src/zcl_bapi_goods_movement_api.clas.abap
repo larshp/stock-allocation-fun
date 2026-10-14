@@ -33,12 +33,17 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-entry_qnt = ls_movement_item-quantity.
       ls_item-entry_uom = ls_movement_item-entry_unit.
       ls_item-entry_uom_iso = ls_movement_item-entry_unit_iso.
+      ls_item-move_mat = ls_movement_item-receiving_material.
       ls_item-move_plant = ls_movement_item-receiving_plant.
       ls_item-move_stloc = ls_movement_item-receiving_storage_location.
+      ls_item-move_batch = ls_movement_item-receiving_batch.
       ls_item-costcenter = ls_movement_item-cost_center.
       ls_item-orderid = ls_movement_item-order_id.
       ls_item-val_sales_ord = ls_movement_item-sales_order.
       ls_item-val_s_ord_item = ls_movement_item-sales_order_item.
+      ls_item-wbs_element = ls_movement_item-wbs_element.
+      ls_item-val_wbs_elem = ls_movement_item-valuation_wbs_element.
+      ls_item-spec_stock = ls_movement_item-special_stock.
       ls_item-reserv_no = ls_movement_item-reservation_number.
       ls_item-res_item = ls_movement_item-reservation_item.
       ls_item-res_type = ls_movement_item-reservation_record_type.

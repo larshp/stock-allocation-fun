@@ -240,6 +240,8 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS creates_from_suggestions FOR TESTING.
+    METHODS creates_project_stock_req FOR TESTING.
+    METHODS rejects_bad_project_shortfall FOR TESTING.
     METHODS prepares_from_suggestions FOR TESTING.
     METHODS creates_from_selected_sources FOR TESTING.
     METHODS prepares_from_selected_sources FOR TESTING.
@@ -296,6 +298,85 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
 ENDCLASS.
 
 CLASS ltcl_replenishment_req_service IMPLEMENTATION.
+  METHOD creates_project_stock_req.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      requisition_number = '0010004321'
+      is_successful      = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_proj_shortfalls(
+      it_shortfalls       = VALUE #(
+        ( request_id    = 'PROJECT-REQ-1'
+          wbs_element   = 'PRJ-100-001'
+          material      = 'MAT-PROJECT-1'
+          plant         = '1000'
+          quantity      = '5.000'
+          unit          = 'EA'
+          delivery_date = '20261120' )
+        ( request_id    = 'PROJECT-REQ-2'
+          wbs_element   = 'PRJ-100-002'
+          material      = 'MAT-PROJECT-2'
+          plant         = '1000'
+          quantity      = '3.000'
+          unit          = 'KG'
+          delivery_date = '20261125' ) )
+      iv_purchasing_group = '001'
+      iv_purchasing_org   = '2000' ).
+
+    cl_abap_unit_assert=>assert_true(
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true(
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010004321'
+      act = ls_result-requisition_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lo_api->ms_request-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00010'
+      act = lo_api->ms_request-items[ 1 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Q'
+      act = lo_api->ms_request-items[ 1 ]-account_assignment_category ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-100-001'
+      act = lo_api->ms_request-items[ 1 ]-wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '5.000'
+      act = lo_api->ms_request-items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00020'
+      act = lo_api->ms_request-items[ 2 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-100-002'
+      act = lo_api->ms_request-items[ 2 ]-wbs_element ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_project_shortfall.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    TRY.
+        lo_cut->create_from_proj_shortfalls(
+          it_shortfalls = VALUE #(
+            ( request_id    = 'PROJECT-REQ-1'
+              material      = 'MAT-PROJECT-1'
+              plant         = '1000'
+              quantity      = '5.000'
+              unit          = 'EA'
+              delivery_date = '20261120' ) ) ).
+        cl_abap_unit_assert=>fail( ).
+      CATCH zcx_invalid_stock_request.
+        cl_abap_unit_assert=>assert_equals(
+          exp = 0
+          act = lo_api->get_create_count( ) ).
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD creates_from_suggestions.
     DATA(lo_api) = NEW lcl_replenishment_req_api( ).
     lo_api->set_write_result( is_result = VALUE #(

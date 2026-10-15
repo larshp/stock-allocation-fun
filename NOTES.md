@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-683 are delivered; batch 9 and everything before it remain complete.**
+orders 654-693 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1413,6 +1413,33 @@ orders 654-683 are delivered; batch 9 and everything before it remain complete.*
 683. **Order cost comparison** - `zcl_alloc_cost_compare=>cheaper( )` compares two costs,
      `difference( )` gives the gap (measured without `ABS`) and `best_option( )` names the
      cheaper one.
+684. **Safety stock** - `zcl_alloc_safety_stock=>stock( )` raises the safety stock with the
+     service factor, the demand spread and the root of the lead time; `is_valid( )` tests
+     the result and `recommended( )` tops the stock up to the required level.
+685. **Service level factor** - `zcl_alloc_service_factor=>factor( )` maps a service level
+     to its normal-distribution factor, `level_of( )` maps it back and `is_high( )` marks a
+     level of 95 percent or more.
+686. **Demand variability** - `zcl_alloc_demand_variability=>variance( )` averages the
+     squared distance from the mean, `std_dev( )` takes its integer root and `is_stable( )`
+     tests the spread against a threshold.
+687. **Lead time variability** - `zcl_alloc_lead_variability=>average( )` spreads the lead
+     times, `std_dev( )` gives their spread and `is_stable( )` tests it against a threshold.
+688. **Reorder point with safety stock** - `zcl_alloc_reorder_safety=>demand_part( )` covers
+     the lead time, `safety_part( )` reuses the safety-stock calculation and `point( )`
+     adds the two.
+689. **Fill rate** - `zcl_alloc_fill_rate=>rate( )` gives the delivered share in per mille,
+     `rate_percent( )` in percent and `is_met( )` tests it against a target.
+690. **Stockout probability** - `zcl_alloc_stockout_prob=>probability( )` gives the share of
+     periods that stocked out, `is_likely( )` tests it against a threshold and `bucket( )`
+     folds it into three bands.
+691. **Service level target** - `zcl_alloc_service_target=>target_of( )` sets the target by
+     service class, `is_met( )` tests the actual against it and `gap( )` gives the
+     shortfall.
+692. **Cycle service level** - `zcl_alloc_cycle_service=>level( )` gives the share of periods
+     that met their target, `is_met( )` tests that level and `breach_count( )` counts the
+     periods that fell short.
+693. **ABC service policy** - `zcl_alloc_service_policy=>level_of( )` sets the service by ABC
+     class, `is_strict( )` marks the top two classes and `target_of( )` names the policy.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

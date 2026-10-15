@@ -548,3 +548,19 @@ Each entry notes the symptom, the cause and the workaround used.
   that will be formatted into a template. Put the separator text directly in the
   template (for example `|{ rv_text }; |`, whose literal `; ` is preserved), or
   use a separator without a trailing blank.
+
+
+## A37 - A standalone inline `DATA(lv_x) TYPE i.` inside a loop is rejected
+
+* Symptom: a method declared `DATA(lv_diff) TYPE i.` as its own statement inside a
+  `LOOP`, then assigned to it on the next line. abaplint reported
+  `parser_error, Statement does not exist in the configured ABAP version ... "DATA"`
+  and `check_syntax, "lv_diff" not found`, the transpiler then failed and
+  `npm run unit` exited 1. `npx abaplint --fix` could not repair it.
+* Cause: a bare inline declaration (`DATA(name) TYPE ...`) as a standalone statement
+  is not accepted in the configured ABAP version; only the inline declaration that
+  carries a value (`DATA(name) = ...`) is.
+* Workaround: declare the variable with its value in one step inside the loop
+  (`DATA(lv_diff) = lv_value - lv_mean.`), or declare a plain `DATA lv_diff TYPE i.`
+  at the top of the method. The value-carrying inline form (`DATA(lv_x) = ...`) is
+  fine inside a loop, as used in order 659.

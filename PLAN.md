@@ -1237,15 +1237,184 @@ walks the calendar.
 | 752 | Replenishment policy presets | `zcl_alloc_replenish_policy` (`preset`, `target_days`, `service_level`) |
 | 753 | Replenishment plan card | `zcl_alloc_replenish_card` (`build`, `total_quantity`, `on_target`) |
 
-**Batch 10 is complete.** Orders 654-753 are delivered, one per iteration in the
-local test→commit rhythm.
+**Batch 10 is complete.** Orders 654-753 are delivered in the local test→commit
+rhythm; the batch moved from demand and forecasting through replenishment triggers,
+order quantity and cost, safety stock and service level, MRP net requirements,
+supplier lead time, inventory classification, health and ageing, to replenishment
+execution and monitoring.
 
 
-## Roadmap
+## Batch 11 - inventory valuation and allocation costing (754-853)
 
-The next 100 features, in build order. Items 44-141 are pure calculation,
-formatting, validation, scheduling or in-memory services, so `npm test` can
-verify every one of them. The last item needs a GUI and is deliberately kept
+Batch 10 decides how much stock to hold. This batch decides what that stock is
+worth and what the allocation costs, so the plan can be judged in money rather than
+quantity. It covers the price and cost basis, cost layers and their consumption,
+the valuation methods (weighted average, standard, lowest value), landed cost and
+its apportionment, provisions and write-downs, cost variance analysis, cost of
+goods sold and margin, transfer price and intercompany valuation, valuation
+reports, and valuation monitoring. Every item is a new `zcl_alloc_*` class with a
+local test class, pure in-memory calculation, and verified by `npm run lint` /
+`npm run build` / `npm run unit` in tranches of ten.
+
+### Price and cost basis (754-763)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 754 | Moving average price recalculation | `zcl_alloc_ma_recalc` (`recalc`, `is_rise`, `delta`) |
+| 755 | Standard cost variance | `zcl_alloc_std_variance` (`variance`, `is_favourable`, `percent`) |
+| 756 | Price unit scaling | `zcl_alloc_price_unit` (`scale`, `units_per`, `is_bulk`) |
+| 757 | Cost rounding rule | `zcl_alloc_cost_round` (`round`, `nearest`, `difference`) |
+| 758 | Cost component split | `zcl_alloc_cost_split` (`split`, `share_of`, `component_count`) |
+| 759 | Cost component total | `zcl_alloc_cost_total` (`total`, `is_complete`, `share`) |
+| 760 | Unit cost basis | `zcl_alloc_unit_cost` (`basis`, `per_unit`, `is_zero`) |
+| 761 | Cost trend | `zcl_alloc_cost_trend` (`direction`, `delta`, `is_rising`) |
+| 762 | Cost index rebasing | `zcl_alloc_cost_index` (`index`, `rebase`, `change_percent`) |
+| 763 | Cost basis comparison | `zcl_alloc_cost_basis_cmp` (`compare`, `cheaper`, `delta`) |
+
+### Cost layers and consumption (764-773)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 764 | Cost layer build | `zcl_alloc_layer_build` (`build`, `layer_count`, `total_qty`) |
+| 765 | FIFO consumption | `zcl_alloc_layer_fifo` (`consume`, `remaining`, `layers_used`) |
+| 766 | LIFO consumption | `zcl_alloc_layer_lifo` (`consume`, `remaining`, `layers_used`) |
+| 767 | Layer value | `zcl_alloc_layer_value` (`value`, `layer_value`, `total_value`) |
+| 768 | Layer ageing | `zcl_alloc_layer_age` (`age_days`, `is_old`, `oldest`) |
+| 769 | Layer depletion status | `zcl_alloc_layer_status` (`status`, `is_empty`, `pending_qty`) |
+| 770 | Layer merge | `zcl_alloc_layer_merge` (`merge`, `group_count`, `largest`) |
+| 771 | Layer split | `zcl_alloc_layer_split` (`split`, `parts`, `total_qty`) |
+| 772 | Layer revaluation | `zcl_alloc_layer_reval` (`revalue`, `delta_value`, `is_up`) |
+| 773 | Layer summary | `zcl_alloc_layer_summary` (`build`, `total_qty`, `total_value`) |
+
+### Valuation methods (774-783)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 774 | Weighted average valuation | `zcl_alloc_val_wavg` (`value`, `unit_cost`, `is_zero`) |
+| 775 | Standard cost valuation | `zcl_alloc_val_std` (`value`, `unit_cost`, `variance`) |
+| 776 | Lowest value principle | `zcl_alloc_val_lowest` (`value`, `method`, `is_written_down`) |
+| 777 | Valuation comparison | `zcl_alloc_val_compare` (`compare`, `best_method`, `delta`) |
+| 778 | Valuation method selection | `zcl_alloc_val_select` (`select`, `is_standard`, `reason`) |
+| 779 | Valuation run | `zcl_alloc_val_run` (`build`, `line_count`, `total_value`) |
+| 780 | Valuation difference | `zcl_alloc_val_diff` (`difference`, `is_up`, `percent`) |
+| 781 | Valuation rounding | `zcl_alloc_val_round` (`round`, `nearest`, `difference`) |
+| 782 | Valuation of returns | `zcl_alloc_val_return` (`value`, `is_reduced`, `reduction_percent`) |
+| 783 | Valuation of scrap | `zcl_alloc_val_scrap` (`value`, `scrap_percent`, `is_scrapped`) |
+
+### Landed cost and add-ons (784-793)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 784 | Landed cost total | `zcl_alloc_landed_total` (`total`, `markup_percent`, `is_custom`) |
+| 785 | Freight apportionment | `zcl_alloc_landed_freight` (`apportion`, `share_of`, `per_unit`) |
+| 786 | Duty apportionment | `zcl_alloc_landed_duty` (`apportion`, `share_of`, `rate_percent`) |
+| 787 | Insurance apportionment | `zcl_alloc_landed_ins` (`apportion`, `share_of`, `per_unit`) |
+| 788 | Landed cost build | `zcl_alloc_landed_build` (`build`, `component_count`, `total`) |
+| 789 | Landed cost per unit | `zcl_alloc_landed_unit` (`per_unit`, `is_high`, `vs_standard`) |
+| 790 | Landed cost variance | `zcl_alloc_landed_var` (`variance`, `is_over`, `percent`) |
+| 791 | Landed cost split by weight | `zcl_alloc_landed_weight` (`apportion`, `weight_share`, `total`) |
+| 792 | Landed cost split by value | `zcl_alloc_landed_value` (`apportion`, `value_share`, `total`) |
+| 793 | Landed cost summary | `zcl_alloc_landed_summary` (`build`, `total`, `line_count`) |
+
+### Provisions and write-downs (794-803)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 794 | Obsolescence provision | `zcl_alloc_prov_obsolete` (`provision`, `percent`, `is_provisioned`) |
+| 795 | Ageing provision | `zcl_alloc_prov_age` (`provision`, `bucket_percent`, `total`) |
+| 796 | Net realisable value | `zcl_alloc_nrv` (`nrv`, `is_impaired`, `write_down`) |
+| 797 | Write-down proposal | `zcl_alloc_writedown` (`proposal`, `amount`, `is_needed`) |
+| 798 | Provision rate by class | `zcl_alloc_prov_rate` (`rate`, `provision`, `is_high`) |
+| 799 | Provision reversal | `zcl_alloc_prov_reverse` (`reverse`, `amount`, `is_full`) |
+| 800 | Provision summary | `zcl_alloc_prov_summary` (`build`, `total`, `line_count`) |
+| 801 | Impairment test | `zcl_alloc_impair_test` (`is_impaired`, `gap`, `severity`) |
+| 802 | Provision movement | `zcl_alloc_prov_move` (`movement`, `is_increase`, `delta`) |
+| 803 | Provision coverage | `zcl_alloc_prov_cover` (`coverage_percent`, `is_covered`, `shortfall`) |
+
+### Cost variance analysis (804-813)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 804 | Price variance | `zcl_alloc_var_price` (`variance`, `is_favourable`, `percent`) |
+| 805 | Quantity variance | `zcl_alloc_var_qty` (`variance`, `is_favourable`, `percent`) |
+| 806 | Usage variance | `zcl_alloc_var_usage` (`variance`, `is_favourable`, `percent`) |
+| 807 | Total variance | `zcl_alloc_var_total` (`total`, `components`, `is_favourable`) |
+| 808 | Variance split | `zcl_alloc_var_split` (`split`, `price_part`, `qty_part`) |
+| 809 | Variance threshold | `zcl_alloc_var_threshold` (`is_significant`, `threshold`, `count`) |
+| 810 | Variance report | `zcl_alloc_var_report` (`build`, `total`, `line_count`) |
+| 811 | Variance trend | `zcl_alloc_var_trend` (`direction`, `delta`, `is_worsening`) |
+| 812 | Variance classification | `zcl_alloc_var_class` (`class_of`, `is_material`, `count`) |
+| 813 | Variance summary | `zcl_alloc_var_summary` (`build`, `favourable`, `unfavourable`) |
+
+### Cost of goods sold and margin (814-823)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 814 | Cost of goods sold | `zcl_alloc_cogs` (`cogs`, `per_unit`, `is_zero`) |
+| 815 | Gross margin | `zcl_alloc_margin` (`margin`, `margin_percent`, `is_positive`) |
+| 816 | Margin per allocation | `zcl_alloc_margin_line` (`margin`, `percent`, `is_thin`) |
+| 817 | Margin summary | `zcl_alloc_margin_summary` (`build`, `total_margin`, `avg_percent`) |
+| 818 | Contribution margin | `zcl_alloc_margin_contrib` (`contribution`, `after_variable`, `is_positive`) |
+| 819 | Markup | `zcl_alloc_markup` (`markup`, `markup_percent`, `price_from_cost`) |
+| 820 | Margin trend | `zcl_alloc_margin_trend` (`direction`, `delta`, `is_improving`) |
+| 821 | Margin ranking | `zcl_alloc_margin_rank` (`rank`, `best`, `count`) |
+| 822 | Margin threshold | `zcl_alloc_margin_limit` (`is_below`, `threshold`, `count_below`) |
+| 823 | Profitability card | `zcl_alloc_profit_card` (`build`, `revenue`, `margin_percent`) |
+
+### Transfer price and intercompany (824-833)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 824 | Transfer price | `zcl_alloc_transfer_price` (`price`, `markup_percent`, `is_arm_length`) |
+| 825 | Transfer price variance | `zcl_alloc_tprice_var` (`variance`, `is_favourable`, `percent`) |
+| 826 | Intercompany margin | `zcl_alloc_ic_margin` (`margin`, `percent`, `is_positive`) |
+| 827 | Transfer price list | `zcl_alloc_tprice_list` (`build`, `count`, `price_of`) |
+| 828 | Transfer price rule | `zcl_alloc_tprice_rule` (`price`, `basis`, `is_cost_plus`) |
+| 829 | Transfer profit | `zcl_alloc_tprice_profit` (`profit`, `per_unit`, `is_positive`) |
+| 830 | Transfer price comparison | `zcl_alloc_tprice_cmp` (`compare`, `cheaper`, `delta`) |
+| 831 | Transfer price rounding | `zcl_alloc_tprice_round` (`round`, `nearest`, `difference`) |
+| 832 | Transfer price summary | `zcl_alloc_tprice_summary` (`build`, `total`, `line_count`) |
+| 833 | Transfer price approval | `zcl_alloc_tprice_approve` (`approve`, `is_approved`, `pending_count`) |
+
+### Valuation reports (834-843)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 834 | Valuation report | `zcl_alloc_valrpt` (`build`, `total_value`, `line_count`) |
+| 835 | Valuation report lines | `zcl_alloc_valrpt_lines` (`build`, `line_count`, `join`) |
+| 836 | Valuation by class | `zcl_alloc_valrpt_class` (`build`, `value_of`, `top_class`) |
+| 837 | Valuation by plant | `zcl_alloc_valrpt_plant` (`build`, `value_of`, `plant_count`) |
+| 838 | Valuation by bucket | `zcl_alloc_valrpt_bucket` (`build`, `value_of`, `count_in`) |
+| 839 | Valuation totals | `zcl_alloc_valrpt_total` (`total`, `average`, `is_zero`) |
+| 840 | Valuation export text | `zcl_alloc_valrpt_text` (`build`, `line_count`) |
+| 841 | Valuation CSV | `zcl_alloc_valrpt_csv` (`build`, `line_count`, `header`) |
+| 842 | Valuation JSON | `zcl_alloc_valrpt_json` (`build`, `object_count`) |
+| 843 | Valuation card | `zcl_alloc_valrpt_card` (`build`, `total_value`, `on_target`) |
+
+### Valuation monitoring (844-853)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 844 | Valuation KPI | `zcl_alloc_val_kpi` (`build`, `coverage_percent`, `on_target`) |
+| 845 | Valuation alert | `zcl_alloc_val_alert` (`is_alert`, `alert_count`, `reason`) |
+| 846 | Valuation dashboard lines | `zcl_alloc_val_dash` (`build`, `line_count`, `join`) |
+| 847 | Valuation trend | `zcl_alloc_val_trend` (`direction`, `delta`, `is_rising`) |
+| 848 | Valuation Pareto | `zcl_alloc_val_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+| 849 | Valuation policy | `zcl_alloc_val_policy` (`method_of`, `target_percent`, `is_strict`) |
+| 850 | Valuation audit trail | `zcl_alloc_val_audit` (`entry`, `entry_count`, `is_complete`) |
+| 851 | Valuation exception | `zcl_alloc_val_exc` (`is_exception`, `reason`, `count_of`) |
+| 852 | Valuation reconciliation | `zcl_alloc_val_recon` (`reconcile`, `is_balanced`, `difference`) |
+| 853 | Valuation status | `zcl_alloc_val_status` (`status`, `is_done`, `pending_count`) |
+
+**Batch 11 is planned.** Orders 754-853 are built one per iteration in the local
+test→commit rhythm.
+
+
+## Roadmap (batch 1, orders 44-141) - delivered
+
+Historical: the first roadmap, all delivered and verified. Items 44-141 are pure
+calculation, formatting, validation, scheduling or in-memory services, so `npm test`
+verified every one of them. The last item needs a GUI and was deliberately kept
 last because the transpiler cannot exercise a selection screen.
 
 ### Text and export

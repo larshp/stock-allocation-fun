@@ -3019,23 +3019,14 @@ Test coverage (1260 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-**Roadmap batches 1-3 are complete**: orders 44-142, 144-243 and 244-343 are
-delivered and verified. The single unbuilt item across all three batches is 143
-(the ALV grid / selection screen), which the transpiler cannot exercise.
+**Roadmap batches 1-10 are complete**: orders 1-753 are delivered and verified
+(the only unbuilt items, such as 143, need a GUI that the transpiler cannot
+exercise).
 
-Batch 4 (**optimisation, simulation and planning intelligence** - solvers
-(objective, greedy, knapsack, bin packing, transport, assignment), constraints and
-local search, seeded simulation and scenario analysis, forecasting and demand
-classification, MRP and lot sizing, finite scheduling and capacity, distribution
-network and routing, KPI / statistics, report presentation helpers, roll-out
-governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
-orders 344-443 are delivered and verified.
-
-Batches 4, 5, 6 and 7 are complete. Batch 7 converted twelve of the fifteen
-quadratic classes and documented why the other three (`toc`, `path`,
-`local_search`) are left alone. Batch 8 is planned in `PLAN.md` for orders
-454-553 (the next 100 features), in the same style: one feature per iteration,
-`npm test` green, documented here and in `ANOMALIES.md`.
+Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
+for orders 754-853 (the next 100 features), in the same style: one feature per
+iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
+tranches of ten.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

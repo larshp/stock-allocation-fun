@@ -1068,8 +1068,10 @@ a feature groups or looks up by key.
 | 652 | Return summary card | `zcl_alloc_return_card` (`build`, `total`, `on_target`) |
 | 653 | Return dashboard lines | `zcl_alloc_return_dash` (`build`, `line_count`, `join`) |
 
-**Batch 9 is in progress.** The first orders (554-649) are delivered; the rest are
-built one per iteration in the local test→commit rhythm.
+**Batch 9 is complete.** Orders 554-653 are delivered in the local test→commit
+rhythm; the batch moved from intake and inspection through refunds, analytics,
+reverse-logistics execution, disposal and putaway to documents, controls and
+policy.
 
 
 ## Roadmap

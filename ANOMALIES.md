@@ -532,3 +532,19 @@ Each entry notes the symptom, the cause and the workaround used.
   it then reports the real misalignments.
 * Workaround: after fixing any stray `;`, run `npx abaplint --fix` again (do not
   trust the earlier clean result), and re-run `npm run lint` to confirm.
+
+## A36 - A trailing blank in a character literal is dropped when formatted in a template
+
+* Symptom: a method built a separator with `lv_sep = ' | '.` (`lv_sep` typed
+  `string`) and joined lines with `rv_text = |{ rv_text }{ lv_sep }{ lv_line }|`.
+  The test expected `'A | B'` but got `'A |B'`: the trailing blank of the
+  separator was lost.
+* Cause: the transpiler compiled the literal as a fixed three-character value
+  (`abap.CharacterFactory.get(3, ' | ')`) even though the target was `string`,
+  and `abap.templateFormatting` of that value trims trailing blanks. In ABAP the
+  `string` keeps the trailing blank and the template renders it, so the two
+  runtimes disagree.
+* Workaround: do not put a needed trailing blank at the end of a quoted literal
+  that will be formatted into a template. Put the separator text directly in the
+  template (for example `|{ rv_text }; |`, whose literal `; ` is preserved), or
+  use a separator without a trailing blank.

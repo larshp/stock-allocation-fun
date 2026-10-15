@@ -1320,8 +1320,8 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-649 are delivered; batch 8 and everything before it remain complete.**
+**Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
+are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1640,6 +1640,18 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 649. **Return audit trail** - `zcl_alloc_return_audit=>record( )` appends a named action
      to the trail, `entries( )` counts the entries and `last_action( )` reads the most
      recent action.
+650. **Return policy presets** - `zcl_alloc_return_policy=>preset( )` returns the return
+     window and restocking fee of a named tier (STANDARD, PREMIUM, FLEX, CLEARANCE);
+     `window_days( )` and `fee_percent( )` expose the two values.
+651. **Return policy resolution** - `zcl_alloc_return_policy_res=>resolve( )` matches a
+     rule on tier and priority, then on tier alone, then on the global default;
+     `window_of( )` and `fee_of( )` resolve the window and fee for a tier.
+652. **Return summary card** - `zcl_alloc_return_card=>build( )` assembles a card (total
+     returned value, on-target flag); `total( )` values the returns and `on_target( )`
+     marks a count at or below the target.
+653. **Return dashboard lines** - `zcl_alloc_return_dash=>build( )` turns named measures
+     into "label: value" lines (blank labels dropped), `line_count( )` counts them and
+     `join( )` joins them into one text with a `; ` separator.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-459 are delivered; batch 7 and everything before it remain complete.**
+454-466 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1352,6 +1352,35 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      carton), `full_cartons( )` rounds down and `remainder( )` gives the pieces in
      the open carton. A zero or negative quantity or per-carton count yields zero
      rather than a division by zero.
+460. **Carton fill estimate** - `zcl_alloc_carton_fill` reports how full a carton
+     is (`fill_percent( )`, which may exceed 100 to show an overfill), whether an
+     item fits (`fits( )`) and how many cartons a set of volumes needs
+     (`cartons_needed( )`, summed then rounded up). A non-positive volume yields
+     zero, so there is no division by zero.
+461. **Pallet pattern** - `zcl_alloc_pallet_pattern` multiplies per-layer times
+     layers for the units on a pallet, rounds a quantity up to whole layers, and
+     rounds it up to whole pallets.
+462. **Pallet load check** - `zcl_alloc_pallet_check=>check( )` returns `ok`,
+     `too_high` and `too_heavy` in one result structure. A limit of zero means
+     "no limit", so a zero maximum never rejects a loaded pallet, and a load
+     exactly at the limit passes.
+463. **Volume calculation** - `zcl_alloc_volume_calc` computes the volume of a
+     box (`volume_of( )`) and the volume of a list of items with quantities
+     (`total_volume( )`). Dimensions are the components `len`, `wid`, `hgt` rather
+     than `length`, because `LENGTH` is a built-in and is best avoided as a
+     component name. A non-positive dimension yields a zero volume.
+464. **Weight roll-up** - `zcl_alloc_weight_total` sums weight times quantity
+     (`total( )`) and adds one tare per part for the gross weight (`gross( )`).
+     Zero parts returns the net weight unchanged.
+465. **Dimensional weight** - `zcl_alloc_dim_weight` divides a volume by the
+     carrier's divisor, rounding up to the next whole unit (`dim_weight( )`), and
+     picks the larger of actual and volumetric weight (`chargeable( )`). A
+     non-positive divisor yields zero.
+466. **Packaging hierarchy levels** - `zcl_alloc_pack_hier` multiplies the factors
+     of a nested hierarchy (each, carton, layer, pallet) for the units on the top
+     level (`total_units( )`) and for the units up to any level (`units_up_to( )`).
+     A level with a non-positive factor is skipped rather than zeroing the
+     product.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

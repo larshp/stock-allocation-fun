@@ -904,7 +904,7 @@ looks up by key.
 | 552 | Lines per hour | `zcl_alloc_lph` |
 | 553 | Warehouse KPI card | `zcl_alloc_wh_kpi` |
 
-**Batch 8 is in progress.** The first orders (454-459) are delivered; the rest are
+**Batch 8 is in progress.** The first orders (454-466) are delivered; the rest are
 built one per iteration in the local test→commit rhythm.
 
 

@@ -1074,6 +1074,173 @@ reverse-logistics execution, disposal and putaway to documents, controls and
 policy.
 
 
+## Batch 10 - replenishment planning and inventory optimization (654-753)
+
+Batch 9 closes the return loop. This batch turns to the other half of stock
+allocation: deciding how much to hold and when to order more. It covers demand
+and forecasting, replenishment triggers, order quantity and cost, safety stock
+and service level, MRP net requirements, supplier and lead time, inventory
+classification, inventory health, and the execution and monitoring of the
+replenishment orders themselves. Each feature keeps the repository's shape - a
+pure calculation, formatting, validation or in-memory service over plain tables -
+so `npm test` verifies it, and `zcl_alloc_key_map` (order 453) and
+`zcl_alloc_return_window->add_days` are reused where a feature groups by key or
+walks the calendar.
+
+### Demand and forecast (654-663)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 654 | Demand period total | `zcl_alloc_demand` (`total`, `average`, `period_count`) |
+| 655 | Weighted moving average forecast | `zcl_alloc_forecast_wma` (`forecast`, `weight_sum`, `periods`) |
+| 656 | Simple exponential smoothing | `zcl_alloc_forecast_ses` (`smooth`, `next_value`, `history_count`) |
+| 657 | Trend projection | `zcl_alloc_forecast_trend` (`slope_sign`, `project`, `is_rising`) |
+| 658 | Forecast accuracy | `zcl_alloc_forecast_error` (`error`, `error_percent`, `within_tolerance`) |
+| 659 | Mean absolute deviation | `zcl_alloc_forecast_mad` (`deviation`, `per_period`, `count`) |
+| 660 | Forecast bias | `zcl_alloc_forecast_bias` (`bias`, `is_over`, `magnitude`) |
+| 661 | Seasonal index | `zcl_alloc_season_index` (`index_of`, `is_peak`, `peak_period`) |
+| 662 | Demand history bucket | `zcl_alloc_demand_bucket` (`bucket_of`, `total_in`, `count_in`) |
+| 663 | Demand outlier filter | `zcl_alloc_demand_outlier` (`filter`, `is_outlier`, `removed_count`) |
+
+### Replenishment triggers (664-673)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 664 | Reorder point | `zcl_alloc_reorder_calc` (`point`, `is_below`, `gap`) |
+| 665 | Replenishment need | `zcl_alloc_replenish_need` (`need`, `is_needed`, `shortfall`) |
+| 666 | Min/max replenishment | `zcl_alloc_minmax` (`target`, `order_quantity`, `is_below_min`) |
+| 667 | Cover days | `zcl_alloc_cover_days` (`days`, `is_covered`, `gap_days`) |
+| 668 | Stock projection | `zcl_alloc_stock_projection` (`project`, `first_zero`, `runs_out`) |
+| 669 | Replenishment urgency | `zcl_alloc_replenish_urgency` (`urgency`, `is_urgent`, `priority_of`) |
+| 670 | Replenishment priority list | `zcl_alloc_replenish_priority` (`rank`, `top`, `count`) |
+| 671 | Replenishment exclusion | `zcl_alloc_replenish_exclude` (`should_exclude`, `reason`, `excluded_count`) |
+| 672 | Replenishment batch split | `zcl_alloc_replenish_split` (`split`, `batch_count`, `covers_total`) |
+| 673 | Replenishment trigger summary | `zcl_alloc_replenish_trigger` (`build`, `trigger_count`, `total_quantity`) |
+
+### Order quantity and cost (674-683)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 674 | Economic order quantity | `zcl_alloc_eoq_calc` (`eoq`, `order_count`, `is_valid`) |
+| 675 | Ordering cost per year | `zcl_alloc_order_cost` (`annual_cost`, `per_order`, `order_count`) |
+| 676 | Holding cost per year | `zcl_alloc_holding_cost` (`annual_cost`, `per_unit`, `average_stock`) |
+| 677 | Total replenishment cost | `zcl_alloc_replenish_cost` (`total`, `ordering_share`, `holding_share`) |
+| 678 | Quantity discount choice | `zcl_alloc_qty_discount` (`best_tier`, `cost_at`, `is_cheaper`) |
+| 679 | Order rounding | `zcl_alloc_order_round` (`round_up`, `round_down`, `is_exact`) |
+| 680 | Order multiple alignment | `zcl_alloc_order_multiple` (`align`, `remainder`, `is_aligned`) |
+| 681 | Pallet rounding | `zcl_alloc_pallet_round` (`pallets`, `remainder`, `is_full`) |
+| 682 | Transportation lot size | `zcl_alloc_truck_lot` (`lots`, `fill_percent`, `is_efficient`) |
+| 683 | Order cost comparison | `zcl_alloc_cost_compare` (`cheaper`, `difference`, `best_option`) |
+
+### Safety stock and service level (684-693)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 684 | Safety stock | `zcl_alloc_safety_stock` (`stock`, `is_valid`, `recommended`) |
+| 685 | Service level factor | `zcl_alloc_service_factor` (`factor`, `level_of`, `is_high`) |
+| 686 | Demand variability | `zcl_alloc_demand_variability` (`std_dev`, `variance`, `is_stable`) |
+| 687 | Lead time variability | `zcl_alloc_lead_variability` (`std_dev`, `average`, `is_stable`) |
+| 688 | Reorder point with safety | `zcl_alloc_reorder_safety` (`point`, `safety_part`, `demand_part`) |
+| 689 | Fill rate | `zcl_alloc_fill_rate` (`rate`, `rate_percent`, `is_met`) |
+| 690 | Stockout probability | `zcl_alloc_stockout_prob` (`probability`, `is_likely`, `bucket`) |
+| 691 | Service level target | `zcl_alloc_service_target` (`target_of`, `is_met`, `gap`) |
+| 692 | Cycle service level | `zcl_alloc_cycle_service` (`level`, `is_met`, `breach_count`) |
+| 693 | ABC service policy | `zcl_alloc_service_policy` (`level_of`, `is_strict`, `target_of`) |
+
+### MRP net requirements (694-703)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 694 | Gross requirement | `zcl_alloc_gross_req` (`total`, `period`, `line_count`) |
+| 695 | Net requirement | `zcl_alloc_net_req` (`net`, `shortfall`, `is_covered`) |
+| 696 | Available to promise | `zcl_alloc_atp` (`atp`, `is_positive`, `first_period`) |
+| 697 | Receipts netting | `zcl_alloc_receipt_net` (`net`, `receipt_total`, `demand_total`) |
+| 698 | Planned order proposal | `zcl_alloc_planned_order` (`proposal`, `is_needed`, `quantity`) |
+| 699 | MRP exception | `zcl_alloc_mrp_exception` (`is_exception`, `code`, `count_of`) |
+| 700 | MRP list summary | `zcl_alloc_mrp_summary` (`build`, `exception_count`, `total_shortage`) |
+| 701 | Pegged requirement | `zcl_alloc_peg` (`peg`, `is_pegged`, `peg_count`) |
+| 702 | Requirement date | `zcl_alloc_req_date` (`date_of`, `offset_date`, `is_late`) |
+| 703 | MRP run status | `zcl_alloc_mrp_status` (`status`, `is_complete`, `pending_count`) |
+
+### Supplier and lead time (704-713)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 704 | Lead time average | `zcl_alloc_lead_avg` (`average`, `min_days`, `max_days`) |
+| 705 | Lead time variance | `zcl_alloc_lead_variance` (`variance`, `std_dev`, `is_reliable`) |
+| 706 | Supplier score | `zcl_alloc_supplier_score` (`score`, `grade`, `is_preferred`) |
+| 707 | Supplier on-time rate | `zcl_alloc_supplier_otd` (`rate`, `rate_percent`, `is_met`) |
+| 708 | Supplier comparison | `zcl_alloc_supplier_compare` (`best`, `score_of`, `count`) |
+| 709 | Source of supply | `zcl_alloc_source` (`select`, `is_quota`, `quota_of`) |
+| 710 | Quota arrangement | `zcl_alloc_quota` (`split`, `share_of`, `total_quota`) |
+| 711 | Purchase order proposal | `zcl_alloc_po_proposal` (`build`, `total_value`, `line_count`) |
+| 712 | Delivery schedule | `zcl_alloc_schedule` (`build`, `dates`, `is_on_time`) |
+| 713 | Vendor lead-time buffer | `zcl_alloc_lead_buffer` (`buffer`, `planned_lead`, `is_safe`) |
+
+### Inventory classification (714-723)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 714 | ABC classification | `zcl_alloc_abc_class` (`classify`, `class_of`, `count_in`) |
+| 715 | ABC by value | `zcl_alloc_abc_value` (`classify`, `value_share`, `class_at`) |
+| 716 | XYZ classification | `zcl_alloc_xyz` (`classify`, `class_of`, `is_stable`) |
+| 717 | ABC-XYZ matrix | `zcl_alloc_abc_xyz` (`matrix`, `cell_of`, `count_in_cell`) |
+| 718 | Classification summary | `zcl_alloc_class_summary` (`build`, `count_in`, `top_class`) |
+| 719 | Pareto threshold | `zcl_alloc_pareto_threshold` (`threshold`, `is_vital`, `count_vital`) |
+| 720 | Slow mover flag | `zcl_alloc_slow_mover` (`is_slow`, `movement_class`, `count_slow`) |
+| 721 | Fast mover flag | `zcl_alloc_fast_mover` (`is_fast`, `turns`, `count_fast`) |
+| 722 | Dead stock flag | `zcl_alloc_dead_stock` (`is_dead`, `days_since`, `count_dead`) |
+| 723 | Class-based policy | `zcl_alloc_class_policy` (`policy_of`, `is_strict`, `service_of`) |
+
+### Inventory health and ageing (724-733)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 724 | Inventory turns | `zcl_alloc_inventory_turns` (`turns`, `is_healthy`, `days_of_stock`) |
+| 725 | Days inventory outstanding | `zcl_alloc_dio` (`days`, `is_healthy`, `target_gap`) |
+| 726 | Inventory ageing buckets | `zcl_alloc_inv_ageing` (`bucket`, `bucket_of`, `oldest`) |
+| 727 | Excess stock | `zcl_alloc_excess_stock` (`excess`, `is_excess`, `total_excess`) |
+| 728 | Obsolete stock | `zcl_alloc_obsolete_stock` (`is_obsolete`, `value`, `total_value`) |
+| 729 | Inventory accuracy | `zcl_alloc_inv_accuracy` (`rate_percent`, `is_met`, `total_variance`) |
+| 730 | Stock adjustment | `zcl_alloc_stock_adjust` (`adjust`, `difference`, `is_material`) |
+| 731 | Cycle count selection | `zcl_alloc_cycle_count` (`select`, `count`, `is_due`) |
+| 732 | Inventory KPI card | `zcl_alloc_inv_kpi` (`build`, `turns`, `accuracy`) |
+| 733 | Inventory health score | `zcl_alloc_inv_health` (`score`, `grade`, `is_healthy`) |
+
+### Replenishment execution (734-743)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 734 | Replenishment order build | `zcl_alloc_replen_order` (`build`, `total_quantity`, `line_count`) |
+| 735 | Replenishment release | `zcl_alloc_replen_release` (`release`, `is_released`, `remaining`) |
+| 736 | Replenishment confirmation | `zcl_alloc_replen_confirm` (`confirm`, `is_complete`, `open_count`) |
+| 737 | Replenishment split by plant | `zcl_alloc_replen_plant` (`split`, `quantity_of`, `plant_count`) |
+| 738 | Replenishment merge | `zcl_alloc_replen_merge` (`merge`, `group_count`, `largest`) |
+| 739 | Replenishment sequence | `zcl_alloc_replen_seq` (`sequence`, `position_of`, `count`) |
+| 740 | Replenishment capacity check | `zcl_alloc_replen_capacity` (`is_feasible`, `free_capacity`, `overflow`) |
+| 741 | Replenishment cost estimate | `zcl_alloc_replen_estimate` (`estimate`, `total`, `is_worthwhile`) |
+| 742 | Replenishment status | `zcl_alloc_replen_status` (`status`, `next_status`, `is_final`) |
+| 743 | Replenishment exception | `zcl_alloc_replen_exception` (`is_exception`, `reason`, `count_of`) |
+
+### Replenishment monitoring and dashboard (744-753)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 744 | Replenishment fill rate | `zcl_alloc_replen_fill` (`rate`, `rate_percent`, `is_met`) |
+| 745 | Replenishment lead time actual | `zcl_alloc_replen_lead` (`actual`, `average`, `is_late`) |
+| 746 | Replenishment KPI card | `zcl_alloc_replen_kpi` (`build`, `fill_rate`, `on_time_percent`) |
+| 747 | Replenishment trend | `zcl_alloc_replen_trend` (`direction`, `slope_sign`, `is_rising`) |
+| 748 | Replenishment Pareto | `zcl_alloc_replen_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+| 749 | Replenishment summary text | `zcl_alloc_replen_text` (`build`, `line_count`) |
+| 750 | Replenishment alert | `zcl_alloc_replen_alert` (`build`, `is_alert`, `alert_count`) |
+| 751 | Replenishment dashboard lines | `zcl_alloc_replen_dash` (`build`, `line_count`, `join`) |
+| 752 | Replenishment policy presets | `zcl_alloc_replen_policy` (`preset`, `target_days`, `service_level`) |
+| 753 | Replenishment plan card | `zcl_alloc_replen_card` (`build`, `total_quantity`, `on_target`) |
+
+**Batch 10 is in progress.** Orders 654-663 are delivered; the rest are built one
+per iteration in the local test→commit rhythm.
+
+
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

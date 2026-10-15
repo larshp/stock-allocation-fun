@@ -1320,6 +1320,41 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
+**Batch 10 (replenishment planning and inventory optimization) is in progress:
+orders 654-663 are delivered; batch 9 and everything before it remain complete.**
+
+654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
+     carry it (`total`), counts those periods (`period_count`) and spreads the total
+     over them (`average`).
+655. **Weighted moving average forecast** - `zcl_alloc_forecast_wma` weights each
+     period's demand (`weight_sum`, `periods`) and divides the weighted total by the
+     weight sum (`forecast`); a period without demand or weight is left out.
+656. **Simple exponential smoothing** - `zcl_alloc_forecast_ses=>smooth( )` returns the
+     smoothed series (the first value seeds the level, each later value blends with it
+     at the given percentage), `next_value( )` is the last level and `history_count( )`
+     counts the history.
+657. **Forecast trend projection** - `zcl_alloc_forecast_trend` reads the direction of a
+     series (`slope_sign`, `is_rising`) from its first and last value and projects the
+     series forward (`project`).
+658. **Forecast accuracy** - `zcl_alloc_forecast_error` states the signed error
+     (`error`), the absolute error as a percentage of the actual (`error_percent`) and
+     whether the error is within a tolerance (`within_tolerance`).
+659. **Mean absolute deviation** - `zcl_alloc_forecast_mad` sums the absolute error of
+     the periods present in both series (`deviation`), spreads it over those periods
+     (`per_period`) and counts them (`count`).
+660. **Forecast bias** - `zcl_alloc_forecast_bias` sums the signed errors (`bias`), says
+     whether the forecast ran low (`is_over`) and gives the size of the bias
+     (`magnitude`, built without `ABS`).
+661. **Seasonal index** - `zcl_alloc_season_index=>index_of( )` relates a period's demand
+     to the average, `is_peak( )` marks an index above 100 and `peak_period( )` names
+     the strongest period.
+662. **Demand history bucket** - `zcl_alloc_demand_bucket=>bucket_of( )` sums the demand
+     per period key in period order, `total_in( )` sums one period and `count_in( )`
+     counts its entries.
+663. **Demand outlier filter** - `zcl_alloc_demand_outlier` drops the demands above a
+     limit (`filter`), tests one value (`is_outlier`) and counts the drops
+     (`removed_count`).
+
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**
 

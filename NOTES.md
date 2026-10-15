@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-595 are delivered; batch 8 and everything before it remain complete.**
+554-607 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1473,6 +1473,47 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      lines into settlement entries net of fee and shipping (floored at zero, a
      positive line always listed); `net_settlement( )` sums them and `line_count( )`
      counts them.
+596. **Return rate** - `zcl_alloc_return_rate` states a return rate per thousand
+     shipped units (`rate( )`) and as a whole-number percentage (`rate_percent( )`),
+     and says whether a rate is over a target (`above_target( )`).
+597. **Return rate by customer** - `zcl_alloc_return_rate_cust=>rate( )` computes one
+     customer's rate, `highest( )` finds the worst customer and `rank( )` orders all
+     customers by rate (worst first) with the input order breaking ties. A customer
+     with no shipments is left out.
+598. **Return reason distribution** - `zcl_alloc_return_reason_dist=>share( )` counts
+     the reasons in a sorted table, then turns the counts into shares in a second
+     pass; `share_percent( )` computes one share and `top_reason( )` names the most
+     common reason.
+599. **Return KPI summary** - `zcl_alloc_return_kpi=>build( )` assembles a KPI card
+     (rate, on-target flag, returned value); `rate_percent( )` and `value( )` expose
+     the two measures. A return rate counts as on target when it is at or below the
+     target.
+600. **Return trend** - `zcl_alloc_return_trend` compares the first and last values of
+     a series: `direction( )` (UP, DOWN, FLAT), `slope_sign( )` (-1, 0, 1) and
+     `is_rising( )`. An empty or single-value series is flat.
+601. **Top returned materials** - `zcl_alloc_return_top=>top( )` aggregates the
+     quantity per material, orders it by size (input order breaking ties) and takes
+     the first `iv_limit`; `quantity_of( )` totals one material and `count( )` counts
+     the rows.
+602. **Return aging buckets** - `zcl_alloc_return_aging=>bucket( )` places an age in
+     one of 0-30, 31-60, 61-90 or 90+ days, `bucket_of( )` counts every age per band
+     in band order and `count_in( )` counts the ages in one band.
+603. **Cost of poor quality** - `zcl_alloc_return_coq` totals the quality costs
+     (`total( )`) and states the scrap (`scrap_share( )`) and rework
+     (`rework_share( )`) shares of that total.
+604. **Return recovery rate** - `zcl_alloc_return_recovery=>recovered_value( )` sums
+     the recovered part of each line (capped at the line value), `rate( )` states the
+     recovered share of a total and `is_good( )` compares a rate with a target.
+605. **Return by plant** - `zcl_alloc_return_plant=>group( )` sums the returned
+     quantity per plant in plant order, `total( )` sums the whole list and
+     `top_plant( )` names the plant with the most returned units.
+606. **Return by day** - `zcl_alloc_return_daily=>group( )` sums the return count per
+     day in date order, `total( )` sums the list and `busiest_day( )` names the day
+     with the most returns (the date stays initial on an empty input).
+607. **Return Pareto** - `zcl_alloc_return_pareto=>pareto( )` aggregates the returned
+     quantity per material, orders it by size and carries the cumulative share on
+     each bucket; `vital_few( )` counts the buckets up to a cumulative threshold and
+     `cumulative_percent( )` returns the final share.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

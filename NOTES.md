@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-813 are delivered; batch 10 and everything before it are complete.**
+orders 754-823 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1464,6 +1464,27 @@ orders 754-813 are delivered; batch 10 and everything before it are complete.**
      `is_price( )` tests for it and `share( )` relates a part to the whole.
 813. **Variance alert** - `zcl_alloc_var_alert=>is_over_threshold( )` tests the size against a
      threshold, `alert( )` gives the overshoot and `level( )` grades it.
+814. **Cost of goods sold** - `zcl_alloc_cogs=>cogs( )` values the sold quantity at its unit cost,
+     `unit_cost( )` spreads the cost back over the quantity and `is_zero( )` tests a nil cost.
+815. **Gross margin** - `zcl_alloc_gross_margin=>margin( )` leaves the revenue after the cost of
+     goods, `margin_percent( )` relates it to the revenue and `is_positive( )` tests it.
+816. **Mark-up on cost** - `zcl_alloc_markup=>markup( )` gives the price above cost,
+     `price_from_cost( )` builds a price from a mark-up rate and `percent( )` reads the rate back.
+817. **Margin rate** - `zcl_alloc_margin_rate=>rate( )` relates a margin to the revenue, `price( )`
+     backs a price out of a cost and a rate and `is_healthy( )` tests it against a minimum.
+818. **Contribution margin** - `zcl_alloc_contrib_margin=>contribution( )` leaves the revenue after
+     the variable cost, `ratio( )` relates it to the revenue and `covers_fixed( )` tests it against
+     the fixed cost.
+819. **Margin percentage** - `zcl_alloc_margin_pct=>of_revenue( )` gives the margin as a share of
+     the revenue, `apply( )` turns a rate into an amount and `is_improved( )` compares two rates.
+820. **Margin change** - `zcl_alloc_margin_delta=>delta( )` gives the move between two margins,
+     `is_up( )` tests its direction and `percent( )` relates it to the old margin.
+821. **Margin target check** - `zcl_alloc_margin_target=>meets( )` tests a margin against a target,
+     `shortfall( )` gives what is missing and `price_for_target( )` backs out the price.
+822. **Margin limit** - `zcl_alloc_margin_limit=>is_below( )` tests a margin against its limit,
+     `gap( )` gives the shortfall and `clamp( )` holds it up at the limit.
+823. **Margin summary** - `zcl_alloc_margin_summary=>build( )` counts the lines and totals their
+     margin, `total_margin( )` nets it and `line_count( )` counts the lines.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3171,7 +3192,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-813 are delivered.
+tranches of ten. Orders 754-823 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

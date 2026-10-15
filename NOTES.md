@@ -1543,6 +1543,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      the new components and `removed( )` the dropped ones.
 963. **BOM summary** - `zcl_alloc_bom_summary=>build( )` counts the components and totals them,
      `component_count( )` counts them and `total_qty( )` sums them.
+964. **Operation time** - `zcl_alloc_rout_time=>total_time( )` adds the setup and the run at its
+     quantity, `is_zero( )` tests a nil time and `unit_time( )` spreads it over the units.
+965. **Operation rate** - `zcl_alloc_rout_rate=>rate( )` spreads the cost over the time,
+     `from_cost( )` puts the rate back on a time and `is_zero( )` tests a nil rate.
+966. **Operation cost** - `zcl_alloc_rout_cost=>cost( )` adds the setup and the run cost,
+     `per_unit( )` spreads it over the quantity and `total( )` sums the operations.
+967. **Operation sequence** - `zcl_alloc_rout_seq=>sequence( )` numbers the operation a position
+     falls into, `next_op( )` gives the following one and `is_last( )` tests the end.
+968. **Operation capacity** - `zcl_alloc_rout_capacity=>capacity( )` gives the units the time
+     allows, `is_over( )` tests the demand and `spare( )` gives what is left.
+969. **Operation utilisation** - `zcl_alloc_rout_util=>utilisation_percent( )` relates used to
+     available time, `is_idle( )` tests an idle one and `spare( )` gives what is left.
+970. **Operation efficiency** - `zcl_alloc_rout_eff=>efficiency_percent( )` relates standard to
+     actual time, `is_efficient( )` tests it and `variance( )` gives the overrun.
+971. **Operation queue** - `zcl_alloc_rout_queue=>queue_time( )` spreads the wait over the
+     operations, `is_waiting( )` tests one and `wait_count( )` counts them.
+972. **Operation ranking** - `zcl_alloc_rout_rank=>rank( )` orders the operations by time,
+     `longest( )` gives the most and `shortest( )` the least.
+973. **Routing summary** - `zcl_alloc_rout_summary=>build( )` counts the operations and totals their
+     time, `operation_count( )` counts them and `total_time( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3478,7 +3498,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-963 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-973 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

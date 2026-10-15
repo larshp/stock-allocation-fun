@@ -1735,8 +1735,8 @@ co-products and by-products (1014-1023), standard cost and revaluation
 | 1052 | Production ranking | `zcl_alloc_prep_rank` (`rank`, `worst`, `best`) |
 | 1053 | Production summary | `zcl_alloc_prep_summary` (`build`, `order_count`, `total`) |
 
-**Batch 13 is in progress.** Orders 954-1053 are built one per iteration in the
-local test→commit rhythm.
+**Batch 13 is in progress.** Orders 954-963 are delivered; the rest are built one
+per iteration in the local test→commit rhythm.
 
 
 ## Roadmap (batch 1, orders 44-141) - delivered

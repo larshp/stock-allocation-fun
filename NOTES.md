@@ -1523,6 +1523,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      `item_count( )` counts the items and `open_count( )` the open ones.
 953. **Governance summary** - `zcl_alloc_gov_summary=>build( )` counts the items and the approvals,
      `item_count( )` counts the items and `approved_count( )` the approvals.
+954. **BOM build** - `zcl_alloc_bom_build=>build( )` gathers the lines into their components,
+     `component_count( )` counts the components and `total_qty( )` sums the quantity.
+955. **BOM explode** - `zcl_alloc_bom_explode=>explode( )` flattens the BOM by level,
+     `level_of( )` gives the parent level and `is_multi_level( )` tests for depth.
+956. **BOM component** - `zcl_alloc_bom_component=>qty_of( )` sums one component,
+     `is_used( )` tests one and `count( )` counts the distinct components.
+957. **BOM level** - `zcl_alloc_bom_level=>level_of( )` turns a depth into a level, `is_top( )` tests
+     the first level and `depth( )` turns a level back into a depth.
+958. **BOM scrap** - `zcl_alloc_bom_scrap=>scrap_qty( )` gives the scrap at a percentage,
+     `is_scrapped( )` tests it and `gross_qty( )` gives the gross needed for a net.
+959. **BOM where-used** - `zcl_alloc_bom_where=>used_in( )` lists the parents of a component,
+     `is_used( )` tests one and `count( )` counts the parents.
+960. **BOM weight** - `zcl_alloc_bom_weight=>weight_of( )` weighs a quantity, `total_weight( )` sums
+     the BOM and `is_heavy( )` tests a limit.
+961. **BOM rollup** - `zcl_alloc_bom_rollup=>rollup( )` groups the lines into totals,
+     `group_count( )` counts the groups and `largest( )` gives the biggest.
+962. **BOM compare** - `zcl_alloc_bom_compare=>compare( )` reads SAME or CHANGED, `added( )` counts
+     the new components and `removed( )` the dropped ones.
+963. **BOM summary** - `zcl_alloc_bom_summary=>build( )` counts the components and totals them,
+     `component_count( )` counts them and `total_qty( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3458,7 +3478,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-963 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

@@ -1068,7 +1068,7 @@ a feature groups or looks up by key.
 | 652 | Return summary card | `zcl_alloc_return_card` (`build`, `total`, `on_target`) |
 | 653 | Return dashboard lines | `zcl_alloc_return_dash` (`build`, `line_count`, `join`) |
 
-**Batch 9 is in progress.** The first orders (554-639) are delivered; the rest are
+**Batch 9 is in progress.** The first orders (554-649) are delivered; the rest are
 built one per iteration in the local test→commit rhythm.
 
 

@@ -519,3 +519,16 @@ Each entry notes the symptom, the cause and the workaround used.
 
 
 
+
+## A35 - A stray `;` can mask `align_type_expressions` findings in the same method
+
+* Symptom: after writing a class, `npx abaplint --fix` reported
+  `0 issue(s) found`, but the very next `npx abaplint` reported several
+  `align_type_expressions` errors inside the same methods. Fixing the stray
+  `;` (A33) and running `--fix` again cleared them.
+* Cause: a statement the parser cannot place (the trailing `;` from A33)
+  stops abaplint from fully analysing the rest of the method, so the alignment
+  rule never runs on those lines. Fixing the parse error re-enables the rule and
+  it then reports the real misalignments.
+* Workaround: after fixing any stray `;`, run `npx abaplint --fix` again (do not
+  trust the earlier clean result), and re-run `npm run lint` to confirm.

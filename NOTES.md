@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-639 are delivered; batch 8 and everything before it remain complete.**
+554-649 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1611,6 +1611,35 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 639. **Return stock KPI** - `zcl_alloc_return_stock_kpi=>build( )` assembles a card
      (value, age, aged flag past 90 days); `value( )` and `age_days( )` expose the two
      measures.
+640. **Return confirmation text** - `zcl_alloc_return_confirm=>build( )` writes the
+     confirmation (an RMA header then one numbered quantity line per item) and
+     `line_count( )` counts the input lines.
+641. **Return advice message** - `zcl_alloc_return_advice=>build( )` joins the named
+     fields into one "name=value; name=value" text (blank-named fields dropped) and
+     `field_count( )` counts the named fields.
+642. **Return status pipeline** - `zcl_alloc_return_status=>stage( )` names the pipeline
+     position (CREATE, RECEIVE, INSPECT, SETTLE, CLOSE), `next_stage( )` the following
+     stage (empty after CLOSE) and `is_final( )` marks the last stage.
+643. **Return note text** - `zcl_alloc_return_note=>build( )` drops the blank note lines,
+     `line_count( )` counts the kept lines and `has_text( )` says whether any remain.
+644. **Return document list** - `zcl_alloc_return_docs=>list( )` returns the documents of
+     a type (every one for an empty type), `count( )` counts them all and `by_type( )`
+     counts one type.
+645. **Return approval workflow** - `zcl_alloc_return_approval=>approve( )` signs the
+     named approver's step, `is_approved( )` says whether every step is signed (nothing
+     to sign is not an approval) and `pending_count( )` counts the open steps.
+646. **Return approval limit check** - `zcl_alloc_return_limit=>within_limit( )` checks a
+     value against a limit, `needs_manager( )` marks what is above a clerk's limit and
+     `limit_of( )` gives the limit of an approval tier.
+647. **Return escalation** - `zcl_alloc_return_escalate=>escalate( )` moves a case one
+     level up (capped at three), `level_of( )` reads the level and `is_escalated( )`
+     marks a case above level zero.
+648. **Return SLA check** - `zcl_alloc_return_sla=>is_met( )` tests the elapsed time
+     against a target, `elapsed_hours( )` turns a day span into hours and
+     `breach_count( )` counts the elapsed times past a target.
+649. **Return audit trail** - `zcl_alloc_return_audit=>record( )` appends a named action
+     to the trail, `entries( )` counts the entries and `last_action( )` reads the most
+     recent action.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

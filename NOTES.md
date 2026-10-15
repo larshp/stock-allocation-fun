@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-480 are delivered; batch 7 and everything before it remain complete.**
+454-486 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1428,6 +1428,31 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      `zcl_alloc_remove_smallest=>smallest_sufficient( )` removes from the smallest
      bin that still covers the requirement, leaving the large bins intact for
      large orders.
+481. **Aisle sequence** - `zcl_alloc_aisle_seq=>sequence( )` walks the aisles at or
+     above the start in ascending order, then the aisles below the start in
+     descending order, so the picker turns around once instead of criss-crossing.
+     The two halves are sorted separately, which keeps the turn in the middle.
+482. **Bin coordinate model** - `zcl_alloc_bin_coord` models a bin as aisle, rack
+     and level, with `same_aisle( )` and a lexicographic `compare( )` that returns
+     -1, 0 or 1. `compare( )` is the ordering the later tour strategies rely on.
+483. **Distance between two bins** - `zcl_alloc_bin_distance` measures a pair of
+     coordinates with `manhattan( )` (sum of the axis gaps), `chebyshev( )`
+     (largest axis gap) and `aisle_gap( )`. The magnitude helper is a private
+     `absolute( )`, not `abs`, because `ABS` is a built-in function name and would
+     be shadowed.
+484. **Pick path length** - `zcl_alloc_pick_path=>length( )` sums the legs from the
+     start through the stops in the order given, so the caller owns the route and
+     this only measures it. The test expectation was corrected against the code
+     (the legs are 2 + 1 + 3, not 7), which is the same self-check the mixed-pallet
+     feature needed.
+485. **S-shape pick tour** - `zcl_alloc_sshp_tour=>order( )` takes every stop in one
+     aisle before moving to the next aisle, with the aisles in ascending order, so
+     a wide-aisle warehouse is picked in one sweep. The stop order inside an aisle
+     is preserved.
+486. **Return pick tour** - `zcl_alloc_return_tour=>length( )` measures the other
+     classic strategy: out to one stop and back to the start each time, so every
+     stop costs twice its distance and the total does not depend on the stop
+     order. The test proves that order independence.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

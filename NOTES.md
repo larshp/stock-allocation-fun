@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-923 are delivered; batch 11 and everything before it are complete.**
+orders 854-933 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1463,6 +1463,26 @@ orders 854-923 are delivered; batch 11 and everything before it are complete.**
      tests a finished state and `is_active( )` a running one.
 923. **Cycle summary** - `zcl_alloc_cycle_summary=>build( )` counts the steps and totals them,
      `step_count( )` counts them and `total( )` sums them.
+924. **Reconciliation difference** - `zcl_alloc_recon_diff=>difference( )` gives one side less the
+     other, `is_balanced( )` tests agreement and `magnitude( )` the size of the gap.
+925. **Reconciliation tolerance** - `zcl_alloc_recon_tolerance=>within_tolerance( )` tests the gap
+     against the tolerance, `tolerance( )` derives it from a base and `is_tight( )` grades it.
+926. **Reconciliation match** - `zcl_alloc_recon_match=>matches( )` tests a key across two sides,
+     `is_matched( )` tests two amounts and `key_of( )` builds a key.
+927. **Reconciliation breaks** - `zcl_alloc_recon_break=>break_count( )` counts the open lines,
+     `is_broken( )` tests one difference and `worst( )` gives the biggest.
+928. **Reconciliation balance** - `zcl_alloc_recon_balance=>balance( )` gives the two-sided total,
+     `is_balanced( )` tests it and `residual( )` the size of the gap.
+929. **Reconciliation resolve** - `zcl_alloc_recon_resolve=>resolve( )` clears the differences within
+     tolerance, `is_resolved( )` tests one and `open_count( )` counts the rest.
+930. **Reconciliation rate** - `zcl_alloc_recon_rate=>rate( )` and `matched_percent( )` give the
+     matched share of the items and `is_clean( )` tests a full match.
+931. **Reconciliation ranking** - `zcl_alloc_recon_rank=>rank( )` orders the differences by size,
+     `worst( )` gives the biggest and `best( )` the smallest.
+932. **Reconciliation report** - `zcl_alloc_recon_report=>build( )` carries each difference with its
+     size, `diff_count( )` counts the open ones and `total_diff( )` sums their size.
+933. **Reconciliation summary** - `zcl_alloc_recon_summary=>build( )` counts the items and the matches,
+     `item_count( )` counts the items and `matched_count( )` the matches.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3399,7 +3419,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-923 are delivered.
+tranches of ten. Orders 854-933 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-883 are delivered; batch 11 and everything before it are complete.**
+orders 854-893 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1383,6 +1383,26 @@ orders 854-883 are delivered; batch 11 and everything before it are complete.**
      gives the distance to a target and `delta( )` the difference.
 883. **Base summary** - `zcl_alloc_base_summary=>build( )` counts the bases and totals them,
      `total( )` sums them and `base_count( )` counts them.
+884. **ABC report** - `zcl_alloc_abc_report=>build( )` carries every activity into the report,
+     `total_cost( )` sums the cost and `line_count( )` counts the lines.
+885. **ABC row** - `zcl_alloc_abc_row=>format( )` reads an activity and its cost, `is_costly( )`
+     tests it against a limit and `is_zero( )` tests a nil cost.
+886. **ABC rollup** - `zcl_alloc_abc_rollup=>rollup( )` rolls the activities into their groups,
+     `group_count( )` counts the groups and `largest( )` gives the biggest.
+887. **ABC totals** - `zcl_alloc_abc_total=>total( )` sums the activity cost, `average( )` spreads
+     it over the activities and `is_zero( )` tests a nil total.
+888. **ABC trend** - `zcl_alloc_abc_trend=>direction( )` reads UP, DOWN or FLAT, `delta( )` gives the
+     move and `is_rising( )` tests it.
+889. **ABC ranking** - `zcl_alloc_abc_rank=>rank( )` orders the activities by cost, `worst( )` gives
+     the biggest and `best( )` the smallest.
+890. **ABC filter** - `zcl_alloc_abc_filter=>filter( )` keeps the activities over a limit,
+     `is_over( )` tests one and `count( )` counts them.
+891. **ABC bucketing** - `zcl_alloc_abc_bucket=>bucket_of( )` places a cost below or above the
+     boundary, `count_in( )` counts a bucket and `is_par( )` tests two equal counts.
+892. **ABC exceptions** - `zcl_alloc_abc_exception=>is_exception( )` tests a cost against a limit,
+     `reason( )` gives the reason and `count_of( )` counts the exceptions.
+893. **ABC summary** - `zcl_alloc_abc_summary=>build( )` counts the activities and totals their cost,
+     `total_cost( )` sums them and `line_count( )` counts them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3319,7 +3339,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-883 are delivered.
+tranches of ten. Orders 854-893 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

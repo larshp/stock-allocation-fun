@@ -1337,77 +1337,241 @@ local test class, pure in-memory calculation, and verified by `npm run lint` /
 | --- | --- | --- |
 | 804 | Price variance | `zcl_alloc_var_price` (`variance`, `is_favourable`, `percent`) |
 | 805 | Quantity variance | `zcl_alloc_var_qty` (`variance`, `is_favourable`, `percent`) |
-| 806 | Usage variance | `zcl_alloc_var_usage` (`variance`, `is_favourable`, `percent`) |
-| 807 | Total variance | `zcl_alloc_var_total` (`total`, `components`, `is_favourable`) |
-| 808 | Variance split | `zcl_alloc_var_split` (`split`, `price_part`, `qty_part`) |
-| 809 | Variance threshold | `zcl_alloc_var_threshold` (`is_significant`, `threshold`, `count`) |
-| 810 | Variance report | `zcl_alloc_var_report` (`build`, `total`, `line_count`) |
-| 811 | Variance trend | `zcl_alloc_var_trend` (`direction`, `delta`, `is_worsening`) |
-| 812 | Variance classification | `zcl_alloc_var_class` (`class_of`, `is_material`, `count`) |
-| 813 | Variance summary | `zcl_alloc_var_summary` (`build`, `favourable`, `unfavourable`) |
+| 806 | Total variance | `zcl_alloc_var_total` (`variance`, `is_adverse`, `split`) |
+| 807 | Variance classification | `zcl_alloc_var_favourable` (`classify`, `is_favourable`, `is_adverse`) |
+| 808 | Variance sign convention | `zcl_alloc_var_sign` (`apply_sign`, `to_standard`, `magnitude`) |
+| 809 | Variance summary | `zcl_alloc_var_summary` (`build`, `total`, `line_count`) |
+| 810 | Variance trend | `zcl_alloc_var_trend` (`direction`, `is_improving`, `delta`) |
+| 811 | Variance ranking | `zcl_alloc_var_rank` (`rank`, `worst`, `best`) |
+| 812 | Variance cause | `zcl_alloc_var_cause` (`cause`, `is_price`, `share`) |
+| 813 | Variance alert | `zcl_alloc_var_alert` (`is_over_threshold`, `alert`, `level`) |
 
 ### Cost of goods sold and margin (814-823)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 814 | Cost of goods sold | `zcl_alloc_cogs` (`cogs`, `per_unit`, `is_zero`) |
-| 815 | Gross margin | `zcl_alloc_margin` (`margin`, `margin_percent`, `is_positive`) |
-| 816 | Margin per allocation | `zcl_alloc_margin_line` (`margin`, `percent`, `is_thin`) |
-| 817 | Margin summary | `zcl_alloc_margin_summary` (`build`, `total_margin`, `avg_percent`) |
-| 818 | Contribution margin | `zcl_alloc_margin_contrib` (`contribution`, `after_variable`, `is_positive`) |
-| 819 | Markup | `zcl_alloc_markup` (`markup`, `markup_percent`, `price_from_cost`) |
-| 820 | Margin trend | `zcl_alloc_margin_trend` (`direction`, `delta`, `is_improving`) |
-| 821 | Margin ranking | `zcl_alloc_margin_rank` (`rank`, `best`, `count`) |
-| 822 | Margin threshold | `zcl_alloc_margin_limit` (`is_below`, `threshold`, `count_below`) |
-| 823 | Profitability card | `zcl_alloc_profit_card` (`build`, `revenue`, `margin_percent`) |
+| 814 | Cost of goods sold | `zcl_alloc_cogs` (`cogs`, `unit_cost`, `is_zero`) |
+| 815 | Gross margin | `zcl_alloc_gross_margin` (`margin`, `margin_percent`, `is_positive`) |
+| 816 | Mark-up on cost | `zcl_alloc_markup` (`markup`, `price_from_cost`, `percent`) |
+| 817 | Margin rate | `zcl_alloc_margin_rate` (`rate`, `price`, `is_healthy`) |
+| 818 | Contribution margin | `zcl_alloc_contrib_margin` (`contribution`, `ratio`, `covers_fixed`) |
+| 819 | Margin percentage | `zcl_alloc_margin_pct` (`of_revenue`, `apply`, `is_improved`) |
+| 820 | Margin change | `zcl_alloc_margin_delta` (`delta`, `is_up`, `percent`) |
+| 821 | Margin target check | `zcl_alloc_margin_target` (`meets`, `shortfall`, `price_for_target`) |
+| 822 | Margin limit | `zcl_alloc_margin_limit` (`is_below`, `gap`, `clamp`) |
+| 823 | Margin summary | `zcl_alloc_margin_summary` (`build`, `total_margin`, `line_count`) |
 
 ### Transfer price and intercompany (824-833)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 824 | Transfer price | `zcl_alloc_transfer_price` (`price`, `markup_percent`, `is_arm_length`) |
-| 825 | Transfer price variance | `zcl_alloc_tprice_var` (`variance`, `is_favourable`, `percent`) |
-| 826 | Intercompany margin | `zcl_alloc_ic_margin` (`margin`, `percent`, `is_positive`) |
-| 827 | Transfer price list | `zcl_alloc_tprice_list` (`build`, `count`, `price_of`) |
-| 828 | Transfer price rule | `zcl_alloc_tprice_rule` (`price`, `basis`, `is_cost_plus`) |
-| 829 | Transfer profit | `zcl_alloc_tprice_profit` (`profit`, `per_unit`, `is_positive`) |
-| 830 | Transfer price comparison | `zcl_alloc_tprice_cmp` (`compare`, `cheaper`, `delta`) |
-| 831 | Transfer price rounding | `zcl_alloc_tprice_round` (`round`, `nearest`, `difference`) |
-| 832 | Transfer price summary | `zcl_alloc_tprice_summary` (`build`, `total`, `line_count`) |
-| 833 | Transfer price approval | `zcl_alloc_tprice_approve` (`approve`, `is_approved`, `pending_count`) |
+| 824 | Transfer price | `zcl_alloc_transfer_price` (`price`, `from_cost`, `is_at_cost`) |
+| 825 | Intercompany margin | `zcl_alloc_interco_margin` (`margin`, `is_eliminated`, `percent`) |
+| 826 | Intercompany elimination | `zcl_alloc_interco_elim` (`eliminate`, `residual`, `is_cleared`) |
+| 827 | Transfer price variance | `zcl_alloc_transfer_var` (`variance`, `is_over`, `percent`) |
+| 828 | Intercompany rate | `zcl_alloc_interco_rate` (`rate`, `applied`, `is_reasonable`) |
+| 829 | Arm's length test | `zcl_alloc_interco_arms` (`is_arms_length`, `gap`, `direction`) |
+| 830 | Intercompany profit split | `zcl_alloc_interco_split` (`split`, `seller_share`, `buyer_share`) |
+| 831 | Intercompany price build | `zcl_alloc_interco_price` (`build`, `total`, `is_positive`) |
+| 832 | Transfer price audit | `zcl_alloc_transfer_audit` (`audit`, `violation_count`, `worst`) |
+| 833 | Intercompany summary | `zcl_alloc_interco_summary` (`build`, `total`, `entity_count`) |
 
 ### Valuation reports (834-843)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 834 | Valuation report | `zcl_alloc_valrpt` (`build`, `total_value`, `line_count`) |
-| 835 | Valuation report lines | `zcl_alloc_valrpt_lines` (`build`, `line_count`, `join`) |
-| 836 | Valuation by class | `zcl_alloc_valrpt_class` (`build`, `value_of`, `top_class`) |
-| 837 | Valuation by plant | `zcl_alloc_valrpt_plant` (`build`, `value_of`, `plant_count`) |
-| 838 | Valuation by bucket | `zcl_alloc_valrpt_bucket` (`build`, `value_of`, `count_in`) |
-| 839 | Valuation totals | `zcl_alloc_valrpt_total` (`total`, `average`, `is_zero`) |
-| 840 | Valuation export text | `zcl_alloc_valrpt_text` (`build`, `line_count`) |
-| 841 | Valuation CSV | `zcl_alloc_valrpt_csv` (`build`, `line_count`, `header`) |
-| 842 | Valuation JSON | `zcl_alloc_valrpt_json` (`build`, `object_count`) |
-| 843 | Valuation card | `zcl_alloc_valrpt_card` (`build`, `total_value`, `on_target`) |
+| 834 | Valuation report | `zcl_alloc_val_report` (`build`, `row_count`, `total_value`) |
+| 835 | Valuation rollup | `zcl_alloc_val_rollup` (`rollup`, `group_count`, `largest_group`) |
+| 836 | Valuation detail | `zcl_alloc_val_detail` (`detail`, `for_material`, `line_count`) |
+| 837 | Valuation by group | `zcl_alloc_val_group` (`group_totals`, `is_empty`, `group_count`) |
+| 838 | Valuation browse | `zcl_alloc_val_browse` (`browse`, `page_count`, `has_more`) |
+| 839 | Valuation export | `zcl_alloc_val_export` (`to_rows`, `to_text`, `row_count`) |
+| 840 | Valuation dashboard | `zcl_alloc_val_dashboard` (`build`, `is_healthy`, `highlight`) |
+| 841 | Valuation comparison report | `zcl_alloc_val_compare_rep` (`compare`, `changed_count`, `is_same`) |
+| 842 | Valuation report line | `zcl_alloc_val_report_line` (`format`, `is_valuable`, `is_zero`) |
+| 843 | Valuation sign-off | `zcl_alloc_val_signoff` (`is_signed`, `status`, `require`) |
 
 ### Valuation monitoring (844-853)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 844 | Valuation KPI | `zcl_alloc_val_kpi` (`build`, `coverage_percent`, `on_target`) |
-| 845 | Valuation alert | `zcl_alloc_val_alert` (`is_alert`, `alert_count`, `reason`) |
-| 846 | Valuation dashboard lines | `zcl_alloc_val_dash` (`build`, `line_count`, `join`) |
-| 847 | Valuation trend | `zcl_alloc_val_trend` (`direction`, `delta`, `is_rising`) |
-| 848 | Valuation Pareto | `zcl_alloc_val_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
-| 849 | Valuation policy | `zcl_alloc_val_policy` (`method_of`, `target_percent`, `is_strict`) |
-| 850 | Valuation audit trail | `zcl_alloc_val_audit` (`entry`, `entry_count`, `is_complete`) |
-| 851 | Valuation exception | `zcl_alloc_val_exc` (`is_exception`, `reason`, `count_of`) |
-| 852 | Valuation reconciliation | `zcl_alloc_val_recon` (`reconcile`, `is_balanced`, `difference`) |
-| 853 | Valuation status | `zcl_alloc_val_status` (`status`, `is_done`, `pending_count`) |
+| 844 | Valuation threshold | `zcl_alloc_valm_threshold` (`is_over`, `breach`, `level`) |
+| 845 | Valuation watchlist | `zcl_alloc_valm_watch` (`watch`, `watch_count`, `is_watched`) |
+| 846 | Valuation change rate | `zcl_alloc_valm_rate` (`rate`, `is_spike`, `direction`) |
+| 847 | Valuation monitoring trend | `zcl_alloc_valm_trend` (`direction`, `is_rising`, `streak`) |
+| 848 | Valuation band | `zcl_alloc_valm_band` (`is_in_band`, `position`, `band_gap`) |
+| 849 | Valuation drift | `zcl_alloc_valm_drift` (`drift`, `is_drifting`, `direction`) |
+| 850 | Valuation alert | `zcl_alloc_valm_alert` (`alerts`, `alert_count`, `is_alerting`) |
+| 851 | Valuation health | `zcl_alloc_valm_health` (`is_healthy`, `issue_count`, `score`) |
+| 852 | Valuation monitoring report | `zcl_alloc_valm_report` (`build`, `breach_count`, `total`) |
+| 853 | Valuation monitoring summary | `zcl_alloc_valm_summary` (`build`, `evaluate`, `status`) |
 
-**Batch 11 is in progress.** Orders 754-843 are delivered; the rest are built one
-per iteration in the local test→commit rhythm.
+**Batch 11 is complete.** Orders 754-853 are delivered and verified by
+`npm test` in the local test→commit rhythm.
+
+
+## Batch 12 - activity-based costing and cost allocation (854-953)
+
+The standing instruction applies again: batch 11 is done, so another 100 items are
+planned here in the same style. Batch 12 covers activity-based costing and cost
+allocation in ten tranches of ten: cost drivers (854-863), activity rates (864-873),
+allocation bases (874-883), ABC reporting (884-893), overhead absorption (894-903),
+cost pools (904-913), allocation cycles (914-923), allocation reconciliation
+(924-933), cost object analysis (934-943) and allocation governance (944-953). All
+names were checked free in `src/`.
+
+### Cost drivers (854-863)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 854 | Cost driver total | `zcl_alloc_drv_total` (`total`, `count`, `is_empty`) |
+| 855 | Driver rate | `zcl_alloc_drv_rate` (`rate`, `applied`, `is_zero`) |
+| 856 | Driver share | `zcl_alloc_drv_share` (`share`, `percent`, `largest`) |
+| 857 | Driver selection | `zcl_alloc_drv_select` (`select`, `is_volume`, `reason`) |
+| 858 | Driver weighting | `zcl_alloc_drv_weight` (`weighted`, `weight_of`, `total_weight`) |
+| 859 | Driver capacity | `zcl_alloc_drv_capacity` (`capacity`, `is_over`, `spare`) |
+| 860 | Driver normalisation | `zcl_alloc_drv_normalize` (`normalize`, `factor`, `is_normal`) |
+| 861 | Driver trend | `zcl_alloc_drv_trend` (`direction`, `is_rising`, `delta`) |
+| 862 | Driver ranking | `zcl_alloc_drv_rank` (`rank`, `top`, `bottom`) |
+| 863 | Driver summary | `zcl_alloc_drv_summary` (`build`, `total`, `driver_count`) |
+
+### Activity rates (864-873)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 864 | Activity rate | `zcl_alloc_act_rate` (`rate`, `from_cost`, `is_zero`) |
+| 865 | Activity cost | `zcl_alloc_act_cost` (`cost`, `per_unit`, `total`) |
+| 866 | Apply activity rate | `zcl_alloc_act_apply` (`apply`, `cost_of`, `is_applied`) |
+| 867 | Activity efficiency | `zcl_alloc_act_efficiency` (`efficiency_percent`, `is_efficient`, `variance`) |
+| 868 | Activity utilisation | `zcl_alloc_act_util` (`utilisation_percent`, `is_idle`, `spare`) |
+| 869 | Activity capacity | `zcl_alloc_act_capacity` (`available`, `used`, `is_full`) |
+| 870 | Activity rate blend | `zcl_alloc_act_blend` (`blend`, `weight_of`, `blended`) |
+| 871 | Activity step cost | `zcl_alloc_act_step` (`step`, `is_stepped`, `step_count`) |
+| 872 | Activity rate curve | `zcl_alloc_act_curve` (`is_improving`, `change`, `count`) |
+| 873 | Activity summary | `zcl_alloc_act_summary` (`build`, `total`, `activity_count`) |
+
+### Allocation bases (874-883)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 874 | Allocation base selection | `zcl_alloc_base_select` (`select`, `is_direct`, `reason`) |
+| 875 | Base weighting | `zcl_alloc_base_weight` (`weight_of`, `total`, `is_zero`) |
+| 876 | Base units | `zcl_alloc_base_units` (`units`, `per_unit`, `total`) |
+| 877 | Base value | `zcl_alloc_base_value` (`value`, `total`, `is_zero`) |
+| 878 | Base headcount | `zcl_alloc_base_heads` (`heads`, `per_head`, `total`) |
+| 879 | Base area | `zcl_alloc_base_area` (`area`, `share`, `total`) |
+| 880 | Base machine hours | `zcl_alloc_base_machine` (`hours`, `per_hour`, `total`) |
+| 881 | Base mix | `zcl_alloc_base_mix` (`mix`, `is_mixed`, `largest`) |
+| 882 | Base comparison | `zcl_alloc_base_compare` (`compare`, `closer`, `delta`) |
+| 883 | Base summary | `zcl_alloc_base_summary` (`build`, `total`, `base_count`) |
+
+### ABC reporting (884-893)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 884 | ABC report | `zcl_alloc_abc_report` (`build`, `total_cost`, `line_count`) |
+| 885 | ABC row | `zcl_alloc_abc_row` (`format`, `is_costly`, `is_zero`) |
+| 886 | ABC rollup | `zcl_alloc_abc_rollup` (`rollup`, `group_count`, `largest`) |
+| 887 | ABC totals | `zcl_alloc_abc_total` (`total`, `average`, `is_zero`) |
+| 888 | ABC trend | `zcl_alloc_abc_trend` (`direction`, `delta`, `is_rising`) |
+| 889 | ABC ranking | `zcl_alloc_abc_rank` (`rank`, `worst`, `best`) |
+| 890 | ABC filter | `zcl_alloc_abc_filter` (`filter`, `is_over`, `count`) |
+| 891 | ABC bucketing | `zcl_alloc_abc_bucket` (`bucket_of`, `count_in`, `is_par`) |
+| 892 | ABC exceptions | `zcl_alloc_abc_exception` (`is_exception`, `reason`, `count_of`) |
+| 893 | ABC summary | `zcl_alloc_abc_summary` (`build`, `total_cost`, `line_count`) |
+
+### Overhead absorption (894-903)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 894 | Absorption rate | `zcl_alloc_absorb_rate` (`rate`, `overhead`, `is_zero`) |
+| 895 | Absorbed overhead | `zcl_alloc_absorb_amount` (`absorbed`, `variance`, `is_over`) |
+| 896 | Under-absorption | `zcl_alloc_absorb_under` (`is_under`, `gap`, `percent`) |
+| 897 | Over-absorption | `zcl_alloc_absorb_over` (`is_over`, `gap`, `percent`) |
+| 898 | Absorption settlement | `zcl_alloc_absorb_settle` (`settle`, `residual`, `is_settled`) |
+| 899 | Absorption proration | `zcl_alloc_absorb_prorate` (`prorate`, `share`, `total`) |
+| 900 | Absorption pool | `zcl_alloc_absorb_pool` (`pool_total`, `absorbed`, `unabsorbed`) |
+| 901 | Absorption comparison | `zcl_alloc_absorb_compare` (`compare`, `closer`, `delta`) |
+| 902 | Absorption health | `zcl_alloc_absorb_health` (`is_healthy`, `issue_count`, `score`) |
+| 903 | Absorption summary | `zcl_alloc_absorb_summary` (`build`, `total`, `line_count`) |
+
+### Cost pools (904-913)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 904 | Cost pool build | `zcl_alloc_cpool_build` (`build`, `pool_count`, `total`) |
+| 905 | Cost pool split | `zcl_alloc_cpool_split` (`split`, `share_of`, `per_unit`) |
+| 906 | Cost pool merge | `zcl_alloc_cpool_merge` (`merge`, `group_count`, `largest`) |
+| 907 | Cost pool rate | `zcl_alloc_cpool_rate` (`rate`, `applied`, `is_zero`) |
+| 908 | Cost pool assignment | `zcl_alloc_cpool_assign` (`assign`, `is_assigned`, `count`) |
+| 909 | Cost pool residual | `zcl_alloc_cpool_residual` (`residual`, `is_cleared`, `count`) |
+| 910 | Cost pool ranking | `zcl_alloc_cpool_rank` (`rank`, `largest`, `smallest`) |
+| 911 | Cost pool variance | `zcl_alloc_cpool_var` (`variance`, `is_over`, `percent`) |
+| 912 | Cost pool coverage | `zcl_alloc_cpool_cover` (`coverage_percent`, `is_covered`, `shortfall`) |
+| 913 | Cost pool summary | `zcl_alloc_cpool_summary` (`build`, `pool_count`, `total`) |
+
+### Allocation cycles (914-923)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 914 | Allocation cycle step | `zcl_alloc_cycle_step` (`step`, `next_step`, `is_last`) |
+| 915 | Cycle advance | `zcl_alloc_cycle_advance` (`advance`, `is_complete`, `remaining`) |
+| 916 | Cycle repeat | `zcl_alloc_cycle_repeat` (`repeat`, `is_repeated`, `max_reached`) |
+| 917 | Cycle count | `zcl_alloc_cycle_count` (`count`, `after`, `is_zero`) |
+| 918 | Cycle loop detection | `zcl_alloc_cycle_detect` (`loop_detected`, `is_loop`, `reason`) |
+| 919 | Cycle build | `zcl_alloc_cycle_build` (`build`, `step_count`, `first_step`) |
+| 920 | Cycle progress | `zcl_alloc_cycle_progress` (`progress_percent`, `is_done`, `remaining`) |
+| 921 | Cycle run | `zcl_alloc_cycle_run` (`run`, `is_finished`, `steps_done`) |
+| 922 | Cycle state | `zcl_alloc_cycle_state` (`state`, `is_terminal`, `is_active`) |
+| 923 | Cycle summary | `zcl_alloc_cycle_summary` (`build`, `step_count`, `total`) |
+
+### Allocation reconciliation (924-933)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 924 | Reconciliation difference | `zcl_alloc_recon_diff` (`difference`, `is_balanced`, `magnitude`) |
+| 925 | Reconciliation tolerance | `zcl_alloc_recon_tolerance` (`within_tolerance`, `tolerance`, `is_tight`) |
+| 926 | Reconciliation match | `zcl_alloc_recon_match` (`matches`, `is_matched`, `key_of`) |
+| 927 | Reconciliation breaks | `zcl_alloc_recon_break` (`break_count`, `is_broken`, `worst`) |
+| 928 | Reconciliation balance | `zcl_alloc_recon_balance` (`balance`, `is_balanced`, `residual`) |
+| 929 | Reconciliation resolve | `zcl_alloc_recon_resolve` (`resolve`, `is_resolved`, `open_count`) |
+| 930 | Reconciliation rate | `zcl_alloc_recon_rate` (`rate`, `matched_percent`, `is_clean`) |
+| 931 | Reconciliation ranking | `zcl_alloc_recon_rank` (`rank`, `worst`, `best`) |
+| 932 | Reconciliation report | `zcl_alloc_recon_report` (`build`, `diff_count`, `total_diff`) |
+| 933 | Reconciliation summary | `zcl_alloc_recon_summary` (`build`, `item_count`, `matched_count`) |
+
+### Cost object analysis (934-943)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 934 | Cost object build | `zcl_alloc_cobj_build` (`build`, `object_count`, `total`) |
+| 935 | Cost object cost | `zcl_alloc_cobj_cost` (`cost`, `per_unit`, `is_zero`) |
+| 936 | Cost object margin | `zcl_alloc_cobj_margin` (`margin`, `margin_percent`, `is_positive`) |
+| 937 | Cost object ranking | `zcl_alloc_cobj_rank` (`rank`, `best`, `worst`) |
+| 938 | Cost object comparison | `zcl_alloc_cobj_compare` (`compare`, `cheaper`, `delta`) |
+| 939 | Cost object share | `zcl_alloc_cobj_share` (`share_percent`, `largest`, `is_zero`) |
+| 940 | Cost object trend | `zcl_alloc_cobj_trend` (`direction`, `is_rising`, `delta`) |
+| 941 | Cost object threshold | `zcl_alloc_cobj_threshold` (`is_over`, `breach`, `level`) |
+| 942 | Cost object health | `zcl_alloc_cobj_health` (`is_healthy`, `issue_count`, `score`) |
+| 943 | Cost object summary | `zcl_alloc_cobj_summary` (`build`, `object_count`, `total`) |
+
+### Allocation governance (944-953)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 944 | Allocation policy | `zcl_alloc_gov_policy` (`policy_of`, `is_strict`, `reason`) |
+| 945 | Allocation approval | `zcl_alloc_gov_approve` (`approve`, `is_approved`, `pending_count`) |
+| 946 | Allocation audit trail | `zcl_alloc_gov_audit` (`entry`, `entry_count`, `is_complete`) |
+| 947 | Allocation sign-off | `zcl_alloc_gov_signoff` (`is_signed`, `status`, `require`) |
+| 948 | Allocation lock | `zcl_alloc_gov_lock` (`lock`, `is_locked`, `lock_count`) |
+| 949 | Allocation release | `zcl_alloc_gov_release` (`release`, `is_released`, `remaining`) |
+| 950 | Allocation version | `zcl_alloc_gov_version` (`version`, `is_newer`, `delta`) |
+| 951 | Allocation review | `zcl_alloc_gov_review` (`is_due`, `days_until`, `priority`) |
+| 952 | Governance report | `zcl_alloc_gov_report` (`build`, `item_count`, `open_count`) |
+| 953 | Governance summary | `zcl_alloc_gov_summary` (`build`, `item_count`, `approved_count`) |
+
+**Batch 12 is planned.** Orders 854-953 are built one per iteration in the local
+test→commit rhythm; the batch-11 entries above stay as a record.
 
 
 ## Roadmap (batch 1, orders 44-141) - delivered

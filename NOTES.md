@@ -1320,8 +1320,8 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-843 are delivered; batch 10 and everything before it are complete.**
+**Batch 11 (inventory valuation and allocation costing) is complete:
+orders 754-853 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1527,6 +1527,27 @@ orders 754-843 are delivered; batch 10 and everything before it are complete.**
      text, `is_valuable( )` tests a positive value and `is_zero( )` a nil one.
 843. **Valuation sign-off** - `zcl_alloc_val_signoff=>is_signed( )` tests whether a name is on the
      valuation, `status( )` reads EMPTY, DRAFT or SIGNED and `require( )` names the next step.
+844. **Valuation threshold** - `zcl_alloc_valm_threshold=>is_over( )` tests a value against its
+     threshold, `breach( )` gives how far past it ran and `level( )` grades the breach.
+845. **Valuation watchlist** - `zcl_alloc_valm_watch=>watch( )` lists the lines over their thresholds
+     with their excess, `watch_count( )` counts them and `is_watched( )` tests the rule.
+846. **Valuation change rate** - `zcl_alloc_valm_rate=>rate( )` relates a move to the value it came
+     from, `is_spike( )` tests it against a limit and `direction( )` names the way.
+847. **Valuation monitoring trend** - `zcl_alloc_valm_trend=>direction( )` reads UP, DOWN or FLAT,
+     `is_rising( )` tests the move and `streak( )` counts the run of rises at the end.
+848. **Valuation band** - `zcl_alloc_valm_band=>is_in_band( )` tests a value between two edges,
+     `position( )` says BELOW, INSIDE or ABOVE and `band_gap( )` gives the distance outside.
+849. **Valuation drift** - `zcl_alloc_valm_drift=>drift( )` gives the move from the target,
+     `is_drifting( )` tests it against a tolerance and `direction( )` reads OVER, UNDER or ON.
+850. **Valuation alert** - `zcl_alloc_valm_alert=>alerts( )` raises one alert per line over its
+     limit, `alert_count( )` counts them and `is_alerting( )` tests the rule.
+851. **Valuation health** - `zcl_alloc_valm_health=>is_healthy( )` tests the alerts against an
+     allowance, `issue_count( )` counts the values over a threshold and `score( )` gives the share
+     of clean lines.
+852. **Valuation monitoring report** - `zcl_alloc_valm_report=>build( )` carries the total and the
+     breach count, `breach_count( )` counts the breaches and `total( )` sums the value.
+853. **Valuation monitoring summary** - `zcl_alloc_valm_summary=>build( )` counts the lines and the
+     breaches, `evaluate( )` gives the breach rate and `status( )` reads ALERT, WATCH or OK.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3227,14 +3248,14 @@ Test coverage (1260 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-**Roadmap batches 1-10 are complete**: orders 1-753 are delivered and verified
+**Roadmap batches 1-11 are complete**: orders 1-853 are delivered and verified
 (the only unbuilt items, such as 143, need a GUI that the transpiler cannot
 exercise).
 
-Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
-for orders 754-853 (the next 100 features), in the same style: one feature per
+Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
+for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-843 are delivered.
+tranches of ten.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

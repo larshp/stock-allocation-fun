@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-525 are delivered; batch 7 and everything before it remain complete.**
+454-535 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1606,6 +1606,45 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      first matching hazard-class / storage-class rule and refuses a pairing with no
      rule at all. `conflict( )` reports only an explicit rule that forbids the
      pairing, which is different from simply not having one.
+526. **Serial number generator** - `zcl_alloc_serial_gen=>generate( )` formats a
+     number with a prefix and a zero-padded width (`generate_range( )` does a whole
+     run) and a small internal counter feeds `next_serial( )`. The number is turned
+     into text with a string template, because a plain numeric assignment stays a
+     number (ANOMALIES.md A31).
+527. **Serial number range check** - `zcl_alloc_serial_check` answers whether a
+     serial is inside a range (`in_range( )`, both ends inclusive) and whether a
+     list is free of duplicates (`is_unique( )` / `duplicates( )`), the scan going
+     through `zcl_alloc_key_map`.
+528. **Serial selection for a quantity** - `zcl_alloc_serial_select=>select( )`
+     consumes serials in the offered order up to the requested quantity, and
+     `shortfall( )` reports how many are missing.
+529. **Serial number history** - `zcl_alloc_serial_history` records events per
+     serial and reads them back: `history( )` (in insertion order), `count_of( )`
+     and `last_event( )`, which is the event on the latest day (first one wins on a
+     same-day tie).
+530. **Serial trace** - `zcl_alloc_serial_trace` follows the packing links in the
+     forward direction: `children( )` is one level and `descendants( )` is a
+     breadth-first walk of the whole subtree. The root is marked as seen first and
+     the walk is bounded by the link count, so a cycle cannot loop and the root is
+     never its own descendant.
+531. **Cycle count plan** - `zcl_alloc_cycle_plan=>plan( )` lists every bin with its
+     days since the last count and a `due` flag, treating a never-counted bin (day
+     zero) as the most overdue. `due_count( )` counts the ones that are due.
+532. **Count frequency by ABC class** - `zcl_alloc_count_freq=>frequency( )` turns a
+     base interval into the A / B / C interval (base, double, quadruple) and
+     `counts_per_year( )` turns an interval into a yearly count; an unknown class
+     gets no interval at all.
+533. **Count variance** - `zcl_alloc_count_variance` reports the signed difference
+     (`variance( )`), its absolute percentage (`variance_percent( )`, zero for an
+     empty book stock), a `within_tolerance( )` check and the signed
+     `value_impact( )` of the difference at a unit price.
+534. **Count adjustment proposal** - `zcl_alloc_count_adjust=>propose( )` returns the
+     signed adjustment and its reason (GAIN, LOSS or NONE when the rounded
+     difference is zero), and `posting_qty( )` gives the unsigned quantity to post.
+535. **Book-to-physical check** - `zcl_alloc_book_phys=>mismatches( )` lists only the
+     bins where book and physical stock differ, with the signed difference;
+     `is_consistent( )` and `total_difference( )` give the summary. The total nets
+     out, so the mismatch list is what shows an overage hiding a shortage.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

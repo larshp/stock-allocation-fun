@@ -1237,7 +1237,7 @@ walks the calendar.
 | 752 | Replenishment policy presets | `zcl_alloc_replen_policy` (`preset`, `target_days`, `service_level`) |
 | 753 | Replenishment plan card | `zcl_alloc_replen_card` (`build`, `total_quantity`, `on_target`) |
 
-**Batch 10 is in progress.** Orders 654-693 are delivered; the rest are built one
+**Batch 10 is in progress.** Orders 654-703 are delivered; the rest are built one
 per iteration in the local test→commit rhythm.
 
 

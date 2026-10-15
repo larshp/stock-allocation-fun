@@ -34,8 +34,21 @@ CLASS zcl_alloc_return_window DEFINITION
       RETURNING
         VALUE(rv_date) TYPE d.
 
+    METHODS subtract_days
+      IMPORTING
+        iv_date        TYPE d
+        iv_days        TYPE i
+      RETURNING
+        VALUE(rv_date) TYPE d.
+
   PRIVATE SECTION.
     METHODS next_day
+      IMPORTING
+        iv_date        TYPE d
+      RETURNING
+        VALUE(rv_date) TYPE d.
+
+    METHODS previous_day
       IMPORTING
         iv_date        TYPE d
       RETURNING
@@ -112,6 +125,55 @@ CLASS zcl_alloc_return_window IMPLEMENTATION.
     ENDWHILE.
 
     rv_date = lv_date.
+  ENDMETHOD.
+
+  METHOD subtract_days.
+    DATA lv_step TYPE i.
+    DATA lv_date TYPE d.
+
+    lv_date = iv_date.
+
+    WHILE lv_step < iv_days.
+      lv_date = previous_day( lv_date ).
+      lv_step = lv_step + 1.
+    ENDWHILE.
+
+    rv_date = lv_date.
+  ENDMETHOD.
+
+  METHOD previous_day.
+    DATA lv_year TYPE i.
+    DATA lv_month TYPE i.
+    DATA lv_day TYPE i.
+    DATA lv_text TYPE string.
+    DATA lv_part TYPE string.
+
+    lv_year = iv_date+0(4).
+    lv_month = iv_date+4(2).
+    lv_day = iv_date+6(2).
+
+    lv_day = lv_day - 1.
+    IF lv_day < 1.
+      lv_month = lv_month - 1.
+      IF lv_month < 1.
+        lv_month = 12.
+        lv_year = lv_year - 1.
+      ENDIF.
+      lv_day = days_in_month( iv_year  = lv_year
+                              iv_month = lv_month ).
+    ENDIF.
+
+    lv_part = pad_num( iv_value = lv_year
+                       iv_width = 4 ).
+    lv_text = lv_part.
+    lv_part = pad_num( iv_value = lv_month
+                       iv_width = 2 ).
+    lv_text = lv_text && lv_part.
+    lv_part = pad_num( iv_value = lv_day
+                       iv_width = 2 ).
+    lv_text = lv_text && lv_part.
+
+    rv_date = lv_text.
   ENDMETHOD.
 
   METHOD next_day.

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-693 are delivered; batch 9 and everything before it remain complete.**
+orders 654-703 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1440,6 +1440,35 @@ orders 654-693 are delivered; batch 9 and everything before it remain complete.*
      periods that fell short.
 693. **ABC service policy** - `zcl_alloc_service_policy=>level_of( )` sets the service by ABC
      class, `is_strict( )` marks the top two classes and `target_of( )` names the policy.
+694. **Gross requirement** - `zcl_alloc_gross_req=>total( )` sums the requirement over all
+     periods, `period( )` over one period and `line_count( )` counts the lines.
+695. **Net requirement** - `zcl_alloc_net_req=>net( )` subtracts stock and receipts from the
+     requirement (never negative), `shortfall( )` also protects the safety stock and
+     `is_covered( )` says whether stock and receipts reach it.
+696. **Available to promise** - `zcl_alloc_atp=>atp( )` accumulates supply and demand up to a
+     period, `is_positive( )` tests it and `first_period( )` names the first period whose
+     promise turns positive.
+697. **Receipts netting** - `zcl_alloc_receipt_net=>receipt_total( )` and `demand_total( )`
+     sum each side and `net( )` nets the receipts against the demands.
+698. **Planned order proposal** - `zcl_alloc_planned_order=>proposal( )` rounds the net
+     requirement up to whole lots, `is_needed( )` tests it and `quantity( )` respects the
+     minimum order size.
+699. **MRP exception** - `zcl_alloc_mrp_exception=>code( )` names the exception (a late date
+     reschedules, a positive requirement is new), `is_exception( )` tests the pair of
+     conditions and `count_of( )` counts a code in a list.
+700. **MRP list summary** - `zcl_alloc_mrp_summary=>build( )` returns the exception count and
+     the total shortage, `exception_count( )` counts the non-`NONE` codes and
+     `total_shortage( )` sums the positive shortages.
+701. **Pegged requirement** - `zcl_alloc_peg=>peg( )` takes the smaller of requirement and
+     supply, `is_pegged( )` says whether the supply reaches the requirement and
+     `peg_count( )` counts the fully pegged entries.
+702. **Requirement date** - `zcl_alloc_req_date=>date_of( )` steps the lead time back from the
+     requirement date (reusing a new `subtract_days` added to `zcl_alloc_return_window`),
+     `offset_date( )` steps a date forward and `is_late( )` tests an order date against the
+     requirement date.
+703. **MRP run status** - `zcl_alloc_mrp_status=>status( )` folds the steps into
+     `EMPTY`/`OPEN`/`RUNNING`/`COMPLETE`, `is_complete( )` tests the full run and
+     `pending_count( )` counts the unfinished steps.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-763 are delivered; batch 10 and everything before it are complete.**
+orders 754-773 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1352,6 +1352,30 @@ orders 754-763 are delivered; batch 10 and everything before it are complete.**
      between two values.
 763. **Cost basis comparison** - `zcl_alloc_cost_basis_cmp=>compare( )` orders two cost bases,
      `cheaper( )` picks the lower and `delta( )` gives the difference.
+764. **Cost layer build** - `zcl_alloc_layer_build=>build( )` counts the layers and totals their
+     quantity and value, `layer_count( )` counts them and `total_qty( )` sums the quantity.
+765. **FIFO consumption** - `zcl_alloc_layer_fifo=>consume( )` takes the demand off the oldest
+     layers first, `remaining( )` sums what is left and `layers_used( )` counts the touched
+     layers.
+766. **LIFO consumption** - `zcl_alloc_layer_lifo=>consume( )` takes the demand off the newest
+     layers first, `remaining( )` sums what is left and `layers_used( )` counts the touched
+     layers.
+767. **Cost layer value** - `zcl_alloc_layer_value=>value( )` prices one layer, `layer_value( )`
+     prices the layer at a position and `total_value( )` sums the whole stock.
+768. **Cost layer ageing** - `zcl_alloc_layer_age=>age_days( )` spans a receipt to today,
+     `is_old( )` tests an age against a threshold and `oldest( )` finds the longest-held layer.
+769. **Cost layer depletion status** - `zcl_alloc_layer_status=>status( )` reads EMPTY, INTACT,
+     PARTIAL or DEPLETED from the remaining and original quantity, `is_empty( )` tests it and
+     `pending_qty( )` gives the part still to consume.
+770. **Cost layer merge** - `zcl_alloc_layer_merge=>merge( )` combines the layers of one price,
+     `group_count( )` counts the distinct prices and `largest( )` gives the biggest group.
+771. **Cost layer split** - `zcl_alloc_layer_split=>split( )` cuts a quantity into equal parts
+     with the remainder on the first, `parts( )` counts the parts of a given size and
+     `total_qty( )` sums them.
+772. **Cost layer revaluation** - `zcl_alloc_layer_reval=>revalue( )` carries every layer to a new
+     price, `delta_value( )` gives the value change and `is_up( )` tests whether it is a rise.
+773. **Cost layer summary** - `zcl_alloc_layer_summary=>build( )` carries the layer count, the
+     quantity and the value, `total_qty( )` sums the quantity and `total_value( )` the value.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3059,7 +3083,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-763 are delivered.
+tranches of ten. Orders 754-773 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

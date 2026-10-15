@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-793 are delivered; batch 10 and everything before it are complete.**
+orders 754-803 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1423,6 +1423,26 @@ orders 754-793 are delivered; batch 10 and everything before it are complete.**
      value, `value_share( )` reads one line's share and `total( )` sums the shares.
 793. **Landed cost summary** - `zcl_alloc_landed_summary=>build( )` counts the lines and totals
      their landed cost, `total( )` sums the cost and `line_count( )` counts the lines.
+794. **Obsolescence provision** - `zcl_alloc_prov_obsolete=>provision( )` takes a share of the stock
+     value, `percent( )` reads the rate back and `is_provisioned( )` tests it.
+795. **Ageing provision** - `zcl_alloc_prov_age=>provision( )` applies the rate of the bucket an age
+     falls into, `percent_of( )` reads that rate and `total( )` sums a list of provisions.
+796. **Net realisable value** - `zcl_alloc_nrv=>nrv( )` leaves the selling price less the selling
+     cost, `is_impaired( )` tests it against cost and `write_down( )` gives the shortfall.
+797. **Write-down proposal** - `zcl_alloc_writedown=>proposal( )` lists the lines priced below book,
+     `amount( )` gives one line's write-down and `is_needed( )` tests the rule.
+798. **Provision rate** - `zcl_alloc_prov_rate=>rate( )` reads the rate from provision and value,
+     `provision( )` computes it from the rate and `is_high( )` tests it against a threshold.
+799. **Provision reversal** - `zcl_alloc_prov_reverse=>reverse( )` takes back a share of the
+     provision, `amount( )` leaves the rest and `is_full( )` tests a complete reversal.
+800. **Provision summary** - `zcl_alloc_prov_summary=>build( )` counts the lines and totals their
+     provisions, `total( )` sums them and `line_count( )` counts the lines.
+801. **Impairment test** - `zcl_alloc_impair_test=>is_impaired( )` tests the recoverable amount
+     against the book value, `gap( )` gives the shortfall and `severity( )` grades it.
+802. **Provision movement** - `zcl_alloc_prov_move=>movement( )` gives the signed change,
+     `is_increase( )` tests its direction and `delta( )` gives its size.
+803. **Provision coverage** - `zcl_alloc_prov_cover=>coverage_percent( )` relates the provision to the
+     requirement, `is_covered( )` tests it and `shortfall( )` gives what is missing.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3130,7 +3150,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-793 are delivered.
+tranches of ten. Orders 754-803 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

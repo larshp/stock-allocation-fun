@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-773 are delivered; batch 10 and everything before it are complete.**
+orders 754-783 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1376,6 +1376,29 @@ orders 754-773 are delivered; batch 10 and everything before it are complete.**
      price, `delta_value( )` gives the value change and `is_up( )` tests whether it is a rise.
 773. **Cost layer summary** - `zcl_alloc_layer_summary=>build( )` carries the layer count, the
      quantity and the value, `total_qty( )` sums the quantity and `total_value( )` the value.
+774. **Weighted average valuation** - `zcl_alloc_val_wavg=>unit_cost( )` spreads the layer value
+     over the quantity, `value( )` prices a quantity at that average and `is_zero( )` marks
+     stock without value.
+775. **Standard cost valuation** - `zcl_alloc_val_std=>value( )` prices a quantity at the standard
+     cost, `unit_cost( )` gives the actual average and `variance( )` the gap between the actual
+     and the standard value.
+776. **Lowest value principle** - `zcl_alloc_val_lowest=>value( )` keeps the lower of cost and
+     market, `method( )` names the one that produced it and `is_written_down( )` flags a market
+     below cost.
+777. **Valuation comparison** - `zcl_alloc_val_compare=>compare( )` orders two values,
+     `best_method( )` names the lower one and `delta( )` gives the difference.
+778. **Valuation method selection** - `zcl_alloc_val_select=>select( )` maps a policy to a method,
+     `is_standard( )` tests for standard valuation and `reason( )` explains the method.
+779. **Valuation run** - `zcl_alloc_val_run=>build( )` counts the valued lines and totals their
+     value, `line_count( )` counts the lines and `total_value( )` sums the value.
+780. **Valuation difference** - `zcl_alloc_val_diff=>difference( )` gives the move between two
+     values, `is_up( )` tests its direction and `percent( )` relates it to the old value.
+781. **Valuation rounding** - `zcl_alloc_val_round=>round( )` carries a value to the nearest
+     multiple of a step, `nearest( )` up to the next one and `difference( )` gives the gap.
+782. **Valuation of returns** - `zcl_alloc_val_return=>value( )` reduces an original value by a
+     rate, `is_reduced( )` tests the rate and `reduction_percent( )` reads the implied rate back.
+783. **Valuation of scrap** - `zcl_alloc_val_scrap=>value( )` keeps a share of the original value,
+     `scrap_percent( )` reads that share back and `is_scrapped( )` tests it.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3083,7 +3106,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-773 are delivered.
+tranches of ten. Orders 754-783 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

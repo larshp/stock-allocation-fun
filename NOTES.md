@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-607 are delivered; batch 8 and everything before it remain complete.**
+554-619 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1514,6 +1514,42 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      quantity per material, orders it by size and carries the cumulative share on
      each bucket; `vital_few( )` counts the buckets up to a cumulative threshold and
      `cumulative_percent( )` returns the final share.
+608. **Return pickup route** - `zcl_alloc_return_route=>build( )` visits the nearest
+     pickup first (first stop breaking ties), carries the distance travelled so far
+     on each leg and leaves off stops with no pickup; `stop_count( )` and
+     `total_quantity( )` summarise the input.
+609. **Return pickup sequencing** - `zcl_alloc_return_seq=>sequence( )` numbers the
+     points nearest first, `position_of( )` finds a point's position and `distance( )`
+     sums the route.
+610. **Return load plan** - `zcl_alloc_return_load=>plan( )` turns items into load
+     lines with the line volume (quantity times unit volume), `total_volume( )` sums
+     them and `is_feasible( )` compares the volume with a vehicle capacity.
+611. **Return consolidation** - `zcl_alloc_return_consolidate=>merge( )` sums the
+     returns into shipment groups by key, `groups( )` counts them and
+     `largest_group( )` names the biggest.
+612. **Return-to-vendor shipment** - `zcl_alloc_rtv_ship=>build( )` values each RTV
+     line at cost, `total( )` sums the lines and `line_count( )` counts them.
+613. **Vendor return claim** - `zcl_alloc_rtv_claim=>claim( )` values the claim,
+     `value( )` takes the approved share of it and `is_valid( )` checks it against a
+     limit.
+614. **Vendor claim aging** - `zcl_alloc_rtv_aging=>bucket( )` bands an age,
+     `oldest_days( )` finds the oldest open claim and `overdue( )` counts the claims
+     past a limit.
+615. **RTV credit reconciliation** - `zcl_alloc_rtv_recon=>reconcile( )` gives the
+     signed credit difference, `difference( )` the absolute one (built without
+     `ABS`) and `is_settled( )` says whether it is within a tolerance.
+616. **Recall return scope** - `zcl_alloc_recall_return=>scope( )` lists the lots of a
+     recalled material with stock on hand, `affected_quantity( )` sums them and
+     `is_affected( )` tests one lot.
+617. **Recall return status** - `zcl_alloc_recall_status=>status( )` walks a recall from
+     OPEN to IN_PROGRESS to COMPLETE (NONE without a scope), `recovered_percent( )`
+     states the recovered share (capped at 100) and `is_complete( )` tests it.
+618. **Recall return notification** - `zcl_alloc_recall_notice=>build( )` writes the
+     notice text from the lots in scope, `recipients( )` lists the distinct materials
+     in scope and `message( )` builds the short text.
+619. **Recall effectiveness** - `zcl_alloc_recall_effect=>rate( )` states the recovered
+     share, `is_effective( )` compares it with a target and `outstanding( )` gives the
+     quantity still to recover (never below zero).
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

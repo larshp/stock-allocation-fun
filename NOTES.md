@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-833 are delivered; batch 10 and everything before it are complete.**
+orders 754-843 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1507,6 +1507,26 @@ orders 754-833 are delivered; batch 10 and everything before it are complete.**
      tolerated band, `violation_count( )` counts them and `worst( )` gives the largest gap.
 833. **Intercompany summary** - `zcl_alloc_interco_summary=>build( )` counts the distinct entities and
      totals the amounts, `total( )` sums them and `entity_count( )` counts the entities.
+834. **Valuation report** - `zcl_alloc_val_report=>build( )` values every line at its unit cost,
+     `row_count( )` counts the rows and `total_value( )` sums them.
+835. **Valuation rollup** - `zcl_alloc_val_rollup=>rollup( )` rolls the lines into their categories,
+     `group_count( )` counts the groups and `largest_group( )` gives the biggest total.
+836. **Valuation detail** - `zcl_alloc_val_detail=>detail( )` lists the values of one material,
+     `for_material( )` totals them and `line_count( )` counts the lines.
+837. **Valuation by group** - `zcl_alloc_val_group=>group_totals( )` lists the group totals worst
+     first, `is_empty( )` tests for no lines and `group_count( )` counts the groups.
+838. **Valuation browse** - `zcl_alloc_val_browse=>browse( )` returns one page of lines,
+     `page_count( )` counts the pages and `has_more( )` tests for a further page.
+839. **Valuation export** - `zcl_alloc_val_export=>to_rows( )` takes the values in order,
+     `to_text( )` writes one value as text and `row_count( )` counts the rows.
+840. **Valuation dashboard** - `zcl_alloc_val_dashboard=>build( )` carries the line count, total and
+     average value, `is_healthy( )` tests the line count and `highlight( )` flags a high total.
+841. **Valuation comparison report** - `zcl_alloc_val_compare_rep=>compare( )` lists the lines whose
+     value moved, `changed_count( )` counts them and `is_same( )` tests two values.
+842. **Valuation report line** - `zcl_alloc_val_report_line=>format( )` writes a material and value as
+     text, `is_valuable( )` tests a positive value and `is_zero( )` a nil one.
+843. **Valuation sign-off** - `zcl_alloc_val_signoff=>is_signed( )` tests whether a name is on the
+     valuation, `status( )` reads EMPTY, DRAFT or SIGNED and `require( )` names the next step.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3214,7 +3234,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-833 are delivered.
+tranches of ten. Orders 754-843 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

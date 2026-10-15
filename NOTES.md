@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-515 are delivered; batch 7 and everything before it remain complete.**
+454-525 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1568,6 +1568,44 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      over the criteria, ignoring rows with a non-positive weight or a score outside
      0-100 so a malformed row cannot pull the result out of range, and `grade( )`
      maps the score to A / B / C / D.
+516. **Defect rate** - `zcl_alloc_defect_rate` reports the whole-percent rate
+     (`percent( )`) and the finer per-thousand rate (`per_thousand( )`), which is
+     what makes a sub-one-percent defect rate visible.
+517. **Defect classification** - `zcl_alloc_defect_class=>classify( )` reads the
+     severity off the code prefix (CRIT / MAJ / else MINOR), checking the length
+     before every `substring( )` so a short code cannot run past the end. `worst( )`
+     returns the highest severity present and `count_of( )` counts one class.
+518. **Batch status check** - `zcl_alloc_batch_status` answers the three questions a
+     stock lookup asks: is the status known, may the batch be used (ACTIVE or
+     RESTRICTED) and is it blocked (BLOCKED or EXPIRED). An unknown status is never
+     usable.
+519. **Shelf-life check** - `zcl_alloc_shelf_life` works on plain day numbers, so no
+     calendar arithmetic is involved: `remaining_days( )` (floored at zero),
+     `is_expired( )` (the expiry day itself is still usable), `is_usable( )` and
+     `is_expiring( )`.
+520. **Remaining shelf-life ratio** - `zcl_alloc_shelf_ratio=>ratio( )` is the
+     remaining percentage of the total shelf life and deliberately is not clamped,
+     so a batch master record that claims more remaining days than total shows up as
+     over 100 percent. `is_fresh( )` compares against a minimum percentage.
+521. **Batch recall scope** - `zcl_alloc_recall_scope` widens a recalled batch to
+     every batch of the same material: `materials( )` gives the material of the
+     recalled batch and `batches( )` the distinct affected batches, both in
+     first-seen order and both deduplicated through `zcl_alloc_key_map`.
+522. **Traceability chain** - `zcl_alloc_trace_chain=>chain( )` walks predecessor
+     links from a node back to its root and returns the path root-to-node. At most
+     one step is taken per link, so a cycle terminates, and the result is emitted in
+     reverse by indexing the collected path.
+523. **Certificate checklist** - `zcl_alloc_cert_check=>missing( )` returns the
+     required certificate types that are not held, in the order they were required,
+     and `is_complete( )` reuses it. An extra held certificate is harmless.
+524. **Certificate expiry** - `zcl_alloc_cert_expiry=>days_left( )` counts the days
+     to a validity end (never negative, the end day itself is valid) and `state( )`
+     classifies VALID / EXPIRING / EXPIRED, with a warn threshold of zero switching
+     the EXPIRING band off.
+525. **Hazardous material check** - `zcl_alloc_hazard_check=>allowed( )` applies the
+     first matching hazard-class / storage-class rule and refuses a pairing with no
+     rule at all. `conflict( )` reports only an explicit rule that forbids the
+     pairing, which is different from simply not having one.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

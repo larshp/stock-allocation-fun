@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-563 are delivered; batch 8 and everything before it remain complete.**
+554-573 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1361,6 +1361,42 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 563. **RMA number generator** - `zcl_alloc_rma_id` issues numbered references with a
      zero-padded sequence (`next( )`), restarts the sequence (`reset( )`) and
      validates the shape of a reference (`is_valid( )`).
+564. **Return inspection result** - `zcl_alloc_return_inspect` records the result per
+     material (`record( )`, a later record wins so a result can be corrected),
+     looks one up (`result_of( )`) and lists the expected materials that have no
+     result yet (`missing( )`).
+565. **Return condition grading** - `zcl_alloc_return_grade` turns a condition score
+     into a letter grade (`grade( )`: A/B/C/D/F), gives the lowest score of a grade
+     back (`score( )`, -1 for an unknown letter) and marks the sellable band
+     (`is_sellable( )`, score 60 and above).
+566. **Disposition routing** - `zcl_alloc_disposition=>route( )` sends a graded item
+     to RESTOCK, REWORK, REPAIR or SCRAP, with a hazardous item always scrapped;
+     `target_of( )` routes by grade alone and `count_for( )` counts a grade list per
+     target through a sorted table keyed by target.
+567. **Restock decision** - `zcl_alloc_restock_decision=>decide( )` restocks a line
+     only when its grade reaches a configurable minimum and its quantity is
+     positive (`is_restock( )` ranks the grades), and `reason( )` states why.
+568. **Restock quantity split** - `zcl_alloc_restock_split` divides a quantity into a
+     sellable and a blocked share (`split( )`), clamping the blocked share into the
+     quantity so the sellable share can never go negative (`sellable( )`,
+     `blocked( )`).
+569. **Scrap proposal** - `zcl_alloc_scrap_proposal=>propose( )` turns the items with
+     a positive quantity into scrap lines carrying a reason and skips the rest;
+     `total_quantity( )` sums them and `reason( )` states the scrap reason for one
+     item.
+570. **Scrap value** - `zcl_alloc_scrap_value` multiplies a quantity by a unit value
+     (`value( )`, ignoring a negative operand), values one line (`value_of( )`) and
+     totals a list (`total( )`).
+571. **Rework proposal** - `zcl_alloc_rework_proposal=>propose( )` derives the rework
+     steps and hours from a grade (a grade C is cleaned and tested, a grade D also
+     has a part replaced); `total_hours( )` and `steps( )` summarise it.
+572. **Repair order lines** - `zcl_alloc_repair_order=>build( )` numbers the items
+     with a positive quantity from one, so a skipped item leaves no gap;
+     `total( )` and `line_count( )` summarise the order.
+573. **Repair queue sequencing** - `zcl_alloc_repair_queue=>sequence( )` orders jobs by
+     priority, then by arrival and then by input order (a stable sort via a sequence
+     number); `position_of( )` reports a job's place in the queue and
+     `priority_order( )` bands a priority as HIGH, MEDIUM or LOW.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

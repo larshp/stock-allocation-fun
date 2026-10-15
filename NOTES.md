@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-733 are delivered; batch 9 and everything before it remain complete.**
+orders 654-743 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1554,6 +1554,36 @@ orders 654-733 are delivered; batch 9 and everything before it remain complete.*
 733. **Inventory management score** - `zcl_alloc_inventory_score=>score( )` weights
      availability, accuracy and turnover, `is_good( )` tests the score and `gap( )` gives the
      shortfall against a target.
+734. **Replenishment run** - `zcl_alloc_replenish_run=>build( )` counts the proposal lines and
+     sums their quantity, `line_count( )` counts them and `total_quantity( )` sums a line
+     list.
+735. **Replenishment confirmation** - `zcl_alloc_replenish_confirm=>confirm( )` marks one
+     material's proposal as confirmed, `is_confirmed( )` reads that flag and
+     `convert_to_order( )` turns the confirmed proposals into order lines.
+736. **Purchase order creation** - `zcl_alloc_po_create=>build( )` carries the document number
+     with the line count and the order value, `line_count( )` counts the lines and
+     `total_value( )` prices quantity times price.
+737. **Stock transport order creation** - `zcl_alloc_sto_create=>build( )` counts the lines and
+     sums the quantity, `is_cross_plant( )` flags a line moving between two plants and
+     `total_quantity( )` sums a line list.
+738. **Replenishment release** - `zcl_alloc_replenish_release=>release( )` releases every
+     unblocked line, `is_released( )` reads one material's flag and `blocked_count( )` counts
+     the blocked lines.
+739. **Replenishment approval** - `zcl_alloc_replenish_approve=>approve( )` approves every line,
+     `is_approved( )` reads one material's flag and `pending_count( )` counts the lines still
+     waiting.
+740. **Replenishment schedule** - `zcl_alloc_replenish_schedule=>schedule( )` places the next
+     run one cycle after the last, `next_date( )` places the nth run and `is_overdue( )` tests
+     a planned day against today.
+741. **Replenishment prioritization** - `zcl_alloc_replenish_prioritize=>ordered( )` sorts the
+     lines by priority, `line_count( )` counts them and `first_material( )` names the material
+     at the top.
+742. **Replenishment confirmation message** - `zcl_alloc_replenish_msg=>message( )` spells out
+     the outcome, `is_success( )` tells whether a run had no failures and `error_count( )`
+     counts the failed messages.
+743. **Replenishment status** - `zcl_alloc_replenish_status=>status( )` reads EMPTY, OPEN,
+     PARTIAL or DONE from the confirmed and total line counts, `is_done( )` tests the run and
+     `pending_count( )` gives the lines still open.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

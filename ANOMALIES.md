@@ -564,3 +564,20 @@ Each entry notes the symptom, the cause and the workaround used.
   (`DATA(lv_diff) = lv_value - lv_mean.`), or declare a plain `DATA lv_diff TYPE i.`
   at the top of the method. The value-carrying inline form (`DATA(lv_x) = ...`) is
   fine inside a loop, as used in order 659.
+
+## A38 - Class names longer than 30 characters are rejected
+
+* Symptom: `check_syntax, Class name "zcl_alloc_replenish_confirm_msg" is too long,
+  maximum length is 30 characters`, the same message for the local test class
+  `ltcl_alloc_replenish_confirm_msg`, and `allowed_object_naming, Name exceeds max
+  length, allowed is 30` on `zcl_alloc_replenish_confirm_msg.clas.xml`. `npm run lint`
+  reported 4 issues and `npm run build` / `npm run unit` failed.
+* Cause: ABAP limits class names (global and local) to 30 characters, and the
+  `allowed_object_naming` rule enforces the same limit on the name inside the
+  `.clas.xml`. A test class named `ltcl_` + the global name is five characters longer,
+  so any global name over 25 characters pushes its natural test class over the limit.
+* Workaround: keep global class names <= 25 characters when an `ltcl_<name>` test class
+  is wanted, or shorten the test class name (`ltcl_alloc_replen_prioritize` for
+  `zcl_alloc_replenish_prioritize`). The `local_testclass_consistency` rule does not tie
+  the test class name to the global name, so an abbreviated test class name is accepted.
+  Renamed `zcl_alloc_replenish_confirm_msg` -> `zcl_alloc_replenish_msg`.

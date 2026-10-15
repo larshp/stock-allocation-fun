@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-933 are delivered; batch 11 and everything before it are complete.**
+orders 854-943 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1483,6 +1483,26 @@ orders 854-933 are delivered; batch 11 and everything before it are complete.**
      size, `diff_count( )` counts the open ones and `total_diff( )` sums their size.
 933. **Reconciliation summary** - `zcl_alloc_recon_summary=>build( )` counts the items and the matches,
      `item_count( )` counts the items and `matched_count( )` the matches.
+934. **Cost object build** - `zcl_alloc_cobj_build=>build( )` gathers the lines into their objects,
+     `object_count( )` counts them and `total( )` sums the cost.
+935. **Cost object cost** - `zcl_alloc_cobj_cost=>cost( )` adds material, labour and overhead,
+     `per_unit( )` spreads it over the quantity and `is_zero( )` tests a nil cost.
+936. **Cost object margin** - `zcl_alloc_cobj_margin=>margin( )` gives revenue less cost,
+     `margin_percent( )` reads it against the revenue and `is_positive( )` tests it.
+937. **Cost object ranking** - `zcl_alloc_cobj_rank=>rank( )` orders the objects by margin, `best( )`
+     gives the biggest and `worst( )` the smallest.
+938. **Cost object comparison** - `zcl_alloc_cobj_compare=>compare( )` names the cheaper object,
+     `cheaper( )` gives the lower cost and `delta( )` the difference.
+939. **Cost object share** - `zcl_alloc_cobj_share=>share_percent( )` gives one object's share,
+     `largest( )` the biggest cost and `is_zero( )` tests a nil value.
+940. **Cost object trend** - `zcl_alloc_cobj_trend=>direction( )` reads UP, DOWN or FLAT, `is_rising( )`
+     tests the move and `delta( )` gives it.
+941. **Cost object threshold** - `zcl_alloc_cobj_threshold=>is_over( )` tests the cost against a limit,
+     `breach( )` gives how far over and `level( )` reads over, on or under.
+942. **Cost object health** - `zcl_alloc_cobj_health=>is_healthy( )` tests the margin against a target,
+     `issue_count( )` counts the shortfalls and `score( )` grades the object.
+943. **Cost object summary** - `zcl_alloc_cobj_summary=>build( )` counts the objects and totals them,
+     `object_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3419,7 +3439,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-933 are delivered.
+tranches of ten. Orders 854-943 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

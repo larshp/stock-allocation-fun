@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-723 are delivered; batch 9 and everything before it remain complete.**
+orders 654-733 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1525,6 +1525,35 @@ orders 654-723 are delivered; batch 9 and everything before it remain complete.*
 723. **Inventory class policy** - `zcl_alloc_class_policy=>policy_of( )` sets the
      replenishment cycle by ABC class, `is_strict( )` marks the top two classes and
      `service_of( )` sets their service target.
+724. **Inventory ageing buckets** - `zcl_alloc_inv_age=>bucket_of( )` cuts an age into
+     FRESH/RECENT/AGING/OBSOLETE (30/90/180), `buckets( )` lists the buckets and
+     `is_aged( )` tests an age against a threshold.
+725. **Stock age** - `zcl_alloc_stock_age=>age_days( )` ages a receipt from its day,
+     `is_old( )` tests it against a threshold and `count_old( )` counts the old positions as
+     of a date.
+726. **Inventory turnover** - `zcl_alloc_turnover=>turns( )` spreads the annual demand over
+     the average stock, `days_of_supply( )` spreads the stock over a year of demand and
+     `is_healthy( )` tests the turnover against a minimum.
+727. **Obsolete stock risk** - `zcl_alloc_obsolete=>is_obsolete( )` tests an age against a
+     threshold, `risk( )` bands it (HIGH/MEDIUM/LOW) and `count_obsolete( )` counts the
+     obsolete ages.
+728. **Excess stock** - `zcl_alloc_excess_stock=>is_excess( )` tests the stock against a
+     target, `excess_qty( )` gives the part above it and `excess_value( )` prices that part.
+729. **Stock health score** - `zcl_alloc_stock_health=>health( )` weights turnover, service
+     and the absence of excess, `grade( )` letters the score and `is_healthy( )` tests it
+     against a threshold.
+730. **Inventory risk score** - `zcl_alloc_inventory_risk=>risk( )` scores age, excess and the
+     service gap, `is_high( )` tests the score and `count_high( )` counts the risky
+     positions.
+731. **Stock ageing report** - `zcl_alloc_aging_report=>build( )` sums the count and the value
+     per ageing bucket in a sorted table, `count_in_bucket( )` counts a bucket and
+     `total_value( )` sums the whole stock.
+732. **Reorder review schedule** - `zcl_alloc_reorder_review=>days_until( )` places the next
+     review from the last one and the cycle, `is_due( )` tests it and `review( )` names it
+     DUE or SCHEDULED.
+733. **Inventory management score** - `zcl_alloc_inventory_score=>score( )` weights
+     availability, accuracy and turnover, `is_good( )` tests the score and `gap( )` gives the
+     shortfall against a target.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

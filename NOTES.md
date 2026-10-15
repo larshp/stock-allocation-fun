@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-713 are delivered; batch 9 and everything before it remain complete.**
+orders 654-723 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1495,6 +1495,36 @@ orders 654-713 are delivered; batch 9 and everything before it remain complete.*
 713. **Vendor lead time buffer** - `zcl_alloc_lead_buffer=>planned_lead( )` adds a buffer
      percentage to the supplier lead time, `buffer( )` gives the added days and `is_safe( )`
      tests an actual lead time against the plan.
+714. **ABC classification** - `zcl_alloc_abc_class=>classify( )` sorts the items by value and
+     cuts them into A/B/C by the running share of the total (80/95), `class_of( )` reads one
+     item's class and `count_in( )` counts a class.
+715. **ABC value share** - `zcl_alloc_abc_value=>value_share( )` gives one material's share
+     of the total value, `classify( )` bands a share (50/20) and `class_at( )` combines the
+     two.
+716. **XYZ classification** - `zcl_alloc_xyz=>classify( )` bands a material by the spread of
+     its demand against the mean (25/50), `class_of( )` reads one material's class and
+     `is_stable( )` marks the X class.
+717. **ABC-XYZ matrix** - `zcl_alloc_abc_xyz=>matrix( )` counts the items per ABC-XYZ cell in
+     a sorted table, `cell_of( )` reads one material's cell and `count_in_cell( )` counts a
+     cell.
+718. **Inventory class summary** - `zcl_alloc_class_summary=>build( )` sums the count and the
+     value per class in a sorted table, `count_in( )` counts a class and `top_class( )` names
+     the class with the highest value.
+719. **Pareto threshold** - `zcl_alloc_pareto_threshold=>count_vital( )` counts how many of
+     the largest values make up a threshold share (the classic 80 percent), `is_vital( )`
+     tests a rank and `threshold( )` gives the value of the last vital item.
+720. **Slow mover** - `zcl_alloc_slow_mover=>is_slow( )` tests the movements against a
+     threshold, `movement_class( )` bands them (2/10) and `count_slow( )` counts the slow
+     materials.
+721. **Fast mover** - `zcl_alloc_fast_mover=>turns( )` spreads the annual demand over the
+     average stock, `is_fast( )` tests the turnover against a threshold and `count_fast( )`
+     counts the fast materials.
+722. **Dead stock** - `zcl_alloc_dead_stock=>days_since( )` ages a position from its last
+     movement, `is_dead( )` tests it against a threshold and `count_dead( )` counts the dead
+     positions as of a date.
+723. **Inventory class policy** - `zcl_alloc_class_policy=>policy_of( )` sets the
+     replenishment cycle by ABC class, `is_strict( )` marks the top two classes and
+     `service_of( )` sets their service target.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

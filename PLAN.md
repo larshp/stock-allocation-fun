@@ -1570,8 +1570,8 @@ names were checked free in `src/`.
 | 952 | Governance report | `zcl_alloc_gov_report` (`build`, `item_count`, `open_count`) |
 | 953 | Governance summary | `zcl_alloc_gov_summary` (`build`, `item_count`, `approved_count`) |
 
-**Batch 12 is in progress.** Orders 854-943 are delivered; the rest are built one
-per iteration in the local test→commit rhythm.
+**Batch 12 is complete.** Orders 854-953 are delivered; the batch-11 entries above
+stay as a record.
 
 
 ## Roadmap (batch 1, orders 44-141) - delivered

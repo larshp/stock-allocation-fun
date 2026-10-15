@@ -1320,8 +1320,8 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-943 are delivered; batch 11 and everything before it are complete.**
+**Batch 12 (activity-based costing and cost allocation) is complete:
+orders 854-953 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1503,6 +1503,26 @@ orders 854-943 are delivered; batch 11 and everything before it are complete.**
      `issue_count( )` counts the shortfalls and `score( )` grades the object.
 943. **Cost object summary** - `zcl_alloc_cobj_summary=>build( )` counts the objects and totals them,
      `object_count( )` counts them and `total( )` sums them.
+944. **Allocation policy** - `zcl_alloc_gov_policy=>policy_of( )` reads the level as a policy,
+     `is_strict( )` tests the strictest one and `reason( )` gives the reason behind it.
+945. **Allocation approval** - `zcl_alloc_gov_approve=>approve( )` approves one item, `is_approved( )`
+     tests one and `pending_count( )` counts the rest.
+946. **Allocation audit trail** - `zcl_alloc_gov_audit=>entry( )` formats an audit entry,
+     `entry_count( )` counts the entries and `is_complete( )` tests the trail.
+947. **Allocation sign-off** - `zcl_alloc_gov_signoff=>is_signed( )` tests completion, `status( )` reads
+     complete, partial or open and `require( )` gives the signatures still needed.
+948. **Allocation lock** - `zcl_alloc_gov_lock=>lock( )` locks one item, `is_locked( )` tests one and
+     `lock_count( )` counts the locks.
+949. **Allocation release** - `zcl_alloc_gov_release=>release( )` frees a number of locks,
+     `is_released( )` tests a full release and `remaining( )` counts the locks still held.
+950. **Allocation version** - `zcl_alloc_gov_version=>version( )` numbers a major and minor,
+     `is_newer( )` compares two and `delta( )` gives the move between them.
+951. **Allocation review** - `zcl_alloc_gov_review=>is_due( )` tests the due date, `days_until( )`
+     gives the days left and `priority( )` reads high, medium or low.
+952. **Governance report** - `zcl_alloc_gov_report=>build( )` carries each item with its status,
+     `item_count( )` counts the items and `open_count( )` the open ones.
+953. **Governance summary** - `zcl_alloc_gov_summary=>build( )` counts the items and the approvals,
+     `item_count( )` counts the items and `approved_count( )` the approvals.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3432,14 +3452,13 @@ Test coverage (1260 ABAP Unit tests, run on Node through the transpiler):
 
 ## Next candidates
 
-**Roadmap batches 1-11 are complete**: orders 1-853 are delivered and verified
+**Roadmap batches 1-12 are complete**: orders 1-953 are delivered and verified
 (the only unbuilt items, such as 143, need a GUI that the transpiler cannot
 exercise).
 
-Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
-for orders 854-953 (the next 100 features), in the same style: one feature per
-iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-943 are delivered.
+Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
+in the same style: one feature per iteration, `npm test` green, documented here and
+in `ANOMALIES.md`, and built in tranches of ten.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

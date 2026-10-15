@@ -1574,6 +1574,171 @@ names were checked free in `src/`.
 stay as a record.
 
 
+## Batch 13 - production costing and work in progress (954-1053)
+
+The standing instruction applies again: batch 12 is done, so another 100 items are
+planned here in the same style. Batch 13 covers production costing and work in
+progress in ten tranches of ten: bill of materials (954-963), routing and
+operations (964-973), work in progress (974-983), production order cost
+(984-993), scrap and yield (994-1003), production variance (1004-1013),
+co-products and by-products (1014-1023), standard cost and revaluation
+(1024-1033), period-end settlement (1034-1043) and production reporting
+(1044-1053). All names were checked free in `src/`.
+
+### Bill of materials (954-963)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 954 | BOM build | `zcl_alloc_bom_build` (`build`, `component_count`, `total_qty`) |
+| 955 | BOM explode | `zcl_alloc_bom_explode` (`explode`, `level_of`, `is_multi_level`) |
+| 956 | BOM component | `zcl_alloc_bom_component` (`qty_of`, `is_used`, `count`) |
+| 957 | BOM level | `zcl_alloc_bom_level` (`level_of`, `is_top`, `depth`) |
+| 958 | BOM scrap | `zcl_alloc_bom_scrap` (`scrap_qty`, `is_scrapped`, `gross_qty`) |
+| 959 | BOM where-used | `zcl_alloc_bom_where` (`used_in`, `is_used`, `count`) |
+| 960 | BOM weight | `zcl_alloc_bom_weight` (`weight_of`, `total_weight`, `is_heavy`) |
+| 961 | BOM rollup | `zcl_alloc_bom_rollup` (`rollup`, `group_count`, `largest`) |
+| 962 | BOM compare | `zcl_alloc_bom_compare` (`compare`, `added`, `removed`) |
+| 963 | BOM summary | `zcl_alloc_bom_summary` (`build`, `component_count`, `total_qty`) |
+
+### Routing and operations (964-973)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 964 | Operation time | `zcl_alloc_rout_time` (`total_time`, `is_zero`, `unit_time`) |
+| 965 | Operation rate | `zcl_alloc_rout_rate` (`rate`, `from_cost`, `is_zero`) |
+| 966 | Operation cost | `zcl_alloc_rout_cost` (`cost`, `per_unit`, `total`) |
+| 967 | Operation sequence | `zcl_alloc_rout_seq` (`sequence`, `next_op`, `is_last`) |
+| 968 | Operation capacity | `zcl_alloc_rout_capacity` (`capacity`, `is_over`, `spare`) |
+| 969 | Operation utilisation | `zcl_alloc_rout_util` (`utilisation_percent`, `is_idle`, `spare`) |
+| 970 | Operation efficiency | `zcl_alloc_rout_eff` (`efficiency_percent`, `is_efficient`, `variance`) |
+| 971 | Operation queue | `zcl_alloc_rout_queue` (`queue_time`, `is_waiting`, `wait_count`) |
+| 972 | Operation ranking | `zcl_alloc_rout_rank` (`rank`, `longest`, `shortest`) |
+| 973 | Routing summary | `zcl_alloc_rout_summary` (`build`, `operation_count`, `total_time`) |
+
+### Work in progress (974-983)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 974 | WIP value | `zcl_alloc_wip_value` (`value_of`, `is_zero`, `per_unit`) |
+| 975 | WIP material | `zcl_alloc_wip_material` (`material_cost`, `is_issued`, `balance`) |
+| 976 | WIP labour | `zcl_alloc_wip_labour` (`labour_cost`, `applied`, `balance`) |
+| 977 | WIP overhead | `zcl_alloc_wip_overhead` (`overhead`, `absorbed`, `balance`) |
+| 978 | WIP progress | `zcl_alloc_wip_progress` (`progress_percent`, `is_complete`, `remaining`) |
+| 979 | WIP valuation | `zcl_alloc_wip_valuation` (`valued_at`, `completion`, `is_partial`) |
+| 980 | WIP movement | `zcl_alloc_wip_move` (`shift`, `is_increased`, `delta`) |
+| 981 | WIP ageing | `zcl_alloc_wip_age` (`days_old`, `is_stale`, `bucket`) |
+| 982 | WIP ranking | `zcl_alloc_wip_rank` (`rank`, `largest`, `count`) |
+| 983 | WIP summary | `zcl_alloc_wip_summary` (`build`, `order_count`, `total`) |
+
+### Production order cost (984-993)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 984 | Order cost | `zcl_alloc_prod_cost` (`cost`, `per_unit`, `is_zero`) |
+| 985 | Order planned cost | `zcl_alloc_prod_plan` (`planned`, `is_within`, `variance`) |
+| 986 | Order actual cost | `zcl_alloc_prod_actual` (`actual`, `is_over`, `variance_percent`) |
+| 987 | Order cost split | `zcl_alloc_prod_split` (`split`, `share_of`, `per_unit`) |
+| 988 | Order cost rollup | `zcl_alloc_prod_rollup` (`rollup`, `group_count`, `largest`) |
+| 989 | Order cost rate | `zcl_alloc_prod_rate` (`rate`, `applied`, `is_zero`) |
+| 990 | Order cost compare | `zcl_alloc_prod_compare` (`compare`, `cheaper`, `delta`) |
+| 991 | Order cost trend | `zcl_alloc_prod_trend` (`direction`, `is_rising`, `delta`) |
+| 992 | Order cost health | `zcl_alloc_prod_health` (`is_healthy`, `issue_count`, `score`) |
+| 993 | Order cost summary | `zcl_alloc_prod_summary` (`build`, `order_count`, `total`) |
+
+### Scrap and yield (994-1003)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 994 | Yield percent | `zcl_alloc_yield_percent` (`yield_percent`, `is_full`, `loss`) |
+| 995 | Yield loss | `zcl_alloc_yield_loss` (`loss`, `is_lossy`, `loss_percent`) |
+| 996 | Yield scrap | `zcl_alloc_yield_scrap` (`scrap_qty`, `is_scrapped`, `gross_qty`) |
+| 997 | Yield rework | `zcl_alloc_yield_rework` (`rework`, `is_reworked`, `rework_percent`) |
+| 998 | Yield scrap cost | `zcl_alloc_yield_scost` (`scrap_cost`, `is_costly`, `per_unit`) |
+| 999 | Yield target | `zcl_alloc_yield_target` (`target`, `is_met`, `gap`) |
+| 1000 | Yield trend | `zcl_alloc_yield_trend` (`direction`, `is_improving`, `delta`) |
+| 1001 | Yield ranking | `zcl_alloc_yield_rank` (`rank`, `best`, `worst`) |
+| 1002 | Yield health | `zcl_alloc_yield_health` (`is_healthy`, `issue_count`, `score`) |
+| 1003 | Yield summary | `zcl_alloc_yield_summary` (`build`, `order_count`, `average`) |
+
+### Production variance (1004-1013)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1004 | Variance total | `zcl_alloc_pvar_total` (`total`, `is_zero`, `count`) |
+| 1005 | Variance split | `zcl_alloc_pvar_split` (`split`, `share_of`, `per_unit`) |
+| 1006 | Variance usage | `zcl_alloc_pvar_usage` (`usage_variance`, `is_adverse`, `sign_of`) |
+| 1007 | Variance price | `zcl_alloc_pvar_price` (`price_variance`, `is_adverse`, `sign_of`) |
+| 1008 | Variance volume | `zcl_alloc_pvar_volume` (`volume_variance`, `is_adverse`, `sign_of`) |
+| 1009 | Variance mix | `zcl_alloc_pvar_mix` (`mix_variance`, `is_adverse`, `delta`) |
+| 1010 | Variance yield | `zcl_alloc_pvar_yield` (`yield_variance`, `is_adverse`, `percent`) |
+| 1011 | Variance favourable | `zcl_alloc_pvar_fav` (`is_favourable`, `amount`, `count`) |
+| 1012 | Variance ranking | `zcl_alloc_pvar_rank` (`rank`, `worst`, `best`) |
+| 1013 | Variance summary | `zcl_alloc_pvar_summary` (`build`, `item_count`, `total`) |
+
+### Co-products and by-products (1014-1023)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1014 | Co-product share | `zcl_alloc_copro_share` (`share_percent`, `largest`, `is_zero`) |
+| 1015 | Co-product split | `zcl_alloc_copro_split` (`split`, `share_of`, `per_unit`) |
+| 1016 | Co-product cost | `zcl_alloc_copro_cost` (`cost`, `per_unit`, `is_zero`) |
+| 1017 | Co-product credit | `zcl_alloc_copro_credit` (`credit`, `is_credited`, `net_cost`) |
+| 1018 | By-product value | `zcl_alloc_copro_value` (`value_of`, `is_zero`, `per_unit`) |
+| 1019 | Co-product weighting | `zcl_alloc_copro_weight` (`weighted`, `weight_of`, `total_weight`) |
+| 1020 | Co-product allocation | `zcl_alloc_copro_alloc` (`allocate`, `joint_total`, `is_allocated`) |
+| 1021 | Co-product compare | `zcl_alloc_copro_compare` (`compare`, `cheaper`, `delta`) |
+| 1022 | Co-product ranking | `zcl_alloc_copro_rank` (`rank`, `largest`, `count`) |
+| 1023 | Co-product summary | `zcl_alloc_copro_summary` (`build`, `product_count`, `total`) |
+
+### Standard cost and revaluation (1024-1033)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1024 | Standard cost | `zcl_alloc_stdcost_base` (`standard_cost`, `is_zero`, `per_unit`) |
+| 1025 | Cost revaluation | `zcl_alloc_stdcost_reval` (`revalue`, `is_increased`, `delta`) |
+| 1026 | Standard variance | `zcl_alloc_stdcost_var` (`variance`, `is_over`, `percent`) |
+| 1027 | Standard update | `zcl_alloc_stdcost_update` (`refresh`, `is_changed`, `delta_percent`) |
+| 1028 | Standard revision | `zcl_alloc_stdcost_revise` (`revise`, `is_revised`, `revision_count`) |
+| 1029 | Standard version | `zcl_alloc_stdcost_version` (`version`, `is_newer`, `delta`) |
+| 1030 | Standard approve | `zcl_alloc_stdcost_approve` (`approve`, `is_approved`, `pending_count`) |
+| 1031 | Standard compare | `zcl_alloc_stdcost_compare` (`compare`, `higher`, `delta`) |
+| 1032 | Standard trend | `zcl_alloc_stdcost_trend` (`direction`, `is_rising`, `delta`) |
+| 1033 | Standard summary | `zcl_alloc_stdcost_summary` (`build`, `item_count`, `total`) |
+
+### Period-end settlement (1034-1043)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1034 | Settlement amount | `zcl_alloc_settle_amount` (`amount`, `is_zero`, `per_unit`) |
+| 1035 | Settlement rule | `zcl_alloc_settle_rule` (`rule_of`, `is_full`, `reason`) |
+| 1036 | Settlement split | `zcl_alloc_settle_split` (`split`, `share_of`, `per_unit`) |
+| 1037 | Settlement balance | `zcl_alloc_settle_balance` (`balance`, `is_balanced`, `residual`) |
+| 1038 | Settlement difference | `zcl_alloc_settle_diff` (`difference`, `is_balanced`, `magnitude`) |
+| 1039 | Settlement tolerance | `zcl_alloc_settle_tolerance` (`within_tolerance`, `tolerance`, `is_tight`) |
+| 1040 | Settlement close | `zcl_alloc_settle_close` (`close_out`, `is_closed`, `open_count`) |
+| 1041 | Settlement carry-forward | `zcl_alloc_settle_carry` (`carry`, `is_carried`, `amount`) |
+| 1042 | Settlement ranking | `zcl_alloc_settle_rank` (`rank`, `worst`, `best`) |
+| 1043 | Settlement summary | `zcl_alloc_settle_summary` (`build`, `item_count`, `total`) |
+
+### Production reporting (1044-1053)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1044 | Production report | `zcl_alloc_prep_report` (`build`, `order_count`, `total`) |
+| 1045 | Production row | `zcl_alloc_prep_row` (`format`, `is_costly`, `is_zero`) |
+| 1046 | Production KPI | `zcl_alloc_prep_kpi` (`value_of`, `is_on_target`, `gap`) |
+| 1047 | Production dashboard | `zcl_alloc_prep_dash` (`build`, `tile_count`, `total`) |
+| 1048 | Production filter | `zcl_alloc_prep_filter` (`filter`, `is_over`, `count`) |
+| 1049 | Production bucket | `zcl_alloc_prep_bucket` (`bucket_of`, `count_in`, `is_par`) |
+| 1050 | Production exception | `zcl_alloc_prep_except` (`is_exception`, `reason`, `count_of`) |
+| 1051 | Production export | `zcl_alloc_prep_export` (`export_rows`, `row_count`, `is_empty`) |
+| 1052 | Production ranking | `zcl_alloc_prep_rank` (`rank`, `worst`, `best`) |
+| 1053 | Production summary | `zcl_alloc_prep_summary` (`build`, `order_count`, `total`) |
+
+**Batch 13 is in progress.** Orders 954-1053 are built one per iteration in the
+local test→commit rhythm.
+
+
 ## Roadmap (batch 1, orders 44-141) - delivered
 
 Historical: the first roadmap, all delivered and verified. Items 44-141 are pure

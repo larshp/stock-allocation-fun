@@ -1320,6 +1320,39 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
+**Batch 11 (inventory valuation and allocation costing) is in progress:
+orders 754-763 are delivered; batch 10 and everything before it are complete.**
+
+754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
+     and new stock value over the whole quantity, `is_rise( )` tests the new price against
+     the old and `delta( )` gives the change.
+755. **Standard cost variance** - `zcl_alloc_std_variance=>variance( )` gives the gap between
+     the actual and the standard cost, `is_favourable( )` tests it and `percent( )` relates
+     the gap to the standard.
+756. **Price unit scaling** - `zcl_alloc_price_unit=>units_per( )` gives the base units behind
+     a price unit, `scale( )` carries a quote from the price unit to the base unit and
+     `is_bulk( )` marks a quote of a hundred units or more.
+757. **Cost rounding rule** - `zcl_alloc_cost_round=>round( )` carries a value to the nearest
+     multiple of a step, `is_rounded( )` tests a value for it and `difference( )` gives the
+     gap the rounding introduced.
+758. **Cost component split** - `zcl_alloc_cost_split=>split( )` spreads a total over
+     components by their weight, `share_of( )` reads one component's amount and
+     `component_count( )` counts them.
+759. **Cost component total** - `zcl_alloc_cost_total=>total( )` sums the components,
+     `is_complete( )` tests them against the whole and `share( )` relates one component to the
+     whole.
+760. **Unit cost basis** - `zcl_alloc_unit_cost=>basis( )` spreads a total cost over a
+     quantity, `total_of( )` carries a unit cost over a quantity and `is_zero( )` marks a
+     valueless unit.
+761. **Cost trend** - `zcl_alloc_cost_trend=>direction( )` reads RISING, FALLING or FLAT from
+     the first and last cost, `delta( )` gives the change and `is_rising( )` tests the
+     direction.
+762. **Cost index rebasing** - `zcl_alloc_cost_index=>index( )` carries a cost series onto one
+     of its periods, `rebase( )` onto a given base value and `change_percent( )` gives the move
+     between two values.
+763. **Cost basis comparison** - `zcl_alloc_cost_basis_cmp=>compare( )` orders two cost bases,
+     `cheaper( )` picks the lower and `delta( )` gives the difference.
+
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
 
@@ -3026,7 +3059,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten.
+tranches of ten. Orders 754-763 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

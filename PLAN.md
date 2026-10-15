@@ -1263,10 +1263,10 @@ local test class, pure in-memory calculation, and verified by `npm run lint` /
 | 754 | Moving average price recalculation | `zcl_alloc_ma_recalc` (`recalc`, `is_rise`, `delta`) |
 | 755 | Standard cost variance | `zcl_alloc_std_variance` (`variance`, `is_favourable`, `percent`) |
 | 756 | Price unit scaling | `zcl_alloc_price_unit` (`scale`, `units_per`, `is_bulk`) |
-| 757 | Cost rounding rule | `zcl_alloc_cost_round` (`round`, `nearest`, `difference`) |
+| 757 | Cost rounding rule | `zcl_alloc_cost_round` (`round`, `is_rounded`, `difference`) |
 | 758 | Cost component split | `zcl_alloc_cost_split` (`split`, `share_of`, `component_count`) |
 | 759 | Cost component total | `zcl_alloc_cost_total` (`total`, `is_complete`, `share`) |
-| 760 | Unit cost basis | `zcl_alloc_unit_cost` (`basis`, `per_unit`, `is_zero`) |
+| 760 | Unit cost basis | `zcl_alloc_unit_cost` (`basis`, `total_of`, `is_zero`) |
 | 761 | Cost trend | `zcl_alloc_cost_trend` (`direction`, `delta`, `is_rising`) |
 | 762 | Cost index rebasing | `zcl_alloc_cost_index` (`index`, `rebase`, `change_percent`) |
 | 763 | Cost basis comparison | `zcl_alloc_cost_basis_cmp` (`compare`, `cheaper`, `delta`) |
@@ -1406,8 +1406,8 @@ local test class, pure in-memory calculation, and verified by `npm run lint` /
 | 852 | Valuation reconciliation | `zcl_alloc_val_recon` (`reconcile`, `is_balanced`, `difference`) |
 | 853 | Valuation status | `zcl_alloc_val_status` (`status`, `is_done`, `pending_count`) |
 
-**Batch 11 is planned.** Orders 754-853 are built one per iteration in the local
-test→commit rhythm.
+**Batch 11 is in progress.** Orders 754-763 are delivered; the rest are built one
+per iteration in the local test→commit rhythm.
 
 
 ## Roadmap (batch 1, orders 44-141) - delivered

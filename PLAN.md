@@ -791,6 +791,123 @@ neighbourhood), not in the read/delete/append table pattern, so a storage
 change would not make them scale.
 
 
+## Batch 8 - warehouse execution, packaging and quality (454-553)
+
+The earlier batches stop at the door of the distribution centre: they plan the
+allocation, but they do not model what happens to the goods once the plan says
+"move 40 pieces from bin A to bin B". This batch adds that layer. Every feature
+is the same shape as the rest of the repository - a pure calculation, formatting,
+validation or in-memory service over plain tables - so `npm test` can verify it,
+and the new scale-safe map (order 453) is reused wherever a feature groups or
+looks up by key.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 454 | Handling unit contents | `zcl_alloc_hu` (`add`, `total`, `material_count`) |
+| 455 | Pack into units of a capacity | `zcl_alloc_hu_pack` (`pack`) |
+| 456 | Handling unit nesting | `zcl_alloc_hu_nest` (`root_of`, `depth_of`, `children_of`) |
+| 457 | Handling unit label text | `zcl_alloc_hu_label` (`build`) |
+| 458 | Packing list from result lines | `zcl_alloc_packing_list` (`build`) |
+| 459 | Carton pattern (pieces per carton) | `zcl_alloc_pack_pattern` (`cartons`, `full_cartons`, `remainder`) |
+| 460 | Carton fill estimate | `zcl_alloc_carton_fill` |
+| 461 | Pallet pattern (layers x per layer) | `zcl_alloc_pallet_pattern` |
+| 462 | Pallet load check | `zcl_alloc_pallet_check` |
+| 463 | Volume calculation | `zcl_alloc_volume_calc` |
+| 464 | Weight roll-up | `zcl_alloc_weight_total` |
+| 465 | Dimensional weight | `zcl_alloc_dim_weight` |
+| 466 | Packaging hierarchy levels | `zcl_alloc_pack_hier` |
+| 467 | Carton numbering | `zcl_alloc_carton_seq` |
+| 468 | Mixed pallet builder | `zcl_alloc_mixed_pallet` |
+| 469 | Returnable container count | `zcl_alloc_container_count` |
+| 470 | Storage bin model | `zcl_alloc_bin_model` |
+| 471 | Bin capacity check | `zcl_alloc_bin_capacity` |
+| 472 | Bin occupancy | `zcl_alloc_bin_occupancy` |
+| 473 | Putaway: fixed bin | `zcl_alloc_putaway_fixed` |
+| 474 | Putaway: next empty bin | `zcl_alloc_putaway_empty` |
+| 475 | Putaway: nearest pick bin | `zcl_alloc_putaway_near` |
+| 476 | Putaway: open storage | `zcl_alloc_putaway_open` |
+| 477 | Putaway: bulk storage | `zcl_alloc_putaway_bulk` |
+| 478 | Removal: closest bin | `zcl_alloc_remove_closest` |
+| 479 | Removal: largest bin | `zcl_alloc_remove_largest` |
+| 480 | Removal: smallest sufficient bin | `zcl_alloc_remove_smallest` |
+| 481 | Bin sequence within an aisle | `zcl_alloc_aisle_seq` |
+| 482 | Bin coordinate model | `zcl_alloc_bin_coord` |
+| 483 | Distance between two bins | `zcl_alloc_bin_distance` |
+| 484 | Pick path length | `zcl_alloc_pick_path` |
+| 485 | S-shape pick tour | `zcl_alloc_sshp_tour` |
+| 486 | Return pick tour | `zcl_alloc_return_tour` |
+| 487 | Aisle utilisation | `zcl_alloc_aisle_util` |
+| 488 | Warehouse area model | `zcl_alloc_area_model` |
+| 489 | Area capacity check | `zcl_alloc_area_capacity` |
+| 490 | Storage type assignment | `zcl_alloc_storage_type` |
+| 491 | Bin decomposition (block/aisle/level) | `zcl_alloc_bin_decompose` |
+| 492 | Bin id formatting | `zcl_alloc_bin_id` |
+| 493 | Bin id parsing | `zcl_alloc_bin_id_parse` |
+| 494 | Capacity unit conversion | `zcl_alloc_cap_convert` |
+| 495 | Space utilisation | `zcl_alloc_space_util` |
+| 496 | Load plan | `zcl_alloc_load_plan` |
+| 497 | Load sequence | `zcl_alloc_load_seq` |
+| 498 | Truck fill check | `zcl_alloc_truck_fill` |
+| 499 | Truck type selection | `zcl_alloc_truck_select` |
+| 500 | Trailer and pallet count | `zcl_alloc_trailer_count` |
+| 501 | Dock appointment slot | `zcl_alloc_dock_slot` |
+| 502 | Dock door assignment | `zcl_alloc_dock_door` |
+| 503 | Loading time estimate | `zcl_alloc_load_time` |
+| 504 | Unloading time estimate | `zcl_alloc_unload_time` |
+| 505 | Shipment consolidation | `zcl_alloc_ship_consolidate` |
+| 506 | Transport unit builder | `zcl_alloc_tu_build` |
+| 507 | Route stop sequence | `zcl_alloc_stop_seq` |
+| 508 | Delivery window check | `zcl_alloc_delivery_win` |
+| 509 | Freight cost per unit | `zcl_alloc_freight_rate` |
+| 510 | Freight cost comparison | `zcl_alloc_freight_cmp` |
+| 511 | Inspection lot model | `zcl_alloc_inspect_lot` |
+| 512 | Sample size | `zcl_alloc_sample_size` |
+| 513 | Accept / reject decision | `zcl_alloc_accept_decision` |
+| 514 | Usage decision | `zcl_alloc_usage_decision` |
+| 515 | Quality score | `zcl_alloc_quality_score` |
+| 516 | Defect rate | `zcl_alloc_defect_rate` |
+| 517 | Defect classification | `zcl_alloc_defect_class` |
+| 518 | Batch status check | `zcl_alloc_batch_status` |
+| 519 | Shelf-life check | `zcl_alloc_shelf_life` |
+| 520 | Remaining shelf-life ratio | `zcl_alloc_shelf_ratio` |
+| 521 | Batch recall scope | `zcl_alloc_recall_scope` |
+| 522 | Traceability chain | `zcl_alloc_trace_chain` |
+| 523 | Certificate checklist | `zcl_alloc_cert_check` |
+| 524 | Certificate expiry | `zcl_alloc_cert_expiry` |
+| 525 | Hazardous material check | `zcl_alloc_hazard_check` |
+| 526 | Serial number generator | `zcl_alloc_serial_gen` |
+| 527 | Serial number range check | `zcl_alloc_serial_check` |
+| 528 | Serial selection for a quantity | `zcl_alloc_serial_select` |
+| 529 | Serial number history | `zcl_alloc_serial_history` |
+| 530 | Serial trace | `zcl_alloc_serial_trace` |
+| 531 | Cycle count plan | `zcl_alloc_cycle_plan` |
+| 532 | Count frequency by ABC class | `zcl_alloc_count_freq` |
+| 533 | Count variance | `zcl_alloc_count_variance` |
+| 534 | Count adjustment proposal | `zcl_alloc_count_adjust` |
+| 535 | Book-to-physical check | `zcl_alloc_book_phys` |
+| 536 | Stock transfer order proposal | `zcl_alloc_sto_proposal` |
+| 537 | Goods receipt check | `zcl_alloc_gr_check` |
+| 538 | Over / under delivery tolerance | `zcl_alloc_tolerance_check` |
+| 539 | Delivery note builder | `zcl_alloc_delivery_note` |
+| 540 | Packing slip lines | `zcl_alloc_pack_slip` |
+| 541 | EAN / GTIN check digit | `zcl_alloc_ean_check` |
+| 542 | GTIN builder | `zcl_alloc_gtin_build` |
+| 543 | Code 128 checksum | `zcl_alloc_code128_check` |
+| 544 | Label field mapping | `zcl_alloc_label_map` |
+| 545 | Label text lines | `zcl_alloc_label_text` |
+| 546 | SSCC builder | `zcl_alloc_sscc` |
+| 547 | SSCC check | `zcl_alloc_sscc_check` |
+| 548 | QR payload builder | `zcl_alloc_qr_payload` |
+| 549 | Dock-to-stock time | `zcl_alloc_dock_to_stock` |
+| 550 | Putaway cycle time | `zcl_alloc_putaway_time` |
+| 551 | Pick rate | `zcl_alloc_pick_rate` |
+| 552 | Lines per hour | `zcl_alloc_lph` |
+| 553 | Warehouse KPI card | `zcl_alloc_wh_kpi` |
+
+**Batch 8 is in progress.** The first orders (454-459) are delivered; the rest are
+built one per iteration in the local test→commit rhythm.
+
+
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

@@ -1320,6 +1320,39 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
+**Batch 8 (warehouse execution, packaging and quality) is in progress: orders
+454-459 are delivered; batch 7 and everything before it remain complete.**
+
+454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
+     one handling unit, sums their quantity (`total( )`), counts them
+     (`item_count( )`) and counts the distinct materials (`material_count( )`).
+     The distinct count goes through `zcl_alloc_key_map`, so it is one key insert
+     per item rather than a rescan of the item list per material.
+455. **Pack into units of a capacity** - `zcl_alloc_hu_pack=>pack( )` fills units
+     up to a capacity and numbers them, with the last one short. A non-positive
+     capacity means "do not split" and yields a single unit, which also keeps the
+     loop from being entered with a zero step.
+456. **Handling unit nesting** - `zcl_alloc_hu_nest` turns a list of
+     child-to-parent edges into `root_of( )`, `depth_of( )` and `children_of( )`.
+     The two chain walks carry a guard of `lines( edges ) + 1` steps, so a
+     malformed cycle terminates instead of looping.
+457. **Handling unit label text** - `zcl_alloc_hu_label=>build( )` renders a title
+     and a list of name/value fields into text lines. Every value is already text,
+     so the label never converts a number, and the separator is a backtick literal
+     (a string) rather than a single-quoted literal (a character field), because
+     the runtime cuts the trailing blank of a character literal - which is the
+     first thing this batch caught: the first build produced `HU:HU-1`.
+458. **Packing list from result lines** - `zcl_alloc_packing_list=>build( )` numbers
+     the lines and sums the quantity per material, skipping non-positive lines. It
+     uses `get( )` plus `put( )` rather than the map's `add( )`, because `put( )`
+     keeps the position of a key that is already present, so the packing list
+     keeps the input's first-appearance order.
+459. **Carton pattern** - `zcl_alloc_pack_pattern` answers the three questions of
+     cartoning in integer arithmetic: `cartons( )` rounds up (a partial carton is a
+     carton), `full_cartons( )` rounds down and `remainder( )` gives the pieces in
+     the open carton. A zero or negative quantity or per-carton count yields zero
+     rather than a division by zero.
+
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6
 and everything before it remain complete.**

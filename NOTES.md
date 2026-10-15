@@ -1563,6 +1563,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      `longest( )` gives the most and `shortest( )` the least.
 973. **Routing summary** - `zcl_alloc_rout_summary=>build( )` counts the operations and totals their
      time, `operation_count( )` counts them and `total_time( )` sums them.
+974. **WIP value** - `zcl_alloc_wip_value=>value_of( )` adds material, labour and overhead,
+     `is_zero( )` tests a nil value and `per_unit( )` spreads it over the units.
+975. **WIP material** - `zcl_alloc_wip_material=>material_cost( )` costs the issued quantity,
+     `is_issued( )` tests it and `balance( )` gives what is left of it.
+976. **WIP labour** - `zcl_alloc_wip_labour=>labour_cost( )` costs the hours at their rate,
+     `applied( )` applies the budget and `balance( )` gives what is left of it.
+977. **WIP overhead** - `zcl_alloc_wip_overhead=>overhead( )` gives the overhead on a base,
+     `absorbed( )` absorbs the plan and `balance( )` gives what is left of it.
+978. **WIP progress** - `zcl_alloc_wip_progress=>progress_percent( )` relates the work done to the
+     whole, `is_complete( )` tests the end and `remaining( )` gives what is left.
+979. **WIP valuation** - `zcl_alloc_wip_valuation=>valued_at( )` values the work at its completion,
+     `completion( )` gives it and `is_partial( )` tests a started but unfinished one.
+980. **WIP movement** - `zcl_alloc_wip_move=>move_by( )` applies a delta to the value,
+     `is_increased( )` tests a rise and `delta( )` gives the move.
+981. **WIP ageing** - `zcl_alloc_wip_age=>days_old( )` gives the age of the work, `is_stale( )` tests
+     a limit and `bucket( )` reads fresh, aging or stale.
+982. **WIP ranking** - `zcl_alloc_wip_rank=>rank( )` orders the orders by value, `largest( )` gives
+     the biggest and `count( )` counts them.
+983. **WIP summary** - `zcl_alloc_wip_summary=>build( )` counts the orders and totals their value,
+     `order_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3498,7 +3518,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-973 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-983 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

@@ -43,7 +43,6 @@ CLASS zcl_alloc_crossdock DEFINITION
 
   PRIVATE SECTION.
     TYPES: BEGIN OF ty_rem,
-             pos TYPE i,
              rem TYPE menge_d,
            END OF ty_rem.
     TYPES ty_rem_tt TYPE STANDARD TABLE OF ty_rem WITH DEFAULT KEY.
@@ -67,14 +66,12 @@ CLASS zcl_alloc_crossdock IMPLEMENTATION.
 
     LOOP AT it_inbound INTO ls_in.
       CLEAR ls_in_rem.
-      ls_in_rem-pos = sy-tabix.
       ls_in_rem-rem = ls_in-quantity.
       APPEND ls_in_rem TO lt_in_rem.
     ENDLOOP.
 
     LOOP AT it_outbound INTO ls_out.
       CLEAR ls_out_rem.
-      ls_out_rem-pos = sy-tabix.
       ls_out_rem-rem = ls_out-quantity.
       APPEND ls_out_rem TO lt_out_rem.
     ENDLOOP.
@@ -83,7 +80,7 @@ CLASS zcl_alloc_crossdock IMPLEMENTATION.
     LOOP AT it_outbound INTO ls_out.
       lv_out = lv_out + 1.
 
-      READ TABLE lt_out_rem INTO ls_out_rem WITH KEY pos = lv_out.
+      READ TABLE lt_out_rem INTO ls_out_rem INDEX lv_out.
       IF sy-subrc <> 0 OR ls_out_rem-rem <= 0.
         CONTINUE.
       ENDIF.
@@ -96,7 +93,7 @@ CLASS zcl_alloc_crossdock IMPLEMENTATION.
           EXIT.
         ENDIF.
 
-        READ TABLE lt_in_rem INTO ls_in_rem WITH KEY pos = lv_in.
+        READ TABLE lt_in_rem INTO ls_in_rem INDEX lv_in.
         IF sy-subrc <> 0 OR ls_in_rem-rem <= 0.
           CONTINUE.
         ENDIF.
@@ -119,13 +116,13 @@ CLASS zcl_alloc_crossdock IMPLEMENTATION.
         ls_move-wait = ls_out-departure - ls_in-arrival.
         APPEND ls_move TO rt_moves.
 
+        " Each remaining quantity is one row at a fixed position, so updating
+        " it by index stays constant time instead of scanning the table.
         ls_in_rem-rem = ls_in_rem-rem - lv_take.
-        DELETE lt_in_rem WHERE pos = lv_in.
-        APPEND ls_in_rem TO lt_in_rem.
+        MODIFY lt_in_rem INDEX lv_in FROM ls_in_rem.
 
         ls_out_rem-rem = ls_out_rem-rem - lv_take.
-        DELETE lt_out_rem WHERE pos = lv_out.
-        APPEND ls_out_rem TO lt_out_rem.
+        MODIFY lt_out_rem INDEX lv_out FROM ls_out_rem.
       ENDLOOP.
     ENDLOOP.
   ENDMETHOD.

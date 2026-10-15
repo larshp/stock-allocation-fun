@@ -35,35 +35,34 @@ ENDCLASS.
 CLASS zcl_alloc_sourcing IMPLEMENTATION.
 
   METHOD evaluate.
-    DATA ls_row    TYPE ty_result.
-    DATA ls_new    TYPE ty_result.
-    DATA lv_better TYPE abap_bool.
+    DATA lt_working TYPE HASHED TABLE OF ty_result WITH UNIQUE KEY matnr werks.
+    DATA ls_new     TYPE ty_result.
+    DATA lv_better  TYPE abap_bool.
 
     LOOP AT it_rules INTO DATA(ls_rule).
-      READ TABLE rt_results INTO ls_row
+      " A hashed working table keeps the rule lookup constant time, so the
+      " evaluation cost grows with the number of rules instead of scanning the
+      " result table once per rule.
+      READ TABLE lt_working ASSIGNING FIELD-SYMBOL(<ls_result>)
         WITH KEY matnr = ls_rule-matnr werks = ls_rule-werks.
 
       IF sy-subrc = 0.
-        ls_new = ls_row.
-        ls_new-shares = ls_row-shares + 1.
+        <ls_result>-shares = <ls_result>-shares + 1.
 
         lv_better = abap_false.
-        IF ls_rule-priority < ls_row-priority.
+        IF ls_rule-priority < <ls_result>-priority.
           lv_better = abap_true.
-        ELSEIF ls_rule-priority = ls_row-priority
-           AND ls_rule-quota_pct > ls_row-quota_pct.
+        ELSEIF ls_rule-priority = <ls_result>-priority
+           AND ls_rule-quota_pct > <ls_result>-quota_pct.
           lv_better = abap_true.
         ENDIF.
 
         IF lv_better = abap_true.
-          ls_new-source_node = ls_rule-source_node.
-          ls_new-priority = ls_rule-priority.
-          ls_new-quota_pct = ls_rule-quota_pct.
+          <ls_result>-source_node = ls_rule-source_node.
+          <ls_result>-priority = ls_rule-priority.
+          <ls_result>-quota_pct = ls_rule-quota_pct.
         ENDIF.
 
-        DELETE rt_results WHERE matnr = ls_rule-matnr
-                            AND werks = ls_rule-werks.
-        APPEND ls_new TO rt_results.
         CONTINUE.
       ENDIF.
 
@@ -74,8 +73,10 @@ CLASS zcl_alloc_sourcing IMPLEMENTATION.
       ls_new-priority = ls_rule-priority.
       ls_new-quota_pct = ls_rule-quota_pct.
       ls_new-shares = 1.
-      APPEND ls_new TO rt_results.
+      INSERT ls_new INTO TABLE lt_working.
     ENDLOOP.
+
+    rt_results = lt_working.
   ENDMETHOD.
 
 ENDCLASS.

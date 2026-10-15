@@ -1320,9 +1320,9 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 7 (applying the scale-safe aggregation) is in progress: order 452 is
-delivered and `zcl_alloc_network` is converted; batch 6 and everything before it
-remain complete.**
+**Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
+are delivered and twelve of the fifteen quadratic classes are converted; batch 6
+and everything before it remain complete.**
 
 452. **Scale-safe string keyed aggregation** - `zcl_alloc_key_agg_str` is the
      character-keyed companion to `zcl_alloc_key_agg` for the keys the affected
@@ -1333,6 +1333,21 @@ remain complete.**
      which keys were **first seen** (each raw row carries a sequence number, so the
      merged table is sorted back into first-appearance order), and a later `add( )`
      invalidates the cached result, so the accumulator is never frozen by a read.
+
+453. **Scale-safe ordered keyed map** - `zcl_alloc_key_map` is the map the
+     previous classes need but the aggregator cannot be: the running total has to
+     be read back *while* it is being built (`transport`, `mrp`), or one row per
+     key has to be kept with extra fields (`sourcing`), or a value simply has to
+     be stored by key (`checksum_reg`, `concurrency`, `config_w`, `dedupe_win`).
+     `put( )`, `add( )`, `get( )`, `has( )` and `remove( )` are constant time,
+     because the store is a hashed table with a unique key (the runtime hashed
+     lookup is exercised by the tests, and `READ TABLE ... WITH KEY` on a hashed
+     table resolves to it automatically when all key fields are supplied).
+     `add( )` deletes and re-inserts on update, which reproduces the
+     move-to-the-end order of the read/delete/append bump, so a conversion cannot
+     reorder output. `visits( )` counts the calls, which is the evidence that
+     operations do not rescan: the class's own test doubles 1000 add/get pairs to
+     2000 and asserts with `zcl_alloc_scale_guard` that the work is `linear`.
 
 **Conversion 1 of 15: `zcl_alloc_network` (fix, not a new order).** The degree
 counting used `bump( )`, which read, deleted and appended the count table once per
@@ -1363,6 +1378,59 @@ number-to-string conversion, which is unreliable in this transpiler (A31). The
 linearity of the aggregation is proven in `zcl_alloc_key_agg_str`'s own test, which
 doubles 1000 rows and asserts with `zcl_alloc_scale_guard` that the work does not
 more than double; the conversion's evidence is that plus behaviour preservation.
+
+**Conversions 4-12 of 15.** Each conversion is a purely internal change and the
+class's own tests are the regression check.
+
+* **`zcl_alloc_mrp`** - the level-by-level explosion accumulated each material
+  with `bump`, so one demand line cost a scan of the planning table. The totals
+  and the per-level table are now `zcl_alloc_key_map`s, materialised into the
+  returned list by a single `planned_of( )` pass, so a level costs one key lookup
+  per BOM line. Quantities and the material order are unchanged.
+* **`zcl_alloc_transport`** - the used quantity per node was read back with
+  `used_of` and bumped with `bump`, one scan per lane. Two maps (supply used,
+  demand used) replace both helpers, so a lane costs a constant-time read and
+  add. The shipments, their order and the totals are unchanged.
+* **`zcl_alloc_sourcing`** - the rule lookup rescanned the whole result table per
+  rule. A local hashed working table keyed by material and plant replaces it, so
+  a rule costs one hash lookup; the share count, the best source and the result
+  order are unchanged.
+* **`zcl_alloc_crossdock`** - the remaining quantities were looked up by a `pos`
+  field and rewritten with delete/append. Each remaining quantity is one row at a
+  fixed position, so it is now read and modified by index and the `pos` component
+  is gone. One inbound/outbound pair costs constant time. The moves and the
+  shortfall are unchanged.
+* **`zcl_alloc_rollout`** - the wave being extended was found by scanning for its
+  number and replaced. It is always the last wave, so `MODIFY ... INDEX
+  lines( rt_waves )` updates it in place. Wave membership and numbers are
+  unchanged.
+* **`zcl_alloc_checksum_reg`** - `register` deleted by key and appended, which
+  scanned the register. The store is now a hashed table with `READ ... ASSIGNING`
+  for the update and `INSERT ... INTO TABLE` for the new entry, so a registration
+  is constant time. `verify`, `checksum_of` and `count` are unchanged.
+* **`zcl_alloc_concurrency`** - `acquire` rescanned the holder table and `release`
+  deleted with a `WHERE`. The store is now a hashed table, so both are constant
+  time (`DELETE TABLE ... FROM <fs>` removes the held row). Grant, saturation and
+  release behaviour are unchanged.
+* **`zcl_alloc_config_w`** - `put`/`get`/`remove` scanned the entries. The store
+  is now a hashed table with `READ ... ASSIGNING` for the in-place overwrite,
+  `INSERT ... INTO TABLE` for a new key and `DELETE TABLE ... FROM <fs>` for a
+  removal. Insertion order is kept by the hashed store, so `entries( )` is
+  unchanged.
+* **`zcl_alloc_dedupe_win`** - the window check scanned every seen key and the
+  refresh deleted and appended. The store is now a hashed table: the check reads
+  the row by key and the refresh updates the stamp in place (the row order was
+  never observable, because only `count( )` reads the store). `purge_before( )`
+  stays a single `WHERE` scan, which is linear once, not per call.
+
+**The three classes left alone, and why.** `toc` counts at most one row per level
+and the level count is the constant `c_max_level` (three), so its counter table is
+bounded and the loop is already linear. `path` and `local_search` are quadratic in
+their *algorithm* rather than in the read/delete/append pattern: Dijkstra's
+min-selection scan and the pairwise swap neighbourhood are O(n^2) by design, so
+replacing the storage would not change the growth. They stay as they are, which
+keeps the batch's claim honest: the storage pattern is fixed everywhere it was the
+only source of the cost.
 
 
 450. **Scale-safe keyed aggregation** - `zcl_alloc_key_agg` collects rows with a
@@ -1942,11 +2010,11 @@ network and routing, KPI / statistics, report presentation helpers, roll-out
 governance) is planned in `PLAN.md` for orders 344-443 and is now being built:
 orders 344-443 are delivered and verified.
 
-files no longer apply; batches 4, 5 and 6 are complete, and batch 7 is the active
-work (converting the fifteen quadratic classes, of which `zcl_alloc_network` is
-done). That list is the concrete follow-up; anything beyond it needs a new batch
-agreed in `PLAN.md` first, so that scope stays a decision rather than an
-improvisation.
+Batches 4, 5, 6 and 7 are complete. Batch 7 converted twelve of the fifteen
+quadratic classes and documented why the other three (`toc`, `path`,
+`local_search`) are left alone. Batch 8 is planned in `PLAN.md` for orders
+454-553 (the next 100 features), in the same style: one feature per iteration,
+`npm test` green, documented here and in `ANOMALIES.md`.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

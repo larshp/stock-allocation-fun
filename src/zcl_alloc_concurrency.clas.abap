@@ -32,8 +32,12 @@ CLASS zcl_alloc_concurrency DEFINITION
         VALUE(rv_full) TYPE abap_bool.
 
   PRIVATE SECTION.
+    " The holder key is looked up on every acquire and release, so a hashed
+    " store keeps both constant time instead of scanning the holder table.
+    TYPES ty_store_tt TYPE HASHED TABLE OF ty_holder WITH UNIQUE KEY key.
+
     DATA mv_limit   TYPE i.
-    DATA mt_holders TYPE ty_holder_tt.
+    DATA mt_holders TYPE ty_store_tt.
 
 ENDCLASS.
 
@@ -47,7 +51,8 @@ CLASS zcl_alloc_concurrency IMPLEMENTATION.
   METHOD acquire.
     DATA ls_holder TYPE ty_holder.
 
-    READ TABLE mt_holders INTO ls_holder WITH KEY key = iv_key.
+    READ TABLE mt_holders ASSIGNING FIELD-SYMBOL(<ls_holder>)
+      WITH KEY key = iv_key.
     IF sy-subrc = 0.
       rv_granted = abap_true.
       RETURN.
@@ -58,14 +63,17 @@ CLASS zcl_alloc_concurrency IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    CLEAR ls_holder.
     ls_holder-key = iv_key.
-    APPEND ls_holder TO mt_holders.
+    INSERT ls_holder INTO TABLE mt_holders.
     rv_granted = abap_true.
   ENDMETHOD.
 
   METHOD release.
-    DELETE mt_holders WHERE key = iv_key.
+    READ TABLE mt_holders ASSIGNING FIELD-SYMBOL(<ls_holder>)
+      WITH KEY key = iv_key.
+    IF sy-subrc = 0.
+      DELETE TABLE mt_holders FROM <ls_holder>.
+    ENDIF.
   ENDMETHOD.
 
   METHOD active_count.

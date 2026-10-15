@@ -35,7 +35,12 @@ CLASS zcl_alloc_checksum_reg DEFINITION
     METHODS reset.
 
   PRIVATE SECTION.
-    DATA mt_entries TYPE ty_entry_tt.
+    " Object keys are looked up once per write and once per read, so a hashed
+    " store keeps the register constant time per entry instead of scanning the
+    " whole table.
+    TYPES ty_store_tt TYPE HASHED TABLE OF ty_entry WITH UNIQUE KEY object_key.
+
+    DATA mt_entries TYPE ty_store_tt.
 
 ENDCLASS.
 
@@ -45,10 +50,16 @@ CLASS zcl_alloc_checksum_reg IMPLEMENTATION.
   METHOD register.
     DATA ls_entry TYPE ty_entry.
 
-    DELETE mt_entries WHERE object_key = iv_key.
+    READ TABLE mt_entries ASSIGNING FIELD-SYMBOL(<ls_entry>)
+      WITH KEY object_key = iv_key.
+    IF sy-subrc = 0.
+      <ls_entry>-checksum = iv_checksum.
+      RETURN.
+    ENDIF.
+
     ls_entry-object_key = iv_key.
     ls_entry-checksum = iv_checksum.
-    APPEND ls_entry TO mt_entries.
+    INSERT ls_entry INTO TABLE mt_entries.
   ENDMETHOD.
 
   METHOD verify.

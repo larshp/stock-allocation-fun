@@ -29,7 +29,11 @@ CLASS zcl_alloc_dedupe_win DEFINITION
     METHODS reset.
 
   PRIVATE SECTION.
-    DATA mt_entries TYPE ty_entry_tt.
+    " The window is checked once per key, so a hashed store keeps that check
+    " constant time instead of scanning every seen key.
+    TYPES ty_store_tt TYPE HASHED TABLE OF ty_entry WITH UNIQUE KEY entry_key.
+
+    DATA mt_entries TYPE ty_store_tt.
 
 ENDCLASS.
 
@@ -41,19 +45,22 @@ CLASS zcl_alloc_dedupe_win IMPLEMENTATION.
 
     rv_duplicate = abap_false.
 
-    READ TABLE mt_entries INTO ls_entry WITH KEY entry_key = iv_key.
+    READ TABLE mt_entries ASSIGNING FIELD-SYMBOL(<ls_entry>)
+      WITH KEY entry_key = iv_key.
     IF sy-subrc = 0.
-      IF iv_stamp - ls_entry-stamp <= iv_window.
+      IF iv_stamp - <ls_entry>-stamp <= iv_window.
         rv_duplicate = abap_true.
         RETURN.
       ENDIF.
+
+      " Refresh the stamp of the key that is no longer inside the window.
+      <ls_entry>-stamp = iv_stamp.
+      RETURN.
     ENDIF.
 
-    DELETE mt_entries WHERE entry_key = iv_key.
-    CLEAR ls_entry.
     ls_entry-entry_key = iv_key.
     ls_entry-stamp = iv_stamp.
-    APPEND ls_entry TO mt_entries.
+    INSERT ls_entry INTO TABLE mt_entries.
   ENDMETHOD.
 
   METHOD purge_before.

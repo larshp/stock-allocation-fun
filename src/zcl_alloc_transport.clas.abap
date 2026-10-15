@@ -31,12 +31,6 @@ CLASS zcl_alloc_transport DEFINITION
            END OF ty_shipment.
     TYPES ty_shipment_tt TYPE STANDARD TABLE OF ty_shipment WITH DEFAULT KEY.
 
-    TYPES: BEGIN OF ty_rem,
-             node_id TYPE string,
-             qty     TYPE menge_d,
-           END OF ty_rem.
-    TYPES ty_rem_tt TYPE STANDARD TABLE OF ty_rem WITH DEFAULT KEY.
-
     TYPES: BEGIN OF ty_result,
              shipments  TYPE ty_shipment_tt,
              total_cost TYPE menge_d,
@@ -51,56 +45,15 @@ CLASS zcl_alloc_transport DEFINITION
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
-  PRIVATE SECTION.
-    METHODS bump
-      IMPORTING
-        it_rem        TYPE ty_rem_tt
-        iv_node       TYPE string
-        iv_qty        TYPE menge_d
-      RETURNING
-        VALUE(rt_rem) TYPE ty_rem_tt.
-
-    METHODS used_of
-      IMPORTING
-        it_rem         TYPE ty_rem_tt
-        iv_node        TYPE string
-      RETURNING
-        VALUE(rv_used) TYPE menge_d.
-
 ENDCLASS.
 
 
 CLASS zcl_alloc_transport IMPLEMENTATION.
 
-  METHOD bump.
-    DATA ls_rem TYPE ty_rem.
-
-    rt_rem = it_rem.
-
-    READ TABLE rt_rem INTO ls_rem WITH KEY node_id = iv_node.
-    IF sy-subrc = 0.
-      ls_rem-qty = ls_rem-qty + iv_qty.
-      DELETE rt_rem WHERE node_id = iv_node.
-      APPEND ls_rem TO rt_rem.
-      RETURN.
-    ENDIF.
-
-    ls_rem-node_id = iv_node.
-    ls_rem-qty = iv_qty.
-    APPEND ls_rem TO rt_rem.
-  ENDMETHOD.
-
-  METHOD used_of.
-    READ TABLE it_rem INTO DATA(ls_rem) WITH KEY node_id = iv_node.
-    IF sy-subrc = 0.
-      rv_used = ls_rem-qty.
-    ENDIF.
-  ENDMETHOD.
-
   METHOD solve.
+    DATA lo_sup_used    TYPE REF TO zcl_alloc_key_map.
+    DATA lo_dem_used    TYPE REF TO zcl_alloc_key_map.
     DATA lt_lanes       TYPE ty_lane_tt.
-    DATA lt_supply_used TYPE ty_rem_tt.
-    DATA lt_demand_used TYPE ty_rem_tt.
     DATA ls_shipment    TYPE ty_shipment.
     DATA lv_free_from   TYPE menge_d.
     DATA lv_free_to     TYPE menge_d.
@@ -118,6 +71,12 @@ CLASS zcl_alloc_transport IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " The used quantity per node only ever grows, so a scale-safe map keeps the
+    " running total in constant time per lane instead of scanning the whole
+    " usage table once per lane.
+    lo_sup_used = NEW zcl_alloc_key_map( ).
+    lo_dem_used = NEW zcl_alloc_key_map( ).
+
     lt_lanes = it_lanes.
     SORT lt_lanes BY unit_cost ASCENDING.
 
@@ -134,12 +93,10 @@ CLASS zcl_alloc_transport IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      lv_used = used_of( it_rem  = lt_supply_used
-                         iv_node = ls_lane-from_node ).
+      lv_used = lo_sup_used->get( iv_key = ls_lane-from_node ).
       lv_free_from = ls_supply-supply - lv_used.
 
-      lv_used = used_of( it_rem  = lt_demand_used
-                         iv_node = ls_lane-to_node ).
+      lv_used = lo_dem_used->get( iv_key = ls_lane-to_node ).
       lv_free_to = ls_demand-demand - lv_used.
 
       IF lv_free_from <= 0 OR lv_free_to <= 0.
@@ -162,12 +119,10 @@ CLASS zcl_alloc_transport IMPLEMENTATION.
       rs_result-total_cost = rs_result-total_cost + ls_shipment-cost.
       lv_total_ship = lv_total_ship + lv_take.
 
-      lt_supply_used = bump( it_rem  = lt_supply_used
-                             iv_node = ls_lane-from_node
-                             iv_qty  = lv_take ).
-      lt_demand_used = bump( it_rem  = lt_demand_used
-                             iv_node = ls_lane-to_node
-                             iv_qty  = lv_take ).
+      lo_sup_used->add( iv_key   = ls_lane-from_node
+                        iv_delta = lv_take ).
+      lo_dem_used->add( iv_key   = ls_lane-to_node
+                        iv_delta = lv_take ).
     ENDLOOP.
 
     LOOP AT it_demand INTO DATA(ls_total).

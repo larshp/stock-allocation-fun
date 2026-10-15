@@ -103,10 +103,9 @@ CLASS zcl_alloc_rollout IMPLEMENTATION.
       ls_wave-users = ls_wave-users + ls_site-users.
       ls_wave-sites = ls_wave-sites + 1.
 
-      " The wave being updated is always the last one, so replacing it keeps
-      " the wave numbers in order.
-      DELETE rt_waves WHERE wave_no = ls_wave-wave_no.
-      APPEND ls_wave TO rt_waves.
+      " The wave being updated is always the last one, so updating it in place
+      " keeps the wave numbers in order without scanning the table.
+      MODIFY rt_waves INDEX lines( rt_waves ) FROM ls_wave.
     ENDLOOP.
   ENDMETHOD.
 

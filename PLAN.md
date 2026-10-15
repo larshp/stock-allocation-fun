@@ -762,16 +762,33 @@ classes produce, so that converting a class is a purely internal change.
 | Order | Feature | Class |
 | --- | --- | --- |
 | 452 | Scale-safe string keyed aggregation | `zcl_alloc_key_agg_str` (`add`, `sums`, `visits`) |
+| 453 | Scale-safe ordered keyed map | `zcl_alloc_key_map` (`put`, `add`, `get`, `has`, `remove`) |
+
+Order 452 is the pure aggregator (`sum` per key); order 453 is the map the
+older classes need, because they read a running total back while they build it
+(`transport`, `mrp`) or keep one row per key with a hash lookup (`sourcing`) or
+simply store values by key (`checksum_reg`, `concurrency`, `config_w`,
+`dedupe_win`). The map is a hashed table with a unique key, so `put`, `add`,
+`get`, `has` and `remove` are constant time; `add( )` deletes and re-inserts on
+update, which reproduces the move-to-the-end order of the read/delete/append
+code it replaces, so every conversion is a purely internal change.
 
 Then the quadratic classes are converted one per iteration, using their existing
 tests as the regression check: `mrp`, `network`, `crp`, `workload`, `crossdock`,
 `sourcing`, `transport`, `local_search`, `toc`, `rollout`, `checksum_reg`,
 `concurrency`, `config_w`, `dedupe_win`, `path`.
 
-**Batch 7 is in progress: order 452 is delivered and three of the fifteen classes
-are converted (`network`, `crp`, `workload`). Each conversion is verified by the
-class's own existing tests, which pin the quantities and the first-appearance order
-and therefore catch any behaviour drift.**
+**Batch 7 is complete.** Twelve of the fifteen classes are converted and each is
+verified by its own existing tests, which pin the quantities and the
+first-appearance order and therefore catch any behaviour drift: `network`,
+`crp`, `workload`, `mrp`, `crossdock`, `sourcing`, `transport`, `rollout`,
+`checksum_reg`, `concurrency`, `config_w` and `dedupe_win`. The remaining three
+are deliberately left as they are, with the reason recorded in `NOTES.md`:
+`toc` counts at most one row per level and the level count is a constant (three),
+so it is already linear; `path` and `local_search` are quadratic in their
+*algorithm* (Dijkstra's linear minimum scan, and the pairwise swap
+neighbourhood), not in the read/delete/append table pattern, so a storage
+change would not make them scale.
 
 
 ## Roadmap

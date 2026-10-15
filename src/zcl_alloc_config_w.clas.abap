@@ -37,7 +37,11 @@ CLASS zcl_alloc_config_w DEFINITION
         VALUE(rv_count) TYPE i.
 
   PRIVATE SECTION.
-    DATA mt_entries TYPE ty_entry_tt.
+    " Configuration keys are looked up and written by key, so a hashed store
+    " keeps put/get/remove constant time instead of scanning the entries.
+    TYPES ty_store_tt TYPE HASHED TABLE OF ty_entry WITH UNIQUE KEY key.
+
+    DATA mt_entries TYPE ty_store_tt.
 
 ENDCLASS.
 
@@ -45,12 +49,13 @@ ENDCLASS.
 CLASS zcl_alloc_config_w IMPLEMENTATION.
 
   METHOD put.
-    READ TABLE mt_entries ASSIGNING FIELD-SYMBOL(<ls_entry>) WITH KEY key = iv_key.
+    READ TABLE mt_entries ASSIGNING FIELD-SYMBOL(<ls_entry>)
+      WITH KEY key = iv_key.
 
     IF sy-subrc = 0.
       <ls_entry>-value = iv_value.
     ELSE.
-      APPEND VALUE #( key = iv_key value = iv_value ) TO mt_entries.
+      INSERT VALUE #( key = iv_key value = iv_value ) INTO TABLE mt_entries.
     ENDIF.
   ENDMETHOD.
 
@@ -65,7 +70,11 @@ CLASS zcl_alloc_config_w IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD remove.
-    DELETE mt_entries WHERE key = iv_key.
+    READ TABLE mt_entries ASSIGNING FIELD-SYMBOL(<ls_entry>)
+      WITH KEY key = iv_key.
+    IF sy-subrc = 0.
+      DELETE TABLE mt_entries FROM <ls_entry>.
+    ENDIF.
   ENDMETHOD.
 
   METHOD entries.

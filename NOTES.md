@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-505 are delivered; batch 7 and everything before it remain complete.**
+454-515 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1529,6 +1529,45 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      groups delivery lines into one shipment per destination, counting the lines
      and summing the quantity. A hashed working table makes it one lookup per line
      and the shipments keep first-seen destination order.
+506. **Transport unit builder** - `zcl_alloc_tu_build=>build( )` packs items into
+     transport units with first-fit decreasing: heaviest first, opened in the first
+     unit that still has room. An item heavier than one unit is skipped instead of
+     overflowing it, and a non-positive capacity yields no units.
+507. **Route stop sequence** - `zcl_alloc_stop_seq=>sequence( )` orders the stops by
+     nearest neighbour from a start point, walking the remaining list and always
+     taking the closest one. The distance is Manhattan and is written with an `IF`
+     instead of `ABS`, so the arithmetic is identical on every runtime.
+508. **Delivery window check** - `zcl_alloc_delivery_win=>check( )` classifies an
+     arrival as IN, EARLY or LATE against an inclusive window and reports the
+     positive distance to the nearest edge. A window whose end is before its start
+     is rejected with an empty status.
+509. **Freight cost per unit** - `zcl_alloc_freight_rate` works in whole cents:
+     `per_unit( )` divides (always down), `total( )` is a base plus a per-unit rate
+     and `surcharge( )` applies a percentage. Negative input yields zero rather
+     than a negative cost.
+510. **Freight cost comparison** - `zcl_alloc_freight_cmp` reports the cheapest
+     carrier (`cheapest( )`, first one wins a tie), its `cheapest_cost( )` and the
+     `savings( )` between the cheapest and most expensive quote. Negative quotes are
+     ignored, so a credit note cannot become the "cheapest" carrier.
+511. **Inspection lot model** - `zcl_alloc_inspect_lot` holds a lot size and folds
+     in samples: `inspected( )`, `defects( )` and `remaining( )`, which floors at
+     zero when more has been inspected than the lot declares. Non-positive inputs
+     are ignored so a sample cannot shrink the counters.
+512. **Sample size** - `zcl_alloc_sample_size=>sample_size( )` picks the rule with
+     the highest lower bound the lot still reaches, so the rule table does not have
+     to be sorted and overlapping rules resolve predictably. `covers_lot( )` reuses
+     it to say whether any rule applies.
+513. **Accept / reject decision** - `zcl_alloc_accept_decision=>decide( )` implements
+     attribute sampling: ACCEPT at or below the accept number, REJECT at or above
+     the reject number, CONTINUE in between. A reject number that does not exceed
+     the accept number is rejected as an invalid plan.
+514. **Usage decision** - `zcl_alloc_usage_decision` maps a whole-percent defect
+     rate to a code (A unrestricted, B restricted, C rework, D reject) and reports
+     whether a code still counts as accepted (`is_accepted( )`, A or B).
+515. **Quality score** - `zcl_alloc_quality_score=>score( )` is a weighted average
+     over the criteria, ignoring rows with a non-positive weight or a score outside
+     0-100 so a malformed row cannot pull the result out of range, and `grade( )`
+     maps the score to A / B / C / D.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

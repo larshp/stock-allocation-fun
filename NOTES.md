@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-893 are delivered; batch 11 and everything before it are complete.**
+orders 854-903 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1403,6 +1403,26 @@ orders 854-893 are delivered; batch 11 and everything before it are complete.**
      `reason( )` gives the reason and `count_of( )` counts the exceptions.
 893. **ABC summary** - `zcl_alloc_abc_summary=>build( )` counts the activities and totals their cost,
      `total_cost( )` sums them and `line_count( )` counts them.
+894. **Absorption rate** - `zcl_alloc_absorb_rate=>rate( )` spreads the overhead over the base,
+     `overhead( )` puts the rate back on a base and `is_zero( )` tests a nil rate.
+895. **Absorbed overhead** - `zcl_alloc_absorb_amount=>absorbed( )` puts the rate on the actual
+     base, `variance( )` gives the difference to the actual and `is_over( )` tests it.
+896. **Under-absorption** - `zcl_alloc_absorb_under=>is_under( )` tests the shortfall, `gap( )`
+     gives it and `percent( )` reads it against the actual cost.
+897. **Over-absorption** - `zcl_alloc_absorb_over=>is_over( )` tests the excess, `gap( )` gives it
+     and `percent( )` reads it against the actual cost.
+898. **Absorption settlement** - `zcl_alloc_absorb_settle=>settle( )` closes the smaller amount,
+     `residual( )` gives what is left open and `is_settled( )` tests it.
+899. **Absorption proration** - `zcl_alloc_absorb_prorate=>prorate( )` spreads an amount over the
+     bases, `share( )` gives one base's part and `total( )` sums the bases.
+900. **Absorption pool** - `zcl_alloc_absorb_pool=>pool_total( )` sums the pool, `absorbed( )` takes
+     the absorbed part and `unabsorbed( )` what is left.
+901. **Absorption comparison** - `zcl_alloc_absorb_compare=>compare( )` names the smaller amount,
+     `closer( )` gives the distance to a target and `delta( )` the difference.
+902. **Absorption health** - `zcl_alloc_absorb_health=>is_healthy( )` tests the gap against a
+     tolerance, `issue_count( )` counts the mismatches and `score( )` grades the absorption.
+903. **Absorption summary** - `zcl_alloc_absorb_summary=>build( )` counts the lines and totals them,
+     `total( )` sums them and `line_count( )` counts them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3339,7 +3359,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-893 are delivered.
+tranches of ten. Orders 854-903 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

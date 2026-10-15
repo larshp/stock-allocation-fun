@@ -1320,8 +1320,8 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-545 are delivered; batch 7 and everything before it remain complete.**
+**Batch 8 (warehouse execution, packaging and quality) is complete: orders
+454-553 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1685,6 +1685,35 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      its own line; `join( )` puts the lines back together with a separator. The
      wrapped string is walked one character at a time, so no `SPLIT` statement is
      involved.
+546. **SSCC builder** - `zcl_alloc_sscc` builds an 18-digit serial shipping container
+     code: `build( )` left pads the serial reference with the GTIN builder's rule
+     and appends the EAN/GTIN mod-10 check digit, and `body( )` and `is_valid( )`
+     expose the digits without the check digit and the validity of a full code.
+547. **SSCC check** - `zcl_alloc_sscc_check` verifies a code in three steps:
+     `is_digit_string( )` walks the characters ordinally, `has_length( )` pins the
+     length, and `check_digit_ok( )` reuses `zcl_alloc_ean_check`. `is_valid( )`
+     only returns true when all three hold.
+548. **QR payload builder** - `zcl_alloc_qr_payload=>build( )` turns key/value fields
+     into `KEY=VALUE` pairs joined by the caller's separator, skipping a field with
+     no key; `count( )` counts the usable fields.
+549. **Dock-to-stock time** - `zcl_alloc_dock_to_stock` measures the minutes from
+     arrival to completion (`elapsed_minutes( )`, floored at zero for a bad
+     timestamp), flags a target (`is_on_target( )`) and grades it ON_TARGET, SLOW or
+     LATE (`classify( )`).
+550. **Putaway cycle time** - `zcl_alloc_putaway_time=>total_minutes( )` adds a
+     once-per-trip travel time to the per-task time, `per_task( )` divides it back
+     out, and `is_within( )` compares a time against a target.
+551. **Pick rate** - `zcl_alloc_pick_rate` reports lines per hour and lines per minute
+     from a line count and a duration, and inverts the rate with `minutes_for( )` to
+     plan how long a workload takes.
+552. **Lines per hour** - `zcl_alloc_lph` computes the day-level KPI from a list of
+     picks: `total_lines( )` and `total_minutes( )` sum the spans (a reversed span
+     contributes nothing), `lines_per_hour( )` divides them, and
+     `achievement_percent( )` states the result against a target.
+553. **Warehouse KPI card** - `zcl_alloc_wh_kpi=>build( )` turns a list of named
+     higher-is-better KPIs into a card with the achievement percentage and an
+     on-target flag per row (a zero target means no target), and
+     `on_target_count( )` summarises the card.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

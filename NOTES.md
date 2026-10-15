@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-472 are delivered; batch 7 and everything before it remain complete.**
+454-480 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1407,6 +1407,27 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 472. **Bin occupancy** - `zcl_alloc_bin_occupancy=>analyse( )` turns a list of bins
      into occupied/empty counts, total used, total capacity and the average
      utilisation.
+473. **Putaway: fixed bin** - `zcl_alloc_putaway_fixed=>assign( )` returns the bin a
+     material is fixed to, or an empty id if there is no fixed bin. It is the
+     fastest strategy to test because it has no capacity arithmetic.
+474. **Putaway: next empty bin** - `zcl_alloc_putaway_empty=>next_empty( )` returns
+     the first bin in the list whose used quantity is not positive.
+475. **Putaway: nearest pick bin** - `zcl_alloc_putaway_near=>nearest( )` returns
+     the nearest bin with enough free space, so a bin that is close but too full is
+     passed over for one that is further but fits.
+476. **Putaway: open storage** - `zcl_alloc_putaway_open=>largest_free( )` returns
+     the bin with the most room, spreading the goods; full bins are never chosen.
+477. **Putaway: bulk storage** - `zcl_alloc_putaway_bulk=>pick( )` consolidates: a
+     bin that already holds the material is filled first, and only when there is
+     none does the first free empty bin get the goods.
+478. **Removal: closest bin** - `zcl_alloc_remove_closest=>closest( )` removes from
+     the nearest bin that actually has stock.
+479. **Removal: largest bin** - `zcl_alloc_remove_largest=>largest( )` removes from
+     the bin with the most stock, which clears bins fastest.
+480. **Removal: smallest sufficient bin** -
+     `zcl_alloc_remove_smallest=>smallest_sufficient( )` removes from the smallest
+     bin that still covers the requirement, leaving the large bins intact for
+     large orders.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

@@ -490,5 +490,18 @@ Each entry notes the symptom, the cause and the workaround used.
   `first_seen_order` already did. Both test methods in the class now use the
   counter. The class under test is unaffected - only the test's position lookup.
 
+## A33 - A stray semicolon after `ENDIF` passes abaplint but fails the transpiler
+
+* Symptom: `npm run lint`/`npx abaplint` reported `0 issue(s) found` while
+  `npm run build` failed with
+  `parser_error, Statement does not exist in the configured ABAP version ... "ENDIF;"`
+  and a follow-up `structure, Expected ENDMETHOD`.
+* Cause: a `CONTINUE;`-style typo left a semicolon on the `ENDIF` line
+  (`ENDIF;`). abaplint's `check_syntax` rule accepts it, but the transpiler's
+  parser rejects the trailing `;`. The two parsers disagree, so a clean lint is
+  not proof that the code transpiles.
+* Workaround: run `npm run build` (not just `npm run lint`) before trusting a
+  change, and drop the stray semicolon (`ENDIF` takes no `;`).
+
 
 

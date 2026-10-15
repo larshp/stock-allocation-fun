@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-535 are delivered; batch 7 and everything before it remain complete.**
+454-545 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1645,6 +1645,46 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      bins where book and physical stock differ, with the signed difference;
      `is_consistent( )` and `total_difference( )` give the summary. The total nets
      out, so the mismatch list is what shows an overage hiding a shortage.
+536. **Stock transfer order proposal** - `zcl_alloc_sto_proposal=>propose( )` turns
+     a list of locations with a stock level and a min/max band into transfer
+     proposals: anything above the maximum is a surplus, anything below the minimum
+     is a deficit, and shortfalls are filled from the surplus locations in order,
+     splitting one surplus across several deficits.
+537. **Goods receipt check** - `zcl_alloc_gr_check=>check( )` compares ordered and
+     delivered quantity and labels the difference OK, OVER or UNDER, and
+     `received_percent( )` states the delivery as a percentage of the order.
+538. **Delivery tolerance check** - `zcl_alloc_tolerance_check` accepts an
+     under/over delivery only inside its own percentage band:
+     `deviation_percent( )` is signed (and rounds towards zero) and
+     `within_tolerance( )` picks the under or the over limit by the sign. An
+     ordered quantity of zero, or a negative limit, is never accepted.
+539. **Delivery note builder** - `zcl_alloc_delivery_note=>build( )` renders a header
+     (delivery number, customer) and one line per item. Every value goes through a
+     string template, so the quantity is formatted rather than kept as a number
+     (ANOMALIES.md A31).
+540. **Packing slip lines** - `zcl_alloc_pack_slip=>build( )` turns ordered and
+     picked quantities into a slip line with the backorder and a status (FULL,
+     PARTIAL, NONE). Over-picking is clamped to a zero backorder and counts as
+     FULL.
+541. **EAN / GTIN check digit** - `zcl_alloc_ean_check` computes the mod-10 check
+     digit with the 3/1 weighting from the right (`check_digit( )`), validates a
+     full code (`is_valid( )`) and appends the digit to a body (`complete( )`). A
+     short or empty code is handled without running past the end of the string.
+542. **GTIN builder** - `zcl_alloc_gtin_build` left pads a numeric body with zeros to
+     the length one short of the GTIN (`pad_body( )`) and then appends the EAN-13
+     check digit via `zcl_alloc_ean_check`, so a short body still yields a valid
+     code.
+543. **Code 128 checksum** - `zcl_alloc_code128_check=>checksum( )` folds the start
+     symbol plus every symbol weighted by its 1-based position modulo 103, and
+     `is_valid( )` compares the result against an expected symbol.
+544. **Label field mapping** - `zcl_alloc_label_map=>apply( )` projects source
+     fields onto label target names in mapping order, emitting an empty value for a
+     source that is not present so the label layout never shifts.
+545. **Label text lines** - `zcl_alloc_label_text=>wrap( )` word-wraps text to a
+     width, collapsing runs of blanks and keeping a word longer than the width on
+     its own line; `join( )` puts the lines back together with a separator. The
+     wrapped string is walked one character at a time, so no `SPLIT` statement is
+     involved.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

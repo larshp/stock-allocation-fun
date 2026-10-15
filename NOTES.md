@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-873 are delivered; batch 11 and everything before it are complete.**
+orders 854-883 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1363,6 +1363,26 @@ orders 854-873 are delivered; batch 11 and everything before it are complete.**
      gives the move from first to last and `count( )` counts the rates.
 873. **Activity summary** - `zcl_alloc_act_summary=>build( )` counts the activities and totals their
      cost, `total( )` sums them and `activity_count( )` counts them.
+874. **Allocation base selection** - `zcl_alloc_base_select=>choose( )` picks the bigger base,
+     `is_direct( )` tests for a traceable one and `reason( )` gives the reason.
+875. **Base weighting** - `zcl_alloc_base_weight=>weight_of( )` gives a base's share, `total( )` sums
+     the weights and `is_zero( )` tests a nil weight.
+876. **Base units** - `zcl_alloc_base_units=>units( )` sums the quantities, `per_unit( )` spreads a
+     cost over them and `total( )` sums the values.
+877. **Base value** - `zcl_alloc_base_value=>value( )` prices a quantity, `total( )` sums the values
+     and `is_zero( )` tests a nil value.
+878. **Base headcount** - `zcl_alloc_base_heads=>heads( )` sums the headcount, `per_head( )` spreads
+     a cost over it and `total( )` sums the costs.
+879. **Base area** - `zcl_alloc_base_area=>area( )` sums the floor area, `share( )` gives one area's
+     share and `total( )` sums the areas.
+880. **Base machine hours** - `zcl_alloc_base_machine=>hours( )` sums the machine hours, `per_hour( )`
+     spreads a cost over them and `total( )` sums the quantities.
+881. **Base mix** - `zcl_alloc_base_mix=>mix( )` totals the quantities, `is_mixed( )` tests for
+     unequal lines and `largest( )` gives the biggest.
+882. **Base comparison** - `zcl_alloc_base_compare=>compare( )` names the smaller base, `closer( )`
+     gives the distance to a target and `delta( )` the difference.
+883. **Base summary** - `zcl_alloc_base_summary=>build( )` counts the bases and totals them,
+     `total( )` sums them and `base_count( )` counts them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3299,7 +3319,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-873 are delivered.
+tranches of ten. Orders 854-883 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

@@ -471,5 +471,24 @@ Each entry notes the symptom, the cause and the workaround used.
   character literal, as `zcl_alloc_toc=>digit_of` does for chapter numbers. The
   same applies to a formatted date or quantity that is meant to be compared.
 
+## A32 - `sy-tabix` is not filled while looping over a hashed table
+
+* Symptom: after refreshing the dependencies (`@abaplint/runtime` 2.13.86 ->
+  2.14.7), `ltcl_alloc_key_map->update_moves_to_end` failed with
+  `Expected 'A', got 'B'`. The test looped over a hashed table
+  (`zcl_alloc_key_map=>ty_entry_tt`) and branched on `sy-tabix = 1`. It walked
+  into the *else* branch on the first row, because `sy-tabix` still held the value
+  it had at the end of the previous test method (`first_seen_order` also looped and
+  left it at 2).
+* Cause: in ABAP `sy-tabix` is only set by `LOOP AT` over an *index* table. For a
+  hashed table (or a sorted table) it is left unchanged, so it holds whatever the
+  last index-table loop left behind. The older runtime happened to set it for all
+  loops; the current one matches the documented SAP behaviour. abaplint does not
+  flag the use, so the failure only shows up as a wrong branch at runtime.
+* Workaround: do not use `sy-tabix` over a hashed/sorted table. Count the row
+  position in a local `i` variable (increment it once per loop iteration), as
+  `first_seen_order` already did. Both test methods in the class now use the
+  counter. The class under test is unaffected - only the test's position lookup.
+
 
 

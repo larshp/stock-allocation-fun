@@ -158,6 +158,7 @@ CLASS ltcl_alloc_key_map IMPLEMENTATION.
 
   METHOD update_moves_to_end.
     DATA lt_entries TYPE zcl_alloc_key_map=>ty_entry_tt.
+    DATA lv_index   TYPE i.
 
     " add( ) is the companion of the read/delete/append bump, so re-adding a key
     " moves it to the end, exactly like the code it replaces.
@@ -169,8 +170,11 @@ CLASS ltcl_alloc_key_map IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( act = lines( lt_entries ) exp = 2 ).
 
+    " sy-tabix is not filled while looping over a hashed table, so the position is
+    " counted here instead.
     LOOP AT lt_entries INTO DATA(ls_entry).
-      IF sy-tabix = 1.
+      lv_index = lv_index + 1.
+      IF lv_index = 1.
         cl_abap_unit_assert=>assert_equals(
           act = ls_entry-entry_key exp = 'B' ).
       ELSE.

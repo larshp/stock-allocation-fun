@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-486 are delivered; batch 7 and everything before it remain complete.**
+454-495 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1453,6 +1453,44 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      classic strategy: out to one stop and back to the start each time, so every
      stop costs twice its distance and the total does not depend on the stop
      order. The test proves that order independence.
+487. **Aisle utilisation** - `zcl_alloc_aisle_util=>analyse( )` rolls a list of bins
+     up per aisle, summing used and capacity and computing the utilisation. The
+     rolling sum runs against a hashed working table keyed by aisle, so it is one
+     lookup per bin instead of a rescan of the aisle list.
+488. **Warehouse area model** - `zcl_alloc_area_model` is a stateful accumulator for
+     one area: `add_bin( )` folds in a bin's capacity and used quantity, and
+     `total_capacity( )`, `total_used( )`, `free_space( )` and `bin_count( )` read
+     it back. `free_space( )` floors at zero, so an overfilled area never reports a
+     negative headroom. The method is not named `free` because `FREE` is a
+     built-in statement keyword.
+489. **Area capacity check** - `zcl_alloc_area_capacity` answers "may this quantity
+     be added": `can_add( )` (an exact fit still fits), `remaining_after( )` and
+     `would_overflow( )` (the excess, zero when it fits). A non-positive capacity
+     or addition is refused instead of guessed.
+490. **Storage type assignment** - `zcl_alloc_storage_type=>assign( )` returns the
+     storage type of the first rule whose material group matches, which lets a
+     specific group be placed before a catch-all. `has_rule( )` reuses `assign( )`,
+     so the two can never disagree.
+491. **Bin decomposition** - `zcl_alloc_bin_decompose` splits a bin identifier into
+     its segments without any numeric conversion: `split( )` walks the string one
+     character at a time (empty segments are dropped), `decompose( )` maps the first
+     four to block/aisle/rack/level and `part_count( )` counts them. The methods are
+     `CLASS-METHODS` because other classes call them statically.
+492. **Bin id formatting** - `zcl_alloc_bin_id=>build( )` joins segments with `-`,
+     skipping empty ones, `normalize( )` rebuilds an identifier through
+     `zcl_alloc_bin_decompose=>split( )` and `is_empty( )` reports one that has no
+     usable segment.
+493. **Bin id parsing** - `zcl_alloc_bin_id_parse=>parse( )` returns both the
+     segments and whether the identifier matched an expected segment count, and
+     `is_valid( )` / `segment_count( )` expose the two halves on their own. An
+     expected count of zero or less is never valid.
+494. **Capacity unit conversion** - `zcl_alloc_cap_convert` converts a quantity in a
+     named unit to and from base pieces with a per-unit factor: `to_base( )`
+     multiplies, `to_uom( )` divides (a partial unit is dropped, integer
+     arithmetic) and an unknown unit converts 1:1 rather than failing.
+495. **Space utilisation** - `zcl_alloc_space_util` reports how full a space is:
+     `percent( )` (zero for an empty or unmeasured space), `above_threshold( )` and
+     `classify( )`, which buckets the fill into EMPTY / LOW / OK / HIGH / FULL.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

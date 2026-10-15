@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-903 are delivered; batch 11 and everything before it are complete.**
+orders 854-913 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1423,6 +1423,26 @@ orders 854-903 are delivered; batch 11 and everything before it are complete.**
      tolerance, `issue_count( )` counts the mismatches and `score( )` grades the absorption.
 903. **Absorption summary** - `zcl_alloc_absorb_summary=>build( )` counts the lines and totals them,
      `total( )` sums them and `line_count( )` counts them.
+904. **Cost pool build** - `zcl_alloc_cpool_build=>build( )` gathers the lines into their pools,
+     `pool_count( )` counts the pools and `total( )` sums the cost.
+905. **Cost pool split** - `zcl_alloc_cpool_split=>split( )` spreads a pool evenly over its parts,
+     `share_of( )` gives one part's share and `per_unit( )` the rate per unit.
+906. **Cost pool merge** - `zcl_alloc_cpool_merge=>merge( )` merges the pool lines into one total
+     each, `group_count( )` counts them and `largest( )` gives the biggest.
+907. **Cost pool rate** - `zcl_alloc_cpool_rate=>rate( )` spreads the pool over the driver quantity,
+     `applied( )` puts the rate back on a quantity and `is_zero( )` tests a nil rate.
+908. **Cost pool assignment** - `zcl_alloc_cpool_assign=>assign( )` gathers the objects in a pool,
+     `is_assigned( )` tests an object and `count( )` counts a pool's objects.
+909. **Cost pool residual** - `zcl_alloc_cpool_residual=>residual( )` gives what is unassigned,
+     `is_cleared( )` tests it and `count( )` counts the pools still open.
+910. **Cost pool ranking** - `zcl_alloc_cpool_rank=>rank( )` orders the pools by cost, `largest( )`
+     gives the biggest and `smallest( )` the least.
+911. **Cost pool variance** - `zcl_alloc_cpool_var=>variance( )` gives the actual against the plan,
+     `is_over( )` tests it and `percent( )` reads it against the plan.
+912. **Cost pool coverage** - `zcl_alloc_cpool_cover=>coverage_percent( )` relates the assigned part
+     to the pool, `is_covered( )` tests it and `shortfall( )` gives what is missing.
+913. **Cost pool summary** - `zcl_alloc_cpool_summary=>build( )` counts the pools and totals their
+     cost, `pool_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3359,7 +3379,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-903 are delivered.
+tranches of ten. Orders 854-913 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

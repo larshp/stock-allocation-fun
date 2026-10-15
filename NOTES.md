@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-673 are delivered; batch 9 and everything before it remain complete.**
+orders 654-683 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1383,6 +1383,36 @@ orders 654-673 are delivered; batch 9 and everything before it remain complete.*
 673. **Replenishment trigger summary** - `zcl_alloc_replenish_trigger=>build( )` returns
      the trigger count and total quantity of the positive needs, `trigger_count( )` and
      `total_quantity( )` give them separately.
+674. **Economic order quantity calculation** - `zcl_alloc_eoq_calc=>eoq( )` grows the
+     integer root of the classic lot-size formula, `is_valid( )` tests the result and
+     `order_count( )` spreads the demand over the order quantity.
+675. **Ordering cost per year** - `zcl_alloc_order_cost=>annual_cost( )` multiplies the
+     order count by the cost of one order, `per_order( )` spreads a total over the orders
+     and `order_count( )` gives the orders a year.
+676. **Holding cost per year** - `zcl_alloc_holding_cost=>annual_cost( )` multiplies the
+     average stock by the unit cost, `per_unit( )` spreads a total over the stock and
+     `average_stock( )` takes half the order quantity.
+677. **Total replenishment cost** - `zcl_alloc_replenish_cost=>total( )` adds the ordering
+     and holding parts, `ordering_share( )` and `holding_share( )` give each as a
+     percentage of the total.
+678. **Quantity discount choice** - `zcl_alloc_qty_discount=>best_tier( )` picks the
+     largest breakpoint the order reaches, `cost_at( )` prices the order on that tier and
+     `is_cheaper( )` compares two order quantities.
+679. **Order rounding** - `zcl_alloc_order_round` raises (`round_up`) or lowers
+     (`round_down`) a quantity to a rounding step and says whether it already sits on one
+     (`is_exact`).
+680. **Order multiple alignment** - `zcl_alloc_order_multiple=>align( )` raises a quantity
+     to the next whole multiple, `remainder( )` gives what is left over and `is_aligned( )`
+     says whether it is already aligned.
+681. **Pallet rounding** - `zcl_alloc_pallet_round=>pallets( )` spreads a quantity over
+     whole pallets, `remainder( )` gives the part pallet and `is_full( )` says whether the
+     last pallet is full.
+682. **Transportation lot size** - `zcl_alloc_truck_lot=>lots( )` fills whole transport
+     lots, `fill_percent( )` relates the quantity to their capacity and `is_efficient( )`
+     tests the fill against a threshold.
+683. **Order cost comparison** - `zcl_alloc_cost_compare=>cheaper( )` compares two costs,
+     `difference( )` gives the gap (measured without `ABS`) and `best_option( )` names the
+     cheaper one.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

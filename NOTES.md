@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-823 are delivered; batch 10 and everything before it are complete.**
+orders 754-833 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1485,6 +1485,28 @@ orders 754-823 are delivered; batch 10 and everything before it are complete.**
      `gap( )` gives the shortfall and `clamp( )` holds it up at the limit.
 823. **Margin summary** - `zcl_alloc_margin_summary=>build( )` counts the lines and totals their
      margin, `total_margin( )` nets it and `line_count( )` counts the lines.
+824. **Transfer price** - `zcl_alloc_transfer_price=>price( )` builds a price from cost and a mark-up,
+     `from_cost( )` strips the mark-up back out and `is_at_cost( )` tests a nil mark-up.
+825. **Intercompany margin** - `zcl_alloc_interco_margin=>margin( )` gives the margin between transfer
+     price and cost, `is_eliminated( )` tests whether it stays inside the group and `percent( )`
+     relates it to the price.
+826. **Intercompany elimination** - `zcl_alloc_interco_elim=>eliminate( )` sums the margins still
+     inside the group, `residual( )` the ones already sold on and `is_cleared( )` tests for nothing
+     left.
+827. **Transfer price variance** - `zcl_alloc_transfer_var=>variance( )` sets the transfer price
+     against the market, `is_over( )` tests its direction and `percent( )` relates it to the market.
+828. **Intercompany rate** - `zcl_alloc_interco_rate=>rate( )` reads the mark-up off a transfer price,
+     `applied( )` puts it back on a cost and `is_reasonable( )` tests it against a band.
+829. **Arm's length test** - `zcl_alloc_interco_arms=>is_arms_length( )` tests a price against the
+     market within a tolerance, `gap( )` gives the distance and `direction( )` names the side.
+830. **Intercompany profit split** - `zcl_alloc_interco_split=>split( )` gives the seller's share,
+     `seller_share( )` derives it from the buyer's part and `buyer_share( )` from the seller's rate.
+831. **Intercompany price build** - `zcl_alloc_interco_price=>build( )` counts the components and
+     totals the price, `total( )` sums it and `is_positive( )` tests that it adds up.
+832. **Transfer price audit** - `zcl_alloc_transfer_audit=>audit( )` lists the lines outside the
+     tolerated band, `violation_count( )` counts them and `worst( )` gives the largest gap.
+833. **Intercompany summary** - `zcl_alloc_interco_summary=>build( )` counts the distinct entities and
+     totals the amounts, `total( )` sums them and `entity_count( )` counts the entities.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3192,7 +3214,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-823 are delivered.
+tranches of ten. Orders 754-833 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,
